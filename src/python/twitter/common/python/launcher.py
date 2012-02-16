@@ -27,6 +27,15 @@ from twitter.common.python.eggcache import EggCache
 from twitter.common.collections import OrderedSet
 from twitter.common.contextutil import pushd, environment_as
 
+def start_coverage():
+  try:
+    import coverage
+    cov = coverage.coverage(auto_data=True, data_suffix=True,
+      data_file='.coverage.%s' % os.environ['PEX_COVERAGE'])
+    cov.start()
+  except ImportError:
+    sys.stderr.write('Could not bootstrap coverage module!\n')
+
 class PythonLauncher(object):
   """
     An execution wrapper around a serialized PythonEnvironment.
@@ -57,6 +66,8 @@ class PythonLauncher(object):
       Return the module spec of the entry point of this PythonEnvironment.  None if
       there is no binary for this environment.
     """
+    if os.environ.has_key('PEX_MODULE'):
+      return os.environ['PEX_MODULE']
     entry_point = self._manifest.get('entry', None)
     if entry_point:
       return str(entry_point)
@@ -80,6 +91,8 @@ class PythonLauncher(object):
       sys.path.extend(self.path())
     else:
       sys.path = self.path()
+    if os.environ.has_key('PEX_COVERAGE'):
+      start_coverage()
     PythonLauncher.debug('Initialized sys.path to %s' % ':'.join(sys.path))
     force_interpreter = os.environ.has_key('PEX_INTERPRETER')
     if entry_point and not force_interpreter:
@@ -88,8 +101,11 @@ class PythonLauncher(object):
     else:
       PythonLauncher.debug('%s, dropping into interpreter' % (
         'PEX_INTERPRETER specified' if force_interpreter else 'No entry point specified.'))
-      import code
-      code.interact()
+      if sys.argv[1:]:
+        self.run(args=sys.argv[1:])
+      else:
+        import code
+        code.interact()
     sys.path = saved_sys_path
 
   @staticmethod
