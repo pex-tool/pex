@@ -40,14 +40,15 @@ class PythonEnvironment(object):
   class InvalidExecutableSpecification(Exception): pass
   DEPENDENCY_DIR = ".deps"
   MAIN = """
+from __future__ import print_function
 import os
 import sys
 from twitter.common.python import PythonLauncher
 
 __entry_point__ = None
-if locals().has_key('__file__') and __file__ is not None:
+if '__file__' in locals() and __file__ is not None:
   __entry_point__ = os.path.dirname(__file__)
-elif locals().has_key('__loader__'):
+elif '__loader__' in locals():
   from zipimport import zipimporter
   from pkgutil import ImpLoader
   if isinstance(__loader__, zipimporter):
@@ -58,7 +59,7 @@ elif locals().has_key('__loader__'):
 if __entry_point__ is not None:
   PythonLauncher(__entry_point__).execute()
 else:
-  print >> sys.stderr, "Could not launch Python executable!"
+  print("Could not launch Python executable!", file=sys.stderr)
   sys.exit(2)
 """
 
@@ -82,9 +83,13 @@ else:
     if not isinstance(dependency, PythonDependency):
       raise PythonEnvironment.InvalidDependency(
         "Input dependency (%s) is not a valid PythonDependency!" % repr(dependency))
-    for fn, content in dependency.files():
-      added_files.add(os.path.join(self.path(), PythonEnvironment.DEPENDENCY_DIR, fn))
-      self._chroot.write(content, os.path.join(PythonEnvironment.DEPENDENCY_DIR, fn), "dependency")
+    for handle in dependency.files():
+      target = os.path.join(PythonEnvironment.DEPENDENCY_DIR, handle.parent(), handle.dest())
+      if handle.source():
+        self._chroot.link(handle.source(), target, "dependency")
+      else:
+        self._chroot.write(handle.content(), target, "dependency")
+      added_files.add(os.path.join(self.path(), target))
     return (os.path.join(self.path(), PythonEnvironment.DEPENDENCY_DIR), added_files)
 
   def add_dependency_file(self, filename, dep_filename):

@@ -17,20 +17,23 @@
 import os
 from twitter.common.dirutil import chmod_plus_x
 from twitter.common.python.environment import PythonEnvironment
+from twitter.common.python.interpreter import PythonIdentity
+from twitter.common.lang import Compatibility
 
 class PexBuilder(object):
-  def __init__(self, environment):
+  def __init__(self, environment, identity=PythonIdentity.get()):
     if not isinstance(environment, PythonEnvironment):
       raise ValueError('Expected environment to be of type PythonEnvironment!  Got %s' % (
         type(environment)))
     self._env = environment
+    self._identity = identity
 
   def write(self, filename):
     chroot = self._env.chroot().dup()
     chroot.zip(filename + '~')
-    with open(filename, "w") as pexfile:
-      pexfile.write('#!/usr/bin/env python2.6\n')
-      with open(filename + '~') as pexfile_zip:
+    with open(filename, "wb") as pexfile:
+      pexfile.write(Compatibility.to_bytes('%s\n' % self._identity.hashbang()))
+      with open(filename + '~', 'rb') as pexfile_zip:
         pexfile.write(pexfile_zip.read())
     chroot.delete()
     os.unlink(filename + '~')

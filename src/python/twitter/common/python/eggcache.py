@@ -34,7 +34,7 @@ class EggCache(object):
       self._cache_path = os.path.join(self._cache_path, EggCache.PATH_FORMAT) % {
         'user': getpass.getuser(),
         'name': self._name,
-        'crc': hashlib.md5(open(self._pex.path()).read()).hexdigest()
+        'crc': hashlib.md5(open(self._pex.path(), 'rb').read()).hexdigest()
       }
     else:
       self._cache_path = self._pex.path()
@@ -68,7 +68,7 @@ class EggCache(object):
       # Hmm...for directories we should probably recursively verify
       if not os.path.isfile(filename):
         return True
-      with open(filename, 'r') as fp:
+      with open(filename, 'rb') as fp:
         file_contents = fp.read()
       return hashlib.md5(file_contents).digest() == hashlib.md5(contents).digest()
 
@@ -82,7 +82,7 @@ class EggCache(object):
           dest = os.path.join(self._cache_path, fn)
           if same(dest, fn_contents):
             continue
-          with safe_open(dest, 'w') as fn_out:
+          with safe_open(dest, 'wb') as fn_out:
             fn_out.write(fn_contents)
 
     if self._pex.is_condensed():

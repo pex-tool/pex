@@ -17,6 +17,30 @@
 import os
 import zipfile
 
+class DirWrapperHandle(object):
+  def __init__(self, parent, source_file, dest_file, read_lambda):
+    self._parent = parent
+    self._source = source_file
+    self._dest = dest_file
+    self._read_lambda = read_lambda
+
+  def parent(self):
+    return self._parent
+
+  def source(self):
+    return self._source
+
+  def dest(self):
+    return self._dest
+
+  def content(self):
+    return self._read_lambda()
+
+  def __str__(self):
+    return 'DirWrapperHandle(parent:%s, source:%s, dest:%s)' % (
+      self._parent, self._source, self._dest)
+
+
 class _ProxyWrapper(object):
   def __init__(self, path):
     self._path = path
@@ -28,10 +52,17 @@ class _ProxyWrapper(object):
     raise NotImplementedError
 
   def read(self, name):
+    return self.reader(name)()
+
+  def reader(self, name):
+    """
+      Return a lambda that can read the item by the name of 'name'.
+    """
     raise NotImplementedError
 
   def is_condensed(self):
     raise NotImplementedError
+
 
 class _ZipWrapper(_ProxyWrapper):
   def __init__(self, path):
@@ -51,8 +82,14 @@ class _ZipWrapper(_ProxyWrapper):
         continue
       yield f
 
-  def read(self, name):
-    return self._zf.read(name)
+  def reader(self, name):
+    def read_data():
+      return self._zf.read(name)
+    return read_data
+
+  def handle(self, name):
+    return DirWrapperHandle(os.path.basename(self._zf.fp.name), None, name, self.reader(name))
+
 
 class _DirWrapper(_ProxyWrapper):
   def __init__(self, path):
@@ -67,9 +104,16 @@ class _DirWrapper(_ProxyWrapper):
       for f in files:
         yield os.path.relpath(os.path.join(dir, f), self._dir)
 
-  def read(self, name):
-    with open(os.path.join(self._dir, name), 'r') as fp:
-      return fp.read()
+  def reader(self, name):
+    def read_data():
+      with open(os.path.join(self._dir, name), 'rb') as fp:
+        return fp.read()
+    return read_data
+
+  def handle(self, name):
+    return DirWrapperHandle(os.path.basename(self._dir), os.path.join(self._dir, name),
+      name, self.reader(name))
+
 
 class PythonDirectoryWrapper:
   """

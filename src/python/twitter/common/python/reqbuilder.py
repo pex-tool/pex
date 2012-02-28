@@ -14,6 +14,8 @@
 # limitations under the License.
 # ==================================================================================================
 
+from __future__ import print_function
+
 import os
 import sys
 import tempfile
@@ -21,26 +23,35 @@ import subprocess
 
 from twitter.common.dirutil import safe_mkdir
 from twitter.common.contextutil import environment_as, temporary_file, mutable_sys
+from twitter.common.python.interpreter import PythonInterpreter
 
 import pkg_resources
 
 class ReqBuilder(object):
   @staticmethod
-  def run_easy_install(arguments):
+  def run_easy_install(pythonpath, arguments, interpreter):
     """
       Run easy_install with the given arguments.
     """
-    with environment_as(PYTHONPATH = ':'.join(sys.path)):
-      with temporary_file() as fp:
-        rc = subprocess.Popen([sys.executable, '-m', 'easy_install'] + arguments,
-          stdout=fp, stderr=fp).wait()
-        if rc != 0:
-          fp.seek(0)
-          print >> sys.stderr, 'Failed to build!  %s' % fp.read()
-        return rc == 0
+    if not isinstance(interpreter, PythonInterpreter):
+      raise ValueError("Expected interpreter to be a PythonInterpreter!")
+    with temporary_file() as fp:
+      cmdline = [interpreter.binary(), '-m', 'easy_install'] + arguments
+      rc = subprocess.Popen(cmdline, env = {'PYTHONPATH': ':'.join(pythonpath)},
+        stdout=fp, stderr=fp).wait()
+      if rc != 0:
+        fp.seek(0)
+        print('Failed to build!', file=sys.stderr)
+        print('Error output\n%s' % fp.read(), file=sys.stderr)
+      return rc == 0
 
   @staticmethod
-  def install_requirement(req, path=None, extra_site_dirs=[]):
+  def install_requirement(req,
+                          path=None,
+                          extra_site_dirs=[],
+                          index='http://pypi.python.org/simple',
+                          repositories=['http://pypi.python.org/simple'],
+                          interpreter=PythonInterpreter.get()):
     """
       Install the requirement "req" to path "path" with extra_site_dirs put
       onto the PYTHONPATH.  Returns the set of newly added Distributions
@@ -53,6 +64,10 @@ class ReqBuilder(object):
       "path" is the into which we install the requirements.  if path is None,
       we'll create one for you.
     """
+
+    # TODO(wickman)  Consider importing the easy_install Command class directly and
+    # manipulating it with initialize/finalize options + run.
+
     if not isinstance(req, pkg_resources.Requirement):
       if not os.path.exists(req):
         try:
@@ -74,13 +89,15 @@ class ReqBuilder(object):
       '--always-copy',
       '--multi-version',
       '--exclude-scripts',
-      str(req) ]
+      '-i', index]
+    for repo in reversed(repositories):
+      easy_install_args.extend(['-f', repo])
+    easy_install_args.append(str(req))
 
     distributions_backup = set(pkg_resources.find_distributions(path))
 
-    with mutable_sys():
-      sys.path = [path] + sys.path
-      rc = ReqBuilder.run_easy_install(easy_install_args)
+    rc = ReqBuilder.run_easy_install([path] + extra_site_dirs + sys.path,
+      easy_install_args, interpreter)
 
     distributions = set(pkg_resources.find_distributions(path))
     new_distributions = distributions - distributions_backup

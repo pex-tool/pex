@@ -17,30 +17,27 @@
 import os
 import types
 import zipfile
+from collections import Sequence
 
-from twitter.common.python.dirwrapper import PythonDirectoryWrapper
+from twitter.common.lang import Compatibility
+from twitter.common.python.dirwrapper import PythonDirectoryWrapper, DirWrapperHandle
+from twitter.common.python.interpreter import PythonInterpreter
 from twitter.common.python.reqbuilder import ReqBuilder
 
 from setuptools.package_index import EXTENSIONS as VALID_SOURCE_EXTENSIONS
 
 """
-TODO(wickman):  I don't like how this is factored right now, though it's an
-improvement over what we used to have.
+  N.B. from pkg_resources.PathMetadata
 
-In the next iteration let's do:
+  # Unpacked egg directories:
+  egg_path = "/path/to/PackageName-ver-pyver-etc.egg"
+  metadata = PathMetadata(egg_path, os.path.join(egg_path,'EGG-INFO'))
+  dist = Distribution.from_filename(egg_path, metadata=metadata)
 
-Make PythonDependency a base class for:
-  PythonEggDependency <= .egg(s)
-  PythonTgzDependency <= .tgz
-  PythonReqDependency <= pkg_resources.Requirement
-
-PythonDependency exports the API:
-   input_files()
-   activate(path) (idempotent) => .egg heads
-
-We then encode PythonDependency blobs directly into the manifest to make the
-dependencies more explicit than just autodetecting a bunch of ".egg" directories
-in the "dependency" fileset of the chroot.
+  # Zipped eggs:
+  egg_importer = zipimport.zipimporter(egg_path)
+  metadata = EggMetadata(egg_importer)
+  dist = Distribution.from_filename(egg_path, metadata=metadata)
 """
 
 class PythonDependency(object):
@@ -49,33 +46,28 @@ class PythonDependency(object):
   class BuildError(Exception): pass
   class RequirementError(Exception): pass
 
-  DEFAULT_URI = "http://pypi.python.org"
-
   @staticmethod
-  def from_file(filename):
+  def from_file(filename, interpreter=PythonInterpreter.get()):
     if filename.lower().endswith('.egg'):
-      return PythonDependency.from_egg(filename)
+      return PythonDependency.from_eggs(filename, interpreter=interpreter)
     else:
       for suffix in VALID_SOURCE_EXTENSIONS:
         if filename.lower().endswith(suffix):
-          return PythonDependency.from_source(filename)
+          return PythonDependency.from_source(filename, interpreter=interpreter)
     raise PythonDependency.RequirementError(
       'Unrecognized Python dependency file format: %s!' % filename)
 
-  # TODO(wickman): This arguably shouldn't belong -- we should probably
-  #  have the bootstrapper interface with ReqFetcher so that
-  #  install_requirements never goes out to the network w/o our knowledge.
   @staticmethod
-  def from_req(requirement):
-    dists = ReqBuilder.install_requirement(requirement)
+  def from_req(requirement, interpreter=PythonInterpreter.get(), **kw):
+    dists = ReqBuilder.install_requirement(requirement, interpreter=interpreter, **kw)
     return PythonDependency.from_distributions(*list(dists))
 
   @staticmethod
-  def from_source(filename):
+  def from_source(filename, interpreter=PythonInterpreter.get(), **kw):
     if not os.path.exists(filename):
       raise PythonDependency.NotFoundError(
         "Could not find PythonDependency target %s!" % filename)
-    dists = ReqBuilder.install_requirement(filename)
+    dists = ReqBuilder.install_requirement(filename, interpreter=interpreter, **kw)
     return PythonDependency.from_distributions(*list(dists))
 
   @staticmethod
@@ -100,11 +92,17 @@ class PythonDependency(object):
 
       Not intended to be called directly.  Instead use the from_* factory methods.
     """
-    if not isinstance(eggheads, (types.ListType, types.TupleType)):
+    if not isinstance(eggheads, Sequence) or isinstance(eggheads, Compatibility.string):
       raise ValueError('Expected eggs to be a list of filenames!  Got %s' % type(eggheads))
     self._eggs = {}
     for egg in eggheads:
       self._eggs[os.path.basename(egg)] = PythonDirectoryWrapper.get(egg)
+
+  def __str__(self):
+    return 'PythonDependency(eggs: %s)' % (' '.join(self._eggs.keys()))
+
+  def size(self):
+    return len(self._eggs)
 
   def files(self):
     """
@@ -115,15 +113,17 @@ class PythonDependency(object):
         my_egg.egg if a file egg
         my_egg.egg/EGG-INFO/stuff1.txt if a directory egg or unzipsafe egg
     """
-    for egg, wrapper in self._eggs.iteritems():
+    for egg, wrapper in self._eggs.items():
       all_files = sorted(wrapper.listdir())
       if 'EGG-INFO/zip-safe' in all_files and wrapper.is_condensed():
-        with open(wrapper.path(), 'r') as fp:
-          yield (egg, fp.read())
+        def read_contents():
+          with open(wrapper.path(), 'rb') as fp:
+            return fp.read()
+        yield DirWrapperHandle('', wrapper.path(), egg, read_contents)
       else:
         for filename in all_files:
           # do space optimization where we skip .pyc/.pyo if the .py is already included
           if (filename.endswith('.pyc') or filename.endswith('.pyo')) and (
               '%s.py' % filename[:-4] in all_files):
             continue
-          yield (os.path.join(egg, filename), wrapper.read(filename))
+          yield wrapper.handle(filename)

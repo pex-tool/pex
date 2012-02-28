@@ -14,8 +14,11 @@
 # limitations under the License.
 # ==================================================================================================
 
-import types
+from __future__ import print_function
+
+import sys
 import getpass
+import types
 
 from twitter.common.dirutil import safe_mkdir
 
@@ -26,6 +29,9 @@ class QuietPackageIndex(PackageIndex):
   def __init__(self, index_url):
     PackageIndex.__init__(self, index_url)
     self.platform = None
+    # It is necessary blow away local caches in order to not pick up stuff in site-packages.
+    self._distmap = {}
+    self._cache = {}
 
   def devnull(self, msg, *args):
     pass
@@ -41,15 +47,9 @@ class ReqFetcher(object):
   class InternalError(Exception): pass
 
   DEFAULT_CACHE = "/var/tmp/%(user)s/.cache"
+  REPOS = ('http://pypi.python.org/simple',)
 
-  # This should be externally configurable.
-  REPOS = [
-    'http://127.0.0.1:8000',
-    'https://svn.twitter.biz/science-binaries',
-    'http://pypi.python.org/simple'
-  ]
-
-  def __init__(self, repos=[], cache=None):
+  def __init__(self, repos=REPOS, cache=None):
     """
       Set up a Requirement fetcher.
 
@@ -58,15 +58,11 @@ class ReqFetcher(object):
 
       If cache is specified, override the default req fetching cache location.
     """
-    self._repos = repos or ReqFetcher.REPOS
-    # Too bad there is no iterable() function like there is callable().
-    if not hasattr(self._repos, '__iter__'):
-      raise TypeError('repos should be an iterable type!  got %s' % repr(self._repos))
-    self._pis = [QuietPackageIndex(url) for url in self._repos]
+    self._pis = [QuietPackageIndex(url) for url in repos]
     self._cache = cache or ReqFetcher.DEFAULT_CACHE % {'user': getpass.getuser()}
     safe_mkdir(self._cache)
 
-  def find(self, requirement, platform=pkg_resources.get_platform()):
+  def find(self, requirement, platform=pkg_resources.get_platform(), py_version=None):
     """
       Query the location of a distribution that fulfills a requirement.
 
@@ -74,17 +70,25 @@ class ReqFetcher(object):
         location = the location of the distribution (or None if none found.)
         repo = the repo in which it was found (or None if local or not found.)
     """
+    if py_version is None:
+      py_version = '%s.%s' % (sys.version_info[0], sys.version_info[1])
+
+    env = pkg_resources.Environment()
     if isinstance(requirement, str):
       requirement = pkg_resources.Requirement.parse(requirement)
     # first check the local cache
     for dist in pkg_resources.find_distributions(self._cache):
-      if dist in requirement and pkg_resources.compatible_platforms(dist.platform, platform):
+      if dist in requirement and env.can_add(dist):
         return (dist.location, None)
     # if nothing found, go out to remotes
     for repo in self._pis:
       repo.find_packages(requirement)
       for package in repo[requirement.project_name]:
         if pkg_resources.compatible_platforms(package.platform, platform):
+          if package.py_version is not None and package.py_version != py_version:
+            continue
+          if package not in requirement:
+            continue
           return (package.location, repo)
     return (None, None)
 
