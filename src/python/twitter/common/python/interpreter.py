@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 
+from collections import defaultdict
 
 if not hasattr(__builtins__, 'any'):
   def any(genexpr):
@@ -56,6 +57,10 @@ class PythonIdentity(object):
       assert isinstance(var, Integral)
     self._interpreter = interpreter
     self._version = (major, minor, subminor)
+
+  @property
+  def interpreter(self):
+    return self._interpreter
 
   @property
   def version(self):
@@ -159,8 +164,13 @@ class PythonInterpreter(object):
 
     for version in good_versions:
       # For each candidate, use the latest version we find on the filesystem.
-      candidates = [interp for interp in pythons if interp.identity().version == version]
-      candidates.sort(key=lambda interp: os.path.getmtime(interp.binary()), reverse=True)
-      good.append(candidates.pop(0))
+      candidates = defaultdict(list)
+      for interp in pythons:
+        if interp.identity().version == version:
+          candidates[interp.identity().interpreter].append(interp)
+      for interp_class in candidates:
+        candidates[interp_class].sort(
+            key=lambda interp: os.path.getmtime(interp.binary()), reverse=True)
+        good.append(candidates[interp_class].pop(0))
 
     return good

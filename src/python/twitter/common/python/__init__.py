@@ -14,8 +14,19 @@
 # limitations under the License.
 # ==================================================================================================
 
-from twitter.common.python.launcher import PythonLauncher
+__author__ = 'Brian Wickman'
 
-__all__ = [
-  PythonLauncher,
-]
+from .importer import (
+  builtin_zipimport,
+  monkeypatch,
+  monkeypatch_zipimport,
+  monkeypatch_pkg_resources,
+  EggZipImporter)
+
+__all__ = (
+  'builtin_zipimport',
+  'monkeypatch',
+  'monkeypatch_pkg_resources',
+  'monkeypatch_zipimport',
+  'EggZipImporter',
+)

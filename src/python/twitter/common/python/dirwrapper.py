@@ -14,10 +14,14 @@
 # limitations under the License.
 # ==================================================================================================
 
+import errno
 import os
 import zipfile
 
 class DirWrapperHandle(object):
+  class NotFoundError(Exception):
+    pass
+
   def __init__(self, parent, source_file, dest_file, read_lambda):
     self._parent = parent
     self._source = source_file
@@ -34,7 +38,10 @@ class DirWrapperHandle(object):
     return self._dest
 
   def content(self):
-    return self._read_lambda()
+    try:
+      return self._read_lambda()
+    except _ProxyWrapper.NotFoundError:
+      raise DirWrapperHandle.NotFoundError('File not found!')
 
   def __str__(self):
     return 'DirWrapperHandle(parent:%s, source:%s, dest:%s)' % (
@@ -42,6 +49,9 @@ class DirWrapperHandle(object):
 
 
 class _ProxyWrapper(object):
+  class NotFoundError(Exception):
+    pass
+
   def __init__(self, path):
     self._path = path
 
@@ -84,7 +94,10 @@ class _ZipWrapper(_ProxyWrapper):
 
   def reader(self, name):
     def read_data():
-      return self._zf.read(name)
+      try:
+        return self._zf.read(name)
+      except KeyError:
+        raise _ProxyWrapper.NotFoundError(name)
     return read_data
 
   def handle(self, name):
@@ -106,8 +119,14 @@ class _DirWrapper(_ProxyWrapper):
 
   def reader(self, name):
     def read_data():
-      with open(os.path.join(self._dir, name), 'rb') as fp:
-        return fp.read()
+      try:
+        with open(os.path.join(self._dir, name), 'rb') as fp:
+          return fp.read()
+      except IOError as e:
+        if e.errno == errno.ENOENT:
+          raise _ProxyWrapper.NotFoundError(name)
+        else:
+          raise
     return read_data
 
   def handle(self, name):

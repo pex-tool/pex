@@ -22,5 +22,17 @@ python_library(
     pants('src/python/twitter/common/contextutil'),
     pants('src/python/twitter/common/dirutil'),
     pants('src/python/twitter/common/lang'),
+    python_requirement('pip'),
+    python_requirement('distribute'),
+  ]
+)
+
+python_binary(
+  name = 'distiller',
+  source = 'distiller.py',
+  dependencies = [
+    pants('src/python/twitter/common/app'),
+    pants('src/python/twitter/common/log'),
+    pants(':python'),
   ]
 )
