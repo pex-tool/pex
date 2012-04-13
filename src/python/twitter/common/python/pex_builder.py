@@ -53,7 +53,8 @@ if __entry_point__ is None:
   sys.stderr.write('Could not launch python executable!\\n')
   sys.exit(2)
 
-sys.path.insert(0, os.path.join(__entry_point__, '.bootstrap'))
+sys.path[0] = os.path.abspath(sys.path[0])
+sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, '.bootstrap')))
 
 from twitter.common.python.importer import monkeypatch
 monkeypatch()
