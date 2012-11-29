@@ -22,8 +22,8 @@ python_library(
     pants('src/python/twitter/common/contextutil'),
     pants('src/python/twitter/common/dirutil'),
     pants('src/python/twitter/common/lang'),
-    python_requirement('pip'),
     python_requirement('distribute'),
+    python_requirement('pip'),
   ]
 )
 
