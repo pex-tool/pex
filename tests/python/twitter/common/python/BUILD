@@ -17,21 +17,21 @@
 
 python_test_suite(name = 'python',
   dependencies = [
-    pants(':test_nested'),
-    pants(':test_platform'),
+    ':test_nested',
+    ':test_platform',
   ]
 )
 
 python_tests(name = 'test_nested',
   sources = ['test_nested.py'],
   dependencies = [
-    pants('src/python/twitter/common/python')
+    'src/python/twitter/common/python'
   ]
 )
 
 python_tests(name = 'test_platform',
   sources = ['test_platform.py'],
   dependencies = [
-    pants('src/python/twitter/common/python')
+    'src/python/twitter/common/python'
   ]
 )
