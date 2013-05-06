@@ -90,7 +90,7 @@ class Nested(object):
       path, _ = os.path.split(path)
 
   @staticmethod
-  def _split_existing(path):
+  def split_existing(path):
     """
       Split a path by its existing / non-existing components.
 
@@ -104,7 +104,7 @@ class Nested(object):
     return (path, '.')
 
   @staticmethod
-  def _split_zf_existing(zf, path):
+  def split_zf_existing(zf, path):
     # TODO(wickman) Cache the zipfile index
     namelist = _zipfile_namecache[zf.filename]
     subpath = os.path.normpath(path)
@@ -140,11 +140,11 @@ class Nested(object):
       return (zf_path, '', zf)
 
     if zf is None:
-      existing, non_existing = Nested._split_existing(path)
+      existing, non_existing = Nested.split_existing(path)
       next_zf = Nested.get(existing, provider=lambda: zipfile.ZipFile(existing))
       return Nested.open(non_existing, zf_path=existing, zf=next_zf)
     else:
-      existing, non_existing = Nested._split_zf_existing(zf, path)
+      existing, non_existing = Nested.split_zf_existing(zf, path)
       get_path = os.path.join(zf_path, existing)
       try:
         next_zf = Nested.get(get_path, provider=lambda: Nested.open_as(zf, existing))
@@ -155,10 +155,10 @@ class Nested(object):
   @staticmethod
   def read(path):
     """
-      Read the contents of a potentially nested file.
+      Read the byte contents of a potentially nested file.
     """
     if os.path.isfile(path):
-      with open(path) as fp:
+      with open(path, 'rb') as fp:
         return fp.read()
 
     dirname, basename = os.path.split(path)
@@ -176,11 +176,19 @@ class Nested(object):
     """
       Read the contents of a potentially nested file.
     """
-    if os.path.isfile(path):
-      raise Nested.DirectoryNotFound(path)
-    if os.path.isdir(path):
-      for p in os.listdir(path): yield p
+    existing, non_existing = Nested.split_existing(path)
+    if non_existing == '.':
+      if os.path.isfile(path):
+        raise Nested.DirectoryNotFound(path)
+      if os.path.isdir(path):
+        for p in os.listdir(path):
+          yield p
       return
+
+    if os.path.isdir(existing):
+      # existing is a directory but there are non_existing components, so listdir is empty
+      return
+
     (archive, prefix, zf) = Nested.open(path)
     namelist = _zipfile_namecache[archive]
     yielded = set()
@@ -230,6 +238,9 @@ class Nested(object):
                close and return the cached copy instead.
     """
     if archive in _zipfile_cache:
+      # TODO(wickman)  This is problematic sometimes as the zipfile library has a bug where
+      # it assumes the underlying zipfile does not change between reads, so its info cache
+      # gets out of date and throws BadZipfile exceptions (e.g. with EGG-INFO/requires.txt)
       if zipfile is not None and _zipfile_cache[archive] != zipfile:
         zipfile.close()
       zf = _zipfile_cache[archive]
@@ -379,10 +390,11 @@ class EggZipImporter(object):
     """
     submodname, is_package, relpath = self._get_info(fullmodname)
     fullpath = '%s%s%s' % (self.archive, os.sep, relpath)
-    source = Nested.read(fullpath).decode('utf-8')
+    source = Nested.read(fullpath)
     assert source is not None
-    source = source.replace('\r\n', '\n')
-    source = source.replace('\r', '\n')
+    if Compatibility.PY3:
+      source = source.decode('utf8')
+    source = source.replace('\r\n', '\n').replace('\r', '\n')
     return submodname, is_package, fullpath, source
 
   def _get_code(self, fullmodname):
@@ -392,12 +404,13 @@ class EggZipImporter(object):
     pyc = os.path.splitext(fullpath)[0] + '.pyc'
     try:
       with timed('Unmarshaling %s' % pyc, at_level=2):
-        pyc_object = CodeMarshaller.from_pyc(Nested.read(pyc))
+        pyc_object = CodeMarshaller.from_pyc(Compatibility.BytesIO(Nested.read(pyc)))
     except (Nested.FileNotFound, ValueError, CodeMarshaller.InvalidCode) as e:
       with timed('Compiling %s because of %s' % (fullpath, e.__class__.__name__), at_level=2):
-        py = Nested.read(fullpath).decode('utf-8')
+        py = Nested.read(fullpath)
         assert py is not None
-        py = py.replace('\r\n', '\n').replace('\r', '\n')
+        if Compatibility.PY3:
+          py = py.decode('utf8')
         pyc_object = CodeMarshaller.from_py(py, fullpath)
     return submodname, is_package, fullpath, pyc_object.code
 
@@ -469,6 +482,7 @@ class EggZipImporter(object):
                       (fullpath, prefix))
       else:
         relpath = fullpath
+        fullpath = os.path.join(prefix, relpath)
 
       self._log('nested_read: %s' % fullpath, at_level=4)
       content = Nested.read(fullpath)

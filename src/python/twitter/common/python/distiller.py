@@ -32,7 +32,8 @@ except ImportError:
 """
 
 # TODO(wickman)  Pros and cons of os.unlink after load_dynamic?
-# TODO(Wickman)  Unification with Nested in importer.py
+# TODO(wickman)  Unification with Nested in importer.py
+# TODO(wickman)  Eventually ditch this and don't bother with recursive zipimporting?
 NATIVE_STUB = """
 def __bootstrap__():
   import os, zipfile
@@ -107,22 +108,23 @@ class Distiller(object):
     (e.g. site-packages or newly installed from twitter.common.python.installer
     Installer)
 
-    >>> from twitter.common.python.fetcher import Fetcher
     >>> from twitter.common.python.installer import Installer
     >>> from twitter.common.python.distiller import Distiller
-    >>> svn = Fetcher(['https://svn.twitter.biz/science-binaries/home/third_party/python'])
-    >>> psutil_dist = Installer(svn.fetch('psutil')).distribution()
+    >>> from twitter.common.python.http import Web, SourceLink
+    >>> psutil_link = SourceLink('http://psutil.googlecode.com/files/psutil-0.6.1.tar.gz',
+    ...                          opener=Web())
+    >>> psutil_dist = Installer(psutil_link.fetch()).distribution()
     >>> Distiller(pstil_dist).distill()
     Writing native stub for _psutil_linux.so
     Writing native stub for _psutil_posix.so
-    Skipping file outside of top_level: psutil-0.4.1-py2.7.egg-info/SOURCES.txt
-    Skipping file outside of top_level: psutil-0.4.1-py2.7.egg-info/PKG-INFO
-    Skipping file outside of top_level: psutil-0.4.1-py2.7.egg-info/dependency_links.txt
-    Skipping file outside of top_level: psutil-0.4.1-py2.7.egg-info/top_level.txt
-    '/tmp/tmpYVfs_S/psutil-0.4.1-py2.7-linux-x86_64.egg'
+    Skipping file outside of top_level: psutil-0.6.1-py2.7.egg-info/SOURCES.txt
+    Skipping file outside of top_level: psutil-0.6.1-py2.7.egg-info/PKG-INFO
+    Skipping file outside of top_level: psutil-0.6.1-py2.7.egg-info/dependency_links.txt
+    Skipping file outside of top_level: psutil-0.6.1-py2.7.egg-info/top_level.txt
+    '/tmp/tmpYVfs_S/psutil-0.6.1-py2.7-linux-x86_64.egg'
 
     >>> import sys
-    >>> sys.path.append('/tmp/tmpYVfs_S/psutil-0.4.1-py2.7-linux-x86_64.egg')
+    >>> sys.path.append('/tmp/tmpYVfs_S/psutil-0.6.1-py2.7-linux-x86_64.egg')
     >>> import psutil
   """
 
@@ -185,7 +187,6 @@ class Distiller(object):
     not_zip_safe = set()
 
     for fn in self._installed_files:
-      rel_fn = self._relpath(fn)
       if not self._is_top_level(fn):
         continue
       if not os.path.exists(fn):
@@ -273,7 +274,12 @@ class Distiller(object):
       tempdir = tempfile.mkdtemp()
       filename = os.path.join(tempdir, self._package_name())
 
-    with closing(zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_DEFLATED)) as zf:
+    # Filename exists already, assume pre-distilled
+    if os.path.exists(filename):
+      self._log('Found pre-cached artifact: %s, skipping distillation.' % filename)
+      return filename
+
+    with closing(zipfile.ZipFile(filename + '~', 'w', compression=zipfile.ZIP_DEFLATED)) as zf:
       for fn in self._installed_files:
         rel_fn = self._relpath(fn)
         if not self._is_top_level(fn):
@@ -293,7 +299,7 @@ class Distiller(object):
           zf.writestr(fn_base + '.py', NATIVE_STUB % { 'extension': extension })
 
       for nspkg in self._nspkg:
-        nspkg_init = nspkg + '/__init__.py'
+        nspkg_init = nspkg.replace('.', '/') + '/__init__.py'
         if nspkg_init in zf.namelist():
           self._log('Cannot write namespace for %s!' % nspkg_init)
         else:
@@ -303,6 +309,7 @@ class Distiller(object):
       for fn, content in self._egg_info():
         zf.writestr(fn, content)
 
+    os.rename(filename + '~', filename)
     return filename
 
 

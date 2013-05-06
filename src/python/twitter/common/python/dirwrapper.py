@@ -18,6 +18,7 @@ import errno
 import os
 import zipfile
 
+
 class DirWrapperHandle(object):
   class NotFoundError(Exception):
     pass
@@ -40,7 +41,7 @@ class DirWrapperHandle(object):
   def content(self):
     try:
       return self._read_lambda()
-    except _ProxyWrapper.NotFoundError:
+    except ProxyWrapper.Error:
       raise DirWrapperHandle.NotFoundError('File not found!')
 
   def __str__(self):
@@ -48,9 +49,9 @@ class DirWrapperHandle(object):
       self._parent, self._source, self._dest)
 
 
-class _ProxyWrapper(object):
-  class NotFoundError(Exception):
-    pass
+class ProxyWrapper(object):
+  class Error(Exception): pass
+  class NotFoundError(Exception): pass
 
   def __init__(self, path):
     self._path = path
@@ -74,13 +75,13 @@ class _ProxyWrapper(object):
     raise NotImplementedError
 
 
-class _ZipWrapper(_ProxyWrapper):
+class ZipWrapper(ProxyWrapper):
   def __init__(self, path):
-    _ProxyWrapper.__init__(self, path)
+    super(ZipWrapper, self).__init__(path)
     try:
       self._zf = zipfile.ZipFile(path, 'r')
     except zipfile.BadZipfile:
-      raise ValueError('Python environment %s is not a zip archive.' % path)
+      raise self.Error('Python environment %s is not a zip archive.' % path)
 
   def is_condensed(self):
     return True
@@ -97,16 +98,16 @@ class _ZipWrapper(_ProxyWrapper):
       try:
         return self._zf.read(name)
       except KeyError:
-        raise _ProxyWrapper.NotFoundError(name)
+        raise self.NotFoundError(name)
     return read_data
 
   def handle(self, name):
     return DirWrapperHandle(os.path.basename(self._zf.fp.name), None, name, self.reader(name))
 
 
-class _DirWrapper(_ProxyWrapper):
+class DirWrapper(ProxyWrapper):
   def __init__(self, path):
-    _ProxyWrapper.__init__(self, path)
+    super(DirWrapper, self).__init__(path)
     self._dir = path
 
   def is_condensed(self):
@@ -124,7 +125,7 @@ class _DirWrapper(_ProxyWrapper):
           return fp.read()
       except IOError as e:
         if e.errno == errno.ENOENT:
-          raise _ProxyWrapper.NotFoundError(name)
+          raise self.NotFoundError(name)
         else:
           raise
     return read_data
@@ -134,14 +135,22 @@ class _DirWrapper(_ProxyWrapper):
       name, self.reader(name))
 
 
-class PythonDirectoryWrapper:
+class PythonDirectoryWrapper(object):
   """
     A wrapper to abstract methods to list/read files from PythonEnvironments whether they
     are files or directories.
   """
-  @staticmethod
-  def get(path):
-    if os.path.isdir(path):
-      return _DirWrapper(path)
-    elif os.path.isfile(path):
-      return _ZipWrapper(path)
+  class Error(Exception): pass
+  class NotFoundError(Error): pass
+
+  @classmethod
+  def get(cls, path):
+    try:
+      if os.path.isdir(path):
+        return DirWrapper(path)
+      elif os.path.isfile(path):
+        return ZipWrapper(path)
+      else:
+        raise cls.NotFoundError('Could not find path %s' % path)
+    except ProxyWrapper.Error as e:
+      raise cls.Error(str(e))

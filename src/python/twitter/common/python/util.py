@@ -32,7 +32,7 @@ class DistributionHelper(object):
       yield fn, content
 
   @staticmethod
-  def locally_cache(dist, cache_dir):
+  def maybe_locally_cache(dist, cache_dir):
     from pkg_resources import PathMetadata, Distribution
     from twitter.common.dirutil import safe_rmtree, safe_open, safe_mkdir
     egg_name = os.path.join(cache_dir, dist.egg_name() + '.egg')
@@ -50,13 +50,6 @@ class DistributionHelper(object):
           safe_rmtree(egg_tmp_path)
     metadata = PathMetadata(egg_name, os.path.join(egg_name, 'EGG-INFO'))
     return Distribution.from_filename(egg_name, metadata=metadata)
-
-  @staticmethod
-  def from_egg(egg_path):
-    from twitter.common.python.importer import EggZipImporter
-    from pkg_resources import EggMetadata, Distribution
-    metadata = EggMetadata(EggZipImporter(egg_path))
-    return Distribution.from_filename(egg_path, metadata)
 
   @staticmethod
   def all_distributions(path=sys.path):

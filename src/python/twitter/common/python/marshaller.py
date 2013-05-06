@@ -52,7 +52,7 @@ class CodeMarshaller(object):
   @staticmethod
   def from_py(py, filename):
     stamp = int(time.time())
-    code = compile(py, filename, 'exec')
+    code = compile(py.replace('\r\n', '\n').replace('\r', '\n'), filename, 'exec')
     return CodeMarshaller(code, stamp)
 
   def __init__(self, code, stamp):

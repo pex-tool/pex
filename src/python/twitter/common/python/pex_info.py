@@ -46,7 +46,7 @@ class PexInfo(object):
 
   # TODO(wickman) This probably belongs in pants, not in here?
   @classmethod
-  def build_properties(cls):
+  def make_build_properties(cls):
     pi = PythonInterpreter()
     base_info = {
       'class': pi.identity().interpreter,
@@ -65,7 +65,7 @@ class PexInfo(object):
     pi = PythonInterpreter()
     pex_info = {
       'requirements': [],
-      'build_properties': cls.build_properties(),
+      'build_properties': cls.make_build_properties(),
     }
     return cls(json.dumps(pex_info))
 
@@ -87,6 +87,10 @@ class PexInfo(object):
     self._repositories = OrderedSet(self._pex_info.get('repositories', []))
     self._indices = OrderedSet(self._pex_info.get('indices', []))
     self._egg_caches = OrderedSet(self._pex_info.get('egg_caches', []))
+
+  @property
+  def build_properties(self):
+    return self._pex_info.get('build_properties', {})
 
   @property
   def zip_safe(self):

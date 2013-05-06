@@ -5,47 +5,59 @@ import pkg_resources
 import subprocess
 import sys
 import tempfile
-from pkg_resources import Distribution, PathMetadata, require
 
-from twitter.common.dirutil import safe_rmtree
+from twitter.common.dirutil import safe_mkdtemp, safe_rmtree
+
+from .tracer import TRACER
+
+from pkg_resources import Distribution, PathMetadata
+
 
 class Installer(object):
   """
     Install an unpacked distribution with a setup.py.
 
     Simple example:
-      >>> from twitter.common.python.installer import Fetcher, Installer
-      >>> pypi = Fetcher.pypi()
-      >>> celery_installer = Installer(pypi.fetch('celery>2.4'))  # this takes several seconds
-      >>> celery_installer.distribution()
-      celery 2.5.0 (/private/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpaWRGGW/lib/python2.6/site-packages)
+      >>> from twitter.common.python.http import Web, SourceLink
+      >>> tornado_tgz = SourceLink('http://pypi.python.org/packages/source/t/tornado/tornado-2.3.tar.gz',
+      ...                          opener=Web())
+      >>> tornado_installer = Installer(tornado_tgz.fetch())
+      >>> tornado_installer.distribution()
+      tornado 2.3 (/private/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpLLe_Ph/lib/python2.6/site-packages)
 
     You can then take that distribution and activate it:
-      >>> celery_distribution = celery_installer.distribution()
-      >>> celery_distribution.activate()
-      >>> import celery
+      >>> tornado_distribution = tornado_installer.distribution()
+      >>> tornado_distribution.activate()
+      >>> import tornado
 
-    Alternately you can pass celery_distribution to a Distiller object and convert it to an egg:
+    Alternately you can pass the distribution to a Distiller object and convert it to an egg:
       >>> from twitter.common.python.distiller import Distiller
-      >>> Distiller(celery_distribution).distill()
-      '/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmp1KPNEE/celery-2.5.0-py2.6.egg'
+      >>> Distiller(tornado_distribution).distill()
+      '/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpufgZOO/tornado-2.3-py2.6.egg'
   """
 
-
   SETUP_BOOTSTRAP = """
-import sys
-sys.path.insert(0, '%(setuptools_path)s')
-import setuptools
+if '%(setuptools_path)s':
+  import sys
+  sys.path.insert(0, '%(setuptools_path)s')
+  import setuptools
 __file__ = '%(setup_py)s'
 exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
 """
 
   class InstallFailure(Exception): pass
 
-  def __init__(self, source_dir):
+  def __init__(self, source_dir, strict=True):
+    """
+      Create an installer from an unpacked source distribution in source_dir.
+
+      If strict=True, fail if any installation dependencies (e.g. distribute)
+      are missing.
+    """
     self._source_dir = source_dir
-    self._install_tmp = tempfile.mkdtemp()
+    self._install_tmp = safe_mkdtemp()
     self._installed = None
+    self._strict = strict
     fd, self._install_record = tempfile.mkstemp()
     os.close(fd)
 
@@ -67,29 +79,30 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
           setuptools_path = dist.location
           break
 
-    if setuptools_path is None:
+    if setuptools_path is None and self._strict:
       self._installed = False
       print('Failed to find distribute in sys.path!', file=sys.stderr)
       return self._installed
 
     setup_bootstrap = Installer.SETUP_BOOTSTRAP % {
-      'setuptools_path': setuptools_path,
+      'setuptools_path': setuptools_path or '',
       'setup_py': 'setup.py'
     }
-    po = subprocess.Popen(
-      [sys.executable,
-        '-',
-        'install',
-        '--root=%s' % self._install_tmp,
-        '--prefix=',
-        '--single-version-externally-managed',
-        '--record', self._install_record],
-      stdin=subprocess.PIPE,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-      cwd=self._source_dir)
-    so, se = po.communicate(setup_bootstrap.encode('ascii'))
-    self._installed = po.returncode == 0
+    with TRACER.timed('Installing %s' % self._install_tmp, V=2):
+      po = subprocess.Popen(
+        [sys.executable,
+          '-',
+          'install',
+          '--root=%s' % self._install_tmp,
+          '--prefix=',
+          '--single-version-externally-managed',
+          '--record', self._install_record],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=self._source_dir)
+      so, se = po.communicate(setup_bootstrap.encode('ascii'))
+      self._installed = po.returncode == 0
     self._egg_info = None
 
     if not self._installed:

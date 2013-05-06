@@ -14,24 +14,28 @@
 # limitations under the License.
 # ==================================================================================================
 
+import logging
 import os
 import pkg_resources
 import sys
 import tempfile
+from zipimport import zipimporter
+
+from twitter.common.lang import Compatibility
+from twitter.common.dirutil import chmod_plus_x
+from twitter.common.dirutil.chroot import Chroot
+
+from .interpreter import PythonIdentity
+from .marshaller import CodeMarshaller
+from .pex_info import PexInfo
+from .pex import PEX
+from .util import DistributionHelper
+
 from pkg_resources import (
   Distribution,
   DistributionNotFound,
   EggMetadata)
 
-from twitter.common.lang import Compatibility
-from twitter.common.dirutil import chmod_plus_x
-from twitter.common.dirutil.chroot import Chroot
-from twitter.common.python.importer import EggZipImporter
-from twitter.common.python.interpreter import PythonIdentity
-from twitter.common.python.marshaller import CodeMarshaller
-from twitter.common.python.pex_info import PexInfo
-from twitter.common.python.pex import PEX
-from twitter.common.python.util import DistributionHelper
 
 BOOTSTRAP_ENVIRONMENT = b"""
 import os
@@ -43,7 +47,6 @@ if '__file__' in locals() and __file__ is not None:
 elif '__loader__' in locals():
   from zipimport import zipimporter
   from pkgutil import ImpLoader
-  #if isinstance(__loader__, (builtin_zipimport.zipimporter, EggZipImporter)):
   if hasattr(__loader__, 'archive'):
     __entry_point__ = __loader__.archive
   elif isinstance(__loader__, ImpLoader):
@@ -64,7 +67,6 @@ from twitter.common.python.pex import PEX
 PEX(__entry_point__).execute()
 """
 
-
 class PEXBuilder(object):
   class InvalidDependency(Exception): pass
   class InvalidExecutableSpecification(Exception): pass
@@ -76,6 +78,7 @@ class PEXBuilder(object):
     self._chroot = Chroot(path or tempfile.mkdtemp())
     self._pex_info = PexInfo.default()
     self._frozen = False
+    self._logger = logging.getLogger(__name__)
 
   def chroot(self):
     return self._chroot
@@ -90,7 +93,6 @@ class PEXBuilder(object):
     self._chroot.link(filename, env_filename, "source")
     if filename.endswith('.py'):
       env_filename_pyc = os.path.splitext(env_filename)[0] + '.pyc'
-      # with PEX.timed('Compiling %s' % env_filename_pyc):
       with open(filename) as fp:
         pyc_object = CodeMarshaller.from_py(fp.read(), env_filename)
       self._chroot.write(pyc_object.to_pyc(), env_filename_pyc, 'source')
@@ -112,7 +114,7 @@ class PEXBuilder(object):
     """
       helper for add_distribution
     """
-    metadata = EggMetadata(EggZipImporter(egg))
+    metadata = EggMetadata(zipimporter(egg))
     dist = Distribution.from_filename(egg, metadata)
     self.add_distribution(dist)
     self.add_requirement(dist.as_requirement(), dynamic=False, repo=None)
@@ -153,42 +155,32 @@ class PEXBuilder(object):
 
   def _prepare_bootstrap(self):
     """
-      Write enough of distribute and pip into the .pex .bootstrap directory so that
+      Write enough of distribute into the .pex .bootstrap directory so that
       we can be fully self-contained.
     """
     bare_env = pkg_resources.Environment()
 
-    pip_req = pkg_resources.Requirement.parse('pip>=1.1')
     distribute_req = pkg_resources.Requirement.parse('distribute>=0.6.24')
-    pip_dist = distribute_dist = None
+    distribute_dist = None
 
     for dist in DistributionHelper.all_distributions(sys.path):
-      if dist in pip_req and bare_env.can_add(dist):
-        pip_dist = dist
       if dist in distribute_req and bare_env.can_add(dist):
         distribute_dist = dist
-      if pip_dist and distribute_dist:
         break
-    if not pip_dist:
-      raise DistributionNotFound('Could not find pip!')
-    if not distribute_dist:
+    else:
       raise DistributionNotFound('Could not find distribute!')
 
-    PEX.debug('Writing .bootstrap library.')
-    for fn, content in DistributionHelper.walk_data(pip_dist):
-      if fn.startswith('pip/'):
-        # PEX.debug('BOOTSTRAP: Writing %s' % fn)
-        self._chroot.write(content, os.path.join(self.BOOTSTRAP_DIR, fn), 'resource')
     for fn, content in DistributionHelper.walk_data(distribute_dist):
       if fn.startswith('pkg_resources.py') or fn.startswith('setuptools'):
-        # PEX.debug('BOOTSTRAP: Writing %s' % fn)
         self._chroot.write(content, os.path.join(self.BOOTSTRAP_DIR, fn), 'resource')
     libraries = (
       'twitter.common.dirutil',
       'twitter.common.collections',
       'twitter.common.contextutil',
       'twitter.common.lang',
-      'twitter.common.python'
+      'twitter.common.python',
+      'twitter.common.python.http',
+      'twitter.common.quantity'
     )
     for name in libraries:
       dirname = name.replace('.', '/')
@@ -198,7 +190,6 @@ class PEXBuilder(object):
         provider = pkg_resources.ZipProvider(mod)
       for fn in provider.resource_listdir(''):
         if fn.endswith('.py'):
-          # PEX.debug('BOOTSTRAP: Writing %s' % os.path.join(dirname, fn))
           self._chroot.write(provider.get_resource_string(name, fn),
             os.path.join(self.BOOTSTRAP_DIR, dirname, fn), 'resource')
     for initdir in ('twitter', 'twitter/common'):
@@ -220,7 +211,7 @@ class PEXBuilder(object):
     self.freeze()
     try:
       os.unlink(filename + '~')
-      print('WARNING: Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
+      self._logger.warn('Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
     except OSError:
       # The expectation is that the file does not exist, so continue
       pass
@@ -233,3 +224,180 @@ class PEXBuilder(object):
       os.unlink(filename)
     os.rename(filename + '~', filename)
     chmod_plus_x(filename)
+
+
+class PEXBuilderHelper(object):
+  """
+  PEXBuilderHelper implements the pex.pex utility which builds a .pex file specified by
+  sources, requirements and their dependencies and other options
+  """
+
+  from collections import namedtuple
+  logger = logging.getLogger(__name__)
+  error_names = ("NOTHING_TO_BUILD", "NOT_IMPLEMENTED")
+  error_code = namedtuple('Enum', error_names)._make(
+    map(lambda x: x + 100, range(len(error_names)))
+  )
+
+  @classmethod
+  def get_all_valid_reqs(cls, requirements, requirements_txt):
+    from collections import namedtuple
+    from pkg_resources import Requirement
+    import re
+    numbered_item = namedtuple("numbered_item", ["position", "data"])
+    numbered_list = lambda dataset: [numbered_item(*ni) for ni in enumerate(dataset)]
+    named_dataset = namedtuple("named_dataset", ["name", "dataset"])
+    inputs = [
+      named_dataset(name="command line", dataset=numbered_list(requirements)),
+    ]
+    if requirements_txt is not None:
+      file_lines = re.split("[\n\r]", open(requirements_txt).read())
+      inputs.append(named_dataset(
+        name="file: {0}".format(requirements_txt), dataset=numbered_list(file_lines)
+      ))
+    valid_reqs = []
+    whitespace = re.compile("^\s*$")
+    for name, dataset in inputs:
+      for position, req in dataset:
+        try:
+          Requirement.parse(req)
+          valid_reqs.append(req)
+        except ValueError:
+          if whitespace.match(req) is None: # Don't warn if empty string or whitespace
+            cls.logger.warn("Invalid requirement \"{0}\" at " \
+                        "position {1} from {2}\n".format(req, position + 1, name))
+    return valid_reqs
+
+  @classmethod
+  def configure_clp(cls):
+    from optparse import OptionParser
+    usage = "%prog [options]\n\n" \
+    "%prog builds a PEX (Python Executable) file based on the given specifications: " \
+    "sources, requirements, their dependencies and other options"
+
+    parser = OptionParser(usage=usage, version="%prog 0.1.0")
+    parser.add_option("--no-pypi", dest="use_pypi", default=True, action="store_false",
+                      help="Dont use pypi to resolve dependencies; Default: use pypi")
+    parser.add_option("--cache-dir", dest="cache_dir", default="~/.pex/install",
+                      help="The local cache directory to use for speeding up requirement " \
+                           "lookups; Default: ~/.pex/install")
+    parser.add_option("--pex-name", dest="pex_name", default=None,
+                      help="The name of the generated .pex file: Omiting this will run PEX " \
+                           "immediately and not save it to a file")
+    parser.add_option("--entry-point", dest="entry_point", default=None,
+                      help="The entry point for this pex; Omiting this will enter the python " \
+                           "IDLE with sources and requirements available for import")
+    parser.add_option("--requirements-txt", dest="requirements_txt", metavar="FILE", default=None,
+                      help="requirements.txt file listing the dependencies; This is in " \
+                           "addition to requirements specified by -r; Unless your sources " \
+                           "have no requirements, specify this or use -r. Default None")
+    parser.add_option("-r", "--requirement", dest="requirements", metavar="REQUIREMENT",
+                      default=[], action="append",
+                      help="requirement to be included; include as many as needed in addition " \
+                           "to requirements from --requirements-txt")
+    # TODO{sgeorge}: allow lightweight PEXs (or PEXs with dynamically resolved reqs)
+    parser.add_option("--lightweight", dest="lightweight", default=False, action="store_true",
+                      help="Builds a lightweight PEX with requirements not resolved until " \
+                           "runtime; Not implemented")
+    parser.add_option("--source-dir", dest="source_dirs", metavar="DIR",
+                      default=[], action="append",
+                      help="Source to be packaged; This <DIR> should be pip-installable i.e. " \
+                           "it should include a setup.py; Omiting this will create a PEX of " \
+                           "requirements alone")
+    # TODO{sgeorge}: allow repos to be specified
+    parser.add_option("--repo", dest="repos", metavar="TYPE:URL", default=[], action="append",
+                      help="repository spec for resolving dependencies; Not implemented")
+
+    cls.configure_logging_options(parser)
+    return parser
+
+  @classmethod
+  def configure_logging_options(cls, parser):
+    parser.add_option("--log-file", dest="log_file", metavar="FILE", default=None,
+                      help="Log messages to FILE; Default to stdout")
+    parser.add_option("--log-level", dest="log_level", default="warn",
+                      help="Log level as text (one of info, warn, error, critical)")
+
+  @classmethod
+  def process_logging_options(cls, options):
+    numeric_level = getattr(logging, options.log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+      raise ValueError('Invalid log level: %s' % options.log_level)
+    if options.log_file is not None:
+      logging.basicConfig(level=numeric_level, file=options.log_file)
+    else:
+      logging.basicConfig(level=numeric_level) # file=sys.stdout
+
+  @classmethod
+  def exit_on_erroneous_inputs(cls, options, parser):
+    if len(options.source_dirs) == 0 and \
+        options.requirements_txt is None and len(options.requirements) == 0:
+      cls.logger.error("Nothing to build (or run)!")
+      parser.print_help()
+      sys.exit(cls.error_code.NOTHING_TO_BUILD)
+    if options.lightweight:
+      cls.logger.error("Lightweight PEXs not implemented! Bug us!!")
+      sys.exit(cls.error_code.NOT_IMPLEMENTED)
+
+  @classmethod
+  def main(cls):
+    from itertools import chain
+    from twitter.common.python.distiller import Distiller
+    from twitter.common.python.fetcher import Fetcher, PyPIFetcher
+    from twitter.common.python.http import Crawler
+    from twitter.common.python.installer import Installer
+    from twitter.common.python.obtainer import Obtainer
+    from twitter.common.python.resolver import Resolver
+    from twitter.common.python.translator import Translator
+
+    parser = cls.configure_clp()
+    options, args = parser.parse_args()
+    cls.process_logging_options(options)
+    cls.exit_on_erroneous_inputs(options, parser)
+
+    pex_builder = PEXBuilder()
+
+    fetchers = [Fetcher(options.repos)]
+    if options.use_pypi:
+      fetchers.append(PyPIFetcher())
+    resolver = Resolver(cache=options.cache_dir, fetchers=fetchers, install_cache=options.cache_dir)
+    reqs = cls.get_all_valid_reqs(options.requirements, options.requirements_txt)
+    cls.logger.info("Requirements specified: " + str(reqs))
+    resolveds = resolver.resolve(reqs)
+    cls.logger.info("Resolved requirements: " + str(resolveds))
+    for pkg in resolveds:
+      cls.logger.info("Adding to PEX: Distribution: {0}".format(pkg))
+      pex_builder.add_distribution(pkg)
+      pex_builder.add_requirement(pkg.as_requirement())
+    for source_dir in options.source_dirs:
+      dist = Installer(source_dir).distribution()
+      egg_path = Distiller(dist).distill()
+      cls.logger.info("Adding source dir to PEX: {0} distilled into egg {1}".format(
+        source_dir, egg_path)
+      )
+      pex_builder.add_egg(egg_path)
+    if options.entry_point is not None:
+      if options.entry_point.endswith(".py"):
+        cls.logger.info("Adding entry point to PEX: File: {0}".format(options.entry_point))
+        pex_builder.set_executable(options.entry_point)
+      elif ":" in options.entry_point:
+        cls.logger.info("Adding entry point to PEX: Function: {0}".format(options.entry_point))
+        pex_builder.info().entry_point = options.entry_point
+      else:
+        cls.logger.warn("Invalid entry point: {0}".format(options.entry_point))
+    if options.pex_name is not None:
+      cls.logger.info("Saving PEX file at {0}.pex".format(options.pex_name))
+      pex_builder.build(options.pex_name + '.pex')
+    else:
+      pex_builder.freeze()
+      cls.logger.info("Running PEX file at {0} with args {1}".format(pex_builder.path(), args))
+      from .pex import PEX
+      pex = PEX(pex_builder.path())
+      return pex.run(args=list(args))
+
+    logging.shutdown()
+
+
+def main():
+  """Entry point of pex.pex"""
+  PEXBuilderHelper.main()

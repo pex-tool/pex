@@ -37,10 +37,10 @@ class TestNested(object):
   def test_split_existing(self):
     td = tempfile.mkdtemp()
     try:
-      assert Nested._split_existing(td) == (td, '.')
-      assert Nested._split_existing(td + os.sep) == (td, '.')
-      assert Nested._split_existing(os.path.join(td, 'a', 'b', 'c')) == (
+      assert Nested.split_existing(td) == (td, '.')
+      assert Nested.split_existing(td + os.sep) == (td, '.')
+      assert Nested.split_existing(os.path.join(td, 'a', 'b', 'c')) == (
         td, os.path.join('a', 'b', 'c'))
-      assert Nested._split_existing(os.path.join(td, 'a', '..', 'c')) == (td, 'c')
+      assert Nested.split_existing(os.path.join(td, 'a', '..', 'c')) == (td, 'c')
     finally:
       safe_rmtree(td)

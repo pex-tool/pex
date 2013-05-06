@@ -1,82 +1,55 @@
-import os
-import tempfile
-import time
-try:
-  from urllib2 import HTTPError
-except ImportError:
-  from urllib.error import HTTPError
+from abc import abstractmethod
+import itertools
+import random
 
-from pip.download import unpack_http_url
-from pip.exceptions import DistributionNotFound
-from pip.index import PackageFinder
-from pip.req import InstallRequirement
+from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
+from twitter.common.lang import AbstractClass
 
-from twitter.common.dirutil import safe_rmtree, safe_mkdir
+from .base import maybe_requirement
+from .http import Crawler, SourceLink
+from .translator import SourceTranslator, EggTranslator
 
-class Fetcher(object):
+from pkg_resources import Requirement
+
+
+class FetcherBase(AbstractClass):
   """
-    A requirement downloader.
-
-    Simple example:
-      >>> from twitter.common.python.installer import Fetcher
-      >>> pypi = Fetcher.pypi()     # create a basic Fetcher that points to pypi
-      >>> pypi.fetch('django-celery>2.4')
-      '/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpDKeKEv'
-      >>> os.listdir('/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpDKeKEv')
-      ['AUTHORS', 'bin', 'Changelog', 'contrib', 'django_celery.egg-info',
-      'djcelery', 'docs', 'examples', 'FAQ', 'INSTALL', 'LICENSE', 'locale',
-      'MANIFEST.in', 'PKG-INFO', 'README', 'README.rst', 'requirements',
-      'setup.cfg', 'setup.py', 'tests', 'THANKS', 'TODO']
-
-    This directory can then be passed into the Installer, which builds distributions, which
-    can then be passed to the distiller in order to distill .eggs.
+    A fetcher takes a Requirement and tells us where to crawl to find it.
   """
-  MAX_RETRIES = 5
+  @abstractmethod
+  def urls(self, req):
+    raise NotImplementedError
+
+
+class Fetcher(FetcherBase):
+  def __init__(self, urls):
+    # TODO(wickman) self.urls = maybe_list(urls)
+    self._urls = urls
+
+  def urls(self, _):
+    return self._urls
+
+
+class PyPIFetcher(FetcherBase):
+  PYPI_BASE = 'pypi.python.org'
 
   @classmethod
-  def pypi(cls):
-    return cls([], external=True)
+  def resolve_mirrors(cls, base):
+    """Resolve mirrors per PEP-0381."""
+    import socket
+    def crange(ch1, ch2):
+      return [chr(ch) for ch in range(ord(ch1), ord(ch2) + 1)]
+    last, _, _ = socket.gethostbyname_ex('last.' + base)
+    assert last.endswith(cls.PYPI_BASE)
+    last_prefix = last.split('.')[0]
+    # TODO(wickman) Is implementing > z really necessary?
+    last_prefix = 'z' if len(last_prefix) > 1 else last_prefix[0]
+    return ['%c.%s' % (letter, base) for letter in crange('a', last_prefix)]
 
-  def __init__(self, repositories, indices=(), external=False, download_cache=None):
-    self._cleanup = download_cache is None
-    self._cache = download_cache or tempfile.mkdtemp()
-    if not os.path.exists(self._cache):
-      safe_mkdir(self._cache)
-    self._use_mirrors = external
-    self._repositories = list(repositories)
-    self._indices = list(indices)
-    self._reinit()
+  def __init__(self, pypi_base=PYPI_BASE, use_mirrors=False):
+    self.mirrors = self.resolve_mirrors(pypi_base) if use_mirrors else [pypi_base]
 
-  def _reinit(self):
-    self._finder = PackageFinder(self._repositories, self._indices, use_mirrors=self._use_mirrors)
-
-  def __del__(self):
-    if self._cleanup:
-      safe_rmtree(self._cache)
-
-  def fetch(self, requirement):
-    """
-      Fetch a requirement and unpack it into a temporary directory.
-
-      The responsibility of cleaning up the temporary directory returned is
-      that of the caller.
-    """
-    download_tmp = tempfile.mkdtemp()
-
-    for _ in range(Fetcher.MAX_RETRIES):
-      ir = InstallRequirement.from_line(str(requirement))
-      try:
-        try:
-          ir_link = self._finder.find_requirement(ir, upgrade=True)
-        except DistributionNotFound:
-          return None
-        unpack_http_url(ir_link, download_tmp, self._cache)
-        return download_tmp
-      # This is distinctly below average because it means I need to know
-      # about the underlying url fetching implementation.  TODO: consider a
-      # bespoke fetcher implementation, also consider exponential backoff here.
-      except HTTPError as e:
-        print('Got HTTPError: %s..retrying' % e)
-        time.sleep(0.1)
-        self._reinit()
-    return None
+  def urls(self, req):
+    req = maybe_requirement(req)
+    random_mirror = random.choice(self.mirrors)
+    return ['http://%s/simple/%s/' % (random_mirror, req.project_name)]

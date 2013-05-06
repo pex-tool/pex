@@ -16,23 +16,53 @@
 
 python_library(
   name = "python",
-  sources = globs('*.py'),
+  sources = rglobs('*.py'),
   dependencies = [
-    'src/python/twitter/common/collections',
-    'src/python/twitter/common/contextutil',
-    'src/python/twitter/common/dirutil',
-    'src/python/twitter/common/lang',
     python_requirement('distribute'),
-    python_requirement('pip'),
-  ]
+    pants('src/python/twitter/common'),
+  ],
+  provides = setup_py(
+    name = 'twitter.common.python',
+    version = '0.0.0',
+    description = "Twitter's Python interoperability libraries.",
+    long_description = """
+Twitter's Python interoperability libraries.  Includes support for package
+fetching, building, installing, "distillation" into eggs, a recursive
+zipimport implementation and Twitter's "PEX" standalone Python packaging
+environment.
+""",
+    namespace_packages = [
+      'twitter',
+      'twitter.common'
+    ]
+  )
 )
 
 python_binary(
   name = 'distiller',
   source = 'distiller.py',
   dependencies = [
-    'src/python/twitter/common/app',
-    'src/python/twitter/common/log',
-    ':python',
+    pants('src/python/twitter/common/app'),
+    pants('src/python/twitter/common/log'),
+    pants(':python'),
   ]
+)
+
+python_binary(
+  name = 'pex',
+  entry_point = 'twitter.common.python.pex_builder:main',
+  dependencies = [
+    pants(':python')
+  ]
+)
+
+page(name = 'pexreadme',
+  source = 'README.md',
+  dependencies = [
+    pants(':pexinstall')
+  ]
+)
+
+page(name = 'pexinstall',
+  source = 'INSTALL.md',
 )

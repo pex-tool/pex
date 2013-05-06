@@ -15,7 +15,10 @@
 # ==================================================================================================
 
 import re
+import sys
+
 import pkg_resources
+
 
 class Platform(object):
   class UnknownPlatformError(Exception):
@@ -41,10 +44,14 @@ class Platform(object):
     return pkg_resources.get_supported_platform()
 
   @staticmethod
+  def python():
+    return sys.version[:3]
+
+  @staticmethod
   def compatible(package, platform):
     if package is None or platform is None or package == platform:
       return True
-    MAJOR, MINOR, PLATFORM = range(1,4)
+    MAJOR, MINOR, PLATFORM = range(1, 4)
     package_match = Platform.MACOSX_VERSION_STRING.match(package)
     platform_match = Platform.MACOSX_VERSION_STRING.match(platform)
     if not (package_match and platform_match):
@@ -62,3 +69,15 @@ class Platform(object):
     package_compatibility = set(Platform.MACOSX_PLATFORM_COMPATIBILITY[package_platform])
     system_compatibility = set(Platform.MACOSX_PLATFORM_COMPATIBILITY[sys_platform])
     return bool(package_compatibility.intersection(system_compatibility))
+
+  @staticmethod
+  def version_compatible(package_py_version, py_version):
+    return package_py_version is None or py_version is None or package_py_version == py_version
+
+  @staticmethod
+  def distribution_compatible(dist, python=None, platform=None):
+    python = python or Platform.python()
+    platform = platform or Platform.current()
+    assert hasattr(dist, 'py_version') and hasattr(dist, 'platform')
+    return Platform.version_compatible(dist.py_version, python) and (
+      Platform.compatible(dist.platform, platform))
