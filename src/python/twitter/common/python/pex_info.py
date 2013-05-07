@@ -1,9 +1,13 @@
 from __future__ import print_function
 
-from collections import namedtuple
+import getpass
 import json
 import os
+import socket
 import sys
+
+from collections import namedtuple
+from time import localtime, strftime
 from pkg_resources import get_platform
 
 from .interpreter import PythonInterpreter
@@ -54,8 +58,25 @@ class PexInfo(object):
       'platform': get_platform(),
     }
     try:
-      from twitter.pants.base.build_info import get_build_info
-      base_info.update(get_build_info()._asdict())
+      from twitter.pants import get_buildroot, get_scm
+      buildroot = get_buildroot()
+      scm = get_scm()
+
+      now = localtime()
+      revision = scm.commit_id
+      tag = scm.tag_name or 'none'
+      branchname = scm.branch_name or revision
+      base_info.update({
+        'date': strftime('%A %b %d, %Y', now),
+        'time': strftime('%H:%M:%S', now),
+        'timestamp': strftime('%m.%d.%Y %H:%M', now),
+        'branch': branchname,
+        'tag': tag,
+        'sha': revision,
+        'user': getpass.getuser(),
+        'machine': socket.gethostname(),
+        'path': buildroot
+      })
     except ImportError:
       pass
     return base_info
