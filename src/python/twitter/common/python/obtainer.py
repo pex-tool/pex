@@ -58,7 +58,10 @@ class Obtainer(object):
 
   def obtain(self, req):
     with TRACER.timed('Obtaining %s' % req):
-      for link in self.iter(req):
+      links = list(self.iter(req))
+      TRACER.log('Got ordered links:\n\t%s' % '\n\t'.join(map(str, links)), V=2)
+      for link in links:
         dist = self._translator.translate(link)
         if dist:
+          TRACER.log('Picked %s -> %s' % (link, dist), V=2)
           return dist
