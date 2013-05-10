@@ -59,16 +59,20 @@ def dist_from_egg(egg_path):
 
 
 class SourceTranslator(TranslatorBase):
-  def __init__(self, install_cache=None, platform=Platform.current(), conn_timeout=None):
+  def __init__(self, install_cache=None, platform=Platform.current(), python=Platform.python(),
+               conn_timeout=None):
     self._install_cache = install_cache or safe_mkdtemp()
     self._platform = platform
+    self._python = python
     self._conn_timeout = conn_timeout
 
   def translate(self, link):
     """From a link, translate a distribution."""
     if not isinstance(link, SourceLink):
       return None
-    if not Platform.compatible(link.platform, self._platform):
+    if not Platform.compatible(Platform.current(), self._platform):
+      return None
+    if not Platform.version_compatible(Platform.python(), self._python):
       return None
     unpack_path, installer = None, None
     try:
@@ -117,4 +121,5 @@ class Translator(object):
     return ChainedTranslator(
       EggTranslator(install_cache=install_cache, platform=platform, python=python,
                     conn_timeout=conn_timeout),
-      SourceTranslator(install_cache=install_cache, platform=platform, conn_timeout=conn_timeout))
+      SourceTranslator(install_cache=install_cache, platform=platform, python=python,
+                       conn_timeout=conn_timeout))
