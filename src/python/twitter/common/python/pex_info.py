@@ -63,9 +63,14 @@ class PexInfo(object):
       scm = get_scm()
 
       now = localtime()
-      revision = scm.commit_id
-      tag = scm.tag_name or 'none'
-      branchname = scm.branch_name or revision
+      if scm:
+        revision = scm.commit_id
+        tag = scm.tag_name or 'none'
+        branchname = scm.branch_name or revision
+      else:
+        revision = 'unknown'
+        tag = 'none'
+        branchname = 'unknown'
       base_info.update({
         'date': strftime('%A %b %d, %Y', now),
         'time': strftime('%H:%M:%S', now),
