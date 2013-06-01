@@ -114,7 +114,7 @@ class Distiller(object):
     >>> psutil_link = SourceLink('http://psutil.googlecode.com/files/psutil-0.6.1.tar.gz',
     ...                          opener=Web())
     >>> psutil_dist = Installer(psutil_link.fetch()).distribution()
-    >>> Distiller(pstil_dist).distill()
+    >>> Distiller(psutil_dist).distill()
     Writing native stub for _psutil_linux.so
     Writing native stub for _psutil_posix.so
     Skipping file outside of top_level: psutil-0.6.1-py2.7.egg-info/SOURCES.txt
