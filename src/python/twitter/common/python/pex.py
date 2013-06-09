@@ -4,9 +4,6 @@ from distutils import sysconfig
 import os
 from site import USER_SITE
 import sys
-from distutils import sysconfig
-from site import USER_SITE
-
 from types import GeneratorType
 
 from twitter.common.collections import OrderedSet
@@ -78,12 +75,7 @@ class PEX(object):
   @classmethod
   def _extras_paths(cls):
     standard_lib = sysconfig.get_python_lib(standard_lib=True)
-    try:
-      makefile = sysconfig.parse_makefile(sysconfig.get_makefile_filename())
-    except (AttributeError, IOError):
-      # This is not available by default in PyPy's distutils.sysconfig or it simply is
-      # no longer available on the system (IOError ENOENT)
-      makefile = {}
+    makefile = sysconfig.parse_makefile(sysconfig.get_makefile_filename())
     extras_paths = filter(None, makefile.get('EXTRASPATH', '').split(':'))
     for path in extras_paths:
       yield os.path.join(standard_lib, path)
@@ -104,7 +96,7 @@ class PEX(object):
       TRACER.log('Found site-library: %s' % site_lib)
     for extras_path in cls._extras_paths():
       TRACER.log('Found site extra: %s' % extras_path)
-      site_libs.add(extras_path)
+      site_libs.add(extra_paths)
     site_libs = set(os.path.normpath(path) for path in site_libs)
 
     site_distributions = OrderedSet()
