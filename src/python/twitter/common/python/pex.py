@@ -70,26 +70,50 @@ class PEX(object):
       return str(entry_point)
 
   @classmethod
+  def _extras_paths(cls):
+    standard_lib = sysconfig.get_python_lib(standard_lib=True)
+    try:
+      makefile = sysconfig.parse_makefile(sysconfig.get_makefile_filename())
+    except (AttributeError, IOError):
+      # This is not available by default in PyPy's distutils.sysconfig or it simply is
+      # no longer available on the system (IOError ENOENT)
+      makefile = {}
+    extras_paths = filter(None, makefile.get('EXTRASPATH', '').split(':'))
+    for path in extras_paths:
+      yield os.path.join(standard_lib, path)
+
+  @classmethod
+  def _site_libs(cls):
+    return set([sysconfig.get_python_lib(plat_specific=False),
+                sysconfig.get_python_lib(plat_specific=True)])
+
+  @classmethod
   def minimum_path(cls):
     """
       Return as a tuple the emulated sys.path and sys.path_importer_cache of
       a bare python installation, a la python -S.
     """
-    from site import USER_SITE
-    from twitter.common.collections import OrderedSet
-    from pkg_resources import find_distributions
-    from distutils.sysconfig import get_python_lib
-    site_libs = set([get_python_lib(plat_specific=False), get_python_lib(plat_specific=True)])
+    site_libs = set(cls._site_libs())
+    for site_lib in site_libs:
+      TRACER.log('Found site-library: %s' % site_lib)
+    for extras_path in cls._extras_paths():
+      TRACER.log('Found site extra: %s' % extras_path)
+      site_libs.add(extra_paths)
+    site_libs = set(os.path.normpath(path) for path in site_libs)
+
     site_distributions = OrderedSet()
     for path_element in sys.path:
       if any(path_element.startswith(site_lib) for site_lib in site_libs):
         TRACER.log('Inspecting path element: %s' % path_element)
         site_distributions.update(dist.location for dist in find_distributions(path_element))
+
     user_site_distributions = OrderedSet(dist.location for dist in find_distributions(USER_SITE))
+
     for path in site_distributions:
       TRACER.log('Scrubbing from site-packages: %s' % path)
     for path in user_site_distributions:
       TRACER.log('Scrubbing from user site: %s' % path)
+
     scrub_paths = site_distributions | user_site_distributions
     scrubbed_sys_path = list(OrderedSet(sys.path) - scrub_paths)
     scrub_from_importer_cache = filter(
