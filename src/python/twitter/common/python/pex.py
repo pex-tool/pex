@@ -4,6 +4,9 @@ from distutils import sysconfig
 import os
 from site import USER_SITE
 import sys
+from distutils import sysconfig
+from site import USER_SITE
+
 from types import GeneratorType
 
 from twitter.common.collections import OrderedSet
@@ -101,7 +104,7 @@ class PEX(object):
       TRACER.log('Found site-library: %s' % site_lib)
     for extras_path in cls._extras_paths():
       TRACER.log('Found site extra: %s' % extras_path)
-      site_libs.add(extra_paths)
+      site_libs.add(extras_path)
     site_libs = set(os.path.normpath(path) for path in site_libs)
 
     site_distributions = OrderedSet()
