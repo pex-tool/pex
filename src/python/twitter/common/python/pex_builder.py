@@ -160,7 +160,7 @@ class PEXBuilder(object):
     """
     bare_env = pkg_resources.Environment()
 
-    distribute_req = pkg_resources.Requirement.parse('distribute>=0.6.24')
+    distribute_req = pkg_resources.Requirement.parse('distribute>=0.6.24,<0.6.41')
     distribute_dist = None
 
     for dist in DistributionHelper.all_distributions(sys.path):
