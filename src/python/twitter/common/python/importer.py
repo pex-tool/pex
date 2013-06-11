@@ -586,7 +586,26 @@ def monkeypatch_pkg_resources():
         "%s is not a subpath of %s" % (fspath, self.zip_pre)
       )
 
+  # TODO(wickman) Send pull request to setuptools to allow registering a factory for
+  # zipfile.ZipFile
+  def build_zipmanifest(path):
+    zipinfo = dict()
+    def contents_as_zipfile(path):
+      new_zf = zipfile.ZipFile(StringIO(Nested.read(path)))
+      new_zf.filename = path
+      return new_zf
+    zfile = contents_as_zipfile(path)
+    try:
+      for zitem in zfile.namelist():
+        zpath = zitem.replace('/', os.sep)
+        zipinfo[zpath] = zfile.getinfo(zitem)
+        assert zipinfo[zpath] is not None
+    finally:
+      zfile.close()
+    return zipinfo
+
   pkg_resources.zipimport = sys.modules[__name__]  # if monkeypatching after import
+  pkg_resources.build_zipmanifest = build_zipmanifest
   pkg_resources.EggMetadata = EggMetadata
   pkg_resources.register_finder(EggZipImporter, pkg_resources.find_in_zip)
   pkg_resources.register_namespace_handler(EggZipImporter, pkg_resources.file_ns_handler)
