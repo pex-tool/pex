@@ -1,9 +1,12 @@
 from __future__ import print_function
 
+from distutils import sysconfig
 import os
+from site import USER_SITE
 import sys
 from types import GeneratorType
 
+from twitter.common.collections import OrderedSet
 from twitter.common.contextutil import mutable_sys
 from twitter.common.dirutil import safe_mkdir
 from twitter.common.lang import Compatibility
