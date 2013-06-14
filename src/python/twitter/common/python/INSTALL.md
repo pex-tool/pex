@@ -15,7 +15,7 @@ You can also build the latest using the following:
 :::console
 # From within a checkedout science repo
 rm -f pants.pex
-./pants src/python/twitter/common/python
+./pants src/python/twitter/common/python:pex
 cp dist/pex.pex ~/bin
 ~~~~~~~~~~~~~
 
