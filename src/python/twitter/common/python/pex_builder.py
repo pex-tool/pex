@@ -274,7 +274,7 @@ class PEXBuilderHelper(object):
     parser = OptionParser(usage=usage, version="%prog 0.1.0")
     parser.add_option("--no-pypi", dest="use_pypi", default=True, action="store_false",
                       help="Dont use pypi to resolve dependencies; Default: use pypi")
-    parser.add_option("--cache-dir", dest="cache_dir", default="~/.pex/install",
+    parser.add_option("--cache-dir", dest="cache_dir", default=os.path.expanduser("~/.pex/install"),
                       help="The local cache directory to use for speeding up requirement " \
                            "lookups; Default: ~/.pex/install")
     parser.add_option("--pex-name", dest="pex_name", default=None,
