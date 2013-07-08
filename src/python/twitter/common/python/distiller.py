@@ -161,8 +161,6 @@ class Distiller(object):
       'twitter.common.python.installer, or is an already-distilled .egg.')
 
     self._top_levels = self._get_lines('top_level.txt')
-    assert len(self._top_levels) > 0
-
     self._installed_files = [
       os.path.realpath(os.path.join(self._dist.egg_info, fn)) for fn in
         self._get_lines('installed-files.txt')]
@@ -265,6 +263,8 @@ class Distiller(object):
     yield pez_info_name('not-zip-safe' if unsafe_source else 'zip-safe'), ''
 
   def distill(self, into=None, strip_pyc=False):
+    if not self._top_levels:
+      self._log('Installing meta package %s' % self._package_name())
     native_deps = self._native_deps()
 
     if into is not None:

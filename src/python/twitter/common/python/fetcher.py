@@ -11,6 +11,14 @@ from .translator import SourceTranslator, EggTranslator
 
 from pkg_resources import Requirement
 
+from twitter.common.lang import Compatibility
+
+
+if Compatibility.PY3:
+  import urllib.parse as urlparse
+else:
+  import urlparse
+
 
 class FetcherBase(AbstractClass):
   """
@@ -40,16 +48,18 @@ class PyPIFetcher(FetcherBase):
     def crange(ch1, ch2):
       return [chr(ch) for ch in range(ord(ch1), ord(ch2) + 1)]
     last, _, _ = socket.gethostbyname_ex('last.' + base)
-    assert last.endswith(cls.PYPI_BASE)
+    assert last.endswith(base)
     last_prefix = last.split('.')[0]
     # TODO(wickman) Is implementing > z really necessary?
     last_prefix = 'z' if len(last_prefix) > 1 else last_prefix[0]
     return ['%c.%s' % (letter, base) for letter in crange('a', last_prefix)]
 
   def __init__(self, pypi_base=PYPI_BASE, use_mirrors=False):
-    self.mirrors = self.resolve_mirrors(pypi_base) if use_mirrors else [pypi_base]
+    parts = urlparse.urlparse(pypi_base)
+    self.scheme, host = (parts.scheme, parts.netloc) if parts.scheme else ('http', pypi_base)
+    self.mirrors = self.resolve_mirrors(host) if use_mirrors else [host]
 
   def urls(self, req):
     req = maybe_requirement(req)
     random_mirror = random.choice(self.mirrors)
-    return ['http://%s/simple/%s/' % (random_mirror, req.project_name)]
+    return ['%s://%s/simple/%s/' % (self.scheme, random_mirror, req.project_name)]
