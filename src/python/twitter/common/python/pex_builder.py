@@ -22,13 +22,14 @@ import tempfile
 from zipimport import zipimporter
 
 from twitter.common.lang import Compatibility
-from twitter.common.dirutil import chmod_plus_x
+from twitter.common.dirutil import chmod_plus_x, safe_mkdir
 from twitter.common.dirutil.chroot import Chroot
 
-from .interpreter import PythonIdentity
+from .interpreter import PythonIdentity, PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
 from .pex import PEX
+from .translator import dist_from_egg
 from .util import DistributionHelper
 
 from pkg_resources import (
@@ -74,14 +75,20 @@ class PEXBuilder(object):
   DEPENDENCY_DIR = ".deps"
   BOOTSTRAP_DIR = ".bootstrap"
 
-  def __init__(self, path=None):
-    self._chroot = Chroot(path or tempfile.mkdtemp())
-    self._pex_info = PexInfo.default()
+  def __init__(self, path=None, interpreter=None, chroot=None, pex_info=None):
+    self._chroot = chroot or Chroot(path or tempfile.mkdtemp())
+    self._pex_info = pex_info or PexInfo.default()
     self._frozen = False
+    self._interpreter = interpreter or PythonInterpreter.get()
     self._logger = logging.getLogger(__name__)
 
   def chroot(self):
     return self._chroot
+
+  def clone(self, into=None):
+    chroot_clone = self._chroot.clone(into=into)
+    return PEXBuilder(chroot=chroot_clone, interpreter=self._interpreter,
+                      pex_info=PexInfo(content=self._pex_info.dump()))
 
   def path(self):
     return self.chroot().path()
@@ -105,6 +112,9 @@ class PEXBuilder(object):
 
   def add_dependency_file(self, filename, env_filename):
     self._chroot.link(filename, os.path.join(PEXBuilder.DEPENDENCY_DIR, env_filename))
+
+  def set_entry_point(self, entry_point):
+    self.info().entry_point = entry_point
 
   def add_egg(self, egg):
     """
@@ -149,6 +159,9 @@ class PEXBuilder(object):
   def _prepare_main(self):
     self._chroot.write(BOOTSTRAP_ENVIRONMENT, '__main__.py', label='main')
 
+  # TODO(wickman) Ideally we include twitter.common.python and twitter.common-core via the eggs
+  # rather than this hackish .bootstrap mechanism.  (Furthermore, we'll probably need to include
+  # both a pkg_resources and lib2to3 version of pkg_resources.)
   def _prepare_bootstrap(self):
     """
       Write enough of distribute into the .pex .bootstrap directory so that
@@ -156,27 +169,21 @@ class PEXBuilder(object):
     """
     bare_env = pkg_resources.Environment()
 
-    distribute_req = pkg_resources.Requirement.parse('distribute>=0.6.24')
-    distribute_dist = None
-
-    for dist in DistributionHelper.all_distributions(sys.path):
-      if dist in distribute_req and bare_env.can_add(dist):
-        distribute_dist = dist
-        break
-    else:
-      raise DistributionNotFound('Could not find distribute!')
-
-    for fn, content in DistributionHelper.walk_data(distribute_dist):
-      if fn.startswith('pkg_resources.py') or fn.startswith('setuptools'):
+    distribute = dist_from_egg(self._interpreter.distribute)
+    for fn, content in DistributionHelper.walk_data(distribute):
+      # TODO(wickman)  Investigate if the omission of setuptools proper causes failures to
+      # build eggs.
+      if fn.startswith('pkg_resources.py'):
         self._chroot.write(content, os.path.join(self.BOOTSTRAP_DIR, fn), 'resource')
+
     libraries = (
-      'twitter.common.dirutil',
       'twitter.common.collections',
       'twitter.common.contextutil',
+      'twitter.common.dirutil',
       'twitter.common.lang',
       'twitter.common.python',
       'twitter.common.python.http',
-      'twitter.common.quantity'
+      'twitter.common.quantity',
     )
     for name in libraries:
       dirname = name.replace('.', '/')
@@ -211,10 +218,10 @@ class PEXBuilder(object):
     except OSError:
       # The expectation is that the file does not exist, so continue
       pass
+    safe_mkdir(os.path.dirname(filename))
     with open(filename + '~', 'ab') as pexfile:
       assert os.path.getsize(pexfile.name) == 0
-      # TODO(wickman) Make this tunable
-      pexfile.write(Compatibility.to_bytes('%s\n' % PythonIdentity.get().hashbang()))
+      pexfile.write(Compatibility.to_bytes('%s\n' % self._interpreter.identity.hashbang()))
     self._chroot.zip(filename + '~', mode='a')
     if os.path.exists(filename):
       os.unlink(filename)

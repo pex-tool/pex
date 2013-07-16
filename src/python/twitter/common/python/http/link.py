@@ -17,7 +17,8 @@ from pkg_resources import (
   Distribution,
   EGG_NAME,
   parse_version,
-  Requirement)
+  Requirement,
+  safe_name)
 
 
 class Link(object):
@@ -149,7 +150,7 @@ class SourceLink(ExtendedLink):
 
   @property
   def name(self):
-    return self._name
+    return safe_name(self._name)
 
   @property
   def raw_version(self):
@@ -199,7 +200,7 @@ class EggLink(ExtendedLink):
 
   @property
   def name(self):
-    return self._name
+    return safe_name(self._name)
 
   @property
   def raw_version(self):

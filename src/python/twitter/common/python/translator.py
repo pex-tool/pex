@@ -1,14 +1,15 @@
-import os
-
 from abc import abstractmethod
+import os
+import sys
 from zipimport import zipimporter
 
-from twitter.common.dirutil import safe_rmtree, safe_mkdtemp
+from twitter.common.dirutil import chmod_plus_w, safe_rmtree, safe_mkdtemp
 from twitter.common.lang import AbstractClass, Compatibility
 
 from .distiller import Distiller
 from .http import SourceLink, EggLink
 from .installer import Installer
+from .interpreter import PythonInterpreter
 from .platforms import Platform
 from .tracer import TRACER
 
@@ -25,16 +26,18 @@ else:
 
 
 class TranslatorBase(AbstractClass):
-  """Translate a link into a distribution."""
+  """
+    Translate a link into a distribution.
+  """
   @abstractmethod
   def translate(self, link):
     pass
 
 
 class ChainedTranslator(TranslatorBase):
-  """Glue a sequence of Translators together in priority order.
-
-  The first Translator to resolve a requirement wins.
+  """
+    Glue a sequence of Translators together in priority order.  The first Translator to resolve a
+    requirement wins.
   """
   def __init__(self, *translators):
     self._translators = list(filter(None, translators))
@@ -59,30 +62,47 @@ def dist_from_egg(egg_path):
 
 
 class SourceTranslator(TranslatorBase):
-  def __init__(self, install_cache=None, platform=Platform.current(), python=Platform.python(),
-               conn_timeout=None):
+  @classmethod
+  def run_2to3(cls, path):
+    from lib2to3.refactor import get_fixers_from_package, RefactoringTool
+    rt = RefactoringTool(get_fixers_from_package('lib2to3.fixes'))
+    with TRACER.timed('Translating %s' % path):
+      for root, dirs, files in os.walk(path):
+        for fn in files:
+          full_fn = os.path.join(root, fn)
+          if full_fn.endswith('.py'):
+            with TRACER.timed('%s' % fn, V=3):
+              try:
+                chmod_plus_w(full_fn)
+                rt.refactor_file(full_fn, write=True)
+              except IOError as e:
+                TRACER.log('Failed to translate %s: %s' % (fn, e))
+
+  def __init__(self, install_cache=None, interpreter=PythonInterpreter.get(), use_2to3=False,
+      conn_timeout=None):
+    self._interpreter = interpreter
+    self._use_2to3 = use_2to3
     self._install_cache = install_cache or safe_mkdtemp()
-    self._platform = platform
-    self._python = python
     self._conn_timeout = conn_timeout
 
   def translate(self, link):
     """From a link, translate a distribution."""
     if not isinstance(link, SourceLink):
       return None
-    if not Platform.compatible(Platform.current(), self._platform):
-      return None
-    if not Platform.version_compatible(Platform.python(), self._python):
-      return None
+
     unpack_path, installer = None, None
+    version = self._interpreter.version
+    if self._use_2to3 and version >= (3,):
+      self.run_2to3(unpack_path)
     try:
       unpack_path = link.fetch(conn_timeout=self._conn_timeout)
       with TRACER.timed('Installing %s' % link.name):
-        installer = Installer(unpack_path, strict=(link.name != 'distribute'))
+        installer = Installer(unpack_path, interpreter=self._interpreter,
+            strict=(link.name != 'distribute'))
       with TRACER.timed('Distilling %s' % link.name):
         try:
           dist = installer.distribution()
-        except Installer.InstallFailure:
+        except Installer.InstallFailure as e:
           return None
         return dist_from_egg(Distiller(dist).distill(into=self._install_cache))
     finally:
@@ -116,10 +136,10 @@ class EggTranslator(TranslatorBase):
 
 class Translator(object):
   @staticmethod
-  def default(install_cache=None, platform=Platform.current(), python=Platform.python(),
+  def default(install_cache=None, platform=Platform.current(), interpreter=PythonInterpreter.get(),
               conn_timeout=None):
     return ChainedTranslator(
-      EggTranslator(install_cache=install_cache, platform=platform, python=python,
+      EggTranslator(install_cache=install_cache, platform=platform, python=interpreter.python,
                     conn_timeout=conn_timeout),
-      SourceTranslator(install_cache=install_cache, platform=platform, python=python,
+      SourceTranslator(install_cache=install_cache, interpreter=interpreter,
                        conn_timeout=conn_timeout))

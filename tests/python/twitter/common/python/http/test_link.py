@@ -17,7 +17,8 @@ from base import create_layout
 def test_source_links():
   for ext in ('.tar.gz', '.tar', '.tgz', '.zip', '.tar.bz2'):
     sl = SourceLink('a_p_r-3.1.3' + ext)
-    assert sl.name == 'a_p_r'
+    assert sl._name == 'a_p_r'
+    assert sl.name == 'a-p-r'
     assert sl.raw_version == '3.1.3'
     assert sl.version == parse_version(sl.raw_version)
     for req in ('a_p_r', 'a_p_r>2', 'a_p_r>3', 'a_p_r>=3.1.3', 'a_p_r==3.1.3', 'a_p_r>3,<3.5'):

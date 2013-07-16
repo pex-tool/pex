@@ -22,6 +22,7 @@ except ImportError:
 from pkg_resources import Distribution, get_build_platform
 from twitter.common.dirutil import safe_mkdir
 
+
 NAMESPACE_STUB = """
 try:
   __import__('pkg_resources').declare_namespace(__name__)
@@ -44,7 +45,7 @@ def __bootstrap__():
     try:
       from StringIO import StringIO
     except:
-      from io import ByteIO as StringIO
+      from io import BytesIO as StringIO
 
   # open multiply-nested-zip
   def nested_open(path, full_path=None, zf=None):
@@ -88,7 +89,7 @@ def __bootstrap__():
 
   try:
     fd, name = tempfile.mkstemp()
-    with os.fdopen(fd, 'w') as fp:
+    with os.fdopen(fd, 'wb') as fp:
       fp.write(content)
 
     __file__ = name
@@ -141,7 +142,7 @@ class Distiller(object):
 
   class InvalidDistribution(Exception): pass
 
-  def __init__(self, distribution, debug=True):
+  def __init__(self, distribution, debug=False):
     self._debug = debug
     self._dist = distribution
     assert isinstance(self._dist, Distribution)
@@ -192,7 +193,7 @@ class Distiller(object):
       if not fn.endswith('.py'):
         continue
 
-      with open(fn) as fn_fp:
+      with open(fn, 'rb') as fn_fp:
         try:
           parsed_fn = ast.parse(fn_fp.read())
         except SyntaxError as e:
@@ -248,7 +249,7 @@ class Distiller(object):
       if fn.startswith(egg_info_dir) and not skip(fn):
         rel_fn = os.path.relpath(fn, egg_info_dir)
         if rel_fn == '.': continue
-        with open(fn) as fp:
+        with open(fn, 'rb') as fp:
           yield egg_info_name(rel_fn), fp.read()
 
     # dump native_libs.txt

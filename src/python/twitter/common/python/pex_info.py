@@ -53,8 +53,8 @@ class PexInfo(object):
   def make_build_properties(cls):
     pi = PythonInterpreter()
     base_info = {
-      'class': pi.identity().interpreter,
-      'version': pi.identity().version,
+      'class': pi.identity.interpreter,
+      'version': pi.identity.version,
       'platform': get_platform(),
     }
     try:

@@ -47,13 +47,21 @@ class PEX(object):
     except ImportError:
       sys.stderr.write('Could not bootstrap coverage module!\n')
 
-  def __init__(self, pex=sys.argv[0]):
+  @classmethod
+  def clean_environment(cls, forking=False):
+    os.unsetenv('MACOSX_DEPLOYMENT_TARGET')
+    if not forking:
+      for key in filter(lambda key: key.startswith('PEX_'), os.environ):
+        os.unsetenv(key)
+
+  def __init__(self, pex=sys.argv[0], interpreter=None):
     try:
       self._pex = PythonDirectoryWrapper.get(pex)
     except PythonDirectoryWrapper.Error as e:
       raise self.NotFound('Could not open PEX at %s: %s!' % (pex, e))
     self._pex_info = PexInfo.from_pex(self._pex)
     self._env = PEXEnvironment(self._pex.path(), self._pex_info)
+    self._interpreter = interpreter or PythonInterpreter.get()
 
   @property
   def info(self):
@@ -193,8 +201,7 @@ class PEX(object):
           ['-m', 'pylint.lint']
         args: Arguments to be passed to the application being invoked by the environment.
     """
-    interpreter = PythonInterpreter(sys.executable)
-    cmds = [interpreter.binary()]
+    cmds = [self._interpreter.binary]
     cmds.append(self._pex.path())
     cmds.extend(args)
     return cmds
@@ -208,6 +215,7 @@ class PEX(object):
                 If false, return the Popen object of the invoked subprocess.
     """
     import subprocess
+    self.clean_environment(forking=True)
 
     cmdline = self.cmdline(args)
     TRACER.log('PEX.run invoking %s' % ' '.join(cmdline))

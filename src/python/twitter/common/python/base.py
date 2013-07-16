@@ -5,8 +5,20 @@ from twitter.common.lang import Compatibility
 from pkg_resources import Requirement
 
 
+REQUIRED_ATTRIBUTES = (
+    'extras',
+    'key',
+    'project_name',
+    'specs',
+)
+
+
+def quacks_like_req(req):
+  return all(hasattr(req, attr) for attr in REQUIRED_ATTRIBUTES)
+
+
 def maybe_requirement(req):
-  if isinstance(req, Requirement):
+  if isinstance(req, Requirement) or quacks_like_req(req):
     return req
   elif isinstance(req, Compatibility.string):
     return Requirement.parse(req)

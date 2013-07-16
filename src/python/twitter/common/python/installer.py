@@ -8,6 +8,7 @@ import tempfile
 
 from twitter.common.dirutil import safe_mkdtemp, safe_rmtree
 
+from .interpreter import PythonInterpreter
 from .tracer import TRACER
 
 from pkg_resources import Distribution, PathMetadata
@@ -47,7 +48,7 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
 
   class InstallFailure(Exception): pass
 
-  def __init__(self, source_dir, strict=True):
+  def __init__(self, source_dir, strict=True, interpreter=None):
     """
       Create an installer from an unpacked source distribution in source_dir.
 
@@ -58,6 +59,7 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
     self._install_tmp = safe_mkdtemp()
     self._installed = None
     self._strict = strict
+    self._interpreter = interpreter or PythonInterpreter.get()
     fd, self._install_record = tempfile.mkstemp()
     os.close(fd)
 
@@ -72,25 +74,19 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
   def run(self):
     if self._installed is not None:
       return self._installed
-    setuptools_path = None
-    for item in sys.path:
-      for dist in pkg_resources.find_distributions(item):
-        if dist.project_name == 'distribute':
-          setuptools_path = dist.location
-          break
 
-    if setuptools_path is None and self._strict:
+    if self._interpreter.distribute is None and self._strict:
       self._installed = False
       print('Failed to find distribute in sys.path!', file=sys.stderr)
       return self._installed
 
     setup_bootstrap = Installer.SETUP_BOOTSTRAP % {
-      'setuptools_path': setuptools_path or '',
+      'setuptools_path': self._interpreter.distribute or '',
       'setup_py': 'setup.py'
     }
     with TRACER.timed('Installing %s' % self._install_tmp, V=2):
       po = subprocess.Popen(
-        [sys.executable,
+        [self._interpreter.binary,
           '-',
           'install',
           '--root=%s' % self._install_tmp,
@@ -111,6 +107,7 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
       return self._installed
 
     installed_files = []
+    egg_info = None
     with open(self._install_record) as fp:
       installed_files = fp.read().splitlines()
       for line in installed_files:

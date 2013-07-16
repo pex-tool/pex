@@ -11,12 +11,14 @@ from twitter.common.quantity import Amount, Time
 
 if Compatibility.PY3:
   from http.client import parse_headers
+  from queue import Queue, Empty
   import urllib.error as urllib_error
   import urllib.parse as urlparse
   import urllib.request as urllib_request
   from urllib.request import addinfourl
 else:
   from httplib import HTTPMessage
+  from Queue import Queue, Empty
   from urllib import addinfourl
   import urllib2 as urllib_request
   import urllib2 as urllib_error
@@ -35,7 +37,6 @@ def deadline(fn, *args, **kw):
 
      Takes timeout= kwarg, which defaults to Amount(150, Time.MILLISECONDS)
   """
-  from Queue import Queue, Empty
   from threading import Thread
   q = Queue(maxsize=1)
   timeout = kw.pop('timeout', Amount(150, Time.MILLISECONDS))
@@ -132,7 +133,7 @@ class CachedWeb(object):
     return self.age(url) > 0
 
   def translate_url(self, url):
-    return os.path.join(self._cache, hashlib.md5(url).hexdigest())
+    return os.path.join(self._cache, hashlib.md5(url.encode('utf8')).hexdigest())
 
   def translate_all(self, url):
     return ('%(tgt)s %(tgt)s.tmp %(tgt)s.headers %(tgt)s.headers.tmp' % {
@@ -177,11 +178,11 @@ class CachedWeb(object):
 
   def decode_url(self, url):
     target, _, headers, _ = self.translate_all(url)
-    headers_fp = open(headers)
+    headers_fp = open(headers, 'rb')
     code, = struct.unpack('>h', headers_fp.read(2))
     def make_headers(fp):
       return HTTPMessage(fp) if Compatibility.PY2 else parse_headers(fp)
-    return addinfourl(open(target), make_headers(headers_fp), url, code)
+    return addinfourl(open(target, 'rb'), make_headers(headers_fp), url, code)
 
   def clear_url(self, url):
     for path in self.translate_all(url):
