@@ -26,7 +26,7 @@ def maybe_requirement(req):
 
 
 def maybe_requirement_list(reqs):
-  if isinstance(reqs, (Compatibility.string, Requirement)) or quacks_like_req(reqs):
+  if isinstance(reqs, (Compatibility.string, Requirement)):
     return [maybe_requirement(reqs)]
   elif isinstance(reqs, Iterable):
     return [maybe_requirement(req) for req in reqs]
