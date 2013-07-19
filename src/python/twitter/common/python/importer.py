@@ -28,7 +28,7 @@ Usage:
   monkeypatch()
 """
 
-from collections import MappingView
+from collections import MappingView, MutableMapping
 import contextlib
 import os
 import sys
@@ -43,9 +43,43 @@ from twitter.common.lang import Compatibility
 from twitter.common.python.marshaller import CodeMarshaller
 StringIO = Compatibility.BytesIO
 
+
+class ZipDirectoryCache(MutableMapping):
+  def __init__(self, shadow):
+    self.__shadow = shadow
+    self.__lookaside = {}
+
+  def __setitem__(self, key, value):
+    try:
+      self.__shadow[key] = value
+    except TypeError:
+      self.__lookaside[key] = value
+
+  def __getitem__(self, key):
+    try:
+      return self.__shadow[key]
+    except KeyError:
+      return self.__lookaside[key]
+
+  def __delitem__(self, key):
+    try:
+      del self.__lookaside[key]
+    except KeyError:
+      del self.__shadow[key]
+
+  def __iter__(self):
+    for key in self.__shadow:
+      yield key
+    for key in self.__lookaside:
+      yield key
+
+  def __len__(self):
+    return len(self.__shadow) + len(self.__lookaside)
+
+
 _zipfile_cache = {}
 _zipfile_namecache = {}
-_zip_directory_cache = builtin_zipimport._zip_directory_cache
+_zip_directory_cache = ZipDirectoryCache(builtin_zipimport._zip_directory_cache)
 
 
 class ZipFileCache(MappingView):
@@ -251,8 +285,6 @@ class Nested(object):
         assert provider is not None
         zf = _zipfile_cache[archive] = provider()
       _zipfile_namecache[archive] = set(zf.namelist())
-    # PyPy doesn't allow us to share its builtin_zipimport _zip_directory_cache.
-    # TODO(wickman)  Go back to the delegating proxy for zip directory cache.
     # TODO(wickman)  Do not leave handles open, as this could cause ulimits to
     # be exceeded.
     _zip_directory_cache[archive] = ZipFileCache(archive)
@@ -284,6 +316,7 @@ def zipimporter(path):
       for line in traceback.format_exc().splitlines():
         EggZipImporter._log(line, at_level=2)
     return bzi
+
 
 class EggZipImporter(object):
   """
@@ -524,8 +557,13 @@ def monkeypatch():
 
 
 def monkeypatch_zipimport():
-  from pkgutil import iter_importer_modules, iter_zipimport_modules
   sys.modules['zipimport'] = sys.modules[__name__]
+
+  # PyPy pkgutil still references zipimport._zip_directory_cache directly.
+  import pkgutil
+  pkgutil.zipimport = sys.modules[__name__]
+
+  from pkgutil import iter_importer_modules, iter_zipimport_modules
 
   # replace the sys.path_hook for zipimport
   try:

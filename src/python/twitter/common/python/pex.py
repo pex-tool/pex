@@ -83,7 +83,12 @@ class PEX(object):
   @classmethod
   def _extras_paths(cls):
     standard_lib = sysconfig.get_python_lib(standard_lib=True)
-    makefile = sysconfig.parse_makefile(sysconfig.get_makefile_filename())
+    try:
+      makefile = sysconfig.parse_makefile(sysconfig.get_makefile_filename())
+    except (AttributeError, IOError):
+      # This is not available by default in PyPy's distutils.sysconfig or it simply is
+      # no longer available on the system (IOError ENOENT)
+      makefile = {}
     extras_paths = filter(None, makefile.get('EXTRASPATH', '').split(':'))
     for path in extras_paths:
       yield os.path.join(standard_lib, path)
@@ -240,7 +245,8 @@ class PEXEnvironment(Environment):
         with TRACER.timed('Activating cache %s' % self._path):
           for dist in find_distributions(self._path):
             if self._env.can_add(dist):
-              self._env.add(dist)
+              with TRACER.timed('Adding %s:%s' % (dist, dist.location)):
+                self._env.add(dist)
         self._activated = True
 
   @staticmethod
@@ -271,11 +277,11 @@ class PEXEnvironment(Environment):
     reqs = maybe_requirement_list(requirements)
     resolved = OrderedSet()
     for req in reqs:
-      with TRACER.timed('Resolved %s' % req):
+      with TRACER.timed('Resolving %s' % req):
         try:
           distributions = self._ws.resolve([req], env=self)
         except DistributionNotFound as e:
-          TRACER.log('Failed to resolve %s' % req)
+          TRACER.log('Failed to resolve %s: %s' % (req, e))
           if not ignore_errors:
             raise
           continue
@@ -311,7 +317,7 @@ class PEXEnvironment(Environment):
     all_reqs = [Requirement.parse(req) for req, _, _ in self._pex_info.requirements]
 
     for req in all_reqs:
-      with TRACER.timed('Resolved %s' % str(req)):
+      with TRACER.timed('Resolving %s' % req):
         try:
           resolved = self._ws.resolve([req], env=self)
         except DistributionNotFound as e:
@@ -320,9 +326,9 @@ class PEXEnvironment(Environment):
             raise
           continue
       for dist in resolved:
-        with TRACER.timed('  Activated %s' % dist):
+        with TRACER.timed('Activated %s' % dist):
           if os.environ.get('PEX_FORCE_LOCAL', not self._really_zipsafe(dist)):
-            with TRACER.timed('    Locally caching'):
+            with TRACER.timed('Locally caching'):
               new_dist = DistributionHelper.maybe_locally_cache(dist, self._pex_info.install_cache)
               new_dist.activate()
           else:

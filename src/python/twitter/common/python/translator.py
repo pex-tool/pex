@@ -92,10 +92,11 @@ class SourceTranslator(TranslatorBase):
 
     unpack_path, installer = None, None
     version = self._interpreter.version
-    if self._use_2to3 and version >= (3,):
-      self.run_2to3(unpack_path)
     try:
       unpack_path = link.fetch(conn_timeout=self._conn_timeout)
+      if self._use_2to3 and version >= (3,):
+        with TRACER.timed('Translating 2->3 %s' % link.name):
+          self.run_2to3(unpack_path)
       with TRACER.timed('Installing %s' % link.name):
         installer = Installer(unpack_path, interpreter=self._interpreter,
             strict=(link.name != 'distribute'))

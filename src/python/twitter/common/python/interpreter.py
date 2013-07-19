@@ -15,6 +15,12 @@ import sys
 
 from pkg_resources import Distribution, Requirement
 
+from .tracer import Tracer
+
+
+TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'),
+    prefix='twitter.common.python.interpreter: ')
+
 
 # Determine in the most platform-compatible way possible the identity of the interpreter
 # and whether or not it has a distribute egg.
@@ -139,7 +145,7 @@ class PythonIdentity(object):
 
 class PythonInterpreter(object):
   REGEXEN = (
-    # re.compile(r'jython$'), -- Leave this out until support is hashed out
+    re.compile(r'jython$'),
     re.compile(r'python$'),
     re.compile(r'python[23].[0-9]$'),
     re.compile(r'pypy$'),
@@ -192,7 +198,8 @@ class PythonInterpreter(object):
         if any(matcher.match(basefile) is not None for matcher in cls.REGEXEN):
           try:
             pythons.append(cls.from_binary(fn))
-          except:
+          except Exception as e:
+            TRACER.log('Could not identify %s: %s' % (fn, e))
             continue
     return pythons
 
