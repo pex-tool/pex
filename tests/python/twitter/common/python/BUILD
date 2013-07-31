@@ -21,6 +21,7 @@ python_test_suite(name = 'all',
     pants(':test_nested'),
     pants(':test_obtainer'),
     pants(':test_platform'),
+    pants(':test_pex_bootstrapper'),
     pants(':test_pex_builder_main'),
   ]
 )
@@ -43,6 +44,14 @@ python_tests(name = 'test_platform',
   sources = ['test_platform.py'],
   dependencies = [
     pants('src/python/twitter/common/python')
+  ]
+)
+
+python_tests(name = 'test_pex_bootstrapper',
+  sources = ['test_pex_bootstrapper.py'],
+  dependencies = [
+    pants('3rdparty/python:mock'),
+    pants('src/python/twitter/common/python'),
   ]
 )
 

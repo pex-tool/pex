@@ -1,10 +1,13 @@
 from __future__ import print_function
 
+import contextlib
 from distutils import sysconfig
 import os
+import shutil
 from site import USER_SITE
 import sys
 from types import GeneratorType
+import zipfile
 
 from twitter.common.collections import OrderedSet
 from twitter.common.contextutil import mutable_sys
@@ -260,10 +263,40 @@ class PEXEnvironment(Environment):
     egg_metadata = dist.metadata_listdir('/')
     return 'zip-safe' in egg_metadata and 'native_libs.txt' not in egg_metadata
 
+  @classmethod
+  def resolve_internal_cache(cls, pex, pex_info):
+    # TODO(wickman) this logic is duplicated in pex_bootstrapper.py -- consider factoring it out
+    if os.path.exists(os.path.join(pex, pex_info.internal_cache)) or (
+        not pex_info.always_write_cache):
+      return os.path.join(pex, pex_info.internal_cache)
+
+    # we assume the pex is a zip, so write that instead.
+    with contextlib.closing(zipfile.ZipFile(pex)) as zf:
+      for zi in zf.infolist():
+        if zi.filename.endswith('/') or not zi.filename.startswith(pex_info.internal_cache):
+          # either it's a directory or not part of our cache
+          continue
+        relpath = os.path.relpath(zi.filename, pex_info.internal_cache)
+        target_path = os.path.join(pex_info.egg_install_cache, relpath)
+        if os.path.exists(target_path) and os.path.getsize(target_path) == zi.file_size:
+          # assume already cached
+          continue
+        safe_mkdir(os.path.dirname(target_path))
+        with TRACER.timed('Extracting %s' % target_path):
+          with open(target_path + '~', 'wb') as dst_fp:
+            with contextlib.closing(zf.open(zi.filename)) as src_fp:
+              shutil.copyfileobj(src_fp, dst_fp)
+        os.rename(target_path + '~', target_path)
+      return pex_info.egg_install_cache
+
   def __init__(self, pex, pex_info, platform=Platform.current(), python=Platform.python()):
+    with TRACER.timed('Establishing local cache'):
+      internal_cache = self.resolve_internal_cache(pex, pex_info)
     subcaches = sum([
-      [os.path.join(pex, pex_info.internal_cache)],
+      [internal_cache],
       [cache for cache in pex_info.egg_caches],
+      # TODO(wickman) We should create a symlink overlay of pex_install so as to not get
+      # non-deterministic dependency creep.
       [pex_info.install_cache if pex_info.install_cache else []]],
       [])
     self._pex_info = pex_info

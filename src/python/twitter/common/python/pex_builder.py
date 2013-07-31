@@ -60,19 +60,14 @@ if __entry_point__ is None:
 sys.path[0] = os.path.abspath(sys.path[0])
 sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, '.bootstrap')))
 
-from twitter.common.python.importer import monkeypatch
-monkeypatch()
-del monkeypatch
-
-from twitter.common.python.pex import PEX
-PEX(__entry_point__).execute()
+from twitter.common.python.pex_bootstrapper import bootstrap_pex
+bootstrap_pex(__entry_point__)
 """
 
 class PEXBuilder(object):
   class InvalidDependency(Exception): pass
   class InvalidExecutableSpecification(Exception): pass
 
-  DEPENDENCY_DIR = ".deps"
   BOOTSTRAP_DIR = ".bootstrap"
 
   def __init__(self, path=None, interpreter=None, chroot=None, pex_info=None):
@@ -111,7 +106,11 @@ class PEXBuilder(object):
     self._pex_info.add_requirement(req, repo=repo, dynamic=dynamic)
 
   def add_dependency_file(self, filename, env_filename):
-    self._chroot.link(filename, os.path.join(PEXBuilder.DEPENDENCY_DIR, env_filename))
+    # TODO(wickman) This is broken.  The build cache abstraction just breaks down here.
+    if filename.endswith('.egg'):
+      self.add_egg(filename)
+    else:
+      self._chroot.link(filename, os.path.join(self._pex_info.internal_cache, env_filename))
 
   def set_entry_point(self, entry_point):
     self.info().entry_point = entry_point
@@ -129,7 +128,7 @@ class PEXBuilder(object):
     if not dist.location.endswith('.egg'):
       raise PEXBuilder.InvalidDependency('Non-egg dependencies not yet supported.')
     self._chroot.link(dist.location,
-      os.path.join(PEXBuilder.DEPENDENCY_DIR, os.path.basename(dist.location)))
+      os.path.join(self._pex_info.internal_cache, os.path.basename(dist.location)))
 
   def set_executable(self, filename, env_filename=None):
     if env_filename is None:
@@ -170,11 +169,11 @@ class PEXBuilder(object):
     bare_env = pkg_resources.Environment()
 
     distribute = dist_from_egg(self._interpreter.distribute)
-    for fn, content in DistributionHelper.walk_data(distribute):
+    for fn, content_stream in DistributionHelper.walk_data(distribute):
       # TODO(wickman)  Investigate if the omission of setuptools proper causes failures to
       # build eggs.
       if fn.startswith('pkg_resources.py'):
-        self._chroot.write(content, os.path.join(self.BOOTSTRAP_DIR, fn), 'resource')
+        self._chroot.write(content_stream.read(), os.path.join(self.BOOTSTRAP_DIR, fn), 'resource')
 
     libraries = (
       'twitter.common.collections',
