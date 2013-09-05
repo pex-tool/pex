@@ -17,7 +17,7 @@ class PexInfo(object):
 
     # Build metadata:
 
-    build_properties: BuildProperties (from pants)
+    build_properties: BuildProperties (key-value information about the build system)
 
     # Loader options
 
@@ -48,24 +48,17 @@ class PexInfo(object):
 
   PATH = 'PEX-INFO'
 
-  # TODO(wickman) This probably belongs in pants, not in here?
   @classmethod
   def make_build_properties(cls):
     from .interpreter import PythonInterpreter
     from pkg_resources import get_platform
 
     pi = PythonInterpreter()
-    base_info = {
+    return {
       'class': pi.identity.interpreter,
       'version': pi.identity.version,
       'platform': get_platform(),
     }
-    try:
-      from twitter.pants.base.build_info import get_build_info
-      base_info.update(get_build_info()._asdict())
-    except ImportError:
-      pass
-    return base_info
 
   @classmethod
   def default(cls):
@@ -97,6 +90,13 @@ class PexInfo(object):
   @property
   def build_properties(self):
     return self._pex_info.get('build_properties', {})
+
+  @build_properties.setter
+  def build_properties(self, value):
+    if not isinstance(value, dict):
+      raise TypeError('build_properties must be a dictionary!')
+    self._pex_info['build_properties'] = self.make_build_properties()
+    self._pex_info['build_properties'].update(value)
 
   @property
   def zip_safe(self):

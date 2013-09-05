@@ -88,8 +88,15 @@ class PEXBuilder(object):
   def path(self):
     return self.chroot().path()
 
+  @property
   def info(self):
     return self._pex_info
+
+  @info.setter
+  def info(self, value):
+    if not isinstance(value, PexInfo):
+      raise TypeError('PEXBuilder.info must be a PexInfo!')
+    self._pex_info = value
 
   def add_source(self, filename, env_filename):
     self._chroot.link(filename, env_filename, "source")
@@ -113,7 +120,7 @@ class PEXBuilder(object):
       self._chroot.link(filename, os.path.join(self._pex_info.internal_cache, env_filename))
 
   def set_entry_point(self, entry_point):
-    self.info().entry_point = entry_point
+    self.info.entry_point = entry_point
 
   def add_egg(self, egg):
     """
@@ -384,7 +391,7 @@ class PEXBuilderHelper(object):
         pex_builder.set_executable(options.entry_point)
       elif ":" in options.entry_point:
         cls.logger.info("Adding entry point to PEX: Function: {0}".format(options.entry_point))
-        pex_builder.info().entry_point = options.entry_point
+        pex_builder.info.entry_point = options.entry_point
       else:
         cls.logger.warn("Invalid entry point: {0}".format(options.entry_point))
     if options.pex_name is not None:
