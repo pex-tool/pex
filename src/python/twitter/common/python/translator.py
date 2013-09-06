@@ -78,12 +78,13 @@ class SourceTranslator(TranslatorBase):
               except IOError as e:
                 TRACER.log('Failed to translate %s: %s' % (fn, e))
 
-  def __init__(self, install_cache=None, interpreter=PythonInterpreter.get(), use_2to3=False,
-      conn_timeout=None):
+  def __init__(self, install_cache=None, interpreter=PythonInterpreter.get(),
+      platform=Platform.current(), use_2to3=False, conn_timeout=None):
     self._interpreter = interpreter
     self._use_2to3 = use_2to3
     self._install_cache = install_cache or safe_mkdtemp()
     self._conn_timeout = conn_timeout
+    self._platform = platform
 
   def translate(self, link):
     """From a link, translate a distribution."""
@@ -105,7 +106,10 @@ class SourceTranslator(TranslatorBase):
           dist = installer.distribution()
         except Installer.InstallFailure as e:
           return None
-        return dist_from_egg(Distiller(dist).distill(into=self._install_cache))
+        dist = dist_from_egg(Distiller(dist).distill(into=self._install_cache))
+        if Platform.distribution_compatible(dist, python=self._interpreter.python,
+            platform=self._platform):
+          return dist
     finally:
       if installer:
         installer.cleanup()
