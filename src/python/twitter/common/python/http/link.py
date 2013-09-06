@@ -128,7 +128,7 @@ class SourceLink(ExtendedLink):
        ('django-plugin-2', '2.3')
     """
     def likely_version_component(enumerated_fragment):
-      return sum(v[0].isdigit() for v in enumerated_fragment[1].split('.'))
+      return sum(bool(v and v[0].isdigit()) for v in enumerated_fragment[1].split('.'))
     fragments = fragment.split('-')
     if len(fragments) == 1:
       return fragment, ''
