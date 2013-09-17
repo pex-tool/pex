@@ -164,6 +164,8 @@ class CachedWeb(object):
   def encode_url(self, url, conn_timeout=None):
     target, target_tmp, headers, headers_tmp = self.translate_all(url)
     with contextlib.closing(self.really_open(url, conn_timeout=conn_timeout)) as http_fp:
+      if http_fp.getcode() != 200:
+        raise urllib_error.URLError('Non-200 response code from %s' % url)
       with TRACER.timed('Caching', V=2):
         with open(target_tmp, 'wb') as disk_fp:
           disk_fp.write(http_fp.read())
