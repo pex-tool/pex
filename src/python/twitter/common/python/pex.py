@@ -2,16 +2,18 @@ from __future__ import print_function
 
 import contextlib
 from distutils import sysconfig
+from hashlib import sha1
 import os
 import shutil
 from site import USER_SITE
 import sys
 from types import GeneratorType
+import uuid
 import zipfile
 
 from twitter.common.collections import OrderedSet
-from twitter.common.contextutil import mutable_sys
-from twitter.common.dirutil import safe_mkdir
+from twitter.common.contextutil import mutable_sys, open_zip
+from twitter.common.dirutil import safe_mkdir, safe_rmtree
 from twitter.common.lang import Compatibility
 
 from .base import maybe_requirement_list
@@ -263,6 +265,15 @@ class PEXEnvironment(Environment):
     egg_metadata = dist.metadata_listdir('/')
     return 'zip-safe' in egg_metadata and 'native_libs.txt' not in egg_metadata
 
+  @staticmethod
+  def _hash_digest(filename, hasher=sha1):
+    file_hash = hasher()
+    block_size = file_hash.block_size * 1024
+    with open(filename, 'rb') as fh:
+      for chunk in iter(lambda: fh.read(block_size), ''):
+        file_hash.update(chunk)
+    return file_hash.hexdigest()
+
   @classmethod
   def resolve_internal_cache(cls, pex, pex_info):
     # TODO(wickman) this logic is duplicated in pex_bootstrapper.py -- consider factoring it out
@@ -299,6 +310,7 @@ class PEXEnvironment(Environment):
       # non-deterministic dependency creep.
       [pex_info.install_cache if pex_info.install_cache else []]],
       [])
+    self._pex = pex
     self._pex_info = pex_info
     self._activated = False
     self._subcaches = [self.Subcache(cache, self) for cache in subcaches]
@@ -342,6 +354,26 @@ class PEXEnvironment(Environment):
   def activate(self):
     if self._activated:
       return
+
+    if os.environ.get('PEX_FORCE_LOCAL', not self._pex_info.zip_safe):
+      pex_chksum = self._hash_digest(self._pex)
+      explode_dir = os.path.join(self._pex_info.zip_unsafe_cache, pex_chksum)
+      TRACER.log('Using zip_unsafe mode, explode_dir=%s' % explode_dir)
+      if not os.path.exists(explode_dir):
+        explode_tmp = explode_dir + '.' + uuid.uuid4().hex
+        with TRACER.timed('Unzipping %s' % self._pex):
+          try:
+            safe_mkdir(explode_tmp)
+            with open_zip(self._pex) as pex_zip:
+              pex_files = (x for x in pex_zip.namelist() if not x.startswith('.'))
+              pex_zip.extractall(explode_tmp, pex_files)
+          except:
+            safe_rmtree(explode_tmp)
+            raise
+        TRACER.log('Renaming %s to %s' % (explode_tmp, explode_dir))
+        os.rename(explode_tmp, explode_dir)
+      sys.path.insert(0, explode_dir)
+
     if self._pex_info.inherit_path:
       self._ws = WorkingSet(sys.path)
 

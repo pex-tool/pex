@@ -23,6 +23,7 @@ class PexInfo(object):
 
     entry_point: string                # entry point into this pex
     zip_safe: True, default False      # is this pex zip safe?
+    zip_unsafe_cache: string           # cache dir for pex zip_safe=False, default ~/.pex/code
     inherit_path: True, default False  # should this pex inherit site-packages + PYTHONPATH?
     ignore_errors: True, default False # should we ignore inability to resolve dependencies?
     always_write_cache: False          # should we always write the internal cache to disk first?
@@ -215,6 +216,15 @@ class PexInfo(object):
   @download_cache.setter
   def download_cache(self, value):
     self._pex_info['download_cache'] = value
+
+  @property
+  def zip_unsafe_cache(self):
+    return self._pex_info.get('zip_unsafe_cache',
+      os.path.expanduser(os.path.join('~', '.pex', 'code')))
+
+  @zip_unsafe_cache.setter
+  def zip_unsafe_cache(self, value):
+    self._pex_info['zip_unsafe_cache'] = value
 
   def dump(self):
     pex_info_copy = self._pex_info.copy()
