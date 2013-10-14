@@ -355,7 +355,7 @@ class PEXEnvironment(Environment):
     if self._activated:
       return
 
-    if os.environ.get('PEX_FORCE_LOCAL', not self._pex_info.zip_safe):
+    if os.environ.get('PEX_FORCE_LOCAL', not self._pex_info.zip_safe) and os.path.isfile(self._pex):
       pex_chksum = self._hash_digest(self._pex)
       explode_dir = os.path.join(self._pex_info.zip_unsafe_cache, pex_chksum)
       TRACER.log('Using zip_unsafe mode, explode_dir=%s' % explode_dir)
