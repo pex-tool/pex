@@ -358,7 +358,7 @@ class PEXEnvironment(Environment):
     if os.environ.get('PEX_FORCE_LOCAL', not self._pex_info.zip_safe) and os.path.isfile(self._pex):
       pex_chksum = self._hash_digest(self._pex)
       explode_dir = os.path.join(self._pex_info.zip_unsafe_cache, pex_chksum)
-      TRACER.log('Using zip_unsafe mode, explode_dir=%s' % explode_dir)
+      TRACER.log('zip_safe is False, explode_dir: %s' % explode_dir)
       if not os.path.exists(explode_dir):
         explode_tmp = explode_dir + '.' + uuid.uuid4().hex
         with TRACER.timed('Unzipping %s' % self._pex):
@@ -372,7 +372,15 @@ class PEXEnvironment(Environment):
             raise
         TRACER.log('Renaming %s to %s' % (explode_tmp, explode_dir))
         os.rename(explode_tmp, explode_dir)
+
+      # Force subsequent imports to come from the .pex directory rather than the .pex file.
+      TRACER.log('Adding to the head of sys.path: %s' % explode_dir)
       sys.path.insert(0, explode_dir)
+      for name, module in sys.modules.items():
+        if hasattr(module, "__path__"):
+          module_dir = os.path.join(explode_dir, *name.split("."))
+          TRACER.log('Adding to the head of %s.__path__: %s' % (module.__name__, module_dir))
+          module.__path__.insert(0, module_dir)
 
     if self._pex_info.inherit_path:
       self._ws = WorkingSet(sys.path)
