@@ -19,15 +19,11 @@ python_library(
   sources = rglobs('*.py'),
   dependencies = [
     python_requirement('distribute'),
-    pants('src/python/twitter/common/collections'),
-    pants('src/python/twitter/common/contextutil'),
-    pants('src/python/twitter/common/dirutil'),
-    pants('src/python/twitter/common/lang'),
-    pants('src/python/twitter/common/quantity'),
+    pants('src/python/twitter/common'),
   ],
   provides = setup_py(
     name = 'twitter.common.python',
-    version = '0.1.0',
+    version = '0.0.0',
     description = "Twitter's Python interoperability libraries.",
     long_description = """
 Twitter's Python interoperability libraries.  Includes support for package
@@ -38,15 +34,6 @@ environment.
     namespace_packages = [
       'twitter',
       'twitter.common'
-    ],
-    url = 'https://github.com/twitter/commons/tree/master/src/python/twitter/common/python',
-    license = 'Apache License, Version 2.0',
-    zip_safe = True,
-    classifiers = [
-      'Intended Audience :: Developers',
-      'License :: OSI Approved :: Apache Software License',
-      'Operating System :: OS Independent',
-      'Programming Language :: Python',
     ]
   )
 )
