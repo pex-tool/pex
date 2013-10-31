@@ -104,11 +104,7 @@ class PEXBuilder(object):
     self._pex_info.add_requirement(req, repo=repo, dynamic=dynamic)
 
   def add_dependency_file(self, filename, env_filename):
-    # TODO(wickman) This is broken.  The build cache abstraction just breaks down here.
-    if filename.endswith('.egg'):
-      self.add_egg(filename)
-    else:
-      self._chroot.link(filename, os.path.join(PEXBuilder.DEPENDENCY_DIR, env_filename))
+    self._chroot.link(filename, os.path.join(PEXBuilder.DEPENDENCY_DIR, env_filename))
 
   def add_egg(self, egg):
     """
