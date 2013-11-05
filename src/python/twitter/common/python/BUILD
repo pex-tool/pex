@@ -18,7 +18,7 @@ python_library(
   name = "python",
   sources = rglobs('*.py'),
   dependencies = [
-    python_requirement('distribute'),
+    pants('3rdparty/python:setuptools'),
     pants('src/python/twitter/common/collections'),
     pants('src/python/twitter/common/contextutil'),
     pants('src/python/twitter/common/dirutil'),
@@ -27,7 +27,7 @@ python_library(
   ],
   provides = setup_py(
     name = 'twitter.common.python',
-    version = '0.1.0',
+    version = '0.2.0',
     description = "Twitter's Python interoperability libraries.",
     long_description = """
 Twitter's Python interoperability libraries.  Includes support for package

@@ -35,10 +35,15 @@ else:
 setuptools_path = None
 try:
   import pkg_resources
+  try:
+    setuptools_req = pkg_resources.Requirement.parse('setuptools>=1', replacement=False)
+  except TypeError:
+    setuptools_req = pkg_resources.Requirement.parse('setuptools>=1')
   for item in sys.path:
     for dist in pkg_resources.find_distributions(item):
-      if dist.project_name == 'distribute':
+      if dist in setuptools_req:
         setuptools_path = dist.location
+        break
 except ImportError:
   pass
 
@@ -153,6 +158,14 @@ class PythonInterpreter(object):
   )
 
   CACHE = {}  # memoize executable => PythonInterpreter
+
+  try:
+    # Versions of distribute prior to the setuptools merge would automatically replace
+    # 'setuptools' requirements with 'distribute'.  It provided the 'replacement' kwarg
+    # to toggle this, but it was removed post-merge.
+    COMPATIBLE_SETUPTOOLS = Requirement.parse('setuptools>=1.0', replacement=False)
+  except TypeError:
+    COMPATIBLE_SETUPTOOLS = Requirement.parse('setuptools>=1.0')
 
   class Error(Exception): pass
   class IdentificationError(Error): pass
@@ -272,7 +285,7 @@ class PythonInterpreter(object):
     import pkg_resources
     for item in sys.path:
       for dist in pkg_resources.find_distributions(item):
-        if dist.project_name == 'distribute':
+        if dist in self.COMPATIBLE_SETUPTOOLS:
           return dist.location
 
   @property

@@ -224,7 +224,8 @@ class PEXBuilder(object):
     except OSError:
       # The expectation is that the file does not exist, so continue
       pass
-    safe_mkdir(os.path.dirname(filename))
+    if os.path.dirname(filename):
+      safe_mkdir(os.path.dirname(filename))
     with open(filename + '~', 'ab') as pexfile:
       assert os.path.getsize(pexfile.name) == 0
       pexfile.write(Compatibility.to_bytes('%s\n' % self._interpreter.identity.hashbang()))
