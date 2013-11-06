@@ -35,10 +35,6 @@ fetching, building, installing, "distillation" into eggs, a recursive
 zipimport implementation and Twitter's "PEX" standalone Python packaging
 environment.
 """,
-    namespace_packages = [
-      'twitter',
-      'twitter.common'
-    ],
     url = 'https://github.com/twitter/commons/tree/master/src/python/twitter/common/python',
     license = 'Apache License, Version 2.0',
     zip_safe = True,
