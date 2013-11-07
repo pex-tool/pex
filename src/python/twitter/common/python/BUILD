@@ -19,11 +19,6 @@ python_library(
   sources = rglobs('*.py'),
   dependencies = [
     pants('3rdparty/python:setuptools'),
-    pants('src/python/twitter/common/collections'),
-    pants('src/python/twitter/common/contextutil'),
-    pants('src/python/twitter/common/dirutil'),
-    pants('src/python/twitter/common/lang'),
-    pants('src/python/twitter/common/quantity'),
   ],
   provides = setup_py(
     name = 'twitter.common.python',
@@ -45,16 +40,6 @@ environment.
       'Programming Language :: Python',
     ]
   )
-)
-
-python_binary(
-  name = 'distiller',
-  source = 'distiller.py',
-  dependencies = [
-    pants('src/python/twitter/common/app'),
-    pants('src/python/twitter/common/log'),
-    pants(':python'),
-  ]
 )
 
 python_binary(

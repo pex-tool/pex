@@ -14,10 +14,12 @@
 # limitations under the License.
 # ==================================================================================================
 
+from __future__ import absolute_import
+
 import re
 import sys
 
-import pkg_resources
+from pkg_resources import compatible_platforms, get_supported_platform
 
 
 class Platform(object):
@@ -41,7 +43,7 @@ class Platform(object):
 
   @staticmethod
   def current():
-    return pkg_resources.get_supported_platform()
+    return get_supported_platform()
 
   @staticmethod
   def python():
@@ -55,7 +57,7 @@ class Platform(object):
     package_match = Platform.MACOSX_VERSION_STRING.match(package)
     platform_match = Platform.MACOSX_VERSION_STRING.match(platform)
     if not (package_match and platform_match):
-      return pkg_resources.compatible_platforms(package, platform)
+      return compatible_platforms(package, platform)
     if package_match.group(MAJOR) != platform_match.group(MAJOR):
       return False
     if int(package_match.group(MINOR)) > int(platform_match.group(MINOR)):

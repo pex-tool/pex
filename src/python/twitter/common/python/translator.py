@@ -1,11 +1,11 @@
+from __future__ import absolute_import
+
 from abc import abstractmethod
 import os
-import sys
 from zipimport import zipimporter
 
-from twitter.common.dirutil import chmod_plus_w, safe_rmtree, safe_mkdtemp
-from twitter.common.lang import AbstractClass, Compatibility
-
+from .common import chmod_plus_w, safe_rmtree, safe_mkdtemp
+from .compatibility import AbstractClass, PY3
 from .distiller import Distiller
 from .http import SourceLink, EggLink
 from .installer import Installer
@@ -13,13 +13,9 @@ from .interpreter import PythonInterpreter
 from .platforms import Platform
 from .tracer import TRACER
 
-from pkg_resources import (
-  Distribution,
-  EggMetadata,
-  PathMetadata)
+from pkg_resources import Distribution, EggMetadata, PathMetadata
 
-
-if Compatibility.PY3:
+if PY3:
   import urllib.error as urllib_error
 else:
   import urllib2 as urllib_error

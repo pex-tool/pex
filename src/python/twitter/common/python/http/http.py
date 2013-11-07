@@ -5,11 +5,11 @@ import socket
 import struct
 import time
 
-from twitter.common.dirutil import safe_delete, safe_mkdir, safe_mkdtemp
-from twitter.common.lang import Compatibility
-from twitter.common.quantity import Amount, Time
+from ..common import safe_delete, safe_mkdir, safe_mkdtemp
+from ..compatibility import PY2, PY3
+from .tracer import TRACER
 
-if Compatibility.PY3:
+if PY3:
   from http.client import parse_headers
   from queue import Queue, Empty
   import urllib.error as urllib_error
@@ -24,8 +24,6 @@ else:
   import urllib2 as urllib_error
   import urlparse
 
-from .tracer import TRACER
-
 
 class Timeout(Exception):
   pass
@@ -35,24 +33,26 @@ def deadline(fn, *args, **kw):
   """Helper function to prevent fn(*args, **kw) from running more than
      a specified timeout.
 
-     Takes timeout= kwarg, which defaults to Amount(150, Time.MILLISECONDS)
+     Takes timeout= kwarg in seconds, which defaults to 150ms (0.150)
   """
+  DEFAULT_TIMEOUT_SECS = 0.150
+
   from threading import Thread
   q = Queue(maxsize=1)
-  timeout = kw.pop('timeout', Amount(150, Time.MILLISECONDS))
+  timeout = kw.pop('timeout', DEFAULT_TIMEOUT_SECS)
   class AnonymousThread(Thread):
     def run(self):
       q.put(fn(*args, **kw))
   AnonymousThread().start()
   try:
-    return q.get(timeout=timeout.as_(Time.SECONDS))
+    return q.get(timeout=timeout)
   except Empty:
     raise Timeout
 
 
 class Web(object):
-  NS_TIMEOUT = Amount(5, Time.SECONDS)
-  CONN_TIMEOUT = Amount(1, Time.SECONDS)
+  NS_TIMEOUT_SECS = 5.0
+  CONN_TIMEOUT = 1.0
   SCHEME_TO_PORT = {
     'ftp': 21,
     'http': 80,
@@ -69,7 +69,7 @@ class Web(object):
     port = fullurl.port if fullurl.port else self.SCHEME_TO_PORT.get(fullurl.scheme, 80)
     try:
       conn = socket.create_connection(
-          (fullurl.hostname, port), timeout=(conn_timeout or self.CONN_TIMEOUT).as_(Time.SECONDS))
+          (fullurl.hostname, port), timeout=(conn_timeout or self.CONN_TIMEOUT))
       conn.close()
       return True
     except (socket.error, socket.timeout):
@@ -88,7 +88,7 @@ class Web(object):
       return True
     try:
       with TRACER.timed('Resolving', V=2):
-        if not deadline(self._resolves, fullurl, timeout=self.NS_TIMEOUT):
+        if not deadline(self._resolves, fullurl, timeout=self.NS_TIMEOUT_SECS):
           TRACER.log('Failed to resolve %s' % url)
           return False
     except Timeout:
@@ -181,7 +181,7 @@ class CachedWeb(object):
     headers_fp = open(headers, 'rb')
     code, = struct.unpack('>h', headers_fp.read(2))
     def make_headers(fp):
-      return HTTPMessage(fp) if Compatibility.PY2 else parse_headers(fp)
+      return HTTPMessage(fp) if PY2 else parse_headers(fp)
     return addinfourl(open(target, 'rb'), make_headers(headers_fp), url, code)
 
   def clear_url(self, url):

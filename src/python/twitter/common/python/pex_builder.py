@@ -13,29 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==================================================================================================
+from __future__ import absolute_import
 
 import logging
 import os
-import pkg_resources
 import sys
 import tempfile
 from zipimport import zipimporter
 
-from twitter.common.lang import Compatibility
-from twitter.common.dirutil import chmod_plus_x, safe_mkdir
-from twitter.common.dirutil.chroot import Chroot
-
-from .interpreter import PythonIdentity, PythonInterpreter
+from .compatibility import to_bytes
+from .common import chmod_plus_x, safe_mkdir, Chroot
+from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
-from .pex import PEX
 from .translator import dist_from_egg
 from .util import DistributionHelper
 
 from pkg_resources import (
-  Distribution,
-  DistributionNotFound,
-  EggMetadata)
+    DefaultProvider,
+    Distribution,
+    EggMetadata,
+    Requirement,
+    ZipProvider,
+    get_provider,
+)
 
 
 BOOTSTRAP_ENVIRONMENT = b"""
@@ -60,7 +61,7 @@ if __entry_point__ is None:
 sys.path[0] = os.path.abspath(sys.path[0])
 sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, '.bootstrap')))
 
-from twitter.common.python.pex_bootstrapper import bootstrap_pex
+from _twitter_common_python.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)
 """
 
@@ -173,39 +174,27 @@ class PEXBuilder(object):
       Write enough of distribute into the .pex .bootstrap directory so that
       we can be fully self-contained.
     """
-    bare_env = pkg_resources.Environment()
-
     distribute = dist_from_egg(self._interpreter.distribute)
     for fn, content_stream in DistributionHelper.walk_data(distribute):
       # TODO(wickman)  Investigate if the omission of setuptools proper causes failures to
       # build eggs.
-      if fn.startswith('pkg_resources.py'):
-        self._chroot.write(content_stream.read(), os.path.join(self.BOOTSTRAP_DIR, fn), 'resource')
-
+      if fn == 'pkg_resources.py':
+        self._chroot.write(content_stream.read(),
+            os.path.join(self.BOOTSTRAP_DIR, 'pkg_resources.py'), 'resource')
     libraries = (
-      'twitter.common.collections',
-      'twitter.common.contextutil',
-      'twitter.common.dirutil',
-      'twitter.common.lang',
       'twitter.common.python',
       'twitter.common.python.http',
-      'twitter.common.quantity',
     )
     for name in libraries:
-      dirname = name.replace('.', '/')
-      provider = pkg_resources.get_provider(name)
-      if not isinstance(provider, pkg_resources.DefaultProvider):
+      dirname = name.replace('twitter.common.python', '_twitter_common_python').replace('.', '/')
+      provider = get_provider(name)
+      if not isinstance(provider, DefaultProvider):
         mod = __import__(name, fromlist=['wutttt'])
-        provider = pkg_resources.ZipProvider(mod)
+        provider = ZipProvider(mod)
       for fn in provider.resource_listdir(''):
         if fn.endswith('.py'):
           self._chroot.write(provider.get_resource_string(name, fn),
             os.path.join(self.BOOTSTRAP_DIR, dirname, fn), 'resource')
-    for initdir in ('twitter', 'twitter/common'):
-      self._chroot.write(
-        b"__import__('pkg_resources').declare_namespace(__name__)",
-        os.path.join(self.BOOTSTRAP_DIR, initdir, '__init__.py'),
-        'resource')
 
   def freeze(self):
     if self._frozen:
@@ -228,7 +217,7 @@ class PEXBuilder(object):
       safe_mkdir(os.path.dirname(filename))
     with open(filename + '~', 'ab') as pexfile:
       assert os.path.getsize(pexfile.name) == 0
-      pexfile.write(Compatibility.to_bytes('%s\n' % self._interpreter.identity.hashbang()))
+      pexfile.write(to_bytes('%s\n' % self._interpreter.identity.hashbang()))
     self._chroot.zip(filename + '~', mode='a')
     if os.path.exists(filename):
       os.unlink(filename)
@@ -252,7 +241,6 @@ class PEXBuilderHelper(object):
   @classmethod
   def get_all_valid_reqs(cls, requirements, requirements_txt):
     from collections import namedtuple
-    from pkg_resources import Requirement
     import re
     numbered_item = namedtuple("numbered_item", ["position", "data"])
     numbered_list = lambda dataset: [numbered_item(*ni) for ni in enumerate(dataset)]
@@ -351,14 +339,10 @@ class PEXBuilderHelper(object):
 
   @classmethod
   def main(cls):
-    from itertools import chain
-    from twitter.common.python.distiller import Distiller
-    from twitter.common.python.fetcher import Fetcher, PyPIFetcher
-    from twitter.common.python.http import Crawler
-    from twitter.common.python.installer import Installer
-    from twitter.common.python.obtainer import Obtainer
-    from twitter.common.python.resolver import Resolver
-    from twitter.common.python.translator import Translator
+    from .distiller import Distiller
+    from .fetcher import Fetcher, PyPIFetcher
+    from .installer import Installer
+    from .resolver import Resolver
 
     parser = cls.configure_clp()
     options, args = parser.parse_args()

@@ -1,15 +1,10 @@
+from __future__ import absolute_import
+
 from abc import abstractmethod
-import itertools
 import random
 
-from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
-from twitter.common.lang import AbstractClass
-
 from .base import maybe_requirement
-from .http import Crawler, SourceLink
-from .translator import SourceTranslator, EggTranslator
-
-from pkg_resources import Requirement
+from .compatibility import AbstractClass
 
 
 class FetcherBase(AbstractClass):

@@ -29,6 +29,7 @@ python_test_suite(name = 'all',
 python_tests(name = 'test_nested',
   sources = ['test_nested.py'],
   dependencies = [
+    pants('src/python/twitter/common/dirutil'),
     pants('src/python/twitter/common/python')
   ]
 )

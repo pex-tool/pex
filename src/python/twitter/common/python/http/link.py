@@ -1,24 +1,27 @@
+from __future__ import absolute_import
+
 import contextlib
 import os
 import posixpath
 import tarfile
 import zipfile
 
-from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
-from twitter.common.lang import Compatibility
-from twitter.common.python.base import maybe_requirement
+from ..base import maybe_requirement
+from ..common import safe_mkdir, safe_mkdtemp
+from ..compatibility import PY3
 
-if Compatibility.PY3:
+from pkg_resources import (
+    Distribution,
+    EGG_NAME,
+    parse_version,
+    Requirement,
+    safe_name,
+)
+
+if PY3:
   import urllib.parse as urlparse
 else:
   import urlparse
-
-from pkg_resources import (
-  Distribution,
-  EGG_NAME,
-  parse_version,
-  Requirement,
-  safe_name)
 
 
 class Link(object):
@@ -99,8 +102,11 @@ class ExtendedLink(Link):
   def satisfies(self, requirement):
     """Does the signature of this filename match the requirement (pkg_resources.Requirement)?"""
     requirement = maybe_requirement(requirement)
-    return Distribution(project_name=self.name, version=self.raw_version,
-      py_version=self.py_version, platform=self.platform) in requirement
+    distribution = Distribution(project_name=self.name, version=self.raw_version,
+      py_version=self.py_version, platform=self.platform)
+    if distribution.key != requirement.key:
+      return False
+    return self.raw_version in requirement
 
 
 class SourceLink(ExtendedLink):
@@ -154,7 +160,7 @@ class SourceLink(ExtendedLink):
 
   @property
   def raw_version(self):
-    return self._raw_version
+    return safe_name(self._raw_version)
 
   @staticmethod
   def first_nontrivial_dir(path):
@@ -204,7 +210,7 @@ class EggLink(ExtendedLink):
 
   @property
   def raw_version(self):
-    return self._raw_version
+    return safe_name(self._raw_version)
 
   @property
   def py_version(self):

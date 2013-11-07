@@ -1,10 +1,15 @@
+from __future__ import absolute_import
+
 import errno
 import os
 import shutil
 import sys
 import tempfile
 
-from twitter.common.lang import Compatibility
+from .common import safe_rmtree, safe_open, safe_mkdir
+from .compatibility import BytesIO
+
+from pkg_resources import find_distributions, PathMetadata, Distribution
 
 
 class DistributionHelper(object):
@@ -34,14 +39,12 @@ class DistributionHelper(object):
   def walk(dist):
     """yields filename, stream for all files in the distribution"""
     for fn, content in DistributionHelper.walk_metadata(dist):
-      yield fn, Compatibility.BytesIO(content)
+      yield fn, BytesIO(content)
     for fn, content in DistributionHelper.walk_data(dist):
       yield fn, content
 
   @staticmethod
   def maybe_locally_cache(dist, cache_dir):
-    from pkg_resources import PathMetadata, Distribution
-    from twitter.common.dirutil import safe_rmtree, safe_open, safe_mkdir
     egg_name = os.path.join(cache_dir, dist.egg_name() + '.egg')
     safe_mkdir(cache_dir)
     if not os.path.exists(egg_name):
@@ -60,7 +63,6 @@ class DistributionHelper(object):
 
   @staticmethod
   def all_distributions(path=sys.path):
-    from pkg_resources import find_distributions
     for element in path:
       for dist in find_distributions(element):
         yield dist

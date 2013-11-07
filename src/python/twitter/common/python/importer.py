@@ -27,6 +27,7 @@ Usage:
   from twitter.common.python.importer import *
   monkeypatch()
 """
+from __future__ import absolute_import
 
 from collections import MappingView, MutableMapping
 import contextlib
@@ -39,9 +40,14 @@ import types
 import zipfile
 import zipimport as builtin_zipimport
 
-from twitter.common.lang import Compatibility
-from twitter.common.python.marshaller import CodeMarshaller
-StringIO = Compatibility.BytesIO
+from .compatibility import (
+    BytesIO,
+    PY3,
+    exec_function,
+)
+from .marshaller import CodeMarshaller
+
+StringIO = BytesIO
 
 
 class ZipDirectoryCache(MutableMapping):
@@ -425,7 +431,7 @@ class EggZipImporter(object):
     fullpath = '%s%s%s' % (self.archive, os.sep, relpath)
     source = Nested.read(fullpath)
     assert source is not None
-    if Compatibility.PY3:
+    if PY3:
       source = source.decode('utf8')
     source = source.replace('\r\n', '\n').replace('\r', '\n')
     return submodname, is_package, fullpath, source
@@ -437,12 +443,12 @@ class EggZipImporter(object):
     pyc = os.path.splitext(fullpath)[0] + '.pyc'
     try:
       with timed('Unmarshaling %s' % pyc, at_level=2):
-        pyc_object = CodeMarshaller.from_pyc(Compatibility.BytesIO(Nested.read(pyc)))
+        pyc_object = CodeMarshaller.from_pyc(BytesIO(Nested.read(pyc)))
     except (Nested.FileNotFound, ValueError, CodeMarshaller.InvalidCode) as e:
       with timed('Compiling %s because of %s' % (fullpath, e.__class__.__name__), at_level=2):
         py = Nested.read(fullpath)
         assert py is not None
-        if Compatibility.PY3:
+        if PY3:
           py = py.decode('utf8')
         pyc_object = CodeMarshaller.from_py(py, fullpath)
     return submodname, is_package, fullpath, pyc_object.code
@@ -492,7 +498,7 @@ class EggZipImporter(object):
         if is_package:
           mod.__path__ = [os.path.dirname(mod.__file__)]
           self._log('** __path__ = %s' % mod.__path__, at_level=4)
-        Compatibility.exec_function(code, mod.__dict__)
+        exec_function(code, mod.__dict__)
       except Exception as e:
         self._log('Caught exception: %s' % e)
         if fullmodname in sys.modules:
@@ -599,7 +605,7 @@ def monkeypatch_pkg_resources():
     Filed https://bitbucket.org/tarek/distribute/issue/274
   """
   import pkg_resources
-
+  
   _EggMetadata = pkg_resources.EggMetadata
 
   def normalized_elements(path):

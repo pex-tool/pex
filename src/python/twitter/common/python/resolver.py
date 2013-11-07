@@ -1,22 +1,18 @@
 from __future__ import print_function
 
-import sys
-import tempfile
-
 from .base import maybe_requirement_list
 from .fetcher import PyPIFetcher
 from .http import Crawler
 from .interpreter import PythonInterpreter
 from .obtainer import Obtainer
 from .platforms import Platform
-from .tracer import TRACER
 from .translator import Translator
 
 from pkg_resources import (
-    find_distributions,
-    Requirement,
     Environment,
-    WorkingSet)
+    WorkingSet,
+    find_distributions,
+)
 
 
 class ResolverEnvironment(Environment):

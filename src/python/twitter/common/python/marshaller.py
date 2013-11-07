@@ -8,7 +8,7 @@ import marshal
 import struct
 import time
 
-from twitter.common.lang import Compatibility
+from .compatibility import BytesIO, bytes as compatibility_bytes
 
 
 class CodeTimestamp(object):
@@ -43,10 +43,10 @@ class CodeMarshaller(object):
   def from_pyc(pyc):
     if not HAS_MAGIC:
       raise CodeMarshaller.InvalidCode('Interpreter cannot unmarshal .pyc!')
-    if not isinstance(pyc, Compatibility.bytes) and not hasattr(pyc, 'read'):
+    if not isinstance(pyc, compatibility_bytes) and not hasattr(pyc, 'read'):
       raise CodeMarshaller.InvalidCode(
           "CodeMarshaller.from_pyc expects a code or file-like object!")
-    if not isinstance(pyc, Compatibility.bytes):
+    if not isinstance(pyc, compatibility_bytes):
       pyc = pyc.read()
     pyc_magic = struct.unpack('I', pyc[slice(*CodeMarshaller.MAGIC_RANGE)])[0]
     if pyc_magic != CodeMarshaller.MAGIC:
@@ -73,7 +73,7 @@ class CodeMarshaller(object):
     return self._code
 
   def to_pyc(self):
-    sio = Compatibility.BytesIO()
+    sio = BytesIO()
     sio.write(struct.pack('I', CodeMarshaller.MAGIC))
     sio.write(struct.pack('I', self._stamp))
     sio.write(marshal.dumps(self._code))

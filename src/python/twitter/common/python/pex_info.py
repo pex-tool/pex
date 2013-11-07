@@ -1,11 +1,11 @@
-from __future__ import print_function
+from __future__ import absolute_import, print_function
 
 from collections import namedtuple
 import json
 import os
 import sys
 
-from twitter.common.collections import OrderedSet
+from .orderedset import OrderedSet
 
 PexRequirement = namedtuple('PexRequirement', 'requirement repo dynamic')
 PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')

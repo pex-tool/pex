@@ -5,12 +5,11 @@ import os
 import re
 import threading
 
-from twitter.common.lang import Compatibility
-
+from ..compatibility import PY3
 from .http import CachedWeb, Web
 from .tracer import TRACER
 
-if Compatibility.PY3:
+if PY3:
   from queue import Empty, Queue
   import urllib.error as urllib_error
   from urllib.parse import urlparse, urljoin

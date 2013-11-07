@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import absolute_import, print_function
 
 import ast
 from contextlib import closing
@@ -7,20 +7,9 @@ import sys
 import tempfile
 import zipfile
 
-try:
-  from twitter.common import app
-  HAS_APP = True
-except ImportError:
-  HAS_APP = False
-
-try:
-  from twitter.common import log
-  log_info = log.info
-except ImportError:
-  log_info = lambda msg: sys.stdout.write(msg + '\n')
+from .common import safe_mkdir
 
 from pkg_resources import Distribution, get_build_platform
-from twitter.common.dirutil import safe_mkdir
 
 
 NAMESPACE_STUB = """
@@ -28,7 +17,7 @@ try:
   __import__('pkg_resources').declare_namespace(__name__)
 except ImportError:
   from sys import stderr
-  stderr.write('Unable to declare namespace for %%s\\n' % __name__)
+  stderr.write('Unable to declare namespace for %s\\n' % __name__)
   stderr.write('This package may not work!\\n')
 """
 
@@ -41,10 +30,10 @@ def __bootstrap__():
   import sys, imp, tempfile
   try:
     from cStringIO import StringIO
-  except:
+  except ImportError:
     try:
       from StringIO import StringIO
-    except:
+    except ImportError:
       from io import BytesIO as StringIO
 
   # open multiply-nested-zip
@@ -172,7 +161,7 @@ class Distiller(object):
 
   def _log(self, msg):
     if self._debug:
-      log_info(msg)
+      print(msg, file=sys.stderr)
 
   def _get_lines(self, txt):
     return list(self._dist.get_metadata_lines(txt))
@@ -312,31 +301,3 @@ class Distiller(object):
 
     os.rename(filename + '~', filename)
     return filename
-
-
-def main(args, options):
-  from pkg_resources import WorkingSet, Requirement, find_distributions
-
-  if not options.site_dir:
-    app.error('Must supply --site')
-
-  distributions = list(find_distributions(options.site_dir))
-  working_set = WorkingSet()
-  for dist in distributions:
-    working_set.add(dist)
-
-  for arg in args:
-    arg_req = Requirement.parse(arg)
-    found_dist = working_set.find(arg_req)
-    if not found_dist:
-      print('Could not find %s!' % arg_req)
-    out_zip = Distiller(found_dist).distill()
-    print('Dumped %s => %s' % (arg_req, out_zip))
-
-
-if HAS_APP:
-  if __name__ == '__main__':
-    app.add_option('--site', dest='site_dir', metavar='DIR', default=None,
-                   help='Directory to search for the requirement.')
-
-  app.main()

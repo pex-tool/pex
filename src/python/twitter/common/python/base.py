@@ -1,8 +1,11 @@
+from __future__ import absolute_import
+
 from collections import Iterable
 
-from twitter.common.lang import Compatibility
+from .compatibility import string as compatibility_string
 
 from pkg_resources import Requirement
+
 
 
 REQUIRED_ATTRIBUTES = (
@@ -20,13 +23,13 @@ def quacks_like_req(req):
 def maybe_requirement(req):
   if isinstance(req, Requirement) or quacks_like_req(req):
     return req
-  elif isinstance(req, Compatibility.string):
+  elif isinstance(req, compatibility_string):
     return Requirement.parse(req)
   raise ValueError('Unknown requirement %r' % (req,))
 
 
 def maybe_requirement_list(reqs):
-  if isinstance(reqs, (Compatibility.string, Requirement)) or quacks_like_req(reqs):
+  if isinstance(reqs, (compatibility_string, Requirement)) or quacks_like_req(reqs):
     return [maybe_requirement(reqs)]
   elif isinstance(reqs, Iterable):
     return [maybe_requirement(req) for req in reqs]

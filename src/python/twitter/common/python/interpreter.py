@@ -1,6 +1,7 @@
 """
 twitter.common.python support for interpreter environments.
 """
+from __future__ import absolute_import
 
 try:
   from numbers import Integral
@@ -13,10 +14,9 @@ import re
 import subprocess
 import sys
 
-from pkg_resources import Distribution, Requirement
-
 from .tracer import Tracer
 
+from pkg_resources import find_distributions, Distribution, Requirement
 
 TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'),
     prefix='twitter.common.python.interpreter: ')
@@ -282,9 +282,8 @@ class PythonInterpreter(object):
       self._distribute = distribute_path
 
   def _find_distribute(self):
-    import pkg_resources
     for item in sys.path:
-      for dist in pkg_resources.find_distributions(item):
+      for dist in find_distributions(item):
         if dist in self.COMPATIBLE_SETUPTOOLS:
           return dist.location
 

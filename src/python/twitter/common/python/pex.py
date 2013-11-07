@@ -1,4 +1,4 @@
-from __future__ import print_function
+from __future__ import absolute_import, print_function
 
 import contextlib
 from distutils import sysconfig
@@ -7,30 +7,29 @@ import os
 import shutil
 from site import USER_SITE
 import sys
-from types import GeneratorType
 import uuid
 import zipfile
 
-from twitter.common.collections import OrderedSet
-from twitter.common.contextutil import mutable_sys, open_zip
-from twitter.common.dirutil import safe_mkdir, safe_rmtree
-from twitter.common.lang import Compatibility
 
 from .base import maybe_requirement_list
+from .common import mutable_sys, open_zip, safe_mkdir, safe_rmtree
+from .compatibility import exec_function
 from .dirwrapper import PythonDirectoryWrapper
 from .interpreter import PythonInterpreter
+from .orderedset import OrderedSet
 from .pex_info import PexInfo
 from .platforms import Platform
 from .tracer import Tracer
 from .util import DistributionHelper
 
 from pkg_resources import (
-    find_distributions,
     DistributionNotFound,
+    EntryPoint,
     Environment,
     Requirement,
-    WorkingSet)
-
+    WorkingSet,
+    find_distributions,
+)
 
 TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='twitter.common.python.pex: ')
 
@@ -165,7 +164,7 @@ class PEX(object):
           old_name = globals()['__name__']
           try:
             globals()['__name__'] = '__main__'
-            Compatibility.exec_function(ast, globals())
+            exec_function(ast, globals())
           finally:
             globals()['__name__'] = old_name
         else:
@@ -196,7 +195,6 @@ class PEX(object):
 
   @staticmethod
   def execute_pkg_resources(spec):
-    from pkg_resources import EntryPoint
     entry = EntryPoint.parse("run = {0}".format(spec))
     runner = entry.load(require=False)  # trust that the environment is sane
     runner()

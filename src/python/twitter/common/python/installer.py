@@ -1,18 +1,15 @@
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 
 import os
-import pkg_resources
 import subprocess
 import sys
 import tempfile
 
-from twitter.common.dirutil import safe_mkdtemp, safe_rmtree
-
+from .common import safe_mkdtemp, safe_rmtree
 from .interpreter import PythonInterpreter
 from .tracer import TRACER
 
 from pkg_resources import Distribution, PathMetadata
-
 
 __all__ = (
   'Installer',

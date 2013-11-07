@@ -8,7 +8,6 @@ import urllib2
 from twitter.common.contextutil import temporary_dir
 from twitter.common.lang import Compatibility
 from twitter.common.python.http import CachedWeb, Web
-from twitter.common.quantity import Amount, Time
 from twitter.common.testing.clock import ThreadedClock
 
 import mox
@@ -46,7 +45,7 @@ def test_open_resolve_failure():
 def test_resolve_timeout():
   event = threading.Event()
   class FakeWeb(Web):
-    NS_TIMEOUT = Amount(1, Time.MILLISECONDS)
+    NS_TIMEOUT = 0.001
     def _resolves(self, fullurl):
       event.wait()
     def _reachable(self, fullurl):
@@ -103,7 +102,7 @@ class MockOpener(object):
     self.opened.clear()
 
   def open(self, url, conn_timeout=None):
-    if conn_timeout and conn_timeout == Amount(0, Time.SECONDS):
+    if conn_timeout == 0:
       raise urllib_error.URLError('Could not reach %s within deadline.' % url)
     if url.startswith('http'):
       self.opened.set()
@@ -121,9 +120,9 @@ def test_connect_timeout_using_open():
   web = CachedWeb(clock=clock, opener=opener)
   assert not os.path.exists(web.translate_url(URL))
   with pytest.raises(urllib_error.URLError):
-    with contextlib.closing(web.open(URL, conn_timeout=Amount(0, Time.SECONDS))):
+    with contextlib.closing(web.open(URL, conn_timeout=0)):
       pass
-  with contextlib.closing(web.open(URL, conn_timeout=Amount(10, Time.MILLISECONDS))) as fp:
+  with contextlib.closing(web.open(URL, conn_timeout=0.01)) as fp:
     assert fp.read() == DATA
 
 

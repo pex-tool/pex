@@ -34,7 +34,7 @@ def read_pex_info_content(entry_point):
 
 def get_pex_info(entry_point):
   """Return the PexInfo object for an entry point."""
-  from twitter.common.python import pex_info
+  from . import pex_info
 
   pex_info_content = read_pex_info_content(entry_point)
   if pex_info_content:
@@ -48,7 +48,7 @@ def needs_modified_importer(entry_point):
 
 def bootstrap_pex(entry_point):
   if needs_modified_importer(entry_point):
-    from twitter.common.python import importer
+    from . import importer
     importer.monkeypatch()
-  from twitter.common.python import pex
+  from . import pex
   pex.PEX(entry_point).execute()

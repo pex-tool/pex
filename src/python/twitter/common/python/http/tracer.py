@@ -1,4 +1,4 @@
-from twitter.common.python.tracer import Tracer
+from ..tracer import Tracer
 
 __all__ = ('TRACER',)
 
