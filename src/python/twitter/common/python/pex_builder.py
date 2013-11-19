@@ -157,7 +157,8 @@ class PEXBuilder(object):
       for k in range(1, len(split_path)):
         sub_path = os.path.sep.join(split_path[0:k] + ['__init__.py'])
         if sub_path not in relative_digest and sub_path not in init_digest:
-          self._chroot.touch(sub_path)
+          self._chroot.write("__import__('pkg_resources').declare_namespace(__name__)",
+              sub_path)
           init_digest.add(sub_path)
 
   def _prepare_manifest(self):
