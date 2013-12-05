@@ -58,7 +58,7 @@ class PexInfo(object):
       'platform': get_platform(),
     }
     try:
-      from twitter.pants import get_buildroot, get_scm
+      from twitter.pants.base.build_environment import get_buildroot, get_scm
       buildroot = get_buildroot()
       scm = get_scm()
 
