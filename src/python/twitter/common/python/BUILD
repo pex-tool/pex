@@ -15,14 +15,21 @@
 # ==================================================================================================
 
 python_library(
-  name = "python",
-  sources = rglobs('*.py'),
+  name = 'python-source',
+  sources = globs('*.py') + globs('http/*.py'),
   dependencies = [
     pants('3rdparty/python:setuptools'),
   ],
+)
+
+python_library(
+  name = 'python',
+  dependencies = [
+    pants(':python-source'),
+  ],
   provides = setup_py(
     name = 'twitter.common.python',
-    version = '0.2.1',
+    version = '0.2.2',
     description = "Twitter's Python interoperability libraries.",
     long_description = """
 Twitter's Python interoperability libraries.  Includes support for package
@@ -39,15 +46,9 @@ environment.
       'Operating System :: OS Independent',
       'Programming Language :: Python',
     ]
+  ).with_binaries(
+    pex = pants('src/python/twitter/common/python/bin:pex'),
   )
-)
-
-python_binary(
-  name = 'pex',
-  entry_point = 'twitter.common.python.pex_builder:main',
-  dependencies = [
-    pants(':python')
-  ]
 )
 
 page(name = 'pexreadme',

@@ -1,7 +1,7 @@
 Pex.pex: Usage
 ==============
 
-[PEX](https://gist.github.com/2371638) files are single-file lightweight virtual Python environment.
+[PEX](https://github.com/twitter/commons/blob/master/src/python/twitter/pants/python/README.md) files are single-file lightweight virtual Python environments.
 
 pex.pex is a utility that:
 * creates PEX files
@@ -23,35 +23,27 @@ pex.pex builds a PEX (Python Executable) file based on the given specifications:
 Options:
   --version             show program's version number and exit
   -h, --help            show this help message and exit
-  --no-pypi             Dont use pypi to resolve dependencies; Default: use
-                        pypi
+  --pypi, --no-pypi     Whether to use pypi to resolve dependencies; Default:
+                        use pypi
   --cache-dir=CACHE_DIR
                         The local cache directory to use for speeding up
                         requirement lookups; Default: ~/.pex/install
-  --pex-name=PEX_NAME   The name of the generated .pex file: Omiting this will
+  -p PEX_NAME, --pex-name=PEX_NAME
+                        The name of the generated .pex file: Omiting this will
                         run PEX immediately and not save it to a file
-  --entry-point=ENTRY_POINT
+  -e ENTRY_POINT, --entry-point=ENTRY_POINT
                         The entry point for this pex; Omiting this will enter
                         the python IDLE with sources and requirements
                         available for import
-  --requirements-txt=FILE
-                        requirements.txt file listing the dependencies; This
-                        is in addition to requirements specified by -r; Unless
-                        your sources have no requirements, specify this or use
-                        -r. Default None
   -r REQUIREMENT, --requirement=REQUIREMENT
-                        requirement to be included; include as many as needed
-                        in addition to requirements from --requirements-txt
-  --lightweight         Builds a lightweight PEX with requirements not
-                        resolved until runtime; Not implemented
-  --source-dir=DIR      Source to be packaged; This <DIR> should be pip-
-                        installable i.e. it should include a setup.py; Omiting
-                        this will create a PEX of requirements alone
-  --repo=TYPE:URL       repository spec for resolving dependencies; Not
-                        implemented
-  --log-file=FILE       Log messages to FILE; Default to stdout
-  --log-level=LOG_LEVEL
-                        Log level as text (one of info, warn, error, critical)
+                        requirement to be included; may be specified multiple
+                        times.
+  --repo=PATH           Additional repository path (directory or URL) to look
+                        for requirements.
+  -s DIR, --source-dir=DIR
+                        Source to be packaged; This <DIR> should be a pip-
+                        installable project with a setup.py.
+  -v, --verbosity       Turn on logging verbosity.
 ~~~~~~~~~
 
 Use cases
@@ -60,130 +52,70 @@ Use cases
 * An isolated python environment containing your requirements and its dependencies for one time use
 
         :::console
-        pex.pex --requirement mako
+        pex.pex --requirement fabric
         ...
-        >>> import mako
+        >>> import fabric
         >>> ^D
 
 * A PEX file encapsulating your requirements and its dependencies for repeated use and sharing
 
         :::console
-        pex.pex --requirement mako --pex-name my_mako
-        ./my_mako.pex
+        pex.pex --requirement fabric --pex-name my_fabric.pex
+        ./my_fabric.pex
         ...
-        >>> import my_mako
+        >>> import fabric
         >>> ^D
 
 * A PEX file encapsulating your requirements intended to be run with a specific entry point
 
         :::console
-        cat > ~/entry_point.py <<< 'from mako.template import Template; print Template("hello ${data}!").render(data="world")'
-        pex.pex --requirement mako --entry-point ~/entry_point.py --pex-name my_mako
+        pex.pex --requirement fabric --entry-point fabric.main:main --pex-name my_fabric.pex
         ...
-        ./my_mako.pex
-        hello world!
-        PEX_INTERPRETER=1 ./mako_test.pex
-        >>> import mako
+        ./my_fabric.pex -h
+
+        Usage: fab [options] <command>[:arg1,arg2=val2,host=foo,hosts='h1;h2',...] ...
+ 
+        Options:
+          -h, --help            show this help message and exit
+          -d NAME, --display=NAME
+                                print detailed info about command NAME
+
+
+        PEX_INTERPRETER=1 ./my_fabric.pex
+        >>> import fabric
         >>> ^D
 
-* A PEX file containing your code, requirements and dependencies
 
-        pex.pex --requirements-txt ~/requirements.txt --entry-point ~/entry_point.py --pex-name mako_test --source-dir ~/mako-test
-
-Detailed Example: mako_test
+Bootstrapping pex.pex
 ---------------------------
-A PEX file that encapsulates code, its resources and requirements along with their dependencies
 
-* Create a package
-
-        :::console
-        # pextest is just the container for this test session
-        if [[ -d "$HOME/pextest" ]]; then rm -rf $HOME/pextest; fi
-        mkdir -p ~/pextest/mako_test/src/mako_test/resources/en_US
-        touch ~/pextest/mako_test/src/mako_test/__init__.py
-
-* Create a resource file
+* Download virtualenv and create twitter.common.python virtualenv
 
         :::console
-        # cat > ~/pextest/mako_test/src/mako_test/resources/en_US/hello_world
-        hello ${data}!
+        curl -O https://pypi.python.org/packages/source/v/virtualenv/virtualenv-1.11.tar.gz
+        tar zxf virtualenv-1.11.tar.gz
+        python virtualenv-1.11/virtualenv.py twitter.common.python.venv
 
-* Create a source file to use the resource
-
-        :::python
-        # cat > ~/pextest/mako_test/src/mako_test/try_mako.py
-        from mako.template import Template
-        from pkg_resources import resource_string
-
-        def hello_world():
-          pkg_name = ".".join(__name__.split(".")[:-1])
-          print Template(resource_string(pkg_name, "resources/en_US/hello_world")).render(data="world")
-
-* Make it ready for distribution. See [distutils docs](http://docs.python.org/distutils/setupscript.html) for help
-
-        :::python
-        # cat > ~/pextest/mako_test/setup.py
-        from distutils.core import setup;
-
-        setup(name="mako_test",
-             version="0.1",
-             description="Package Description",
-             author="Your Name",
-             package_dir={"": "src"},
-             package_data={"mako_test": ["resources/*/*"]},
-             author_email="you@domain.com",
-             url="http://dev.twitter.com/python/",
-             packages=["mako_test"],
-             )
-
-* At this point, your module above should be pip-installable
+* Activate and install twitter.common.python
 
         :::console
-        # mkvirtualenv mako_test
-        # pip install ~/pextest/mako_test
-        # deactivate
+        cd twitter.common.python.venv
+        source bin/activate
+        pip install twitter.common.python
 
-* Have a requirements.txt
-
-        :::console
-        cat > ~/pextest/requirements.txt <<< 'mako>=0.7.0'
-
-* Have an entry point
-
-        :::python
-        # cat > ~/pextest/entry_point.py
-        from mako_test.try_mako import hello_world;
-
-        if __name__ == "__main__":
-          hello_world()
-
-* Build pex
+* Use bin/pex to bootstrap itself
 
         :::console
-        dist/pex.pex \
-            --source-dir=$HOME/pextest/mako_test \
-            --requirements-txt=$HOME/pextest/requirements.txt \
-            --entry-point=$HOME/pextest/entry_point.py \
-            --pex-name=mako_test
+        pex -r twitter.common.python -e twitter.common.python.bin.pex:main -p pex.pex
 
-* Run it
+* Copy and deactivate virtualenv
 
         :::console
-        ./mako_test.pex
-        hello world!
+        cp pex.pex ~/bin/pex
+        deactivate
 
-* Options
+* Use pex utility
 
-    * Entry point is optional. Omitting it (and not specifying an `--entry-point`) will leave you at the Python IDLE
-    * Also, there are two formats for the values specified for `--entry-point`
-        * File entry point: This will execute the specified file (where `__name__ == "__main__"` will be True). E.g.
-
-                :::console
-                --entry-point=$HOME/pextest/entry_point.py
-
-        * Function's address: The format of the address is not too surprising: `pkg1.pkg2...pkgN.module:function`. E.g.
-
-                :::console
-                --entry-point=mako_test.try_mako:hello_world`
-
-    * The PEX name specified by the `--pex-name` is optional. Omitting it will run the generated pex immediately
+        :::console
+        # Presumes that ~/bin is on $PATH
+        pex -r fabric -e fabric.main:main
