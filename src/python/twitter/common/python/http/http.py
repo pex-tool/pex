@@ -100,7 +100,7 @@ class Web(object):
   def maybe_local_url(self, url):
     full_url = urlparse.urlparse(url)
     if full_url.scheme == '':
-      return 'file://' + url
+      return 'file://' + os.path.realpath(url)
     return url
 
   def open(self, url, conn_timeout=None, **kw):

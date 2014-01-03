@@ -84,9 +84,9 @@ def test_maybe_local():
   maybe_local = Web().maybe_local_url
   assert maybe_local('http://www.google.com') == 'http://www.google.com'
   assert maybe_local('https://www.google.com/whatever') == 'https://www.google.com/whatever'
-  assert maybe_local('tmp/poop.txt') == 'file://tmp/poop.txt'
-  assert maybe_local('/tmp/poop.txt') == 'file:///tmp/poop.txt'
-  assert maybe_local('www.google.com') == 'file://www.google.com'
+  assert maybe_local('tmp/poop.txt') == 'file://' + os.path.realpath('tmp/poop.txt')
+  assert maybe_local('/tmp/poop.txt') == 'file://' + os.path.realpath('/tmp/poop.txt')
+  assert maybe_local('www.google.com') == 'file://' + os.path.realpath('www.google.com')
 
 
 class MockOpener(object):

@@ -29,7 +29,7 @@ python_library(
   ],
   provides = setup_py(
     name = 'twitter.common.python',
-    version = '0.2.2',
+    version = '0.2.3',
     description = "Twitter's Python interoperability libraries.",
     long_description = """
 Twitter's Python interoperability libraries.  Includes support for package
