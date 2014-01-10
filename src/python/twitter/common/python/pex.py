@@ -185,8 +185,12 @@ class PEX(object):
       safe_mkdir(os.path.dirname(profile_output))
       cProfile.runctx('runner(entry_point)', globals=globals(), locals=locals(),
                       filename=profile_output)
+      try:
+        entries = int(os.environ.get('PEX_PROFILE_ENTRIES', 1000))
+      except ValueError:
+        entries = 1000
       pstats.Stats(profile_output).sort_stats(
-          os.environ.get('PEX_PROFILE_SORT', 'cumulative')).print_stats(1000)
+          os.environ.get('PEX_PROFILE_SORT', 'cumulative')).print_stats(entries)
 
   @staticmethod
   def execute_module(module_name):
