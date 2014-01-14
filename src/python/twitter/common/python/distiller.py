@@ -151,6 +151,7 @@ class Distiller(object):
       'twitter.common.python.installer, or is an already-distilled .egg.')
 
     self._top_levels = self._get_lines('top_level.txt')
+
     self._installed_files = [
       os.path.realpath(os.path.join(self._dist.egg_info, fn)) for fn in
         self._get_lines('installed-files.txt')]

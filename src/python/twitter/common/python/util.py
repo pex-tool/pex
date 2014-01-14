@@ -22,7 +22,7 @@ class DistributionHelper(object):
         for fn, content in DistributionHelper.walk_metadata(dist, full_fn):
           yield fn, content
       else:
-        yield os.path.join('EGG-INFO', full_fn[1:]), dist.get_metadata(full_fn)
+        yield os.path.join('EGG-INFO', full_fn[1:]), dist.get_metadata(full_fn).encode('utf-8')
 
   @staticmethod
   def walk_data(dist, path='/'):

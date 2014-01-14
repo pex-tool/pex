@@ -51,7 +51,6 @@ class CrawlerBase(object):
 
     for url in urls:
       queue.put(url)
-
     for _ in range(self._threads):
       worker = threading.Thread(target=execute)
       worker.daemon = True

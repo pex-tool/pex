@@ -605,7 +605,7 @@ def monkeypatch_pkg_resources():
     Filed https://bitbucket.org/tarek/distribute/issue/274
   """
   import pkg_resources
-  
+
   _EggMetadata = pkg_resources.EggMetadata
 
   def normalized_elements(path):
@@ -651,6 +651,11 @@ def monkeypatch_pkg_resources():
   pkg_resources.zipimport = sys.modules[__name__]  # if monkeypatching after import
   pkg_resources.build_zipmanifest = build_zipmanifest
   pkg_resources.EggMetadata = EggMetadata
-  pkg_resources.register_finder(EggZipImporter, pkg_resources.find_in_zip)
+  try:
+    pkg_resources.register_finder(EggZipImporter, pkg_resources.find_in_zip)
+  except AttributeError:
+    # setuptools 2.1+ move find_in_zip to find_eggs_in_zip to make it clear this does not
+    # do wheels.
+    pkg_resources.register_finder(EggZipImporter, pkg_resources.find_eggs_in_zip)
   pkg_resources.register_namespace_handler(EggZipImporter, pkg_resources.file_ns_handler)
   pkg_resources.register_loader_type(EggZipImporter, pkg_resources.ZipProvider)

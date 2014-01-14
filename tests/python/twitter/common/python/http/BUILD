@@ -44,7 +44,7 @@ python_tests(name = 'test_http',
     pants('src/python/twitter/common/python'),
     pants('src/python/twitter/common/quantity'),
     pants('src/python/twitter/common/testing'),
-    python_requirement('mox')
+    pants('3rdparty/python:mox')
   ]
 )
 
