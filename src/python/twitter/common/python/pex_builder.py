@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==================================================================================================
+
 from __future__ import absolute_import
 
 import logging
 import os
-import sys
 import tempfile
 from zipimport import zipimporter
 
@@ -34,7 +34,6 @@ from pkg_resources import (
     Distribution,
     EggMetadata,
     PathMetadata,
-    Requirement,
     ZipProvider,
     get_provider,
 )
@@ -85,7 +84,7 @@ class PEXBuilder(object):
   def clone(self, into=None):
     chroot_clone = self._chroot.clone(into=into)
     return PEXBuilder(chroot=chroot_clone, interpreter=self._interpreter,
-                      pex_info=PexInfo(content=self._pex_info.dump()))
+                      pex_info=self._pex_info.copy())
 
   def path(self):
     return self.chroot().path()

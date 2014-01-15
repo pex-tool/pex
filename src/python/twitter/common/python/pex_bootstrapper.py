@@ -38,7 +38,7 @@ def get_pex_info(entry_point):
 
   pex_info_content = read_pex_info_content(entry_point)
   if pex_info_content:
-    return pex_info.PexInfo(pex_info_content)
+    return pex_info.PexInfo.from_json(pex_info_content)
   raise ValueError('Invalid entry_point: %s' % entry_point)
 
 

@@ -67,21 +67,28 @@ class PexInfo(object):
       'requirements': [],
       'build_properties': cls.make_build_properties(),
     }
-    return cls(json.dumps(pex_info))
+    return cls(info=pex_info)
 
   @classmethod
   def from_pex(cls, pex):
-    return cls(pex.read(cls.PATH))
+    return cls.from_json(pex.read(cls.PATH))
+
+  @classmethod
+  def from_json(cls, content):
+    if isinstance(content, bytes):
+      content = content.decode('utf-8')
+    return PexInfo(info=json.loads(content))
 
   @classmethod
   def debug(cls, msg):
     if 'PEX_VERBOSE' in os.environ:
       print('PEX: %s' % msg, file=sys.stderr)
 
-  def __init__(self, content=json.dumps({})):
-    if isinstance(content, bytes):
-      content = content.decode('utf-8')
-    self._pex_info = json.loads(content)
+  def __init__(self, info=None):
+    if info is not None and not isinstance(info, dict):
+      raise ValueError('PexInfo can only be seeded with a dict, got: '
+                       '%s of type %s' % (info, type(info)))
+    self._pex_info = info or {}
     self._requirements = OrderedSet(
         PexRequirement(*req) for req in self._pex_info.get('requirements', []))
     self._repositories = OrderedSet(self._pex_info.get('repositories', []))
@@ -233,3 +240,6 @@ class PexInfo(object):
     pex_info_copy['repositories'] = list(self._repositories)
     pex_info_copy['egg_caches'] = list(self._egg_caches)
     return json.dumps(pex_info_copy)
+
+  def copy(self):
+    return PexInfo(info=self._pex_info.copy())
