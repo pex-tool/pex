@@ -198,8 +198,12 @@ class EggLink(ExtendedLink):
     matcher = EGG_NAME(filename)
     if not matcher:
       raise self.InvalidLink('Could not match egg: %s' % filename)
+
     self._name, self._raw_version, self._py_version, self._platform = matcher.group(
         'name', 'ver', 'pyver', 'plat')
+
+    if self._raw_version is None or self._py_version is None:
+      raise self.InvalidLink('url with .egg extension but bad name: %s' % url)
 
   def __hash__(self):
     return hash((self.name, self.version, self.py_version, self.platform))
