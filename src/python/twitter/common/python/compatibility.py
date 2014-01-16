@@ -49,7 +49,7 @@ if PY2:
     return str(st)
 else:
   def to_bytes(st):
-    return bytes(st, encoding='utf8')
+    return st.encode('utf-8')
 
 if PY3:
   def exec_function(ast, globals_map):

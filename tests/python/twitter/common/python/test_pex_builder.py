@@ -1,4 +1,4 @@
-from contextlib import closing, contextmanager, nested
+from contextlib import closing, contextmanager
 import os
 import zipfile
 
@@ -8,7 +8,7 @@ from twitter.common.python.pex import PEX
 from twitter.common.python.pex_builder import PEXBuilder
 from twitter.common.python.util import DistributionHelper
 
-from twitter.common.python.test_common import make_distribution
+from twitter.common.python.test_common import make_distribution, nested
 
 
 exe_main = """

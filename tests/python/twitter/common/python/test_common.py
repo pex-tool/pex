@@ -6,13 +6,30 @@ import zipfile
 
 from twitter.common.contextutil import temporary_dir
 from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
+from twitter.common.lang import Compatibility
 from twitter.common.python.distiller import Distiller
 from twitter.common.python.installer import Installer
 from twitter.common.python.util import DistributionHelper
 
 
+if Compatibility.PY3:
+  from contextlib import ExitStack
+
+  @contextlib.contextmanager
+  def nested(*context_managers):
+    enters = []
+    with ExitStack() as stack:
+      for manager in context_managers:
+        enters.append(stack.enter_context(manager))
+      yield tuple(enters)
+
+else:
+  from contextlib import nested
+
+
 def random_bytes(length):
-  return b''.join(map(chr, (random.randint(0, 255) for _ in range(length))))
+  return ''.join(
+      map(chr, (random.randint(ord('a'), ord('z')) for _ in range(length)))).encode('utf-8')
 
 
 @contextlib.contextmanager
@@ -29,7 +46,7 @@ def temporary_content(content_map, interp=None, seed=31337):
         if isinstance(size_or_content, int):
           fp.write(random_bytes(size_or_content))
         else:
-          fp.write(size_or_content % interp)
+          fp.write((size_or_content % interp).encode('utf-8'))
     yield td
 
 

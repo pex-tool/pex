@@ -29,8 +29,7 @@ def test_hash():
     string = 'asdf' * 1024 * sha1().block_size + 'extra padding'
     fp.write(string)
     fp.flush()
-
-    assert sha1(string).hexdigest() == CacheHelper.hash(fp.name)
+    assert sha1(string.encode('utf-8')).hexdigest() == CacheHelper.hash(fp.name)
 
   with temporary_file() as fp:
     empty_hash = sha1()

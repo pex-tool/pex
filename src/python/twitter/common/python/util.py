@@ -66,7 +66,7 @@ class CacheHelper(object):
   def update_hash(cls, filelike, digest):
     """Update the digest of a single file in a memory-efficient manner."""
     block_size = digest.block_size * 1024
-    for chunk in iter(lambda: filelike.read(block_size), ''):
+    for chunk in iter(lambda: filelike.read(block_size), b''):
       digest.update(chunk)
 
   @classmethod
@@ -109,7 +109,7 @@ class CacheHelper(object):
     """Return a reproducible hash of the contents of a directory."""
     names = sorted(f for f in cls._iter_files(d) if not (f.endswith('.pyc') or f.startswith('.')))
     def stream_factory(name):
-      return open(os.path.join(d, name))
+      return open(os.path.join(d, name), 'rb')
     return cls._compute_hash(names, stream_factory)
 
   @classmethod
@@ -117,7 +117,7 @@ class CacheHelper(object):
     """Return a reproducible hash of the contents of a directory."""
     names = sorted(f for f in cls._iter_files(d) if not f.endswith('.pyc'))
     def stream_factory(name):
-      return open(os.path.join(d, name))
+      return open(os.path.join(d, name), 'rb')
     return cls._compute_hash(names, stream_factory)
 
   @classmethod

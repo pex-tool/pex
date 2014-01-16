@@ -37,6 +37,11 @@ python_tests(name = 'test_crawler',
   ]
 )
 
+
+def mock_filter(python, platform):
+  return python.startswith('2')
+
+
 python_tests(name = 'test_http',
   sources = ['test_http.py'],
   dependencies = [
@@ -44,7 +49,7 @@ python_tests(name = 'test_http',
     pants('src/python/twitter/common/python'),
     pants('src/python/twitter/common/quantity'),
     pants('src/python/twitter/common/testing'),
-    pants('3rdparty/python:mox')
+    python_requirement('mock', version_filter=mock_filter)
   ]
 )
 

@@ -3,49 +3,43 @@ import errno
 import os
 import socket
 import threading
-import urllib2
 
 from twitter.common.contextutil import temporary_dir
 from twitter.common.lang import Compatibility
 from twitter.common.python.http import CachedWeb, Web
 from twitter.common.testing.clock import ThreadedClock
 
-import mox
 import pytest
 
 
-# py2 vs py3 facepalm
 if Compatibility.PY3:
+  from unittest import mock
   import urllib.error as urllib_error
   import urllib.parse as urlparse
   import urllib.request as urllib_request
+  URLLIB_REQUEST = 'urllib.request'
 else:
+  import mock
   import urllib2 as urllib_request
   import urllib2 as urllib_error
   import urlparse
+  URLLIB_REQUEST = 'urllib2'
 
 
-# things that still need testing:
-#    encoding of code + headers into .headers file
-#
+# TODO(wickman) things that still need testing: encoding of code + headers into .headers file
 
 
-def test_open_resolve_failure():
-  m = mox.Mox()
-  m.StubOutWithMock(socket, 'gethostbyname')
-  socket.gethostbyname('www.google.com').AndRaise(
-      socket.gaierror(errno.EADDRNOTAVAIL, 'Could not resolve host.'))
-  m.ReplayAll()
+@mock.patch('socket.gethostbyname')
+def test_open_resolve_failure(gethostbyname_mock):
+  gethostbyname_mock.side_effect = socket.gaierror(errno.EADDRNOTAVAIL, 'Could not resolve host.')
   with pytest.raises(urllib_error.URLError):
     Web().open('http://www.google.com')
-  m.UnsetStubs()
-  m.VerifyAll()
 
 
 def test_resolve_timeout():
   event = threading.Event()
   class FakeWeb(Web):
-    NS_TIMEOUT = 0.001
+    NS_TIMEOUT_SECS = 0.001
     def _resolves(self, fullurl):
       event.wait()
     def _reachable(self, fullurl):
@@ -56,28 +50,21 @@ def test_resolve_timeout():
   event.set()
 
 
-def test_unreachable_error():
-  m = mox.Mox()
-  m.StubOutWithMock(socket, 'gethostbyname')
-  m.StubOutWithMock(socket, 'create_connection')
-  socket.gethostbyname('www.google.com').AndReturn('1.2.3.4')
-  socket.create_connection(('www.google.com', 80), timeout=mox.IgnoreArg()).AndRaise(
-      socket.error(errno.ENETUNREACH, 'Could not reach network.'))
-  m.ReplayAll()
+@mock.patch('socket.gethostbyname')
+@mock.patch('socket.create_connection')
+def test_unreachable_error(create_connection_mock, gethostbyname_mock):
+  gethostbyname_mock.return_value = '1.2.3.4'
+  create_connection_mock.side_effect = socket.error(errno.ENETUNREACH,
+      'Could not reach network.')
   with pytest.raises(urllib_error.URLError):
     Web().open('http://www.google.com')
-  m.UnsetStubs()
-  m.VerifyAll()
+  gethostbyname_mock.assert_called_once_with('www.google.com')
 
 
-def test_local_open():
-  m = mox.Mox()
-  m.StubOutWithMock(urllib_request, 'urlopen')
-  urllib_request.urlopen('file:///local/filename').AndReturn('data')
-  m.ReplayAll()
+@mock.patch('%s.urlopen' % URLLIB_REQUEST)
+def test_local_open(urlopen_mock):
+  urlopen_mock.return_value = 'data'
   assert Web().open('/local/filename') == 'data'
-  m.UnsetStubs()
-  m.VerifyAll()
 
 
 def test_maybe_local():
@@ -126,14 +113,12 @@ def test_connect_timeout_using_open():
     assert fp.read() == DATA
 
 
-def test_caching():
+@mock.patch('os.path.getmtime')
+def test_caching(getmtime_mock):
   URL = 'http://www.google.com'
   DATA = b'This is google.com!'
   clock = ThreadedClock()
-  m = mox.Mox()
-  m.StubOutWithMock(os.path, 'getmtime')
-  os.path.getmtime(mox.IgnoreArg()).MultipleTimes().AndReturn(0)
-  m.ReplayAll()
+  getmtime_mock.return_value = 0
 
   opener = MockOpener(DATA)
   web = CachedWeb(clock=clock, opener=opener)
@@ -155,6 +140,3 @@ def test_caching():
   with contextlib.closing(web.open(URL, ttl=0.5)) as fp:
     assert fp.read() == DATA
   assert opener.opened.is_set(), 'expect expired url to cause http get'
-
-  m.UnsetStubs()
-  m.VerifyAll()

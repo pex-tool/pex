@@ -177,7 +177,7 @@ class PythonInterpreter(object):
     COMPATIBLE_SETUPTOOLS = Requirement.parse('setuptools>=1.0', replacement=False)
   except TypeError:
     COMPATIBLE_SETUPTOOLS = Requirement.parse('setuptools>=1.0')
-
+  
   class Error(Exception): pass
   class IdentificationError(Error): pass
 

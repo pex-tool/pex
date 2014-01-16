@@ -130,7 +130,8 @@ class CachedWeb(object):
     super(CachedWeb, self).__init__()
 
   def __contains__(self, url):
-    return self.age(url) > 0
+    age = self.age(url)
+    return age is not None and age > 0
 
   def translate_url(self, url):
     return os.path.join(self._cache, hashlib.md5(url.encode('utf8')).hexdigest())

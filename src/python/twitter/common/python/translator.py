@@ -102,7 +102,11 @@ class SourceTranslator(TranslatorBase):
           dist = installer.distribution()
         except Installer.InstallFailure:
           return None
-        dist = dist_from_egg(Distiller(dist).distill(into=self._install_cache))
+        egg_directory = Distiller(dist).distill(into=self._install_cache)
+        if egg_directory is None:
+          TRACER.log('Failed to distill %s into %s' % (dist, self._install_cache))
+          return None
+        dist = dist_from_egg(egg_directory)
         if Platform.distribution_compatible(dist, python=self._interpreter.python,
             platform=self._platform):
           return dist

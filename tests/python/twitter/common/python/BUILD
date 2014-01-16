@@ -22,6 +22,7 @@ python_library(
     pants('3rdparty/python:setuptools'),
     pants('src/python/twitter/common/contextutil'),
     pants('src/python/twitter/common/dirutil'),
+    pants('src/python/twitter/common/lang'),
     pants('src/python/twitter/common/python'),
   ],
 )
