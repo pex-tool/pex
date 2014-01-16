@@ -1,5 +1,4 @@
 import contextlib
-import errno
 from functools import partial
 import os
 import re

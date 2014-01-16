@@ -1,13 +1,12 @@
 from __future__ import absolute_import, print_function
 
 import ast
-from contextlib import closing
 import os
 import sys
 import tempfile
 import zipfile
 
-from .common import safe_mkdir
+from .common import open_zip, safe_mkdir
 
 from pkg_resources import Distribution, get_build_platform
 
@@ -22,10 +21,9 @@ except ImportError:
 """
 
 # TODO(wickman)  Pros and cons of os.unlink after load_dynamic?
-# TODO(wickman)  Unification with Nested in importer.py
-# TODO(wickman)  Eventually ditch this and don't bother with recursive zipimporting?
 NATIVE_STUB = """
 def __bootstrap__():
+  import contextlib, shutil
   import os, zipfile
   import sys, imp, tempfile
   try:
@@ -36,50 +34,29 @@ def __bootstrap__():
     except ImportError:
       from io import BytesIO as StringIO
 
-  # open multiply-nested-zip
-  def nested_open(path, full_path=None, zf=None):
-    def split_existing(path):
-      def generate_prefixes(path):
-        if path in ('', os.path.sep): return
-        for head in generate_prefixes(os.path.split(path)[0]):
-          yield head
-        yield path
-      subpath = None
-      for prefix in generate_prefixes(path):
-        if not os.path.lexists(prefix):
-          break
-        subpath = prefix
-      return (subpath, os.path.relpath(path, subpath))
-
-    if zf is None:
-      existing, non_existing = split_existing(path)
-      return nested_open(non_existing, full_path=existing, zf=zipfile.ZipFile(existing))
-
-    subpath = path
-    while subpath and not any(name.startswith(subpath) for name in zf.namelist()):
-      subpath = os.path.split(subpath)[0]
-
-    if not subpath:
-      raise Exception('Could not find %%s in %%s' %% (path, full_path))
-
-    try:
-      relpath = os.path.relpath(path, subpath)
-      if relpath == '.':
-        return zf.read(subpath)
-      return nested_open(
-        relpath, full_path=os.path.join(full_path, subpath),
-        zf=zipfile.ZipFile(StringIO(zf.read(subpath))))
-    except (zipfile.BadZipfile, KeyError):
-      return zf.read(path)
+  def split_existing(path):
+    def generate_prefixes(path):
+      if path in ('', os.path.sep): return
+      for head in generate_prefixes(os.path.split(path)[0]):
+        yield head
+      yield path
+    subpath = None
+    for prefix in generate_prefixes(path):
+      if not os.path.lexists(prefix):
+        break
+      subpath = prefix
+    return (subpath, os.path.relpath(path, subpath))
 
   global __bootstrap__, __loader__, __file__
   real_file = os.path.splitext(__file__)[0] + '%(extension)s'
-  content = nested_open(real_file)
+  archive, archive_name = split_existing(real_file)
 
   try:
     fd, name = tempfile.mkstemp()
-    with os.fdopen(fd, 'wb') as fp:
-      fp.write(content)
+    with contextlib.closing(zipfile.ZipFile(archive)) as zf:
+      with contextlib.closing(zf.open(archive_name)) as zi:
+        with os.fdopen(fd, 'wb') as fp:
+          shutil.copyfileobj(zi, fp)
 
     __file__ = name
     __loader__ = None
@@ -270,7 +247,7 @@ class Distiller(object):
       self._log('Found pre-cached artifact: %s, skipping distillation.' % filename)
       return filename
 
-    with closing(zipfile.ZipFile(filename + '~', 'w', compression=zipfile.ZIP_DEFLATED)) as zf:
+    with open_zip(filename + '~', 'w', compression=zipfile.ZIP_DEFLATED) as zf:
       for fn in self._installed_files:
         rel_fn = self._relpath(fn)
         if not self._is_top_level(fn):
@@ -283,6 +260,7 @@ class Distiller(object):
           self._log('Stripping %s' % rel_fn)
           continue
 
+        self._log('Writing %s' % fn)
         zf.write(fn, arcname=rel_fn)
         if fn in native_deps:
           fn_base, extension = os.path.splitext(rel_fn)
@@ -298,6 +276,7 @@ class Distiller(object):
           zf.writestr(nspkg_init, NAMESPACE_STUB)
 
       for fn, content in self._egg_info():
+        self._log('Writing %s' % fn)
         zf.writestr(fn, content)
 
     os.rename(filename + '~', filename)

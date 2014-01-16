@@ -14,7 +14,6 @@ from pkg_resources import (
     Distribution,
     EGG_NAME,
     parse_version,
-    Requirement,
     safe_name,
 )
 

@@ -15,20 +15,34 @@
 # ==================================================================================================
 
 
+python_library(
+  name = 'test_common',
+  sources = ['test_common.py'],
+  dependencies = [
+    pants('3rdparty/python:setuptools'),
+    pants('src/python/twitter/common/contextutil'),
+    pants('src/python/twitter/common/dirutil'),
+    pants('src/python/twitter/common/python'),
+  ],
+)
+
+
 python_test_suite(name = 'all',
   dependencies = [
     pants('tests/python/twitter/common/python/http:all'),
-    pants(':test_nested'),
+    pants(':test_environment'),
     pants(':test_obtainer'),
     pants(':test_platform'),
-    pants(':test_pex_bootstrapper'),
+    pants(':test_pex_builder'),
+    pants(':test_util'),
   ]
 )
 
-python_tests(name = 'test_nested',
-  sources = ['test_nested.py'],
+python_tests(name = 'test_environment',
+  sources = ['test_environment.py'],
   dependencies = [
-    pants('src/python/twitter/common/dirutil'),
+    pants(':test_common'),
+    pants('src/python/twitter/common/contextutil'),
     pants('src/python/twitter/common/python')
   ]
 )
@@ -47,10 +61,18 @@ python_tests(name = 'test_platform',
   ]
 )
 
-python_tests(name = 'test_pex_bootstrapper',
-  sources = ['test_pex_bootstrapper.py'],
+python_tests(name = 'test_pex_builder',
+  sources = ['test_pex_builder.py'],
   dependencies = [
-    pants('3rdparty/python:mock'),
+    pants(':test_common'),
+    pants('src/python/twitter/common/python'),
+  ]
+)
+
+python_tests(name = 'test_util',
+  sources = ['test_util.py'],
+  dependencies = [
+    pants(':test_common'),
     pants('src/python/twitter/common/python'),
   ]
 )

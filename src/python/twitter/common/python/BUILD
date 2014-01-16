@@ -29,13 +29,12 @@ python_library(
   ],
   provides = setup_py(
     name = 'twitter.common.python',
-    version = '0.2.3',
-    description = "Twitter's Python interoperability libraries.",
+    version = '0.3.0',
+    description = "Twitter's Python packaging toolchain.",
     long_description = """
-Twitter's Python interoperability libraries.  Includes support for package
-fetching, building, installing, "distillation" into eggs, a recursive
-zipimport implementation and Twitter's "PEX" standalone Python packaging
-environment.
+Twitter's Python packaging toolchain.  Includes support for package
+fetching, building, installing, "distillation" into eggs and
+Twitter's "PEX" standalone Python virtual environment.
 """,
     url = 'https://github.com/twitter/commons/tree/master/src/python/twitter/common/python',
     license = 'Apache License, Version 2.0',

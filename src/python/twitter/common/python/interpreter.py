@@ -61,13 +61,19 @@ class PythonIdentity(object):
   class InvalidError(Error): pass
   class UnknownRequirement(Error): pass
 
-  @staticmethod
-  def get():
+  HASHBANGS = {
+    'CPython': 'python%(major)d.%(minor)d',
+    'Jython': 'jython',
+    'PyPy': 'pypy',
+  }
+
+  @classmethod
+  def get(cls):
     if hasattr(sys, 'subversion'):
       subversion = sys.subversion[0]
     else:
       subversion = 'CPython'
-    return PythonIdentity(subversion, sys.version_info[0], sys.version_info[1], sys.version_info[2])
+    return cls(subversion, sys.version_info[0], sys.version_info[1], sys.version_info[2])
 
   @classmethod
   def from_id_string(cls, id_string):
@@ -129,7 +135,12 @@ class PythonIdentity(object):
     return self.distribution in requirement
 
   def hashbang(self):
-    return '#!/usr/bin/env python%s.%s' % self._version[0:2]
+    hashbang_string = self.HASHBANGS.get(self.interpreter, 'CPython') % {
+      'major': self._version[0],
+      'minor': self._version[1],
+      'patch': self._version[2],
+    }
+    return '#!/usr/bin/env %s' % hashbang_string
 
   def __str__(self):
     return '%s-%s.%s.%s' % (self._interpreter,

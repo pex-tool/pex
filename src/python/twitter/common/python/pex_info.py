@@ -5,6 +5,7 @@ import json
 import os
 import sys
 
+from .common import open_zip
 from .orderedset import OrderedSet
 
 PexRequirement = namedtuple('PexRequirement', 'requirement repo dynamic')
@@ -16,38 +17,26 @@ class PexInfo(object):
     PEX metadata.
 
     # Build metadata:
+    build_properties: BuildProperties # (key-value information about the build system)
+    code_hash: str                    # sha1 hash of all names/code in the archive
+    distributions: {dist_name: str}   # map from distribution name (i.e. path in
+                                      # the internal cache) to its cache key (sha1)
 
-    build_properties: BuildProperties (key-value information about the build system)
-
-    # Loader options
-
+    # Environment options
+    pex_root: ~/.pex                   # root of all pex-related files
     entry_point: string                # entry point into this pex
     zip_safe: True, default False      # is this pex zip safe?
-    zip_unsafe_cache: string           # cache dir for pex zip_safe=False, default ~/.pex/code
     inherit_path: True, default False  # should this pex inherit site-packages + PYTHONPATH?
     ignore_errors: True, default False # should we ignore inability to resolve dependencies?
     always_write_cache: False          # should we always write the internal cache to disk first?
                                        # this is useful if you have very large dependencies that
-                                       # do not fit in RAM
-
-    # Platform options to dictate how to interpret this pex
-
-    target_platform: PexPlatform
-
-    # Dependency options
-
-    requirements: list      # list of PexRequirement tuples [requirement, repository, dynamic]
-    allow_pypi: bool        # whether or not to allow fetching from pypi repos + indices + mirrors
-    repositories: list      # list of default repositories
-    indices: []             # list of default indices
-    egg_caches: []          # list of egg caches
-    download_cache: path    # path to use for a download cache; do not cache downloads if empty
-    install_cache: path     # path to use for install cache; do not distill+cache installs if empty
-    egg_install_cache: path # path to use as egg install cache (for whole files, not unzipped)
-    internal_cache: .deps   # path that the internal cache is stored within the PEX
+                                       # do not fit in RAM constrained environments
+    requirements: list                 # list of PexRequirement tuples:
+                                       #   [requirement, repository, dynamic]
   """
 
   PATH = 'PEX-INFO'
+  INTERNAL_CACHE = '.deps'
 
   @classmethod
   def make_build_properties(cls):
@@ -65,13 +54,21 @@ class PexInfo(object):
   def default(cls):
     pex_info = {
       'requirements': [],
+      'distributions': {},
+      'always_write_cache': False,
       'build_properties': cls.make_build_properties(),
     }
     return cls(info=pex_info)
 
   @classmethod
   def from_pex(cls, pex):
-    return cls.from_json(pex.read(cls.PATH))
+    if os.path.isfile(pex):
+      with open_zip(pex) as zf:
+        pex_info = zf.read(cls.PATH)
+    else:
+      with open(os.path.join(pex, cls.PATH)) as fp:
+        pex_info = fp.read()
+    return cls.from_json(pex_info)
 
   @classmethod
   def from_json(cls, content):
@@ -89,11 +86,11 @@ class PexInfo(object):
       raise ValueError('PexInfo can only be seeded with a dict, got: '
                        '%s of type %s' % (info, type(info)))
     self._pex_info = info or {}
+    self._distributions = self._pex_info.get('distributions', {})
     self._requirements = OrderedSet(
         PexRequirement(*req) for req in self._pex_info.get('requirements', []))
     self._repositories = OrderedSet(self._pex_info.get('repositories', []))
     self._indices = OrderedSet(self._pex_info.get('indices', []))
-    self._egg_caches = OrderedSet(self._pex_info.get('egg_caches', []))
 
   @property
   def build_properties(self):
@@ -108,6 +105,9 @@ class PexInfo(object):
 
   @property
   def zip_safe(self):
+    if 'PEX_FORCE_LOCAL' in os.environ:
+      self.debug('PEX_FORCE_LOCAL forcing zip_safe to False')
+      return False
     return self._pex_info.get('zip_safe', True)
 
   @zip_safe.setter
@@ -135,6 +135,14 @@ class PexInfo(object):
     self._pex_info['ignore_errors'] = bool(value)
 
   @property
+  def code_hash(self):
+    return self._pex_info.get('code_hash')
+
+  @code_hash.setter
+  def code_hash(self, value):
+    self._pex_info['code_hash'] = value
+
+  @property
   def entry_point(self):
     if 'PEX_MODULE' in os.environ:
       self.debug('PEX_MODULE override detected: %s' % os.environ['PEX_MODULE'])
@@ -152,93 +160,48 @@ class PexInfo(object):
   def requirements(self):
     return self._requirements
 
-  @property
-  def allow_pypi(self):
-    return self._pex_info.get('allow_pypi', False)
+  def add_distribution(self, location, sha):
+    self._distributions[location] = sha
 
-  @allow_pypi.setter
-  def allow_pypi(self, value):
-    self._pex_info['allow_pypi'] = bool(value)
+  @property
+  def distributions(self):
+    return self._distributions
 
   @property
   def always_write_cache(self):
+    if 'PEX_ALWAYS_CACHE' in os.environ:
+      self.debug('PEX_ALWAYS_CACHE override detected: %s' % os.environ['PEX_ALWAYS_CACHE'])
+      return True
     return self._pex_info.get('always_write_cache', False)
 
   @always_write_cache.setter
   def always_write_cache(self, value):
     self._pex_info['always_write_cache'] = bool(value)
 
-  def add_repository(self, repo):
-    self._repositories.add(repo)
-
   @property
-  def repositories(self):
-    return self._repositories
+  def pex_root(self):
+    pex_root = self._pex_info.get('pex_root', os.path.join('~', '.pex'))
+    return os.path.expanduser(os.environ.get('PEX_ROOT', pex_root))
 
-  def add_index(self, index):
-    self._indices.add(index)
-
-  @property
-  def indices(self):
-    return self._indices
-
-  def add_egg_cache(self, egg_cache):
-    self._egg_caches.add(egg_cache)
-
-  @property
-  def egg_caches(self):
-    return self._egg_caches
+  @pex_root.setter
+  def pex_root(self, value):
+    self._pex_info['pex_root'] = value
 
   @property
   def internal_cache(self):
-    return self._pex_info.get('internal_cache', '.deps')
-
-  @internal_cache.setter
-  def internal_cache(self, value):
-    self._pex_info['internal_cache'] = value
+    return self.INTERNAL_CACHE
 
   @property
   def install_cache(self):
-    return self._pex_info.get('install_cache',
-      os.path.expanduser(os.path.join('~', '.pex', 'install')))
-
-  @install_cache.setter
-  def install_cache(self, value):
-    self._pex_info['install_cache'] = value
-
-  @property
-  def egg_install_cache(self):
-    return self._pex_info.get('egg_install_cache',
-      os.path.expanduser(os.path.join('~', '.pex', 'eggs')))
-
-  @egg_install_cache.setter
-  def egg_install_cache(self, value):
-    self._pex_info['egg_install_cache'] = value
-
-  @property
-  def download_cache(self):
-    return self._pex_info.get('download_cache',
-      os.path.expanduser(os.path.join('~', '.pex', 'download')))
-
-  @download_cache.setter
-  def download_cache(self, value):
-    self._pex_info['download_cache'] = value
+    return os.path.join(self.pex_root, 'install')
 
   @property
   def zip_unsafe_cache(self):
-    return self._pex_info.get('zip_unsafe_cache',
-      os.path.expanduser(os.path.join('~', '.pex', 'code')))
-
-  @zip_unsafe_cache.setter
-  def zip_unsafe_cache(self, value):
-    self._pex_info['zip_unsafe_cache'] = value
+    return os.path.join(self.pex_root, 'code')
 
   def dump(self):
     pex_info_copy = self._pex_info.copy()
     pex_info_copy['requirements'] = list(self._requirements)
-    pex_info_copy['indices'] = list(self._indices)
-    pex_info_copy['repositories'] = list(self._repositories)
-    pex_info_copy['egg_caches'] = list(self._egg_caches)
     return json.dumps(pex_info_copy)
 
   def copy(self):

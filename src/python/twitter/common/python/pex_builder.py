@@ -19,21 +19,17 @@ from __future__ import absolute_import
 import logging
 import os
 import tempfile
-from zipimport import zipimporter
 
 from .compatibility import to_bytes
-from .common import chmod_plus_x, safe_mkdir, Chroot
+from .common import chmod_plus_x, open_zip, safe_mkdir, Chroot
 from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
 from .translator import dist_from_egg
-from .util import DistributionHelper
+from .util import CacheHelper, DistributionHelper
 
 from pkg_resources import (
     DefaultProvider,
-    Distribution,
-    EggMetadata,
-    PathMetadata,
     ZipProvider,
     get_provider,
 )
@@ -64,6 +60,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, '.bootstrap')))
 from _twitter_common_python.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)
 """
+
 
 class PEXBuilder(object):
   class InvalidDependency(Exception): pass
@@ -120,25 +117,42 @@ class PEXBuilder(object):
     """
       helper for add_distribution
     """
-    if os.path.isdir(egg):
-      metadata = PathMetadata(egg, os.path.join(egg, 'EGG-INFO'))
-    else:
-      metadata = EggMetadata(zipimporter(egg))
-    dist = Distribution.from_filename(egg, metadata)
+    dist = DistributionHelper.distribution_from_path(egg)
     self.add_distribution(dist)
     self.add_requirement(dist.as_requirement(), dynamic=False, repo=None)
+
+  def _add_dir_egg(self, egg):
+    for root, _, files in os.walk(egg):
+      for f in files:
+        filename = os.path.join(root, f)
+        relpath = os.path.relpath(filename, egg)
+        target = os.path.join(self._pex_info.internal_cache, os.path.basename(egg), relpath)
+        self._chroot.link(filename, target)
+    return CacheHelper.dir_hash(egg)
+
+  def _add_zipped_egg(self, egg):
+    with open_zip(egg) as zf:
+      for name in zf.namelist():
+        if name.endswith('/'):
+          continue
+        target = os.path.join(self._pex_info.internal_cache, os.path.basename(egg), name)
+        self._chroot.write(zf.read(name), target)
+      return CacheHelper.zip_hash(zf)
+
+  def _prepare_code_hash(self):
+    self._pex_info.code_hash = CacheHelper.pex_hash(self._chroot.path())
 
   def add_distribution(self, dist):
     if not dist.location.endswith('.egg'):
       raise PEXBuilder.InvalidDependency('Non-egg dependencies not yet supported.')
+
     if os.path.isdir(dist.location):
-      # walk and write
-      for fn, content in DistributionHelper.walk(dist):
-        self._chroot.write(content.read(),
-            os.path.join(self._pex_info.internal_cache, os.path.basename(dist.location), fn))
+      dist_hash = self._add_dir_egg(dist.location)
     else:
-      self._chroot.link(dist.location,
-          os.path.join(self._pex_info.internal_cache, os.path.basename(dist.location)))
+      dist_hash = self._add_zipped_egg(dist.location)
+
+    # add dependency key so that it can rapidly be retrieved from cache
+    self._pex_info.add_distribution(os.path.basename(dist.location), dist_hash)
 
   def set_executable(self, filename, env_filename=None):
     if env_filename is None:
@@ -151,6 +165,8 @@ class PEXBuilder(object):
     entry_point.replace(os.path.sep, '.')
     self._pex_info.entry_point = entry_point.rpartition('.')[0]
 
+  # TODO(wickman) Consider changing this behavior to put the onus on the consumer
+  # of twitter.common.python to write the pex sources correctly.
   def _prepare_inits(self):
     relative_digest = self._chroot.get("source")
     init_digest = set()
@@ -169,9 +185,9 @@ class PEXBuilder(object):
   def _prepare_main(self):
     self._chroot.write(BOOTSTRAP_ENVIRONMENT, '__main__.py', label='main')
 
-  # TODO(wickman) Ideally we include twitter.common.python and twitter.common-core via the eggs
-  # rather than this hackish .bootstrap mechanism.  (Furthermore, we'll probably need to include
-  # both a pkg_resources and lib2to3 version of pkg_resources.)
+  # TODO(wickman) We should be including _markerlib from setuptools
+  # TODO(wickman) Ideally we unqualify our setuptools dependency and inherit whatever is
+  # bundled into the environment so long as it is compatible (and error out if not.)
   def _prepare_bootstrap(self):
     """
       Write enough of distribute into the .pex .bootstrap directory so that
@@ -179,8 +195,6 @@ class PEXBuilder(object):
     """
     distribute = dist_from_egg(self._interpreter.distribute)
     for fn, content_stream in DistributionHelper.walk_data(distribute):
-      # TODO(wickman)  Investigate if the omission of setuptools proper causes failures to
-      # build eggs.
       if fn == 'pkg_resources.py':
         self._chroot.write(content_stream.read(),
             os.path.join(self.BOOTSTRAP_DIR, 'pkg_resources.py'), 'resource')
@@ -203,6 +217,7 @@ class PEXBuilder(object):
     if self._frozen:
       return
     self._prepare_inits()
+    self._prepare_code_hash()
     self._prepare_manifest()
     self._prepare_bootstrap()
     self._prepare_main()

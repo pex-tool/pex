@@ -42,13 +42,6 @@ def get_pex_info(entry_point):
   raise ValueError('Invalid entry_point: %s' % entry_point)
 
 
-def needs_modified_importer(entry_point):
-  return is_compressed(entry_point) and not get_pex_info(entry_point).always_write_cache
-
-
 def bootstrap_pex(entry_point):
-  if needs_modified_importer(entry_point):
-    from . import importer
-    importer.monkeypatch()
   from . import pex
   pex.PEX(entry_point).execute()
