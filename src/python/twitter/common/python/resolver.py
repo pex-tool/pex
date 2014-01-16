@@ -29,10 +29,13 @@ class ResolverBase(WorkingSet):
   def make_installer(self, requirements, interpreter, platform):
     return None
 
-  def resolve(self, requirements, interpreter=PythonInterpreter.get(), platform=Platform.current()):
+  def resolve(self, requirements, interpreter=None, platform=None):
     requirements = maybe_requirement_list(requirements)
+    interpreter = interpreter or PythonInterpreter.get()
+    platform = platform or Platform.current()
     env = ResolverEnvironment([d.location for d in (self._entries | self._cached_entries)],
-         python=interpreter.python, platform=platform)
+                              python=interpreter.python,
+                              platform=platform)
     added = set()
     for dist in super(ResolverBase, self).resolve(requirements, env=env,
         installer=self.make_installer(requirements, interpreter, platform)):
