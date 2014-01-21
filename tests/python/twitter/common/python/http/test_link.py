@@ -1,5 +1,6 @@
 import contextlib
 import os
+import pytest
 from zipfile import ZipFile
 
 from twitter.common.contextutil import temporary_dir
@@ -60,13 +61,17 @@ def test_egg_links():
   assert el.py_version == '2.6'
   assert el.platform is None
 
-  el = EggLink('bar-1.egg')
-  assert el.name == 'bar'
-  assert el.raw_version == '1'
-  assert el.py_version is None
-  assert el.platform is None
+  # Eggs must have their own version and a python version.
+  with pytest.raises(Link.InvalidLink):
+    EggLink('bar.egg')
 
-  dateutil = 'python-dateutil-1.5.egg'
+  with pytest.raises(Link.InvalidLink):
+    EggLink('bar-1.egg')
+
+  with pytest.raises(Link.InvalidLink):
+    EggLink('bar-py2.6.egg')
+
+  dateutil = 'python_dateutil-1.5-py2.6.egg'
   with create_layout([dateutil]) as td:
     el = EggLink('file://' + os.path.join(td, dateutil), opener=Web())
     with temporary_dir() as td2:
