@@ -27,11 +27,11 @@ python_library(
   ],
 )
 
-
 python_test_suite(name = 'all',
   dependencies = [
     pants('tests/python/twitter/common/python/http:all'),
     pants(':test_environment'),
+    pants(':test_interpreter'),
     pants(':test_obtainer'),
     pants(':test_platform'),
     pants(':test_pex_builder'),
@@ -45,6 +45,14 @@ python_tests(name = 'test_environment',
     pants(':test_common'),
     pants('src/python/twitter/common/contextutil'),
     pants('src/python/twitter/common/python')
+  ]
+)
+
+python_tests(name = 'test_interpreter',
+  sources = ['test_interpreter.py'],
+  dependencies = [
+    pants('3rdparty/python:mock'),
+    pants('src/python/twitter/common/python'),
   ]
 )
 

@@ -16,7 +16,7 @@ import sys
 
 from .tracer import Tracer
 
-from pkg_resources import find_distributions, Distribution, Requirement
+from pkg_resources import Distribution, find_distributions, Requirement
 
 TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'),
     prefix='twitter.common.python.interpreter: ')
@@ -180,14 +180,17 @@ class PythonInterpreter(object):
   
   class Error(Exception): pass
   class IdentificationError(Error): pass
+  class InterpreterNotFound(Error): pass
 
   @classmethod
   def get(cls):
     return cls(sys.executable, interpreter=PythonIdentity.get())
 
   @classmethod
-  def all(cls, paths=os.getenv('PATH').split(':')):
-    return cls.filter(PythonInterpreter.find(paths))
+  def all(cls, paths=None):
+    if paths is None:
+      paths = os.getenv('PATH', '').split(':')
+    return cls.filter(cls.find(paths))
 
   @classmethod
   def from_binary(cls, binary):
@@ -289,7 +292,7 @@ class PythonInterpreter(object):
       self._identity = interpreter or PythonIdentity.get()
       self._distribute = distribute_path or self._find_distribute()
     else:
-      self._identity = interpreter or PythonInterpreter.from_binary(self._binary).identity
+      self._identity = interpreter or self.from_binary(self._binary).identity
       self._distribute = distribute_path
 
   def _find_distribute(self):
