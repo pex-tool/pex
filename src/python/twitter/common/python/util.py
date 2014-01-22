@@ -7,8 +7,6 @@ import os
 import shutil
 import uuid
 
-from .common import safe_open, safe_rmtree
-
 from pkg_resources import (
     Distribution,
     EggMetadata,
@@ -16,8 +14,22 @@ from pkg_resources import (
     find_distributions,
 )
 
+from .common import safe_open, safe_rmtree, safe_mkdir
+from .compatibility import to_bytes
+
 
 class DistributionHelper(object):
+  @staticmethod
+  def walk_metadata(dist, path='/'):
+    """yields filename, content for files identified as metadata in the distribution"""
+    for rel_fn in filter(None, dist.metadata_listdir(path)):
+      full_fn = os.path.join(path, rel_fn)
+      if dist.metadata_isdir(full_fn):
+        for fn, content in DistributionHelper.walk_metadata(dist, full_fn):
+          yield fn, content
+      else:
+        yield os.path.join('EGG-INFO', full_fn[1:]), to_bytes(dist.get_metadata(full_fn))
+
   @staticmethod
   def walk_data(dist, path='/'):
     """Yields filename, stream for files identified as data in the distribution"""

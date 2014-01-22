@@ -46,7 +46,10 @@ bytes = (bytes,)
 
 if PY2:
   def to_bytes(st):
-    return str(st)
+    if isinstance(st, unicode):
+      return st.encode('utf-8')
+    else:
+      return str(st)
 else:
   def to_bytes(st):
     return st.encode('utf-8')
