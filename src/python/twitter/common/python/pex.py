@@ -142,7 +142,7 @@ class PEX(object):
         if sys.argv[1:]:
           try:
             with open(sys.argv[1]) as fp:
-              ast = compile(fp.read(), fp.name, 'exec')
+              ast = compile(fp.read(), fp.name, 'exec', flags=0, dont_inherit=1)
           except IOError as e:
             print("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
             sys.exit(1)
