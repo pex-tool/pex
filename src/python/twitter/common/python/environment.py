@@ -75,7 +75,7 @@ class PEXEnvironment(Environment):
           continue
         dist_digest = pex_info.distributions.get(distribution_name) or CacheHelper.zip_hash(
             zf, internal_dist_path)
-        target_dir = os.path.join(pex_info.install_cache, dist_digest)
+        target_dir = os.path.join(pex_info.install_cache, '%s.%s' % (distribution_name, dist_digest))
         with TRACER.timed('Caching %s into %s' % (dist, target_dir)):
           distributions.append(CacheHelper.cache_distribution(zf, internal_dist_path, target_dir))
     return distributions
