@@ -163,6 +163,12 @@ class PexInfo(object):
   def add_distribution(self, location, sha):
     self._distributions[location] = sha
 
+  def add_repository(self, repository):
+    self._repositories.add(repository)
+
+  def add_index(self, index):
+    self._indices.add(index)
+
   @property
   def distributions(self):
     return self._distributions
