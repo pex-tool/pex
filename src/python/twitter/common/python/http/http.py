@@ -10,14 +10,14 @@ from ..compatibility import PY2, PY3
 from .tracer import TRACER
 
 if PY3:
-  from http.client import parse_headers, BadStatusLine
+  from http.client import parse_headers, HTTPException
   from queue import Queue, Empty
   import urllib.error as urllib_error
   import urllib.parse as urlparse
   import urllib.request as urllib_request
   from urllib.request import addinfourl
 else:
-  from httplib import HTTPMessage, BadStatusLine
+  from httplib import HTTPMessage, HTTPException
   from Queue import Queue, Empty
   from urllib import addinfourl
   import urllib2 as urllib_request
@@ -204,7 +204,7 @@ class CachedWeb(object):
       if expired:
         try:
           self.cache(url, conn_timeout=conn_timeout)
-        except (urllib_error.URLError, BadStatusLine):
+        except (urllib_error.URLError, HTTPException):
           if not self._failsoft or url not in self:
             raise
       return self.decode_url(url)
