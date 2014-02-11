@@ -53,7 +53,7 @@ Twitter's "PEX" standalone Python virtual environment.
 page(name = 'pexreadme',
   source = 'README.md',
   dependencies = [
-    pants(':pexinstall')
+    pants(':pexinstall'),
   ]
 )
 
