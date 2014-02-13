@@ -6,7 +6,7 @@ import threading
 
 from twitter.common.contextutil import temporary_dir
 from twitter.common.lang import Compatibility
-from twitter.common.python.http import CachedWeb, Web
+from twitter.common.python.http import CachedWeb, Web, FetchError
 from twitter.common.testing.clock import ThreadedClock
 
 import pytest
@@ -106,7 +106,7 @@ def test_connect_timeout_using_open():
   opener = MockOpener(DATA)
   web = CachedWeb(clock=clock, opener=opener)
   assert not os.path.exists(web.translate_url(URL))
-  with pytest.raises(urllib_error.URLError):
+  with pytest.raises(FetchError):
     with contextlib.closing(web.open(URL, conn_timeout=0)):
       pass
   with contextlib.closing(web.open(URL, conn_timeout=0.01)) as fp:
