@@ -30,7 +30,12 @@ class Timeout(Exception):
 
 
 class FetchError(Exception):
-  pass
+  """
+    Error occurred while fetching via HTTP
+
+    We raise this when we catch urllib or httplib errors because we don't want
+    to leak those implementation details to callers.
+  """
 
 
 def deadline(fn, *args, **kw):
@@ -210,5 +215,7 @@ class CachedWeb(object):
           self.cache(url, conn_timeout=conn_timeout)
         except (urllib_error.URLError, HTTPException) as exc:
           if not self._failsoft or url not in self:
+            # We raise our own exception so that we don't leak the exceptions
+            # of libraries that we use, which are implementation details.
             raise FetchError(exc)
       return self.decode_url(url)
