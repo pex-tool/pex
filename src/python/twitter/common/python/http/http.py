@@ -29,6 +29,10 @@ class Timeout(Exception):
   pass
 
 
+class FetchError(Exception):
+  pass
+
+
 def deadline(fn, *args, **kw):
   """Helper function to prevent fn(*args, **kw) from running more than
      a specified timeout.
@@ -204,7 +208,7 @@ class CachedWeb(object):
       if expired:
         try:
           self.cache(url, conn_timeout=conn_timeout)
-        except (urllib_error.URLError, HTTPException):
+        except (urllib_error.URLError, HTTPException) as exc:
           if not self._failsoft or url not in self:
-            raise
+            raise FetchError(exc)
       return self.decode_url(url)

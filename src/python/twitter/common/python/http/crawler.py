@@ -5,7 +5,7 @@ import re
 import threading
 
 from ..compatibility import PY3
-from .http import CachedWeb, Web, HTTPException
+from .http import CachedWeb, Web, FetchError
 from .tracer import TRACER
 
 if PY3:
@@ -134,7 +134,7 @@ class Crawler(CrawlerBase):
     try:
       with contextlib.closing(self._open(url, conn_timeout=self._conn_timeout)) as index_fp:
         index_content = self.decode_page(index_fp)
-    except (urllib_error.URLError, HTTPException) as e:
+    except FetchError as e:
       TRACER.log('Failed to fetch %s: %s' % (url, e))
       return set(), set()
     links = set(urljoin(url, link) for link in PageParser.links(index_content))
