@@ -4,7 +4,6 @@ import os
 import socket
 import threading
 
-from twitter.common.contextutil import temporary_dir
 from twitter.common.lang import Compatibility
 from twitter.common.python.http import CachedWeb, Web, FetchError
 from twitter.common.testing.clock import ThreadedClock
@@ -32,7 +31,7 @@ else:
 @mock.patch('socket.gethostbyname')
 def test_open_resolve_failure(gethostbyname_mock):
   gethostbyname_mock.side_effect = socket.gaierror(errno.EADDRNOTAVAIL, 'Could not resolve host.')
-  with pytest.raises(urllib_error.URLError):
+  with pytest.raises(FetchError):
     Web().open('http://www.google.com')
 
 
@@ -44,7 +43,7 @@ def test_resolve_timeout():
       event.wait()
     def _reachable(self, fullurl):
       return True
-  with pytest.raises(urllib_error.URLError):
+  with pytest.raises(FetchError):
     FakeWeb().open('http://www.google.com')
   # unblock anonymous thread
   event.set()
@@ -56,7 +55,7 @@ def test_unreachable_error(create_connection_mock, gethostbyname_mock):
   gethostbyname_mock.return_value = '1.2.3.4'
   create_connection_mock.side_effect = socket.error(errno.ENETUNREACH,
       'Could not reach network.')
-  with pytest.raises(urllib_error.URLError):
+  with pytest.raises(FetchError):
     Web().open('http://www.google.com')
   gethostbyname_mock.assert_called_once_with('www.google.com')
 

@@ -119,8 +119,11 @@ class Web(object):
     url = self.maybe_local_url(url)
     with TRACER.timed('Fetching', V=1):
       if not self.reachable(url, conn_timeout=conn_timeout):
-        raise urllib_error.URLError('Could not reach %s within deadline.' % url)
-      return urllib_request.urlopen(url, **kw)
+        raise FetchError('Could not reach %s within deadline.' % url)
+      try:
+        return urllib_request.urlopen(url, **kw)
+      except (urllib_error.URLError, HTTPException) as exc:
+        raise FetchError(exc)
 
 
 class CachedWeb(object):
@@ -215,7 +218,5 @@ class CachedWeb(object):
           self.cache(url, conn_timeout=conn_timeout)
         except (urllib_error.URLError, HTTPException) as exc:
           if not self._failsoft or url not in self:
-            # We raise our own exception so that we don't leak the exceptions
-            # of libraries that we use, which are implementation details.
             raise FetchError(exc)
       return self.decode_url(url)

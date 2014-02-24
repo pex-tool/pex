@@ -5,20 +5,15 @@ import os
 from zipimport import zipimporter
 
 from .common import chmod_plus_w, safe_rmtree, safe_mkdtemp
-from .compatibility import AbstractClass, PY3
+from .compatibility import AbstractClass
 from .distiller import Distiller
-from .http import SourceLink, EggLink
+from .http import EggLink, SourceLink
 from .installer import Installer
 from .interpreter import PythonInterpreter
 from .platforms import Platform
 from .tracer import TRACER
 
 from pkg_resources import Distribution, EggMetadata, PathMetadata
-
-if PY3:
-  import urllib.error as urllib_error
-else:
-  import urllib2 as urllib_error
 
 
 class TranslatorBase(AbstractClass):
@@ -89,8 +84,14 @@ class SourceTranslator(TranslatorBase):
 
     unpack_path, installer = None, None
     version = self._interpreter.version
+
     try:
       unpack_path = link.fetch(conn_timeout=self._conn_timeout)
+    except link.UnreadableLink as e:
+      TRACER.log('Failed to fetch %s: %s' % (link, e))
+      return None
+
+    try:
       if self._use_2to3 and version >= (3,):
         with TRACER.timed('Translating 2->3 %s' % link.name):
           self.run_2to3(unpack_path)
@@ -133,7 +134,7 @@ class EggTranslator(TranslatorBase):
       return None
     try:
       egg = link.fetch(location=self._install_cache, conn_timeout=self._conn_timeout)
-    except urllib_error.URLError as e:
+    except link.UnreadableLink as e:
       TRACER.log('Failed to fetch %s: %s' % (link, e))
       return None
     return dist_from_egg(egg)

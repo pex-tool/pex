@@ -6,6 +6,8 @@ import posixpath
 import tarfile
 import zipfile
 
+from .http import FetchError
+
 from ..base import maybe_requirement
 from ..common import safe_mkdir, safe_mkdtemp
 from ..compatibility import PY3
@@ -64,16 +66,23 @@ class Link(object):
     return self._opener.open(self.url, conn_timeout=conn_timeout)
 
   def fetch(self, location=None, conn_timeout=None):
+    """Fetches the link returning the local file path.
+
+    :raises UnreadableLink: if the link could not be fetched.
+    """
     if self.local and location is None:
       return self._url.path
     location = location or safe_mkdtemp()
     target = os.path.join(location, self.filename)
     if os.path.exists(target):
       return target
-    with contextlib.closing(self.fh(conn_timeout=conn_timeout)) as url_fp:
-      safe_mkdir(os.path.dirname(target))
-      with open(target, 'wb') as fp:
-        fp.write(url_fp.read())
+    try:
+      with contextlib.closing(self.fh(conn_timeout=conn_timeout)) as url_fp:
+        safe_mkdir(os.path.dirname(target))
+        with open(target, 'wb') as fp:
+          fp.write(url_fp.read())
+    except (FetchError, IOError) as e:
+      raise self.UnreadableLink('Failed to fetch %s to %s: %s' % (self.url, location, e))
     return target
 
 
