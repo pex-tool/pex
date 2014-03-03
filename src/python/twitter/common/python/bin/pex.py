@@ -13,7 +13,9 @@ from twitter.common.python.common import safe_delete, safe_mkdtemp
 from twitter.common.python.distiller import Distiller
 from twitter.common.python.fetcher import Fetcher, PyPIFetcher
 from twitter.common.python.installer import Installer
-from twitter.common.python.resolver import Resolver
+from twitter.common.python.interpreter import PythonInterpreter
+from twitter.common.python.platforms import Platform
+from twitter.common.python.resolver import resolve as requirement_resolver
 from twitter.common.python.pex_builder import PEXBuilder
 from twitter.common.python.pex import PEX
 from twitter.common.python.tracer import Tracer
@@ -52,6 +54,20 @@ def configure_clp():
       action='callback',
       callback=parse_bool,
       help='Whether to use pypi to resolve dependencies; Default: use pypi')
+
+  parser.add_option(
+      '--python',
+      dest='python',
+      default=None,
+      help='The Python interpreter to use to build the pex.  Either specify an explicit '
+           'path to an interpreter, or specify a binary accessible on $PATH. '
+           'Default: Use current interpreter.')
+
+  parser.add_option(
+      '--platform',
+      dest='platform',
+      default=Platform.current(),
+      help='The platform for which to build the PEX.  Default: %%default')
 
   parser.add_option(
       '--zip-safe', '--not-zip-safe',
@@ -146,7 +162,19 @@ def configure_clp():
 
 
 def build_pex(args, options):
-  pex_builder = PEXBuilder(path=safe_mkdtemp())
+  interpreter = None
+  if options.python:
+    if os.path.exists(options.python):
+      interpreter = PythonInterpreter.from_binary(options.python)
+    else:
+      interpreter = PythonInterpreter.from_env(options.python)
+    if interpreter is None:
+      die('Failed to find interpreter: %s' % options.python)
+
+  pex_builder = PEXBuilder(
+      path=safe_mkdtemp(),
+      interpreter=interpreter,
+  )
 
   pex_info = pex_builder.info
 
@@ -160,12 +188,16 @@ def build_pex(args, options):
   if options.pypi:
     fetchers.append(PyPIFetcher())
 
-  resolver = Resolver(cache=options.cache_dir, fetchers=fetchers, install_cache=options.cache_dir)
-
-  resolveds = resolver.resolve(options.requirements)
+  resolveds = requirement_resolver(
+      options.requirements,
+      cache=options.cache_dir,
+      fetchers=fetchers,
+      interpreter=interpreter,
+      platform=options.platform)
 
   if resolveds:
     log('Resolved distributions:', v=options.verbosity)
+
   for pkg in resolveds:
     log('  %s' % pkg, v=options.verbosity)
     pex_builder.add_distribution(pkg)
@@ -186,19 +218,7 @@ def build_pex(args, options):
   else:
     log('Creating environment PEX.', v=options.verbosity)
 
-  if options.pex_name is not None:
-    log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)
-    tmp_name = options.pex_name + '~'
-    safe_delete(tmp_name)
-    pex_builder.build(tmp_name)
-    os.rename(tmp_name, options.pex_name)
-  else:
-    pex_builder.freeze()
-    log('Running PEX file at %s with args %s' % (pex_builder.path(), args), v=options.verbosity)
-    pex = PEX(pex_builder.path())
-    return pex.run(args=list(args))
-
-  return 0
+  return pex_builder
 
 
 def main():
@@ -211,4 +231,21 @@ def main():
       TWITTER_COMMON_PYTHON_HTTP=verbosity,
       PYTHON_VERBOSE=verbosity):
 
-    sys.exit(build_pex(args, options))
+    pex_builder = build_pex(args, options)
+
+    if options.pex_name is not None:
+      log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)
+      tmp_name = options.pex_name + '~'
+      safe_delete(tmp_name)
+      pex_builder.build(tmp_name)
+      os.rename(tmp_name, options.pex_name)
+      return 0
+
+    if options.platform != Platform.current():
+      log('WARNING: attempting to run PEX with differing platform!')
+
+    pex_builder.freeze()
+
+    log('Running PEX file at %s with args %s' % (pex_builder.path(), args), v=options.verbosity)
+    pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)
+    return pex.run(args=list(args))

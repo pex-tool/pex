@@ -96,14 +96,14 @@ class Web(object):
     if not fullurl.scheme or not fullurl.netloc:
       return True
     try:
-      with TRACER.timed('Resolving', V=2):
+      with TRACER.timed('Resolving %s' % fullurl.hostname, V=2):
         if not deadline(self._resolves, fullurl, timeout=self.NS_TIMEOUT_SECS):
           TRACER.log('Failed to resolve %s' % url)
           return False
     except Timeout:
       TRACER.log('Timed out resolving %s' % fullurl.hostname)
       return False
-    with TRACER.timed('Connecting', V=2):
+    with TRACER.timed('Connecting to %s' % fullurl.hostname, V=2):
       return self._reachable(fullurl, conn_timeout=conn_timeout)
 
   def maybe_local_url(self, url):
@@ -117,7 +117,7 @@ class Web(object):
       Wrapper in front of urlopen that more gracefully handles odd network environments.
     """
     url = self.maybe_local_url(url)
-    with TRACER.timed('Fetching', V=1):
+    with TRACER.timed('Fetching %s' % url, V=1):
       if not self.reachable(url, conn_timeout=conn_timeout):
         raise FetchError('Could not reach %s within deadline.' % url)
       try:
@@ -181,7 +181,7 @@ class CachedWeb(object):
       # File urls won't have a response code, they'll either open or raise.
       if http_fp.getcode() and http_fp.getcode() != 200:
         raise urllib_error.URLError('Non-200 response code from %s' % url)
-      with TRACER.timed('Caching', V=2):
+      with TRACER.timed('Caching %s' % url, V=2):
         with open(target_tmp, 'wb') as disk_fp:
           disk_fp.write(http_fp.read())
         with open(headers_tmp, 'wb') as headers_fp:
@@ -213,7 +213,7 @@ class CachedWeb(object):
   def open(self, url, ttl=None, conn_timeout=None):
     """Return a file-like object with the content of the url."""
     expired = self.expired(url, ttl=ttl)
-    with TRACER.timed('Opening %s' % ('(cached)' if not expired else ''), V=1):
+    with TRACER.timed('Opening %s' % ('(cached)' if not expired else '(uncached)'), V=1):
       if expired:
         try:
           self.cache(url, conn_timeout=conn_timeout)

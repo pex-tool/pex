@@ -75,6 +75,10 @@ class PEXBuilder(object):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._logger = logging.getLogger(__name__)
 
+  @property
+  def interpreter(self):
+    return self._interpreter
+
   def chroot(self):
     return self._chroot
 

@@ -177,7 +177,7 @@ class PythonInterpreter(object):
     COMPATIBLE_SETUPTOOLS = Requirement.parse('setuptools>=1.0', replacement=False)
   except TypeError:
     COMPATIBLE_SETUPTOOLS = Requirement.parse('setuptools>=1.0')
-  
+
   class Error(Exception): pass
   class IdentificationError(Error): pass
   class InterpreterNotFound(Error): pass
@@ -191,6 +191,30 @@ class PythonInterpreter(object):
     if paths is None:
       paths = os.getenv('PATH', '').split(':')
     return cls.filter(cls.find(paths))
+
+  @classmethod
+  def expand_path(cls, path):
+    if os.path.isfile(path):
+      return [path]
+    elif os.path.isdir(path):
+      return [os.path.join(path, fn) for fn in os.listdir(path)]
+    return []
+
+  @classmethod
+  def from_env(cls, hashbang):
+    """Resolve a PythonInterpreter as /usr/bin/env would.
+
+       :param hashbang: A string, e.g. "python3.3" representing some binary on the $PATH.
+    """
+    paths = os.getenv('PATH', '').split(':')
+    for path in paths:
+      for fn in cls.expand_path(path):
+        basefile = os.path.basename(fn)
+        if hashbang == basefile:
+          try:
+            return cls.from_binary(fn)
+          except Exception as e:
+            TRACER.log('Could not identify %s: %s' % (fn, e))
 
   @classmethod
   def from_binary(cls, binary):
@@ -214,13 +238,7 @@ class PythonInterpreter(object):
     """
     pythons = []
     for path in paths:
-      def expand_path(path):
-        if os.path.isfile(path):
-          return [path]
-        elif os.path.isdir(path):
-          return (os.path.join(path, fn) for fn in os.listdir(path))
-        return []
-      for fn in expand_path(path):
+      for fn in cls.expand_path(path):
         basefile = os.path.basename(fn)
         if any(matcher.match(basefile) is not None for matcher in cls.REGEXEN):
           try:

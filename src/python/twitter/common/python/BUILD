@@ -29,7 +29,7 @@ python_library(
   ],
   provides = setup_py(
     name = 'twitter.common.python',
-    version = '0.3.0',
+    version = '0.3.1',
     description = "Twitter's Python packaging toolchain.",
     long_description = """
 Twitter's Python packaging toolchain.  Includes support for package
