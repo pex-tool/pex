@@ -5,6 +5,7 @@ import socket
 import threading
 
 from twitter.common.lang import Compatibility
+from twitter.common.python.common import safe_mkdtemp
 from twitter.common.python.http import CachedWeb, Web, FetchError
 from twitter.common.testing.clock import ThreadedClock
 
@@ -64,6 +65,21 @@ def test_unreachable_error(create_connection_mock, gethostbyname_mock):
 def test_local_open(urlopen_mock):
   urlopen_mock.return_value = 'data'
   assert Web().open('/local/filename') == 'data'
+
+
+def test_local_cached_open():
+  cache = safe_mkdtemp()
+  web = CachedWeb(cache=cache)
+
+  source_dir = safe_mkdtemp()
+  source = os.path.join(source_dir, 'filename')
+  with open(source, 'w') as fp:
+    fp.write('data')
+
+  with contextlib.closing(web.open(source)) as cached_fp1:
+    assert 'data' == cached_fp1.read()
+  with contextlib.closing(web.open(source)) as cached_fp2:
+    assert 'data' == cached_fp2.read()
 
 
 def test_maybe_local():
