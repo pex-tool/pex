@@ -1,10 +1,10 @@
 from __future__ import absolute_import, print_function
 
+from contextlib import contextmanager
 from distutils import sysconfig
 import os
 from site import USER_SITE
 import sys
-
 
 from .common import mutable_sys, safe_mkdir
 from .compatibility import exec_function
@@ -14,6 +14,7 @@ from .orderedset import OrderedSet
 from .pex_info import PexInfo
 from .tracer import Tracer
 
+import pkg_resources
 from pkg_resources import EntryPoint, find_distributions
 
 
@@ -121,41 +122,64 @@ class PEX(object):
       if key not in scrub_from_importer_cache)
     return scrubbed_sys_path, scrubbed_importer_cache
 
+  @classmethod
+  @contextmanager
+  def patch_pkg_resources(cls, working_set):
+    def patch(working_set):
+      pkg_resources.working_set = working_set
+      pkg_resources.require = working_set.require
+      pkg_resources.iter_entry_points = working_set.iter_entry_points
+      pkg_resources.run_script = pkg_resources.run_main = working_set.run_script
+      pkg_resources.add_activation_listener = working_set.subscribe
+
+    old_working_set = pkg_resources.working_set
+    patch(working_set)
+    try:
+      yield
+    finally:
+      patch(old_working_set)
+
   def execute(self, args=()):
     entry_point = self.entry()
     with mutable_sys():
       sys.path, sys.path_importer_cache = self.minimum_path()
-      self._env.activate()
+      working_set = self._env.activate()
       if 'PEX_COVERAGE' in os.environ:
         PEX.start_coverage()
       TRACER.log('PYTHONPATH contains:')
       for element in sys.path:
         TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
       TRACER.log('  * - paths that do not exist or will be imported via zipimport')
-      force_interpreter = 'PEX_INTERPRETER' in os.environ
-      if entry_point and not force_interpreter:
-        self.execute_entry(entry_point, args)
-      else:
-        os.unsetenv('PEX_INTERPRETER')
-        TRACER.log('%s, dropping into interpreter' % (
-            'PEX_INTERPRETER specified' if force_interpreter else 'No entry point specified'))
-        if sys.argv[1:]:
-          try:
-            with open(sys.argv[1]) as fp:
-              ast = compile(fp.read(), fp.name, 'exec', flags=0, dont_inherit=1)
-          except IOError as e:
-            print("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
-            sys.exit(1)
-          sys.argv = sys.argv[1:]
-          old_name = globals()['__name__']
-          try:
-            globals()['__name__'] = '__main__'
-            exec_function(ast, globals())
-          finally:
-            globals()['__name__'] = old_name
+      with self.patch_pkg_resources(working_set):
+        if entry_point and 'PEX_INTERPRETER' not in os.environ:
+          self.execute_entry(entry_point, args)
         else:
-          import code
-          code.interact()
+          self.execute_interpreter()
+
+  @classmethod
+  def execute_interpreter(cls):
+    force_interpreter = 'PEX_INTERPRETER' in os.environ
+    # TODO(wickman) Apparently os.unsetenv doesn't work on Windows
+    os.unsetenv('PEX_INTERPRETER')
+    TRACER.log('%s, dropping into interpreter' % (
+        'PEX_INTERPRETER specified' if force_interpreter else 'No entry point specified'))
+    if sys.argv[1:]:
+      try:
+        with open(sys.argv[1]) as fp:
+          ast = compile(fp.read(), fp.name, 'exec', flags=0, dont_inherit=1)
+      except IOError as e:
+        print("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
+        sys.exit(1)
+      sys.argv = sys.argv[1:]
+      old_name = globals()['__name__']
+      try:
+        globals()['__name__'] = '__main__'
+        exec_function(ast, globals())
+      finally:
+        globals()['__name__'] = old_name
+    else:
+      import code
+      code.interact()
 
   @classmethod
   def execute_entry(cls, entry_point, args=None):

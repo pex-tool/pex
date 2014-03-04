@@ -111,11 +111,12 @@ class PEXEnvironment(Environment):
     return Platform.distribution_compatible(dist, self.python, self.platform)
 
   def activate(self):
-    if self._activated:
-      return
+    if not self._activated:
+      with TRACER.timed('Activating PEX virtual environment'):
+        self._working_set = self._activate()
+      self._activated = True
 
-    with TRACER.timed('Activating PEX virtual environment'):
-      self._activate()
+    return self._working_set
 
   def _activate(self):
     self.update_candidate_distributions(self.load_internal_cache(self._pex, self._pex_info))
@@ -143,7 +144,7 @@ class PEXEnvironment(Environment):
 
     for dist in resolved:
       with TRACER.timed('Activated %s' % dist):
+        working_set.add(dist)
         dist.activate()
 
-    self._working_set = working_set
-    self._activated = True
+    return working_set
