@@ -14,46 +14,58 @@ import re
 import subprocess
 import sys
 
+from .base import maybe_requirement, maybe_requirement_list
 from .tracer import Tracer
 
-from pkg_resources import Distribution, find_distributions, Requirement
+from pkg_resources import (
+    find_distributions,
+    Distribution,
+    Requirement,
+)
 
 TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'),
     prefix='twitter.common.python.interpreter: ')
 
 
 # Determine in the most platform-compatible way possible the identity of the interpreter
-# and whether or not it has a distribute egg.
+# and its known packages.
 ID_PY = b"""
 import sys
 
-if hasattr(sys, 'subversion'):
-  subversion = sys.subversion[0]
+if hasattr(sys, 'pypy_version_info'):
+  subversion = 'PyPy'
+elif sys.platform.startswith('java'):
+  subversion = 'Jython'
 else:
   subversion = 'CPython'
-
-setuptools_path = None
-try:
-  import pkg_resources
-  try:
-    setuptools_req = pkg_resources.Requirement.parse('setuptools>=1', replacement=False)
-  except TypeError:
-    setuptools_req = pkg_resources.Requirement.parse('setuptools>=1')
-  for item in sys.path:
-    for dist in pkg_resources.find_distributions(item):
-      if dist in setuptools_req:
-        setuptools_path = dist.location
-        break
-except ImportError:
-  pass
 
 print("%s %s %s %s" % (
   subversion,
   sys.version_info[0],
   sys.version_info[1],
   sys.version_info[2]))
-print(setuptools_path)
+
+setuptools_path = None
+try:
+  import pkg_resources
+except ImportError:
+  sys.exit(0)
+
+requirements = {}
+for item in sys.path:
+  for dist in pkg_resources.find_distributions(item):
+    requirements[str(dist.as_requirement())] = dist.location
+
+for requirement_str, location in requirements.items():
+  rs = requirement_str.split('==', 2)
+  if len(rs) == 2:
+    print('%s %s %s' % (rs[0], rs[1], location))
 """
+
+
+class PythonCapability(list):
+  def __init__(self, requirements=None):
+    super(PythonCapability, self).__init__(maybe_requirement_list(requirements or []))
 
 
 class PythonIdentity(object):
@@ -61,6 +73,7 @@ class PythonIdentity(object):
   class InvalidError(Error): pass
   class UnknownRequirement(Error): pass
 
+  # TODO(wickman)  Support interpreter-specific versions, e.g. PyPy-2.2.1
   HASHBANGS = {
     'CPython': 'python%(major)d.%(minor)d',
     'Jython': 'jython',
@@ -68,12 +81,18 @@ class PythonIdentity(object):
   }
 
   @classmethod
-  def get(cls):
-    if hasattr(sys, 'subversion'):
-      subversion = sys.subversion[0]
+  def get_subversion(cls):
+    if hasattr(sys, 'pypy_version_info'):
+      subversion = 'PyPy'
+    elif sys.platform.startswith('java'):
+      subversion = 'Jython'
     else:
       subversion = 'CPython'
-    return cls(subversion, sys.version_info[0], sys.version_info[1], sys.version_info[2])
+    return subversion
+
+  @classmethod
+  def get(cls):
+    return cls(cls.get_subversion(), sys.version_info[0], sys.version_info[1], sys.version_info[2])
 
   @classmethod
   def from_id_string(cls, id_string):
@@ -184,13 +203,52 @@ class PythonInterpreter(object):
 
   @classmethod
   def get(cls):
-    return cls(sys.executable, interpreter=PythonIdentity.get())
+    return cls.from_binary(sys.executable)
 
   @classmethod
   def all(cls, paths=None):
     if paths is None:
       paths = os.getenv('PATH', '').split(':')
     return cls.filter(cls.find(paths))
+
+  @classmethod
+  def _parse_extras(cls, output_lines):
+    def iter_lines():
+      for line in output_lines:
+        try:
+          dist_name, dist_version, location = line.split()
+        except ValueError:
+          raise cls.IdentificationError('Could not identify requirement: %s' % line)
+        yield ((dist_name, dist_version), location)
+    return dict(iter_lines())
+
+  @classmethod
+  def _from_binary_internal(cls, path_extras):
+    def iter_extras():
+      for item in sys.path + list(path_extras):
+        for dist in find_distributions(item):
+          if dist.version:
+            yield ((dist.key, dist.version), dist.location)
+    return cls(sys.executable, PythonIdentity.get(), dict(iter_extras()))
+
+  @classmethod
+  def _from_binary_external(cls, binary, path_extras):
+    environ = cls.sanitized_environment()
+    environ['PYTHONPATH'] = ':'.join(path_extras)
+    po = subprocess.Popen(
+        [binary],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        env=environ)
+    so, _ = po.communicate(ID_PY)
+    output = so.decode('utf8').splitlines()
+    if len(output) == 0:
+      raise cls.IdentificationError('Could not establish identity of %s' % binary)
+    identity, extras = output[0], output[1:]
+    return cls(
+        binary,
+        PythonIdentity.from_id_string(identity),
+        extras=cls._parse_extras(extras))
 
   @classmethod
   def expand_path(cls, path):
@@ -217,17 +275,13 @@ class PythonInterpreter(object):
             TRACER.log('Could not identify %s: %s' % (fn, e))
 
   @classmethod
-  def from_binary(cls, binary):
+  def from_binary(cls, binary, path_extras=None):
+    path_extras = path_extras or ()
     if binary not in cls.CACHE:
-      cls.sanitize_environment()
-      po = subprocess.Popen([binary], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-      so, _ = po.communicate(ID_PY)
-      output = so.decode('utf8').splitlines()
-      if len(output) != 2:
-        raise cls.IdentificationError("Could not establish identity of %s" % binary)
-      id_string, distribute_path = output
-      cls.CACHE[binary] = cls(binary, PythonIdentity.from_id_string(id_string),
-          distribute_path=distribute_path if distribute_path != "None" else None)
+      if binary == sys.executable:
+        cls.CACHE[binary] = cls._from_binary_internal(path_extras)
+      else:
+        cls.CACHE[binary] = cls._from_binary_external(binary, path_extras)
     return cls.CACHE[binary]
 
   @classmethod
@@ -280,10 +334,12 @@ class PythonInterpreter(object):
     return good
 
   @classmethod
-  def sanitize_environment(cls):
+  def sanitized_environment(cls):
     # N.B. This is merely a hack because sysconfig.py on the default OS X
     # installation of 2.6/2.7 breaks.
-    os.unsetenv('MACOSX_DEPLOYMENT_TARGET')
+    env_copy = os.environ.copy()
+    env_copy.pop('MACOSX_DEPLOYMENT_TARGET', None)
+    return env_copy
 
   @classmethod
   def replace(cls, requirement):
@@ -298,26 +354,29 @@ class PythonInterpreter(object):
     cls.sanitize_environment()
     os.execv(pi.binary, [pi.binary] + sys.argv)
 
-  def __init__(self, binary=None, interpreter=None, distribute_path=None):
+  def __init__(self, binary, identity, extras=None):
+    """Construct a PythonInterpreter.
+
+       You should probably PythonInterpreter.from_binary instead.
+
+       :param binary: The full path of the python binary.
+       :param identity: The :class:`PythonIdentity` of the PythonInterpreter.
+       :param extras: A mapping from (dist.key, dist.version) to dist.location
+                      of the extras associated with this interpreter.
     """
-      :binary => binary of python interpreter
-                 (if None, default to sys.executable)
-    """
-    self._binary = binary or sys.executable
+    self._binary = binary
     self._binary_stat = os.stat(self._binary)
+    self._extras = extras or {}
+    self._identity = identity
 
-    if self._binary == sys.executable:
-      self._identity = interpreter or PythonIdentity.get()
-      self._distribute = distribute_path or self._find_distribute()
-    else:
-      self._identity = interpreter or self.from_binary(self._binary).identity
-      self._distribute = distribute_path
+  def with_extra(self, key, version, location):
+    extras = self._extras.copy()
+    extras[(key, version)] = location
+    return self.__class__(self._binary, self._identity, extras)
 
-  def _find_distribute(self):
-    for item in sys.path:
-      for dist in find_distributions(item):
-        if dist in self.COMPATIBLE_SETUPTOOLS:
-          return dist.location
+  @property
+  def extras(self):
+    return self._extras.copy()
 
   @property
   def binary(self):
@@ -341,9 +400,17 @@ class PythonInterpreter(object):
   def version_string(self):
     return str(self._identity)
 
-  @property
-  def distribute(self):
-    return self._distribute
+  def satisfies(self, capability):
+    if not isinstance(capability, PythonCapability):
+      raise TypeError('Capability must be a PythonCapability, got %s' % type(capability))
+    return not any(self.get_location(req) is None for req in capability)
+
+  def get_location(self, req):
+    req = maybe_requirement(req)
+    for dist, location in self.extras.items():
+      dist_name, dist_version = dist
+      if req.key == dist_name and dist_version in req:
+        return location
 
   def __hash__(self):
     return hash(self._binary_stat)
@@ -359,5 +426,4 @@ class PythonInterpreter(object):
     return self.version < other.version
 
   def __repr__(self):
-    return '%s(%r, %r, %r)' % (self.__class__.__name__, self._binary, self._identity,
-        self._distribute)
+    return '%s(%r, %r, %r)' % (self.__class__.__name__, self._binary, self._identity, self._extras)

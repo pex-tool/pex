@@ -7,7 +7,6 @@ import zipfile
 
 from twitter.common.contextutil import temporary_file, temporary_dir
 from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
-from twitter.common.python.distiller import Distiller
 from twitter.common.python.installer import Installer
 from twitter.common.python.util import CacheHelper, DistributionHelper
 

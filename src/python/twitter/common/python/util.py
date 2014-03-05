@@ -34,13 +34,7 @@ class DistributionHelper(object):
     """Returns whether or not we determine a distribution is zip-safe.
 
        Only works for egg distributions."""
-    try:
-      pez_info = dist.resource_listdir('/PEZ-INFO')
-    except OSError:
-      pez_info = []
-    if 'zip-safe' in pez_info:
-      return True
-    egg_metadata = dist.metadata_listdir('/')
+    egg_metadata = dist.metadata_listdir('')
     return 'zip-safe' in egg_metadata and 'native_libs.txt' not in egg_metadata
 
   @classmethod

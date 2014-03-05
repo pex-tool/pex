@@ -43,7 +43,7 @@ class PexInfo(object):
     from .interpreter import PythonInterpreter
     from pkg_resources import get_platform
 
-    pi = PythonInterpreter()
+    pi = PythonInterpreter.get()
     return {
       'class': pi.identity.interpreter,
       'version': pi.identity.version,

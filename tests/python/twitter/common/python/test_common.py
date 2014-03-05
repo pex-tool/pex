@@ -7,8 +7,7 @@ import zipfile
 from twitter.common.contextutil import temporary_dir
 from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
 from twitter.common.lang import Compatibility
-from twitter.common.python.distiller import Distiller
-from twitter.common.python.installer import Installer
+from twitter.common.python.installer import EggInstaller
 from twitter.common.python.util import DistributionHelper
 
 
@@ -70,14 +69,15 @@ PROJECT_CONTENT = {
       from setuptools import setup
 
       setup(
-          name='%(project_name)s',
+          name=%(project_name)r,
           version='0.0.0',
+          zip_safe=%(zip_safe)r,
           packages=['my_package'],
           package_data={'my_package': ['package_data/*.dat']},
       )
   '''),
   'my_package/__init__.py': 0,
-  'my_package/my_module.py': '%(content)s',
+  'my_package/my_module.py': 'def do_something():\n  print("hello world!")\n',
   'my_package/package_data/resource1.dat': 1000,
   'my_package/package_data/resource2.dat': 1000,
 }
@@ -85,22 +85,10 @@ PROJECT_CONTENT = {
 
 @contextlib.contextmanager
 def make_distribution(name='my_project', zipped=False, zip_safe=True):
-  interp = {'project_name': name}
-  if zip_safe:
-    interp['content'] = dedent('''
-    def do_something():
-      print('hello world!')
-    ''')
-  else:
-    interp['content'] = dedent('''
-    if __file__ == 'derp.py':
-      print('i am an idiot')
-    ''')
+  interp = {'project_name': name, 'zip_safe': zip_safe}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
-    installer = Installer(td)
-    distribution = installer.distribution()
-    distiller = Distiller(distribution, debug=True)
-    dist_location = distiller.distill(into=safe_mkdtemp())
+    installer = EggInstaller(td)
+    dist_location = installer.bdist()
     if zipped:
       yield DistributionHelper.distribution_from_path(dist_location)
     else:

@@ -51,7 +51,10 @@ def test_write_zipped_internal_cache():
     dists = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
     assert len(dists) == 1
     assert normalize(dists[0].location).startswith(
-        normalize(os.path.join(pex_file.name, pb.info.internal_cache)))
+        normalize(os.path.join(pex_file.name, pb.info.internal_cache))), (
+        'loc: %s, cache: %s' % (
+            normalize(dists[0].location),
+            normalize(os.path.join(pex_file.name, pb.info.internal_cache))))
 
     pb.info.always_write_cache = True
     dists = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
@@ -75,7 +78,6 @@ def test_write_zipped_internal_cache():
     dists = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
     assert len(dists) == 1
     assert normalize(dists[0].location) == original_location
-
 
 
 def test_load_internal_cache_unzipped():

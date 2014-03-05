@@ -10,9 +10,8 @@ import os
 import sys
 
 from twitter.common.python.common import safe_delete, safe_mkdtemp
-from twitter.common.python.distiller import Distiller
 from twitter.common.python.fetcher import Fetcher, PyPIFetcher
-from twitter.common.python.installer import Installer
+from twitter.common.python.installer import EggInstaller
 from twitter.common.python.interpreter import PythonInterpreter
 from twitter.common.python.platforms import Platform
 from twitter.common.python.resolver import resolve as requirement_resolver
@@ -204,12 +203,10 @@ def build_pex(args, options):
     pex_builder.add_requirement(pkg.as_requirement())
 
   for source_dir in options.source_dirs:
-    dist = Installer(source_dir).distribution()
-    if not dist:
+    try:
+      egg_path = EggInstaller(source_dir).bdist()
+    except EggInstaller.Error:
       die('Failed to run installer for %s' % source_dir, CANNOT_DISTILL)
-    egg_path = Distiller(dist).distill()
-    if not egg_path:
-      die('Failed to distill %s into egg' % dist, CANNOT_DISTILL)
     pex_builder.add_egg(egg_path)
 
   if options.entry_point is not None:

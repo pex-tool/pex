@@ -197,8 +197,8 @@ class PEXBuilder(object):
       Write enough of distribute into the .pex .bootstrap directory so that
       we can be fully self-contained.
     """
-    distribute = dist_from_egg(self._interpreter.distribute)
-    for fn, content_stream in DistributionHelper.walk_data(distribute):
+    setuptools = dist_from_egg(self._interpreter.get_location('setuptools'))
+    for fn, content_stream in DistributionHelper.walk_data(setuptools):
       if fn == 'pkg_resources.py':
         self._chroot.write(content_stream.read(),
             os.path.join(self.BOOTSTRAP_DIR, 'pkg_resources.py'), 'resource')

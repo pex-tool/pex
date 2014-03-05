@@ -4,11 +4,10 @@ from abc import abstractmethod
 import os
 from zipimport import zipimporter
 
-from .common import chmod_plus_w, safe_rmtree, safe_mkdtemp
+from .common import chmod_plus_w, safe_rmtree, safe_mkdir, safe_mkdtemp
 from .compatibility import AbstractClass
-from .distiller import Distiller
 from .http import EggLink, SourceLink
-from .installer import Installer
+from .installer import Installer, EggInstaller
 from .interpreter import PythonInterpreter
 from .platforms import Platform
 from .tracer import TRACER
@@ -69,11 +68,16 @@ class SourceTranslator(TranslatorBase):
               except IOError as e:
                 TRACER.log('Failed to translate %s: %s' % (fn, e))
 
-  def __init__(self, install_cache=None, interpreter=PythonInterpreter.get(),
-      platform=Platform.current(), use_2to3=False, conn_timeout=None):
+  def __init__(self,
+               install_cache=None,
+               interpreter=PythonInterpreter.get(),
+               platform=Platform.current(),
+               use_2to3=False,
+               conn_timeout=None):
     self._interpreter = interpreter
     self._use_2to3 = use_2to3
     self._install_cache = install_cache or safe_mkdtemp()
+    safe_mkdir(self._install_cache)
     self._conn_timeout = conn_timeout
     self._platform = platform
 
@@ -95,21 +99,22 @@ class SourceTranslator(TranslatorBase):
       if self._use_2to3 and version >= (3,):
         with TRACER.timed('Translating 2->3 %s' % link.name):
           self.run_2to3(unpack_path)
-      with TRACER.timed('Installing %s' % link.name):
-        installer = Installer(unpack_path, interpreter=self._interpreter,
-            strict=(link.name != 'distribute'))
-      with TRACER.timed('Distilling %s' % link.name):
+      # TODO(wickman) Allow for pluggable installers (e.g. WheelInstaller) once
+      # Platform.distribution_compatible understands PEP425 tags.
+      installer = EggInstaller(
+          unpack_path,
+          interpreter=self._interpreter,
+          strict=(link.name != 'distribute'))
+      with TRACER.timed('Packaging %s' % link.name):
         try:
-          dist = installer.distribution()
+          dist_path = installer.bdist()
         except Installer.InstallFailure:
           return None
-        egg_directory = Distiller(dist).distill(into=self._install_cache)
-        if egg_directory is None:
-          TRACER.log('Failed to distill %s into %s' % (dist, self._install_cache))
-          return None
-        dist = dist_from_egg(egg_directory)
-        if Platform.distribution_compatible(dist, python=self._interpreter.python,
-            platform=self._platform):
+        target_path = os.path.join(self._install_cache, os.path.basename(dist_path))
+        os.rename(dist_path, target_path)
+        dist = dist_from_egg(target_path)
+        if Platform.distribution_compatible(
+            dist, python=self._interpreter.python, platform=self._platform):
           return dist
     finally:
       if installer:
@@ -119,8 +124,11 @@ class SourceTranslator(TranslatorBase):
 
 
 class EggTranslator(TranslatorBase):
-  def __init__(self, install_cache=None, platform=Platform.current(), python=Platform.python(),
-              conn_timeout=None):
+  def __init__(self,
+               install_cache=None,
+               platform=Platform.current(),
+               python=Platform.python(),
+               conn_timeout=None):
     self._install_cache = install_cache or safe_mkdtemp()
     self._platform = platform
     self._python = python
@@ -142,10 +150,20 @@ class EggTranslator(TranslatorBase):
 
 class Translator(object):
   @staticmethod
-  def default(install_cache=None, platform=Platform.current(), interpreter=PythonInterpreter.get(),
+  def default(install_cache=None,
+              platform=Platform.current(),
+              interpreter=PythonInterpreter.get(),
               conn_timeout=None):
-    return ChainedTranslator(
-      EggTranslator(install_cache=install_cache, platform=platform, python=interpreter.python,
-                    conn_timeout=conn_timeout),
-      SourceTranslator(install_cache=install_cache, interpreter=interpreter,
-                       conn_timeout=conn_timeout))
+
+    egg_translator = EggTranslator(
+        install_cache=install_cache,
+        platform=platform,
+        python=interpreter.python,
+        conn_timeout=conn_timeout)
+
+    source_translator = SourceTranslator(
+        install_cache=install_cache,
+        interpreter=interpreter,
+        conn_timeout=conn_timeout)
+
+    return ChainedTranslator(egg_translator, source_translator)
