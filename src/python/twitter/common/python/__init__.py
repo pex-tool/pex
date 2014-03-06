@@ -14,9 +14,3 @@
 # limitations under the License.
 # ==================================================================================================
 
-# TODO(John Sirois): This works around a bug in namespace package injection for the setup_py
-# command's sdist generation of a library using with_binaries.  In this case
-# the src/python/twitter/common/python target has a with_binaries that includes the pex.pex pex and
-# this __init__.py is emitted in the sdist with no namespace package by the setup_py command unless
-# manually added below.
-__import__('pkg_resources').declare_namespace(__name__)
