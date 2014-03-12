@@ -18,7 +18,8 @@ python_library(
   name = 'python-source',
   sources = globs('*.py') + globs('http/*.py'),
   dependencies = [
-    pants('3rdparty/python:setuptools'),
+    # Use any setuptools post-distribute merge.
+    python_requirement('setuptools>=1'),
   ],
 )
 
@@ -29,7 +30,7 @@ python_library(
   ],
   provides = setup_py(
     name = 'twitter.common.python',
-    version = '0.4.1',
+    version = '0.4.2',
     description = "Twitter's Python packaging toolchain.",
     long_description = """
 Twitter's Python packaging libraries and toolchain for fetching,
