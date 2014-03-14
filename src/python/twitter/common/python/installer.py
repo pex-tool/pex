@@ -201,6 +201,11 @@ class Installer(InstallerBase):
 
 
 class DistributionPackager(InstallerBase):
+  def mixins(self):
+    mixins = super(DistributionPackager, self).mixins().copy()
+    mixins.update(setuptools='setuptools>=1')
+    return mixins
+
   def find_distribution(self):
     dists = os.listdir(self.install_tmp)
     if len(dists) == 0:
@@ -227,15 +232,6 @@ class EggInstaller(DistributionPackager):
   """
     Create a source distribution from an unpacked setup.py-based project.
   """
-  MIXINS = {
-      'setuptools': 'setuptools>=1',
-  }
-
-  def mixins(self):
-    mixins = super(EggInstaller, self).mixins().copy()
-    mixins.update(self.MIXINS)
-    return mixins
-
   def _setup_command(self):
     return ['bdist_egg', '--dist-dir=%s' % self._install_tmp]
 
