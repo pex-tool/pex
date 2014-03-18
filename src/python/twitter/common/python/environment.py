@@ -1,13 +1,15 @@
 from __future__ import absolute_import, print_function
 
 import os
+import site
 import sys
 import uuid
 
 from .common import open_zip, safe_mkdir, safe_rmtree
+from .interpreter import PythonInterpreter
+from .package import distribution_compatible
 from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
-from .platforms import Platform
 from .tracer import Tracer
 from .util import CacheHelper, DistributionHelper
 
@@ -65,8 +67,10 @@ class PEXEnvironment(Environment):
     prefix_length = len(pex_info.internal_cache) + 1
     distributions = []
     with open_zip(pex) as zf:
+      # Distribution names are the first element after ".deps/" and before the next "/"
       distribution_names = set(filter(None, (filename[prefix_length:].split('/')[0]
           for filename in zf.namelist() if filename.startswith(pex_info.internal_cache))))
+      # Create Distribution objects from these, and possibly write to disk if necessary.
       for distribution_name in distribution_names:
         internal_dist_path = '/'.join([pex_info.internal_cache, distribution_name])
         dist = DistributionHelper.distribution_from_path(os.path.join(pex, internal_dist_path))
@@ -75,7 +79,8 @@ class PEXEnvironment(Environment):
           continue
         dist_digest = pex_info.distributions.get(distribution_name) or CacheHelper.zip_hash(
             zf, internal_dist_path)
-        target_dir = os.path.join(pex_info.install_cache, '%s.%s' % (distribution_name, dist_digest))
+        target_dir = os.path.join(pex_info.install_cache, '%s.%s' % (
+            distribution_name, dist_digest))
         with TRACER.timed('Caching %s into %s' % (dist, target_dir)):
           distributions.append(CacheHelper.cache_distribution(zf, internal_dist_path, target_dir))
     return distributions
@@ -92,14 +97,15 @@ class PEXEnvironment(Environment):
         for dist in cls.write_zipped_internal_cache(pex, pex_info):
           yield dist
 
-  def __init__(self, pex, pex_info, platform=Platform.current(), python=Platform.python()):
+  def __init__(self, pex, pex_info, interpreter=None, **kw):
     self._internal_cache = os.path.join(pex, pex_info.internal_cache)
     self._pex = pex
     self._pex_info = pex_info
     self._activated = False
     self._working_set = None
-    super(PEXEnvironment, self).__init__(platform=platform, python=python,
-        search_path=sys.path if pex_info.inherit_path else [])
+    self._interpreter = interpreter or PythonInterpreter.get()
+    super(PEXEnvironment, self).__init__(
+        search_path=sys.path if pex_info.inherit_path else [], **kw)
 
   def update_candidate_distributions(self, distribution_iter):
     for dist in distribution_iter:
@@ -108,7 +114,7 @@ class PEXEnvironment(Environment):
           self.add(dist)
 
   def can_add(self, dist):
-    return Platform.distribution_compatible(dist, self.python, self.platform)
+    return distribution_compatible(dist, self._interpreter, self.platform)
 
   def activate(self):
     if not self._activated:
@@ -130,7 +136,6 @@ class PEXEnvironment(Environment):
 
     working_set = WorkingSet([])
 
-    # for req in all_reqs:
     with TRACER.timed('Resolving %s' %
         ' '.join(map(str, all_reqs)) if all_reqs else 'empty dependency list'):
       try:
@@ -143,8 +148,12 @@ class PEXEnvironment(Environment):
         raise
 
     for dist in resolved:
-      with TRACER.timed('Activated %s' % dist):
+      with TRACER.timed('Activating %s' % dist):
         working_set.add(dist)
         dist.activate()
+
+        if os.path.isdir(dist.location):
+          with TRACER.timed('Adding sitedir'):
+            site.addsitedir(dist.location)
 
     return working_set

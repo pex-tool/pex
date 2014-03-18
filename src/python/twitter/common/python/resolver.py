@@ -5,11 +5,12 @@ from .fetcher import Fetcher, PyPIFetcher
 from .http import Crawler
 from .interpreter import PythonInterpreter
 from .obtainer import Obtainer
+from .package import distribution_compatible
 from .platforms import Platform
 from .translator import (
     ChainedTranslator,
     EggTranslator,
-    SourceTranslator,
+    Translator,
 )
 
 from pkg_resources import (
@@ -19,8 +20,13 @@ from pkg_resources import (
 
 
 class ResolverEnvironment(Environment):
+  def __init__(self, interpreter, *args, **kw):
+    kw['python'] = interpreter.python
+    self.__interpreter = interpreter
+    super(ResolverEnvironment, self).__init__(*args, **kw)
+
   def can_add(self, dist):
-    return Platform.distribution_compatible(dist, python=self.python, platform=self.platform)
+    return distribution_compatible(dist, self.__interpreter, platform=self.platform)
 
 
 def requirement_is_exact(req):
@@ -60,12 +66,16 @@ def resolve(requirements,
   platform = platform or Platform.current()
 
   # wire up translators / obtainer
-  shared_options = dict(install_cache=cache, platform=platform)
-  egg_translator = EggTranslator(python=interpreter.python, **shared_options)
-  cache_obtainer = Obtainer(crawler, [Fetcher([cache])], egg_translator) if cache else None
-  source_translator = SourceTranslator(interpreter=interpreter, **shared_options)
-  translator = ChainedTranslator(egg_translator, source_translator)
-  obtainer = Obtainer(crawler, fetchers, translator)
+  if cache:
+    shared_options = dict(install_cache=cache, platform=platform, interpreter=interpreter)
+    translator = EggTranslator(**shared_options)
+    cache_obtainer = Obtainer(crawler, [Fetcher([cache])], translator)
+  else:
+    cache_obtainer = None
+
+  if not obtainer:
+    translator = Translator.default(install_cache=cache, platform=platform, interpreter=interpreter)
+    obtainer = Obtainer(crawler, fetchers, translator)
 
   # make installer
   def installer(req):
@@ -77,5 +87,5 @@ def resolve(requirements,
 
   # resolve
   working_set = WorkingSet(entries=[])
-  env = ResolverEnvironment(search_path=[], platform=platform, python=interpreter.python)
+  env = ResolverEnvironment(interpreter, search_path=[], platform=platform)
   return working_set.resolve(requirements, env=env, installer=installer)

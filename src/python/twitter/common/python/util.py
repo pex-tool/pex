@@ -7,14 +7,10 @@ import os
 import shutil
 import uuid
 
-from pkg_resources import (
-    Distribution,
-    EggMetadata,
-    PathMetadata,
-    find_distributions,
-)
+from pkg_resources import find_distributions
 
 from .common import safe_open, safe_rmtree
+from .finders import register_finders
 
 
 class DistributionHelper(object):
@@ -31,28 +27,28 @@ class DistributionHelper(object):
 
   @staticmethod
   def zipsafe(dist):
-    """Returns whether or not we determine a distribution is zip-safe.
-
-       Only works for egg distributions."""
-    egg_metadata = dist.metadata_listdir('')
-    return 'zip-safe' in egg_metadata and 'native_libs.txt' not in egg_metadata
+    """Returns whether or not we determine a distribution is zip-safe."""
+    # zip-safety is only an attribute of eggs.  wheels are considered never
+    # zip safe per implications of PEP 427.
+    if hasattr(dist, 'egg_info') and dist.egg_info.endswith('EGG-INFO'):
+      egg_metadata = dist.metadata_listdir('')
+      return 'zip-safe' in egg_metadata and 'native_libs.txt' not in egg_metadata
+    else:
+      return False
 
   @classmethod
-  def distribution_from_path(cls, location, location_base=None):
+  def distribution_from_path(cls, path):
     """Returns a Distribution given a location.
 
-       If the distribution name should be based off a different egg name than
-       described by the location, supply location_base as an alternate name, e.g.
-       DistributionHelper.distribution_from_path('/path/to/wrong_package_name-3.2.1',
-           'right_package_name-1.2.3.egg')
+       If no distributions found or if the path contains multiple ambiguous
+       distributions, returns None.
     """
-    location_base = location_base or os.path.basename(location)
-    if os.path.isdir(location):
-      metadata = PathMetadata(location, os.path.join(location, 'EGG-INFO'))
-    else:
-      from zipimport import zipimporter
-      metadata = EggMetadata(zipimporter(location))
-    return Distribution.from_location(location, location_base, metadata=metadata)
+    # Monkeypatch pkg_resources finders should it not already be so.
+    register_finders()
+    distributions = list(find_distributions(path))
+    if len(distributions) != 1:
+      return None
+    return distributions[0]
 
 
 class CacheHelper(object):
@@ -137,6 +133,7 @@ class CacheHelper(object):
           safe_rmtree(target_dir_tmp)
         else:
           raise
-    distributions = list(find_distributions(target_dir))
-    assert len(distributions) == 1, 'Failed to cache distribution %s' % source
-    return distributions[0]
+
+    dist = DistributionHelper.distribution_from_path(target_dir)
+    assert dist is not None, 'Failed to cache distribution %s' % source
+    return dist

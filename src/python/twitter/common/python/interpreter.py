@@ -161,6 +161,12 @@ class PythonIdentity(object):
     }
     return '#!/usr/bin/env %s' % hashbang_string
 
+  @property
+  def python(self):
+    # return the python version in the format of the 'python' key for distributions
+    # specifically, '2.6', '2.7', '3.2', etc.
+    return '%d.%d' % (self.version[0:2])
+
   def __str__(self):
     return '%s-%s.%s.%s' % (self._interpreter,
       self._version[0], self._version[1], self._version[2])
@@ -351,8 +357,7 @@ class PythonInterpreter(object):
         break
     else:
       raise cls.InterpreterNotFound('Could not find interpreter matching filter!')
-    cls.sanitize_environment()
-    os.execv(pi.binary, [pi.binary] + sys.argv)
+    os.execve(pi.binary, [pi.binary] + sys.argv, cls.sanitized_environment())
 
   def __init__(self, binary, identity, extras=None):
     """Construct a PythonInterpreter.
@@ -364,7 +369,7 @@ class PythonInterpreter(object):
        :param extras: A mapping from (dist.key, dist.version) to dist.location
                       of the extras associated with this interpreter.
     """
-    self._binary = binary
+    self._binary = os.path.realpath(binary)
     self._binary_stat = os.stat(self._binary)
     self._extras = extras or {}
     self._identity = identity
@@ -388,9 +393,7 @@ class PythonInterpreter(object):
 
   @property
   def python(self):
-    # return the python version in the format of the 'python' key for distributions
-    # specifically, '2.6', '2.7', '3.2', etc.
-    return '%d.%d' % (self._identity.version[0:2])
+    return self._identity.python
 
   @property
   def version(self):
@@ -416,12 +419,12 @@ class PythonInterpreter(object):
     return hash(self._binary_stat)
 
   def __eq__(self, other):
-    if not isinstance(other, self.__class__):
+    if not isinstance(other, PythonInterpreter):
       return False
     return self._binary_stat == other._binary_stat
 
   def __lt__(self, other):
-    if not isinstance(other, self.__class__):
+    if not isinstance(other, PythonInterpreter):
       return False
     return self.version < other.version
 

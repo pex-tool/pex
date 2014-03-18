@@ -1,6 +1,10 @@
 import itertools
 
-from .http import EggLink, SourceLink
+from .package import (
+     EggPackage,
+     Package,
+     SourcePackage,
+)
 from .tracer import TRACER
 from .translator import ChainedTranslator
 
@@ -11,7 +15,7 @@ class Obtainer(object):
 
     An Obtainer takes a Crawler, a list of Fetchers (which take requirements
     and tells us where to look for them) and a list of Translators (which
-    translate egg or source links into usable distributions) and turns them
+    translate egg or source packages into usable distributions) and turns them
     into a cohesive requirement pipeline.
 
     >>> from twitter.common.python.http import Crawler
@@ -25,7 +29,24 @@ class Obtainer(object):
     ...                                   'pygments', 'pylint', 'pytest'])
     >>> for d in distributions: d.activate()
   """
-  def __init__(self, crawler, fetchers, translators):
+  DEFAULT_PACKAGE_PRECEDENCE = (
+      EggPackage,
+      SourcePackage,
+  )
+
+  @classmethod
+  def package_type_precedence(cls, package, precedence=DEFAULT_PACKAGE_PRECEDENCE):
+    for rank, package_type in enumerate(reversed(precedence)):
+      if isinstance(package, package_type):
+        return rank
+    # If we do not recognize the package, it gets lowest precedence
+    return -1
+
+  @classmethod
+  def package_precedence(cls, package, precedence=DEFAULT_PACKAGE_PRECEDENCE):
+    return (package.version, cls.package_type_precedence(package, precedence=precedence))
+
+  def __init__(self, crawler, fetchers, translators, precedence=DEFAULT_PACKAGE_PRECEDENCE):
     self._crawler = crawler
     self._fetchers = fetchers
     # use maybe_list?
@@ -33,35 +54,27 @@ class Obtainer(object):
       self._translator = ChainedTranslator(*translators)
     else:
       self._translator = translators
+    self._precedence = precedence
 
   def translate_href(self, href):
-    for link_class in (EggLink, SourceLink):
-      try:
-        return link_class(href, opener=self._crawler.opener)
-      except link_class.InvalidLink:
-        pass
-
-  @classmethod
-  def link_preference(cls, link):
-    return (link.version, isinstance(link, EggLink))
+    return Package.from_href(href, opener=self._crawler.opener)
 
   def iter_unordered(self, req):
     urls = list(itertools.chain(*[fetcher.urls(req) for fetcher in self._fetchers]))
-    for link in filter(None, map(self.translate_href, self._crawler.crawl(*urls))):
-      if link.satisfies(req):
-        yield link
+    for package in filter(None, map(self.translate_href, self._crawler.crawl(*urls))):
+      if package.satisfies(req):
+        yield package
 
   def iter(self, req):
-    """Given a req, return a list of links that satisfy the requirement in best match order."""
-    for link in sorted(self.iter_unordered(req), key=self.link_preference, reverse=True):
-      yield link
+    """Given a req, return a list of packages that satisfy the requirement in best match order."""
+    key = lambda package: self.package_precedence(package, self._precedence)
+    for package in sorted(self.iter_unordered(req), key=key, reverse=True):
+      yield package
 
   def obtain(self, req):
     with TRACER.timed('Obtaining %s' % req):
-      links = list(self.iter(req))
-      TRACER.log('Got ordered links:\n\t%s' % '\n\t'.join(map(str, links)), V=2)
-      for link in links:
-        dist = self._translator.translate(link)
+      packages = list(self.iter(req))
+      for package in packages:
+        dist = self._translator.translate(package)
         if dist:
-          TRACER.log('Picked %s -> %s' % (link, dist), V=2)
           return dist

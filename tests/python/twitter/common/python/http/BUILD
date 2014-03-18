@@ -18,11 +18,11 @@ python_test_suite(name = 'all',
   dependencies = [
     pants(':test_crawler'),
     pants(':test_http'),
-    pants(':test_link'),
   ]
 )
 
-python_tests(name = 'test_crawler',
+python_tests(
+  name = 'test_crawler',
   sources = ['test_crawler.py'],
   dependencies = [
     pants('src/python/twitter/common/contextutil'),
@@ -30,12 +30,11 @@ python_tests(name = 'test_crawler',
   ]
 )
 
-
 def mock_filter(python, platform):
   return python.startswith('2')
 
-
-python_tests(name = 'test_http',
+python_tests(
+  name = 'test_http',
   sources = ['test_http.py'],
   dependencies = [
     pants('src/python/twitter/common/contextutil'),
@@ -43,13 +42,5 @@ python_tests(name = 'test_http',
     pants('src/python/twitter/common/quantity'),
     pants('src/python/twitter/common/testing'),
     python_requirement('mock', version_filter=mock_filter)
-  ]
-)
-
-python_tests(name = 'test_link',
-  sources = ['test_link.py'],
-  dependencies = [
-    pants('src/python/twitter/common/contextutil'),
-    pants('src/python/twitter/common/python'),
   ]
 )

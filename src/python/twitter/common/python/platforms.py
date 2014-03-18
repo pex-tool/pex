@@ -75,11 +75,3 @@ class Platform(object):
   @staticmethod
   def version_compatible(package_py_version, py_version):
     return package_py_version is None or py_version is None or package_py_version == py_version
-
-  @staticmethod
-  def distribution_compatible(dist, python=None, platform=None):
-    python = python or Platform.python()
-    platform = platform or Platform.current()
-    assert hasattr(dist, 'py_version') and hasattr(dist, 'platform')
-    return Platform.version_compatible(dist.py_version, python) and (
-      Platform.compatible(dist.platform, platform))

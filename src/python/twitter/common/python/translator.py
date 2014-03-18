@@ -2,17 +2,20 @@ from __future__ import absolute_import
 
 from abc import abstractmethod
 import os
-from zipimport import zipimporter
+import warnings
 
 from .common import chmod_plus_w, safe_rmtree, safe_mkdir, safe_mkdtemp
 from .compatibility import AbstractClass
-from .http import EggLink, SourceLink
-from .installer import Installer, EggInstaller
+from .installer import EggInstaller
 from .interpreter import PythonInterpreter
+from .package import (
+    EggPackage,
+    Package,
+    SourcePackage,
+)
 from .platforms import Platform
 from .tracer import TRACER
-
-from pkg_resources import Distribution, EggMetadata, PathMetadata
+from .util import DistributionHelper
 
 
 class TranslatorBase(AbstractClass):
@@ -35,20 +38,11 @@ class ChainedTranslator(TranslatorBase):
       if not isinstance(tx, TranslatorBase):
         raise ValueError('Expected a sequence of translators, got %s instead.' % type(tx))
 
-  def translate(self, link):
+  def translate(self, package):
     for tx in self._translators:
-      dist = tx.translate(link)
+      dist = tx.translate(package)
       if dist:
         return dist
-
-
-def dist_from_egg(egg_path):
-  if os.path.isdir(egg_path):
-    metadata = PathMetadata(egg_path, os.path.join(egg_path, 'EGG-INFO'))
-  else:
-    # Assume it's a file or an internal egg
-    metadata = EggMetadata(zipimporter(egg_path))
-  return Distribution.from_filename(egg_path, metadata=metadata)
 
 
 class SourceTranslator(TranslatorBase):
@@ -73,49 +67,51 @@ class SourceTranslator(TranslatorBase):
                interpreter=PythonInterpreter.get(),
                platform=Platform.current(),
                use_2to3=False,
-               conn_timeout=None):
+               conn_timeout=None,
+               installer_impl=EggInstaller):
     self._interpreter = interpreter
+    self._installer_impl = installer_impl
     self._use_2to3 = use_2to3
     self._install_cache = install_cache or safe_mkdtemp()
     safe_mkdir(self._install_cache)
     self._conn_timeout = conn_timeout
     self._platform = platform
 
-  def translate(self, link):
-    """From a link, translate a distribution."""
-    if not isinstance(link, SourceLink):
+  def translate(self, package):
+    """From a SourcePackage, translate to a binary distribution."""
+    if not isinstance(package, SourcePackage):
       return None
 
     unpack_path, installer = None, None
     version = self._interpreter.version
 
     try:
-      unpack_path = link.fetch(conn_timeout=self._conn_timeout)
-    except link.UnreadableLink as e:
-      TRACER.log('Failed to fetch %s: %s' % (link, e))
+      unpack_path = package.fetch(conn_timeout=self._conn_timeout)
+    except package.UnreadableLink as e:
+      TRACER.log('Failed to fetch %s: %s' % (package, e))
       return None
 
     try:
       if self._use_2to3 and version >= (3,):
-        with TRACER.timed('Translating 2->3 %s' % link.name):
+        with TRACER.timed('Translating 2->3 %s' % package.name):
           self.run_2to3(unpack_path)
-      # TODO(wickman) Allow for pluggable installers (e.g. WheelInstaller) once
-      # Platform.distribution_compatible understands PEP425 tags.
-      installer = EggInstaller(
+      installer = self._installer_impl(
           unpack_path,
           interpreter=self._interpreter,
-          strict=(link.name != 'distribute'))
-      with TRACER.timed('Packaging %s' % link.name):
+          strict=(package.name not in ('distribute', 'setuptools')))
+      with TRACER.timed('Packaging %s' % package.name):
         try:
           dist_path = installer.bdist()
-        except Installer.InstallFailure:
+        except self._installer_impl.InstallFailure:
           return None
         target_path = os.path.join(self._install_cache, os.path.basename(dist_path))
         os.rename(dist_path, target_path)
-        dist = dist_from_egg(target_path)
-        if Platform.distribution_compatible(
-            dist, python=self._interpreter.python, platform=self._platform):
-          return dist
+        target_package = Package.from_href(target_path)
+        if not target_package:
+          return None
+        if not target_package.compatible(self._interpreter.identity, platform=self._platform):
+          return None
+        return DistributionHelper.distribution_from_path(target_path)
     finally:
       if installer:
         installer.cleanup()
@@ -123,29 +119,41 @@ class SourceTranslator(TranslatorBase):
         safe_rmtree(unpack_path)
 
 
-class EggTranslator(TranslatorBase):
+class BinaryTranslator(TranslatorBase):
   def __init__(self,
+               package_type,
                install_cache=None,
+               interpreter=PythonInterpreter.get(),
                platform=Platform.current(),
-               python=Platform.python(),
+               python=None,
                conn_timeout=None):
+    if python:
+      warnings.warn('python= keyword argument to Translator is deprecated.')
+      if python != interpreter.python:
+        raise ValueError('Two different python interpreters supplied!')
+    self._package_type = package_type
     self._install_cache = install_cache or safe_mkdtemp()
     self._platform = platform
-    self._python = python
+    self._identity = interpreter.identity
     self._conn_timeout = conn_timeout
 
-  def translate(self, link):
-    """From a link, translate a distribution."""
-    if not isinstance(link, EggLink):
+  def translate(self, package):
+    """From a binary package, translate to a local binary distribution."""
+    if not isinstance(package, self._package_type):
       return None
-    if not Platform.distribution_compatible(link, python=self._python, platform=self._platform):
+    if not package.compatible(identity=self._identity, platform=self._platform):
       return None
     try:
-      egg = link.fetch(location=self._install_cache, conn_timeout=self._conn_timeout)
-    except link.UnreadableLink as e:
-      TRACER.log('Failed to fetch %s: %s' % (link, e))
+      bdist = package.fetch(location=self._install_cache, conn_timeout=self._conn_timeout)
+    except package.UnreadableLink as e:
+      TRACER.log('Failed to fetch %s: %s' % (package, e))
       return None
-    return dist_from_egg(egg)
+    return DistributionHelper.distribution_from_path(bdist)
+
+
+class EggTranslator(BinaryTranslator):
+  def __init__(self, **kw):
+    super(EggTranslator, self).__init__(EggPackage, **kw)
 
 
 class Translator(object):
@@ -155,15 +163,11 @@ class Translator(object):
               interpreter=PythonInterpreter.get(),
               conn_timeout=None):
 
-    egg_translator = EggTranslator(
-        install_cache=install_cache,
-        platform=platform,
-        python=interpreter.python,
-        conn_timeout=conn_timeout)
-
-    source_translator = SourceTranslator(
+    shared_options = dict(
         install_cache=install_cache,
         interpreter=interpreter,
         conn_timeout=conn_timeout)
 
+    egg_translator = EggTranslator(platform=platform, **shared_options)
+    source_translator = SourceTranslator(**shared_options)
     return ChainedTranslator(egg_translator, source_translator)

@@ -2,6 +2,8 @@ import contextlib
 import os
 import zipfile
 
+from .finders import register_finders
+
 __all__ = ('bootstrap_pex',)
 
 

@@ -25,7 +25,7 @@ from .common import chmod_plus_x, open_zip, safe_mkdir, Chroot
 from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
-from .translator import dist_from_egg
+from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
 
 from pkg_resources import (
@@ -125,38 +125,37 @@ class PEXBuilder(object):
     self.add_distribution(dist)
     self.add_requirement(dist.as_requirement(), dynamic=False, repo=None)
 
-  def _add_dir_egg(self, egg):
-    for root, _, files in os.walk(egg):
+  def _add_dist_dir(self, path, dist_name):
+    for root, _, files in os.walk(path):
       for f in files:
         filename = os.path.join(root, f)
-        relpath = os.path.relpath(filename, egg)
-        target = os.path.join(self._pex_info.internal_cache, os.path.basename(egg), relpath)
+        relpath = os.path.relpath(filename, path)
+        target = os.path.join(self._pex_info.internal_cache, dist_name, relpath)
         self._chroot.link(filename, target)
-    return CacheHelper.dir_hash(egg)
+    return CacheHelper.dir_hash(path)
 
-  def _add_zipped_egg(self, egg):
-    with open_zip(egg) as zf:
+  def _add_dist_zip(self, path, dist_name):
+    with open_zip(path) as zf:
       for name in zf.namelist():
         if name.endswith('/'):
           continue
-        target = os.path.join(self._pex_info.internal_cache, os.path.basename(egg), name)
+        target = os.path.join(self._pex_info.internal_cache, dist_name, name)
         self._chroot.write(zf.read(name), target)
       return CacheHelper.zip_hash(zf)
 
   def _prepare_code_hash(self):
     self._pex_info.code_hash = CacheHelper.pex_hash(self._chroot.path())
 
-  def add_distribution(self, dist):
-    if not dist.location.endswith('.egg'):
-      raise PEXBuilder.InvalidDependency('Non-egg dependencies not yet supported.')
+  def add_distribution(self, dist, dist_name=None):
+    dist_name = dist_name or os.path.basename(dist.location)
 
     if os.path.isdir(dist.location):
-      dist_hash = self._add_dir_egg(dist.location)
+      dist_hash = self._add_dist_dir(dist.location, dist_name)
     else:
-      dist_hash = self._add_zipped_egg(dist.location)
+      dist_hash = self._add_dist_zip(dist.location, dist_name)
 
     # add dependency key so that it can rapidly be retrieved from cache
-    self._pex_info.add_distribution(os.path.basename(dist.location), dist_hash)
+    self._pex_info.add_distribution(dist_name, dist_hash)
 
   def set_executable(self, filename, env_filename=None):
     if env_filename is None:
@@ -189,28 +188,36 @@ class PEXBuilder(object):
   def _prepare_main(self):
     self._chroot.write(BOOTSTRAP_ENVIRONMENT, '__main__.py', label='main')
 
-  # TODO(wickman) We should be including _markerlib from setuptools
   # TODO(wickman) Ideally we unqualify our setuptools dependency and inherit whatever is
   # bundled into the environment so long as it is compatible (and error out if not.)
+  #
+  # As it stands, we're picking and choosing the pieces we think we need, which means
+  # if there are bits of setuptools imported from elsewhere they may be incompatible with
+  # this.
   def _prepare_bootstrap(self):
     """
       Write enough of distribute into the .pex .bootstrap directory so that
       we can be fully self-contained.
     """
-    setuptools = dist_from_egg(self._interpreter.get_location('setuptools'))
+    wrote_setuptools = False
+    setuptools = DistributionHelper.distribution_from_path(
+        self._interpreter.get_location('setuptools'))
+
     for fn, content_stream in DistributionHelper.walk_data(setuptools):
-      if fn == 'pkg_resources.py':
-        self._chroot.write(content_stream.read(),
-            os.path.join(self.BOOTSTRAP_DIR, 'pkg_resources.py'), 'resource')
-        break
-    else:
+      if fn == 'pkg_resources.py' or fn.startswith('_markerlib'):
+        self._chroot.write(content_stream.read(), os.path.join(self.BOOTSTRAP_DIR, fn), 'resource')
+        wrote_setuptools = True
+
+    if not wrote_setuptools:
       raise RuntimeError(
           'Failed to extract pkg_resources from setuptools.  Perhaps pants was linked with an '
           'incompatible setuptools.')
+
     libraries = (
       'twitter.common.python',
       'twitter.common.python.http',
     )
+
     for name in libraries:
       dirname = name.replace('twitter.common.python', '_twitter_common_python').replace('.', '/')
       provider = get_provider(name)

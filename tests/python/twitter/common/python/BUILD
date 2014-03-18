@@ -14,9 +14,6 @@
 # limitations under the License.
 # ==================================================================================================
 
-def mock_filter(python, platform):
-  return python.startswith('2')
-
 
 python_test_suite(name = 'all',
   dependencies = [
@@ -25,6 +22,7 @@ python_test_suite(name = 'all',
     pants(':test_finders'),
     pants(':test_interpreter'),
     pants(':test_obtainer'),
+    pants(':test_package'),
     pants(':test_pep425'),
     pants(':test_platform'),
     pants(':test_pex_builder'),
@@ -44,7 +42,7 @@ python_tests(name = 'test_finders',
   sources = ['test_finders.py'],
   dependencies = [
     pants('src/python/twitter/common/python'),
-    python_requirement('mock', version_filter=mock_filter)
+    python_requirement('mock', version_filter=lambda py, plat: py.startswith('2'))
   ]
 )
 
@@ -63,10 +61,11 @@ python_tests(name = 'test_obtainer',
   ]
 )
 
-python_tests(name = 'test_platform',
-  sources = ['test_platform.py'],
+python_tests(name = 'test_package',
+  sources = ['test_package.py'],
   dependencies = [
-    pants('src/python/twitter/common/python')
+    pants('src/python/twitter/common/contextutil'),
+    pants('src/python/twitter/common/python'),
   ]
 )
 
@@ -74,6 +73,13 @@ python_tests(name = 'test_pep425',
   sources = ['test_pep425.py'],
   dependencies = [
     pants('src/python/twitter/common/python'),
+  ]
+)
+
+python_tests(name = 'test_platform',
+  sources = ['test_platform.py'],
+  dependencies = [
+    pants('src/python/twitter/common/python')
   ]
 )
 

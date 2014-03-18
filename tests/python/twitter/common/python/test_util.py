@@ -1,4 +1,5 @@
 import contextlib
+import functools
 from hashlib import sha1
 import os
 import random
@@ -7,7 +8,7 @@ import zipfile
 
 from twitter.common.contextutil import temporary_file, temporary_dir
 from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
-from twitter.common.python.installer import Installer
+from twitter.common.python.installer import Installer, EggInstaller
 from twitter.common.python.testing import (
     make_distribution,
     temporary_content,
@@ -60,6 +61,9 @@ def test_hash_consistency():
 
 
 def test_zipsafe():
+  make_egg = functools.partial(make_distribution, installer_impl=EggInstaller)
+
   for zipped in (False, True):
-    with make_distribution(zipped=zipped) as dist:
-      assert DistributionHelper.zipsafe(dist)
+    for zip_safe in (False, True):
+      with make_egg(zipped=zipped, zip_safe=zip_safe) as dist:
+        assert DistributionHelper.zipsafe(dist) is zip_safe

@@ -122,9 +122,11 @@ class Installer(InstallerBase):
     Install an unpacked distribution with a setup.py.
 
     Simple example:
-      >>> from twitter.common.python.http import Web, SourceLink
-      >>> tornado_tgz = SourceLink('http://pypi.python.org/packages/source/t/tornado/tornado-2.3.tar.gz',
-      ...                          opener=Web())
+      >>> from twitter.common.python.package import SourcePackage
+      >>> from twitter.common.python.http import Web
+      >>> tornado_tgz = SourcePackage(
+      ...    'http://pypi.python.org/packages/source/t/tornado/tornado-2.3.tar.gz',
+      ...    opener=Web())
       >>> tornado_installer = Installer(tornado_tgz.fetch())
       >>> tornado_installer.distribution()
       tornado 2.3 (/private/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpLLe_Ph/lib/python2.6/site-packages)
