@@ -57,7 +57,9 @@ def monkeypatch_build_zipmanifest():
 
 
 def bootstrap_pex(entry_point):
+  from .finders import register_finders
   monkeypatch_build_zipmanifest()
+  register_finders()
 
   from . import pex
   pex.PEX(entry_point).execute()
