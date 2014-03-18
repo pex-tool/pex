@@ -33,6 +33,7 @@ python_test_suite(name = 'all',
     pants(':test_environment'),
     pants(':test_interpreter'),
     pants(':test_obtainer'),
+    pants(':test_pep425'),
     pants(':test_platform'),
     pants(':test_pex_builder'),
     pants(':test_util'),
@@ -67,6 +68,13 @@ python_tests(name = 'test_platform',
   sources = ['test_platform.py'],
   dependencies = [
     pants('src/python/twitter/common/python')
+  ]
+)
+
+python_tests(name = 'test_pep425',
+  sources = ['test_pep425.py'],
+  dependencies = [
+    pants('src/python/twitter/common/python'),
   ]
 )
 
