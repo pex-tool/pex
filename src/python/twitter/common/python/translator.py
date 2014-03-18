@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from abc import abstractmethod
 import os
+import shutil
 import warnings
 
 from .common import chmod_plus_w, safe_rmtree, safe_mkdir, safe_mkdtemp
@@ -105,7 +106,8 @@ class SourceTranslator(TranslatorBase):
         except self._installer_impl.InstallFailure:
           return None
         target_path = os.path.join(self._install_cache, os.path.basename(dist_path))
-        os.rename(dist_path, target_path)
+        # TODO: Make this atomic.
+        shutil.move(dist_path, target_path)
         target_package = Package.from_href(target_path)
         if not target_package:
           return None
