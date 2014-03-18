@@ -6,7 +6,7 @@ import os
 from site import USER_SITE
 import sys
 
-from .common import mutable_sys, safe_mkdir
+from .common import safe_mkdir
 from .compatibility import exec_function
 from .environment import PEXEnvironment
 from .interpreter import PythonInterpreter
@@ -87,19 +87,20 @@ class PEX(object):
                 sysconfig.get_python_lib(plat_specific=True)])
 
   @classmethod
-  def minimum_path(cls):
-    """
-      Return as a tuple the emulated sys.path and sys.path_importer_cache of
-      a bare python installation, a la python -S.
-    """
-    site_libs = set(cls._site_libs())
-    for site_lib in site_libs:
-      TRACER.log('Found site-library: %s' % site_lib)
-    for extras_path in cls._extras_paths():
-      TRACER.log('Found site extra: %s' % extras_path)
-      site_libs.add(extras_path)
-    site_libs = set(os.path.normpath(path) for path in site_libs)
+  def minimum_sys_modules(cls, site_libs):
+    new_modules = {}
 
+    for module_name, module in sys.modules.items():
+      if any(path.startswith(site_lib) for path in getattr(module, '__path__', ())
+          for site_lib in site_libs):
+        TRACER.log('Scrubbing %s from sys.modules' % module)
+      else:
+        new_modules[module_name] = module
+
+    return new_modules
+
+  @classmethod
+  def minimum_sys_path(cls, site_libs):
     site_distributions = OrderedSet()
     for path_element in sys.path:
       if any(path_element.startswith(site_lib) for site_lib in site_libs):
@@ -123,8 +124,29 @@ class PEX(object):
     return scrubbed_sys_path, scrubbed_importer_cache
 
   @classmethod
+  def minimum_sys(cls):
+    """Return the minimum sys necessary to run this interpreter, a la python -S.
+
+    :returns: (sys.path, sys.path_importer_cache, sys.modules) tuple of a
+    bare python installation.
+    """
+    site_libs = set(cls._site_libs())
+    for site_lib in site_libs:
+      TRACER.log('Found site-library: %s' % site_lib)
+    for extras_path in cls._extras_paths():
+      TRACER.log('Found site extra: %s' % extras_path)
+      site_libs.add(extras_path)
+    site_libs = set(os.path.normpath(path) for path in site_libs)
+
+    sys_modules = cls.minimum_sys_modules(site_libs)
+    sys_path, sys_path_importer_cache = cls.minimum_sys_path(site_libs)
+
+    return sys_path, sys_path_importer_cache, sys_modules
+
+  @classmethod
   @contextmanager
   def patch_pkg_resources(cls, working_set):
+    """Patch pkg_resources given a new working set."""
     def patch(working_set):
       pkg_resources.working_set = working_set
       pkg_resources.require = working_set.require
@@ -139,10 +161,34 @@ class PEX(object):
     finally:
       patch(old_working_set)
 
+  @classmethod
+  @contextmanager
+  def patch_sys(cls):
+    """Patch sys with all site scrubbed."""
+    def patch_dict(old_value, new_value):
+      old_value.clear()
+      old_value.update(new_value)
+
+    def patch_all(path, path_importer_cache, modules):
+      sys.path[:] = path
+      patch_dict(sys.path_importer_cache, path_importer_cache)
+      patch_dict(sys.modules, modules)
+
+    old_sys_path, old_sys_path_importer_cache, old_sys_modules = (
+        sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
+    new_sys_path, new_sys_path_importer_cache, new_sys_modules = cls.minimum_sys()
+
+    patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
+
+    try:
+      yield
+    finally:
+      patch_all(old_sys_path, old_sys_path_importer_cache, old_sys_modules)
+
   def execute(self, args=()):
     entry_point = self.entry()
-    with mutable_sys():
-      sys.path, sys.path_importer_cache = self.minimum_path()
+
+    with self.patch_sys():
       working_set = self._env.activate()
       if 'PEX_COVERAGE' in os.environ:
         PEX.start_coverage()

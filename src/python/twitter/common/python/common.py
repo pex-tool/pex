@@ -27,29 +27,31 @@ import threading
 import zipfile
 
 
-_MKDTEMP_CLEANER = None
-_MKDTEMP_DIRS = defaultdict(set)
-_MKDTEMP_LOCK = threading.RLock()
+# See http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
+class MktempTeardownRegistry(object):
+  def __init__(self):
+    self._registry = defaultdict(set)
+    self._getpid = os.getpid
+    self._lock = threading.RLock()
+    self._exists = os.path.exists
+    self._rmtree = shutil.rmtree
+    atexit.register(self.teardown)
+
+  def __del__(self):
+    self.teardown()
+
+  def register(self, path):
+    with self._lock:
+      self._registry[self._getpid()].add(path)
+    return path
+
+  def teardown(self):
+    for td in self._registry.pop(self._getpid(), []):
+      if self._exists(td):
+        self._rmtree(td)
 
 
-def _mkdtemp_atexit_cleaner():
-  for td in _MKDTEMP_DIRS.pop(os.getpid(), []):
-    safe_rmtree(td)
-
-
-def _mkdtemp_unregister_cleaner():
-  global _MKDTEMP_CLEANER
-  _MKDTEMP_CLEANER = None
-
-
-def _mkdtemp_register_cleaner(cleaner):
-  global _MKDTEMP_CLEANER
-  if not cleaner:
-    return
-  assert callable(cleaner)
-  if _MKDTEMP_CLEANER is None:
-    atexit.register(cleaner)
-    _MKDTEMP_CLEANER = cleaner
+_MKDTEMP_SINGLETON = MktempTeardownRegistry()
 
 
 @contextlib.contextmanager
@@ -61,32 +63,20 @@ def open_zip(path, *args, **kwargs):
     yield zip
 
 
-def safe_mkdtemp(cleaner=_mkdtemp_atexit_cleaner, **kw):
+def safe_mkdtemp(**kw):
   """
     Given the parameters to standard tempfile.mkdtemp, create a temporary directory
     that is cleaned up on process exit.
   """
   # proper lock sanitation on fork [issue 6721] would be desirable here.
-  with _MKDTEMP_LOCK:
-    return register_rmtree(tempfile.mkdtemp(**kw), cleaner=cleaner)
+  return _MKDTEMP_SINGLETON.register(tempfile.mkdtemp(**kw))
 
 
-def register_rmtree(directory, cleaner=_mkdtemp_atexit_cleaner):
+def register_rmtree(directory):
   """
     Register an existing directory to be cleaned up at process exit.
   """
-  with _MKDTEMP_LOCK:
-    _mkdtemp_register_cleaner(cleaner)
-    _MKDTEMP_DIRS[os.getpid()].add(directory)
-  return directory
-
-
-def safe_rmtree(directory):
-  """
-    Delete a directory if it's present. If it's not present, no-op.
-  """
-  if os.path.exists(directory):
-    shutil.rmtree(directory, True)
+  return _MKDTEMP_SINGLETON.register(directory)
 
 
 def safe_mkdir(directory, clean=False):
@@ -121,6 +111,14 @@ def safe_delete(filename):
   except OSError as e:
     if e.errno != errno.ENOENT:
       raise
+
+
+def safe_rmtree(directory):
+  """
+    Delete a directory if it's present. If it's not present, no-op.
+  """
+  if os.path.exists(directory):
+    shutil.rmtree(directory, True)
 
 
 def chmod_plus_x(path):
@@ -166,31 +164,6 @@ def touch(file, times=None):
 
   with safe_open(file, 'a'):
     os.utime(file, times)
-
-
-@contextlib.contextmanager
-def mutable_sys():
-  """
-    A with-context that does backup/restore of sys.argv, sys.path and
-    sys.stderr/stdout/stdin following execution.
-  """
-  SAVED_ATTRIBUTES = [
-    'stdin', 'stdout', 'stderr',
-    'argv', 'path', 'path_importer_cache', 'path_hooks',
-    'modules', '__egginsert'
-  ]
-
-  _sys_backup = dict((key, getattr(sys, key)) for key in SAVED_ATTRIBUTES if hasattr(sys, key))
-  _sys_delete = set(filter(lambda key: not hasattr(sys, key), SAVED_ATTRIBUTES))
-
-  try:
-    yield sys
-  finally:
-    for attribute in _sys_backup:
-      setattr(sys, attribute, _sys_backup[attribute])
-    for attribute in _sys_delete:
-      if hasattr(sys, attribute):
-        delattr(sys, attribute)
 
 
 class Chroot(object):
