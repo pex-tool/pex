@@ -202,6 +202,11 @@ class PEXBuilder(object):
       if fn == 'pkg_resources.py':
         self._chroot.write(content_stream.read(),
             os.path.join(self.BOOTSTRAP_DIR, 'pkg_resources.py'), 'resource')
+        break
+    else:
+      raise RuntimeError(
+          'Failed to extract pkg_resources from setuptools.  Perhaps pants was linked with an '
+          'incompatible setuptools.')
     libraries = (
       'twitter.common.python',
       'twitter.common.python.http',
