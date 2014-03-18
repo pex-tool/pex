@@ -3,8 +3,7 @@ import os
 
 from twitter.common.contextutil import temporary_dir
 from twitter.common.python.http.crawler import Crawler, PageParser
-
-from base import create_layout
+from twitter.common.python.testing import create_layout
 
 
 def lpp(page):

@@ -8,11 +8,11 @@ from twitter.common.python.http import (
   EggLink,
   Link,
   SourceLink,
-  Web)
+  Web,
+)
+from twitter.common.python.testing import create_layout
 
 from pkg_resources import Requirement, parse_version
-
-from base import create_layout
 
 
 def test_source_links():

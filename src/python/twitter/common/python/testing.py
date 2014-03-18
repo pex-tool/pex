@@ -1,29 +1,32 @@
 import contextlib
 import os
 import random
+import tempfile
 from textwrap import dedent
 import zipfile
 
-from twitter.common.contextutil import temporary_dir
-from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
-from twitter.common.lang import Compatibility
-from twitter.common.python.installer import EggInstaller
-from twitter.common.python.util import DistributionHelper
+from .common import safe_mkdir, safe_mkdtemp, safe_rmtree
+from .installer import EggInstaller
+from .util import DistributionHelper
 
 
-if Compatibility.PY3:
-  from contextlib import ExitStack
+@contextlib.contextmanager
+def temporary_dir():
+  td = tempfile.mkdtemp()
+  try:
+    yield td
+  finally:
+    safe_rmtree(td)
 
-  @contextlib.contextmanager
-  def nested(*context_managers):
-    enters = []
-    with ExitStack() as stack:
-      for manager in context_managers:
-        enters.append(stack.enter_context(manager))
-      yield tuple(enters)
 
-else:
-  from contextlib import nested
+@contextlib.contextmanager
+def create_layout(*filelist):
+  with temporary_dir() as td:
+    for fl in filelist:
+      for fn in fl:
+        with open(os.path.join(td, fn), 'w') as fp:
+          fp.write('junk')
+    yield td
 
 
 def random_bytes(length):
@@ -84,10 +87,10 @@ PROJECT_CONTENT = {
 
 
 @contextlib.contextmanager
-def make_distribution(name='my_project', zipped=False, zip_safe=True):
+def make_distribution(name='my_project', installer_impl=EggInstaller, zipped=False, zip_safe=True):
   interp = {'project_name': name, 'zip_safe': zip_safe}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
-    installer = EggInstaller(td)
+    installer = installer_impl(td)
     dist_location = installer.bdist()
     if zipped:
       yield DistributionHelper.distribution_from_path(dist_location)

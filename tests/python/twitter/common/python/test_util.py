@@ -8,13 +8,12 @@ import zipfile
 from twitter.common.contextutil import temporary_file, temporary_dir
 from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
 from twitter.common.python.installer import Installer
-from twitter.common.python.util import CacheHelper, DistributionHelper
-
-from twitter.common.python.test_common import (
+from twitter.common.python.testing import (
     make_distribution,
     temporary_content,
     write_zipfile,
 )
+from twitter.common.python.util import CacheHelper, DistributionHelper
 
 
 def test_hash():

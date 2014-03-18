@@ -22,18 +22,11 @@ python_test_suite(name = 'all',
   ]
 )
 
-python_library(name = 'test_base',
-  sources = ['base.py'],
-  dependencies = [
-    pants('src/python/twitter/common/contextutil')
-  ]
-)
-
 python_tests(name = 'test_crawler',
   sources = ['test_crawler.py'],
   dependencies = [
-    pants(':test_base'),
-    pants('src/python/twitter/common/python')
+    pants('src/python/twitter/common/contextutil'),
+    pants('src/python/twitter/common/python'),
   ]
 )
 
@@ -56,7 +49,7 @@ python_tests(name = 'test_http',
 python_tests(name = 'test_link',
   sources = ['test_link.py'],
   dependencies = [
-    pants(':test_base'),
-    pants('src/python/twitter/common/python')
+    pants('src/python/twitter/common/contextutil'),
+    pants('src/python/twitter/common/python'),
   ]
 )
