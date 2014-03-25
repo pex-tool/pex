@@ -17,6 +17,7 @@
 python_library(
   name = 'python-source',
   sources = globs('*.py') + globs('http/*.py'),
+  # Do not add dependencies as these are embedded in every pex.
   dependencies = [
     # Use any setuptools post-distribute merge.
     python_requirement('setuptools>=1'),

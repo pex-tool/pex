@@ -1,12 +1,14 @@
 import itertools
 
+from .fetcher import PyPIFetcher
+from .http import Crawler
 from .package import (
      EggPackage,
      Package,
      SourcePackage,
 )
 from .tracer import TRACER
-from .translator import ChainedTranslator
+from .translator import ChainedTranslator, Translator
 
 
 class Obtainer(object):
@@ -35,6 +37,10 @@ class Obtainer(object):
   )
 
   @classmethod
+  def default(cls):
+    return cls(Crawler(), fetchers=[PyPIFetcher()], translators=Translator.default())
+
+  @classmethod
   def package_type_precedence(cls, package, precedence=DEFAULT_PACKAGE_PRECEDENCE):
     for rank, package_type in enumerate(reversed(precedence)):
       if isinstance(package, package_type):
@@ -49,12 +55,15 @@ class Obtainer(object):
   def __init__(self, crawler, fetchers, translators, precedence=DEFAULT_PACKAGE_PRECEDENCE):
     self._crawler = crawler
     self._fetchers = fetchers
-    # use maybe_list?
     if isinstance(translators, (list, tuple)):
       self._translator = ChainedTranslator(*translators)
     else:
       self._translator = translators
     self._precedence = precedence
+
+  @property
+  def translator(self):
+    return self._translator
 
   def translate_href(self, href):
     return Package.from_href(href, opener=self._crawler.opener)
@@ -65,16 +74,35 @@ class Obtainer(object):
       if package.satisfies(req):
         yield package
 
+  def sort(self, package_list):
+    key = lambda package: self.package_precedence(package, self._precedence)
+    return sorted(package_list, key=key, reverse=True)
+
   def iter(self, req):
     """Given a req, return a list of packages that satisfy the requirement in best match order."""
-    key = lambda package: self.package_precedence(package, self._precedence)
-    for package in sorted(self.iter_unordered(req), key=key, reverse=True):
+    for package in self.sort(self.iter_unordered(req)):
       yield package
+
+  def translate_from(self, obtain_set):
+    for package in obtain_set:
+      dist = self._translator.translate(package)
+      if dist:
+        return dist
 
   def obtain(self, req):
     with TRACER.timed('Obtaining %s' % req):
-      packages = list(self.iter(req))
-      for package in packages:
-        dist = self._translator.translate(package)
-        if dist:
-          return dist
+      return self.translate_from(list(self.iter(req)))
+
+
+class ObtainerFactory(object):
+  """Returns an `Obtainer` for the given `Requirement`."""
+  def __call__(self, requirement):
+    raise NotImplementedError()
+
+
+class DefaultObtainerFactory(ObtainerFactory):
+  """Always return `Obtainer.default()` for the given requirement. """
+  _OBTAINER = Obtainer.default()
+
+  def __call__(self, _):
+    return self._OBTAINER

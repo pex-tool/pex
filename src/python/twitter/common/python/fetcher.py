@@ -18,7 +18,6 @@ class FetcherBase(AbstractClass):
 
 class Fetcher(FetcherBase):
   def __init__(self, urls):
-    # TODO(wickman) self.urls = maybe_list(urls)
     self._urls = urls
 
   def urls(self, _):
