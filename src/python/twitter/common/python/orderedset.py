@@ -22,9 +22,9 @@
 
 import collections
 
-KEY, PREV, NEXT = range(3)
 
 class OrderedSet(collections.MutableSet):
+  KEY, PREV, NEXT = range(3)
 
   def __init__(self, iterable=None):
     self.end = end = []
@@ -42,8 +42,8 @@ class OrderedSet(collections.MutableSet):
   def add(self, key):
     if key not in self.map:
       end = self.end
-      curr = end[PREV]
-      curr[NEXT] = end[PREV] = self.map[key] = [key, curr, end]
+      curr = end[self.PREV]
+      curr[self.NEXT] = end[self.PREV] = self.map[key] = [key, curr, end]
 
   def update(self, iterable):
     for key in iterable:
@@ -52,22 +52,22 @@ class OrderedSet(collections.MutableSet):
   def discard(self, key):
     if key in self.map:
       key, prev, next = self.map.pop(key)
-      prev[NEXT] = next
-      next[PREV] = prev
+      prev[self.NEXT] = next
+      next[self.PREV] = prev
 
   def __iter__(self):
     end = self.end
-    curr = end[NEXT]
+    curr = end[self.NEXT]
     while curr is not end:
-      yield curr[KEY]
-      curr = curr[NEXT]
+      yield curr[self.KEY]
+      curr = curr[self.NEXT]
 
   def __reversed__(self):
     end = self.end
-    curr = end[PREV]
+    curr = end[self.PREV]
     while curr is not end:
-      yield curr[KEY]
-      curr = curr[PREV]
+      yield curr[self.KEY]
+      curr = curr[self.PREV]
 
   def pop(self, last=True):
     if not self:
