@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from collections import defaultdict
 
+from .base import maybe_requirement_list
 from .interpreter import PythonInterpreter
 from .obtainer import DefaultObtainerFactory
 from .orderedset import OrderedSet
@@ -57,11 +58,11 @@ def resolve(requirements, obtainer_factory=None, interpreter=None, platform=None
   :returns: List of :class:`pkg_resources.Distribution` instances meeting `requirements`.
   """
   cache = _DistributionCache()
-  obtainer_factory = obtainer_factory or DefaultObtainerFactory
+  obtainer_factory = obtainer_factory or DefaultObtainerFactory()
   interpreter = interpreter or PythonInterpreter.get()
   platform = platform or Platform.current()
 
-  requirements = list(requirements)
+  requirements = maybe_requirement_list(requirements)
   distribution_set = defaultdict(list)
   requirement_set = defaultdict(list)
   processed_requirements = set()
