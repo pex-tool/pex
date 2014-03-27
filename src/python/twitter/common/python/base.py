@@ -34,3 +34,7 @@ def maybe_requirement_list(reqs):
   elif isinstance(reqs, Iterable):
     return [maybe_requirement(req) for req in reqs]
   raise ValueError('Unknown requirement list %r' % (reqs,))
+
+
+def requirement_is_exact(req):
+  return req.specs and len(req.specs) == 1 and req.specs[0][0] == '=='

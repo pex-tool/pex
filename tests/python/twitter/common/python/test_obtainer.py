@@ -15,10 +15,11 @@
 # ==================================================================================================
 
 from twitter.common.python.fetcher import Fetcher
-from twitter.common.python.package import EggPackage, SourcePackage
+from twitter.common.python.interpreter import PythonInterpreter
 from twitter.common.python.obtainer import Obtainer
+from twitter.common.python.package import EggPackage, SourcePackage
 
-from pkg_resources import Requirement
+from pkg_resources import Requirement, get_build_platform
 
 
 def test_package_precedence():
@@ -51,13 +52,14 @@ class FakeObtainer(Obtainer):
     self.__links = list(links)
     super(FakeObtainer, self).__init__(FakeCrawler([]), [], [])
 
-  def iter_unordered(self, req):
+  def _iter_unordered(self, req):
     return iter(self.__links)
 
 
 def test_iter_ordering():
+  pi = PythonInterpreter.get()
   tgz = SourcePackage('psutil-0.6.1.tar.gz')
-  egg = EggPackage('psutil-0.6.1-py3.3-linux-x86_64.egg')
+  egg = EggPackage('psutil-0.6.1-py%s-%s.egg' % (pi.python, get_build_platform()))
   req = Requirement.parse('psutil')
 
   assert list(FakeObtainer([tgz, egg]).iter(req)) == [egg, tgz]

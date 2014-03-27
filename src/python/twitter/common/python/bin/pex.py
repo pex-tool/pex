@@ -13,11 +13,13 @@ from twitter.common.python.common import safe_delete, safe_mkdtemp
 from twitter.common.python.fetcher import Fetcher, PyPIFetcher
 from twitter.common.python.installer import EggInstaller
 from twitter.common.python.interpreter import PythonInterpreter
+from twitter.common.python.obtainer import CachingObtainer
 from twitter.common.python.platforms import Platform
 from twitter.common.python.resolver import resolve as requirement_resolver
 from twitter.common.python.pex_builder import PEXBuilder
 from twitter.common.python.pex import PEX
 from twitter.common.python.tracer import Tracer
+from twitter.common.python.translator import Translator
 
 
 CANNOT_PARSE_REQUIREMENT = 100
@@ -160,7 +162,7 @@ def configure_clp():
   return parser
 
 
-def build_pex(args, options):
+def interpreter_from_options(options):
   interpreter = None
   if options.python:
     if os.path.exists(options.python):
@@ -169,6 +171,35 @@ def build_pex(args, options):
       interpreter = PythonInterpreter.from_env(options.python)
     if interpreter is None:
       die('Failed to find interpreter: %s' % options.python)
+  else:
+    interpreter = PythonInterpreter.get()
+  return interpreter
+
+
+def build_obtainer(options):
+  interpreter = interpreter_from_options(options)
+  platform = options.platform
+
+  fetchers = [Fetcher(options.repos)]
+
+  if options.pypi:
+    fetchers.append(PyPIFetcher())
+
+  translator = Translator.default(
+      install_cache=options.cache_dir,
+      platform=platform,
+      interpreter=interpreter)
+
+  obtainer = CachingObtainer(
+      install_cache=options.cache_dir,
+      fetchers=fetchers,
+      translators=translator)
+
+  return obtainer
+
+
+def build_pex(args, options):
+  interpreter = interpreter_from_options(options)
 
   pex_builder = PEXBuilder(
       path=safe_mkdtemp(),
@@ -182,15 +213,9 @@ def build_pex(args, options):
   pex_info.ignore_errors = options.ignore_errors
   pex_info.inherit_path = options.inherit_path
 
-  fetchers = [Fetcher(options.repos)]
-
-  if options.pypi:
-    fetchers.append(PyPIFetcher())
-
   resolveds = requirement_resolver(
       options.requirements,
-      cache=options.cache_dir,
-      fetchers=fetchers,
+      obtainer=build_obtainer(options),
       interpreter=interpreter,
       platform=options.platform)
 

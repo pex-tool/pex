@@ -3,7 +3,6 @@ from __future__ import absolute_import
 from abc import abstractmethod
 import os
 import shutil
-import warnings
 
 from .common import chmod_plus_w, safe_rmtree, safe_mkdir, safe_mkdtemp
 from .compatibility import AbstractClass
@@ -127,12 +126,7 @@ class BinaryTranslator(TranslatorBase):
                install_cache=None,
                interpreter=PythonInterpreter.get(),
                platform=Platform.current(),
-               python=None,
                conn_timeout=None):
-    if python:
-      warnings.warn('python= keyword argument to Translator is deprecated.')
-      if python != interpreter.python:
-        raise ValueError('Two different python interpreters supplied!')
     self._package_type = package_type
     self._install_cache = install_cache or safe_mkdtemp()
     self._platform = platform
@@ -162,8 +156,13 @@ class Translator(object):
   @staticmethod
   def default(install_cache=None,
               platform=Platform.current(),
-              interpreter=PythonInterpreter.get(),
+              interpreter=None,
               conn_timeout=None):
+
+    # TODO(wickman) Consider interpreter=None to indicate "universal" packages
+    # since the .whl format can support this.
+    # Also consider platform=None to require platform-inspecific packages.
+    interpreter = interpreter or PythonInterpreter.get()
 
     shared_options = dict(
         install_cache=install_cache,

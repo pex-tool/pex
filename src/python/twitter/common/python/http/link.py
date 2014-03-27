@@ -59,7 +59,7 @@ class Link(object):
 
     :raises UnreadableLink: if the link could not be fetched.
     """
-    if self.local and location is None:
+    if self.local and (location is None or os.path.dirname(self._url.path) == location):
       return self._url.path
     location = location or safe_mkdtemp()
     target = os.path.join(location, self.filename)

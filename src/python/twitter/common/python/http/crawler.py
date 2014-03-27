@@ -26,7 +26,7 @@ class CrawlerBase(object):
   def opener(self):
     return self._opener
 
-  def crawl(self, *urls):
+  def crawl(self, urls):
     links, seen = set(), set()
     queue = Queue()
     converged = threading.Event()
