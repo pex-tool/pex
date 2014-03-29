@@ -106,8 +106,9 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
       self._installed = po.returncode == 0
 
     if not self._installed:
-      print('Failed to install stdout:\n%s' % so.decode('utf-8'), file=sys.stderr)
-      print('Failed to install stderr:\n%s' % se.decode('utf-8'), file=sys.stderr)
+      name = os.path.basename(self._source_dir)
+      print('**** Failed to install %s. stdout:\n%s' % (name, so.decode('utf-8')), file=sys.stderr)
+      print('**** Failed to install %s. stderr:\n%s' % (name, se.decode('utf-8')), file=sys.stderr)
       return self._installed
 
     self._postprocess()
