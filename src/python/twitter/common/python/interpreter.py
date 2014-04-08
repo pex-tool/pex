@@ -15,6 +15,7 @@ import subprocess
 import sys
 
 from .base import maybe_requirement, maybe_requirement_list
+from .compatibility import string
 from .tracer import Tracer
 
 from pkg_resources import (
@@ -133,7 +134,7 @@ class PythonIdentity(object):
   def parse_requirement(cls, requirement, default_interpreter='CPython'):
     if isinstance(requirement, Requirement):
       return requirement
-    elif isinstance(requirement, str):
+    elif isinstance(requirement, string):
       try:
         requirement = Requirement.parse(requirement)
       except ValueError:
