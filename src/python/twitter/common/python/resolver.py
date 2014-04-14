@@ -80,7 +80,8 @@ def resolve(requirements, obtainer=None, interpreter=None, platform=None):
       if dist is None:
         raise Untranslateable('Package %s is not translateable.' % package)
       if not distribution_compatible(dist, interpreter, platform):
-        raise Untranslateable('Could not get distribution for %s on appropriate platform.' % package)
+        raise Untranslateable('Could not get distribution for %s on appropriate platform.' %
+            package)
       cache.put(package, dist)
     dist = cache.get(package)
     return dist.requires(extras=requirement.extras)

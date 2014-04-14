@@ -63,8 +63,8 @@ def test_unreachable_error(create_connection_mock, gethostbyname_mock):
 
 @mock.patch('%s.urlopen' % URLLIB_REQUEST)
 def test_local_open(urlopen_mock):
-  urlopen_mock.return_value = 'data'
-  assert Web().open('/local/filename') == 'data'
+  urlopen_mock.return_value = b'data'
+  assert Web().open('/local/filename') == b'data'
 
 
 def test_local_cached_open():
@@ -73,13 +73,13 @@ def test_local_cached_open():
 
   source_dir = safe_mkdtemp()
   source = os.path.join(source_dir, 'filename')
-  with open(source, 'w') as fp:
-    fp.write('data')
+  with open(source, 'wb') as fp:
+    fp.write(b'data')
 
   with contextlib.closing(web.open(source)) as cached_fp1:
-    assert 'data' == cached_fp1.read()
+    assert b'data' == cached_fp1.read()
   with contextlib.closing(web.open(source)) as cached_fp2:
-    assert 'data' == cached_fp2.read()
+    assert b'data' == cached_fp2.read()
 
 
 def test_maybe_local():

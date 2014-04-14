@@ -117,13 +117,13 @@ class PEXBuilder(object):
   def set_entry_point(self, entry_point):
     self.info.entry_point = entry_point
 
-  def add_egg(self, egg):
-    """
-      helper for add_distribution
-    """
-    dist = DistributionHelper.distribution_from_path(egg)
+  def add_dist_location(self, bdist):
+    dist = DistributionHelper.distribution_from_path(bdist)
     self.add_distribution(dist)
     self.add_requirement(dist.as_requirement(), dynamic=False, repo=None)
+
+  def add_egg(self, egg):
+    return self.add_dist_location(egg)
 
   def _add_dist_dir(self, path, dist_name):
     for root, _, files in os.walk(path):

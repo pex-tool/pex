@@ -20,5 +20,6 @@ python_binary(
   source = 'pex.py',
   dependencies = [
     pants('src/python/twitter/common/python:python-source'),
+    python_requirement('wheel'),
   ],
 )

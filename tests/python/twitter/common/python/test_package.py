@@ -5,7 +5,10 @@ from zipfile import ZipFile
 
 from twitter.common.contextutil import temporary_dir
 from twitter.common.python.http import Web
-from twitter.common.python.package import EggPackage, SourcePackage
+from twitter.common.python.package import (
+    EggPackage,
+    SourcePackage,
+)
 from twitter.common.python.testing import create_layout
 
 from pkg_resources import Requirement, parse_version

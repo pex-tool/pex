@@ -12,6 +12,7 @@ from .package import (
      EggPackage,
      Package,
      SourcePackage,
+     WheelPackage,
 )
 from .platforms import Platform
 from .tracer import TRACER
@@ -39,6 +40,7 @@ class Obtainer(object):
     >>> for d in distributions: d.activate()
   """
   DEFAULT_PACKAGE_PRECEDENCE = (
+      WheelPackage,
       EggPackage,
       SourcePackage,
   )
@@ -73,7 +75,11 @@ class Obtainer(object):
     self._precedence = precedence
 
   def _translate_href(self, href):
-    return Package.from_href(href, opener=self._crawler.opener)
+    package = Package.from_href(href, opener=self._crawler.opener)
+    # Restrict this to a package found in the package precedence list, so that users of
+    # obtainers can restrict which distribution formats they support.
+    if any(isinstance(package, package_type) for package_type in self._precedence):
+      return package
 
   def _iter_unordered(self, req):
     url_iterator = itertools.chain.from_iterable(fetcher.urls(req) for fetcher in self._fetchers)
@@ -113,6 +119,7 @@ class CachingObtainer(Obtainer):
         crawler=self._crawler,
         fetchers=[Fetcher([self.__install_cache])],
         translators=self._translator,
+        precedence=self._precedence,
     )
 
   def _has_expired_ttl(self, dist):

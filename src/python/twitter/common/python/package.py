@@ -7,6 +7,7 @@ from .base import maybe_requirement
 from .common import safe_mkdtemp
 from .http.link import Link
 from .interpreter import PythonInterpreter
+from .pep425 import PEP425, PEP425Extras
 from .platforms import Platform
 
 from pkg_resources import (
@@ -215,8 +216,49 @@ class EggPackage(Package):
     return True
 
 
+class WheelPackage(Package):
+  """A Package representing a built wheel."""
+
+  def __init__(self, url, **kw):
+    super(WheelPackage, self).__init__(url, **kw)
+    filename, ext = os.path.splitext(self.filename)
+    if ext.lower() != '.whl':
+      raise self.InvalidLink('Not a wheel: %s' % filename)
+    try:
+      self._name, self._raw_version, self._py_tag, self._abi_tag, self._arch_tag = (
+          filename.split('-'))
+    except ValueError:
+      raise self.InvalidLink('Wheel filename malformed.')
+    # See https://github.com/pypa/pip/issues/1150 for why this is unavoidable.
+    self._name.replace('_', '-')
+    self._raw_version.replace('_', '-')
+    self._supported_tags = frozenset(self._iter_tags())
+
+  @property
+  def name(self):
+    return self._name
+
+  @property
+  def raw_version(self):
+    return self._raw_version
+
+  def _iter_tags(self):
+    for py in self._py_tag.split('.'):
+      for abi in self._abi_tag.split('.'):
+        for arch in self._arch_tag.split('.'):
+          for real_arch in PEP425Extras.platform_iterator(arch):
+            yield (py, abi, real_arch)
+
+  def compatible(self, identity, platform=Platform.current()):
+    for tag in PEP425.iter_supported_tags(identity, platform):
+      if tag in self._supported_tags:
+        return True
+    return False
+
+
 Package.register(SourcePackage)
 Package.register(EggPackage)
+Package.register(WheelPackage)
 
 
 def distribution_compatible(dist, interpreter=None, platform=None):

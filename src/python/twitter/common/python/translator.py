@@ -6,12 +6,13 @@ import shutil
 
 from .common import chmod_plus_w, safe_rmtree, safe_mkdir, safe_mkdtemp
 from .compatibility import AbstractClass
-from .installer import EggInstaller
+from .installer import WheelInstaller
 from .interpreter import PythonInterpreter
 from .package import (
     EggPackage,
     Package,
     SourcePackage,
+    WheelPackage,
 )
 from .platforms import Platform
 from .tracer import TRACER
@@ -68,7 +69,7 @@ class SourceTranslator(TranslatorBase):
                platform=Platform.current(),
                use_2to3=False,
                conn_timeout=None,
-               installer_impl=EggInstaller):
+               installer_impl=WheelInstaller):
     self._interpreter = interpreter
     self._installer_impl = installer_impl
     self._use_2to3 = use_2to3
@@ -152,6 +153,11 @@ class EggTranslator(BinaryTranslator):
     super(EggTranslator, self).__init__(EggPackage, **kw)
 
 
+class WheelTranslator(BinaryTranslator):
+  def __init__(self, **kw):
+    super(WheelTranslator, self).__init__(WheelPackage, **kw)
+
+
 class Translator(object):
   @staticmethod
   def default(install_cache=None,
@@ -169,6 +175,7 @@ class Translator(object):
         interpreter=interpreter,
         conn_timeout=conn_timeout)
 
+    whl_translator = WheelTranslator(platform=platform, **shared_options)
     egg_translator = EggTranslator(platform=platform, **shared_options)
     source_translator = SourceTranslator(**shared_options)
-    return ChainedTranslator(egg_translator, source_translator)
+    return ChainedTranslator(whl_translator, egg_translator, source_translator)

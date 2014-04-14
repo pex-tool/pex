@@ -8,7 +8,7 @@ import zipfile
 
 from twitter.common.contextutil import temporary_file, temporary_dir
 from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
-from twitter.common.python.installer import Installer, EggInstaller
+from twitter.common.python.installer import Installer, EggInstaller, WheelInstaller
 from twitter.common.python.testing import (
     make_distribution,
     temporary_content,
@@ -25,14 +25,14 @@ def test_hash():
     assert empty_hash == CacheHelper.hash(fp.name)
 
   with temporary_file() as fp:
-    string = 'asdf' * 1024 * sha1().block_size + 'extra padding'
+    string = b'asdf' * 1024 * sha1().block_size + b'extra padding'
     fp.write(string)
     fp.flush()
-    assert sha1(string.encode('utf-8')).hexdigest() == CacheHelper.hash(fp.name)
+    assert sha1(string).hexdigest() == CacheHelper.hash(fp.name)
 
   with temporary_file() as fp:
     empty_hash = sha1()
-    fp.write('asdf')
+    fp.write(b'asdf')
     fp.flush()
     hash_output = CacheHelper.hash(fp.name, digest=empty_hash)
     assert hash_output == empty_hash.hexdigest()
@@ -62,6 +62,17 @@ def test_hash_consistency():
 
 def test_zipsafe():
   make_egg = functools.partial(make_distribution, installer_impl=EggInstaller)
+  make_whl = functools.partial(make_distribution, installer_impl=WheelInstaller)
+
+  for zipped in (False, True):
+    for zip_safe in (False, True):
+      # Eggs can be zip safe
+      with make_egg(zipped=zipped, zip_safe=zip_safe) as dist:
+        assert DistributionHelper.zipsafe(dist) is zip_safe
+
+      # Wheels cannot be zip safe
+      with make_whl(zipped=zipped, zip_safe=zip_safe) as dist:
+        assert not DistributionHelper.zipsafe(dist)
 
   for zipped in (False, True):
     for zip_safe in (False, True):

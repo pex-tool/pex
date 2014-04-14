@@ -11,15 +11,25 @@ import sys
 
 from twitter.common.python.common import safe_delete, safe_mkdtemp
 from twitter.common.python.fetcher import Fetcher, PyPIFetcher
-from twitter.common.python.installer import EggInstaller
+from twitter.common.python.installer import EggInstaller, WheelInstaller
 from twitter.common.python.interpreter import PythonInterpreter
 from twitter.common.python.obtainer import CachingObtainer
+from twitter.common.python.package import (
+    EggPackage,
+    SourcePackage,
+    WheelPackage,
+)
 from twitter.common.python.platforms import Platform
 from twitter.common.python.resolver import resolve as requirement_resolver
 from twitter.common.python.pex_builder import PEXBuilder
 from twitter.common.python.pex import PEX
 from twitter.common.python.tracer import Tracer
-from twitter.common.python.translator import Translator
+from twitter.common.python.translator import (
+    ChainedTranslator,
+    EggTranslator,
+    SourceTranslator,
+    WheelTranslator,
+)
 
 
 CANNOT_PARSE_REQUIREMENT = 100
@@ -57,6 +67,22 @@ def configure_clp():
       help='Whether to use pypi to resolve dependencies; Default: use pypi')
 
   parser.add_option(
+      '--wheel', '--no-wheel',
+      dest='use_wheel',
+      default=True,
+      action='callback',
+      callback=parse_bool,
+      help='Whether to allow wheel distributions; Default: allow wheels')
+
+  parser.add_option(
+      '--build', '--no-build',
+      dest='allow_builds',
+      default=True,
+      action='callback',
+      callback=parse_bool,
+      help='Whether to allow building of distributions from source; Default: allow builds')
+
+  parser.add_option(
       '--python',
       dest='python',
       default=None,
@@ -85,7 +111,7 @@ def configure_clp():
       dest='always_write_cache',
       default=False,
       action='store_true',
-      help='Always write the internally cached eggs to disk prior to invoking '
+      help='Always write the internally cached distributions to disk prior to invoking '
            'the pex source code.  This can use less memory in RAM constrained '
            'environments. [Default: %default]')
 
@@ -176,6 +202,28 @@ def interpreter_from_options(options):
   return interpreter
 
 
+def translator_from_options(options):
+  interpreter = interpreter_from_options(options)
+  platform = options.platform
+
+  translators = []
+
+  shared_options = dict(install_cache=options.cache_dir, interpreter=interpreter)
+
+  if options.use_wheel:
+    installer_impl = WheelInstaller
+    translators.append(WheelTranslator(platform=platform, **shared_options))
+  else:
+    installer_impl = EggInstaller
+
+  translators.append(EggTranslator(platform=platform, **shared_options))
+
+  if options.allow_builds:
+    translators.append(SourceTranslator(installer_impl=installer_impl, **shared_options))
+
+  return ChainedTranslator(*translators)
+
+
 def build_obtainer(options):
   interpreter = interpreter_from_options(options)
   platform = options.platform
@@ -185,15 +233,18 @@ def build_obtainer(options):
   if options.pypi:
     fetchers.append(PyPIFetcher())
 
-  translator = Translator.default(
-      install_cache=options.cache_dir,
-      platform=platform,
-      interpreter=interpreter)
+  translator = translator_from_options(options)
+
+  if options.use_wheel:
+    package_precedence = (WheelPackage, EggPackage, SourcePackage)
+  else:
+    package_precedence = (EggPackage, SourcePackage)
 
   obtainer = CachingObtainer(
       install_cache=options.cache_dir,
       fetchers=fetchers,
-      translators=translator)
+      translators=translator,
+      precedence=package_precedence)
 
   return obtainer
 
@@ -213,6 +264,8 @@ def build_pex(args, options):
   pex_info.ignore_errors = options.ignore_errors
   pex_info.inherit_path = options.inherit_path
 
+  installer = WheelInstaller if options.use_wheel else EggInstaller
+
   resolveds = requirement_resolver(
       options.requirements,
       obtainer=build_obtainer(options),
@@ -229,10 +282,10 @@ def build_pex(args, options):
 
   for source_dir in options.source_dirs:
     try:
-      egg_path = EggInstaller(source_dir).bdist()
-    except EggInstaller.Error:
+      bdist = installer(source_dir).bdist()
+    except installer.Error:
       die('Failed to run installer for %s' % source_dir, CANNOT_DISTILL)
-    pex_builder.add_egg(egg_path)
+    pex_builder.add_dist_location(bdist)
 
   if options.entry_point is not None:
     log('Setting entry point to %s' % options.entry_point, v=options.verbosity)

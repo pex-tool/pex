@@ -15,14 +15,17 @@
 # ==================================================================================================
 
 import os
+import sys
 
 from twitter.common.python import interpreter
 
 from mock import patch
+import pytest
 
 
 class TestPythonInterpreter(object):
 
+  @pytest.mark.skipif('sys.version_info >= (3,0)')
   def test_all_does_not_raise_with_empty_path_envvar(self):
     """ additionally, tests that the module does not raise at import """
     with patch.dict(os.environ, clear=True):

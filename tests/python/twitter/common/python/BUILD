@@ -14,7 +14,6 @@
 # limitations under the License.
 # ==================================================================================================
 
-
 python_test_suite(name = 'all',
   dependencies = [
     pants('tests/python/twitter/common/python/http:all'),
@@ -96,5 +95,6 @@ python_tests(name = 'test_util',
   dependencies = [
     pants('src/python/twitter/common/contextutil'),
     pants('src/python/twitter/common/python'),
+    python_requirement('wheel'),
   ]
 )

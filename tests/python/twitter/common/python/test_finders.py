@@ -4,7 +4,11 @@ from twitter.common.python.finders import (
     _remove_finder as remove_finder,
 )
 
-import mock
+try:
+  import mock
+except ImportError:
+  from unittest import mock
+
 import pkg_resources
 
 

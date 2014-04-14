@@ -141,7 +141,7 @@ class PEXEnvironment(Environment):
       try:
         resolved = working_set.resolve(all_reqs, env=self)
       except DistributionNotFound as e:
-        TRACER.log('Failed to resolve %s: %s' % (req, e))
+        TRACER.log('Failed to resolve a requirement: %s' % e)
         TRACER.log('Current working set:')
         for dist in working_set:
           TRACER.log('  - %s' % dist)
@@ -150,10 +150,11 @@ class PEXEnvironment(Environment):
     for dist in resolved:
       with TRACER.timed('Activating %s' % dist):
         working_set.add(dist)
-        dist.activate()
 
         if os.path.isdir(dist.location):
           with TRACER.timed('Adding sitedir'):
             site.addsitedir(dist.location)
+
+        dist.activate()
 
     return working_set

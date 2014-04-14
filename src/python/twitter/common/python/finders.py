@@ -29,9 +29,16 @@ To use: ::
 
 import os
 import pkgutil
+import sys
 import zipimport
 
 import pkg_resources
+
+
+if sys.version_info >= (3, 3) and sys.implementation.name == "cpython":
+  import importlib._bootstrap as importlib_bootstrap
+else:
+  importlib_bootstrap = None
 
 
 class ChainedFinder(object):
@@ -221,6 +228,9 @@ def register_finders():
   # append the wheel finder
   _add_finder(pkgutil.ImpImporter, find_wheels_on_path)
 
+  if importlib_bootstrap is not None:
+    _add_finder(importlib_bootstrap.FileFinder, find_wheels_on_path)
+
   __PREVIOUS_FINDER = previous_finder
 
 
@@ -233,5 +243,8 @@ def unregister_finders():
 
   pkg_resources.register_finder(zipimport.zipimporter, __PREVIOUS_FINDER)
   _remove_finder(pkgutil.ImpImporter, find_wheels_on_path)
+
+  if importlib_bootstrap is not None:
+    _remove_finder(importlib_bootstrap.FileFinder, find_wheels_on_path)
 
   __PREVIOUS_FINDER = None

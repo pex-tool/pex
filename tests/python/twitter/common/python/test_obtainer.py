@@ -17,7 +17,7 @@
 from twitter.common.python.fetcher import Fetcher
 from twitter.common.python.interpreter import PythonInterpreter
 from twitter.common.python.obtainer import Obtainer
-from twitter.common.python.package import EggPackage, SourcePackage
+from twitter.common.python.package import EggPackage, SourcePackage, WheelPackage
 
 from pkg_resources import Requirement, get_build_platform
 
@@ -25,17 +25,20 @@ from pkg_resources import Requirement, get_build_platform
 def test_package_precedence():
   source = SourcePackage('psutil-0.6.1.tar.gz')
   egg = EggPackage('psutil-0.6.1-py2.6.egg')
+  whl = WheelPackage('psutil-0.6.1-cp26-none-macosx_10_4_x86_64.whl')
 
   # default precedence
+  assert Obtainer.package_precedence(whl) > Obtainer.package_precedence(egg)
   assert Obtainer.package_precedence(egg) > Obtainer.package_precedence(source)
+  assert Obtainer.package_precedence(whl) > Obtainer.package_precedence(source)
 
   # overridden precedence
-  PRECEDENCE = (EggPackage,)
+  PRECEDENCE = (EggPackage, WheelPackage)
   assert Obtainer.package_precedence(source, PRECEDENCE) == (source.version, -1)  # unknown rank
-
-  PRECEDENCE = (SourcePackage, EggPackage)
-  assert Obtainer.package_precedence(source, PRECEDENCE) > Obtainer.package_precedence(
-      egg, PRECEDENCE)
+  assert Obtainer.package_precedence(whl, PRECEDENCE) > Obtainer.package_precedence(
+      source, PRECEDENCE)
+  assert Obtainer.package_precedence(egg, PRECEDENCE) > Obtainer.package_precedence(
+      whl, PRECEDENCE)
 
 
 class FakeCrawler(object):
@@ -60,10 +63,13 @@ def test_iter_ordering():
   pi = PythonInterpreter.get()
   tgz = SourcePackage('psutil-0.6.1.tar.gz')
   egg = EggPackage('psutil-0.6.1-py%s-%s.egg' % (pi.python, get_build_platform()))
+  whl = WheelPackage('psutil-0.6.1-cp%s-none-%s.whl' % (
+      pi.python.replace('.', ''),
+      get_build_platform().replace('-', '_').replace('.', '_').lower()))
   req = Requirement.parse('psutil')
 
-  assert list(FakeObtainer([tgz, egg]).iter(req)) == [egg, tgz]
-  assert list(FakeObtainer([egg, tgz]).iter(req)) == [egg, tgz]
+  assert list(FakeObtainer([tgz, egg, whl]).iter(req)) == [whl, egg, tgz]
+  assert list(FakeObtainer([egg, tgz, whl]).iter(req)) == [whl, egg, tgz]
 
 
 def test_href_translation():

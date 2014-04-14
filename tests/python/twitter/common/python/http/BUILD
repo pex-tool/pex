@@ -21,6 +21,7 @@ python_test_suite(name = 'all',
   ]
 )
 
+
 python_tests(
   name = 'test_crawler',
   sources = ['test_crawler.py'],
@@ -30,8 +31,10 @@ python_tests(
   ]
 )
 
+
 def mock_filter(python, platform):
   return python.startswith('2')
+
 
 python_tests(
   name = 'test_http',
