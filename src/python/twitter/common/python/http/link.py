@@ -28,6 +28,9 @@ class Link(object):
   def __eq__(self, link):
     return self.__class__ == link.__class__ and self._url == link._url
 
+  def __hash__(self):
+    return hash(self.url)
+
   @property
   def filename(self):
     return posixpath.basename(self._url.path)
