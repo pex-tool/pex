@@ -21,6 +21,14 @@ from pkg_resources import EntryPoint, find_distributions
 TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='twitter.common.python.pex: ')
 
 
+class DevNull(object):
+  def __init__(self):
+    pass
+
+  def write(self, *args, **kw):
+    pass
+
+
 class PEX(object):
   """
     PEX, n. A self-contained python environment.
@@ -186,6 +194,12 @@ class PEX(object):
       patch_all(old_sys_path, old_sys_path_importer_cache, old_sys_modules)
 
   def execute(self, args=()):
+    """Execute the PEX.
+
+    This function makes assumptions that it is the last function called by
+    the interpreter.
+    """
+
     entry_point = self.entry()
 
     with self.patch_sys():
@@ -201,6 +215,13 @@ class PEX(object):
           self.execute_entry(entry_point, args)
         else:
           self.execute_interpreter()
+
+    # squash all exceptions on interpreter teardown -- the primary type here are
+    # atexit handlers failing to run because of things such as:
+    #   http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
+    if 'PEX_TEARDOWN_VERBOSE' not in os.environ:
+      sys.stderr = DevNull()
+      sys.excepthook = lambda *a, **kw: None
 
   @classmethod
   def execute_interpreter(cls):
