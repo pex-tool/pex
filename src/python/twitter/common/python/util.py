@@ -37,18 +37,23 @@ class DistributionHelper(object):
       return False
 
   @classmethod
-  def distribution_from_path(cls, path):
-    """Returns a Distribution given a location.
+  def distribution_from_path(cls, path, name=None):
+    """Return a distribution from a path.
 
-       If no distributions found or if the path contains multiple ambiguous
-       distributions, returns None.
+    If name is provided, find the distribution.  If none is found matching the name,
+    return None.  If name is not provided and there is unambiguously a single
+    distribution, return that distribution otherwise None.
     """
     # Monkeypatch pkg_resources finders should it not already be so.
     register_finders()
-    distributions = list(find_distributions(path))
-    if len(distributions) != 1:
-      return None
-    return distributions[0]
+    if name is None:
+      distributions = list(find_distributions(path))
+      if len(distributions) == 1:
+        return distributions[0]
+    else:
+      for dist in find_distributions(path):
+        if dist.project_name == name:
+          return dist
 
 
 class CacheHelper(object):

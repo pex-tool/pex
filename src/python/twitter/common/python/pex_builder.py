@@ -201,7 +201,11 @@ class PEXBuilder(object):
     """
     wrote_setuptools = False
     setuptools = DistributionHelper.distribution_from_path(
-        self._interpreter.get_location('setuptools'))
+        self._interpreter.get_location('setuptools'),
+        name='setuptools')
+
+    if setuptools is None:
+      raise RuntimeError('Failed to find setuptools while building pex!')
 
     for fn, content_stream in DistributionHelper.walk_data(setuptools):
       if fn == 'pkg_resources.py' or fn.startswith('_markerlib'):
