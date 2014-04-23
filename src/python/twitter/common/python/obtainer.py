@@ -122,6 +122,14 @@ class CachingObtainer(Obtainer):
         precedence=self._precedence,
     )
 
+  @property
+  def ttl(self):
+    return self.__ttl
+
+  @property
+  def install_cache(self):
+    return self.__install_cache
+
   def _has_expired_ttl(self, dist):
     now = time.time()
     return now - os.path.getmtime(dist.location) >= self.__ttl
