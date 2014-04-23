@@ -24,6 +24,7 @@ python_test_suite(name = 'all',
     pants(':test_package'),
     pants(':test_pep425'),
     pants(':test_platform'),
+    pants(':test_pex'),
     pants(':test_pex_builder'),
     pants(':test_util'),
   ]
@@ -79,6 +80,14 @@ python_tests(name = 'test_platform',
   sources = ['test_platform.py'],
   dependencies = [
     pants('src/python/twitter/common/python')
+  ]
+)
+
+python_tests(name = 'test_pex',
+  sources = ['test_pex.py'],
+  dependencies = [
+    pants('src/python/twitter/common/contextutil'),
+    pants('src/python/twitter/common/python'),
   ]
 )
 

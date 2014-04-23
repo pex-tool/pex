@@ -5,6 +5,7 @@ from distutils import sysconfig
 import os
 from site import USER_SITE
 import sys
+import traceback
 
 from .common import safe_mkdir
 from .compatibility import exec_function
@@ -216,6 +217,11 @@ class PEX(object):
             self.execute_entry(entry_point, args)
           else:
             self.execute_interpreter()
+    except:
+      # Catch and print any exceptions before we tear things down in finally, then
+      # reraise so that the exit status is reflected correctly.
+      traceback.print_exc()
+      raise
     finally:
       # squash all exceptions on interpreter teardown -- the primary type here are
       # atexit handlers failing to run because of things such as:
