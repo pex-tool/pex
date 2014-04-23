@@ -217,7 +217,7 @@ class PEX(object):
             self.execute_entry(entry_point, args)
           else:
             self.execute_interpreter()
-    except:
+    except Exception:
       # Catch and print any exceptions before we tear things down in finally, then
       # reraise so that the exit status is reflected correctly.
       traceback.print_exc()

@@ -39,6 +39,13 @@ def test_pex_uncaught_exceptions():
   assert rc == 1
 
 
+def test_pex_sys_exit_does_not_raise():
+  body = "import sys; sys.exit(2)"
+  so, rc = run_test(body)
+  assert so == b'', 'Should not print SystemExit exception.'
+  assert rc == 2
+
+
 def test_pex_atexit_swallowing():
   body = textwrap.dedent("""
   import atexit
