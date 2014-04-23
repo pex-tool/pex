@@ -202,26 +202,27 @@ class PEX(object):
 
     entry_point = self.entry()
 
-    with self.patch_sys():
-      working_set = self._env.activate()
-      if 'PEX_COVERAGE' in os.environ:
-        PEX.start_coverage()
-      TRACER.log('PYTHONPATH contains:')
-      for element in sys.path:
-        TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
-      TRACER.log('  * - paths that do not exist or will be imported via zipimport')
-      with self.patch_pkg_resources(working_set):
-        if entry_point and 'PEX_INTERPRETER' not in os.environ:
-          self.execute_entry(entry_point, args)
-        else:
-          self.execute_interpreter()
-
-    # squash all exceptions on interpreter teardown -- the primary type here are
-    # atexit handlers failing to run because of things such as:
-    #   http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
-    if 'PEX_TEARDOWN_VERBOSE' not in os.environ:
-      sys.stderr = DevNull()
-      sys.excepthook = lambda *a, **kw: None
+    try:
+      with self.patch_sys():
+        working_set = self._env.activate()
+        if 'PEX_COVERAGE' in os.environ:
+          PEX.start_coverage()
+        TRACER.log('PYTHONPATH contains:')
+        for element in sys.path:
+          TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
+        TRACER.log('  * - paths that do not exist or will be imported via zipimport')
+        with self.patch_pkg_resources(working_set):
+          if entry_point and 'PEX_INTERPRETER' not in os.environ:
+            self.execute_entry(entry_point, args)
+          else:
+            self.execute_interpreter()
+    finally:
+      # squash all exceptions on interpreter teardown -- the primary type here are
+      # atexit handlers failing to run because of things such as:
+      #   http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
+      if 'PEX_TEARDOWN_VERBOSE' not in os.environ:
+        sys.stderr = DevNull()
+        sys.excepthook = lambda *a, **kw: None
 
   @classmethod
   def execute_interpreter(cls):
