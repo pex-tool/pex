@@ -26,7 +26,7 @@ class CrawlerBase(object):
   def opener(self):
     return self._opener
 
-  def crawl(self, urls):
+  def crawl(self, urls, follow_links=False):
     links, seen = set(), set()
     queue = Queue()
     converged = threading.Event()
@@ -41,9 +41,10 @@ class CrawlerBase(object):
           seen.add(url)
           hrefs, rel_hrefs = self.execute(url)
           links.update(hrefs)
-          for href in rel_hrefs:
-            if href not in seen:
-              queue.put(href)
+          if follow_links:
+            for href in rel_hrefs:
+              if href not in seen:
+                queue.put(href)
         queue.task_done()
 
     for url in urls:
