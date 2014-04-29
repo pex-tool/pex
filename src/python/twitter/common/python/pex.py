@@ -92,8 +92,14 @@ class PEX(object):
 
   @classmethod
   def _site_libs(cls):
-    return set([sysconfig.get_python_lib(plat_specific=False),
-                sysconfig.get_python_lib(plat_specific=True)])
+    try:
+      from site import getsitepackages
+      site_libs = set(getsitepackages())
+    except ImportError:
+      site_libs = set()
+    site_libs.update([sysconfig.get_python_lib(plat_specific=False),
+                      sysconfig.get_python_lib(plat_specific=True)])
+    return site_libs
 
   @classmethod
   def minimum_sys_modules(cls, site_libs):
