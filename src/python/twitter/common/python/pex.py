@@ -308,7 +308,8 @@ class PEX(object):
     cmds.extend(args)
     return cmds
 
-  def run(self, args=(), with_chroot=False, blocking=True, setsid=False):
+  def run(self, args=(), with_chroot=False, blocking=True, setsid=False,
+          stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
     """
       Run the PythonEnvironment in an interpreter in a subprocess.
 
@@ -322,5 +323,6 @@ class PEX(object):
     cmdline = self.cmdline(args)
     TRACER.log('PEX.run invoking %s' % ' '.join(cmdline))
     process = subprocess.Popen(cmdline, cwd=self._pex if with_chroot else os.getcwd(),
-                               preexec_fn=os.setsid if setsid else None)
+                               preexec_fn=os.setsid if setsid else None,
+                               stdin=stdin, stdout=stdout, stderr=stderr)
     return process.wait() if blocking else process
