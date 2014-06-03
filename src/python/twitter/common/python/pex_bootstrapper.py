@@ -63,3 +63,15 @@ def bootstrap_pex(entry_point):
 
   from . import pex
   pex.PEX(entry_point).execute()
+
+
+def bootstrap_pex_env(entry_point):
+  """Bootstrap the current runtime environment using a given pex."""
+  from .environment import PEXEnvironment
+  from .finders import register_finders
+  from .pex_info import PexInfo
+
+  monkeypatch_build_zipmanifest()
+  register_finders()
+
+  PEXEnvironment(entry_point, PexInfo.from_pex(entry_point)).activate()
