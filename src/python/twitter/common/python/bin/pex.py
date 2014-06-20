@@ -170,6 +170,14 @@ def configure_clp():
       help='Additional repository path (directory or URL) to look for requirements.')
 
   parser.add_option(
+      '-i', '--index',
+      dest='indices',
+      metavar='URL',
+      default=[],
+      action='append',
+      help='Additional cheeseshop indices to use to satisfy requirements.')
+
+  parser.add_option(
       '-s', '--source-dir',
       dest='source_dirs',
       metavar='DIR',
@@ -232,6 +240,9 @@ def build_obtainer(options):
 
   if options.pypi:
     fetchers.append(PyPIFetcher())
+
+  if options.indices:
+    fetchers.extend(PyPIFetcher(index) for index in options.indices)
 
   translator = translator_from_options(options)
 

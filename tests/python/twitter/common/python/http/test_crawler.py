@@ -84,7 +84,7 @@ def test_crawler_local():
     # recursive crawling, single vs multi-threaded
     for caching in (False, True):
       for threads in (1, 2, 3):
-        links = Crawler(enable_cache=caching, threads=threads).crawl([td])
+        links = Crawler(enable_cache=caching, threads=threads).crawl([td], follow_links=True)
         expect_links = (set(os.path.join(td, fn) for fn in FL) |
                         set(os.path.join(td, 'dir1', fn) for fn in FL) |
                         set(os.path.join(td, 'dir2', fn) for fn in FL))

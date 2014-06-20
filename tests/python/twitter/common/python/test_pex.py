@@ -1,11 +1,13 @@
 import os
 import subprocess
+import sys
 import textwrap
 
 from twitter.common.contextutil import temporary_dir
 from twitter.common.python.compatibility import nested
 from twitter.common.python.pex_builder import PEXBuilder
 
+import pytest
 
 def write_pex(td, exe_contents):
   with open(os.path.join(td, 'exe.py'), 'w') as fp:
@@ -32,10 +34,11 @@ def run_test(body, env=None):
     return run_pex(pex, env=env)
 
 
+@pytest.mark.skipif('sys.version_info > (3,)')
 def test_pex_uncaught_exceptions():
   body = "raise Exception('This is an exception')"
   so, rc = run_test(body)
-  assert b'This is an exception' in so
+  assert b'This is an exception' in so, 'Standard out was: %s' % so
   assert rc == 1
 
 
