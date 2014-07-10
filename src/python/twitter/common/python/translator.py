@@ -177,5 +177,5 @@ class Translator(object):
 
     whl_translator = WheelTranslator(platform=platform, **shared_options)
     egg_translator = EggTranslator(platform=platform, **shared_options)
-    source_translator = SourceTranslator(**shared_options)
+    source_translator = SourceTranslator(platform=platform, **shared_options)
     return ChainedTranslator(whl_translator, egg_translator, source_translator)
