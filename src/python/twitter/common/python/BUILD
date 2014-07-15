@@ -14,13 +14,20 @@
 # limitations under the License.
 # ==================================================================================================
 
+python_requirement_library(
+  name='setuptools',
+  requirements=[
+    # Use any setuptools post-distribute merge.
+    python_requirement(requirement='setuptools>=1'),
+  ]
+)
+
 python_library(
   name = 'python-source',
   sources = globs('*.py') + globs('http/*.py'),
   # Do not add dependencies as these are embedded in every pex.
   dependencies = [
-    # Use any setuptools post-distribute merge.
-    python_requirement('setuptools>=1'),
+    pants(':setuptools'),
   ],
 )
 

@@ -14,12 +14,19 @@
 # limitations under the License.
 # ==================================================================================================
 
+python_requirement_library(
+  name='wheel',
+  requirements=[
+    python_requirement(requirement='wheel'),
+  ]
+)
+
 python_binary(
   name = 'pex',
   entry_point = 'twitter.common.python.bin.pex:main',
   source = 'pex.py',
   dependencies = [
+    pants(':wheel'),
     pants('src/python/twitter/common/python:python-source'),
-    python_requirement('wheel'),
   ],
 )

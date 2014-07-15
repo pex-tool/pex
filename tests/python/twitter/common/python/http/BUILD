@@ -35,15 +35,21 @@ python_tests(
 def mock_filter(python, platform):
   return python.startswith('2')
 
+python_requirement_library(
+  name='mock',
+  requirements=[
+    python_requirement(requirement='mock', version_filter=mock_filter),
+  ]
+)
 
 python_tests(
   name = 'test_http',
   sources = ['test_http.py'],
   dependencies = [
+    pants(':mock'),
     pants('src/python/twitter/common/contextutil'),
     pants('src/python/twitter/common/python'),
     pants('src/python/twitter/common/quantity'),
     pants('src/python/twitter/common/testing'),
-    python_requirement('mock', version_filter=mock_filter)
   ]
 )

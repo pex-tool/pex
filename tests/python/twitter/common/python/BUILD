@@ -38,11 +38,18 @@ python_tests(name = 'test_environment',
   ]
 )
 
+python_requirement_library(
+  name='mock',
+  requirements=[
+    python_requirement(requirement='mock', version_filter=lambda py, plat: py.startswith('2')),
+  ]
+)
+
 python_tests(name = 'test_finders',
   sources = ['test_finders.py'],
   dependencies = [
+    pants(':mock'),
     pants('src/python/twitter/common/python'),
-    python_requirement('mock', version_filter=lambda py, plat: py.startswith('2'))
   ]
 )
 
@@ -99,11 +106,18 @@ python_tests(name = 'test_pex_builder',
   ]
 )
 
+python_requirement_library(
+  name='wheel',
+  requirements=[
+    python_requirement(requirement='wheel'),
+  ]
+)
+
 python_tests(name = 'test_util',
   sources = ['test_util.py'],
   dependencies = [
+    pants(':wheel'),
     pants('src/python/twitter/common/contextutil'),
     pants('src/python/twitter/common/python'),
-    python_requirement('wheel'),
   ]
 )
