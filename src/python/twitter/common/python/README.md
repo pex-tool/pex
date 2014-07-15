@@ -1,7 +1,7 @@
 Pex.pex: Usage
 ==============
 
-[PEX](https://github.com/twitter/commons/blob/master/src/python/twitter/pants/python/README.md) files are single-file lightweight virtual Python environments.
+[PEX](http://pantsbuild.github.io/python-readme.html) files are single-file lightweight virtual Python environments.
 
 pex.pex is a utility that:
 * creates PEX files
