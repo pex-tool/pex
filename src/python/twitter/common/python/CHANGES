@@ -1,3 +1,16 @@
+0.5.9
+
+  * Fixes an issue where SourceTranslator would overwrite .egg/.whl
+    distributions already on disk.  Instead it should always check to see if
+    a copy already exists and reuse if there.
+
+    This ordinarily should not be a problem but the zipimporter caches
+    metadata by filename instead of stat/sha, so if the underlying contents
+    changed a runtime error would be thrown due to seemingly corrupt zip file
+    offsets.
+
+    https://rbcommons.com/s/twitter/r/684/
+
 0.5.8:
 
   * Adds -i/--index option to the pex tool.

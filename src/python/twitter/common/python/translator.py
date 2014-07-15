@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from abc import abstractmethod
 import os
 import shutil
+from uuid import uuid4
 
 from .common import chmod_plus_w, safe_rmtree, safe_mkdir, safe_mkdtemp
 from .compatibility import AbstractClass
@@ -106,8 +107,10 @@ class SourceTranslator(TranslatorBase):
         except self._installer_impl.InstallFailure:
           return None
         target_path = os.path.join(self._install_cache, os.path.basename(dist_path))
-        # TODO: Make this atomic.
-        shutil.move(dist_path, target_path)
+        if not os.path.exists(target_path):  # avoid overwriting existing distribution
+          target_path_tmp = target_path + uuid4().get_hex()
+          shutil.move(dist_path, target_path_tmp)  # avoid cross-device renames
+          os.rename(target_path_tmp, target_path)
         target_package = Package.from_href(target_path)
         if not target_package:
           return None
