@@ -107,7 +107,10 @@ class SourceTranslator(TranslatorBase):
         except self._installer_impl.InstallFailure:
           return None
         target_path = os.path.join(self._install_cache, os.path.basename(dist_path))
-        if not os.path.exists(target_path):  # avoid overwriting existing distribution
+        if os.path.exists(target_path):
+          # avoid overwriting existing distribution, but update its mtime for ttl purposes.
+          os.utime(target_path, None)
+        else:
           target_path_tmp = target_path + uuid4().get_hex()
           shutil.move(dist_path, target_path_tmp)  # avoid cross-device renames
           os.rename(target_path_tmp, target_path)
