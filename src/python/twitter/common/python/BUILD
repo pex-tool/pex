@@ -38,7 +38,7 @@ python_library(
   ],
   provides = setup_py(
     name = 'twitter.common.python',
-    version = '0.5.9',
+    version = '0.5.10',
     description = "Twitter's Python packaging toolchain.",
     long_description = """
 Twitter's Python packaging libraries and toolchain for fetching,

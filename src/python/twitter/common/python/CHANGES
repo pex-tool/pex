@@ -1,3 +1,13 @@
+0.5.10
+
+  * Ensures that .egg/.whl distributions on disk have their mtime updated
+    even though we no longer overwrite them. This gives them a new time
+    lease against their ttl. 
+
+    Without this change, once a distribution aged past the ttl it would
+    never be used again, and builds would re-create the same distributions
+    in tmpdirs over and over again. 
+
 0.5.9
 
   * Fixes an issue where SourceTranslator would overwrite .egg/.whl
