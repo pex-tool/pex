@@ -305,10 +305,7 @@ def main():
   options, args = parser.parse_args()
   verbosity = 5 if options.verbosity else -1
 
-  with Tracer.env_override(
-      PEX_VERBOSE=verbosity,
-      TWITTER_COMMON_PYTHON_HTTP=verbosity,
-      PYTHON_VERBOSE=verbosity):
+  with Tracer.env_override(PEX_VERBOSE=verbosity, PEX_HTTP=verbosity):
 
     pex_builder = build_pex(args, options)
 
