@@ -23,8 +23,6 @@ except ImportError:
   Integral = (int, long)
 
 
-
-
 TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex.interpreter: ')
 
 
@@ -62,11 +60,6 @@ for requirement_str, location in requirements.items():
   if len(rs) == 2:
     print('%s %s %s' % (rs[0], rs[1], location))
 """
-
-
-class PythonCapability(list):
-  def __init__(self, requirements=None):
-    super(PythonCapability, self).__init__(maybe_requirement_list(requirements or []))
 
 
 class PythonIdentity(object):
@@ -405,8 +398,8 @@ class PythonInterpreter(object):
     return str(self._identity)
 
   def satisfies(self, capability):
-    if not isinstance(capability, PythonCapability):
-      raise TypeError('Capability must be a PythonCapability, got %s' % type(capability))
+    if not isinstance(capability, list):
+      raise TypeError('Capability must be a list, got %s' % type(capability))
     return not any(self.get_location(req) is None for req in capability)
 
   def get_location(self, req):

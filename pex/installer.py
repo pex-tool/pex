@@ -11,7 +11,7 @@ import tempfile
 from pkg_resources import Distribution, PathMetadata
 
 from .common import safe_mkdtemp, safe_rmtree
-from .interpreter import PythonCapability, PythonInterpreter
+from .interpreter import PythonInterpreter
 from .tracer import TRACER
 
 __all__ = (
@@ -77,8 +77,8 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
 
   @property
   def capability(self):
-    """returns the PythonCapability necessary for the interpreter to run this installer."""
-    return PythonCapability(self.mixins().values())
+    """returns the list of requirements for the interpreter to run this installer."""
+    return list(self.mixins().values())
 
   @property
   def bootstrap_script(self):
