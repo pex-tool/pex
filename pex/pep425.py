@@ -1,4 +1,7 @@
-"""PEP425 handling for twitter.common.python
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+"""PEP425 handling for pex
 
 PEP425 (http://legacy.python.org/dev/peps/pep-0425/) describes a tagging system used to determine
 whether or not a distribution's platform is compatible with the current platform.  It is the

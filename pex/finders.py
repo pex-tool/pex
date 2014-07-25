@@ -1,29 +1,16 @@
-# ==================================================================================================
-# Copyright 2014 Twitter, Inc.
-# --------------------------------------------------------------------------------------------------
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this work except in compliance with the License.
-# You may obtain a copy of the License in the LICENSE file, or at:
-#
-#  http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==================================================================================================
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 """The finders we wish we had in setuptools.
 
 As of setuptools 3.3, the only finder for zip-based distributions is for eggs.  The path-based
 finder only searches paths ending in .egg and not in .whl (zipped or unzipped.)
 
-twitter.common.python.finders augments pkg_resources with additional finders to achieve functional
+pex.finders augments pkg_resources with additional finders to achieve functional
 parity between wheels and eggs in terms of findability with find_distributions.
 
 To use: ::
-   >>> from twitter.common.python.finders import register_finders
+   >>> from pex.finders import register_finders
    >>> register_finders()
 """
 

@@ -1,3 +1,6 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 from __future__ import absolute_import, print_function
 
 import os
@@ -22,8 +25,7 @@ from pkg_resources import (
 )
 
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'),
-                prefix='twitter.common.python.environment: ')
+TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex.environment: ')
 
 
 class PEXEnvironment(Environment):
@@ -137,7 +139,7 @@ class PEXEnvironment(Environment):
     working_set = WorkingSet([])
 
     with TRACER.timed('Resolving %s' %
-        ' '.join(map(str, all_reqs)) if all_reqs else 'empty dependency list'):
+        ' '.join(map(str, all_reqs)) if all_reqs else 'empty dependency list', V=2):
       try:
         resolved = working_set.resolve(all_reqs, env=self)
       except DistributionNotFound as e:

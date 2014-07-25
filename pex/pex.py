@@ -1,3 +1,6 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 from __future__ import absolute_import, print_function
 
 from contextlib import contextmanager
@@ -19,7 +22,7 @@ import pkg_resources
 from pkg_resources import EntryPoint, find_distributions
 
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='twitter.common.python.pex: ')
+TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex: ')
 
 
 class DevNull(object):

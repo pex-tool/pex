@@ -1,3 +1,6 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import itertools
 import os
 import shutil
@@ -28,11 +31,11 @@ class Obtainer(object):
     translate egg or source packages into usable distributions) and turns them
     into a cohesive requirement pipeline.
 
-    >>> from twitter.common.python.http import Crawler
-    >>> from twitter.common.python.obtainer import Obtainer
-    >>> from twitter.common.python.fetcher import PyPIFetcher
-    >>> from twitter.common.python.resolver import Resolver
-    >>> from twitter.common.python.translator import Translator
+    >>> from pex.http import Crawler
+    >>> from pex.obtainer import Obtainer
+    >>> from pex.fetcher import PyPIFetcher
+    >>> from pex.resolver import Resolver
+    >>> from pex.translator import Translator
     >>> obtainer = Obtainer(Crawler(), [PyPIFetcher()], [Translator.default()])
     >>> resolver = Resolver(obtainer)
     >>> distributions = resolver.resolve(['ansicolors', 'elementtree', 'mako', 'markdown', 'psutil',
@@ -106,7 +109,7 @@ class Obtainer(object):
     """Given a requirement or package, return a distribution satisfying that requirement."""
     if isinstance(req_or_package, Package):
       return self._translate_from([req_or_package])
-    with TRACER.timed('Obtaining %s' % req_or_package):
+    with TRACER.timed('Obtaining %s' % req_or_package, V=2):
       return self._translate_from(self.iter(req_or_package))
 
 

@@ -1,18 +1,5 @@
-# ==================================================================================================
-# Copyright 2011 Twitter, Inc.
-# --------------------------------------------------------------------------------------------------
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this work except in compliance with the License.
-# You may obtain a copy of the License in the LICENSE file, or at:
-#
-#  http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==================================================================================================
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
 
@@ -57,7 +44,7 @@ if __entry_point__ is None:
 sys.path[0] = os.path.abspath(sys.path[0])
 sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, '.bootstrap')))
 
-from _twitter_common_python.pex_bootstrapper import bootstrap_pex
+from _pex.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)
 """
 
@@ -169,7 +156,7 @@ class PEXBuilder(object):
     self._pex_info.entry_point = entry_point.rpartition('.')[0]
 
   # TODO(wickman) Consider changing this behavior to put the onus on the consumer
-  # of twitter.common.python to write the pex sources correctly.
+  # of pex to write the pex sources correctly.
   def _prepare_inits(self):
     relative_digest = self._chroot.get("source")
     init_digest = set()
@@ -217,21 +204,20 @@ class PEXBuilder(object):
           'Failed to extract pkg_resources from setuptools.  Perhaps pants was linked with an '
           'incompatible setuptools.')
 
-    libraries = (
-      'twitter.common.python',
-      'twitter.common.python.http',
-    )
+    libraries = {
+      'pex': '_pex',
+      'pex.http': os.path.join('_pex', 'http'),
+    }
 
-    for name in libraries:
-      dirname = name.replace('twitter.common.python', '_twitter_common_python').replace('.', '/')
-      provider = get_provider(name)
+    for source_name, target_location in libraries.items():
+      provider = get_provider(source_name)
       if not isinstance(provider, DefaultProvider):
-        mod = __import__(name, fromlist=['wutttt'])
+        mod = __import__(source_name, fromlist=['ignore'])
         provider = ZipProvider(mod)
       for fn in provider.resource_listdir(''):
         if fn.endswith('.py'):
-          self._chroot.write(provider.get_resource_string(name, fn),
-            os.path.join(self.BOOTSTRAP_DIR, dirname, fn), 'resource')
+          self._chroot.write(provider.get_resource_string(source_name, fn),
+            os.path.join(self.BOOTSTRAP_DIR, target_location, fn), 'resource')
 
   def freeze(self):
     if self._frozen:

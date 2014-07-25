@@ -1,6 +1,8 @@
-"""
-twitter.common.python support for interpreter environments.
-"""
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+"""pex support for interpreter environments."""
+
 from __future__ import absolute_import
 
 try:
@@ -24,8 +26,7 @@ from pkg_resources import (
     Requirement,
 )
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'),
-    prefix='twitter.common.python.interpreter: ')
+TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex.interpreter: ')
 
 
 # Determine in the most platform-compatible way possible the identity of the interpreter

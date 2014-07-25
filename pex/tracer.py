@@ -1,3 +1,6 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 from contextlib import contextmanager
 import os
 import sys
@@ -128,4 +131,4 @@ class Tracer(object):
       self._local.parent = None
 
 
-TRACER = Tracer(predicate=Tracer.env_filter('PYTHON_VERBOSE'), prefix='twitter.common.python: ')
+TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex: ')

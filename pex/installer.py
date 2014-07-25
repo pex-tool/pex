@@ -1,3 +1,6 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 from __future__ import print_function, absolute_import
 
 import os
@@ -123,8 +126,8 @@ class Installer(InstallerBase):
     Install an unpacked distribution with a setup.py.
 
     Simple example:
-      >>> from twitter.common.python.package import SourcePackage
-      >>> from twitter.common.python.http import Web
+      >>> from pex.package import SourcePackage
+      >>> from pex.http import Web
       >>> tornado_tgz = SourcePackage(
       ...    'http://pypi.python.org/packages/source/t/tornado/tornado-2.3.tar.gz',
       ...    opener=Web())
@@ -138,7 +141,7 @@ class Installer(InstallerBase):
       >>> import tornado
 
     Alternately you can use the EggInstaller to create an egg instead:
-      >>> from twitter.common.python.installer import EggInstaller
+      >>> from pex.installer import EggInstaller
       >>> EggInstaller(tornado_tgz.fetch()).bdist()
       '/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpufgZOO/tornado-2.3-py2.6.egg'
   """

@@ -1,3 +1,6 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import contextlib
 import os
 import tarfile
@@ -25,7 +28,7 @@ class Package(Link):
 
   @classmethod
   def register(cls, package_type):
-    """Register a concrete implementation of a Package to be recognized by twitter.common.python."""
+    """Register a concrete implementation of a Package to be recognized by pex."""
     if not issubclass(package_type, cls):
       raise TypeError('package_type must be a subclass of Package.')
     cls._REGISTRY.add(package_type)

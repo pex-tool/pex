@@ -1,3 +1,6 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 """
 The pex.pex utility builds PEX environments and .pex files specified by
 sources, requirements and their dependencies.
@@ -9,22 +12,22 @@ from optparse import OptionParser
 import os
 import sys
 
-from twitter.common.python.common import safe_delete, safe_mkdtemp
-from twitter.common.python.fetcher import Fetcher, PyPIFetcher
-from twitter.common.python.installer import EggInstaller, WheelInstaller
-from twitter.common.python.interpreter import PythonInterpreter
-from twitter.common.python.obtainer import CachingObtainer
-from twitter.common.python.package import (
+from pex.common import safe_delete, safe_mkdtemp
+from pex.fetcher import Fetcher, PyPIFetcher
+from pex.installer import EggInstaller, WheelInstaller
+from pex.interpreter import PythonInterpreter
+from pex.obtainer import CachingObtainer
+from pex.package import (
     EggPackage,
     SourcePackage,
     WheelPackage,
 )
-from twitter.common.python.platforms import Platform
-from twitter.common.python.resolver import resolve as requirement_resolver
-from twitter.common.python.pex_builder import PEXBuilder
-from twitter.common.python.pex import PEX
-from twitter.common.python.tracer import Tracer
-from twitter.common.python.translator import (
+from pex.platforms import Platform
+from pex.resolver import resolve as requirement_resolver
+from pex.pex_builder import PEXBuilder
+from pex.pex import PEX
+from pex.tracer import Tracer
+from pex.translator import (
     ChainedTranslator,
     EggTranslator,
     SourceTranslator,
