@@ -1,3 +1,8 @@
+0.6.0
+
+  * Change the interpretation of -i (and of PyPIFetcher's pypi_base)
+    to match pip's -i.  This is useful for compatibility with devpi.
+
 0.5.10
 
   * Ensures that .egg/.whl distributions on disk have their mtime updated

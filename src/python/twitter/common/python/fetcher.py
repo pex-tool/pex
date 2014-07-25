@@ -33,7 +33,7 @@ class Fetcher(FetcherBase):
 
 
 class PyPIFetcher(FetcherBase):
-  PYPI_BASE = 'https://pypi.python.org'
+  PYPI_BASE = 'https://pypi.python.org/simple/'
 
   def __init__(self, pypi_base=PYPI_BASE, use_mirrors=False):
     if use_mirrors:
@@ -47,4 +47,4 @@ class PyPIFetcher(FetcherBase):
 
   def urls(self, req):
     req = maybe_requirement(req)
-    return [urljoin(self.__pypi_base, 'simple/%s/' % req.project_name)]
+    return [urljoin(self.__pypi_base, '%s/' % req.project_name)]
