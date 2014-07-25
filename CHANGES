@@ -3,6 +3,13 @@ CHANGES
 =======
 
 -----
+0.7.0
+-----
+
+* Rename ``twitter.common.python`` to ``pex`` and split out from the
+  `twitter/commons <http://github.com/twitter/commons>`_ repo.
+
+-----
 0.6.0
 -----
 
