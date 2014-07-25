@@ -1,13 +1,17 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import os
 import subprocess
 import sys
 import textwrap
 
-from twitter.common.contextutil import temporary_dir
-from twitter.common.python.compatibility import nested
-from twitter.common.python.pex_builder import PEXBuilder
+from pex.compatibility import nested
+from pex.pex_builder import PEXBuilder
 
 import pytest
+from twitter.common.contextutil import temporary_dir
+
 
 def write_pex(td, exe_contents):
   with open(os.path.join(td, 'exe.py'), 'w') as fp:

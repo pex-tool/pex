@@ -1,4 +1,7 @@
-from twitter.common.python.finders import (
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from pex.finders import (
     ChainedFinder,
     _add_finder as add_finder,
     _remove_finder as remove_finder,
@@ -27,8 +30,8 @@ def test_chained_finder():
   assert list(cf(None, None)) == ['foo', 'bar', 'baz']
 
 
-GET_FINDER = 'twitter.common.python.finders._get_finder'
-REGISTER_FINDER = 'twitter.common.python.finders.pkg_resources.register_finder'
+GET_FINDER = 'pex.finders._get_finder'
+REGISTER_FINDER = 'pex.finders.pkg_resources.register_finder'
 
 
 def test_add_new_finder():

@@ -1,9 +1,13 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import contextlib
 import os
 
+from pex.http.crawler import Crawler, PageParser
+from pex.testing import create_layout
+
 from twitter.common.contextutil import temporary_dir
-from twitter.common.python.http.crawler import Crawler, PageParser
-from twitter.common.python.testing import create_layout
 
 
 def lpp(page):

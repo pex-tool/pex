@@ -1,5 +1,8 @@
-from twitter.common.python.pep425 import PEP425, PEP425Extras
-from twitter.common.python.interpreter import PythonIdentity
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from pex.interpreter import PythonIdentity
+from pex.pep425 import PEP425, PEP425Extras
 
 import pytest
 

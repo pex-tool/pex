@@ -1,14 +1,18 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 from contextlib import closing, contextmanager
 import os
 import zipfile
 
 from twitter.common.contextutil import temporary_dir, temporary_file
-from twitter.common.python.compatibility import nested
-from twitter.common.python.environment import PEXEnvironment
-from twitter.common.python.pex import PEX
-from twitter.common.python.pex_builder import PEXBuilder
-from twitter.common.python.pex_info import PexInfo
-from twitter.common.python.testing import make_distribution
+
+from pex.compatibility import nested
+from pex.environment import PEXEnvironment
+from pex.pex import PEX
+from pex.pex_builder import PEXBuilder
+from pex.pex_info import PexInfo
+from pex.testing import make_distribution
 
 
 @contextmanager

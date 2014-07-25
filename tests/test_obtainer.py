@@ -1,23 +1,10 @@
-# ==================================================================================================
-# Copyright 2012 Twitter, Inc.
-# --------------------------------------------------------------------------------------------------
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this work except in compliance with the License.
-# You may obtain a copy of the License in the LICENSE file, or at:
-#
-#  http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==================================================================================================
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from twitter.common.python.fetcher import Fetcher
-from twitter.common.python.interpreter import PythonInterpreter
-from twitter.common.python.obtainer import Obtainer
-from twitter.common.python.package import EggPackage, SourcePackage, WheelPackage
+from pex.fetcher import Fetcher
+from pex.interpreter import PythonInterpreter
+from pex.obtainer import Obtainer
+from pex.package import EggPackage, SourcePackage, WheelPackage
 
 from pkg_resources import Requirement, get_build_platform
 

@@ -1,16 +1,18 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import contextlib
 import errno
 import os
 import socket
 import threading
 
-from twitter.common.lang import Compatibility
-from twitter.common.python.common import safe_mkdtemp
-from twitter.common.python.http import CachedWeb, Web, FetchError
-from twitter.common.testing.clock import ThreadedClock
+from pex.common import safe_mkdtemp
+from pex.http import CachedWeb, Web, FetchError
 
 import pytest
-
+from twitter.common.lang import Compatibility
+from twitter.common.testing.clock import ThreadedClock
 
 if Compatibility.PY3:
   from unittest import mock

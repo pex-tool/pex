@@ -1,3 +1,6 @@
+# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import contextlib
 import functools
 from hashlib import sha1
@@ -6,15 +9,16 @@ import random
 from textwrap import dedent
 import zipfile
 
-from twitter.common.contextutil import temporary_file, temporary_dir
-from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
-from twitter.common.python.installer import Installer, EggInstaller, WheelInstaller
-from twitter.common.python.testing import (
+from pex.installer import Installer, EggInstaller, WheelInstaller
+from pex.testing import (
     make_distribution,
     temporary_content,
     write_zipfile,
 )
-from twitter.common.python.util import CacheHelper, DistributionHelper
+from pex.util import CacheHelper, DistributionHelper
+
+from twitter.common.contextutil import temporary_file, temporary_dir
+from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
 
 
 def test_hash():
