@@ -6,7 +6,7 @@ The pex.pex utility builds PEX environments and .pex files specified by
 sources, requirements and their dependencies.
 """
 
-from __future__ import print_function
+from __future__ import absolute_import, print_function
 
 import os
 import sys
