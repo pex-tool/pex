@@ -14,6 +14,8 @@
 # limitations under the License.
 # ==================================================================================================
 
+import os
+
 python_requirement_library(
   name='setuptools',
   requirements=[
@@ -31,6 +33,11 @@ python_library(
   ],
 )
 
+
+with open(os.path.join(buildfile_path(), 'CHANGES')) as fp:
+  LONG_DESCRIPTION = fp.read()
+
+
 python_library(
   name = 'python',
   dependencies = [
@@ -40,11 +47,7 @@ python_library(
     name = 'twitter.common.python',
     version = '0.6.0',
     description = "Twitter's Python packaging toolchain.",
-    long_description = """
-Twitter's Python packaging libraries and toolchain for fetching,
-building and packaging dependencies into .pex ("Python EXecutable")
-virtualized environments.
-""",
+    long_description = LONG_DESCRIPTION,
     url = 'https://github.com/twitter/commons/tree/master/src/python/twitter/common/python',
     license = 'Apache License, Version 2.0',
     zip_safe = True,

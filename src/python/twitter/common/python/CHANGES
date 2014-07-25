@@ -1,197 +1,236 @@
+=======
+CHANGES
+=======
+
+-----
 0.6.0
+-----
 
-  * Change the interpretation of -i (and of PyPIFetcher's pypi_base)
-    to match pip's -i.  This is useful for compatibility with devpi.
+* Change the interpretation of ``-i`` (and of PyPIFetcher's pypi_base)
+  to match pip's ``-i``.  This is useful for compatibility with devpi.
 
+------
 0.5.10
+------
 
-  * Ensures that .egg/.whl distributions on disk have their mtime updated
-    even though we no longer overwrite them. This gives them a new time
-    lease against their ttl. 
+* Ensures that .egg/.whl distributions on disk have their mtime updated
+  even though we no longer overwrite them. This gives them a new time
+  lease against their ttl.
 
-    Without this change, once a distribution aged past the ttl it would
-    never be used again, and builds would re-create the same distributions
-    in tmpdirs over and over again. 
+  Without this change, once a distribution aged past the ttl it would
+  never be used again, and builds would re-create the same distributions
+  in tmpdirs over and over again.
 
+-----
 0.5.9
+-----
 
-  * Fixes an issue where SourceTranslator would overwrite .egg/.whl
-    distributions already on disk.  Instead it should always check to see if
-    a copy already exists and reuse if there.
+* Fixes an issue where SourceTranslator would overwrite .egg/.whl
+  distributions already on disk.  Instead it should always check to see if
+  a copy already exists and reuse if there.
 
-    This ordinarily should not be a problem but the zipimporter caches
-    metadata by filename instead of stat/sha, so if the underlying contents
-    changed a runtime error would be thrown due to seemingly corrupt zip file
-    offsets.
+  This ordinarily should not be a problem but the zipimporter caches
+  metadata by filename instead of stat/sha, so if the underlying contents
+  changed a runtime error would be thrown due to seemingly corrupt zip file
+  offsets. `RB #684 <https://rbcommons.com/s/twitter/r/684/>`_
 
-    https://rbcommons.com/s/twitter/r/684/
+-----
+0.5.8
+-----
 
-0.5.8:
+* Adds ``-i/--index`` option to the pex tool.
 
-  * Adds -i/--index option to the pex tool.
+-----
+0.5.7
+-----
 
-0.5.7:
+* Adds ``twitter.common.python.pex_bootstrap`` ``bootstrap_pex_env`` function in
+  order to initialize a PEX environment from within a python interpreter.
+  (Patch contributed by @kwlzn)
 
-  * Adds twitter.common.python.pex_bootstrap bootstrap_pex_env function in
-    order to initialize a PEX environment from within a python interpreter.
-    (Patch contributed by @kwlzn)
+* Adds stdin=,stdout=,stderr= keyword parameters to the ``PEX.run`` function.
+  (Patch from @benjy)
 
-  * Adds stdin=/stdout=/stderr= keyword parameters to the PEX.run function.
-    (Patch from @benjy)
+-----
+0.5.6
+-----
 
-0.5.6:
+* The crawler now defaults to not follow links for security reasons.
+  (Before the default behavior was to implicitly ``--follow-links`` for all
+  requirements.) `RB #293 <https://rbcommons.com/s/twitter/r/293/>`_
 
-  * The crawler now defaults to not follow links for security reasons.
-   (Before the default behavior was to implicitly --follow-links for all
-    requirements.)
-   https://rbcommons.com/s/twitter/r/293/
+-----
+0.5.5
+-----
 
-0.5.5:
+* Improves scrubbing of site-packages from PEX environments.
+  `RB #289 <https://rbcommons.com/s/twitter/r/289/>`_
 
-  * Improves scrubbing of site-packages from PEX environments.
-    https://rbcommons.com/s/twitter/r/289/
+-------------
+0.5.1 - 0.5.4
+-------------
 
-0.5.1 - 0.5.4:
+* Silences exceptions reported during interpreter teardown (the exceptions
+  resulting from incorrect atexit handler behavior) introduced by 0.4.3
+  `RB #253 <https://rbcommons.com/s/twitter/r/253/>`_
+  `RB #249 <https://rbcommons.com/s/twitter/r/249/>`_
 
-  * Silences exceptions reported during interpreter teardown (the exceptions
-    resulting from incorrect atexit handler behavior) introduced by 0.4.3
-    https://rbcommons.com/s/twitter/r/253/
-    https://rbcommons.com/s/twitter/r/249/
+* Adds ``__hash__`` to ``Link`` so that Packages are hashed correctly in
+  ``twitter.common.python.resolver`` ``resolve``
 
-  * Adds __hash__ to Link so that Packages are hashed correctly in
-    twitter.common.python.resolver resolve()
+-----
+0.5.0
+-----
 
-0.5.0:
+* Adds wheel support to ``twitter.common.python``
+  `RB #94 <https://rbcommons.com/s/twitter/r/94/>`_
+  `RB #154 <https://rbcommons.com/s/twitter/r/154/>`_
+  `RB #148 <https://rbcommons.com/s/twitter/r/148/>`_
 
-  * Adds wheel support to twitter.common.python
-    https://rbcommons.com/s/twitter/r/94
-    https://rbcommons.com/s/twitter/r/154/
-    https://rbcommons.com/s/twitter/r/148/
+-----
+0.4.3
+-----
 
-0.4.3:
+* Adds ``twitter.common.python.finders`` which are additional finders for
+  setuptools including:
+  - find eggs within a .zip
+  - find wheels within a directory
+  - find wheels within a .zip
+  `RB #86 <https://rbcommons.com/s/twitter/r/86/>`_
 
-  * Adds twitter.common.python.finders which are additional finders for
-    setuptools including:
-      - find eggs within a .zip
-      - find wheels within a directory
-      - find wheels within a .zip
-    https://rbcommons.com/s/twitter/r/86/
+* Adds a new Package abstraction by refactoring Link into Link and Package.
+  `RB #92 <https://rbcommons.com/s/twitter/r/92/>`_
 
-  * Adds a new Package abstraction by refactoring Link into Link and Package.
-    https://rbcommons.com/s/twitter/r/92/
+* Adds support for PEP425 tagging necessary for wheel support.
+  `RB #87 <https://rbcommons.com/s/twitter/r/87/>`_
 
-  * Adds support for PEP425 tagging necessary for wheel support.
-    https://rbcommons.com/s/twitter/r/87/
+* Improves python environment isolation by correctly scrubbing namespace
+  packages injected into module ``__path__`` attributes by nspkg pth files.
+  `RB #116 <https://rbcommons.com/s/twitter/r/116/>`_
 
-  * Improves python environment isolation by correctly scrubbing namespace
-    packages injected into module __path__ attributes by nspkg pth files.
-    https://rbcommons.com/s/twitter/r/116/
+* Adds ``twitter.common.python.resolver`` ``resolve`` method that handles
+  transitive dependency resolution better.  This means that if the
+  requirement ``futures==2.1.2`` and an unqualified ``futures>=2`` is pulled in
+  transitively, our resolver will correctly resolve futures 2.1.2 instead
+  of reporting a VersionConflict if any version newer than 2.1.2 is
+  available. `RB #129 <https://rbcommons.com/s/twitter/r/129/>`_
 
-  * Adds twitter.common.python.resolver resolve() method that handles
-    transitive dependency resolution better.  This means that if the
-    requirement 'futures==2.1.2' and an unqualified 'futures>=2' is pulled in
-    transitively, our resolver will correctly resolve futures 2.1.2 instead
-    of reporting a VersionConflict if any version newer than 2.1.2 is
-    available.
-    https://rbcommons.com/s/twitter/r/129/
+* Factors all ``twitter.common.python`` test helpers into
+  ``twitter.common.python.testing``
+  `RB #91 <https://rbcommons.com/s/twitter/r/91/>`_
 
-  * Factors all twitter.common.python test helpers into
-    twitter.common.python.testing
-    https://rbcommons.com/s/twitter/r/91/
+* Bug fix: Fix ``OrderedSet`` atexit exceptions
+  `RB #147 <https://rbcommons.com/s/twitter/r/147/>`_
 
-  * Bug fix: Fix OrderedSet atexit exceptions
-    https://rbcommons.com/s/twitter/r/147/
+* Bug fix: Fix cross-device symlinking (patch from @benjy)
 
-  * Bug fix: Fix cross-device symlinking (patch from @benjy)
+* Bug fix: Raise a ``RuntimeError`` if we fail to write ``pkg_resources`` into a .pex
+  `RB #115 <https://rbcommons.com/s/twitter/r/115/>`_
 
-  * Bug fix: Raise a RuntimeError if we fail to write pkg_resources into a .pex
-    https://rbcommons.com/s/twitter/r/115/
+-----
+0.4.2
+-----
 
-0.4.2:
+* Upgrade to ``setuptools>=1``
 
-  * Upgrade to setuptools>=1
+-----
+0.4.1
+-----
 
-0.4.1:
+* ``twitter.common.python`` is no longer a namespace package
 
-  * twitter.common.python is no longer a namespace package
+-----
+0.4.0
+-----
 
-0.4.0:
+* Kill the egg distiller.  We now delegate .egg generation to bdist_egg.
+  `RB #55 <https://rbcommons.com/s/twitter/r/55/>`_
 
-  * Kill the egg distiller.  We now delegate .egg generation to bdist_egg.
-    https://rbcommons.com/s/twitter/r/55/
+-----
+0.3.1
+-----
 
-0.3.1:
+* Short-circuit resolving a distribution if a local exact match is found.
+  `RB #47 <https://rbcommons.com/s/twitter/r/47/>`_
 
-  * Short-circuit resolving a distribution if a local exact match is found.
-    https://rbcommons.com/s/twitter/r/47/
+* Correctly patch the global ``pkg_resources`` ``WorkingSet`` for the lifetime
+  of the Python interpreter. `RB #52 <https://rbcommons.com/s/twitter/r/52/>`_
 
-  * Correctly patch the global pkg_resources WorkingSet for the lifetime
-    of the Python interpreter.
-    https://rbcommons.com/s/twitter/r/52/
+* Fixes a performance regression in setuptools ``build_zipmanifest``
+  `Setuptools Issue #154 <https://bitbucket.org/pypa/setuptools/issue/154/build_zipmanifest-results-should-be>`_
+  `RB #53 <https://rbcommons.com/s/twitter/r/53/>`_
 
-  * Fixes a performance regression in setuptools build_zipmanifest
-    https://bitbucket.org/pypa/setuptools/issue/154/build_zipmanifest-results-should-be
-    https://rbcommons.com/s/twitter/r/53/
+-----
+0.3.0
+-----
 
-0.3.0:
+* Plumb through the ``--zip-safe``, ``--always-write-cache``, ``--ignore-errors``
+  and ``--inherit-path`` flags to the pex tool.
 
-  * Plumb through the --zip-safe, --always-write-cache, --ignore-errors and
-    --inherit-path flags to the pex tool.
+* Delete the unused ``PythonDirWrapper`` code.
 
-  * Delete the unused PythonDirWrapper code.
+* Split ``PEXEnvironment`` resolution into ``twitter.common.python.environment``
+  and deconflate ``WorkingSet``/``Environment`` state.
 
-  * Split PEXEnvironment resolution into twitter.common.python.environment
-    and deconflate WorkingSet/Environment state.
+* Removes the monkeypatched zipimporter in favor of keeping all eggs
+  unzipped within PEX files.  Refactors the PEX dependency cache in
+  ``util.py``
 
-  * Removes the monkeypatched zipimporter in favor of keeping all eggs
-    unzipped within PEX files.  Refactors the PEX dependency cache in
-    util.py
+* Adds interpreter detection for Jython and PyPy.
 
-  * Adds interpreter detection for Jython and PyPy.
+* Dependency translation errors should be made uniform.
+  (Patch from @johnsirois)
 
-  * Dependency translation errors should be made uniform.
-    (Patch from @johnsirois)
+* Adds ``PEX_PROFILE_ENTRIES`` to limit the number of entries reported when
+  ``PEX_PROFILE`` is enabled. (Patch from @rgs_)
 
-  * Adds PEX_PROFILE_ENTRIES to limit the number of entries reported when
-    PEX_PROFILE is enabled. (Patch from @rgs_)
+* Bug fix: Several fixes to error handling in ``twitter.common.python.http``
+  (From Marc Abramowitz)
 
-  * Bug fix: Several fixes to error handling in twitter.common.python.http
-    (From Marc Abramowitz)
+* Bug fix: PEX should not always assume that ``$PATH`` was available.
+  (Patch from @jamesbroadhead)
 
-  * Bug fix: PEX should not always assume that $PATH was available.
-    (Patch from @jamesbroadhead)
+* Bug fix: Filename should be part of the .pex cache key or else multiple
+  identical versions will incorrectly resolve (Patch from @tc)
 
-  * Bug fix: Filename should be part of the .pex cache key or else multiple
-    identical versions will incorrectly resolve (Patch from @tc)
+* Bug fix: Executed entry points shouldn't be forced to run in an
+  environment with ``__future__`` imports enabled. (Patch from
+  @lawson_patrick)
 
-  * Bug fix: Executed entry points shouldn't be forced to run in an
-    environment with __future__ imports enabled. (Patch from
-    @lawson_patrick)
+* Bug fix: Detect versionless egg links and fail fast. (Patch from
+  @johnsirois.)
 
-  * Bug fix: Detect versionless egg links and fail fast. (Patch from
-    @johnsirois.)
+* Bug fix: Handle setuptools>=2.1 correctly in the zipimport monkeypatch
+  (Patch from @johnsirois.)
 
-  * Bug fix: Handle setuptools>=2.1 correctly in the zipimport monkeypatch
-    (Patch from @johnsirois.)
+-----
+0.2.3
+-----
 
-0.2.3:
+* Bug fix: Fix handling of Fetchers with ``file://`` urls.
 
-  * Bug fix: Fix handling of Fetchers with file:// urls.
+-----
+0.2.2
+-----
 
-0.2.2:
+* Adds the pex tool as a standalone tool.
 
-  * Adds the pex tool as a standalone tool.
+-----
+0.2.1
+-----
 
-0.2.1:
+* Bug fix: Bootstrapped ``twitter.common.python`` should declare ``twitter.common``
+  as a namespace package.
 
-  * Bug fix: Bootstrapped twitter.common.python should declare twitter.common as a
-    namespace package.
+-----
+0.2.0
+-----
 
-0.2.0:
+* Make ``twitter.common.python`` fully standalone by consolidating
+  external dependencies within ``twitter.common.python.common``.
 
-  * Make twitter.common.python fully standalone by consolidating
-    external dependencies within twitter.common.python.common.
+-----
+0.1.0
+-----
 
-0.1.0:
-
-  * Initial published version of twitter.common.python.
+* Initial published version of ``twitter.common.python``.
