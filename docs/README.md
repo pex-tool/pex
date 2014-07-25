@@ -74,7 +74,7 @@ Use cases
         ./my_fabric.pex -h
 
         Usage: fab [options] <command>[:arg1,arg2=val2,host=foo,hosts='h1;h2',...] ...
- 
+
         Options:
           -h, --help            show this help message and exit
           -d NAME, --display=NAME
