@@ -5,8 +5,8 @@ import contextlib
 import os
 import random
 import tempfile
-from textwrap import dedent
 import zipfile
+from textwrap import dedent
 
 from .common import safe_mkdir, safe_mkdtemp, safe_rmtree
 from .installer import EggInstaller

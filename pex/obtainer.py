@@ -9,14 +9,9 @@ import uuid
 
 from .base import requirement_is_exact
 from .common import safe_mkdtemp
-from .fetcher import PyPIFetcher, Fetcher
+from .fetcher import Fetcher, PyPIFetcher
 from .http import Crawler
-from .package import (
-     EggPackage,
-     Package,
-     SourcePackage,
-     WheelPackage,
-)
+from .package import EggPackage, Package, SourcePackage, WheelPackage
 from .platforms import Platform
 from .tracer import TRACER
 from .translator import ChainedTranslator, Translator

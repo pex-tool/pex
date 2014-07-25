@@ -3,19 +3,15 @@
 
 import contextlib
 import os
-
 from zipfile import ZipFile
 
-from pex.http import Web
-from pex.package import (
-    EggPackage,
-    SourcePackage,
-)
-from pex.testing import create_layout
-
-from twitter.common.contextutil import temporary_dir
-from pkg_resources import Requirement, parse_version
 import pytest
+from pkg_resources import parse_version, Requirement
+from twitter.common.contextutil import temporary_dir
+
+from pex.http import Web
+from pex.package import EggPackage, SourcePackage
+from pex.testing import create_layout
 
 
 def test_source_packages():

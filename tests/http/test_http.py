@@ -7,12 +7,12 @@ import os
 import socket
 import threading
 
-from pex.common import safe_mkdtemp
-from pex.http import CachedWeb, Web, FetchError
-
 import pytest
 from twitter.common.lang import Compatibility
 from twitter.common.testing.clock import ThreadedClock
+
+from pex.common import safe_mkdtemp
+from pex.http import CachedWeb, FetchError, Web
 
 if Compatibility.PY3:
   from unittest import mock

@@ -5,10 +5,10 @@ from __future__ import absolute_import
 
 import contextlib
 import errno
-from hashlib import sha1
 import os
 import shutil
 import uuid
+from hashlib import sha1
 
 from pkg_resources import find_distributions
 

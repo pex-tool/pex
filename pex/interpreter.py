@@ -5,26 +5,25 @@
 
 from __future__ import absolute_import
 
-try:
-  from numbers import Integral
-except ImportError:
-  Integral = (int, long)
-
-from collections import defaultdict
 import os
 import re
 import subprocess
 import sys
+from collections import defaultdict
+
+from pkg_resources import Distribution, find_distributions, Requirement
 
 from .base import maybe_requirement, maybe_requirement_list
 from .compatibility import string
 from .tracer import Tracer
 
-from pkg_resources import (
-    find_distributions,
-    Distribution,
-    Requirement,
-)
+try:
+  from numbers import Integral
+except ImportError:
+  Integral = (int, long)
+
+
+
 
 TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex.interpreter: ')
 

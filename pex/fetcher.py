@@ -3,9 +3,9 @@
 
 from __future__ import absolute_import
 
-from abc import abstractmethod
 import random
 import warnings
+from abc import abstractmethod
 
 from .base import maybe_requirement
 from .compatibility import AbstractClass, PY3

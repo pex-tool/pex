@@ -8,6 +8,14 @@ import site
 import sys
 import uuid
 
+from pkg_resources import (
+    DistributionNotFound,
+    Environment,
+    find_distributions,
+    Requirement,
+    WorkingSet
+)
+
 from .common import open_zip, safe_mkdir, safe_rmtree
 from .interpreter import PythonInterpreter
 from .package import distribution_compatible
@@ -15,15 +23,6 @@ from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
 from .tracer import Tracer
 from .util import CacheHelper, DistributionHelper
-
-from pkg_resources import (
-    DistributionNotFound,
-    Environment,
-    find_distributions,
-    Requirement,
-    WorkingSet,
-)
-
 
 TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex.environment: ')
 

@@ -7,11 +7,13 @@ try:
 except ImportError:
   HAS_MAGIC = False
 
-import marshal
 import struct
 import time
 
-from .compatibility import BytesIO, bytes as compatibility_bytes
+import marshal
+
+from .compatibility import bytes as compatibility_bytes
+from .compatibility import BytesIO
 
 
 class CodeTimestamp(object):

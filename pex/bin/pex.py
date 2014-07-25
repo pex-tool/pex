@@ -8,32 +8,22 @@ sources, requirements and their dependencies.
 
 from __future__ import print_function
 
-from optparse import OptionParser
 import os
 import sys
+from optparse import OptionParser
 
 from pex.common import safe_delete, safe_mkdtemp
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
 from pex.obtainer import CachingObtainer
-from pex.package import (
-    EggPackage,
-    SourcePackage,
-    WheelPackage,
-)
+from pex.package import EggPackage, SourcePackage, WheelPackage
+from pex.pex import PEX
+from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
-from pex.pex_builder import PEXBuilder
-from pex.pex import PEX
 from pex.tracer import Tracer
-from pex.translator import (
-    ChainedTranslator,
-    EggTranslator,
-    SourceTranslator,
-    WheelTranslator,
-)
-
+from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 
 CANNOT_PARSE_REQUIREMENT = 100
 CANNOT_DISTILL = 101

@@ -8,9 +8,9 @@ whether or not a distribution's platform is compatible with the current platform
 tagging system used to describe platform compatibility for wheel files.
 """
 
-from .platforms import Platform
-
 from pkg_resources import get_supported_platform
+
+from .platforms import Platform
 
 
 class PEP425Extras(object):

@@ -1,0 +1,3 @@
+include *.py
+include docs/*.md
+include CHANGES

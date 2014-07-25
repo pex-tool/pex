@@ -1,18 +1,18 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from contextlib import closing, contextmanager
 import os
 import zipfile
+from contextlib import closing, contextmanager
+
+from twitter.common.contextutil import temporary_dir
+from twitter.common.dirutil import safe_mkdir
 
 from pex.compatibility import nested
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.testing import make_distribution
 from pex.util import DistributionHelper
-
-from twitter.common.contextutil import temporary_dir
-from twitter.common.dirutil import safe_mkdir
 
 
 exe_main = """

@@ -3,10 +3,10 @@
 
 from __future__ import absolute_import, print_function
 
-from collections import namedtuple
 import json
 import os
 import sys
+from collections import namedtuple
 
 from .common import open_zip
 from .orderedset import OrderedSet

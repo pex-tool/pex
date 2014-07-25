@@ -21,7 +21,6 @@ import zipimport
 
 import pkg_resources
 
-
 if sys.version_info >= (3, 3) and sys.implementation.name == "cpython":
   import importlib._bootstrap as importlib_bootstrap
 else:

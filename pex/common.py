@@ -2,16 +2,16 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import atexit
-from collections import defaultdict
 import contextlib
 import errno
 import os
 import shutil
-import sys
 import stat
+import sys
 import tempfile
 import threading
 import zipfile
+from collections import defaultdict
 
 
 # See http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit

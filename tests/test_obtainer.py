@@ -1,12 +1,12 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from pkg_resources import get_build_platform, Requirement
+
 from pex.fetcher import Fetcher
 from pex.interpreter import PythonInterpreter
 from pex.obtainer import Obtainer
 from pex.package import EggPackage, SourcePackage, WheelPackage
-
-from pkg_resources import Requirement, get_build_platform
 
 
 def test_package_precedence():

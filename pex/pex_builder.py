@@ -7,19 +7,15 @@ import logging
 import os
 import tempfile
 
+from pkg_resources import DefaultProvider, get_provider, ZipProvider
+
+from .common import chmod_plus_x, Chroot, open_zip, safe_mkdir
 from .compatibility import to_bytes
-from .common import chmod_plus_x, open_zip, safe_mkdir, Chroot
 from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
 from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
-
-from pkg_resources import (
-    DefaultProvider,
-    ZipProvider,
-    get_provider,
-)
 
 
 BOOTSTRAP_ENVIRONMENT = b"""

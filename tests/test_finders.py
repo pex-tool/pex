@@ -1,18 +1,17 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from pex.finders import (
-    ChainedFinder,
-    _add_finder as add_finder,
-    _remove_finder as remove_finder,
-)
+import pkg_resources
+
+from pex.finders import _add_finder as add_finder
+from pex.finders import _remove_finder as remove_finder
+from pex.finders import ChainedFinder
 
 try:
   import mock
 except ImportError:
   from unittest import mock
 
-import pkg_resources
 
 
 def test_chained_finder():

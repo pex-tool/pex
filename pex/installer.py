@@ -1,18 +1,18 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import print_function, absolute_import
+from __future__ import absolute_import, print_function
 
 import os
 import subprocess
 import sys
 import tempfile
 
-from .common import safe_mkdtemp, safe_rmtree
-from .interpreter import PythonInterpreter, PythonCapability
-from .tracer import TRACER
-
 from pkg_resources import Distribution, PathMetadata
+
+from .common import safe_mkdtemp, safe_rmtree
+from .interpreter import PythonCapability, PythonInterpreter
+from .tracer import TRACER
 
 __all__ = (
   'Installer',

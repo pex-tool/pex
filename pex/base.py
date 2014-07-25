@@ -5,11 +5,9 @@ from __future__ import absolute_import
 
 from collections import Iterable
 
-from .compatibility import string as compatibility_string
-
 from pkg_resources import Requirement
 
-
+from .compatibility import string as compatibility_string
 
 REQUIRED_ATTRIBUTES = (
     'extras',

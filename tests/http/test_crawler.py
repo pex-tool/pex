@@ -4,10 +4,10 @@
 import contextlib
 import os
 
+from twitter.common.contextutil import temporary_dir
+
 from pex.http.crawler import Crawler, PageParser
 from pex.testing import create_layout
-
-from twitter.common.contextutil import temporary_dir
 
 
 def lpp(page):

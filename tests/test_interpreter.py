@@ -4,10 +4,10 @@
 import os
 import sys
 
-from pex import interpreter
-
-from mock import patch
 import pytest
+from mock import patch
+
+from pex import interpreter
 
 
 class TestPythonInterpreter(object):

@@ -3,22 +3,18 @@
 
 import contextlib
 import functools
-from hashlib import sha1
 import os
 import random
-from textwrap import dedent
 import zipfile
+from hashlib import sha1
+from textwrap import dedent
 
-from pex.installer import Installer, EggInstaller, WheelInstaller
-from pex.testing import (
-    make_distribution,
-    temporary_content,
-    write_zipfile,
-)
-from pex.util import CacheHelper, DistributionHelper
-
-from twitter.common.contextutil import temporary_file, temporary_dir
+from twitter.common.contextutil import temporary_dir, temporary_file
 from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
+
+from pex.installer import EggInstaller, Installer, WheelInstaller
+from pex.testing import make_distribution, temporary_content, write_zipfile
+from pex.util import CacheHelper, DistributionHelper
 
 
 def test_hash():

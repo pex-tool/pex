@@ -5,14 +5,14 @@ from __future__ import print_function
 
 from collections import defaultdict
 
+from pkg_resources import Distribution
+
 from .base import maybe_requirement_list
 from .interpreter import PythonInterpreter
 from .obtainer import Obtainer
 from .orderedset import OrderedSet
-from .package import Package, distribution_compatible
+from .package import distribution_compatible, Package
 from .platforms import Platform
-
-from pkg_resources import Distribution
 
 
 class Untranslateable(Exception):

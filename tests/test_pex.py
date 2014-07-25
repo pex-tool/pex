@@ -6,11 +6,11 @@ import subprocess
 import sys
 import textwrap
 
-from pex.compatibility import nested
-from pex.pex_builder import PEXBuilder
-
 import pytest
 from twitter.common.contextutil import temporary_dir
+
+from pex.compatibility import nested
+from pex.pex_builder import PEXBuilder
 
 
 def write_pex(td, exe_contents):

@@ -3,12 +3,15 @@
 
 from __future__ import absolute_import, print_function
 
-from contextlib import contextmanager
-from distutils import sysconfig
 import os
-from site import USER_SITE
 import sys
 import traceback
+from contextlib import contextmanager
+from distutils import sysconfig
+from site import USER_SITE
+
+import pkg_resources
+from pkg_resources import EntryPoint, find_distributions
 
 from .common import safe_mkdir
 from .compatibility import exec_function
@@ -17,10 +20,6 @@ from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
 from .tracer import Tracer
-
-import pkg_resources
-from pkg_resources import EntryPoint, find_distributions
-
 
 TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex: ')
 

@@ -2,13 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import contextlib
-from functools import partial
 import os
 import re
 import threading
+from functools import partial
 
 from ..compatibility import PY3
-from .http import CachedWeb, Web, FetchError
+from .http import CachedWeb, FetchError, Web
 from .tracer import TRACER
 
 if PY3:

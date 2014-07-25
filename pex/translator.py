@@ -3,21 +3,16 @@
 
 from __future__ import absolute_import
 
-from abc import abstractmethod
 import os
 import shutil
+from abc import abstractmethod
 from uuid import uuid4
 
-from .common import chmod_plus_w, safe_rmtree, safe_mkdir, safe_mkdtemp
+from .common import chmod_plus_w, safe_mkdir, safe_mkdtemp, safe_rmtree
 from .compatibility import AbstractClass
 from .installer import WheelInstaller
 from .interpreter import PythonInterpreter
-from .package import (
-    EggPackage,
-    Package,
-    SourcePackage,
-    WheelPackage,
-)
+from .package import EggPackage, Package, SourcePackage, WheelPackage
 from .platforms import Platform
 from .tracer import TRACER
 from .util import DistributionHelper
