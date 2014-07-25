@@ -12,7 +12,7 @@ with open(os.path.join(os.path.dirname(__file__), 'CHANGES')) as fp:
 
 setup(
   name = 'pex',
-  version = '0.7.0',
+  version = '0.7.0-rc0',
   description = "The PEX packaging toolchain.",
   long_description = LONG_DESCRIPTION,
   url = 'https://github.com/pantsbuild/pex',
