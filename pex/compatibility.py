@@ -41,19 +41,20 @@ else:
   def to_bytes(st):
     return st.encode('utf-8')
 
+_PY3_EXEC_FUNCTION = """
+def exec_function(ast, globals_map):
+  locals_map = globals_map
+  exec ast in globals_map, locals_map
+  return locals_map
+"""
+
 if PY3:
   def exec_function(ast, globals_map):
     locals_map = globals_map
     exec(ast, globals_map, locals_map)
     return locals_map
 else:
-  eval(compile(
-"""
-def exec_function(ast, globals_map):
-  locals_map = globals_map
-  exec ast in globals_map, locals_map
-  return locals_map
-""", "<exec_function>", "exec"))
+  eval(compile(_PY3_EXEC_FUNCTION, "<exec_function>", "exec"))
 
 if PY3:
   from contextlib import contextmanager, ExitStack

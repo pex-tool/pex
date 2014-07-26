@@ -33,9 +33,8 @@ class DevNull(object):
 
 
 class PEX(object):
-  """
-    PEX, n. A self-contained python environment.
-  """
+  """PEX, n. A self-contained python environment."""
+
   class Error(Exception): pass
   class NotFound(Error): pass
 
@@ -67,9 +66,10 @@ class PEX(object):
     return self._pex_info
 
   def entry(self):
-    """
-      Return the module spec of the entry point of this PEX.  None if there
-      is no entry point for this environment.
+    """Return the module spec of the entry point of this PEX.
+
+      :returns: The entry point for this environment as a string, otherwise
+        ``None`` if there is no specific entry point.
     """
     if 'PEX_MODULE' in os.environ:
       TRACER.log('PEX_MODULE override detected: %s' % os.environ['PEX_MODULE'])
@@ -145,7 +145,7 @@ class PEX(object):
     """Return the minimum sys necessary to run this interpreter, a la python -S.
 
     :returns: (sys.path, sys.path_importer_cache, sys.modules) tuple of a
-    bare python installation.
+      bare python installation.
     """
     site_libs = set(cls._site_libs())
     for site_lib in site_libs:
@@ -296,14 +296,10 @@ class PEX(object):
     runner()
 
   def cmdline(self, args=()):
-    """
-      The commandline to run this environment.
+    """The commandline to run this environment.
 
-      Optional arguments:
-        binary: The binary to run instead of the entry point in the environment
-        interpreter_args: Arguments to be passed to the interpreter before, e.g. '-E' or
-          ['-m', 'pylint.lint']
-        args: Arguments to be passed to the application being invoked by the environment.
+    :keyword args: Additional arguments to be passed to the application being invoked by the
+      environment.
     """
     cmds = [self._interpreter.binary]
     cmds.append(self._pex)
@@ -311,12 +307,16 @@ class PEX(object):
     return cmds
 
   def run(self, args=(), with_chroot=False, blocking=True, setsid=False, **kw):
-    """
-      Run the PythonEnvironment in an interpreter in a subprocess.
+    """Run the PythonEnvironment in an interpreter in a subprocess.
 
-      with_chroot: Run with cwd set to the environment's working directory [default: False]
-      blocking: If true, return the return code of the subprocess.
-                If false, return the Popen object of the invoked subprocess.
+    :keyword args: Additional arguments to be passed to the application being invoked by the
+      environment.
+    :keyword with_chroot: Run with cwd set to the environment's working directory.
+    :keyword blocking: If true, return the return code of the subprocess.
+      If false, return the Popen object of the invoked subprocess.
+    :keyword setsid: If true, run the PEX in a separate operating system session.
+
+    Remaining keyword arguments are passed directly to subprocess.Popen.
     """
     import subprocess
     self.clean_environment(forking=True)

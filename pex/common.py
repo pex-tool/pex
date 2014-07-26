@@ -43,33 +43,31 @@ _MKDTEMP_SINGLETON = MktempTeardownRegistry()
 
 @contextlib.contextmanager
 def open_zip(path, *args, **kwargs):
-  """
-    A with-context for zip files.  Passes through positional and kwargs to zipfile.ZipFile.
-  """
+  """A contextmanager for zip files.  Passes through positional and kwargs to zipfile.ZipFile."""
   with contextlib.closing(zipfile.ZipFile(path, *args, **kwargs)) as zip:
     yield zip
 
 
 def safe_mkdtemp(**kw):
-  """
-    Given the parameters to standard tempfile.mkdtemp, create a temporary directory
-    that is cleaned up on process exit.
+  """Create a temporary directory that is cleaned up on process exit.
+
+  Takes the same parameters as tempfile.mkdtemp.
   """
   # proper lock sanitation on fork [issue 6721] would be desirable here.
   return _MKDTEMP_SINGLETON.register(tempfile.mkdtemp(**kw))
 
 
 def register_rmtree(directory):
-  """
-    Register an existing directory to be cleaned up at process exit.
-  """
+  """Register an existing directory to be cleaned up at process exit."""
   return _MKDTEMP_SINGLETON.register(directory)
 
 
 def safe_mkdir(directory, clean=False):
-  """
-    Ensure a directory is present.  If it's not there, create it.  If it is,
-    no-op. If clean is True, ensure the directory is empty.
+  """Safely create a directory.
+
+  Ensures a directory is present.  If it's not there, it is created.  If it
+  is, it's a no-op.  no-op.  If clean is True, ensures the directory is
+  empty.
   """
   if clean:
     safe_rmtree(directory)
@@ -81,18 +79,17 @@ def safe_mkdir(directory, clean=False):
 
 
 def safe_open(filename, *args, **kwargs):
-  """
-    Open a file safely (ensuring that the directory components leading up to it
-    have been created first.)
+  """Safely open a file.
+
+  ``safe_open`` ensures that the directory components leading up the
+  specified file have been created first.
   """
   safe_mkdir(os.path.dirname(filename))
   return open(filename, *args, **kwargs)
 
 
 def safe_delete(filename):
-  """
-    Delete a file safely. If it's not present, no-op.
-  """
+  """Delete a file safely. If it's not present, no-op."""
   try:
     os.unlink(filename)
   except OSError as e:
@@ -101,17 +98,13 @@ def safe_delete(filename):
 
 
 def safe_rmtree(directory):
-  """
-    Delete a directory if it's present. If it's not present, no-op.
-  """
+  """Delete a directory if it's present. If it's not present, no-op."""
   if os.path.exists(directory):
     shutil.rmtree(directory, True)
 
 
 def chmod_plus_x(path):
-  """
-    Equivalent of unix `chmod a+x path`
-  """
+  """Equivalent of unix `chmod a+x path`"""
   path_mode = os.stat(path).st_mode
   path_mode &= int('777', 8)
   if path_mode & stat.S_IRUSR:
@@ -124,9 +117,7 @@ def chmod_plus_x(path):
 
 
 def chmod_plus_w(path):
-  """
-    Equivalent of unix `chmod +w path`
-  """
+  """Equivalent of unix `chmod +w path`"""
   path_mode = os.stat(path).st_mode
   path_mode &= int('777', 8)
   path_mode |= stat.S_IWRITE
@@ -134,12 +125,11 @@ def chmod_plus_w(path):
 
 
 def touch(file, times=None):
-  """
-    Equivalent of unix `touch path`.
+  """Equivalent of unix `touch path`.
 
-    :file The file to touch.
-    :times Either a tuple of (atime, mtime) or else a single time to use for both.  If not
-           specified both atime and mtime are updated to the current time.
+  :file The file to touch.
+  :times Either a tuple of (atime, mtime) or else a single time to use for both.  If not
+  specified both atime and mtime are updated to the current time.
   """
   if times:
     if len(times) > 2:
@@ -154,11 +144,10 @@ def touch(file, times=None):
 
 
 class Chroot(object):
-  """
-    A chroot of files overlayed from one directory to another directory.
+  """A chroot of files overlayed from one directory to another directory.
 
-    Files may be tagged when added in order to keep track of multiple overlays in
-    the chroot.
+  Files may be tagged when added in order to keep track of multiple overlays
+  in the chroot.
   """
   class ChrootException(Exception): pass
 
@@ -169,11 +158,12 @@ class Chroot(object):
           filename, new_tag, orig_tag))
 
   def __init__(self, chroot_base, name=None):
-    """
-      chroot_base = directory for the creation of the target chroot.
-      name = if specified, create the chroot in a temporary directory underneath
-        chroot_base with 'name' as the prefix, otherwise create the chroot directly
-        into chroot_base
+    """Create the chroot.
+
+    :chroot_base Directory for the creation of the target chroot.
+    :name If specified, create the chroot in a temporary directory underneath
+      ``chroot_base`` with ``name`` as the prefix, otherwise create the chroot directly
+      into ``chroot_base``
     """
     self.root = None
     try:
@@ -187,9 +177,7 @@ class Chroot(object):
     self.filesets = {}
 
   def set_relative_root(self, root):
-    """
-      Make all source paths relative to this root path.
-    """
+    """Make all source paths relative to this root path."""
     self.root = root
 
   def clone(self, into=None):
@@ -225,28 +213,26 @@ class Chroot(object):
     return os.path.join(self.root or '', path)
 
   def copy(self, src, dst, label=None):
-    """
-      Copy file from {root}/source to {chroot}/dest with optional label.
+    """Copy file from {root}/source to {chroot}/dest with optional label.
 
-      May raise anything shutil.copyfile can raise, e.g.
-        IOError(Errno 21 'EISDIR')
+    May raise anything shutil.copyfile can raise, e.g.
+      IOError(Errno 21 'EISDIR')
 
-      May raise ChrootTaggingException if dst is already in a fileset
-      but with a different label.
+    May raise ChrootTaggingException if dst is already in a fileset
+    but with a different label.
     """
     self._tag(dst, label)
     self._mkdir_for(dst)
     shutil.copyfile(self._rootjoin(src), os.path.join(self.chroot, dst))
 
   def link(self, src, dst, label=None):
-    """
-      Hard link file from {root}/source to {chroot}/dest with optional label.
+    """Hard link file from {root}/source to {chroot}/dest with optional label.
 
-      May raise anything os.link can raise, e.g.
-        IOError(Errno 21 'EISDIR')
+    May raise anything os.link can raise, e.g.
+      IOError(Errno 21 'EISDIR')
 
-      May raise ChrootTaggingException if dst is already in a fileset
-      but with a different label.
+    May raise ChrootTaggingException if dst is already in a fileset
+    but with a different label.
     """
     self._tag(dst, label)
     self._mkdir_for(dst)
@@ -265,10 +251,9 @@ class Chroot(object):
         raise
 
   def write(self, data, dst, label=None, mode='wb'):
-    """
-      Write data to {chroot}/dest with optional label.
+    """Write data to {chroot}/dest with optional label.
 
-      Has similar exceptional cases as Chroot.copy
+    Has similar exceptional cases as ``Chroot.copy``
     """
 
     self._tag(dst, label)
@@ -277,10 +262,9 @@ class Chroot(object):
       wp.write(data)
 
   def touch(self, dst, label=None):
-    """
-      Perform 'touch' on {chroot}/dest with optional label.
+    """Perform 'touch' on {chroot}/dest with optional label.
 
-      Has similar exceptional cases as Chroot.copy
+    Has similar exceptional cases as Chroot.copy
     """
     self.write('', dst, label, mode='a')
 

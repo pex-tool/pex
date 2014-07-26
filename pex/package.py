@@ -72,10 +72,10 @@ class Package(Link):
     """Is this link compatible with the given :class:`PythonIdentity` identity and platform?
 
     :param identity: The Python identity (e.g. CPython 2.7.5) against which compatibility
-    should be checked.
+      should be checked.
     :type identity: :class:`PythonIdentity`
     :param platform: The platform against which compatibility should be checked.  If None, do not
-    check platform compatibility.
+      check platform compatibility.
     :type platform: string or None
     """
     raise NotImplementedError
@@ -156,7 +156,7 @@ class SourcePackage(Package):
     """Fetch and unpack this source target into the location.
 
     :param location: The location into which the archive should be unpacked.  If None, a temporary
-    ephemeral directory will be created.
+      ephemeral directory will be created.
     :type location: string or None
     :param conn_timeout: A connection timeout for the fetch.  If None, a default is used.
     :type conn_timeout: float or None

@@ -3,6 +3,7 @@
 *.egg-info
 build/*
 dist/*
+docs/_build
 .tox
 .coverage
 tests/htmlcov

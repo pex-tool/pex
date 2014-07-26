@@ -16,26 +16,25 @@ PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
 
 
 class PexInfo(object):
-  """
-    PEX metadata.
+  """PEX metadata.
 
-    # Build metadata:
-    build_properties: BuildProperties # (key-value information about the build system)
-    code_hash: str                    # sha1 hash of all names/code in the archive
-    distributions: {dist_name: str}   # map from distribution name (i.e. path in
-                                      # the internal cache) to its cache key (sha1)
+  # Build metadata:
+  build_properties: BuildProperties # (key-value information about the build system)
+  code_hash: str                    # sha1 hash of all names/code in the archive
+  distributions: {dist_name: str}   # map from distribution name (i.e. path in
+                                    # the internal cache) to its cache key (sha1)
 
-    # Environment options
-    pex_root: ~/.pex                   # root of all pex-related files
-    entry_point: string                # entry point into this pex
-    zip_safe: True, default False      # is this pex zip safe?
-    inherit_path: True, default False  # should this pex inherit site-packages + PYTHONPATH?
-    ignore_errors: True, default False # should we ignore inability to resolve dependencies?
-    always_write_cache: False          # should we always write the internal cache to disk first?
-                                       # this is useful if you have very large dependencies that
-                                       # do not fit in RAM constrained environments
-    requirements: list                 # list of PexRequirement tuples:
-                                       #   [requirement, repository, dynamic]
+  # Environment options
+  pex_root: ~/.pex                   # root of all pex-related files
+  entry_point: string                # entry point into this pex
+  zip_safe: True, default False      # is this pex zip safe?
+  inherit_path: True, default False  # should this pex inherit site-packages + PYTHONPATH?
+  ignore_errors: True, default False # should we ignore inability to resolve dependencies?
+  always_write_cache: False          # should we always write the internal cache to disk first?
+                                     # this is useful if you have very large dependencies that
+                                     # do not fit in RAM constrained environments
+  requirements: list                 # list of PexRequirement tuples:
+                                     #   [requirement, repository, dynamic]
   """
 
   PATH = 'PEX-INFO'

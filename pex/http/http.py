@@ -33,8 +33,7 @@ class Timeout(Exception):
 
 
 class FetchError(Exception):
-  """
-    Error occurred while fetching via HTTP
+  """Error occurred while fetching via HTTP
 
     We raise this when we catch urllib or httplib errors because we don't want
     to leak those implementation details to callers.
@@ -42,10 +41,10 @@ class FetchError(Exception):
 
 
 def deadline(fn, *args, **kw):
-  """Helper function to prevent fn(*args, **kw) from running more than
-     a specified timeout.
+  """Helper function to prevent fn(\*args, \*\*kw) from running more than a specified timeout.
 
-     Takes timeout= kwarg in seconds, which defaults to 150ms (0.150)
+  :param fn: The function to wrap in a deadline.
+  :keyword timeout: The timeout in seconds, which defaults to 150ms (0.150)
   """
   DEFAULT_TIMEOUT_SECS = 0.150
 
@@ -91,9 +90,9 @@ class Web(object):
   def reachable(self, url, conn_timeout=None):
     """Do we think this URL is reachable?
 
-       If this isn't here, it takes 5-30s to timeout on DNS resolution for
-       certain hosts, so we prefetch DNS at a cost of 5-8ms but cap
-       resolution at something sane, e.g. 5s.
+    If this isn't here, it takes 5-30s to timeout on DNS resolution for
+    certain hosts, so we prefetch DNS at a cost of 5-8ms but cap
+    resolution at something sane, e.g. 5s.
     """
     fullurl = urlparse.urlparse(url)
     if not fullurl.scheme or not fullurl.netloc:
@@ -116,9 +115,7 @@ class Web(object):
     return url
 
   def open(self, url, conn_timeout=None, **kw):
-    """
-      Wrapper in front of urlopen that more gracefully handles odd network environments.
-    """
+    """Wrapper in front of urlopen that more gracefully handles odd network environments."""
     url = self.maybe_local_url(url)
     with TRACER.timed('Fetching %s' % url, V=1):
       if not self.reachable(url, conn_timeout=conn_timeout):
@@ -130,11 +127,10 @@ class Web(object):
 
 
 class CachedWeb(object):
-  """
-    A basic http cache.
+  """A basic http cache.
 
-    Can act as a failsoft cache: If an object has expired but the fetch fails,
-    will fall back to the cached object if failsoft set to True.
+  Can act as a failsoft cache: If an object has expired but the fetch fails,
+  will fall back to the cached object if failsoft set to True.
   """
   def __init__(self, cache=None, failsoft=True, clock=time, opener=None):
     self._failsoft = failsoft
