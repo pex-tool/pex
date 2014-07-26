@@ -5,9 +5,13 @@ import os
 import sys
 
 import pytest
-from mock import patch
 
 from pex import interpreter
+
+try:
+  from mock import patch
+except ImportError:
+  from unittest.mock import patch
 
 
 class TestPythonInterpreter(object):
