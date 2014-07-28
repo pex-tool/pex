@@ -43,6 +43,20 @@ def test_source_packages():
       assert set(os.listdir(os.path.join(td2, dateutil_base))) == set(['file1.txt', 'file2.txt'])
 
 
+def test_package_fetch_without_location():
+  with temporary_dir() as td:
+    dateutil_base = 'python-dateutil-1.5'
+    dateutil = '%s.zip' % dateutil_base
+    with contextlib.closing(ZipFile(os.path.join(td, dateutil), 'w')) as zf:
+      zf.writestr(os.path.join(dateutil_base, 'file1.txt'), 'junk1')
+      zf.writestr(os.path.join(dateutil_base, 'file2.txt'), 'junk2')
+
+    sl = SourcePackage('file://' + os.path.join(td, dateutil), opener=Web())
+    dest = sl.fetch()
+
+    assert set(os.listdir(dest)) == set(['file1.txt', 'file2.txt'])
+
+
 def test_egg_packages():
   el = EggPackage('psutil-0.4.1-py2.6-macosx-10.7-intel.egg')
   assert el.name == 'psutil'

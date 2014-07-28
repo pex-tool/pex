@@ -3,6 +3,8 @@ import os
 import tarfile
 import zipfile
 
+from .common import safe_mkdtemp
+
 
 class Archiver(object):
   class Error(Exception): pass
