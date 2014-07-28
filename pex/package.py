@@ -8,6 +8,7 @@ import zipfile
 
 from pkg_resources import EGG_NAME, parse_version, safe_name
 
+from .archiver import Archiver
 from .base import maybe_requirement
 from .common import safe_mkdtemp
 from .http.link import Link
@@ -84,14 +85,6 @@ class Package(Link):
 class SourcePackage(Package):
   """A Package representing an uncompiled/unbuilt source distribution."""
 
-  EXTENSIONS = {
-    '.tar': (tarfile.TarFile.open, tarfile.ReadError),
-    '.tar.gz': (tarfile.TarFile.open, tarfile.ReadError),
-    '.tar.bz2': (tarfile.TarFile.open, tarfile.ReadError),
-    '.tgz': (tarfile.TarFile.open, tarfile.ReadError),
-    '.zip': (zipfile.ZipFile, zipfile.BadZipfile)
-  }
-
   @classmethod
   def split_fragment(cls, fragment):
     """A heuristic used to split a string into version name/fragment:
@@ -116,14 +109,11 @@ class SourcePackage(Package):
   def __init__(self, url, **kw):
     super(SourcePackage, self).__init__(url, **kw)
 
-    for ext, class_info in self.EXTENSIONS.items():
-      if self.filename.endswith(ext):
-        self._archive_class = class_info
-        fragment = self.filename[:-len(ext)]
-        break
-    else:
-      raise self.InvalidLink('%s does not end with any of: %s' % (
-          self.filename, ' '.join(self.EXTENSIONS)))
+    ext = Archiver.get_extension(self.filename)
+    if ext is None:
+      raise self.InvalidLink('%s is not a recognized archive format.' % self.filename)
+
+    fragment = self.filename[:-len(ext)]
     self._name, self._raw_version = self.split_fragment(fragment)
 
   @property
@@ -133,24 +123,6 @@ class SourcePackage(Package):
   @property
   def raw_version(self):
     return safe_name(self._raw_version)
-
-  @classmethod
-  def first_nontrivial_dir(cls, path):
-    files = os.listdir(path)
-    if len(files) == 1 and os.path.isdir(os.path.join(path, files[0])):
-      return cls.first_nontrivial_dir(os.path.join(path, files[0]))
-    else:
-      return path
-
-  def _unpack(self, filename, location=None):
-    path = location or safe_mkdtemp()
-    archive_class, error_class = self._archive_class
-    try:
-      with contextlib.closing(archive_class(filename)) as package:
-        package.extractall(path=path)
-    except error_class:
-      raise self.UnreadableLink('Could not read %s' % self.url)
-    return self.first_nontrivial_dir(path)
 
   def fetch(self, location=None, conn_timeout=None):
     """Fetch and unpack this source target into the location.
@@ -163,7 +135,7 @@ class SourcePackage(Package):
     :returns: The assumed root directory of the package.
     """
     target = super(SourcePackage, self).fetch(conn_timeout=conn_timeout)
-    return self._unpack(target, location)
+    return Archiver.unpack(target, location)
 
   # SourcePackages are always compatible as they can be translated to a distribution.
   def compatible(self, identity, platform=Platform.current()):
