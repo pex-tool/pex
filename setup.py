@@ -6,13 +6,13 @@ import os
 from setuptools import setup
 
 
-with open(os.path.join(os.path.dirname(__file__), 'CHANGES')) as fp:
+with open(os.path.join(os.path.dirname(__file__), 'CHANGES.rst')) as fp:
   LONG_DESCRIPTION = fp.read()
 
 
 setup(
   name = 'pex',
-  version = '0.7.0-rc0',
+  version = '0.7.0',
   description = "The PEX packaging toolchain.",
   long_description = LONG_DESCRIPTION,
   url = 'https://github.com/pantsbuild/pex',
