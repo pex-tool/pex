@@ -25,3 +25,12 @@ Documentation
 
 Documentation about pex, building .pex files, and how .pex files work is
 available at http://pex.rtfd.org.
+
+Hacking
+=======
+
+To run tests, install tox and::
+
+    $ tox
+
+To contribute, follow these instructions: http://pantsbuild.github.io/howto_contribute.html
