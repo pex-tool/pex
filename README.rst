@@ -1,5 +1,7 @@
-PEX
+PEX 
 ===
+.. image:: https://travis-ci.org/pantsbuild/pex.svg?branch=master
+    :target: https://travis-ci.org/pantsbuild/pex
 
 pex is both a library and tool for generating .pex (Python EXecutable) files,
 standalone Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_.
