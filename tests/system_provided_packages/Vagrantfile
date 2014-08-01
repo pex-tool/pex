@@ -1,0 +1,23 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+$install_packages = <<SCRIPT
+which pex && exit 0
+sudo apt-get install -y python-pip python-gtk2
+sudo pip install pex wheel
+SCRIPT
+
+$import_gobject = <<SCRIPT
+echo "import gobject" > import_gobject.py
+export PEX_VERBOSE=1
+pex --inherit-path -- import_gobject.py
+SCRIPT
+
+Vagrant.configure(2) do |config|
+
+  config.vm.box = "ubuntu/trusty64"
+
+  config.vm.provision "shell", inline: $install_packages
+
+  config.vm.provision "shell", inline: $import_gobject
+end
