@@ -6,7 +6,7 @@ from pkg_resources import get_build_platform, Requirement
 from pex.fetcher import Fetcher
 from pex.interpreter import PythonInterpreter
 from pex.obtainer import Obtainer
-from pex.package import EggPackage, SourcePackage, WheelPackage
+from pex.package import EggPackage, SourcePackage, WheelPackage, Package
 
 
 def test_package_precedence():
@@ -40,7 +40,7 @@ class FakeCrawler(object):
 class FakeObtainer(Obtainer):
   def __init__(self, links):
     self.__links = list(links)
-    super(FakeObtainer, self).__init__(FakeCrawler([]), [], [])
+    super(FakeObtainer, self).__init__()
 
   def _iter_unordered(self, req):
     return iter(self.__links)
@@ -57,25 +57,3 @@ def test_iter_ordering():
 
   assert list(FakeObtainer([tgz, egg, whl]).iter(req)) == [whl, egg, tgz]
   assert list(FakeObtainer([egg, tgz, whl]).iter(req)) == [whl, egg, tgz]
-
-
-def test_href_translation():
-  VERSIONS = ['0.4.0', '0.4.1', '0.5.0', '0.6.0']
-
-  def fake_link(version):
-    return 'http://www.example.com/foo/bar/psutil-%s.tar.gz' % version
-
-  fc = FakeCrawler([fake_link(v) for v in VERSIONS])
-  ob = Obtainer(fc, [], [])
-
-  for v in VERSIONS:
-    pkgs = list(ob.iter(Requirement.parse('psutil==%s' % v)))
-    assert len(pkgs) == 1, 'Version: %s' % v
-    assert pkgs[0] == SourcePackage(fake_link(v))
-
-  assert list(ob.iter(Requirement.parse('psutil>=0.5.0'))) == [
-    SourcePackage(fake_link('0.6.0')),
-    SourcePackage(fake_link('0.5.0'))]
-
-  assert list(ob.iter(Requirement.parse('psutil'))) == [
-      SourcePackage(fake_link(v)) for v in reversed(VERSIONS)]

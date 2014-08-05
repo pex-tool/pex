@@ -8,6 +8,7 @@ import shutil
 from abc import abstractmethod
 from uuid import uuid4
 
+from .archiver import Archiver
 from .common import chmod_plus_w, safe_mkdir, safe_mkdtemp, safe_rmtree
 from .compatibility import AbstractClass
 from .installer import WheelInstaller
@@ -67,29 +68,24 @@ class SourceTranslator(TranslatorBase):
                interpreter=PythonInterpreter.get(),
                platform=Platform.current(),
                use_2to3=False,
-               conn_timeout=None,
                installer_impl=WheelInstaller):
     self._interpreter = interpreter
     self._installer_impl = installer_impl
     self._use_2to3 = use_2to3
     self._install_cache = install_cache or safe_mkdtemp()
     safe_mkdir(self._install_cache)
-    self._conn_timeout = conn_timeout
     self._platform = platform
 
   def translate(self, package):
     """From a SourcePackage, translate to a binary distribution."""
     if not isinstance(package, SourcePackage):
       return None
+    if not package.local:
+      raise ValueError('BinaryTranslator cannot translate remote packages.')
 
-    unpack_path, installer = None, None
+    installer = None
     version = self._interpreter.version
-
-    try:
-      unpack_path = package.fetch(conn_timeout=self._conn_timeout)
-    except package.UnreadableLink as e:
-      TRACER.log('Failed to fetch %s: %s' % (package, e))
-      return None
+    unpack_path = Archiver.unpack(package.path)
 
     try:
       if self._use_2to3 and version >= (3,):
@@ -130,26 +126,21 @@ class BinaryTranslator(TranslatorBase):
                package_type,
                install_cache=None,
                interpreter=PythonInterpreter.get(),
-               platform=Platform.current(),
-               conn_timeout=None):
+               platform=Platform.current()):
     self._package_type = package_type
     self._install_cache = install_cache or safe_mkdtemp()
     self._platform = platform
     self._identity = interpreter.identity
-    self._conn_timeout = conn_timeout
 
   def translate(self, package):
     """From a binary package, translate to a local binary distribution."""
+    if not package.local:
+      raise ValueError('BinaryTranslator cannot translate remote packages.')
     if not isinstance(package, self._package_type):
       return None
     if not package.compatible(identity=self._identity, platform=self._platform):
       return None
-    try:
-      bdist = package.fetch(location=self._install_cache, conn_timeout=self._conn_timeout)
-    except package.UnreadableLink as e:
-      TRACER.log('Failed to fetch %s: %s' % (package, e))
-      return None
-    return DistributionHelper.distribution_from_path(bdist)
+    return DistributionHelper.distribution_from_path(package.path)
 
 
 class EggTranslator(BinaryTranslator):
@@ -166,19 +157,14 @@ class Translator(object):
   @staticmethod
   def default(install_cache=None,
               platform=Platform.current(),
-              interpreter=None,
-              conn_timeout=None):
+              interpreter=None):
 
     # TODO(wickman) Consider interpreter=None to indicate "universal" packages
     # since the .whl format can support this.
     # Also consider platform=None to require platform-inspecific packages.
     interpreter = interpreter or PythonInterpreter.get()
 
-    shared_options = dict(
-        install_cache=install_cache,
-        interpreter=interpreter,
-        conn_timeout=conn_timeout)
-
+    shared_options = dict(install_cache=install_cache, interpreter=interpreter)
     whl_translator = WheelTranslator(platform=platform, **shared_options)
     egg_translator = EggTranslator(platform=platform, **shared_options)
     source_translator = SourceTranslator(platform=platform, **shared_options)

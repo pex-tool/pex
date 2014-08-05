@@ -1,16 +1,16 @@
 pex package
 ===========
 
-Subpackages
------------
-
-.. toctree::
-
-    pex.bin
-    pex.http
-
 Submodules
 ----------
+
+pex.archiver module
+---------------
+
+.. automodule:: pex.archiver
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 pex.base module
 ---------------
@@ -32,6 +32,14 @@ pex.compatibility module
 ------------------------
 
 .. automodule:: pex.compatibility
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pex.crawler module
+------------------------
+
+.. automodule:: pex.crawler
     :members:
     :undoc-members:
     :show-inheritance:
@@ -60,6 +68,14 @@ pex.finders module
     :undoc-members:
     :show-inheritance:
 
+pex.http module
+--------------------
+
+.. automodule:: pex.http
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pex.installer module
 --------------------
 
@@ -72,6 +88,14 @@ pex.interpreter module
 ----------------------
 
 .. automodule:: pex.interpreter
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pex.link module
+----------------------
+
+.. automodule:: pex.link
     :members:
     :undoc-members:
     :show-inheritance:

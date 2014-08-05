@@ -122,29 +122,8 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
 
 
 class Installer(InstallerBase):
-  """
-    Install an unpacked distribution with a setup.py.
+  """Install an unpacked distribution with a setup.py."""
 
-    Simple example:
-      >>> from pex.package import SourcePackage
-      >>> from pex.http import Web
-      >>> tornado_tgz = SourcePackage(
-      ...    'http://pypi.python.org/packages/source/t/tornado/tornado-2.3.tar.gz',
-      ...    opener=Web())
-      >>> tornado_installer = Installer(tornado_tgz.fetch())
-      >>> tornado_installer.distribution()
-      tornado 2.3 (/private/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpLLe_Ph/lib/python2.6/site-packages)
-
-    You can then take that distribution and activate it:
-      >>> tornado_distribution = tornado_installer.distribution()
-      >>> tornado_distribution.activate()
-      >>> import tornado
-
-    Alternately you can use the EggInstaller to create an egg instead:
-      >>> from pex.installer import EggInstaller
-      >>> EggInstaller(tornado_tgz.fetch()).bdist()
-      '/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpufgZOO/tornado-2.3-py2.6.egg'
-  """
   def __init__(self, source_dir, strict=True, interpreter=None):
     """
       Create an installer from an unpacked source distribution in source_dir.

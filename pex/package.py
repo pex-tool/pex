@@ -11,7 +11,7 @@ from pkg_resources import EGG_NAME, parse_version, safe_name
 from .archiver import Archiver
 from .base import maybe_requirement
 from .common import safe_mkdtemp
-from .http.link import Link
+from .link import Link
 from .interpreter import PythonInterpreter
 from .pep425 import PEP425, PEP425Extras
 from .platforms import Platform
@@ -19,6 +19,9 @@ from .platforms import Platform
 
 class Package(Link):
   """Base class for named Python binary packages (e.g. source, egg, wheel)."""
+
+  class Error(Exception): pass
+  class InvalidPackage(Error): pass
 
   # The registry of concrete implementations
   _REGISTRY = set()
@@ -38,10 +41,11 @@ class Package(Link):
     :type href: string
     :returns: A Package object if a valid concrete implementation exists, otherwise None.
     """
+    href = Link.wrap(href)
     for package_type in cls._REGISTRY:
       try:
-        return package_type(href, **kw)
-      except package_type.InvalidLink:
+        return package_type(href.url, **kw)
+      except package_type.InvalidPackage:
         continue
 
   @property
@@ -111,7 +115,7 @@ class SourcePackage(Package):
 
     ext = Archiver.get_extension(self.filename)
     if ext is None:
-      raise self.InvalidLink('%s is not a recognized archive format.' % self.filename)
+      raise self.InvalidPackage('%s is not a recognized archive format.' % self.filename)
 
     fragment = self.filename[:-len(ext)]
     self._name, self._raw_version = self.split_fragment(fragment)
@@ -123,19 +127,6 @@ class SourcePackage(Package):
   @property
   def raw_version(self):
     return safe_name(self._raw_version)
-
-  def fetch(self, location=None, conn_timeout=None):
-    """Fetch and unpack this source target into the location.
-
-    :param location: The location into which the archive should be unpacked.  If None, a temporary
-      ephemeral directory will be created.
-    :type location: string or None
-    :param conn_timeout: A connection timeout for the fetch.  If None, a default is used.
-    :type conn_timeout: float or None
-    :returns: The assumed root directory of the package.
-    """
-    target = super(SourcePackage, self).fetch(conn_timeout=conn_timeout)
-    return Archiver.unpack(target, location)
 
   # SourcePackages are always compatible as they can be translated to a distribution.
   def compatible(self, identity, platform=Platform.current()):
@@ -149,16 +140,16 @@ class EggPackage(Package):
     super(EggPackage, self).__init__(url, **kw)
     filename, ext = os.path.splitext(self.filename)
     if ext.lower() != '.egg':
-      raise self.InvalidLink('Not an egg: %s' % filename)
+      raise self.InvalidPackage('Not an egg: %s' % filename)
     matcher = EGG_NAME(filename)
     if not matcher:
-      raise self.InvalidLink('Could not match egg: %s' % filename)
+      raise self.InvalidPackage('Could not match egg: %s' % filename)
 
     self._name, self._raw_version, self._py_version, self._platform = matcher.group(
         'name', 'ver', 'pyver', 'plat')
 
     if self._raw_version is None or self._py_version is None:
-      raise self.InvalidLink('url with .egg extension but bad name: %s' % url)
+      raise self.InvalidPackage('url with .egg extension but bad name: %s' % url)
 
   def __hash__(self):
     return hash((self.name, self.version, self.py_version, self.platform))
@@ -194,12 +185,12 @@ class WheelPackage(Package):
     super(WheelPackage, self).__init__(url, **kw)
     filename, ext = os.path.splitext(self.filename)
     if ext.lower() != '.whl':
-      raise self.InvalidLink('Not a wheel: %s' % filename)
+      raise self.InvalidPackage('Not a wheel: %s' % filename)
     try:
       self._name, self._raw_version, self._py_tag, self._abi_tag, self._arch_tag = (
           filename.split('-'))
     except ValueError:
-      raise self.InvalidLink('Wheel filename malformed.')
+      raise self.InvalidPackage('Wheel filename malformed.')
     # See https://github.com/pypa/pip/issues/1150 for why this is unavoidable.
     self._name.replace('_', '-')
     self._raw_version.replace('_', '-')

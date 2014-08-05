@@ -202,7 +202,6 @@ class PEXBuilder(object):
 
     libraries = {
       'pex': '_pex',
-      'pex.http': os.path.join('_pex', 'http'),
     }
 
     for source_name, target_location in libraries.items():

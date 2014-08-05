@@ -6,4 +6,3 @@ PEX API Reference
 
     pex
     pex.bin
-    pex.http

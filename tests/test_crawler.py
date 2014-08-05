@@ -1,13 +1,12 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import contextlib
 import os
 
 from twitter.common.contextutil import temporary_dir
 
-from pex.http.crawler import Crawler, PageParser
-from pex.testing import create_layout
+from pex.crawler import Crawler, PageParser
+from pex.link import Link
 
 
 def lpp(page):
@@ -23,7 +22,7 @@ def test_page_parser_empty():
 
 
 def test_page_parser_basic():
-  for target in ('href', 'href =', 'href =""'): #, 'href= ""'):
+  for target in ('href', 'href =', 'href =""'):
     assert lpp(target.lower()) == ([], [])
     assert lpp(target.upper()) == ([], [])
   for target in ('a href=', 'a href=""'):
@@ -32,7 +31,7 @@ def test_page_parser_basic():
   assert lpp('a href=11') == (['11'], [])
   assert lpp('a href=12') == (['12'], [])
   for href in ('pooping', '{};a[32[32{#@'):
-    for start, end in ( ('', ''), ('"', '"'), ("'", "'") ):
+    for start, end in (('', ''), ('"', '"'), ("'", "'")):
       target = '%s%s%s' % (start, href, end)
       assert lpp('<a href=%s>' % target) == ([href], [])
       assert lpp("<a href=%s>" % target) == ([href], [])
@@ -44,7 +43,7 @@ def test_page_parser_basic():
 def test_page_parser_rels():
   VALID_RELS = tuple(PageParser.REL_TYPES)
   for rel in VALID_RELS + ('', ' ', 'blah'):
-    for start, end in ( ('', ''), ('"', '"'), ("'", "'") ):
+    for start, end in (('', ''), ('"', '"'), ("'", "'")):
       target = 'rel=%s%s%s' % (start, rel, end)
       links, rels = lpp("<a href='things' %s> <a href='stuff'>" % target)
       assert links == ['things', 'stuff']
@@ -59,6 +58,7 @@ def test_page_parser_rels():
       else:
         assert rels == []
 
+
 def test_page_parser_skips_data_rels():
   for ext in PageParser.REL_SKIP_EXTENSIONS:
     things = 'things%s' % ext
@@ -72,32 +72,32 @@ def test_crawler_local():
   FL = ('a.txt', 'b.txt', 'c.txt')
   with temporary_dir() as td:
     for fn in FL:
-      with open(os.path.join(td, fn), 'w') as fp:
+      with open(os.path.join(td, fn), 'w'):
         pass
     for dn in (1, 2):
       os.mkdir(os.path.join(td, 'dir%d' % dn))
       for fn in FL:
-        with open(os.path.join(td, 'dir%d' % dn, fn), 'w') as fp:
+        with open(os.path.join(td, 'dir%d' % dn, fn), 'w'):
           pass
 
     # basic file / dir rel splitting
-    links, rels = Crawler(enable_cache=False).execute(td)
-    assert set(links) == set(os.path.join(td, fn) for fn in FL)
-    assert set(rels) == set(os.path.join(td, 'dir%d' % n) for n in (1, 2))
+    links, rels = Crawler.crawl_local(Link.wrap(td))
+    assert set(links) == set(Link.wrap(os.path.join(td, fn)) for fn in FL)
+    assert set(rels) == set(Link.wrap(os.path.join(td, 'dir%d' % n)) for n in (1, 2))
 
     # recursive crawling, single vs multi-threaded
     for caching in (False, True):
       for threads in (1, 2, 3):
-        links = Crawler(enable_cache=caching, threads=threads).crawl([td], follow_links=True)
-        expect_links = (set(os.path.join(td, fn) for fn in FL) |
-                        set(os.path.join(td, 'dir1', fn) for fn in FL) |
-                        set(os.path.join(td, 'dir2', fn) for fn in FL))
+        links = Crawler(threads=threads).crawl([td], follow_links=True)
+        expect_links = (set(Link.wrap(os.path.join(td, fn)) for fn in FL) |
+                        set(Link.wrap(os.path.join(td, 'dir1', fn)) for fn in FL) |
+                        set(Link.wrap(os.path.join(td, 'dir2', fn)) for fn in FL))
         assert set(links) == expect_links
 
 
 def test_crawler_unknown_scheme():
   # skips unknown url schemes
-  Crawler(enable_cache=False).execute('ftp://ftp.cdrom.com') == (set(), set())
+  Crawler().crawl('ftp://ftp.cdrom.com') == (set(), set())
 
 
 # TODO(wickman)

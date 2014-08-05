@@ -3,6 +3,7 @@ python: 2.7
 env:
   - TOXENV=py26
   - TOXENV=py27
+  - TOXENV=py27-requests
   - TOXENV=py33
   - TOXENV=py34
   - TOXENV=pypy

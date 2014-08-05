@@ -245,10 +245,10 @@ def build_obtainer(options):
     package_precedence = (EggPackage, SourcePackage)
 
   obtainer = CachingObtainer(
-      install_cache=options.cache_dir,
       fetchers=fetchers,
       translators=translator,
-      precedence=package_precedence)
+      precedence=package_precedence,
+      cache=options.cache_dir)
 
   return obtainer
 
