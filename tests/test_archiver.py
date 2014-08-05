@@ -2,9 +2,9 @@ import contextlib
 import os
 from zipfile import ZipFile
 
-from pex.archiver import Archiver
-
 from twitter.common.contextutil import temporary_dir
+
+from pex.archiver import Archiver
 
 
 def test_package_fetch_without_location():

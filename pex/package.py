@@ -1,18 +1,15 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import contextlib
 import os
-import tarfile
-import zipfile
 
 from pkg_resources import EGG_NAME, parse_version, safe_name
 
 from .archiver import Archiver
 from .base import maybe_requirement
 from .common import safe_mkdtemp
-from .link import Link
 from .interpreter import PythonInterpreter
+from .link import Link
 from .pep425 import PEP425, PEP425Extras
 from .platforms import Platform
 

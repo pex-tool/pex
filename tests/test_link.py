@@ -1,8 +1,8 @@
 import os
 
-from pex.link import Link
-
 import pytest
+
+from pex.link import Link
 
 
 def test_link_wrapping():
@@ -49,4 +49,3 @@ def test_link_schemes():
   assert link.scheme == 'file'
   assert link.local
   assert link.path == os.path.realpath('/foo/bar')
-

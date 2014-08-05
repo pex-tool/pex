@@ -13,7 +13,7 @@ from twitter.common.contextutil import temporary_dir, temporary_file
 from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
 
 from pex.installer import EggInstaller, Installer, WheelInstaller
-from pex.testing import make_distribution, temporary_content, write_zipfile
+from pex.testing import make_bdist, temporary_content, write_zipfile
 from pex.util import CacheHelper, DistributionHelper
 
 
@@ -61,8 +61,8 @@ def test_hash_consistency():
 
 
 def test_zipsafe():
-  make_egg = functools.partial(make_distribution, installer_impl=EggInstaller)
-  make_whl = functools.partial(make_distribution, installer_impl=WheelInstaller)
+  make_egg = functools.partial(make_bdist, installer_impl=EggInstaller)
+  make_whl = functools.partial(make_bdist, installer_impl=WheelInstaller)
 
   for zipped in (False, True):
     for zip_safe in (False, True):

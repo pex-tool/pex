@@ -6,8 +6,8 @@ import re
 import threading
 
 from .compatibility import PY3
-from .link import Link
 from .http import Context
+from .link import Link
 from .tracer import TRACER
 
 if PY3:

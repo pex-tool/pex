@@ -1,10 +1,11 @@
 from __future__ import absolute_import
 
-from collections import Iterable
 import os
 import posixpath
+from collections import Iterable
 
-from .compatibility import PY3, string as compatible_string
+from .compatibility import string as compatible_string
+from .compatibility import PY3
 
 if PY3:
   import urllib.parse as urlparse

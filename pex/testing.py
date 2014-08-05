@@ -8,8 +8,8 @@ import tempfile
 import zipfile
 from textwrap import dedent
 
-from .common import safe_mkdir, safe_mkdtemp, safe_rmtree
-from .installer import EggInstaller
+from .common import safe_mkdir, safe_rmtree
+from .installer import EggInstaller, Packager
 from .util import DistributionHelper
 
 
@@ -20,16 +20,6 @@ def temporary_dir():
     yield td
   finally:
     safe_rmtree(td)
-
-
-@contextlib.contextmanager
-def create_layout(*filelist):
-  with temporary_dir() as td:
-    for fl in filelist:
-      for fn in fl:
-        with open(os.path.join(td, fn), 'w') as fp:
-          fp.write('junk')
-    yield td
 
 
 def random_bytes(length):
@@ -82,6 +72,9 @@ PROJECT_CONTENT = {
           package_data={'my_package': ['package_data/*.dat']},
       )
   '''),
+  'MANIFEST.in': dedent('''
+  include setup.py
+  '''),
   'my_package/__init__.py': 0,
   'my_package/my_module.py': 'def do_something():\n  print("hello world!")\n',
   'my_package/package_data/resource1.dat': 1000,
@@ -90,10 +83,20 @@ PROJECT_CONTENT = {
 
 
 @contextlib.contextmanager
-def make_distribution(name='my_project', installer_impl=EggInstaller, zipped=False, zip_safe=True):
+def make_installer(name='my_project', installer_impl=EggInstaller, zip_safe=True):
   interp = {'project_name': name, 'zip_safe': zip_safe}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
-    installer = installer_impl(td)
+    yield installer_impl(td)
+
+
+def make_sdist(name='my_project', zip_safe=True):
+  with make_installer(name=name, installer_impl=Packager, zip_safe=zip_safe) as packager:
+    return packager.sdist()
+
+
+@contextlib.contextmanager
+def make_bdist(name='my_project', installer_impl=EggInstaller, zipped=False, zip_safe=True):
+  with make_installer(name=name, installer_impl=installer_impl, zip_safe=zip_safe) as installer:
     dist_location = installer.bdist()
     if zipped:
       yield DistributionHelper.distribution_from_path(dist_location)

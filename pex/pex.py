@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import os
+import subprocess
 import sys
 import traceback
 from contextlib import contextmanager
@@ -38,8 +39,8 @@ class PEX(object):
   class Error(Exception): pass
   class NotFound(Error): pass
 
-  @staticmethod
-  def start_coverage():
+  @classmethod
+  def start_coverage(cls):
     try:
       import coverage
       cov = coverage.coverage(auto_data=True, data_suffix=True,
@@ -318,7 +319,6 @@ class PEX(object):
 
     Remaining keyword arguments are passed directly to subprocess.Popen.
     """
-    import subprocess
     self.clean_environment(forking=True)
 
     cmdline = self.cmdline(args)

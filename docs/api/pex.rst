@@ -92,6 +92,14 @@ pex.interpreter module
     :undoc-members:
     :show-inheritance:
 
+pex.iterator module
+----------------------
+
+.. automodule:: pex.iterator
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pex.link module
 ----------------------
 
@@ -104,14 +112,6 @@ pex.marshaller module
 ---------------------
 
 .. automodule:: pex.marshaller
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pex.obtainer module
--------------------
-
-.. automodule:: pex.obtainer
     :members:
     :undoc-members:
     :show-inheritance:

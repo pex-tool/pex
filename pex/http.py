@@ -1,13 +1,12 @@
-from abc import abstractmethod
 import contextlib
 import hashlib
-import io
 import os
 import shutil
 import uuid
+from abc import abstractmethod
 
-from .compatibility import AbstractClass, PY3
 from .common import safe_mkdtemp, safe_open
+from .compatibility import AbstractClass, PY3
 from .tracer import TRACER
 
 try:

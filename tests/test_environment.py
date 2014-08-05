@@ -2,22 +2,20 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import zipfile
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 
 from twitter.common.contextutil import temporary_dir, temporary_file
 
 from pex.compatibility import nested
 from pex.environment import PEXEnvironment
-from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.testing import make_distribution
+from pex.testing import make_bdist
 
 
 @contextmanager
 def yield_pex_builder(zip_safe=True):
-  with nested(temporary_dir(), make_distribution('p1', zipped=True, zip_safe=zip_safe)) as (td, p1):
+  with nested(temporary_dir(), make_bdist('p1', zipped=True, zip_safe=zip_safe)) as (td, p1):
     pb = PEXBuilder(path=td)
     pb.add_egg(p1.location)
     yield pb

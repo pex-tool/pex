@@ -11,7 +11,7 @@ from twitter.common.dirutil import safe_mkdir
 from pex.compatibility import nested
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.testing import make_distribution
+from pex.testing import make_bdist
 from pex.util import DistributionHelper
 
 
@@ -42,7 +42,7 @@ def write_pex(td, exe_contents, dists=None):
 
 def test_pex_builder():
   # test w/ and w/o zipfile dists
-  with nested(temporary_dir(), make_distribution('p1', zipped=True)) as (td, p1):
+  with nested(temporary_dir(), make_bdist('p1', zipped=True)) as (td, p1):
     write_pex(td, exe_main, dists=[p1])
 
     success_txt = os.path.join(td, 'success.txt')
@@ -52,7 +52,7 @@ def test_pex_builder():
       assert fp.read() == 'success'
 
   # test w/ and w/o zipfile dists
-  with nested(temporary_dir(), temporary_dir(), make_distribution('p1', zipped=True)) as (
+  with nested(temporary_dir(), temporary_dir(), make_bdist('p1', zipped=True)) as (
       td1, td2, p1):
     target_egg_dir = os.path.join(td2, os.path.basename(p1.location))
     safe_mkdir(target_egg_dir)

@@ -1,4 +1,4 @@
-PEX 
+PEX
 ===
 .. image:: https://travis-ci.org/pantsbuild/pex.svg?branch=master
     :target: https://travis-ci.org/pantsbuild/pex

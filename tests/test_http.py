@@ -1,17 +1,11 @@
-from contextlib import contextmanager
 import hashlib
+from contextlib import contextmanager
 
-from pex.http import (
-    CachedRequestsContext,
-    Context,
-    RequestsContext,
-    StreamFilelike,
-    UrllibContext,
-)
-from pex.link import Link
-
-from twitter.common.contextutil import temporary_file
 import pytest
+from twitter.common.contextutil import temporary_file
+
+from pex.http import CachedRequestsContext, Context, RequestsContext, StreamFilelike, UrllibContext
+from pex.link import Link
 
 try:
   from responses import RequestsMock

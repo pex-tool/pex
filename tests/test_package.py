@@ -1,16 +1,10 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import contextlib
-import os
-from zipfile import ZipFile
-
 import pytest
 from pkg_resources import parse_version, Requirement
-from twitter.common.contextutil import temporary_dir
 
 from pex.package import EggPackage, SourcePackage
-from pex.testing import create_layout
 
 
 def test_source_packages():
