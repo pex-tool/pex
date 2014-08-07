@@ -1,9 +1,9 @@
 *~
 *.pyc
 *.egg-info
-build/*
-dist/*
-docs/_build
-.tox
-.coverage
-tests/htmlcov
+/build/*
+/dist/*
+/docs/_build
+/.tox
+/.coverage*
+/htmlcov

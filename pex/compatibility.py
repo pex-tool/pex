@@ -32,14 +32,21 @@ string = (str,) if PY3 else (str, unicode)
 bytes = (bytes,)
 
 if PY2:
-  def to_bytes(st):
+  def to_bytes(st, encoding='utf-8'):
     if isinstance(st, unicode):
-      return st.encode('utf-8')
+      return st.encode(encoding)
+    elif isinstance(st, bytes):
+      return st
     else:
-      return str(st)
+      raise ValueError('Cannot convert %s to bytes' % type(st))
 else:
-  def to_bytes(st):
-    return st.encode('utf-8')
+  def to_bytes(st, encoding='utf-8'):
+    if isinstance(st, str):
+      return st.encode(encoding)
+    elif isinstance(st, bytes):
+      return st
+    else:
+      raise ValueError('Cannot convert %s to bytes.' % type(st))
 
 _PY3_EXEC_FUNCTION = """
 def exec_function(ast, globals_map):

@@ -91,6 +91,6 @@ def test_requests_context():
 
   # test local reading
   with temporary_file() as tf:
-    tf.write('goop')
+    tf.write(b'goop')
     tf.flush()
-    assert context.read(Link.wrap(tf.name)) == 'goop'
+    assert context.read(Link.wrap(tf.name)) == b'goop'

@@ -43,8 +43,7 @@ class PEX(object):
   def start_coverage(cls):
     try:
       import coverage
-      cov = coverage.coverage(auto_data=True, data_suffix=True,
-        data_file='.coverage.%s' % os.environ['PEX_COVERAGE'])
+      cov = coverage.coverage(auto_data=True, data_suffix=True)
       cov.start()
     except ImportError:
       sys.stderr.write('Could not bootstrap coverage module!\n')

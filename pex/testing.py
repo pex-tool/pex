@@ -5,11 +5,14 @@ import contextlib
 import os
 import random
 import tempfile
+import subprocess
 import zipfile
 from textwrap import dedent
 
 from .common import safe_mkdir, safe_rmtree
+from .compatibility import nested
 from .installer import EggInstaller, Packager
+from .pex_builder import PEXBuilder
 from .util import DistributionHelper
 
 
@@ -106,3 +109,75 @@ def make_bdist(name='my_project', installer_impl=EggInstaller, zipped=False, zip
         with contextlib.closing(zipfile.ZipFile(dist_location)) as zf:
           zf.extractall(extract_path)
         yield DistributionHelper.distribution_from_path(extract_path)
+
+
+COVERAGE_PREAMBLE = """
+try:
+  from coverage import coverage
+  cov = coverage(auto_data=True, data_suffix=True)
+  cov.start()
+except ImportError:
+  pass
+"""
+
+
+def write_simple_pex(td, exe_contents, dists=None, coverage=False):
+  dists = dists or []
+
+  with open(os.path.join(td, 'exe.py'), 'w') as fp:
+    fp.write(exe_contents)
+
+  pb = PEXBuilder(path=td, preamble=COVERAGE_PREAMBLE if coverage else None)
+
+  for dist in dists:
+    pb.add_egg(dist.location)
+
+  pb.set_executable(os.path.join(td, 'exe.py'))
+  pb.freeze()
+
+  return pb
+
+
+# TODO(wickman) Why not PEX.run?
+def run_simple_pex(pex, args=(), env=None):
+  po = subprocess.Popen(
+      [pex] + list(args),
+      stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT,
+      env=env)
+  po.wait()
+  return po.stdout.read(), po.returncode
+
+
+def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False):
+  with nested(temporary_dir(), temporary_dir()) as (td1, td2):
+    pb = write_simple_pex(td1, body, dists=dists, coverage=coverage)
+    pex = os.path.join(td2, 'app.pex')
+    pb.build(pex)
+    return run_simple_pex(pex, args=args, env=env)
+
+
+def _iter_filter(data_dict):
+  fragment = '/%s/_pex/' % PEXBuilder.BOOTSTRAP_DIR
+  for filename, records in data_dict.items():
+    try:
+      bi = filename.index(fragment)
+    except ValueError:
+      continue
+    # rewrite to look like root source
+    yield ('pex/' + filename[bi + len():], records)
+
+
+def combine_pex_coverage(coverage_file_iter):
+  from coverage.data import CoverageData
+
+  combined = CoverageData(basename='.coverage_combined')
+
+  for filename in coverage_file_iter:
+    cov = CoverageData(basename=filename)
+    cov.read()
+    combined.add_line_data(dict(_iter_filter(cov.line_data())))
+    combined.add_arc_data(dict(_iter_filter(cov.arc_data())))
+
+  combined.write()
+  return combined.filename

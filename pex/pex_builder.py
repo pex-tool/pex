@@ -51,12 +51,26 @@ class PEXBuilder(object):
 
   BOOTSTRAP_DIR = ".bootstrap"
 
-  def __init__(self, path=None, interpreter=None, chroot=None, pex_info=None):
+  # TODO(wickman) Is there any good use case for a pre-existing chroot?
+  def __init__(self, path=None, interpreter=None, chroot=None, pex_info=None, preamble=None):
+    """Initialize a pex builder.
+
+    :keyword path: The path to write the PEX as it is built.  If ``None`` is specified,
+      a temporary directory will be created.
+    :keyword interpreter: The interpreter to use to build this PEX environment.  If ``None``
+      is specified, the current interpreter is used.
+    :keyword chroot: A preexisting Chroot to use to build a PEX.
+    :keyword pex_info: A preexisting PexInfo to use to build the PEX.
+    :keyword preamble: If supplied, execute this code prior to bootstrapping this PEX
+      environment.
+    :type preamble: str
+    """
     self._chroot = chroot or Chroot(path or tempfile.mkdtemp())
     self._pex_info = pex_info or PexInfo.default()
     self._frozen = False
     self._interpreter = interpreter or PythonInterpreter.get()
     self._logger = logging.getLogger(__name__)
+    self._preamble = to_bytes(preamble or '')
 
   @property
   def interpreter(self):
@@ -169,7 +183,8 @@ class PEXBuilder(object):
     self._chroot.write(self._pex_info.dump().encode('utf-8'), PexInfo.PATH, label='manifest')
 
   def _prepare_main(self):
-    self._chroot.write(BOOTSTRAP_ENVIRONMENT, '__main__.py', label='main')
+    self._chroot.write(self._preamble + b'\n' + BOOTSTRAP_ENVIRONMENT,
+        '__main__.py', label='main')
 
   # TODO(wickman) Ideally we unqualify our setuptools dependency and inherit whatever is
   # bundled into the environment so long as it is compatible (and error out if not.)

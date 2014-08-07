@@ -11,7 +11,7 @@ from twitter.common.dirutil import safe_mkdir
 from pex.compatibility import nested
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.testing import make_bdist
+from pex.testing import make_bdist, write_simple_pex as write_pex
 from pex.util import DistributionHelper
 
 
@@ -23,21 +23,6 @@ do_something()
 with open(sys.argv[1], 'w') as fp:
   fp.write('success')
 """
-
-
-def write_pex(td, exe_contents, dists=None):
-  dists = dists or []
-
-  with open(os.path.join(td, 'exe.py'), 'w') as fp:
-    fp.write(exe_contents)
-
-  pb = PEXBuilder(path=td)
-  for dist in dists:
-    pb.add_egg(dist.location)
-  pb.set_executable(os.path.join(td, 'exe.py'))
-  pb.freeze()
-
-  return pb
 
 
 def test_pex_builder():

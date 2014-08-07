@@ -25,9 +25,6 @@ from pex.resolver import resolve as requirement_resolver
 from pex.tracer import Tracer, TRACER
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 
-CANNOT_PARSE_REQUIREMENT = 100
-CANNOT_DISTILL = 101
-
 
 def die(msg, error_code=1):
   print(msg, file=sys.stderr)
