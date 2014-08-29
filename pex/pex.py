@@ -116,8 +116,21 @@ class PEX(object):
 
     return new_modules
 
+  def minimum_sys_path(self, site_libs):
+    sys_path = OrderedSet(sys.path)
+
+    if not self._pex_info.inherit_path:
+        sys_path = list(sys_path - self._scrub_paths(site_libs))
+
+    scrub_from_importer_cache = filter(
+      lambda key: any(key.startswith(path) for path in sys_path),
+      sys.path_importer_cache.keys())
+    scrubbed_importer_cache = dict((key, value) for (key, value) in sys.path_importer_cache.items()
+      if key not in scrub_from_importer_cache)
+    return sys_path, scrubbed_importer_cache
+
   @classmethod
-  def minimum_sys_path(cls, site_libs):
+  def _scrub_paths(cls, site_libs):
     site_distributions = OrderedSet()
     for path_element in sys.path:
       if any(path_element.startswith(site_lib) for site_lib in site_libs):
@@ -132,31 +145,24 @@ class PEX(object):
       TRACER.log('Scrubbing from user site: %s' % path)
 
     scrub_paths = site_distributions | user_site_distributions
-    scrubbed_sys_path = list(OrderedSet(sys.path) - scrub_paths)
-    scrub_from_importer_cache = filter(
-      lambda key: any(key.startswith(path) for path in scrub_paths),
-      sys.path_importer_cache.keys())
-    scrubbed_importer_cache = dict((key, value) for (key, value) in sys.path_importer_cache.items()
-      if key not in scrub_from_importer_cache)
-    return scrubbed_sys_path, scrubbed_importer_cache
+    return scrub_paths
 
-  @classmethod
-  def minimum_sys(cls):
+  def minimum_sys(self):
     """Return the minimum sys necessary to run this interpreter, a la python -S.
 
     :returns: (sys.path, sys.path_importer_cache, sys.modules) tuple of a
       bare python installation.
     """
-    site_libs = set(cls._site_libs())
+    site_libs = set(self._site_libs())
     for site_lib in site_libs:
       TRACER.log('Found site-library: %s' % site_lib)
-    for extras_path in cls._extras_paths():
+    for extras_path in self._extras_paths():
       TRACER.log('Found site extra: %s' % extras_path)
       site_libs.add(extras_path)
     site_libs = set(os.path.normpath(path) for path in site_libs)
 
-    sys_modules = cls.minimum_sys_modules(site_libs)
-    sys_path, sys_path_importer_cache = cls.minimum_sys_path(site_libs)
+    sys_modules = self.minimum_sys_modules(site_libs)
+    sys_path, sys_path_importer_cache = self.minimum_sys_path(site_libs)
 
     return sys_path, sys_path_importer_cache, sys_modules
 
@@ -178,9 +184,8 @@ class PEX(object):
     finally:
       patch(old_working_set)
 
-  @classmethod
   @contextmanager
-  def patch_sys(cls):
+  def patch_sys(self):
     """Patch sys with all site scrubbed."""
     def patch_dict(old_value, new_value):
       old_value.clear()
@@ -193,7 +198,7 @@ class PEX(object):
 
     old_sys_path, old_sys_path_importer_cache, old_sys_modules = (
         sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
-    new_sys_path, new_sys_path_importer_cache, new_sys_modules = cls.minimum_sys()
+    new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys()
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
 
