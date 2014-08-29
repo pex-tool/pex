@@ -2,13 +2,19 @@
 # vi: set ft=ruby :
 
 $install_packages = <<SCRIPT
-which pex && exit 0
+which pip && exit 0
 sudo apt-get install -y python-pip python-gtk2
-sudo pip install pex wheel
+sudo pip install wheel
 SCRIPT
 
 $import_gobject = <<SCRIPT
-echo "import gobject" > import_gobject.py
+cd /pex_src
+sudo python setup.py install
+cd
+cat > import_gobject.py << __EOF
+import gobject
+print gobject.__file__
+__EOF
 export PEX_VERBOSE=1
 pex --inherit-path -- import_gobject.py
 SCRIPT
@@ -16,6 +22,8 @@ SCRIPT
 Vagrant.configure(2) do |config|
 
   config.vm.box = "ubuntu/trusty64"
+
+  config.vm.synced_folder "../../", "/pex_src"
 
   config.vm.provision "shell", inline: $install_packages
 
