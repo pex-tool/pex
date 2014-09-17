@@ -16,7 +16,7 @@ from pkg_resources import (
     WorkingSet
 )
 
-from .common import open_zip, safe_mkdir, safe_rmtree
+from .common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree
 from .interpreter import PythonInterpreter
 from .package import distribution_compatible
 from .pex_builder import PEXBuilder
@@ -97,6 +97,34 @@ class PEXEnvironment(Environment):
       else:
         for dist in cls.write_zipped_internal_cache(pex, pex_info):
           yield dist
+
+  @classmethod
+  def access_zipped_assets(cls, static_module_name, static_path, asset_path, dir_location='.'):
+    """
+    Create a copy of static resource files as we can't serve
+    them from within the pex file.
+
+    :param static_module_name: Module name containing module to cache in a tempdir
+    :type static_module_name: string in the form of 'twitter.common.zookeeper'
+    :param static_path: Module name of the form 'serverset'
+    :param asset_path: Initially a module name that's the same as the static_path, but will be changed to walk
+        the directory tree
+    :param dir_location: directory to create a new temporary directory in
+    """
+    temp_dir = safe_mkdtemp(dir=dir_location)
+    # ['__init__.py', 'rando_module.py']
+    for asset in pkg_resources.resource_listdir(static_module_name, asset_path):
+      print("Asset: %s" % asset)
+      asset_target = os.path.join(os.path.relpath(asset_path, static_path), asset)
+      print("Asset target: %s" % asset_target)
+      if pkg_resources.resource_isdir(static_module, os.path.join(asset_path, asset)):
+        safe_mkdir(os.path.join(temp_dir, asset_target))
+        access_zipped_file(static_module_name, static_path, os.path.join(asset_path, asset))
+      else:
+        with open(os.path.join(temp_dir, asset_target), 'wb') as fp:
+          fp.write(pkg_resources.resource_string(
+            static_module_name, os.path.join(static_path, asset_target)))
+
 
   def __init__(self, pex, pex_info, interpreter=None, **kw):
     self._internal_cache = os.path.join(pex, pex_info.internal_cache)

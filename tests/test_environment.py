@@ -93,3 +93,13 @@ def test_load_internal_cache_unzipped():
     assert len(dists) == 1
     assert normalize(dists[0].location).startswith(
         normalize(os.path.join(pb.path(), pb.info.internal_cache)))
+
+def test_access_zipped_assets():
+  with nested(yield_pex_builder(zip_safe=False), temporary_dir()) as (pb, pex_root):
+    print("pb: %s" % pb)
+    pex = pb.path()
+    print("pex: %s" % pex)
+    pb.info.pex_root = pex_root
+    print("pex_root: %s" % pex_root)
+    pb.freeze()
+    import subprocess; subprocess.check_call('%s/*.pex' % pex)
