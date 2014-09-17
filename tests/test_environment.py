@@ -96,13 +96,12 @@ def test_load_internal_cache_unzipped():
         normalize(os.path.join(pb.path(), pb.info.internal_cache)))
 
 def test_access_zipped_assets():
-  body = dedent('''
-             import _pex.environment
-             #assert dir(_pex.environment) == 'gimmeh'
-             #from _pex.environment import access_zipped_assets
-             with open('/Users/jsmith/test.txt', 'w') as fp:
-               fp.write('jiem')#access_zipped_assets)
-             print(dir(_pex.environment))
-             print('pex_return_value')
-         ''')
-  assert run_simple_pex_test(body, coverage=True) == ('pex_return_value\n', 0)
+  with nested(make_bdist()) as p1:
+    body = dedent('''
+               from _pex.environment import PEXEnvironment
+               PEXEnvironment.access_zipped_assets('my_package', 'submodule', 'submodule')
+               import os
+               with open('/Users/jsmith/test.txt', 'w') as fp:
+                 fp.write('jiem')
+           ''')
+    assert run_simple_pex_test(body, dists=p1, coverage=False) == ('accessed\n', 0)

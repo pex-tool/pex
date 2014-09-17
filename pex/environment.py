@@ -13,6 +13,9 @@ from pkg_resources import (
     Environment,
     find_distributions,
     Requirement,
+    resource_isdir,
+    resource_listdir,
+    resource_string,
     WorkingSet
 )
 
@@ -113,17 +116,22 @@ class PEXEnvironment(Environment):
     """
     temp_dir = safe_mkdtemp(dir=dir_location)
     # ['__init__.py', 'rando_module.py']
-    for asset in pkg_resources.resource_listdir(static_module_name, asset_path):
+    for asset in resource_listdir(static_module_name, asset_path):
       print("Asset: %s" % asset)
       asset_target = os.path.join(os.path.relpath(asset_path, static_path), asset)
       print("Asset target: %s" % asset_target)
-      if pkg_resources.resource_isdir(static_module, os.path.join(asset_path, asset)):
+      if resource_isdir(static_module_name, os.path.join(asset_path, asset)):
+        print("Not writing to: %s" % os.path.join(asset_path, asset))
         safe_mkdir(os.path.join(temp_dir, asset_target))
         access_zipped_file(static_module_name, static_path, os.path.join(asset_path, asset))
       else:
         with open(os.path.join(temp_dir, asset_target), 'wb') as fp:
-          fp.write(pkg_resources.resource_string(
-            static_module_name, os.path.join(static_path, asset_target)))
+          print("writing to %s" % fp.name)
+          path = os.path.join(static_path, asset_target)
+          print("static_module_name: %s" % static_module_name)
+          print("Path to be written: %s" % path)
+          fp.write(resource_string(
+            static_module_name, path))
 
 
   def __init__(self, pex, pex_info, interpreter=None, **kw):

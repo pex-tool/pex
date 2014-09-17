@@ -71,7 +71,7 @@ PROJECT_CONTENT = {
           name=%(project_name)r,
           version='0.0.0',
           zip_safe=%(zip_safe)r,
-          packages=['my_package'],
+          packages=['my_package', 'my_package.submodule'],
           package_data={'my_package': ['package_data/*.dat']},
       )
   '''),
@@ -80,6 +80,8 @@ PROJECT_CONTENT = {
   '''),
   'my_package/__init__.py': 0,
   'my_package/my_module.py': 'def do_something():\n  print("hello world!")\n',
+  'my_package/submodule/__init__.py': 0,
+  'my_package/submodule/another_module.py': 'print("accessed")\n',
   'my_package/package_data/resource1.dat': 1000,
   'my_package/package_data/resource2.dat': 1000,
 }
@@ -151,6 +153,7 @@ def run_simple_pex(pex, args=(), env=None):
 
 def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False):
   with nested(temporary_dir(), temporary_dir()) as (td1, td2):
+    td2 = '/Users/jsmith'
     pb = write_simple_pex(td1, body, dists=dists, coverage=coverage)
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
