@@ -328,8 +328,12 @@ class PEXBuilder(object):
       for k in range(1, len(split_path)):
         sub_path = os.path.sep.join(split_path[0:k] + ['__init__.py'])
         if sub_path not in relative_digest and sub_path not in init_digest:
-          self._chroot.write("__import__('pkg_resources').declare_namespace(__name__)",
-              sub_path)
+          import_string = "__import__('pkg_resources').declare_namespace(__name__)"
+          try:
+            self._chroot.write(import_string, sub_path)
+          except TypeError:
+            # Python 3
+            self._chroot.write(bytes(import_string, 'UTF-8'), sub_path)
           init_digest.add(sub_path)
 
   def _prepare_manifest(self):

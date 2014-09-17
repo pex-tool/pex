@@ -11,9 +11,9 @@ import uuid
 from hashlib import sha1
 from threading import Lock
 
-from pkg_resources import find_distributions
+from pkg_resources import find_distributions, resource_isdir, resource_listdir, resource_string
 
-from .common import safe_open, safe_rmtree
+from .common import safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
 from .finders import register_finders
 
 
@@ -39,6 +39,44 @@ class DistributionHelper(object):
       return 'zip-safe' in egg_metadata and 'native_libs.txt' not in egg_metadata
     else:
       return False
+
+  @classmethod
+  def access_zipped_assets(cls, static_module_name, static_path, dir_location=None):
+    """
+    Create a copy of static resource files as we can't serve them from within the pex file.
+
+    :param static_module_name: Module name containing module to cache in a tempdir
+    :type static_module_name: string, for example 'twitter.common.zookeeper' or similar
+    :param static_path: Module name, for example 'serverset'
+    :param dir_location: create a new temporary directory inside, or None to have one created
+    :returns temp_dir: Temporary directory with the zipped assets inside
+    :rtype: str
+    """
+
+    # asset_path is initially a module name that's the same as the static_path, but will be
+    # changed to walk the directory tree
+    def walk_zipped_assets(static_module_name, static_path, asset_path, temp_dir):
+      for asset in resource_listdir(static_module_name, asset_path):
+        asset_target = os.path.normpath(
+            os.path.join(os.path.relpath(asset_path, static_path), asset))
+        if resource_isdir(static_module_name, os.path.join(asset_path, asset)):
+          safe_mkdir(os.path.join(temp_dir, asset_target))
+          walk_zipped_assets(static_module_name, static_path, os.path.join(asset_path, asset),
+            temp_dir)
+        else:
+          with open(os.path.join(temp_dir, asset_target), 'wb') as fp:
+            path = os.path.join(static_path, asset_target)
+            file_data = resource_string(static_module_name, path)
+            fp.write(file_data)
+
+    if dir_location is None:
+      temp_dir = safe_mkdtemp()
+    else:
+      temp_dir = dir_location
+
+    walk_zipped_assets(static_module_name, static_path, static_path, temp_dir)
+
+    return temp_dir
 
   @classmethod
   def distribution_from_path(cls, path, name=None):
