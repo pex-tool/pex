@@ -3,6 +3,7 @@
 
 import os
 from contextlib import contextmanager
+from textwrap import dedent
 
 from twitter.common.contextutil import temporary_dir, temporary_file
 
@@ -10,7 +11,7 @@ from pex.compatibility import nested
 from pex.environment import PEXEnvironment
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.testing import make_bdist
+from pex.testing import make_bdist, run_simple_pex_test
 
 
 @contextmanager
@@ -95,11 +96,13 @@ def test_load_internal_cache_unzipped():
         normalize(os.path.join(pb.path(), pb.info.internal_cache)))
 
 def test_access_zipped_assets():
-  with nested(yield_pex_builder(zip_safe=False), temporary_dir()) as (pb, pex_root):
-    print("pb: %s" % pb)
-    pex = pb.path()
-    print("pex: %s" % pex)
-    pb.info.pex_root = pex_root
-    print("pex_root: %s" % pex_root)
-    pb.freeze()
-    import subprocess; subprocess.check_call('%s/*.pex' % pex)
+  body = dedent('''
+             import _pex.environment
+             #assert dir(_pex.environment) == 'gimmeh'
+             #from _pex.environment import access_zipped_assets
+             with open('/Users/jsmith/test.txt', 'w') as fp:
+               fp.write('jiem')#access_zipped_assets)
+             print(dir(_pex.environment))
+             print('pex_return_value')
+         ''')
+  assert run_simple_pex_test(body, coverage=True) == ('pex_return_value\n', 0)
