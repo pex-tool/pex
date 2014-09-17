@@ -50,10 +50,13 @@ class PEX(object):
 
   @classmethod
   def clean_environment(cls, forking=False):
-    os.unsetenv('MACOSX_DEPLOYMENT_TARGET')
+    try:
+      del os.environ['MACOSX_DEPLOYMENT_TARGET']
+    except KeyError:
+      pass
     if not forking:
       for key in filter(lambda key: key.startswith('PEX_'), os.environ):
-        os.unsetenv(key)
+        del os.environ[key]
 
   def __init__(self, pex=sys.argv[0], interpreter=None):
     self._pex = pex
@@ -241,8 +244,8 @@ class PEX(object):
   @classmethod
   def execute_interpreter(cls):
     force_interpreter = 'PEX_INTERPRETER' in os.environ
-    # TODO(wickman) Apparently os.unsetenv doesn't work on Windows
-    os.unsetenv('PEX_INTERPRETER')
+    if force_interpreter:
+        del os.environ['PEX_INTERPRETER']
     TRACER.log('%s, dropping into interpreter' % (
         'PEX_INTERPRETER specified' if force_interpreter else 'No entry point specified'))
     if sys.argv[1:]:
