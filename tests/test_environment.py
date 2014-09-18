@@ -3,10 +3,12 @@
 
 import os
 from contextlib import contextmanager
+import subprocess
 from textwrap import dedent
 
 from twitter.common.contextutil import temporary_dir, temporary_file
 
+from pex.common import safe_mkdir
 from pex.compatibility import nested
 from pex.environment import PEXEnvironment
 from pex.pex_builder import PEXBuilder
@@ -96,12 +98,44 @@ def test_load_internal_cache_unzipped():
         normalize(os.path.join(pb.path(), pb.info.internal_cache)))
 
 def test_access_zipped_assets():
-  with nested(make_bdist()) as p1:
-    body = dedent('''
-               from _pex.environment import PEXEnvironment
-               PEXEnvironment.access_zipped_assets('my_package', 'submodule', 'submodule')
-               import os
-               with open('/Users/jsmith/test.txt', 'w') as fp:
-                 fp.write('jiem')
-           ''')
-    assert run_simple_pex_test(body, dists=p1, coverage=False) == ('accessed\n', 0)
+  test_executable = dedent('''
+      from _pex.environment import PEXEnvironment
+      PEXEnvironment.access_zipped_assets('my_package', 'submodule', 'submodule')
+      import os
+      with open(os.path.join('my_package', 'submodule', 'mod.py'), 'r') as fp:
+        for line in fp:
+          print(line)
+  ''')
+  with nested(temporary_dir(), temporary_dir()) as (td1, td2):
+    td2 = '/Users/joe'
+
+    pb = PEXBuilder(path=td1)
+    with open(os.path.join(td1, 'exe.py'), 'w') as fp:
+      fp.write(test_executable)
+      pb.set_executable(fp.name)
+
+    submodule = os.path.join(td1, 'my_package', 'submodule')
+    safe_mkdir(submodule)
+    with open(os.path.join(td1, 'my_package', '__init__.py'), 'w') as fp:
+      fp.write('')
+      pb.add_source(fp.name, 'my_package/__init__.py')
+    with open(os.path.join(submodule, '__init__.py'), 'w') as fp:
+      fp.write('')
+      pb.add_source(fp.name, 'my_package/submodule/__init__.py')
+    with open(os.path.join(submodule, 'mod.py'), 'w') as fp:
+      fp.write('accessed')
+      pb.add_source(fp.name, 'my_package/submodule/mod.py')
+
+    with open(submodule + '/mod.py') as fp:
+      for line in fp:
+        print(line)
+
+    pex = os.path.join(td2, 'app.pex')
+    pb.build(pex)
+
+    po = subprocess.Popen(
+        [pex],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT)
+    po.wait()
+    assert ('jimmeh', 0) == po.stdout.read(), po.returncode
