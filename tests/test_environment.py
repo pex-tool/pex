@@ -125,8 +125,6 @@ def test_access_zipped_assets_integration():
           print(line)
   ''')
   with nested(temporary_dir(), temporary_dir()) as (td1, td2):
-    td2 = '/Users/joe'
-
     pb = PEXBuilder(path=td1)
     with open(os.path.join(td1, 'exe.py'), 'w') as fp:
       fp.write(test_executable)
