@@ -6,7 +6,10 @@ from contextlib import contextmanager
 import subprocess
 from textwrap import dedent
 
-import mock
+try:
+  import mock
+except ImportError:
+  from unittest import mock
 import pkg_resources
 from twitter.common.contextutil import temporary_dir, temporary_file
 
