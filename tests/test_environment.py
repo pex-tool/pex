@@ -6,9 +6,11 @@ from contextlib import contextmanager
 import subprocess
 from textwrap import dedent
 
+import mock
+import pkg_resources
 from twitter.common.contextutil import temporary_dir, temporary_file
 
-from pex.common import safe_mkdir
+from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import nested
 from pex.environment import PEXEnvironment
 from pex.pex_builder import PEXBuilder
@@ -97,7 +99,23 @@ def test_load_internal_cache_unzipped():
     assert normalize(dists[0].location).startswith(
         normalize(os.path.join(pb.path(), pb.info.internal_cache)))
 
-def test_access_zipped_assets():
+@mock.patch('__builtin__.open')
+@mock.patch('pex.environment.resource_string', spec=pkg_resources.resource_string)
+@mock.patch('pex.environment.resource_isdir', spec=pkg_resources.resource_isdir)
+@mock.patch('pex.environment.resource_listdir', spec=pkg_resources.resource_listdir)
+def test_access_zipped_assets(mock_resource_listdir, mock_resource_isdir, mock_resource_string, mock_open):
+  mock_resource_listdir.side_effect = [['./__init__.py', './directory/'], ['file.py']]
+  mock_resource_isdir.side_effect = [False, True, False]
+  mock_resource_string.return_value = 'testing'
+
+  PEXEnvironment.access_zipped_assets('twitter.common', 'dirutil', 'dirutil')
+
+  assert mock_resource_listdir.call_count == 2
+  assert mock_open.call_count == 2
+  file_handle = mock_open.return_value.__enter__.return_value
+  assert file_handle.write.call_count == 2
+
+def test_access_zipped_assets_integration():
   test_executable = dedent('''
       import os
       from _pex.environment import PEXEnvironment
@@ -116,9 +134,10 @@ def test_access_zipped_assets():
 
     submodule = os.path.join(td1, 'my_package', 'submodule')
     safe_mkdir(submodule)
-    with open(os.path.join(submodule, 'mod.py'), 'w') as fp:
+    mod_path = os.path.join(submodule, 'mod.py')
+    with open(mod_path, 'w') as fp:
       fp.write('accessed')
-      pb.add_source(fp.name, 'my_package/jimmeh/mod.py')
+      pb.add_source(fp.name, 'my_package/submodule/mod.py')
 
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
@@ -129,4 +148,4 @@ def test_access_zipped_assets():
         stderr=subprocess.STDOUT)
     po.wait()
     assert po.stdout.read() == 'accessed\n'
-    assert po.returncode is 0
+    assert po.returncode == 0

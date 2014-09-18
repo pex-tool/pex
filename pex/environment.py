@@ -119,7 +119,7 @@ class PEXEnvironment(Environment):
       asset_target = os.path.join(os.path.relpath(asset_path, static_path), asset)[2:]
       if resource_isdir(static_module_name, os.path.join(asset_path, asset)):
         safe_mkdir(os.path.join(temp_dir, asset_target))
-        access_zipped_file(static_module_name, static_path, os.path.join(asset_path, asset))
+        cls.access_zipped_assets(static_module_name, static_path, os.path.join(asset_path, asset))
       else:
         with open(os.path.join(temp_dir, asset_target), 'wb') as fp:
           path = os.path.join(static_path, asset_target)
