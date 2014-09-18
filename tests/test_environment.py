@@ -116,15 +116,9 @@ def test_access_zipped_assets():
 
     submodule = os.path.join(td1, 'my_package', 'submodule')
     safe_mkdir(submodule)
-    with open(os.path.join(td1, 'my_package', '__init__.py'), 'w') as fp:
-      fp.write('')
-      pb.add_source(fp.name, 'my_package/__init__.py')
-    with open(os.path.join(submodule, '__init__.py'), 'w') as fp:
-      fp.write('')
-      pb.add_source(fp.name, 'my_package/submodule/__init__.py')
     with open(os.path.join(submodule, 'mod.py'), 'w') as fp:
       fp.write('accessed')
-      pb.add_source(fp.name, 'my_package/submodule/mod.py')
+      pb.add_source(fp.name, 'my_package/jimmeh/mod.py')
 
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
