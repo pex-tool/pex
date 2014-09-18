@@ -99,10 +99,10 @@ def test_load_internal_cache_unzipped():
 
 def test_access_zipped_assets():
   test_executable = dedent('''
-      from _pex.environment import PEXEnvironment
-      PEXEnvironment.access_zipped_assets('my_package', 'submodule', 'submodule')
       import os
-      with open(os.path.join('my_package', 'submodule', 'mod.py'), 'r') as fp:
+      from _pex.environment import PEXEnvironment
+      temp_dir = PEXEnvironment.access_zipped_assets('my_package', 'submodule', 'submodule')
+      with open(os.path.join(temp_dir, 'mod.py'), 'r') as fp:
         for line in fp:
           print(line)
   ''')
@@ -126,10 +126,6 @@ def test_access_zipped_assets():
       fp.write('accessed')
       pb.add_source(fp.name, 'my_package/submodule/mod.py')
 
-    with open(submodule + '/mod.py') as fp:
-      for line in fp:
-        print(line)
-
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
 
@@ -138,4 +134,5 @@ def test_access_zipped_assets():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
     po.wait()
-    assert ('jimmeh', 0) == po.stdout.read(), po.returncode
+    assert po.stdout.read() == 'accessed\n'
+    assert po.returncode is 0
