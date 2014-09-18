@@ -102,21 +102,30 @@ def test_load_internal_cache_unzipped():
     assert normalize(dists[0].location).startswith(
         normalize(os.path.join(pb.path(), pb.info.internal_cache)))
 
-@mock.patch('__builtin__.open')
 @mock.patch('pex.environment.resource_string', spec=pkg_resources.resource_string)
 @mock.patch('pex.environment.resource_isdir', spec=pkg_resources.resource_isdir)
 @mock.patch('pex.environment.resource_listdir', spec=pkg_resources.resource_listdir)
-def test_access_zipped_assets(mock_resource_listdir, mock_resource_isdir, mock_resource_string, mock_open):
-  mock_resource_listdir.side_effect = [['./__init__.py', './directory/'], ['file.py']]
-  mock_resource_isdir.side_effect = [False, True, False]
-  mock_resource_string.return_value = 'testing'
+def test_access_zipped_assets(mock_resource_listdir, mock_resource_isdir, mock_resource_string):
+  try:
+    import __builtin__
+    builtin_path = '__builtin__'
+  except ImportError:
+    # Python3
+    import builtins
+    builtin_path = 'builtins'
 
-  PEXEnvironment.access_zipped_assets('twitter.common', 'dirutil', 'dirutil')
+  mock_open = mock.mock_open()
+  with mock.patch('%s.open' % builtin_path, mock_open, create=True):
+    mock_resource_listdir.side_effect = [['./__init__.py', './directory/'], ['file.py']]
+    mock_resource_isdir.side_effect = [False, True, False]
+    mock_resource_string.return_value = 'testing'
 
-  assert mock_resource_listdir.call_count == 2
-  assert mock_open.call_count == 2
-  file_handle = mock_open.return_value.__enter__.return_value
-  assert file_handle.write.call_count == 2
+    PEXEnvironment.access_zipped_assets('twitter.common', 'dirutil', 'dirutil')
+
+    assert mock_resource_listdir.call_count == 2
+    assert mock_open.call_count == 2
+    file_handle = mock_open.return_value.__enter__.return_value
+    assert file_handle.write.call_count == 2
 
 def test_access_zipped_assets_integration():
   test_executable = dedent('''
@@ -148,5 +157,10 @@ def test_access_zipped_assets_integration():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
     po.wait()
-    assert po.stdout.read() == 'accessed\n'
+    output = po.stdout.read()
+    try:
+      output = output.decode('UTF-8')
+    except:
+      pass
+    assert output == 'accessed\n'
     assert po.returncode == 0

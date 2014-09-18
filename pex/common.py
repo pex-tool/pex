@@ -279,7 +279,10 @@ class Chroot(object):
     self._tag(dst, label)
     self._mkdir_for(dst)
     with open(os.path.join(self.chroot, dst), mode) as wp:
-      wp.write(data)
+      try:
+        wp.write(data)
+      except TypeError:
+        wp.write(bytes(data, 'UTF-8'))
 
   def touch(self, dst, label=None):
     """Perform 'touch' on {chroot}/dest with optional label.
