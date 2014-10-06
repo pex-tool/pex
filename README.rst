@@ -31,7 +31,7 @@ available at http://pex.rtfd.org.
 Hacking
 =======
 
-To run tests, install tox and::
+To run tests, install tox and:
 
 .. code-block:: bash
 
