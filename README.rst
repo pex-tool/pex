@@ -33,6 +33,8 @@ Hacking
 
 To run tests, install tox and::
 
+.. code-block:: bash
+
     $ tox
 
 To contribute, follow these instructions: http://pantsbuild.github.io/howto_contribute.html
