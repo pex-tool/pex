@@ -41,8 +41,11 @@ class Iterator(object):
     if any(isinstance(package, package_type) for package_type in self._precedence):
       return package
 
+  def iter_requirement_urls(self, req):
+    return itertools.chain.from_iterable(fetcher.urls(req) for fetcher in self._fetchers)
+
   def _iter_unordered(self, req, follow_links):
-    url_iterator = itertools.chain.from_iterable(fetcher.urls(req) for fetcher in self._fetchers)
+    url_iterator = self.iter_requirement_urls(req)
     crawled_url_iterator = self._crawler.crawl(url_iterator, follow_links=follow_links)
     for package in filter(None, map(self._translate_href, crawled_url_iterator)):
       if package.satisfies(req):
