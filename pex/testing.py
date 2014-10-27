@@ -4,8 +4,8 @@
 import contextlib
 import os
 import random
-import tempfile
 import subprocess
+import tempfile
 import zipfile
 from textwrap import dedent
 

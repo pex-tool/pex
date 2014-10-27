@@ -1,12 +1,12 @@
-from contextlib import closing
 import os
 import zipfile
+from contextlib import closing
+
+from twitter.common.contextutil import temporary_dir
 
 from pex.archiver import Archiver
 from pex.pex_bootstrapper import get_pex_info
 from pex.testing import write_simple_pex
-
-from twitter.common.contextutil import temporary_dir
 
 
 def test_get_pex_info():

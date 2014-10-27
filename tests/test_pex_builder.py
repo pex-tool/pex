@@ -11,7 +11,8 @@ from twitter.common.dirutil import safe_mkdir
 from pex.compatibility import nested
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.testing import make_bdist, write_simple_pex as write_pex
+from pex.testing import write_simple_pex as write_pex
+from pex.testing import make_bdist
 from pex.util import DistributionHelper
 
 

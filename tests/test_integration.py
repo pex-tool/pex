@@ -1,8 +1,8 @@
 import os
 
-from pex.testing import run_simple_pex_test
-
 from twitter.common.contextutil import temporary_file
+
+from pex.testing import run_simple_pex_test
 
 
 def test_pex_execute():
