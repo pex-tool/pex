@@ -1,9 +1,12 @@
 import hashlib
-import mimetools
 from contextlib import contextmanager
-from StringIO import StringIO
+from io import BytesIO
 
-import mock
+try:
+  from unittest import mock
+except ImportError:
+  import mock
+
 import pytest
 from twitter.common.contextutil import temporary_file
 
@@ -99,13 +102,13 @@ def test_requests_context():
     assert context.read(Link.wrap(tf.name)) == b'goop'
 
 
-class MockHttpLibResponse(StringIO):
+class MockHttpLibResponse(BytesIO):
   def __init__(self, data):
-    StringIO.__init__(self, data)
+    BytesIO.__init__(self, data)
     self.status = 200
     self.version = 'HTTP/1.1'
     self.reason = 'OK'
-    self.msg = mock.create_autospec(mimetools.Message, spec_set=False, instance=True)
+    self.msg = mock.Mock()
 
   def getheaders(self):
     return [('Content-Type', 'application/x-compressed')]
