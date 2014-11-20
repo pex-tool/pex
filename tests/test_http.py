@@ -1,10 +1,13 @@
 import hashlib
+import mimetools
 from contextlib import contextmanager
+from StringIO import StringIO
 
+import mock
 import pytest
 from twitter.common.contextutil import temporary_file
 
-from pex.http import CachedRequestsContext, Context, RequestsContext, StreamFilelike, UrllibContext
+from pex.http import Context, RequestsContext, StreamFilelike
 from pex.link import Link
 
 try:
@@ -94,3 +97,106 @@ def test_requests_context():
     tf.write(b'goop')
     tf.flush()
     assert context.read(Link.wrap(tf.name)) == b'goop'
+
+
+class MockHttpLibResponse(StringIO):
+  def __init__(self, data):
+    StringIO.__init__(self, data)
+    self.status = 200
+    self.version = 'HTTP/1.1'
+    self.reason = 'OK'
+    self.msg = mock.create_autospec(mimetools.Message, spec_set=False, instance=True)
+
+  def getheaders(self):
+    return [('Content-Type', 'application/x-compressed')]
+
+  def isclosed(self):
+    return self.closed
+
+
+@pytest.mark.skipif(NO_REQUESTS)
+def test_requests_context_invalid_retries():
+  with pytest.raises(ValueError):
+    RequestsContext(verify=False, max_retries=-1)
+
+
+@pytest.mark.skipif(NO_REQUESTS)
+def test_requests_context_retries_from_environment():
+
+  retry_count = '42'
+  with mock.patch.dict('os.environ', {'PEX_HTTP_RETRIES': retry_count}):
+    assert RequestsContext(verify=False)._max_retries == int(retry_count)
+
+
+def timeout_side_effect(timeout_error=None, num_timeouts=1):
+  timeout_error = timeout_error or requests.packages.urllib3.exceptions.ConnectTimeoutError
+  url = 'http://pypi.python.org/foo.tar.gz'
+
+  num_requests = [0]  # hack, because python closures?
+  def timeout(*args, **kwargs):
+    if num_requests[0] < num_timeouts:
+      num_requests[0] += 1
+      raise timeout_error(None, url, 'Time Out')
+    else:
+      return MockHttpLibResponse(BLOB)
+
+  return url, timeout
+
+
+@pytest.mark.skipif(NO_REQUESTS)
+def test_requests_context_retries_connect_timeout():
+  with mock.patch.object(
+      requests.packages.urllib3.connectionpool.HTTPConnectionPool,
+      '_make_request') as mock_make_request:
+
+    url, mock_make_request.side_effect = timeout_side_effect()
+
+    context = RequestsContext(verify=False)
+
+    data = context.read(Link.wrap(url))
+    assert data == BLOB
+
+
+@pytest.mark.skipif(NO_REQUESTS)
+def test_requests_context_retries_connect_timeout_retries_exhausted():
+  with mock.patch.object(
+      requests.packages.urllib3.connectionpool.HTTPConnectionPool,
+      '_make_request') as mock_make_request:
+
+    url, mock_make_request.side_effect = timeout_side_effect(num_timeouts=3)
+
+    context = RequestsContext(verify=False, max_retries=2)
+
+    with pytest.raises(Context.Error):
+      context.read(Link.wrap(url))
+
+
+@pytest.mark.skipif(NO_REQUESTS)
+def test_requests_context_retries_read_timeout():
+  with mock.patch.object(
+      requests.packages.urllib3.connectionpool.HTTPConnectionPool,
+      '_make_request') as mock_make_request:
+
+    url, mock_make_request.side_effect = timeout_side_effect(
+        timeout_error=requests.packages.urllib3.exceptions.ReadTimeoutError)
+
+    context = RequestsContext(verify=False)
+
+    data = context.read(Link.wrap(url))
+    assert data == BLOB
+
+
+@pytest.mark.skipif(NO_REQUESTS)
+def test_requests_context_retries_read_timeout_retries_exhausted():
+  with mock.patch.object(
+      requests.packages.urllib3.connectionpool.HTTPConnectionPool,
+      '_make_request') as mock_make_request:
+
+    url, mock_make_request.side_effect = timeout_side_effect(
+        timeout_error=requests.packages.urllib3.exceptions.ReadTimeoutError,
+        num_timeouts=3)
+
+    context = RequestsContext(verify=False, max_retries=2)
+
+    with pytest.raises(Context.Error):
+      context.read(Link.wrap(url))

@@ -157,19 +157,47 @@ class StreamFilelike(object):
 class RequestsContext(Context):
   """A requests-based Context."""
 
-  def __init__(self, session=None, verify=True):
+  @staticmethod
+  def _create_session(max_retries):
+    session = requests.session()
+    retrying_adapter = requests.adapters.HTTPAdapter(max_retries=max_retries)
+    session.mount('http://', retrying_adapter)
+    session.mount('https://', retrying_adapter)
+
+    return session
+
+  def __init__(self, session=None, verify=True, max_retries=5):
     self._verify = verify
-    self._session = session or requests.session()
+
+    max_retries = int(os.environ.get('PEX_HTTP_RETRIES', max_retries))
+
+    if max_retries < 0:
+      raise ValueError('max_retries may not be negative.')
+
+    self._max_retries = max_retries
+    self._session = session or self._create_session(self._max_retries)
 
   def open(self, link):
     # requests does not support file:// -- so we must short-circuit manually
     if link.local:
       return open(link.path, 'rb')
-    try:
-      return StreamFilelike(requests.get(link.url, verify=self._verify, stream=True), link)
-    except requests.exceptions.RequestException as e:
-      raise self.Error(e)
+    for attempt in range(self._max_retries + 1):
+      try:
+        return StreamFilelike(self._session.get(link.url, verify=self._verify, stream=True), link)
+      except requests.exceptions.ReadTimeout:
+        # Connect timeouts are handled by the HTTPAdapter, unfortunately read timeouts are not
+        # so we'll retry them ourselves.
+        TRACER.log('Read timeout trying to fetch %s, retrying. %d retries remain.' % (
+            link.url,
+            self._max_retries - attempt))
+      except requests.exceptions.RequestException as e:
+        raise self.Error(e)
 
+    raise self.Error(
+        requests.packages.urllib3.exceptions.MaxRetryError(
+            None,
+            link,
+            'Exceeded max retries of %d' % self._max_retries))
 
 if requests:
   Context.register(RequestsContext)
