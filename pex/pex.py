@@ -108,10 +108,19 @@ class PEX(object):
     new_modules = {}
 
     for module_name, module in sys.modules.items():
-      if any(path.startswith(site_lib) for path in getattr(module, '__path__', ())
-          for site_lib in site_libs):
-        TRACER.log('Scrubbing %s from sys.modules' % module)
-      else:
+      # builtins can stay
+      if not hasattr(module, '__path__'):
+        new_modules[module_name] = module
+        continue
+
+      # Pop off site-impacting __path__ elements in-place.
+      for k in reversed(range(len(module.__path__))):
+        if any(module.__path__[k].startswith(site_lib) for site_lib in site_libs):
+          TRACER.log('Scrubbing %s.__path__: %s' % (module_name, module.__path__[k]), V=3)
+          module.__path__.pop(k)
+
+      # It still contains path elements not in site packages, so it can stay in sys.modules
+      if module.__path__:
         new_modules[module_name] = module
 
     return new_modules
@@ -119,15 +128,23 @@ class PEX(object):
   @classmethod
   def minimum_sys_path(cls, site_libs):
     site_distributions = OrderedSet()
+    user_site_distributions = OrderedSet()
+
     for path_element in sys.path:
       if any(path_element.startswith(site_lib) for site_lib in site_libs):
         TRACER.log('Inspecting path element: %s' % path_element, V=2)
-        site_distributions.update(dist.location for dist in find_distributions(path_element))
+        for dist in find_distributions(path_element):
+          TRACER.log('  - Found site distribution %s (%s)' % (dist, dist.location), V=3)
+          site_distributions.add(dist.location)
 
-    user_site_distributions = OrderedSet(dist.location for dist in find_distributions(USER_SITE))
+    TRACER.log('Inspecting user site: %s' % USER_SITE)
+    for dist in find_distributions(USER_SITE):
+      TRACER.log('  - Found user site distribution %s (%s)' % (dist, dist.location), V=3)
+      user_site_distributions.add(dist.location)
 
     for path in site_distributions:
       TRACER.log('Scrubbing from site-packages: %s' % path)
+
     for path in user_site_distributions:
       TRACER.log('Scrubbing from user site: %s' % path)
 
@@ -138,6 +155,10 @@ class PEX(object):
       sys.path_importer_cache.keys())
     scrubbed_importer_cache = dict((key, value) for (key, value) in sys.path_importer_cache.items()
       if key not in scrub_from_importer_cache)
+
+    for importer_cache_entry in scrub_from_importer_cache:
+      TRACER.log('Scrubbing from path_importer_cache: %s' % importer_cache_entry, V=2)
+
     return scrubbed_sys_path, scrubbed_importer_cache
 
   @classmethod
@@ -155,8 +176,8 @@ class PEX(object):
       site_libs.add(extras_path)
     site_libs = set(os.path.normpath(path) for path in site_libs)
 
-    sys_modules = cls.minimum_sys_modules(site_libs)
     sys_path, sys_path_importer_cache = cls.minimum_sys_path(site_libs)
+    sys_modules = cls.minimum_sys_modules(site_libs)
 
     return sys_path, sys_path_importer_cache, sys_modules
 
@@ -178,6 +199,10 @@ class PEX(object):
     finally:
       patch(old_working_set)
 
+  # Thar be dragons -- when this contextmanager exits, the interpreter is
+  # potentially in a wonky state since the patches here (minimum_sys_modules
+  # for example) actually mutate global state.  This should not be
+  # considered a reversible operation despite being a contextmanager.
   @classmethod
   @contextmanager
   def patch_sys(cls):
