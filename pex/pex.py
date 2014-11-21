@@ -104,13 +104,31 @@ class PEX(object):
       site_libs = set()
     site_libs.update([sysconfig.get_python_lib(plat_specific=False),
                       sysconfig.get_python_lib(plat_specific=True)])
-    return site_libs
+    real_site_libs = set(os.path.realpath(path) for path in site_libs)
+    return site_libs | real_site_libs
 
   @classmethod
-  def minimum_sys_modules(cls, site_libs):
+  def _tainted_path(cls, path, site_libs):
+    paths = frozenset([path, os.path.realpath(path)])
+    return any(path.startswith(site_lib) for site_lib in site_libs for path in paths)
+
+  @classmethod
+  def minimum_sys_modules(cls, site_libs, modules=None):
+    """Given a set of site-packages paths, return a "clean" sys.modules.
+
+    When importing site, modules within sys.modules have their __path__'s populated with
+    additional paths as defined by *-nspkg.pth in site-packages, or alternately by distribution
+    metadata such as *.dist-info/namespace_packages.txt.  This can possibly cause namespace
+    packages to leak into imports despite being scrubbed from sys.path.
+
+    NOTE: This method mutates modules' __path__ attributes in sys.module, so this is currently an
+    irreversible operation.
+    """
+
+    modules = modules or sys.modules
     new_modules = {}
 
-    for module_name, module in sys.modules.items():
+    for module_name, module in modules.items():
       # builtins can stay
       if not hasattr(module, '__path__'):
         new_modules[module_name] = module
@@ -118,7 +136,7 @@ class PEX(object):
 
       # Pop off site-impacting __path__ elements in-place.
       for k in reversed(range(len(module.__path__))):
-        if any(module.__path__[k].startswith(site_lib) for site_lib in site_libs):
+        if cls._tainted_path(module.__path__[k], site_libs):
           TRACER.log('Scrubbing %s.__path__: %s' % (module_name, module.__path__[k]), V=3)
           module.__path__.pop(k)
 
@@ -133,17 +151,18 @@ class PEX(object):
     site_distributions = OrderedSet()
     user_site_distributions = OrderedSet()
 
-    for path_element in sys.path:
-      if any(path_element.startswith(site_lib) for site_lib in site_libs):
-        TRACER.log('Inspecting path element: %s' % path_element, V=2)
-        for dist in find_distributions(path_element):
-          TRACER.log('  - Found site distribution %s (%s)' % (dist, dist.location), V=3)
-          site_distributions.add(dist.location)
+    def all_distribution_paths(path):
+      locations = set(dist.location for dist in find_distributions(path))
+      return set([path]) | locations | set(os.path.realpath(path) for path in locations)
 
-    TRACER.log('Inspecting user site: %s' % USER_SITE)
-    for dist in find_distributions(USER_SITE):
-      TRACER.log('  - Found user site distribution %s (%s)' % (dist, dist.location), V=3)
-      user_site_distributions.add(dist.location)
+    for path_element in sys.path:
+      if cls._tainted_path(path_element, site_libs):
+        TRACER.log('Tainted path element: %s' % path_element)
+        site_distributions.update(all_distribution_paths(path_element))
+      else:
+        TRACER.log('Not a tained path element: %s' % path_element, V=2)
+
+    user_site_distributions.update(all_distribution_paths(USER_SITE))
 
     for path in site_distributions:
       TRACER.log('Scrubbing from site-packages: %s' % path)

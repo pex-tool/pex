@@ -37,4 +37,46 @@ To run tests, install tox and:
 
     $ tox
 
+Run full 2.x/3.x test coverage and generate report into 'htmlcov':
+
+.. code-block:: bash
+
+   $ tox -e py2-integration,py3-integration,combine
+
+Run style checker against the predominant PEX style:
+
+.. code-block:: bash
+
+   $ tox -e style
+
+Check import sort ordering:
+
+.. code-block:: bash
+
+   $ tox -e isort-check
+
+Enforce import sort ordering:
+
+.. code-block:: bash
+
+   $ tox -e isort-run
+
+Generate sphinx docs locally:
+
+.. code-block:: bash
+
+   $ tox -e docs
+
+Run the 'pex' tool in a 2.7 environment:
+
+.. code-block:: bash
+
+   $ tox -e run27 -- <cmdline>
+
+Run the 'pex' tool in a 3.4 environment:
+
+.. code-block:: bash
+
+   $ tox -e run34 -- <cmdline>
+
 To contribute, follow these instructions: http://pantsbuild.github.io/howto_contribute.html

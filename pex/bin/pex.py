@@ -22,7 +22,7 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
-from pex.tracer import Tracer, TRACER
+from pex.tracer import TRACER, Tracer
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 from pex.version import __version__
 
