@@ -2,16 +2,18 @@ import hashlib
 from contextlib import contextmanager
 from io import BytesIO
 
-try:
-  from unittest import mock
-except ImportError:
-  import mock
-
 import pytest
 from twitter.common.contextutil import temporary_file
 
 from pex.http import Context, RequestsContext, StreamFilelike
 from pex.link import Link
+
+try:
+  from unittest import mock
+except ImportError:
+  import mock
+
+
 
 try:
   from responses import RequestsMock

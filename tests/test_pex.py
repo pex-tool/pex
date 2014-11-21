@@ -25,6 +25,7 @@ def test_pex_sys_exit_does_not_raise():
   assert rc == 2
 
 
+@pytest.mark.skipif('hasattr(sys, "pypy_version_info")')
 def test_pex_atexit_swallowing():
   body = textwrap.dedent("""
   import atexit

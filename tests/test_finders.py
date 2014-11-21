@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import pkg_resources
-
 from pex.finders import _add_finder as add_finder
 from pex.finders import _remove_finder as remove_finder
 from pex.finders import ChainedFinder
