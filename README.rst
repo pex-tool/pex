@@ -3,9 +3,21 @@ PEX
 .. image:: https://travis-ci.org/pantsbuild/pex.svg?branch=master
     :target: https://travis-ci.org/pantsbuild/pex
 
-pex is both a library and tool for generating .pex (Python EXecutable) files,
-standalone Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_.
-They are designed to make deployment of Python applications as simple as ``cp``.
+pex is a library for generating .pex (Python EXecutable) files which are
+executable Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_.
+pex is an expansion upon the ideas outlined in
+`PEP 441 <http://legacy.python.org/dev/peps/pep-0441/>`_
+and make the deployment of Python applications as simple as ``cp``.  pex files may even
+include multiple platform-specific Python distributions, meaning that a single pex file
+can be portable across Linux and OS X.
+
+pex files can be built using the ``pex`` tool.  Build systems such as `Pants
+<http://pantsbuild.github.io/>`_ and `Buck <http://facebook.github.io/buck/>`_ also
+support building .pex files directly.
+
+Still unsure about what pex does or how it works?  Watch this quick lightning
+talk: `WTF is PEX? <http://www.youtube.com/watch?v=NmpnGhRwsu0>`_.
+
 pex is licensed under the Apache2 license.
 
 
@@ -18,65 +30,99 @@ To install pex, simply
 
     $ pip install pex
 
-Alternately, .pex files can be generated directly by build systems such as `Pants
-<http://pantsbuild.github.io/>`_ and `Buck <http://facebook.github.io/buck/>`_
+You can also build pex in a git clone using tox:
+
+.. code-block:: bash
+
+    $ tox -e package
+    $ cp dist/pex ~/bin
+
+This builds a pex binary in ``dist/pex`` that can be copied onto your ``$PATH``.
+The advantage to this approach is that it keeps your Python environment as empty as
+possible and is more in-line with what pex does philosophically.
+
+
+Simple Examples
+===============
+
+Launch an interpreter with ``requests`` and ``flask`` in the environment:
+
+.. code-block:: bash
+
+    $ pex -r requests -r flask
+
+Run webserver.py in an environment containing ``flask`` and the setup.py package in
+the current working directory:
+
+.. code-block:
+
+    $ pex -r flask -s . -- webserver.py
+
+Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sphinx:main``:
+
+.. code-block:: bash
+
+    $ pex -r sphinx -e sphinx:main -- --help
+
+Build a standalone pex binary into ``pex.pex``:
+
+.. code-block::
+
+    $ pex -r pex -e pex.bin.pex:main -o pex.pex
+
+Build a standalone pex binary but invoked using a specific Python version:
+
+.. code-block::
+
+    $ pex -r pex -e pex.bin.pex:main --python=pypy -o pypy-pex.pex
+
+Most pex options compose well with one another, so the above commands can be
+mixed and matched.
 
 
 Documentation
 =============
 
-Documentation about pex, building .pex files, and how .pex files work is
-available at http://pex.rtfd.org.
+More documentation about pex, building .pex files, and how .pex files work
+is available at http://pex.rtfd.org.
 
-Hacking
-=======
 
-To run tests, install tox and:
+Development
+===========
+
+pex uses `tox <https://testrun.org/tox/latest/>`_ for test and development automation.  To run
+the test suite, just invoke tox:
 
 .. code-block:: bash
 
     $ tox
 
-Run full 2.x/3.x test coverage and generate report into 'htmlcov':
+To generate a coverage report (with more substantial integration tests):
 
 .. code-block:: bash
 
-   $ tox -e py2-integration,py3-integration,combine
+   $ tox -e coverage
 
-Run style checker against the predominant PEX style:
-
-.. code-block:: bash
-
-   $ tox -e style
-
-Check import sort ordering:
+To check style and sort ordering:
 
 .. code-block:: bash
 
-   $ tox -e isort-check
+   $ tox -e style,isort-check
 
-Enforce import sort ordering:
-
-.. code-block:: bash
-
-   $ tox -e isort-run
-
-Generate sphinx docs locally:
+To generate and open local sphinx documentation:
 
 .. code-block:: bash
 
    $ tox -e docs
 
-Run the 'pex' tool in a 2.7 environment:
+To run the 'pex' tool from source (for 3.4, use 'py34-run'):
 
 .. code-block:: bash
 
-   $ tox -e run27 -- <cmdline>
+   $ tox -e py27-run -- <cmdline>
 
-Run the 'pex' tool in a 3.4 environment:
 
-.. code-block:: bash
-
-   $ tox -e run34 -- <cmdline>
+Contributing
+============
 
 To contribute, follow these instructions: http://pantsbuild.github.io/howto_contribute.html

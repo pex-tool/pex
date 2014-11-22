@@ -1,6 +1,9 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+# This file contains several 2.x/3.x compatibility checkstyle violations for a reason
+# checkstyle: noqa
+
 from abc import ABCMeta
 from numbers import Integral, Real
 from sys import version_info as sys_version_info

@@ -17,13 +17,13 @@ from .finders import register_finders
 
 
 class DistributionHelper(object):
-  @staticmethod
-  def walk_data(dist, path='/'):
+  @classmethod
+  def walk_data(cls, dist, path='/'):
     """Yields filename, stream for files identified as data in the distribution"""
     for rel_fn in filter(None, dist.resource_listdir(path)):
       full_fn = os.path.join(path, rel_fn)
       if dist.resource_isdir(full_fn):
-        for fn, stream in DistributionHelper.walk_data(dist, full_fn):
+        for fn, stream in cls.walk_data(dist, full_fn):
           yield fn, stream
       else:
         yield full_fn[1:], dist.get_resource_stream(dist._provider, full_fn)
@@ -107,7 +107,7 @@ class CacheHelper(object):
     """Return a reproducible hash of the contents of a directory."""
     names = sorted(f for f in cls._iter_files(d) if not (f.endswith('.pyc') or f.startswith('.')))
     def stream_factory(name):
-      return open(os.path.join(d, name), 'rb')
+      return open(os.path.join(d, name), 'rb')  # noqa: T802
     return cls._compute_hash(names, stream_factory)
 
   @classmethod
@@ -115,7 +115,7 @@ class CacheHelper(object):
     """Return a reproducible hash of the contents of a directory."""
     names = sorted(f for f in cls._iter_files(d) if not f.endswith('.pyc'))
     def stream_factory(name):
-      return open(os.path.join(d, name), 'rb')
+      return open(os.path.join(d, name), 'rb')  # noqa: T802
     return cls._compute_hash(names, stream_factory)
 
   @classmethod

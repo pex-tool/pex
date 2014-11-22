@@ -59,7 +59,7 @@ class PEP425Extras(object):
       yield platform
 
 
-class PEP425(object):
+class PEP425(object):  # noqa
   INTERPRETER_TAGS = {
     'CPython': 'cp',
     'Jython': 'jy',

@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import random
 import warnings
 from abc import abstractmethod
 
@@ -22,6 +21,7 @@ class FetcherBase(AbstractClass):
   """
     A fetcher takes a Requirement and tells us where to crawl to find it.
   """
+
   @abstractmethod
   def urls(self, req):
     raise NotImplementedError

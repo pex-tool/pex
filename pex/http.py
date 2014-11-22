@@ -122,7 +122,7 @@ class StreamFilelike(object):
         return None, None
     return None, None
 
-  def __init__(self, request, link, chunk_size=16*1024):
+  def __init__(self, request, link, chunk_size=16384):
     self._iterator = request.iter_content(chunk_size)
     self._bytes = b''
     self._link = link
@@ -180,7 +180,7 @@ class RequestsContext(Context):
   def open(self, link):
     # requests does not support file:// -- so we must short-circuit manually
     if link.local:
-      return open(link.path, 'rb')
+      return open(link.path, 'rb')  # noqa: T802
     for attempt in range(self._max_retries + 1):
       try:
         return StreamFilelike(self._session.get(link.url, verify=self._verify, stream=True), link)

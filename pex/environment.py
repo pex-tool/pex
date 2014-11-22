@@ -45,7 +45,7 @@ class PEXEnvironment(Environment):
                          if not x.startswith(PEXBuilder.BOOTSTRAP_DIR) and
                             not x.startswith(PexInfo.INTERNAL_CACHE))
             pex_zip.extractall(explode_tmp, pex_files)
-        except:
+        except:  # noqa: T803
           safe_rmtree(explode_tmp)
           raise
       TRACER.log('Renaming %s to %s' % (explode_tmp, explode_dir))

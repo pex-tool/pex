@@ -32,8 +32,8 @@ setup(
     'Programming Language :: Python',
   ],
   packages = [
-      'pex',
-      'pex.bin',
+    'pex',
+    'pex.bin',
   ],
   install_requires = [
     'setuptools>=2.2',

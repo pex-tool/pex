@@ -10,7 +10,6 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
-import time
 from optparse import OptionParser
 
 from pex.common import safe_delete, safe_mkdtemp
@@ -25,6 +24,8 @@ from pex.resolver import resolve as requirement_resolver
 from pex.tracer import TRACER, Tracer
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 from pex.version import __version__
+
+CANNOT_DISTILL = 101
 
 
 def die(msg, error_code=1):

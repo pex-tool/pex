@@ -21,6 +21,7 @@ class TranslatorBase(AbstractClass):
   """
     Translate a link into a distribution.
   """
+
   @abstractmethod
   def translate(self, link, into=None):
     pass
@@ -31,6 +32,7 @@ class ChainedTranslator(TranslatorBase):
     Glue a sequence of Translators together in priority order.  The first Translator to resolve a
     requirement wins.
   """
+
   def __init__(self, *translators):
     self._translators = list(filter(None, translators))
     for tx in self._translators:

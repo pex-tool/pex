@@ -29,6 +29,7 @@ else:
 
 class ChainedFinder(object):
   """A utility to chain together multiple pkg_resources finders."""
+
   @classmethod
   def of(cls, *chained_finder_or_finder):
     finders = []
@@ -57,7 +58,6 @@ class ChainedFinder(object):
 # exposed API.  As it stands, pkg_resources doesn't provide an API to chain multiple distribution
 # finders together.  This is probably possible using importlib but that does us no good as the
 # importlib machinery supporting this is only available in Python >= 3.1.
-
 def _get_finder(importer):
   if not hasattr(pkg_resources, '_distribution_finders'):
     return None

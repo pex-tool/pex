@@ -4,9 +4,14 @@ env:
   - TOXENV=py26
   - TOXENV=py27
   - TOXENV=py27-requests
+  - TOXENV=py27-requests-cachecontrol
   - TOXENV=py33
   - TOXENV=py34
+  - TOXENV=py34-requests
+  - TOXENV=py34-requests-cachecontrol
   - TOXENV=pypy
+  - TOXENV=style
+  - TOXENV=isort-check
 install:
   - pip install tox
 script:

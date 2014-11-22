@@ -105,7 +105,7 @@ def safe_open(filename, *args, **kwargs):
   specified file have been created first.
   """
   safe_mkdir(os.path.dirname(filename))
-  return open(filename, *args, **kwargs)
+  return open(filename, *args, **kwargs)  # noqa: T802
 
 
 def safe_delete(filename):
@@ -169,11 +169,11 @@ class Chroot(object):
   Files may be tagged when added in order to keep track of multiple overlays
   in the chroot.
   """
-  class ChrootException(Exception): pass
-
-  class ChrootTaggingException(Exception):
+  class Error(Exception): pass
+  class ChrootException(Error): pass
+  class ChrootTaggingException(Error):
     def __init__(self, filename, orig_tag, new_tag):
-      Exception.__init__(self,
+      super(Chroot.ChrootTaggingException, self).__init__(  # noqa: T800
         "Trying to add %s to fileset(%s) but already in fileset(%s)!" % (
           filename, new_tag, orig_tag))
 
@@ -188,8 +188,8 @@ class Chroot(object):
     self.root = None
     try:
       safe_mkdir(chroot_base)
-    except:
-      raise Chroot.ChrootException('Unable to create chroot in %s' % chroot_base)
+    except OSError as e:
+      raise self.ChrootException('Unable to create chroot in %s: %s' % (chroot_base, e))
     if name is not None:
       self.chroot = tempfile.mkdtemp(dir=chroot_base, prefix='%s.' % name)
     else:
@@ -217,7 +217,7 @@ class Chroot(object):
   def _check_tag(self, fn, label):
     for fs_label, fs in self.filesets.items():
       if fn in fs and fs_label != label:
-        raise Chroot.ChrootTaggingException(fn, fs_label, label)
+        raise self.ChrootTaggingException(fn, fs_label, label)
 
   def _tag(self, fn, label):
     self._check_tag(fn, label)

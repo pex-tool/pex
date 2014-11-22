@@ -33,7 +33,7 @@ class DevNull(object):
     pass
 
 
-class PEX(object):
+class PEX(object):  # noqa: T000
   """PEX, n. A self-contained python environment."""
 
   class Error(Exception): pass
@@ -262,7 +262,7 @@ class PEX(object):
       with self.patch_sys():
         working_set = self._env.activate()
         if 'PEX_COVERAGE' in os.environ:
-          PEX.start_coverage()
+          self.start_coverage()
         TRACER.log('PYTHONPATH contains:')
         for element in sys.path:
           TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
@@ -289,7 +289,7 @@ class PEX(object):
   def execute_interpreter(cls):
     force_interpreter = 'PEX_INTERPRETER' in os.environ
     if force_interpreter:
-        del os.environ['PEX_INTERPRETER']
+      del os.environ['PEX_INTERPRETER']
     TRACER.log('%s, dropping into interpreter' % (
         'PEX_INTERPRETER specified' if force_interpreter else 'No entry point specified'))
     if sys.argv[1:]:

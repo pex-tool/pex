@@ -7,7 +7,6 @@ from pkg_resources import EGG_NAME, parse_version, safe_name
 
 from .archiver import Archiver
 from .base import maybe_requirement
-from .common import safe_mkdtemp
 from .interpreter import PythonInterpreter
 from .link import Link
 from .pep425 import PEP425, PEP425Extras
@@ -90,13 +89,13 @@ class SourcePackage(Package):
   def split_fragment(cls, fragment):
     """A heuristic used to split a string into version name/fragment:
 
-       >>> split_fragment('pysolr-2.1.0-beta')
+       >>> SourcePackage.split_fragment('pysolr-2.1.0-beta')
        ('pysolr', '2.1.0-beta')
-       >>> split_fragment('cElementTree-1.0.5-20051216')
+       >>> SourcePackage.split_fragment('cElementTree-1.0.5-20051216')
        ('cElementTree', '1.0.5-20051216')
-       >>> split_fragment('pil-1.1.7b1-20090412')
+       >>> SourcePackage.split_fragment('pil-1.1.7b1-20090412')
        ('pil', '1.1.7b1-20090412')
-       >>> split_fragment('django-plugin-2-2.3')
+       >>> SourcePackage.split_fragment('django-plugin-2-2.3')
        ('django-plugin-2', '2.3')
     """
     def likely_version_component(enumerated_fragment):

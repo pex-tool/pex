@@ -13,8 +13,6 @@ try:
 except ImportError:
   import mock
 
-
-
 try:
   from responses import RequestsMock
 except ImportError:

@@ -3,16 +3,12 @@
 
 import contextlib
 import functools
-import os
-import random
 import zipfile
 from hashlib import sha1
-from textwrap import dedent
 
-from twitter.common.contextutil import temporary_dir, temporary_file
-from twitter.common.dirutil import safe_mkdir, safe_mkdtemp
+from twitter.common.contextutil import temporary_file
 
-from pex.installer import EggInstaller, Installer, WheelInstaller
+from pex.installer import EggInstaller, WheelInstaller
 from pex.testing import make_bdist, temporary_content, write_zipfile
 from pex.util import CacheHelper, DistributionHelper
 
@@ -53,7 +49,7 @@ def test_hash_consistency():
     with temporary_content(CONTENT) as td:
       dir_hash = CacheHelper.dir_hash(td)
       with temporary_file() as tf:
-        zipped = write_zipfile(td, tf.name, reverse=reverse)
+        write_zipfile(td, tf.name, reverse=reverse)
         with contextlib.closing(zipfile.ZipFile(tf.name, 'r')) as zf:
           zip_hash = CacheHelper.zip_hash(zf)
           assert zip_hash == dir_hash

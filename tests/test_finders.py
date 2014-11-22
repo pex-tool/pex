@@ -13,7 +13,6 @@ except ImportError:
   from unittest import mock
 
 
-
 def test_chained_finder():
   def finder1(importer, path_item, only=False):
     for foo in ('foo', 'bar'):

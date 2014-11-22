@@ -14,7 +14,6 @@ from .compatibility import to_bytes
 from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
-from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
 
 
@@ -158,7 +157,7 @@ class PEXBuilder(object):
     if env_filename is None:
       env_filename = os.path.basename(filename)
     if self._chroot.get("executable"):
-      raise PEXBuilder.InvalidExecutableSpecification(
+      raise self.InvalidExecutableSpecification(
           "Setting executable on a PEXBuilder that already has one!")
     self._chroot.link(filename, env_filename, "executable")
     entry_point = env_filename

@@ -13,7 +13,7 @@ from collections import defaultdict
 
 from pkg_resources import Distribution, find_distributions, Requirement
 
-from .base import maybe_requirement, maybe_requirement_list
+from .base import maybe_requirement
 from .compatibility import string
 from .tracer import Tracer
 

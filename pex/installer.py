@@ -205,6 +205,7 @@ class Packager(DistributionPackager):
   """
     Create a source distribution from an unpacked setup.py-based project.
   """
+
   def _setup_command(self):
     return ['sdist', '--formats=gztar', '--dist-dir=%s' % self._install_tmp]
 
@@ -217,6 +218,7 @@ class EggInstaller(DistributionPackager):
   """
     Create a source distribution from an unpacked setup.py-based project.
   """
+
   def _setup_command(self):
     return ['bdist_egg', '--dist-dir=%s' % self._install_tmp]
 
