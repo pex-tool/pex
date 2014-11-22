@@ -96,14 +96,18 @@ class SourceTranslator(TranslatorBase):
       with TRACER.timed('Packaging %s' % package.name):
         try:
           dist_path = installer.bdist()
-        except self._installer_impl.InstallFailure:
+        except self._installer_impl.InstallFailure as e:
+          TRACER.log('Failed to install package at %s: %s' % (unpack_path, e))
           return None
         target_path = os.path.join(into, os.path.basename(dist_path))
         safe_copy(dist_path, target_path)
         target_package = Package.from_href(target_path)
         if not target_package:
+          TRACER.log('Target path %s does not look like a Package.' % target_path)
           return None
         if not target_package.compatible(self._interpreter.identity, platform=self._platform):
+          TRACER.log('Target package %s is not compatible with %s / %s' % (
+              target_package, self._interpreter.identity, self._platform))
           return None
         return DistributionHelper.distribution_from_path(target_path)
     except Exception as e:
@@ -131,6 +135,8 @@ class BinaryTranslator(TranslatorBase):
     if not isinstance(package, self._package_type):
       return None
     if not package.compatible(identity=self._identity, platform=self._platform):
+      TRACER.log('Target package %s is not compatible with %s / %s' % (
+          package, self._identity, self._platform))
       return None
     into = into or safe_mkdtemp()
     target_path = os.path.join(into, package.filename)

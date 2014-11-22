@@ -55,7 +55,7 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
     self._interpreter = interpreter or PythonInterpreter.get()
     if not self._interpreter.satisfies(self.capability) and strict:
       raise self.IncapableInterpreter('Interpreter %s not capable of running %s' % (
-          self._interpreter, self.__class__.__name__))
+          self._interpreter.binary, self.__class__.__name__))
 
   def mixins(self):
     """Return a map from import name to requirement to load into setup script prior to invocation.
