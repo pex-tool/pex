@@ -22,7 +22,7 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
-from pex.tracer import Tracer, TRACER
+from pex.tracer import TraceLogger, TRACER
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 from pex.version import __version__
 
@@ -320,7 +320,7 @@ def main():
   parser = configure_clp()
   options, args = parser.parse_args()
 
-  with Tracer.env_override(PEX_VERBOSE=options.verbosity):
+  with TraceLogger.env_override(PEX_VERBOSE=options.verbosity):
 
     pex_builder = build_pex(args, options)
 

@@ -20,9 +20,9 @@ from .environment import PEXEnvironment
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
-from .tracer import Tracer
+from .tracer import TraceLogger
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex: ')
+TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex: ')
 
 
 class DevNull(object):

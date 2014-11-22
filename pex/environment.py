@@ -21,10 +21,10 @@ from .interpreter import PythonInterpreter
 from .package import distribution_compatible
 from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
-from .tracer import Tracer
+from .tracer import TraceLogger
 from .util import CacheHelper, DistributionHelper
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex.environment: ')
+TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex.environment: ')
 
 
 class PEXEnvironment(Environment):

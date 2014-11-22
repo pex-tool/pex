@@ -15,7 +15,7 @@ from pkg_resources import Distribution, find_distributions, Requirement
 
 from .base import maybe_requirement
 from .compatibility import string
-from .tracer import Tracer
+from .tracer import TraceLogger
 
 try:
   from numbers import Integral
@@ -23,7 +23,7 @@ except ImportError:
   Integral = (int, long)
 
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex.interpreter: ')
+TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex.interpreter: ')
 
 
 # Determine in the most platform-compatible way possible the identity of the interpreter

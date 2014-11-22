@@ -7,7 +7,7 @@ import threading
 import time
 from contextlib import contextmanager
 
-__all__ = ('Tracer',)
+__all__ = ('TraceLogger',)
 
 
 class Trace(object):
@@ -32,7 +32,7 @@ class Trace(object):
     return self._stop - self._start
 
 
-class Tracer(object):
+class TraceLogger(object):
   """
     A multi-threaded tracer.
   """
@@ -132,4 +132,4 @@ class Tracer(object):
       self._local.parent = None
 
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex: ')
+TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex: ')
