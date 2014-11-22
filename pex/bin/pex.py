@@ -325,3 +325,7 @@ def main():
     log('Running PEX file at %s with args %s' % (pex_builder.path(), args), v=options.verbosity)
     pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)
     return pex.run(args=list(args))
+
+
+if __name__ == '__main__':
+  main()

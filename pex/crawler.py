@@ -4,6 +4,7 @@
 import os
 import re
 import threading
+import traceback
 
 from .compatibility import PY3
 from .http import Context
@@ -61,8 +62,7 @@ class Crawler(object):
   def crawl_local(cls, link):
     try:
       dirents = os.listdir(link.path)
-    # except OSError as e:
-    except Exception as e:
+    except OSError as e:
       TRACER.log('Failed to read %s: %s' % (link.path, e), V=1)
       return set(), set()
     files, dirs = partition([os.path.join(link.path, fn) for fn in dirents], os.path.isdir)
@@ -71,9 +71,8 @@ class Crawler(object):
   @classmethod
   def crawl_remote(cls, context, link):
     try:
-      content = context.read(link)
-    # except context.Error as e:
-    except Exception as e:
+      content = context.content(link)
+    except context.Error as e:
       TRACER.log('Failed to read %s: %s' % (link.url, e), V=1)
       return set(), set()
     links = set(link.join(href) for href in PageParser.links(content))
@@ -111,6 +110,9 @@ class Crawler(object):
             roots, rels = self.crawl_link(self.context, link)
           except Exception as e:
             TRACER.log('Unknown exception encountered: %s' % e)
+            for line in traceback.format_exc().splitlines():
+              TRACER.log(line)
+            queue.task_done()
             continue
           links.update(roots)
           if follow_links:

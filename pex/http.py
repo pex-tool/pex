@@ -4,6 +4,7 @@ import os
 import shutil
 import uuid
 from abc import abstractmethod
+from email import message_from_string
 
 from .common import safe_mkdtemp, safe_open
 from .compatibility import AbstractClass, PY3
@@ -40,6 +41,8 @@ class Context(AbstractClass):
   specialized by individual implementations.
   """
 
+  DEFAULT_ENCODING = 'iso-8859-1'
+
   class Error(Exception):
     """Error base class for Contexts to wrap application-specific exceptions."""
     pass
@@ -75,6 +78,12 @@ class Context(AbstractClass):
     with contextlib.closing(self.open(link)) as fp:
       return fp.read()
 
+  def content(self, link):
+    """Return the encoded content associated with the link.
+
+    :param link: The :class:`Link` to read.
+    """
+
   def fetch(self, link, into=None):
     """Fetch the binary content associated with the link and write to a file.
 
@@ -104,6 +113,14 @@ class UrllibContext(Context):
   def open(self, link):
     return urllib_request.urlopen(link.url)
 
+  def content(self, link):
+    if link.local:
+      raise self.Error('Context.content only works with remote URLs.')
+
+    with contextlib.closing(self.open(link)) as fp:
+      encoding = message_from_string(str(fp.headers)).get_content_charset(self.DEFAULT_ENCODING)
+      return fp.read().decode(encoding, errors='replace')
+
 
 Context.register(UrllibContext)
 
@@ -124,6 +141,7 @@ class StreamFilelike(object):
 
   def __init__(self, request, link, chunk_size=16384):
     self._iterator = request.iter_content(chunk_size)
+    self.encoding = request.encoding
     self._bytes = b''
     self._link = link
     self._hasher, self._hash_value = self.detect_algorithm(link)
@@ -198,6 +216,14 @@ class RequestsContext(Context):
             None,
             link,
             'Exceeded max retries of %d' % self._max_retries))
+
+  def content(self, link):
+    if link.local:
+      raise self.Error('Context.content only works with remote URLs.')
+
+    with contextlib.closing(self.open(link)) as request:
+      return request.read().decode(request.encoding or self.DEFAULT_ENCODING, errors='replace')
+
 
 if requests:
   Context.register(RequestsContext)
