@@ -11,7 +11,6 @@ from collections import namedtuple
 from .common import open_zip
 from .orderedset import OrderedSet
 
-PexRequirement = namedtuple('PexRequirement', 'requirement repo dynamic')
 PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
 
 
@@ -33,8 +32,12 @@ class PexInfo(object):
   always_write_cache: False          # should we always write the internal cache to disk first?
                                      # this is useful if you have very large dependencies that
                                      # do not fit in RAM constrained environments
-  requirements: list                 # list of PexRequirement tuples:
-                                     #   [requirement, repository, dynamic]
+  requirements: list                 # list of requirements for this environment
+
+
+  .. versionchanged:: 0.8
+    Removed the ``repositories`` and ``indices`` information, as they were never
+    implemented.
   """
 
   PATH = 'PEX-INFO'
@@ -84,18 +87,21 @@ class PexInfo(object):
       print('PEX: %s' % msg, file=sys.stderr)
 
   def __init__(self, info=None):
+    """Construct a new PexInfo.  This should not be used directly."""
+
     if info is not None and not isinstance(info, dict):
       raise ValueError('PexInfo can only be seeded with a dict, got: '
                        '%s of type %s' % (info, type(info)))
     self._pex_info = info or {}
     self._distributions = self._pex_info.get('distributions', {})
-    self._requirements = OrderedSet(
-        PexRequirement(*req) for req in self._pex_info.get('requirements', []))
-    self._repositories = OrderedSet(self._pex_info.get('repositories', []))
-    self._indices = OrderedSet(self._pex_info.get('indices', []))
+    self._requirements = OrderedSet(self._pex_info.get('requirements', []))
 
   @property
   def build_properties(self):
+    """Information about the system on which this PEX was generated.
+
+    :returns: A dictionary containing metadata about the environment used to build this PEX.
+    """
     return self._pex_info.get('build_properties', {})
 
   @build_properties.setter
@@ -107,6 +113,15 @@ class PexInfo(object):
 
   @property
   def zip_safe(self):
+    """Whether or not this PEX should be treated as zip-safe.
+
+    If set to false and the PEX is zipped, the contents of the PEX will be unpacked into a
+    directory within the PEX_ROOT prior to execution.  This allows code and frameworks depending
+    upon __file__ existing on disk to operate normally.
+
+    By default zip_safe is True.  May be overridden at runtime by the $PEX_FORCE_LOCAL environment
+    variable.
+    """
     if 'PEX_FORCE_LOCAL' in os.environ:
       self.debug('PEX_FORCE_LOCAL forcing zip_safe to False')
       return False
@@ -118,6 +133,14 @@ class PexInfo(object):
 
   @property
   def inherit_path(self):
+    """Whether or not this PEX should be allowed to inherit system dependencies.
+
+    By default, PEX environments are scrubbed of all system distributions prior to execution.
+    This means that PEX files cannot rely upon preexisting system libraries.
+
+    By default inherit_path is False.  This may be overridden at runtime by the $PEX_INHERIT_PATH
+    environment variable.
+    """
     if 'PEX_INHERIT_PATH' in os.environ:
       self.debug('PEX_INHERIT_PATH override detected')
       return True
@@ -155,8 +178,8 @@ class PexInfo(object):
   def entry_point(self, value):
     self._pex_info['entry_point'] = value
 
-  def add_requirement(self, requirement, repo=None, dynamic=False):
-    self._requirements.add(PexRequirement(str(requirement), repo, dynamic))
+  def add_requirement(self, requirement):
+    self._requirements.add(str(requirement))
 
   @property
   def requirements(self):
@@ -164,12 +187,6 @@ class PexInfo(object):
 
   def add_distribution(self, location, sha):
     self._distributions[location] = sha
-
-  def add_repository(self, repository):
-    self._repositories.add(repository)
-
-  def add_index(self, index):
-    self._indices.add(index)
 
   @property
   def distributions(self):

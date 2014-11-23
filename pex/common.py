@@ -170,49 +170,50 @@ class Chroot(object):
   in the chroot.
   """
   class Error(Exception): pass
-  class ChrootException(Error): pass
   class ChrootTaggingException(Error):
     def __init__(self, filename, orig_tag, new_tag):
       super(Chroot.ChrootTaggingException, self).__init__(  # noqa: T800
         "Trying to add %s to fileset(%s) but already in fileset(%s)!" % (
           filename, new_tag, orig_tag))
 
-  def __init__(self, chroot_base, name=None):
+  def __init__(self, chroot_base):
     """Create the chroot.
 
     :chroot_base Directory for the creation of the target chroot.
-    :name If specified, create the chroot in a temporary directory underneath
-      ``chroot_base`` with ``name`` as the prefix, otherwise create the chroot directly
-      into ``chroot_base``
     """
-    self.root = None
     try:
       safe_mkdir(chroot_base)
     except OSError as e:
       raise self.ChrootException('Unable to create chroot in %s: %s' % (chroot_base, e))
-    if name is not None:
-      self.chroot = tempfile.mkdtemp(dir=chroot_base, prefix='%s.' % name)
-    else:
-      self.chroot = chroot_base
-    self.filesets = {}
-
-  def set_relative_root(self, root):
-    """Make all source paths relative to this root path."""
-    self.root = root
+    self.chroot = chroot_base
+    self.filesets = defaultdict(set)
 
   def clone(self, into=None):
-    into = into or tempfile.mkdtemp()
+    """Clone this chroot.
+
+    :keyword into: (optional) An optional destination directory to clone the
+      Chroot into.  If not specified, a temporary directory will be created.
+
+    .. versionchanged:: 0.8
+      The temporary directory created when ``into`` is not specified is now garbage collected on
+      interpreter exit.
+    """
+    into = into or safe_mkdtemp()
     new_chroot = Chroot(into)
-    new_chroot.root = self.root
     for label, fileset in self.filesets.items():
       for fn in fileset:
-        new_chroot.link(os.path.join(self.chroot, self.root or '', fn),
-                        fn, label=label)
+        new_chroot.link(os.path.join(self.chroot, fn), fn, label=label)
     return new_chroot
 
   def path(self):
     """The path of the chroot."""
     return self.chroot
+
+  def _normalize(self, dst):
+    dst = os.path.normpath(dst)
+    if dst.startswith(os.sep) or dst.startswith('..'):
+      raise self.Error('Destination path is not a relative path!')
+    return dst
 
   def _check_tag(self, fn, label):
     for fs_label, fs in self.filesets.items():
@@ -221,19 +222,13 @@ class Chroot(object):
 
   def _tag(self, fn, label):
     self._check_tag(fn, label)
-    if label not in self.filesets:
-      self.filesets[label] = set()
     self.filesets[label].add(fn)
 
-  def _mkdir_for(self, path):
-    dirname = os.path.dirname(os.path.join(self.chroot, path))
-    safe_mkdir(dirname)
-
-  def _rootjoin(self, path):
-    return os.path.join(self.root or '', path)
+  def _ensure_parent(self, path):
+    safe_mkdir(os.path.dirname(os.path.join(self.chroot, path)))
 
   def copy(self, src, dst, label=None):
-    """Copy file from {root}/source to {chroot}/dest with optional label.
+    """Copy file ``src`` to ``chroot/dst`` with optional label.
 
     May raise anything shutil.copyfile can raise, e.g.
       IOError(Errno 21 'EISDIR')
@@ -241,12 +236,13 @@ class Chroot(object):
     May raise ChrootTaggingException if dst is already in a fileset
     but with a different label.
     """
+    dst = self._normalize(dst)
     self._tag(dst, label)
-    self._mkdir_for(dst)
-    shutil.copyfile(self._rootjoin(src), os.path.join(self.chroot, dst))
+    self._ensure_parent(dst)
+    shutil.copyfile(src, os.path.join(self.chroot, dst))
 
   def link(self, src, dst, label=None):
-    """Hard link file from {root}/source to {chroot}/dest with optional label.
+    """Hard link file from ``src`` to ``chroot/dst`` with optional label.
 
     May raise anything os.link can raise, e.g.
       IOError(Errno 21 'EISDIR')
@@ -254,15 +250,16 @@ class Chroot(object):
     May raise ChrootTaggingException if dst is already in a fileset
     but with a different label.
     """
+    dst = self._normalize(dst)
     self._tag(dst, label)
-    self._mkdir_for(dst)
-    abs_src = self._rootjoin(src)
+    self._ensure_parent(dst)
+    abs_src = src
     abs_dst = os.path.join(self.chroot, dst)
     try:
       os.link(abs_src, abs_dst)
     except OSError as e:
       if e.errno == errno.EEXIST:
-        # File already exists, skip
+        # File already exists, skip XXX -- ensure target and dest are same?
         pass
       elif e.errno == errno.EXDEV:
         # Hard link across devices, fall back on copying
@@ -271,25 +268,26 @@ class Chroot(object):
         raise
 
   def write(self, data, dst, label=None, mode='wb'):
-    """Write data to {chroot}/dest with optional label.
+    """Write data to ``chroot/dst`` with optional label.
 
     Has similar exceptional cases as ``Chroot.copy``
     """
-
+    dst = self._normalize(dst)
     self._tag(dst, label)
-    self._mkdir_for(dst)
+    self._ensure_parent(dst)
     with open(os.path.join(self.chroot, dst), mode) as wp:
       wp.write(data)
 
   def touch(self, dst, label=None):
-    """Perform 'touch' on {chroot}/dest with optional label.
+    """Perform 'touch' on ``chroot/dst`` with optional label.
 
     Has similar exceptional cases as Chroot.copy
     """
+    dst = self._normalize(dst)
     self.write('', dst, label, mode='a')
 
   def get(self, label):
-    """Get all files labeled with 'label'"""
+    """Get all files labeled with ``label``"""
     return self.filesets.get(label, set())
 
   def files(self):
