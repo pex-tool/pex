@@ -2,9 +2,9 @@
 CHANGES
 =======
 
-----------
-0.8.0.dev0
-----------
+-----
+0.8.0
+-----
 
 * *API change*: Decouple translation from package iteration.  This removes
   the Obtainer construct entirely, which likely means if you're using PEX as
@@ -29,7 +29,7 @@ CHANGES
   `RB #1303 <https://rbcommons.com/s/twitter/r/1303/>`_
 
 * Make pex --version correct.
-  `Issue #19 <https://github.com/pantsbuild/pex/issues/19`_
+  `Issue #19 <https://github.com/pantsbuild/pex/issues/19>`_
 
 * Bug fix: Fix over-aggressive sys.modules scrubbing for namespace packages.  Under
   certain circumstances, namespace packages in site-packages could conflict with packages
