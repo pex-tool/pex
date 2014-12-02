@@ -2,6 +2,55 @@
 CHANGES
 =======
 
+----------
+0.8.0.dev0
+----------
+
+* *API change*: Decouple translation from package iteration.  This removes
+  the Obtainer construct entirely, which likely means if you're using PEX as
+  a library, you will need to change your code if you were doing anything
+  nontrivial.  This adds a couple new options to ``resolve`` but simplifies
+  the story around how to cache packages.
+  `RB #785 <https://rbcommons.com/s/twitter/r/785/>`_
+
+* Refactor http handling in pex to allow for alternate http implementations.  Adds support
+  for `requests <https://github.com/kennethreitz/requests>`_,
+  improving both performance and security.   For more information, read the commit notes at
+  `91c7f32 <https://github.com/pantsbuild/pex/commit/91c7f324085c18af714d35947b603a5f60aeb682>`_.
+  `RB #778 <https://rbcommons.com/s/twitter/r/778/>`_
+
+* Improvements to API documentation throughout.
+
+* Renamed ``Tracer`` to ``TraceLogger`` to prevent nondeterministic isort ordering.
+
+* Refactor tox.ini to increase the number of environment combinations and improve coverage.
+
+* Adds HTTP retry support for the RequestsContext.
+  `RB #1303 <https://rbcommons.com/s/twitter/r/1303/>`_
+
+* Make pex --version correct.
+  `Issue #19 <https://github.com/pantsbuild/pex/issues/19`_
+
+* Bug fix: Fix over-aggressive sys.modules scrubbing for namespace packages.  Under
+  certain circumstances, namespace packages in site-packages could conflict with packages
+  within a PEX, causing them to fail importing.
+  `RB #1378 <https://rbcommons.com/s/twitter/r/1378/>`_
+
+* Bug fix: Replace uses of ``os.unsetenv(...)`` with ``del os.environ[...]``
+  `Pull Request #11 <https://github.com/pantsbuild/pex/pull/11>`_
+
+* Bug fix: Scrub sys.path and sys.modules based upon both supplied path and
+  realpath of files and directories.  Newer versions of virtualenv on Linux symlink site-packages
+  which caused those packages to not be removed from sys.path correctly.
+  `Issue #21 <https://github.com/pantsbuild/pex/issues/21>`_
+
+* Bug fix: The pex -s option was not correctly pulling in transitive dependencies.
+  `Issue #22 <https://github.com/pantsbuild/pex/issues/22>`_
+
+* Bug fix: Adds ``content`` method to HTTP contexts that does HTML content decoding, fixing
+  an encoding issue only experienced when using Python 3.
+  `Issue #10 <https://github.com/pantsbuild/pex/issues/10>`_
+
 -----
 0.7.0
 -----
