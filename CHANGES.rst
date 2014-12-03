@@ -3,6 +3,13 @@ CHANGES
 =======
 
 -----
+0.8.1
+-----
+
+* Bug fix: Fix issue where it'd be possible to ``os.path.getmtime`` on a remote ``Link`` object
+  `Issue #29 <https://github.com/pantsbuild/pex/issues/29>`_
+
+-----
 0.8.0
 -----
 

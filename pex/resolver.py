@@ -91,7 +91,8 @@ def packages_from_requirement_cached(local_iterator, ttl, iterator, requirement,
     # match with inexact requirement, consider if ttl supplied.
     if ttl:
       now = time.time()
-      packages = [package for package in packages if (now - os.path.getmtime(package.path)) < ttl]
+      packages = [package for package in packages if package.remote or package.local and
+          (now - os.path.getmtime(package.path)) < ttl]
       if packages:
         TRACER.log('Package cache hit (inexact): %s' % requirement, V=3)
         return packages
@@ -187,13 +188,15 @@ def resolve(
 
   def requires(package, requirement):
     if not distributions.has(package):
-      local_package = Package.from_href(context.fetch(package, into=cache))
+      with TRACER.timed('Fetching %s' % package.url, V=2):
+        local_package = Package.from_href(context.fetch(package, into=cache))
       if package.remote:
         # this was a remote resolution -- so if we copy from remote to local but the
         # local already existed, update the mtime of the local so that it is correct
         # with respect to cache_ttl.
         os.utime(local_package.path, None)
-      dist = translator.translate(local_package, into=cache)
+      with TRACER.timed('Translating %s into distribution' % local_package.path, V=2):
+        dist = translator.translate(local_package, into=cache)
       if dist is None:
         raise Untranslateable('Package %s is not translateable.' % package)
       if not distribution_compatible(dist, interpreter, platform):

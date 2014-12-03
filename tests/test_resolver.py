@@ -25,3 +25,7 @@ def test_simple_local_resolve():
     fetchers = [Fetcher([td])]
     dists = resolve(['project'], fetchers=fetchers)
     assert len(dists) == 1
+
+
+# TODO(wickman) Test resolve and cached resolve more directly than via
+# integration.
