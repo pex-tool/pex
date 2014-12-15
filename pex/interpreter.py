@@ -364,7 +364,6 @@ class PythonInterpreter(object):
                       of the extras associated with this interpreter.
     """
     self._binary = os.path.realpath(binary)
-    self._binary_stat = os.stat(self._binary)
     self._extras = extras or {}
     self._identity = identity
 
@@ -410,12 +409,12 @@ class PythonInterpreter(object):
         return location
 
   def __hash__(self):
-    return hash(self._binary_stat)
+    return hash((self._binary, self._identity))
 
   def __eq__(self, other):
     if not isinstance(other, PythonInterpreter):
       return False
-    return self._binary_stat == other._binary_stat
+    return (self._binary, self._identity) == (other._binary, other._identity)
 
   def __lt__(self, other):
     if not isinstance(other, PythonInterpreter):
