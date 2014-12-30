@@ -7,7 +7,7 @@ from abc import abstractmethod
 from email import message_from_string
 
 from .common import safe_mkdtemp, safe_open
-from .compatibility import AbstractClass, PY3
+from .compatibility import PY3, AbstractClass
 from .tracer import TRACER
 
 try:

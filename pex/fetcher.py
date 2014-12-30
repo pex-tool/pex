@@ -7,7 +7,7 @@ import warnings
 from abc import abstractmethod
 
 from .base import maybe_requirement
-from .compatibility import AbstractClass, PY3
+from .compatibility import PY3, AbstractClass
 
 if PY3:
   import urllib.parse as urlparse

@@ -6,9 +6,9 @@ from __future__ import absolute_import
 import logging
 import os
 
-from pkg_resources import DefaultProvider, get_provider, ZipProvider
+from pkg_resources import DefaultProvider, ZipProvider, get_provider
 
-from .common import chmod_plus_x, Chroot, open_zip, safe_mkdir, safe_mkdtemp
+from .common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
 from .compatibility import to_bytes
 from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller

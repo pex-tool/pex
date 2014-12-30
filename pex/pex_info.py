@@ -6,9 +6,11 @@ from __future__ import absolute_import, print_function
 import json
 import os
 import sys
+import warnings
 from collections import namedtuple
 
 from .common import open_zip
+from .compatibility import string as compatibility_string
 from .orderedset import OrderedSet
 
 PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
@@ -82,6 +84,18 @@ class PexInfo(object):
     return PexInfo(info=json.loads(content))
 
   @classmethod
+  def _parse_requirement_tuple(cls, requirement_tuple):
+    if isinstance(requirement_tuple, (tuple, list)):
+      if len(requirement_tuple) != 3:
+        raise ValueError('Malformed PEX requirement: %r' % (requirement_tuple,))
+      # pre 0.8.x requirement type:
+      warnings.warn('Attempting to use deprecated PEX feature.  Please upgrade past PEX 0.8.x.')
+      return requirement_tuple[0]
+    elif isinstance(requirement_tuple, compatibility_string):
+      return requirement_tuple
+    raise ValueError('Malformed PEX requirement: %r' % (requirement_tuple,))
+
+  @classmethod
   def debug(cls, msg):
     if 'PEX_VERBOSE' in os.environ:
       print('PEX: %s' % msg, file=sys.stderr)
@@ -94,7 +108,10 @@ class PexInfo(object):
                        '%s of type %s' % (info, type(info)))
     self._pex_info = info or {}
     self._distributions = self._pex_info.get('distributions', {})
-    self._requirements = OrderedSet(self._pex_info.get('requirements', []))
+    requirements = self._pex_info.get('requirements', [])
+    if not isinstance(requirements, (list, tuple)):
+      raise ValueError('Expected requirements to be a list, got %s' % type(requirements))
+    self._requirements = OrderedSet(self._parse_requirement_tuple(req) for req in requirements)
 
   @property
   def build_properties(self):

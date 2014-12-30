@@ -36,7 +36,7 @@ setup(
     'pex.bin',
   ],
   install_requires = [
-    'setuptools>=2.2',
+    'setuptools>=2.2,<8',
   ],
   tests_require = [
     'mock',

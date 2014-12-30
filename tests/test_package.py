@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import pytest
-from pkg_resources import parse_version, Requirement
+from pkg_resources import Requirement, parse_version
 
 from pex.package import EggPackage, SourcePackage
 

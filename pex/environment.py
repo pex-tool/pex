@@ -11,9 +11,9 @@ import uuid
 from pkg_resources import (
     DistributionNotFound,
     Environment,
-    find_distributions,
     Requirement,
-    WorkingSet
+    WorkingSet,
+    find_distributions
 )
 
 from .common import open_zip, safe_mkdir, safe_rmtree

@@ -11,7 +11,7 @@ import subprocess
 import sys
 from collections import defaultdict
 
-from pkg_resources import Distribution, find_distributions, Requirement
+from pkg_resources import Distribution, Requirement, find_distributions
 
 from .base import maybe_requirement
 from .compatibility import string

@@ -17,7 +17,7 @@ from .http import Context
 from .interpreter import PythonInterpreter
 from .iterator import Iterator
 from .orderedset import OrderedSet
-from .package import distribution_compatible, Package
+from .package import Package, distribution_compatible
 from .platforms import Platform
 from .tracer import TRACER
 from .translator import Translator
