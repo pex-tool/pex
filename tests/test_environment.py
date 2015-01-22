@@ -48,35 +48,40 @@ def test_write_zipped_internal_cache():
     pb.info.pex_root = pex_root
     pb.build(pex_file.name)
 
-    dists = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
-    assert len(dists) == 1
-    assert normalize(dists[0].location).startswith(
+    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
+    assert len(zip_safe) == 1
+    assert normalize(zip_safe[0].location).startswith(
         normalize(os.path.join(pex_file.name, pb.info.internal_cache))), (
             'loc: %s, cache: %s' % (
-                normalize(dists[0].location),
+                normalize(zip_safe[0].location),
                 normalize(os.path.join(pex_file.name, pb.info.internal_cache))))
 
     pb.info.always_write_cache = True
-    dists = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
-    assert len(dists) == 1
-    assert normalize(dists[0].location).startswith(normalize(pb.info.install_cache))
+    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
+    assert len(new) == 1
+    assert normalize(new[0].location).startswith(normalize(pb.info.install_cache))
 
-  # zip_safe pex will not be written to install cache unless always_write_cache
+    # Check that we can read from the cache
+    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
+    assert len(existing) == 1
+    assert normalize(existing[0].location).startswith(normalize(pb.info.install_cache))
+
+  # non-zip_safe pex will be written to install cache
   with nested(yield_pex_builder(zip_safe=False), temporary_dir(), temporary_file()) as (
       pb, pex_root, pex_file):
 
     pb.info.pex_root = pex_root
     pb.build(pex_file.name)
 
-    dists = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
-    assert len(dists) == 1
-    assert normalize(dists[0].location).startswith(normalize(pb.info.install_cache))
-    original_location = normalize(dists[0].location)
+    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
+    assert len(new) == 1
+    assert normalize(new[0].location).startswith(normalize(pb.info.install_cache))
+    original_location = normalize(new[0].location)
 
     # do the second time to validate idempotence of caching
-    dists = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
-    assert len(dists) == 1
-    assert normalize(dists[0].location) == original_location
+    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file.name, pb.info)
+    assert len(existing) == 1
+    assert normalize(existing[0].location) == original_location
 
 
 def test_load_internal_cache_unzipped():

@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import itertools
 import os
 import site
 import sys
@@ -66,7 +67,9 @@ class PEXEnvironment(Environment):
   @classmethod
   def write_zipped_internal_cache(cls, pex, pex_info):
     prefix_length = len(pex_info.internal_cache) + 1
-    distributions = []
+    existing_cached_distributions = []
+    newly_cached_distributions = []
+    zip_safe_distributions = []
     with open_zip(pex) as zf:
       # Distribution names are the first element after ".deps/" and before the next "/"
       distribution_names = set(filter(None, (filename[prefix_length:].split('/')[0]
@@ -74,17 +77,25 @@ class PEXEnvironment(Environment):
       # Create Distribution objects from these, and possibly write to disk if necessary.
       for distribution_name in distribution_names:
         internal_dist_path = '/'.join([pex_info.internal_cache, distribution_name])
-        dist = DistributionHelper.distribution_from_path(os.path.join(pex, internal_dist_path))
-        if DistributionHelper.zipsafe(dist) and not pex_info.always_write_cache:
-          distributions.append(dist)
-          continue
+        # First check if this is already cached
         dist_digest = pex_info.distributions.get(distribution_name) or CacheHelper.zip_hash(
             zf, internal_dist_path)
-        target_dir = os.path.join(pex_info.install_cache, '%s.%s' % (
-            distribution_name, dist_digest))
-        with TRACER.timed('Caching %s into %s' % (dist, target_dir)):
-          distributions.append(CacheHelper.cache_distribution(zf, internal_dist_path, target_dir))
-    return distributions
+        cached_location = os.path.join(pex_info.install_cache, '%s.%s' % (
+          distribution_name, dist_digest))
+        if os.path.exists(cached_location):
+          dist = DistributionHelper.distribution_from_path(cached_location)
+          existing_cached_distributions.append(dist)
+          continue
+        else:
+          dist = DistributionHelper.distribution_from_path(os.path.join(pex, internal_dist_path))
+          if DistributionHelper.zipsafe(dist) and not pex_info.always_write_cache:
+            zip_safe_distributions.append(dist)
+            continue
+
+        with TRACER.timed('Caching %s into %s' % (dist, cached_location)):
+          newly_cached_distributions.append(
+            CacheHelper.cache_distribution(zf, internal_dist_path, cached_location))
+    return existing_cached_distributions, newly_cached_distributions, zip_safe_distributions
 
   @classmethod
   def load_internal_cache(cls, pex, pex_info):
@@ -95,7 +106,7 @@ class PEXEnvironment(Environment):
         for dist in find_distributions(internal_cache):
           yield dist
       else:
-        for dist in cls.write_zipped_internal_cache(pex, pex_info):
+        for dist in itertools.chain(*cls.write_zipped_internal_cache(pex, pex_info)):
           yield dist
 
   def __init__(self, pex, pex_info, interpreter=None, **kw):
