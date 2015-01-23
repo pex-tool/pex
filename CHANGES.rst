@@ -3,6 +3,25 @@ CHANGES
 =======
 
 -----
+0.8.3
+-----
+
+* Performance improvement: Don't always write packages to disk if they've already been
+  cached.  This can significantly speed up launching PEX files with a large
+  number of non-zip-safe dependencies.
+  `RB #1642 <https://rbcommons.com/s/twitter/r/1642>`_
+
+-----
+0.8.2
+-----
+
+* Bug fix: Allow pex 0.8.x to parse pex files produced by earlier versions of
+  pex and twitter.common.python.
+
+* Pin pex to setuptools prior to 9.x until we have a chance to make changes
+  related to PEP440 and the change of pkg_resources.py to a package.
+
+-----
 0.8.1
 -----
 
