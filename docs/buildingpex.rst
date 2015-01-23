@@ -73,7 +73,7 @@ The ``-s`` option specifies the path to a source directory.::
     $ python setup.py sdist
     $ tar -xzvf dist/foo-x.y
     $ pex -s foo-x.y
-    Python 2.6.9 (unknown, Jan  2 2014, 14:52:48)
+    Python 2.7.7 (unknown, Jan  2 2014, 14:52:48)
     [GCC 4.2.1 (Based on Apple Inc. build 5658) (LLVM build 2336.11.00)] on darwin
     Type "help", "copyright", "credits" or "license" for more information.
     (InteractiveConsole)
