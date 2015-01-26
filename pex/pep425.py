@@ -106,7 +106,7 @@ class PEP425(object):  # noqa
         'cp%smu' % version, 'cp%sm' % version,
         'cp%su' % version,
         'abi3'
-        ])
+      ])
 
     major_version = int(version[0])
     minor_versions = []
