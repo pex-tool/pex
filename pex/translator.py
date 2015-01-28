@@ -41,7 +41,7 @@ class ChainedTranslator(TranslatorBase):
 
   def translate(self, package, into=None):
     for tx in self._translators:
-      dist = tx.translate(package, into=None)
+      dist = tx.translate(package, into=into)
       if dist:
         return dist
 
