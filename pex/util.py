@@ -9,6 +9,7 @@ import os
 import shutil
 import uuid
 from hashlib import sha1
+from threading import Lock
 
 from pkg_resources import find_distributions
 
@@ -145,3 +146,19 @@ class CacheHelper(object):
     dist = DistributionHelper.distribution_from_path(target_dir)
     assert dist is not None, 'Failed to cache distribution %s' % source
     return dist
+
+
+class Memoizer(object):
+  """A thread safe class for memoizing the results of a computation."""
+
+  def __init__(self):
+    self._data = {}
+    self._lock = Lock()
+
+  def get(self, key, default=None):
+    with self._lock:
+      return self._data.get(key, default)
+
+  def store(self, key, value):
+    with self._lock:
+      self._data[key] = value
