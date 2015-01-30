@@ -101,7 +101,7 @@ class Crawler(object):
     def execute():
       while not converged.is_set():
         try:
-          link = queue.get(timeout=0.1)
+          link = queue.get(timeout=0.01)
         except Empty:
           continue
         if link not in seen:
@@ -134,7 +134,6 @@ class Crawler(object):
     queue.join()
     converged.set()
 
-    for worker in workers:
-      worker.join()
-
+    # We deliberately not join back the worker threads, since they are no longer of
+    # any use to us.
     return links
