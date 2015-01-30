@@ -16,7 +16,7 @@ from uuid import uuid4
 
 def safe_copy(source, dest, overwrite=False):
   def do_copy():
-    temp_dest = dest + uuid4().get_hex()
+    temp_dest = dest + uuid4().hex
     shutil.copyfile(source, temp_dest)
     os.rename(temp_dest, dest)
 
