@@ -24,7 +24,7 @@ def test_excepthook_honored():
   import sys
 
   def excepthook(ex_type, ex, tb):
-    print('Custom hook called with: {}'.format(ex))
+    print('Custom hook called with: {0}'.format(ex))
     sys.exit(42)
 
   sys.excepthook = excepthook

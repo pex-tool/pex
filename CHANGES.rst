@@ -7,7 +7,7 @@ CHANGES
 ----------
 
 * Bug fix: Honor installed sys.excepthook in pex teardown.
-  `RB #XXX <https://rbcommons.com/s/twitter/r/XXX>`_
+  `RB #1733 <https://rbcommons.com/s/twitter/r/1733>`_
 
 -----
 0.8.5
