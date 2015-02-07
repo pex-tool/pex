@@ -2,6 +2,39 @@
 CHANGES
 =======
 
+----------
+0.8.6-rc.1
+----------
+
+* Bug fix: Honor installed sys.excepthook in pex teardown.
+  `RB #XXX <https://rbcommons.com/s/twitter/r/XXX>`_
+
+-----
+0.8.5
+-----
+
+* Bug fix: Fixup string formatting in pex/bin/pex.py to support Python 2.6
+  `Pull Request #40 <https://github.com/pantsbuild/pex/pull/40>`_
+
+-----
+0.8.4
+-----
+
+* Performance improvement: Speed up the best-case scenario of dependency resolution.
+  `RB #1685 <https://rbcommons.com/s/twitter/r/1685>`_
+
+* Bug fix: Change from uuid4().get_hex() to uuid4().hex to maintain Python3
+  compatibility of pex.common.
+  `Pull Request #39 <https://github.com/pantsbuild/pex/pull/39>`_
+
+* Bug fix: Actually cache the results of translation.  Previously bdist translations
+  would be created in a temporary directory even if a cache location was specified.
+  `RB #1666 <https://rbcommons.com/s/twitter/r/1666>`_
+
+* Bug fix: Support all potential abi tag permutations when determining platform
+  compatibility.
+  `Pull Request #33 <https://github.com/pantsbuild/pex/pull/33>`_
+
 -----
 0.8.3
 -----

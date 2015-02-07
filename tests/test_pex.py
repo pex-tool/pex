@@ -19,6 +19,24 @@ def test_pex_uncaught_exceptions():
   assert rc == 1
 
 
+def test_excepthook_honored():
+  body = textwrap.dedent("""
+  import sys
+
+  def excepthook(ex_type, ex, tb):
+    print('Custom hook called with: {}'.format(ex))
+    sys.exit(42)
+
+  sys.excepthook = excepthook
+
+  raise Exception('This is an exception')
+  """)
+
+  so, rc = run_simple_pex_test(body)
+  assert so == b'Custom hook called with: This is an exception\n', 'Standard out was: %s' % so
+  assert rc == 42
+
+
 def test_pex_sys_exit_does_not_raise():
   body = "import sys; sys.exit(2)"
   so, rc = run_simple_pex_test(body)
