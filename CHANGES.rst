@@ -3,7 +3,7 @@ CHANGES
 =======
 
 ----------
-0.8.6-rc.1
+0.8.6-dev0
 ----------
 
 * Bug fix: Honor installed sys.excepthook in pex teardown.
