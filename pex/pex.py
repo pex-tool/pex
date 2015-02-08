@@ -6,7 +6,6 @@ from __future__ import absolute_import, print_function
 import os
 import subprocess
 import sys
-import traceback
 from contextlib import contextmanager
 from distutils import sysconfig
 from site import USER_SITE
@@ -273,15 +272,16 @@ class PEX(object):  # noqa: T000
           else:
             self.execute_interpreter()
     except Exception:
-      # Catch and print any exceptions before we tear things down in finally, then
-      # reraise so that the exit status is reflected correctly.
-      traceback.print_exc()
+      # Allow the current sys.excepthook to handle this app exception before we tear things down in
+      # finally, then reraise so that the exit status is reflected correctly.
+      sys.excepthook(*sys.exc_info())
       raise
     finally:
       # squash all exceptions on interpreter teardown -- the primary type here are
       # atexit handlers failing to run because of things such as:
       #   http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
       if 'PEX_TEARDOWN_VERBOSE' not in os.environ:
+        sys.stderr.flush()
         sys.stderr = DevNull()
         sys.excepthook = lambda *a, **kw: None
 
