@@ -58,7 +58,9 @@ class Context(AbstractClass):
   def get(cls):
     for context_class in cls._REGISTRY:
       try:
-        return context_class()
+        context = context_class()
+        TRACER.log('Constructed %s context %r' % (context.__class__.__name__, context), V=4)
+        return context
       except cls.Error:
         continue
     raise cls.Error('Could not initialize a request context.')
@@ -120,6 +122,11 @@ class UrllibContext(Context):
     with contextlib.closing(self.open(link)) as fp:
       encoding = message_from_string(str(fp.headers)).get_content_charset(self.DEFAULT_ENCODING)
       return fp.read().decode(encoding, 'replace')
+
+  def __init__(self, *args, **kw):
+    TRACER.log('Warning, using a UrllibContext which is known to be flaky.')
+    TRACER.log('Please build pex with the requests module for more reliable downloads.')
+    super(UrllibContext, self).__init__(*args, **kw)
 
 
 Context.register(UrllibContext)
@@ -185,6 +192,9 @@ class RequestsContext(Context):
     return session
 
   def __init__(self, session=None, verify=True, max_retries=5):
+    if requests is None:
+      raise RuntimeError('requests is not available.  Cannot use a RequestsContext.')
+
     self._verify = verify
 
     max_retries = int(os.environ.get('PEX_HTTP_RETRIES', max_retries))

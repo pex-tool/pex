@@ -8,15 +8,21 @@ sources, requirements and their dependencies.
 
 from __future__ import absolute_import, print_function
 
+import functools
 import os
 import shutil
 import sys
 from optparse import OptionParser
 
-from pex.common import safe_delete, safe_mkdtemp
+from pex.archiver import Archiver
+from pex.base import maybe_requirement
+from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
+from pex.crawler import Crawler
+from pex.http import Context
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.installer import EggInstaller, Packager, WheelInstaller
 from pex.interpreter import PythonInterpreter
+from pex.iterator import Iterator
 from pex.package import EggPackage, Package, SourcePackage, WheelPackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -24,9 +30,15 @@ from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
 from pex.tracer import TRACER, TraceLogger
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
-from pex.version import __version__
+from pex.version import (
+    __setuptools_requirement,
+    __version__,
+    __wheel_requirement,
+)
+
 
 CANNOT_DISTILL = 101
+CANNOT_SETUP_INTERPRETER = 102
 
 
 def die(msg, error_code=1):
@@ -130,11 +142,18 @@ def configure_clp():
            '[Default: %default]')
 
   parser.add_option(
+      '--interpreter-cache-dir',
+      dest='interpreter_cache_dir',
+      default=os.path.expanduser('~/.pex/interpreters'),
+      help='The interpreter cache to use for keeping track of interpreter dependencies '
+           'for the pex tool. [Default: %default]')
+
+  parser.add_option(
       '--cache-dir',
       dest='cache_dir',
       default=os.path.expanduser('~/.pex/build'),
       help='The local cache directory to use for speeding up requirement '
-           'lookups; [Default: %default]')
+           'lookups. [Default: %default]')
 
   parser.add_option(
       '--cache-ttl',
@@ -202,8 +221,86 @@ def configure_clp():
   return parser
 
 
+def _safe_link(src, dst):
+  try:
+    os.unlink(dst)
+  except OSError:
+    pass
+  os.symlink(src, dst)
+
+
+def _resolve_and_link_interpreter(requirement, fetchers, target_link, installer_provider):
+  # Short-circuit if there is a local copy
+  if os.path.exists(target_link) and os.path.exists(os.path.realpath(target_link)):
+    egg = EggPackage(os.path.realpath(target_link))
+    if egg.satisfies(requirement):
+      return egg
+
+  context = Context.get()
+  iterator = Iterator(fetchers=fetchers, crawler=Crawler(context))
+  links = [link for link in iterator.iter(requirement) if isinstance(link, SourcePackage)]
+
+  with TRACER.timed('Interpreter cache resolving %s' % requirement, V=2):
+    for link in links:
+      with TRACER.timed('Fetching %s' % link, V=3):
+        sdist = context.fetch(link)
+
+      with TRACER.timed('Installing %s' % link, V=3):
+        installer = installer_provider(sdist)
+        dist_location = installer.bdist()
+        target_location = os.path.join(
+            os.path.dirname(target_link), os.path.basename(dist_location))
+        shutil.move(dist_location, target_location)
+        _safe_link(target_location, target_link)
+
+      return EggPackage(target_location)
+
+
+def resolve_interpreter(cache, fetchers, interpreter, requirement):
+  """Resolve an interpreter with a specific requirement.
+
+     Given a :class:`PythonInterpreter` and a requirement, return an
+     interpreter with the capability of resolving that requirement or
+     ``None`` if it's not possible to install a suitable requirement."""
+  requirement = maybe_requirement(requirement)
+  interpreter_dir = os.path.join(cache, str(interpreter.identity))
+  safe_mkdir(interpreter_dir)
+
+  # short circuit
+  if interpreter.satisfies([requirement]):
+    return interpreter
+
+  def installer_provider(sdist):
+    return EggInstaller(
+        Archiver.unpack(sdist),
+        strict=requirement.key != 'setuptools',
+        interpreter=interpreter)
+
+  egg = _resolve_and_link_interpreter(
+      requirement,
+      fetchers,
+      os.path.join(interpreter_dir, requirement.key),
+      installer_provider)
+
+  if egg:
+    return interpreter.with_extra(egg.name, egg.raw_version, egg.path)
+
+
+def fetchers_from_options(options):
+  fetchers = [Fetcher(options.repos)]
+
+  if options.pypi:
+    fetchers.append(PyPIFetcher())
+
+  if options.indices:
+    fetchers.extend(PyPIFetcher(index) for index in options.indices)
+
+  return fetchers
+
+
 def interpreter_from_options(options):
   interpreter = None
+
   if options.python:
     if os.path.exists(options.python):
       interpreter = PythonInterpreter.from_binary(options.python)
@@ -213,11 +310,23 @@ def interpreter_from_options(options):
       die('Failed to find interpreter: %s' % options.python)
   else:
     interpreter = PythonInterpreter.get()
-  return interpreter
+
+  with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
+    fetchers = fetchers_from_options(options)
+
+    resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, fetchers)
+
+    # resolve setuptools
+    interpreter = resolve(interpreter, __setuptools_requirement)
+
+    # possibly resolve wheel
+    if interpreter and options.use_wheel:
+      interpreter = resolve(interpreter, __wheel_requirement)
+
+    return interpreter
 
 
-def translator_from_options(options):
-  interpreter = interpreter_from_options(options)
+def translator_from_options(interpreter, options):
   platform = options.platform
 
   translators = []
@@ -237,7 +346,11 @@ def translator_from_options(options):
 
 
 def build_pex(args, options):
-  interpreter = interpreter_from_options(options)
+  with TRACER.timed('Resolving interpreter', V=2):
+    interpreter = interpreter_from_options(options)
+
+  if interpreter is None:
+    die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
   pex_builder = PEXBuilder(
       path=safe_mkdtemp(),
@@ -253,17 +366,8 @@ def build_pex(args, options):
 
   installer = WheelInstaller if options.use_wheel else EggInstaller
 
-  interpreter = interpreter_from_options(options)
-
-  fetchers = [Fetcher(options.repos)]
-
-  if options.pypi:
-    fetchers.append(PyPIFetcher())
-
-  if options.indices:
-    fetchers.extend(PyPIFetcher(index) for index in options.indices)
-
-  translator = translator_from_options(options)
+  fetchers = fetchers_from_options(options)
+  translator = translator_from_options(interpreter, options)
 
   if options.use_wheel:
     precedence = (WheelPackage, EggPackage, SourcePackage)
@@ -322,7 +426,8 @@ def main():
 
   with TraceLogger.env_override(PEX_VERBOSE=options.verbosity):
 
-    pex_builder = build_pex(args, options)
+    with TRACER.timed('Building pex'):
+      pex_builder = build_pex(args, options)
 
     if options.pex_name is not None:
       log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)
