@@ -3,11 +3,14 @@ CHANGES
 =======
 
 ----------
-0.8.6-dev0
+0.8.6
 ----------
 
 * Bug fix: Honor installed sys.excepthook in pex teardown.
   `RB #1733 <https://rbcommons.com/s/twitter/r/1733>`_
+
+* Bug fix: ``UrllibContext`` used ``replace`` as a keyword argument for ``bytes.decode``
+  but this only works on Python 3.  `Pull Request #46 <https://github.com/pantsbuild/pex/pull/46>`_
 
 -----
 0.8.5
@@ -23,7 +26,7 @@ CHANGES
 * Performance improvement: Speed up the best-case scenario of dependency resolution.
   `RB #1685 <https://rbcommons.com/s/twitter/r/1685>`_
 
-* Bug fix: Change from uuid4().get_hex() to uuid4().hex to maintain Python3
+* Bug fix: Change from ``uuid4().get_hex()`` to ``uuid4().hex`` to maintain Python3
   compatibility of pex.common.
   `Pull Request #39 <https://github.com/pantsbuild/pex/pull/39>`_
 
