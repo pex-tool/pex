@@ -5,7 +5,7 @@ from io import BytesIO
 import pytest
 from twitter.common.contextutil import temporary_file
 
-from pex.http import Context, RequestsContext, StreamFilelike
+from pex.http import Context, RequestsContext, StreamFilelike, UrllibContext
 from pex.link import Link
 
 try:
@@ -203,3 +203,21 @@ def test_requests_context_retries_read_timeout_retries_exhausted():
 
     with pytest.raises(Context.Error):
       context.read(Link.wrap(url))
+
+
+def test_urllib_context_utf8_encoding():
+  BYTES = b'this is a decoded utf8 string'
+
+  with temporary_file() as tf:
+    tf.write(BYTES)
+    tf.flush()
+    local_link = Link.wrap(tf.name)
+
+    # Trick UrllibContext into thinking this is a remote link
+    class MockUrllibContext(UrllibContext):
+      def open(self, link):
+        return super(MockUrllibContext, self).open(local_link)
+
+    context = MockUrllibContext()
+    assert context.content(Link.wrap('http://www.google.com')) == BYTES.decode(
+        UrllibContext.DEFAULT_ENCODING)
