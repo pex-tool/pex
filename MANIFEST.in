@@ -2,3 +2,4 @@ include *.py *.rst *.ini MANIFEST.in LICENSE
 recursive-include docs *
 recursive-include tests *
 recursive-include scripts *
+recursive-exclude * *.pyc *~
