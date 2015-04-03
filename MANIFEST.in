@@ -1,3 +1,5 @@
-include *.py
-include docs/*.md
-include CHANGES.rst
+include *.py *.rst *.ini MANIFEST.in LICENSE
+recursive-include docs *
+recursive-include tests *
+recursive-include scripts *
+recursive-exclude * *.pyc *~
