@@ -5,6 +5,7 @@ from io import BytesIO
 import pytest
 from twitter.common.contextutil import temporary_file
 
+from pex.compatibility import PY2
 from pex.http import Context, RequestsContext, StreamFilelike, UrllibContext
 from pex.link import Link
 
@@ -25,6 +26,12 @@ except ImportError:
 
 BLOB = b'random blob of data'
 NO_REQUESTS = 'RequestsMock is None or requests is None'
+
+
+try:
+  from httplib import HTTPMessage
+except ImportError:
+  from http.client import HTTPMessage
 
 
 def make_md5(blob):
@@ -108,10 +115,14 @@ class MockHttpLibResponse(BytesIO):
     self.status = 200
     self.version = 'HTTP/1.1'
     self.reason = 'OK'
-    self.msg = mock.Mock()
+    if PY2:
+      self.msg = HTTPMessage(BytesIO('Content-Type: application/x-compressed\r\n'))
+    else:
+      self.msg = HTTPMessage()
+      self.msg.add_header('Content-Type', 'application/x-compressed')
 
   def getheaders(self):
-    return [('Content-Type', 'application/x-compressed')]
+    return list(self.msg.items())
 
   def isclosed(self):
     return self.closed
