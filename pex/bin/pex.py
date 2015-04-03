@@ -18,8 +18,8 @@ from pex.archiver import Archiver
 from pex.base import maybe_requirement
 from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
 from pex.crawler import Crawler
-from pex.http import Context
 from pex.fetcher import Fetcher, PyPIFetcher
+from pex.http import Context
 from pex.installer import EggInstaller, Packager, WheelInstaller
 from pex.interpreter import PythonInterpreter
 from pex.iterator import Iterator
@@ -30,12 +30,7 @@ from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
 from pex.tracer import TRACER, TraceLogger
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
-from pex.version import (
-    __setuptools_requirement,
-    __version__,
-    __wheel_requirement,
-)
-
+from pex.version import __setuptools_requirement, __version__, __wheel_requirement
 
 CANNOT_DISTILL = 101
 CANNOT_SETUP_INTERPRETER = 102
@@ -263,8 +258,6 @@ def resolve_interpreter(cache, fetchers, interpreter, requirement):
      interpreter with the capability of resolving that requirement or
      ``None`` if it's not possible to install a suitable requirement."""
   requirement = maybe_requirement(requirement)
-  interpreter_dir = os.path.join(cache, str(interpreter.identity))
-  safe_mkdir(interpreter_dir)
 
   # short circuit
   if interpreter.satisfies([requirement]):
@@ -275,6 +268,9 @@ def resolve_interpreter(cache, fetchers, interpreter, requirement):
         Archiver.unpack(sdist),
         strict=requirement.key != 'setuptools',
         interpreter=interpreter)
+
+  interpreter_dir = os.path.join(cache, str(interpreter.identity))
+  safe_mkdir(interpreter_dir)
 
   egg = _resolve_and_link_interpreter(
       requirement,
