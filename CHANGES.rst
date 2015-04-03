@@ -3,8 +3,21 @@ CHANGES
 =======
 
 ----------
-0.8.6
+0.8.7-dev0
 ----------
+
+* Bug fix: Make ``pip install pex`` work better by removing ``extras_requires`` on the
+  ``console_script`` entry point.  Fixes `#48 <https://github.com/pantsbuild/pex/issues/48>`_
+
+* New feature: Adds an interpreter cache to the ``pex`` tool.  If the user does not explicitly
+  disable the wheel feature and attempts to build a pex with wheels but does not have the wheel
+  package installed, pex will download it in order to make the feature work.
+  Implements `#47 <https://github.com/pantsbuild/pex/issues/47>`_ in order to
+  fix `#48 <https://github.com/pantsbuild/pex/issues/48>`_
+
+-----
+0.8.6
+-----
 
 * Bug fix: Honor installed sys.excepthook in pex teardown.
   `RB #1733 <https://rbcommons.com/s/twitter/r/1733>`_
