@@ -3,8 +3,15 @@ CHANGES
 =======
 
 ----------
-0.8.7-dev0
+0.9.0-dev0
 ----------
+
+* Change the setuptools range to >=2.2,<16 by handling EntryPoint changes as well as
+  being flexible on whether ``pkg_resources`` is a package or a module.  Fixes
+  `#55 <https://github.com/pantsbuild/pex/issues/55>`_ and
+  `#34 <https://github.com/pantsbuild/pex/issues/34>`_.
+
+* Adds option groups to the pex tool to make the help output slightly more readable.
 
 * Bug fix: Make ``pip install pex`` work better by removing ``extras_requires`` on the
   ``console_script`` entry point.  Fixes `#48 <https://github.com/pantsbuild/pex/issues/48>`_
