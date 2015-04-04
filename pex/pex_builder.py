@@ -300,7 +300,7 @@ class PEXBuilder(object):
       raise RuntimeError('Failed to find setuptools while building pex!')
 
     for fn, content_stream in DistributionHelper.walk_data(setuptools):
-      if fn == 'pkg_resources.py' or fn.startswith('_markerlib'):
+      if fn.startswith('pkg_resources') or fn.startswith('_markerlib'):
         self._chroot.write(content_stream.read(), os.path.join(self.BOOTSTRAP_DIR, fn), 'resource')
         wrote_setuptools = True
 

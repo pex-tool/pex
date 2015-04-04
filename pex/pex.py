@@ -339,7 +339,14 @@ class PEX(object):  # noqa: T000
   @staticmethod
   def execute_pkg_resources(spec):
     entry = EntryPoint.parse("run = {0}".format(spec))
-    runner = entry.load(require=False)  # trust that the environment is sane
+
+    # See https://pythonhosted.org/setuptools/history.html#id25 for rationale here.
+    if hasattr(entry, 'resolve'):
+      # setuptools >= 11.3
+      runner = entry.resolve()
+    else:
+      # setuptools < 11.3
+      runner = entry.load(require=False)
     runner()
 
   def cmdline(self, args=()):
