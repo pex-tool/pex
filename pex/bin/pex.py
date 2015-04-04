@@ -12,7 +12,7 @@ import functools
 import os
 import shutil
 import sys
-from optparse import OptionParser
+from optparse import OptionGroup, OptionParser
 
 from pex.archiver import Archiver
 from pex.base import maybe_requirement
@@ -55,15 +55,14 @@ def increment_verbosity(option, opt_str, _, parser):
   setattr(parser.values, option.dest, verbosity + 1)
 
 
-def configure_clp():
-  usage = (
-      '%prog [options]\n\n'
-      '%prog builds a PEX (Python Executable) file based on the given specifications: '
-      'sources, requirements, their dependencies and other options')
+def configure_clp_pex_resolution(parser):
+  group = OptionGroup(
+      parser,
+      'Resolver options',
+      'Tailor how to find, resolve and translate the packages that get put into the PEX '
+      'environment.')
 
-  parser = OptionParser(usage=usage, version='%prog {0}'.format(__version__))
-
-  parser.add_option(
+  group.add_option(
       '--pypi', '--no-pypi',
       dest='pypi',
       default=True,
@@ -71,7 +70,37 @@ def configure_clp():
       callback=parse_bool,
       help='Whether to use pypi to resolve dependencies; Default: use pypi')
 
-  parser.add_option(
+  group.add_option(
+      '--repo',
+      dest='repos',
+      metavar='PATH',
+      default=[],
+      action='append',
+      help='Additional repository path (directory or URL) to look for requirements.')
+
+  group.add_option(
+      '-i', '--index',
+      dest='indices',
+      metavar='URL',
+      default=[],
+      action='append',
+      help='Additional cheeseshop indices to use to satisfy requirements.')
+
+  group.add_option(
+      '--cache-dir',
+      dest='cache_dir',
+      default=os.path.expanduser('~/.pex/build'),
+      help='The local cache directory to use for speeding up requirement '
+           'lookups. [Default: %default]')
+
+  group.add_option(
+      '--cache-ttl',
+      dest='cache_ttl',
+      type=int,
+      default=None,
+      help='The cache TTL to use for inexact requirement specifications.')
+
+  group.add_option(
       '--wheel', '--no-wheel',
       dest='use_wheel',
       default=True,
@@ -79,7 +108,7 @@ def configure_clp():
       callback=parse_bool,
       help='Whether to allow wheel distributions; Default: allow wheels')
 
-  parser.add_option(
+  group.add_option(
       '--build', '--no-build',
       dest='allow_builds',
       default=True,
@@ -87,21 +116,16 @@ def configure_clp():
       callback=parse_bool,
       help='Whether to allow building of distributions from source; Default: allow builds')
 
-  parser.add_option(
-      '--python',
-      dest='python',
-      default=None,
-      help='The Python interpreter to use to build the pex.  Either specify an explicit '
-           'path to an interpreter, or specify a binary accessible on $PATH. '
-           'Default: Use current interpreter.')
+  parser.add_option_group(group)
 
-  parser.add_option(
-      '--platform',
-      dest='platform',
-      default=Platform.current(),
-      help='The platform for which to build the PEX.  Default: %%default')
 
-  parser.add_option(
+def configure_clp_pex_options(parser):
+  group = OptionGroup(
+      parser,
+      'PEX output options',
+      'Tailor the behavior of the emitted .pex file if -o is specified.')
+
+  group.add_option(
       '--zip-safe', '--not-zip-safe',
       dest='zip_safe',
       default=True,
@@ -111,7 +135,7 @@ def configure_clp():
            'not zip safe, they will be written to disk prior to execution; '
            'Default: zip safe.')
 
-  parser.add_option(
+  group.add_option(
       '--always-write-cache',
       dest='always_write_cache',
       default=False,
@@ -120,7 +144,7 @@ def configure_clp():
            'the pex source code.  This can use less memory in RAM constrained '
            'environments. [Default: %default]')
 
-  parser.add_option(
+  group.add_option(
       '--ignore-errors',
       dest='ignore_errors',
       default=False,
@@ -128,7 +152,7 @@ def configure_clp():
       help='Ignore run-time requirement resolution errors when invoking the pex. '
            '[Default: %default]')
 
-  parser.add_option(
+  group.add_option(
       '--inherit-path',
       dest='inherit_path',
       default=False,
@@ -136,26 +160,50 @@ def configure_clp():
       help='Inherit the contents of sys.path (including site-packages) running the pex. '
            '[Default: %default]')
 
-  parser.add_option(
+  parser.add_option_group(group)
+
+
+def configure_clp_pex_environment(parser):
+  group = OptionGroup(
+      parser,
+      'PEX environment options',
+      'Tailor the interpreter and platform targets for the PEX environment.')
+
+  group.add_option(
+      '--python',
+      dest='python',
+      default=None,
+      help='The Python interpreter to use to build the pex.  Either specify an explicit '
+           'path to an interpreter, or specify a binary accessible on $PATH. '
+           'Default: Use current interpreter.')
+
+  group.add_option(
+      '--platform',
+      dest='platform',
+      default=Platform.current(),
+      help='The platform for which to build the PEX.  Default: %default')
+
+  group.add_option(
       '--interpreter-cache-dir',
       dest='interpreter_cache_dir',
       default=os.path.expanduser('~/.pex/interpreters'),
       help='The interpreter cache to use for keeping track of interpreter dependencies '
            'for the pex tool. [Default: %default]')
 
-  parser.add_option(
-      '--cache-dir',
-      dest='cache_dir',
-      default=os.path.expanduser('~/.pex/build'),
-      help='The local cache directory to use for speeding up requirement '
-           'lookups. [Default: %default]')
+  parser.add_option_group(group)
 
-  parser.add_option(
-      '--cache-ttl',
-      dest='cache_ttl',
-      type=int,
-      default=None,
-      help='The cache TTL to use for inexact requirement specifications.')
+
+def configure_clp():
+  usage = (
+      '%prog [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n'
+      '%prog builds a PEX (Python Executable) file based on the given specifications: '
+      'sources, requirements, their dependencies and other options.')
+
+  parser = OptionParser(usage=usage, version='%prog {0}'.format(__version__))
+
+  configure_clp_pex_resolution(parser)
+  configure_clp_pex_options(parser)
+  configure_clp_pex_environment(parser)
 
   parser.add_option(
       '-o', '-p', '--output-file', '--pex-name',
@@ -179,22 +227,6 @@ def configure_clp():
       default=[],
       action='append',
       help='requirement to be included; may be specified multiple times.')
-
-  parser.add_option(
-      '--repo',
-      dest='repos',
-      metavar='PATH',
-      default=[],
-      action='append',
-      help='Additional repository path (directory or URL) to look for requirements.')
-
-  parser.add_option(
-      '-i', '--index',
-      dest='indices',
-      metavar='URL',
-      default=[],
-      action='append',
-      help='Additional cheeseshop indices to use to satisfy requirements.')
 
   parser.add_option(
       '-s', '--source-dir',
@@ -388,7 +420,7 @@ def build_pex(args, options):
       # copy the source distribution
       shutil.copyfile(sdist, os.path.join(temporary_package_root, os.path.basename(sdist)))
 
-    # Tell pex where to find the packages
+    # Tell pex where to find the packages.
     fetchers.append(Fetcher([temporary_package_root]))
 
   with TRACER.timed('Resolving distributions'):
