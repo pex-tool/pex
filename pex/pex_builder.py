@@ -141,6 +141,8 @@ class PEXBuilder(object):
     """
     self._ensure_unfrozen('Adding source')
     self._copy_or_link(filename, env_filename, "source")
+    if any(env_filename.endswith(ext) for ext in ('.so', '.dll', '.pyd')):
+      self._pex_info.add_native_library(env_filename, CacheHelper.hash(filename))
 
   def add_resource(self, filename, env_filename):
     """Add a resource to the PEX environment.
@@ -305,6 +307,25 @@ class PEXBuilder(object):
     """Alias for add_dist_location."""
     self._ensure_unfrozen('Adding an egg')
     return self.add_dist_location(egg)
+
+  def add_native_library(self, location, name=None):
+    """Add a native library by its location on disk
+
+    :param location: The path to the native library (.so/.dylib/.dll)
+    :name: (optional) The name of the library when extracted (defaults to basename(location))
+
+    If any python extension library found in the package depends on a non-python native library,
+    this method can be used to include the native library in the pex. It will be extracted and
+    added to the proper loader path (LD_LIBRARY_PATH on most unixes).
+    """
+    self._ensure_unfrozen('Adding a native library')
+    if name is None:
+      name = os.path.basename(location)
+    target = os.path.join('native-libs', name)
+
+    self._chroot.link(location, target)
+    sha = CacheHelper.hash(location)
+    self._pex_info.add_native_library(target, sha)
 
   # TODO(wickman) Consider changing this behavior to put the onus on the consumer
   # of pex to write the pex sources correctly.

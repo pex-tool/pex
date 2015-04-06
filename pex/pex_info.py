@@ -28,13 +28,15 @@ class PexInfo(object):
   distributions: {dist_name: str}   # map from distribution name (i.e. path in
                                     # the internal cache) to its cache key (sha1)
   requirements: list                # list of requirements for this environment
+  native_libraries: {path: str}     # list of native libraries (extensions & dependencies)
 
   # Environment options
   pex_root: ~/.pex                   # root of all pex-related files
   entry_point: string                # entry point into this pex
   script: string                     # script to execute in this pex environment
                                      # at most one of script/entry_point can be specified
-  zip_safe: True, default False      # is this pex zip safe?
+  zip_safe: True, default True       # is this pex zip safe? (forced to False in the
+                                     # presence of native_libraries)
   inherit_path: True, default False  # should this pex inherit site-packages + PYTHONPATH?
   ignore_errors: True, default False # should we ignore inability to resolve dependencies?
   always_write_cache: False          # should we always write the internal cache to disk first?
@@ -66,6 +68,7 @@ class PexInfo(object):
     pex_info = {
       'requirements': [],
       'distributions': {},
+      'native_libraries': {},
       'build_properties': cls.make_build_properties(),
     }
     return cls(info=pex_info)
@@ -122,6 +125,7 @@ class PexInfo(object):
                        '%s of type %s' % (info, type(info)))
     self._pex_info = info or {}
     self._distributions = self._pex_info.get('distributions', {})
+    self._native_libraries = self._pex_info.get('native_libraries', [])
     requirements = self._pex_info.get('requirements', [])
     if not isinstance(requirements, (list, tuple)):
       raise ValueError('Expected requirements to be a list, got %s' % type(requirements))
@@ -159,6 +163,9 @@ class PexInfo(object):
     By default zip_safe is True.  May be overridden at runtime by the $PEX_FORCE_LOCAL environment
     variable.
     """
+    if self._native_libraries:
+      return False
+
     return self._pex_info.get('zip_safe', True)
 
   @zip_safe.setter
@@ -228,6 +235,13 @@ class PexInfo(object):
     return self._distributions
 
   @property
+  def native_libraries(self):
+    return self._native_libraries
+
+  def add_native_library(self, path, sha):
+    self._native_libraries[path] = sha
+
+  @property
   def always_write_cache(self):
     return self._pex_info.get('always_write_cache', False)
 
@@ -261,6 +275,7 @@ class PexInfo(object):
     self._pex_info.update(other._pex_info)
     self._distributions.update(other.distributions)
     self._requirements.update(other.requirements)
+    self._native_libraries.update(other.native_libraries)
 
   def dump(self, **kwargs):
     pex_info_copy = self._pex_info.copy()
