@@ -330,6 +330,14 @@ def configure_clp():
            'times.')
 
   parser.add_option(
+      '--native-library',
+      dest='native_libraries',
+      metavar='FILE',
+      default=[],
+      action='append',
+      help='Native library to include in the archive & loader path.')
+
+  parser.add_option(
       '-v',
       dest='verbosity',
       default=0,
@@ -476,6 +484,9 @@ def build_pex(args, options, resolver_option_builder):
     log('  %s' % dist, v=options.verbosity)
     pex_builder.add_distribution(dist)
     pex_builder.add_requirement(dist.as_requirement())
+
+  for lib in options.native_libraries:
+    pex_builder.add_native_library(lib)
 
   if options.entry_point and options.script:
     die('Must specify at most one entry point or script.', INVALID_OPTIONS)

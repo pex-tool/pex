@@ -56,10 +56,8 @@ class PEX(object):  # noqa: T000
     self._envs = []
     self._working_set = None
 
-  def _activate(self):
-    if not self._working_set:
-      working_set = WorkingSet([])
-
+  def _load_envs(self):
+    if not self._envs:
       # set up the local .pex environment
       pex_info = self._pex_info.copy()
       pex_info.update(self._pex_info_overrides)
@@ -71,8 +69,18 @@ class PEX(object):  # noqa: T000
         pex_info.update(self._pex_info_overrides)
         self._envs.append(PEXEnvironment(pex_path, pex_info))
 
-      # activate all of them
-      for env in self._envs:
+    return self._envs
+
+  def _maybe_reexec_for_library_path(self):
+    for env in self._load_envs():
+      env.maybe_reexec_for_library_path()
+
+  def _activate(self):
+    if not self._working_set:
+      working_set = WorkingSet([])
+
+      # activate all of the envs
+      for env in self._load_envs():
         for dist in env.activate():
           working_set.add(dist)
 
@@ -307,6 +315,9 @@ class PEX(object):  # noqa: T000
     the interpreter.
     """
     try:
+      # Do this upfront so we don't waste time patching.
+      self._maybe_reexec_for_library_path()
+
       with self.patch_sys():
         working_set = self._activate()
         TRACER.log('PYTHONPATH contains:')
