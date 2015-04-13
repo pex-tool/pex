@@ -2,9 +2,11 @@
 CHANGES
 =======
 
-----------
-0.9.0-dev0
-----------
+-----
+0.9.0
+-----
+
+This is the last release before the 1.0.0 development branch is started.
 
 * Change the setuptools range to >=2.2,<16 by handling EntryPoint changes as well as
   being flexible on whether ``pkg_resources`` is a package or a module.  Fixes
