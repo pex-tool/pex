@@ -6,7 +6,6 @@ from __future__ import absolute_import, print_function
 import json
 import os
 import sys
-import warnings
 from collections import namedtuple
 
 from .common import open_zip
@@ -85,13 +84,7 @@ class PexInfo(object):
 
   @classmethod
   def _parse_requirement_tuple(cls, requirement_tuple):
-    if isinstance(requirement_tuple, (tuple, list)):
-      if len(requirement_tuple) != 3:
-        raise ValueError('Malformed PEX requirement: %r' % (requirement_tuple,))
-      # pre 0.8.x requirement type:
-      warnings.warn('Attempting to use deprecated PEX feature.  Please upgrade past PEX 0.8.x.')
-      return requirement_tuple[0]
-    elif isinstance(requirement_tuple, compatibility_string):
+    if isinstance(requirement_tuple, compatibility_string):
       return requirement_tuple
     raise ValueError('Malformed PEX requirement: %r' % (requirement_tuple,))
 
