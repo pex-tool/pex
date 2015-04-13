@@ -2,6 +2,19 @@
 CHANGES
 =======
 
+----------
+1.0.0.dev0
+----------
+
+* Adds a number of flag aliases to be more compatible with pip command lines: ``--no-index``,
+  ``-f``, ``--find-links``, ``--index-url``, ``--no-use-wheel``.  Removes ``-p`` in favor of
+  ``-o`` exclusively.
+
+* BREAKING CHANGE: ``pex -r`` now takes requirements.txt filenames and *not* requirement
+  specs.  Requirement specs are now passed as arguments to the pex tool.  Use ``--`` to escape
+  command line arguments passed to interpreters spawned by pex.  Implements
+  `#5 <https://github.com/pantsbuild/pex/issues/5>`_.
+
 -----
 0.9.0
 -----

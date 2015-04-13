@@ -12,7 +12,7 @@ import functools
 import os
 import shutil
 import sys
-from optparse import OptionGroup, OptionParser
+from optparse import OptionGroup, OptionParser, OptionValueError
 
 from pex.archiver import Archiver
 from pex.base import maybe_requirement
@@ -20,16 +20,18 @@ from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
 from pex.crawler import Crawler
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
-from pex.installer import EggInstaller, Packager, WheelInstaller
+from pex.installer import EggInstaller, InstallerBase, Packager
 from pex.interpreter import PythonInterpreter
 from pex.iterator import Iterator
-from pex.package import EggPackage, Package, SourcePackage, WheelPackage
+from pex.package import EggPackage, SourcePackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
-from pex.resolver import resolve as requirement_resolver
+from pex.requirements import requirements_from_file
+from pex.resolvable import Resolvable, ResolvablePackage
+from pex.resolver import CachingResolver, Resolver
+from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER, TraceLogger
-from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 from pex.version import __setuptools_requirement, __version__, __wheel_requirement
 
 CANNOT_DISTILL = 101
@@ -55,7 +57,53 @@ def increment_verbosity(option, opt_str, _, parser):
   setattr(parser.values, option.dest, verbosity + 1)
 
 
-def configure_clp_pex_resolution(parser):
+def process_pypi_option(option, option_str, option_value, parser, builder):
+  if option_str.startswith('--no'):
+    setattr(parser.values, option.dest, [])
+    builder.clear_indices()
+  else:
+    indices = getattr(parser.values, option.dest, [])
+    pypi = PyPIFetcher()
+    if pypi not in indices:
+      indices.append(pypi)
+    setattr(parser.values, option.dest, indices)
+    builder.add_index(PyPIFetcher.PYPI_BASE)
+
+
+def process_find_links(option, option_str, option_value, parser, builder):
+  repos = getattr(parser.values, option.dest, [])
+  repo = Fetcher([option_value])
+  if repo not in repos:
+    repos.append(repo)
+  setattr(parser.values, option.dest, repos)
+  builder.add_repository(option_value)
+
+
+def process_index_url(option, option_str, option_value, parser, builder):
+  indices = getattr(parser.values, option.dest, [])
+  index = PyPIFetcher(option_value)
+  if index not in indices:
+    indices.append(index)
+  setattr(parser.values, option.dest, indices)
+  builder.add_index(option_value)
+
+
+def process_precedence(option, option_str, option_value, parser, builder):
+  if option_str == '--build':
+    builder.allow_builds()
+  elif option_str == '--no-build':
+    builder.no_allow_builds()
+  elif option_str == '--wheel':
+    setattr(parser.values, option.dest, True)
+    builder.use_wheel()
+  elif option_str in ('--no-wheel', '--no-use-wheel'):
+    setattr(parser.values, option.dest, False)
+    builder.no_use_wheel()
+  else:
+    raise OptionValueError
+
+
+def configure_clp_pex_resolution(parser, builder):
   group = OptionGroup(
       parser,
       'Resolver options',
@@ -63,27 +111,31 @@ def configure_clp_pex_resolution(parser):
       'environment.')
 
   group.add_option(
-      '--pypi', '--no-pypi',
-      dest='pypi',
-      default=True,
+      '--pypi', '--no-pypi', '--no-index',
       action='callback',
-      callback=parse_bool,
+      dest='repos',
+      callback=process_pypi_option,
+      callback_args=(builder,),
       help='Whether to use pypi to resolve dependencies; Default: use pypi')
 
   group.add_option(
-      '--repo',
+      '-f', '--find-links', '--repo',
+      metavar='PATH/URL',
+      action='callback',
       dest='repos',
-      metavar='PATH',
-      default=[],
-      action='append',
+      callback=process_find_links,
+      callback_args=(builder,),
+      type=str,
       help='Additional repository path (directory or URL) to look for requirements.')
 
   group.add_option(
-      '-i', '--index',
-      dest='indices',
+      '-i', '--index', '--index-url',
       metavar='URL',
-      default=[],
-      action='append',
+      action='callback',
+      dest='repos',
+      callback=process_index_url,
+      callback_args=(builder,),
+      type=str,
       help='Additional cheeseshop indices to use to satisfy requirements.')
 
   group.add_option(
@@ -101,21 +153,23 @@ def configure_clp_pex_resolution(parser):
       help='The cache TTL to use for inexact requirement specifications.')
 
   group.add_option(
-      '--wheel', '--no-wheel',
+      '--wheel', '--no-wheel', '--no-use-wheel',
       dest='use_wheel',
       default=True,
       action='callback',
-      callback=parse_bool,
+      callback=process_precedence,
+      callback_args=(builder,),
       help='Whether to allow wheel distributions; Default: allow wheels')
 
   group.add_option(
       '--build', '--no-build',
-      dest='allow_builds',
-      default=True,
       action='callback',
-      callback=parse_bool,
+      callback=process_precedence,
+      callback_args=(builder,),
       help='Whether to allow building of distributions from source; Default: allow builds')
 
+  # Set the pex tool to fetch from PyPI by default if nothing is specified.
+  parser.set_default('repos', [PyPIFetcher()])
   parser.add_option_group(group)
 
 
@@ -200,13 +254,13 @@ def configure_clp():
       'sources, requirements, their dependencies and other options.')
 
   parser = OptionParser(usage=usage, version='%prog {0}'.format(__version__))
-
-  configure_clp_pex_resolution(parser)
+  resolver_options_builder = ResolverOptionsBuilder()
+  configure_clp_pex_resolution(parser, resolver_options_builder)
   configure_clp_pex_options(parser)
   configure_clp_pex_environment(parser)
 
   parser.add_option(
-      '-o', '-p', '--output-file', '--pex-name',
+      '-o', '--output-file',
       dest='pex_name',
       default=None,
       help='The name of the generated .pex file: Omiting this will run PEX '
@@ -222,11 +276,13 @@ def configure_clp():
 
   parser.add_option(
       '-r', '--requirement',
-      dest='requirements',
-      metavar='REQUIREMENT',
+      dest='requirement_files',
+      metavar='FILE',
       default=[],
+      type=str,
       action='append',
-      help='requirement to be included; may be specified multiple times.')
+      help='Add requirements from the given requirements file.  This option can be used multiple '
+           'times.')
 
   parser.add_option(
       '-s', '--source-dir',
@@ -245,7 +301,7 @@ def configure_clp():
       callback=increment_verbosity,
       help='Turn on logging verbosity, may be specified multiple times.')
 
-  return parser
+  return parser, resolver_options_builder
 
 
 def _safe_link(src, dst):
@@ -314,18 +370,6 @@ def resolve_interpreter(cache, fetchers, interpreter, requirement):
     return interpreter.with_extra(egg.name, egg.raw_version, egg.path)
 
 
-def fetchers_from_options(options):
-  fetchers = [Fetcher(options.repos)]
-
-  if options.pypi:
-    fetchers.append(PyPIFetcher())
-
-  if options.indices:
-    fetchers.extend(PyPIFetcher(index) for index in options.indices)
-
-  return fetchers
-
-
 def interpreter_from_options(options):
   interpreter = None
 
@@ -340,9 +384,7 @@ def interpreter_from_options(options):
     interpreter = PythonInterpreter.get()
 
   with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
-    fetchers = fetchers_from_options(options)
-
-    resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, fetchers)
+    resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, options.repos)
 
     # resolve setuptools
     interpreter = resolve(interpreter, __setuptools_requirement)
@@ -354,90 +396,49 @@ def interpreter_from_options(options):
     return interpreter
 
 
-def translator_from_options(interpreter, options):
-  platform = options.platform
-
-  translators = []
-
-  if options.use_wheel:
-    installer_impl = WheelInstaller
-    translators.append(WheelTranslator(platform=platform, interpreter=interpreter))
-  else:
-    installer_impl = EggInstaller
-
-  translators.append(EggTranslator(platform=platform, interpreter=interpreter))
-
-  if options.allow_builds:
-    translators.append(SourceTranslator(installer_impl=installer_impl, interpreter=interpreter))
-
-  return ChainedTranslator(*translators)
-
-
-def build_pex(args, options):
+def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreter', V=2):
     interpreter = interpreter_from_options(options)
 
   if interpreter is None:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
-  pex_builder = PEXBuilder(
-      path=safe_mkdtemp(),
-      interpreter=interpreter,
-  )
+  pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter)
 
   pex_info = pex_builder.info
-
   pex_info.zip_safe = options.zip_safe
   pex_info.always_write_cache = options.always_write_cache
   pex_info.ignore_errors = options.ignore_errors
   pex_info.inherit_path = options.inherit_path
 
-  installer = WheelInstaller if options.use_wheel else EggInstaller
+  resolvables = [Resolvable.get(arg, resolver_option_builder) for arg in args]
 
-  fetchers = fetchers_from_options(options)
-  translator = translator_from_options(interpreter, options)
-
-  if options.use_wheel:
-    precedence = (WheelPackage, EggPackage, SourcePackage)
-  else:
-    precedence = (EggPackage, SourcePackage)
-
-  requirements = options.requirements[:]
+  for requirements_txt in options.requirement_files:
+    resolvables.extend(requirements_from_file(requirements_txt, resolver_option_builder))
 
   if options.source_dirs:
-    temporary_package_root = safe_mkdtemp()
-
     for source_dir in options.source_dirs:
       try:
-        sdist = Packager(source_dir).sdist()
-      except installer.Error:
+        sdist = Packager(source_dir, interpreter=interpreter).sdist()
+      except InstallerBase.Error:
         die('Failed to run installer for %s' % source_dir, CANNOT_DISTILL)
 
-      # record the requirement information
-      sdist_pkg = Package.from_href(sdist)
-      requirements.append('%s==%s' % (sdist_pkg.name, sdist_pkg.raw_version))
+      resolvables.append(ResolvablePackage.from_string(sdist, resolver_option_builder))
 
-      # copy the source distribution
-      shutil.copyfile(sdist, os.path.join(temporary_package_root, os.path.basename(sdist)))
+  resolver_kwargs = dict(interpreter=interpreter, platform=options.platform)
 
-    # Tell pex where to find the packages.
-    fetchers.append(Fetcher([temporary_package_root]))
+  if options.cache_dir:
+    resolver = CachingResolver(options.cache_dir, options.cache_ttl, **resolver_kwargs)
+  else:
+    resolver = Resolver(**resolver_kwargs)
 
   with TRACER.timed('Resolving distributions'):
-    resolveds = requirement_resolver(
-        requirements,
-        fetchers=fetchers,
-        translator=translator,
-        interpreter=interpreter,
-        platform=options.platform,
-        precedence=precedence,
-        cache=options.cache_dir,
-        cache_ttl=options.cache_ttl)
+    resolveds = resolver.resolve(resolvables)
 
-  for pkg in resolveds:
-    log('  %s' % pkg, v=options.verbosity)
-    pex_builder.add_distribution(pkg)
-    pex_builder.add_requirement(pkg.as_requirement())
+  for dist in resolveds:
+    log('  %s' % dist, v=options.verbosity)
+    pex_builder.add_distribution(dist)
+    pex_builder.add_requirement(dist.as_requirement())
 
   if options.entry_point is not None:
     log('Setting entry point to %s' % options.entry_point, v=options.verbosity)
@@ -449,13 +450,21 @@ def build_pex(args, options):
 
 
 def main():
-  parser = configure_clp()
-  options, args = parser.parse_args()
+  parser, resolver_options_builder = configure_clp()
+
+  # split arguments early because optparse is dumb
+  args = sys.argv[1:]
+  try:
+    separator = args.index('--')
+    args, cmdline = args[:separator], args[separator + 1:]
+  except ValueError:
+    args, cmdline = args, []
+
+  options, reqs = parser.parse_args(args=args)
 
   with TraceLogger.env_override(PEX_VERBOSE=options.verbosity):
-
     with TRACER.timed('Building pex'):
-      pex_builder = build_pex(args, options)
+      pex_builder = build_pex(reqs, options, resolver_options_builder)
 
     if options.pex_name is not None:
       log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)
@@ -470,9 +479,9 @@ def main():
 
     pex_builder.freeze()
 
-    log('Running PEX file at %s with args %s' % (pex_builder.path(), args), v=options.verbosity)
+    log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline), v=options.verbosity)
     pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)
-    return pex.run(args=list(args))
+    return pex.run(args=list(cmdline))
 
 
 if __name__ == '__main__':

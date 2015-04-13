@@ -49,32 +49,38 @@ Launch an interpreter with ``requests`` and ``flask`` in the environment:
 
 .. code-block:: bash
 
-    $ pex -r requests -r flask
+    $ pex requests flask
+
+Or instead launch an interpreter with the requirements from requirements.txt:
+
+.. code-block:: bash
+
+    $ pex -r requirements.txt
 
 Run webserver.py in an environment containing ``flask`` and the setup.py package in
 the current working directory:
 
 .. code-block::
 
-    $ pex -r flask -s . -- webserver.py
+    $ pex flask -s . -- webserver.py
 
 Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sphinx:main``:
 
 .. code-block:: bash
 
-    $ pex -r sphinx -e sphinx:main -- --help
+    $ pex sphinx -e sphinx:main -- --help
 
 Build a standalone pex binary into ``pex.pex``:
 
 .. code-block::
 
-    $ pex -r pex -e pex.bin.pex:main -o pex.pex
+    $ pex pex -e pex.bin.pex:main -o pex.pex
 
 Build a standalone pex binary but invoked using a specific Python version:
 
 .. code-block::
 
-    $ pex -r pex -e pex.bin.pex:main --python=pypy -o pypy-pex.pex
+    $ pex pex -e pex.bin.pex:main --python=pypy -o pypy-pex.pex
 
 Most pex options compose well with one another, so the above commands can be
 mixed and matched.

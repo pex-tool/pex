@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import os
+import traceback
 from abc import abstractmethod
 
 from .archiver import Archiver
@@ -45,6 +46,9 @@ class ChainedTranslator(TranslatorBase):
       if dist:
         return dist
 
+  def __str__(self):
+    return 'ChainedTranslator(%s)' % (', '.join(map(repr, tx) for tx in self._translators))
+
 
 class SourceTranslator(TranslatorBase):
   @classmethod
@@ -60,8 +64,9 @@ class SourceTranslator(TranslatorBase):
               try:
                 chmod_plus_w(full_fn)
                 rt.refactor_file(full_fn, write=True)
-              except IOError as e:
-                TRACER.log('Failed to translate %s: %s' % (fn, e))
+              except IOError:
+                TRACER.log('Failed to translate %s' % fn)
+                TRACER.log(traceback.format_exc())
 
   def __init__(self,
                interpreter=PythonInterpreter.get(),
@@ -78,7 +83,7 @@ class SourceTranslator(TranslatorBase):
     if not isinstance(package, SourcePackage):
       return None
     if not package.local:
-      raise ValueError('BinaryTranslator cannot translate remote packages.')
+      raise ValueError('SourceTranslator cannot translate remote packages.')
 
     installer = None
     version = self._interpreter.version
@@ -111,7 +116,8 @@ class SourceTranslator(TranslatorBase):
           return None
         return DistributionHelper.distribution_from_path(target_path)
     except Exception as e:
-      TRACER.log('Failed to translate %s: %s' % (package, e))
+      TRACER.log('Failed to translate %s' % package)
+      TRACER.log(traceback.format_exc())
     finally:
       if installer:
         installer.cleanup()

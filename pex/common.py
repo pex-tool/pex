@@ -1,12 +1,15 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import print_function
+
 import atexit
 import contextlib
 import errno
 import os
 import shutil
 import stat
+import sys
 import tempfile
 import threading
 import zipfile
@@ -41,6 +44,7 @@ class MktempTeardownRegistry(object):
     self._getpid = os.getpid
     self._lock = threading.RLock()
     self._exists = os.path.exists
+    self._getenv = os.getenv
     self._rmtree = shutil.rmtree
     atexit.register(self.teardown)
 
@@ -55,7 +59,10 @@ class MktempTeardownRegistry(object):
   def teardown(self):
     for td in self._registry.pop(self._getpid(), []):
       if self._exists(td):
-        self._rmtree(td)
+        if self._getenv('PEX_LEAVE_TEMPDIRS'):
+          print('Left temporary dir: %s' % td, file=sys.stderr)
+        else:
+          self._rmtree(td)
 
 
 _MKDTEMP_SINGLETON = MktempTeardownRegistry()

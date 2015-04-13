@@ -44,10 +44,10 @@ Specifying requirements
 -----------------------
 
 Requirements are specified using the same form as expected by ``setuptools``, e.g. ``flask``, ``setuptools==2.1.2``,
-``Django>=1.4,<1.6``.  These are specified using the ``-r`` option and may be specified multiple times.  For example,
-to start an environment with ``flask`` and ``psutil>1``::
+``Django>=1.4,<1.6``.  These are specified as arguments to pex and any number (including 0) may be specified.
+For example, to start an environment with ``flask`` and ``psutil>1``::
 
-    $ pex -r flask -r 'psutil>1'
+    $ pex flask 'psutil>1'
     Python 2.6.9 (unknown, Jan  2 2014, 14:52:48)
     [GCC 4.2.1 (Based on Apple Inc. build 5658) (LLVM build 2336.11.00)] on darwin
     Type "help", "copyright", "credits" or "license" for more information.
@@ -72,7 +72,7 @@ Entry points define how the environment is executed and may be specified using t
 As mentioned above, if no entry points are specified, the default behavior is to emulate an
 interpreter::
 
-    $ pex -r flask
+    $ pex flask
     Python 2.6.9 (unknown, Jan  2 2014, 14:52:48)
     [GCC 4.2.1 (Based on Apple Inc. build 5658) (LLVM build 2336.11.00)] on darwin
     Type "help", "copyright", "credits" or "license" for more information.
@@ -92,7 +92,7 @@ Like an interpreter, if a source file is specified, it is invoked::
     > app.run()
     > EOF
 
-    $ pex -r flask -- ./flask_hello_world.py
+    $ pex flask -- ./flask_hello_world.py
     * Running on http://127.0.0.1:5000/
 
 As an example of using a non-empty entry point, consider the Python ``pydoc``
@@ -121,7 +121,7 @@ This can be emulated using the ``pex`` tool using ``-e pydoc``::
 Arguments will be passed unescaped following ``--`` on the command line.  So in order to
 get pydoc help on the ``flask.app`` package in Flask::
 
-    $ pex -r flask -e pydoc -- flask.app
+    $ pex flask -e pydoc -- flask.app
     Help on module flask.app in flask:
 
     NAME
@@ -142,7 +142,7 @@ and Fabric respectively.  This is roughly equivalent to running a script that do
 This can be a powerful way to invoke Python applications without ever having to ``pip install``
 anything, for example a one-off invocation of Sphinx with the readthedocs theme available::
 
-    $ pex -r sphinx -r sphinx_rtd_theme -e sphinx:main -- --help
+    $ pex sphinx sphinx_rtd_theme -e sphinx:main -- --help
     Sphinx v1.2.2
     Usage: /var/folders/4d/9tz0cd5n2n7947xs21gspsxc0000gp/T/tmpLr8ibZ [options] sourcedir outdir [filenames...]
 
@@ -163,7 +163,7 @@ exist for the duration of the pex command lifetime and immediately garbage colle
 If the ``-o PATH`` option is specified, a PEX file of the environment is saved to disk at ``PATH``.  For example
 we can package a standalone Sphinx as above::
 
-    $ pex -r sphinx -r sphinx_rtd_theme -e sphinx:main -o sphinx.pex
+    $ pex sphinx sphinx_rtd_theme -e sphinx:main -o sphinx.pex
 
 Instead of executing the environment, it is saved to disk::
 
@@ -188,7 +188,7 @@ As before, entry points are not required, and if not specified the PEX will defa
 an interpreter.  If an alternate interpreter is specified with ``--python``, e.g. pypy, it will be the
 default hashbang in the PEX file::
 
-    $ pex --python=pypy -r flask -o flask-pypy.pex
+    $ pex --python=pypy flask -o flask-pypy.pex
 
 The hashbang of the PEX file specifies PyPy::
 
@@ -208,17 +208,16 @@ and when invoked uses the environment PyPy::
 Tailoring requirement resolution
 --------------------------------
 
-By default, ``pex`` fetches artifacts from PyPI.  This can be disabled with ``--no-pypi`` and
-explicitly enabled with ``--pypi``.
+By default, ``pex`` fetches artifacts from PyPI.  This can be disabled with ``--no-index``.
 
-If PyPI fetching is disabled, you will need to specify a search repository via ``--repo``.  This
+If PyPI fetching is disabled, you will need to specify a search repository via ``-f/--find-links``.  This
 may be a directory on disk or a remote simple http server.
 
 For example, you can delegate artifact fetching and resolution to ``pip wheel`` for whatever
 reason -- perhaps you're running a firewalled mirror -- but continue to package with pex::
 
     $ pip wheel sphinx sphinx_rtd_theme
-    $ pex -r sphinx -r sphinx_rtd_theme -e sphinx:main --no-pypi --repo=wheelhouse -o sphinx.pex
+    $ pex sphinx sphinx_rtd_theme -e sphinx:main --no-index --find-links=wheelhouse -o sphinx.pex
 
 
 Tailoring PEX execution

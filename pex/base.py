@@ -38,4 +38,4 @@ def maybe_requirement_list(reqs):
 
 
 def requirement_is_exact(req):
-  return req.specs and len(req.specs) == 1 and req.specs[0][0] == '=='
+  return bool(req.specs and len(req.specs) == 1 and req.specs[0][0] == '==')

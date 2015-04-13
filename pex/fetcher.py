@@ -34,6 +34,11 @@ class Fetcher(FetcherBase):
   def urls(self, _):
     return self._urls
 
+  def __eq__(self, other):
+    if not isinstance(other, Fetcher):
+      return False
+    return self._urls == other._urls
+
 
 class PyPIFetcher(FetcherBase):
   PYPI_BASE = 'https://pypi.python.org/simple/'
@@ -44,10 +49,18 @@ class PyPIFetcher(FetcherBase):
 
     pypi_url = urlparse.urlparse(pypi_base)
     if not pypi_url.scheme:
-      self.__pypi_base = 'http://' + pypi_base
+      self._pypi_base = 'http://' + pypi_base
     else:
-      self.__pypi_base = pypi_base
+      self._pypi_base = pypi_base
 
   def urls(self, req):
     req = maybe_requirement(req)
-    return [urljoin(self.__pypi_base, '%s/' % req.project_name)]
+    return [urljoin(self._pypi_base, '%s/' % req.project_name)]
+
+  def __eq__(self, other):
+    if not isinstance(other, PyPIFetcher):
+      return False
+    return self._pypi_base == other._pypi_base
+
+  def __repr__(self):
+    return 'PyPIFetcher(%r)' % self._pypi_base
