@@ -179,7 +179,8 @@ class CachingResolver(Resolver):
   # Short-circuiting package iterator.
   def package_iterator(self, resolvable, existing=None):
     iterator = Iterator(fetchers=[Fetcher([self.__cache])])
-    packages = resolvable.compatible(iterator)
+    packages = self.filter_packages_by_interpreter(
+        resolvable.compatible(iterator), self._interpreter, self._platform)
 
     if packages:
       if resolvable.exact:
