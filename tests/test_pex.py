@@ -9,7 +9,7 @@ import pytest
 
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
-from pex.testing import run_simple_pex_test, make_installer
+from pex.testing import make_installer, run_simple_pex_test
 from pex.util import DistributionHelper
 
 
