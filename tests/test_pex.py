@@ -7,8 +7,10 @@ from types import ModuleType
 
 import pytest
 
+from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
-from pex.testing import run_simple_pex_test
+from pex.testing import make_installer, run_simple_pex_test
+from pex.util import DistributionHelper
 
 
 @pytest.mark.skipif('sys.version_info > (3,)')
@@ -94,3 +96,25 @@ def test_minimum_sys_modules():
   new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
   assert new_modules == modules
   assert tainted_module.__path__ == ['good_path']
+
+
+@pytest.mark.parametrize('project_name', ('my_project', 'my-project'))
+@pytest.mark.parametrize('installer_impl', (EggInstaller, WheelInstaller))
+def test_pex_script(installer_impl, project_name):
+  with make_installer(name=project_name, installer_impl=installer_impl) as installer:
+    bdist = DistributionHelper.distribution_from_path(installer.bdist())
+
+    env_copy = os.environ.copy()
+    env_copy['PEX_SCRIPT'] = 'hello_world'
+    so, rc = run_simple_pex_test('', env=env_copy)
+    assert rc == 1, so.decode('utf-8')
+    assert b'Could not find' in so
+
+    so, rc = run_simple_pex_test('', env=env_copy, dists=[bdist])
+    assert rc == 0, so.decode('utf-8')
+    assert b'hello world' in so
+
+    env_copy['PEX_SCRIPT'] = 'shell_script'
+    so, rc = run_simple_pex_test('', env=env_copy, dists=[bdist])
+    assert rc == 1, so.decode('utf-8')
+    assert b'Unable to parse' in so

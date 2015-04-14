@@ -312,15 +312,16 @@ class PEX(object):  # noqa: T000
         script_name, self._env.activate())
     if not dist:
       raise self.NotFound('Could not find script %s in pex!' % script_name)
-    if not script_content.startswith('#!/usr/bin/env python'):
-      die('Cannot execute non-Python script within PEX environment!')
     TRACER.log('Found script %s in %s' % (script_name, dist))
     self.execute_content(script_path, script_content, argv0=script_name)
 
   @classmethod
   def execute_content(cls, name, content, argv0=None):
     argv0 = argv0 or name
-    ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
+    try:
+      ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
+    except SyntaxError:
+      die('Unable to parse %s.  PEX script support only supports Python scripts.')
     old_name, old_file = globals().get('__name__'), globals().get('__file__')
     try:
       old_argv0 = sys.argv[0]
