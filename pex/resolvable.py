@@ -14,7 +14,6 @@ from .installer import InstallerBase, Packager
 from .package import Package
 from .resolver_options import ResolverOptionsBuilder, ResolverOptionsInterface
 
-
 # Extract extras as specified per "declaring extras":
 # https://pythonhosted.org/setuptools/setuptools.html
 _EXTRAS_PATTERN = re.compile(r'(?P<main>.*)\[(?P<extras>.*)\]$')
