@@ -7,20 +7,25 @@ CHANGES
 ----------
 
 * Adds ``--python-shebang`` option to the pex tool in order to set the ``#!`` shebang to an exact
-  path.
+  path.  `#53 <https://github.com/pantsbuild/pex/issues/53>`_.
 
 * Adds support for ``PEX_PYTHON`` environment variable which will cause the pex file to reinvoke
   itself using the interpreter specified, e.g. ``PEX_PYTHON=python3.4`` or
-  ``PEX_PYTHON=/exact/path/to/interpreter``.
+  ``PEX_PYTHON=/exact/path/to/interpreter``.  `#27 <https://github.com/pantsbuild/pex/issues/27>`_.
+
 
 ----------
 1.0.0.dev2
 ----------
 
 * Now supports extras for static URLs and installable directories.
+  `#65 <https://github.com/pantsbuild/pex/issues/65>`_.
 
 * BREAKING CHANGE: Removes the ``-s`` option in favor of specifying directories directly as
   arguments to the pex command line.
+
+* Fixes caching in the PEX tool since we don't cache the source distributions of installable
+  directories.  `#24 <https://github.com/pantsbuild/pex/issues/24>`_.
 
 ----------
 1.0.0.dev1
