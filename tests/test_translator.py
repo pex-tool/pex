@@ -1,7 +1,7 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from pex.translator import ChainedTranslator, TranslatorBase
+from pex.translator import ChainedTranslator, Translator, TranslatorBase
 
 try:
   import mock
@@ -32,3 +32,8 @@ def test_chained_translator_short_circuit_translate():
   assert initial_empty_translator.translate.called
   assert translator_with_value.translate.called
   assert not translator_after_value.translate.called
+
+
+def test_chained_translator_repr():
+  assert str(Translator.default()) == (
+      'ChainedTranslator(WheelTranslator, EggTranslator, SourceTranslator)')

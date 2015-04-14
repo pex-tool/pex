@@ -47,7 +47,8 @@ class ChainedTranslator(TranslatorBase):
         return dist
 
   def __str__(self):
-    return 'ChainedTranslator(%s)' % (', '.join(map(repr, tx) for tx in self._translators))
+    return 'ChainedTranslator(%s)' % (
+        ', '.join((tx.__class__.__name__ for tx in self._translators)))
 
 
 class SourceTranslator(TranslatorBase):
