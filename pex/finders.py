@@ -234,3 +234,40 @@ def unregister_finders():
     _remove_finder(importlib_bootstrap.FileFinder, find_wheels_on_path)
 
   __PREVIOUS_FINDER = None
+
+
+def get_script_from_egg(name, dist):
+  """Returns location, content of script in distribution or (None, None) if not there."""
+  if name in dist.metadata_listdir('scripts'):
+    return (
+        os.path.join(dist.egg_info, 'scripts', name),
+        dist.get_metadata('scripts/%s' % name).replace('\r\n', '\n').replace('\r', '\n'))
+  return None, None
+
+
+def get_script_from_whl(name, dist):
+  # This is true as of at least wheel==0.24.  Might need to take into account the
+  # metadata version bundled with the wheel.
+  wheel_scripts_dir = '%s-%s.data/scripts' % (dist.key, dist.version)
+  if dist.resource_isdir(wheel_scripts_dir) and name in dist.resource_listdir(wheel_scripts_dir):
+    script_path = os.path.join(wheel_scripts_dir, name)
+    return (
+        os.path.join(dist.egg_info, script_path),
+        dist.get_resource_string('', script_path).replace('\r\n', '\n').replace('\r', '\n'))
+  return None, None
+
+
+def get_script_from_distribution(name, dist):
+  if isinstance(dist._provider, FixedEggMetadata):
+    return get_script_from_egg(name, dist)
+  elif isinstance(dist._provider, (WheelMetadata, pkg_resources.PathMetadata)):
+    return get_script_from_whl(name, dist)
+  return None, None
+
+
+def get_script_from_distributions(name, dists):
+  for dist in dists:
+    script_path, script_content = get_script_from_distribution(name, dist)
+    if script_path:
+      return dist, script_path, script_content
+  return None, None, None

@@ -10,6 +10,7 @@ from pkg_resources import DefaultProvider, ZipProvider, get_provider
 
 from .common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
 from .compatibility import to_bytes
+from .finders import get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
@@ -77,6 +78,7 @@ class PEXBuilder(object):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._logger = logging.getLogger(__name__)
     self._preamble = to_bytes(preamble or '')
+    self._distributions = set()
 
   def _ensure_unfrozen(self, name='Operation'):
     if self._frozen:
@@ -157,6 +159,71 @@ class PEXBuilder(object):
     self._ensure_unfrozen('Adding a requirement')
     self._pex_info.add_requirement(req)
 
+  def set_executable(self, filename, env_filename=None):
+    """Set the executable for this environment.
+
+    :param filename: The file that should be executed within the PEX environment when the PEX is
+      invoked.
+    :keyword env_filename: (optional) The name that the executable file should be stored as within
+      the PEX.  By default this will be the base name of the given filename.
+
+    The entry point of the PEX may also be specified via ``PEXBuilder.set_entry_point``.
+    """
+    self._ensure_unfrozen('Setting the executable')
+    if self._pex_info.script:
+      raise self.InvalidExecutableSpecification('Cannot set both entry point and script of PEX!')
+    if env_filename is None:
+      env_filename = os.path.basename(filename)
+    if self._chroot.get("executable"):
+      raise self.InvalidExecutableSpecification(
+          "Setting executable on a PEXBuilder that already has one!")
+    self._chroot.link(filename, env_filename, "executable")
+    entry_point = env_filename
+    entry_point.replace(os.path.sep, '.')
+    self._pex_info.entry_point = entry_point.rpartition('.')[0]
+
+  @classmethod
+  def _get_entry_point_from_console_script(cls, script, distributions):
+    # check all distributions for the console_script "script"
+    entries = frozenset(filter(None, (
+        dist.get_entry_map().get('console_scripts', {}).get(script) for dist in distributions)))
+
+    # if multiple matches, freak out
+    if len(entries) > 1:
+      raise cls.InvalidExecutableSpecification(
+          'Ambiguous script specification %s matches multiple entry points:%s' % (
+              script, ' '.join(map(str, entries))))
+
+    if entries:
+      entry_point = next(iter(entries))
+      # entry points are of the form 'foo = bar', we just want the 'bar' part:
+      return str(entry_point).split('=')[1].strip()
+
+  def set_script(self, script):
+    """Set the entry point of this PEX environment based upon a distribution script.
+
+    :param script: The script name as defined either by a console script or ordinary
+      script within the setup.py of one of the distributions added to the PEX.
+    :raises: :class:`PEXBuilder.InvalidExecutableSpecification` if the script is not found
+      in any distribution added to the PEX.
+    """
+
+    # check if 'script' is a console_script
+    entry_point = self._get_entry_point_from_console_script(script, self._distributions)
+    if entry_point:
+      self.set_entry_point(entry_point)
+      return
+
+    # check if 'script' is an ordinary script
+    script_path, _, _ = get_script_from_distributions(script, self._distributions)
+    if script_path:
+      if self._pex_info.entry_point:
+        raise self.InvalidExecutableSpecification('Cannot set both entry point and script of PEX!')
+      self._pex_info.script = script
+      return
+
+    raise self.InvalidExecutableSpecification('Could not find script %s in PEX!' % script)
+
   def set_entry_point(self, entry_point):
     """Set the entry point of this PEX environment.
 
@@ -204,6 +271,7 @@ class PEXBuilder(object):
     """
     self._ensure_unfrozen('Adding a distribution')
     dist_name = dist_name or os.path.basename(dist.location)
+    self._distributions.add(dist)
 
     if os.path.isdir(dist.location):
       dist_hash = self._add_dist_dir(dist.location, dist_name)
@@ -236,29 +304,6 @@ class PEXBuilder(object):
     """Alias for add_dist_location."""
     self._ensure_unfrozen('Adding an egg')
     return self.add_dist_location(egg)
-
-  # TODO(wickman) Consider warning/erroring should set_executable and set_entry_point both be
-  #  specified, or each specified more than once.
-  def set_executable(self, filename, env_filename=None):
-    """Set the executable for this environment.
-
-    :param filename: The file that should be executed within the PEX environment when the PEX is
-      invoked.
-    :keyword env_filename: (optional) The name that the executable file should be stored as within
-      the PEX.  By default this will be the base name of the given filename.
-
-    The entry point of the PEX may also be specified via ``PEXBuilder.set_entry_point``.
-    """
-    self._ensure_unfrozen('Setting the executable')
-    if env_filename is None:
-      env_filename = os.path.basename(filename)
-    if self._chroot.get("executable"):
-      raise self.InvalidExecutableSpecification(
-          "Setting executable on a PEXBuilder that already has one!")
-    self._chroot.link(filename, env_filename, "executable")
-    entry_point = env_filename
-    entry_point.replace(os.path.sep, '.')
-    self._pex_info.entry_point = entry_point.rpartition('.')[0]
 
   # TODO(wickman) Consider changing this behavior to put the onus on the consumer
   # of pex to write the pex sources correctly.

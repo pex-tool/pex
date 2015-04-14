@@ -3,6 +3,18 @@ CHANGES
 =======
 
 ----------
+1.0.0.dev1
+----------
+
+* Adds ``-m`` and ``--entry-point`` alias to the existing ``-e`` option for entry points in
+  the pex tool to evoke the similarity to ``python -m``.
+
+* Adds console script support via ``-c/--script/--console-script`` and ``PEX_SCRIPT``.  This allows
+  you to reference the named entry point instead of the exact ``module:name`` pair.  Also supports
+  scripts defined in the ``scripts`` section of setup.py.
+  `#59 <https://github.com/pantsbuild/pex/issues/59>`_.
+
+----------
 1.0.0.dev0
 ----------
 

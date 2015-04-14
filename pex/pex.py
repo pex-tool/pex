@@ -13,9 +13,10 @@ from site import USER_SITE
 import pkg_resources
 from pkg_resources import EntryPoint, find_distributions
 
-from .common import safe_mkdir
+from .common import die, safe_mkdir
 from .compatibility import exec_function
 from .environment import PEXEnvironment
+from .finders import get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
@@ -59,27 +60,12 @@ class PEX(object):  # noqa: T000
 
   def __init__(self, pex=sys.argv[0], interpreter=None):
     self._pex = pex
-    self._pex_info = PexInfo.from_pex(self._pex)
-    self._env = PEXEnvironment(self._pex, self._pex_info)
     self._interpreter = interpreter or PythonInterpreter.get()
-
-  @property
-  def info(self):
-    return self._pex_info
-
-  def entry(self):
-    """Return the module spec of the entry point of this PEX.
-
-      :returns: The entry point for this environment as a string, otherwise
-        ``None`` if there is no specific entry point.
-    """
-    if 'PEX_MODULE' in os.environ:
-      TRACER.log('PEX_MODULE override detected: %s' % os.environ['PEX_MODULE'])
-      return os.environ['PEX_MODULE']
-    entry_point = self._pex_info.entry_point
-    if entry_point:
-      TRACER.log('Using prescribed entry point: %s' % entry_point)
-      return str(entry_point)
+    self._pex_info = PexInfo.from_pex(self._pex)
+    self._pex_info_overrides = PexInfo.from_env()
+    env_pex_info = self._pex_info.copy()
+    env_pex_info.update(self._pex_info_overrides)
+    self._env = PEXEnvironment(self._pex, env_pex_info)
 
   @classmethod
   def _extras_paths(cls):
@@ -248,15 +234,12 @@ class PEX(object):  # noqa: T000
     finally:
       patch_all(old_sys_path, old_sys_path_importer_cache, old_sys_modules)
 
-  def execute(self, args=()):
+  def execute(self):
     """Execute the PEX.
 
     This function makes assumptions that it is the last function called by
     the interpreter.
     """
-
-    entry_point = self.entry()
-
     try:
       with self.patch_sys():
         working_set = self._env.activate()
@@ -267,10 +250,7 @@ class PEX(object):  # noqa: T000
           TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
         TRACER.log('  * - paths that do not exist or will be imported via zipimport')
         with self.patch_pkg_resources(working_set):
-          if entry_point and 'PEX_INTERPRETER' not in os.environ:
-            self.execute_entry(entry_point, args)
-          else:
-            self.execute_interpreter()
+          self._execute()
     except Exception:
       # Allow the current sys.excepthook to handle this app exception before we tear things down in
       # finally, then reraise so that the exit status is reflected correctly.
@@ -285,6 +265,27 @@ class PEX(object):  # noqa: T000
         sys.stderr = DevNull()
         sys.excepthook = lambda *a, **kw: None
 
+  def _execute(self):
+    if 'PEX_INTERPRETER' in os.environ:
+      return self.execute_interpreter()
+
+    if self._pex_info_overrides.script and self._pex_info_overrides.entry_point:
+      die('Cannot specify both script and entry_point for a PEX!')
+
+    if self._pex_info.script and self._pex_info.entry_point:
+      die('Cannot specify both script and entry_point for a PEX!')
+
+    if self._pex_info_overrides.script:
+      return self.execute_script(self._pex_info_overrides.script)
+    elif self._pex_info_overrides.entry_point:
+      return self.execute_entry(self._pex_info_overrides.entry_point)
+    elif self._pex_info.script:
+      return self.execute_script(self._pex_info.script)
+    elif self._pex_info.entry_point:
+      return self.execute_entry(self._pex_info.entry_point)
+    else:
+      return self.execute_interpreter()
+
   @classmethod
   def execute_interpreter(cls):
     force_interpreter = 'PEX_INTERPRETER' in os.environ
@@ -295,26 +296,53 @@ class PEX(object):  # noqa: T000
     if sys.argv[1:]:
       try:
         with open(sys.argv[1]) as fp:
-          ast = compile(fp.read(), fp.name, 'exec', flags=0, dont_inherit=1)
+          name, content = sys.argv[1], fp.read()
       except IOError as e:
-        print("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
-        sys.exit(1)
+        die("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
       sys.argv = sys.argv[1:]
-      old_name = globals()['__name__']
-      try:
-        globals()['__name__'] = '__main__'
-        exec_function(ast, globals())
-      finally:
-        globals()['__name__'] = old_name
+      cls.execute_content(name, content)
     else:
       import code
       code.interact()
 
+  def execute_script(self, script_name):
+    # TODO(wickman) PEXEnvironment should probably have a working_set property
+    # or possibly just __iter__.
+    dist, script_path, script_content = get_script_from_distributions(
+        script_name, self._env.activate())
+    if not dist:
+      raise self.NotFound('Could not find script %s in pex!' % script_name)
+    if not script_content.startswith('#!/usr/bin/env python'):
+      die('Cannot execute non-Python script within PEX environment!')
+    TRACER.log('Found script %s in %s' % (script_name, dist))
+    self.execute_content(script_path, script_content, argv0=script_name)
+
   @classmethod
-  def execute_entry(cls, entry_point, args=None):
-    if args:
-      sys.argv = args
-    runner = cls.execute_pkg_resources if ":" in entry_point else cls.execute_module
+  def execute_content(cls, name, content, argv0=None):
+    argv0 = argv0 or name
+    ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
+    old_name, old_file = globals().get('__name__'), globals().get('__file__')
+    try:
+      old_argv0 = sys.argv[0]
+      sys.argv[0] = argv0
+      globals()['__name__'] = '__main__'
+      globals()['__file__'] = name
+      exec_function(ast, globals())
+    finally:
+      if old_name:
+        globals()['__name__'] = old_name
+      else:
+        globals().pop('__name__')
+      if old_file:
+        globals()['__file__'] = old_file
+      else:
+        globals().pop('__file__')
+      sys.argv[0] = old_argv0
+
+  # TODO(wickman) Find a way to make PEX_PROFILE work with all execute_*
+  @classmethod
+  def execute_entry(cls, entry_point):
+    runner = cls.execute_pkg_resources if ':' in entry_point else cls.execute_module
 
     if 'PEX_PROFILE' not in os.environ:
       runner(entry_point)

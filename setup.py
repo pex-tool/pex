@@ -41,7 +41,7 @@ setup(
     'pex.bin',
   ],
   install_requires = [
-    __setuptools_requirement,
+    SETUPTOOLS_REQUIREMENT,
   ],
   tests_require = [
     'mock',

@@ -16,7 +16,7 @@ from optparse import OptionGroup, OptionParser, OptionValueError
 
 from pex.archiver import Archiver
 from pex.base import maybe_requirement
-from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
+from pex.common import die, safe_delete, safe_mkdir, safe_mkdtemp
 from pex.crawler import Crawler
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
@@ -32,15 +32,12 @@ from pex.resolvable import Resolvable, ResolvablePackage
 from pex.resolver import CachingResolver, Resolver
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER, TraceLogger
-from pex.version import __setuptools_requirement, __version__, __wheel_requirement
+from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT, __version__
 
 CANNOT_DISTILL = 101
 CANNOT_SETUP_INTERPRETER = 102
-
-
-def die(msg, error_code=1):
-  print(msg, file=sys.stderr)
-  sys.exit(error_code)
+INVALID_OPTIONS = 103
+INVALID_ENTRY_POINT = 104
 
 
 def log(msg, v=False):
@@ -247,6 +244,32 @@ def configure_clp_pex_environment(parser):
   parser.add_option_group(group)
 
 
+def configure_clp_pex_entry_points(parser):
+  group = OptionGroup(
+      parser,
+      'PEX entry point options',
+      'Specify what target/module the PEX should invoke if any.')
+
+  group.add_option(
+      '-m', '-e', '--entry-point',
+      dest='entry_point',
+      metavar='MODULE[:SYMBOL]',
+      default=None,
+      help='Set the entry point to module or module:symbol.  If just specifying module, pex '
+           'behaves like python -m, e.g. python -m SimpleHTTPServer.  If specifying '
+           'module:symbol, pex imports that symbol and invokes it as if it were main.')
+
+  group.add_option(
+      '-c', '--script', '--console-script',
+      dest='script',
+      default=None,
+      metavar='SCRIPT_NAME',
+      help='Set the entry point as to the script or console_script as defined by a any of the '
+           'distributions in the pex.  For example: "pex -c fab fabric" or "pex -c mturk boto".')
+
+  parser.add_option_group(group)
+
+
 def configure_clp():
   usage = (
       '%prog [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n'
@@ -258,6 +281,7 @@ def configure_clp():
   configure_clp_pex_resolution(parser, resolver_options_builder)
   configure_clp_pex_options(parser)
   configure_clp_pex_environment(parser)
+  configure_clp_pex_entry_points(parser)
 
   parser.add_option(
       '-o', '--output-file',
@@ -265,14 +289,6 @@ def configure_clp():
       default=None,
       help='The name of the generated .pex file: Omiting this will run PEX '
            'immediately and not save it to a file.')
-
-  parser.add_option(
-      '-e', '--entry-point',
-      dest='entry_point',
-      default=None,
-      help='The entry point for this pex; Omiting this will enter the python '
-           'REPL with sources and requirements available for import.  Can be '
-           'either a module or EntryPoint (module:function) format.')
 
   parser.add_option(
       '-r', '--requirement',
@@ -387,11 +403,11 @@ def interpreter_from_options(options):
     resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, options.repos)
 
     # resolve setuptools
-    interpreter = resolve(interpreter, __setuptools_requirement)
+    interpreter = resolve(interpreter, SETUPTOOLS_REQUIREMENT)
 
     # possibly resolve wheel
     if interpreter and options.use_wheel:
-      interpreter = resolve(interpreter, __wheel_requirement)
+      interpreter = resolve(interpreter, WHEEL_REQUIREMENT)
 
     return interpreter
 
@@ -440,11 +456,13 @@ def build_pex(args, options, resolver_option_builder):
     pex_builder.add_distribution(dist)
     pex_builder.add_requirement(dist.as_requirement())
 
-  if options.entry_point is not None:
-    log('Setting entry point to %s' % options.entry_point, v=options.verbosity)
-    pex_builder.info.entry_point = options.entry_point
-  else:
-    log('Creating environment PEX.', v=options.verbosity)
+  if options.entry_point and options.script:
+    die('Must specify at most one entry point or script.', INVALID_OPTIONS)
+
+  if options.entry_point:
+    pex_builder.set_entry_point(options.entry_point)
+  elif options.script:
+    pex_builder.set_script(options.script)
 
   return pex_builder
 

@@ -13,6 +13,7 @@ from pkg_resources import Distribution, PathMetadata
 from .common import safe_mkdtemp, safe_rmtree
 from .interpreter import PythonInterpreter
 from .tracer import TRACER
+from .version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
 
 __all__ = (
   'Installer',
@@ -232,8 +233,8 @@ class WheelInstaller(DistributionPackager):
     Create a source distribution from an unpacked setup.py-based project.
   """
   MIXINS = {
-      'setuptools': 'setuptools>=2',
-      'wheel': 'wheel>=0.17',
+      'setuptools': SETUPTOOLS_REQUIREMENT,
+      'wheel': WHEEL_REQUIREMENT,
   }
 
   def mixins(self):

@@ -17,6 +17,11 @@ from collections import defaultdict
 from uuid import uuid4
 
 
+def die(msg, exit_code=1):
+  print(msg, file=sys.stderr)
+  sys.exit(exit_code)
+
+
 def safe_copy(source, dest, overwrite=False):
   def do_copy():
     temp_dest = dest + uuid4().hex
