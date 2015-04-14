@@ -22,7 +22,7 @@ class Iterator(IteratorInterface):
 
   def __init__(self, fetchers=None, crawler=None, follow_links=False):
     self._crawler = crawler or Crawler()
-    self._fetchers = fetchers or [PyPIFetcher()]
+    self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
     self.__follow_links = follow_links
 
   def _iter_requirement_urls(self, req):

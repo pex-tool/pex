@@ -20,7 +20,7 @@ from pex.common import die, safe_delete, safe_mkdir, safe_mkdtemp
 from pex.crawler import Crawler
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
-from pex.installer import EggInstaller, InstallerBase, Packager
+from pex.installer import EggInstaller
 from pex.interpreter import PythonInterpreter
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
@@ -28,7 +28,7 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
-from pex.resolvable import Resolvable, ResolvablePackage
+from pex.resolvable import Resolvable
 from pex.resolver import CachingResolver, Resolver
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER, TraceLogger
@@ -301,15 +301,6 @@ def configure_clp():
            'times.')
 
   parser.add_option(
-      '-s', '--source-dir',
-      dest='source_dirs',
-      metavar='DIR',
-      default=[],
-      action='append',
-      help='Source to be packaged; This <DIR> should be a pip-installable project '
-           'with a setup.py.')
-
-  parser.add_option(
       '-v',
       dest='verbosity',
       default=0,
@@ -431,15 +422,6 @@ def build_pex(args, options, resolver_option_builder):
 
   for requirements_txt in options.requirement_files:
     resolvables.extend(requirements_from_file(requirements_txt, resolver_option_builder))
-
-  if options.source_dirs:
-    for source_dir in options.source_dirs:
-      try:
-        sdist = Packager(source_dir, interpreter=interpreter).sdist()
-      except InstallerBase.Error:
-        die('Failed to run installer for %s' % source_dir, CANNOT_DISTILL)
-
-      resolvables.append(ResolvablePackage.from_string(sdist, resolver_option_builder))
 
   resolver_kwargs = dict(interpreter=interpreter, platform=options.platform)
 

@@ -92,6 +92,13 @@ def make_installer(name='my_project', installer_impl=EggInstaller, zip_safe=True
     yield installer_impl(td)
 
 
+@contextlib.contextmanager
+def make_source_dir(name='my_project'):
+  interp = {'project_name': name, 'zip_safe': True}
+  with temporary_content(PROJECT_CONTENT, interp=interp) as td:
+    yield td
+
+
 def make_sdist(name='my_project', zip_safe=True):
   with make_installer(name=name, installer_impl=Packager, zip_safe=zip_safe) as packager:
     return packager.sdist()

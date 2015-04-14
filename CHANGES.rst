@@ -3,6 +3,15 @@ CHANGES
 =======
 
 ----------
+1.0.0.dev2
+----------
+
+* Now supports extras for static URLs and installable directories.
+
+* BREAKING CHANGE: Removes the ``-s`` option in favor of specifying directories directly as
+  arguments to the pex command line.
+
+----------
 1.0.0.dev1
 ----------
 
