@@ -47,6 +47,9 @@ class PyPIFetcher(FetcherBase):
     if use_mirrors:
       warnings.warn('use_mirrors is now deprecated.')
 
+    if not pypi_base.endswith('/'):
+      pypi_base += '/'
+
     pypi_url = urlparse.urlparse(pypi_base)
     if not pypi_url.scheme:
       self._pypi_base = 'http://' + pypi_base
