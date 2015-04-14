@@ -245,10 +245,14 @@ def get_script_from_egg(name, dist):
   return None, None
 
 
+def safer_name(name):
+  return name.replace('-', '_')
+
+
 def get_script_from_whl(name, dist):
   # This is true as of at least wheel==0.24.  Might need to take into account the
   # metadata version bundled with the wheel.
-  wheel_scripts_dir = '%s-%s.data/scripts' % (dist.key, dist.version)
+  wheel_scripts_dir = '%s-%s.data/scripts' % (safer_name(dist.key), dist.version)
   if dist.resource_isdir(wheel_scripts_dir) and name in dist.resource_listdir(wheel_scripts_dir):
     script_path = os.path.join(wheel_scripts_dir, name)
     return (
