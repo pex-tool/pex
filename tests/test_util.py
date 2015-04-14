@@ -3,14 +3,25 @@
 
 import contextlib
 import functools
+import os
+import subprocess
 import zipfile
 from hashlib import sha1
+from textwrap import dedent
 
-from twitter.common.contextutil import temporary_file
+from twitter.common.contextutil import temporary_dir, temporary_file
 
+from pex.common import safe_mkdir
+from pex.compatibility import nested
 from pex.installer import EggInstaller, WheelInstaller
+from pex.pex_builder import PEXBuilder
 from pex.testing import make_bdist, temporary_content, write_zipfile
 from pex.util import CacheHelper, DistributionHelper
+
+try:
+  from unittest import mock
+except ImportError:
+  import mock
 
 
 def test_hash():
@@ -74,3 +85,74 @@ def test_zipsafe():
     for zip_safe in (False, True):
       with make_egg(zipped=zipped, zip_safe=zip_safe) as dist:
         assert DistributionHelper.zipsafe(dist) is zip_safe
+
+
+def test_access_zipped_assets():
+  try:
+    import __builtin__
+    builtin_path = __builtin__.__name__
+  except ImportError:
+    # Python3
+    import builtins
+    builtin_path = builtins.__name__
+
+  mock_open = mock.mock_open()
+  with nested(mock.patch('%s.open' % builtin_path, mock_open, create=True),
+      mock.patch('pex.util.resource_string', autospec=True, spec_set=True),
+      mock.patch('pex.util.resource_isdir', autospec=True, spec_set=True),
+      mock.patch('pex.util.resource_listdir', autospec=True, spec_set=True),
+      mock.patch('pex.util.safe_mkdtemp', autospec=True, spec_set=True)) as (
+          _, mock_resource_string, mock_resource_isdir, mock_resource_listdir, mock_safe_mkdtemp):
+
+    mock_safe_mkdtemp.side_effect = iter(['tmpJIMMEH', 'faketmpDir'])
+    mock_resource_listdir.side_effect = iter([['./__init__.py', './directory/'], ['file.py']])
+    mock_resource_isdir.side_effect = iter([False, True, False])
+    mock_resource_string.return_value = 'testing'
+
+    temp_dir = DistributionHelper.access_zipped_assets('twitter.common', 'dirutil')
+
+    assert mock_resource_listdir.call_count == 2
+    assert mock_open.call_count == 2
+    file_handle = mock_open.return_value.__enter__.return_value
+    assert file_handle.write.call_count == 2
+    assert mock_safe_mkdtemp.mock_calls == [mock.call()]
+    assert temp_dir == 'tmpJIMMEH'
+
+
+def test_access_zipped_assets_integration():
+  test_executable = dedent('''
+      import os
+      from _pex.util import DistributionHelper
+      temp_dir = DistributionHelper.access_zipped_assets('my_package', 'submodule')
+      with open(os.path.join(temp_dir, 'mod.py'), 'r') as fp:
+        for line in fp:
+          print(line)
+  ''')
+  with nested(temporary_dir(), temporary_dir()) as (td1, td2):
+    pb = PEXBuilder(path=td1)
+    with open(os.path.join(td1, 'exe.py'), 'w') as fp:
+      fp.write(test_executable)
+      pb.set_executable(fp.name)
+
+    submodule = os.path.join(td1, 'my_package', 'submodule')
+    safe_mkdir(submodule)
+    mod_path = os.path.join(submodule, 'mod.py')
+    with open(mod_path, 'w') as fp:
+      fp.write('accessed')
+      pb.add_source(fp.name, 'my_package/submodule/mod.py')
+
+    pex = os.path.join(td2, 'app.pex')
+    pb.build(pex)
+
+    po = subprocess.Popen(
+        [pex],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT)
+    po.wait()
+    output = po.stdout.read()
+    try:
+      output = output.decode('UTF-8')
+    except ValueError:
+      pass
+    assert output == 'accessed\n'
+    assert po.returncode == 0
