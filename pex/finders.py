@@ -257,7 +257,7 @@ def get_script_from_whl(name, dist):
     script_path = os.path.join(wheel_scripts_dir, name)
     return (
         os.path.join(dist.egg_info, script_path),
-        dist.get_resource_string('', script_path).replace('\r\n', '\n').replace('\r', '\n'))
+        dist.get_resource_string('', script_path).replace(b'\r\n', b'\n').replace(b'\r', b'\n'))
   return None, None
 
 

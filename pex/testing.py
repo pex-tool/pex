@@ -72,12 +72,18 @@ PROJECT_CONTENT = {
           version='0.0.0',
           zip_safe=%(zip_safe)r,
           packages=['my_package'],
+          scripts=[
+              'scripts/hello_world',
+              'scripts/shell_script',
+          ],
           package_data={'my_package': ['package_data/*.dat']},
       )
   '''),
   'MANIFEST.in': dedent('''
   include setup.py
   '''),
+  'scripts/hello_world': '#!/usr/bin/env python\nprint("hello world!")\n',
+  'scripts/shell_script': '#!/usr/bin/env bash\necho hello world\n',
   'my_package/__init__.py': 0,
   'my_package/my_module.py': 'def do_something():\n  print("hello world!")\n',
   'my_package/package_data/resource1.dat': 1000,
