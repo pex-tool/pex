@@ -17,7 +17,7 @@ from pkg_resources import (
     find_distributions
 )
 
-from .common import open_zip, safe_mkdir, safe_rmtree
+from .common import die, open_zip, safe_mkdir, safe_rmtree
 from .interpreter import PythonInterpreter
 from .package import distribution_compatible
 from .pex_builder import PEXBuilder
@@ -152,10 +152,13 @@ class PEXEnvironment(Environment):
         resolved = working_set.resolve(all_reqs, env=self)
       except DistributionNotFound as e:
         TRACER.log('Failed to resolve a requirement: %s' % e)
-        TRACER.log('Current working set:')
-        for dist in working_set:
-          TRACER.log('  - %s' % dist)
-        raise
+        TRACER.log('Distributions contained within this pex:')
+        if not self._pex_info.distributions:
+          TRACER.log('  None')
+        else:
+          for dist in self._pex_info.distributions:
+            TRACER.log('  - %s' % dist)
+        die('Failed to execute PEX file, missing compatible dependency for %s' % e)
 
     for dist in resolved:
       with TRACER.timed('Activating %s' % dist):

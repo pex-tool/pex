@@ -10,6 +10,7 @@ from twitter.common.dirutil import safe_mkdir
 
 from pex.compatibility import nested
 from pex.pex import PEX
+from pex.pex_builder import PEXBuilder
 from pex.testing import write_simple_pex as write_pex
 from pex.testing import make_bdist
 from pex.util import DistributionHelper
@@ -52,3 +53,15 @@ def test_pex_builder():
     assert os.path.exists(success_txt)
     with open(success_txt) as fp:
       assert fp.read() == 'success'
+
+
+def test_pex_builder_shebang():
+  pb = PEXBuilder()
+  pb.set_shebang('foobar')
+
+  with temporary_dir() as td:
+    target = os.path.join(td, 'foo.pex')
+    pb.build(target)
+    expected_preamble = b'#!foobar\n'
+    with open(target, 'rb') as fp:
+      assert fp.read(len(expected_preamble)) == expected_preamble

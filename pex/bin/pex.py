@@ -229,6 +229,14 @@ def configure_clp_pex_environment(parser):
            'Default: Use current interpreter.')
 
   group.add_option(
+      '--python-shebang',
+      dest='python_shebang',
+      default=None,
+      help='The exact shebang (#!...) line to add at the top of the PEX file minus the '
+           '#!.  This overrides the default behavior, which picks an environment python '
+           'interpreter compatible with the one used to build the PEX file.')
+
+  group.add_option(
       '--platform',
       dest='platform',
       default=Platform.current(),
@@ -445,6 +453,9 @@ def build_pex(args, options, resolver_option_builder):
     pex_builder.set_entry_point(options.entry_point)
   elif options.script:
     pex_builder.set_script(options.script)
+
+  if options.python_shebang:
+    pex_builder.set_shebang(options.python_shebang)
 
   return pex_builder
 

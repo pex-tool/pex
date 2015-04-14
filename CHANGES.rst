@@ -3,6 +3,17 @@ CHANGES
 =======
 
 ----------
+1.0.0.dev3
+----------
+
+* Adds ``--python-shebang`` option to the pex tool in order to set the ``#!`` shebang to an exact
+  path.
+
+* Adds support for ``PEX_PYTHON`` environment variable which will cause the pex file to reinvoke
+  itself using the interpreter specified, e.g. ``PEX_PYTHON=python3.4`` or
+  ``PEX_PYTHON=/exact/path/to/interpreter``.
+
+----------
 1.0.0.dev2
 ----------
 

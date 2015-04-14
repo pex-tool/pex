@@ -76,6 +76,7 @@ class PEXBuilder(object):
     self._pex_info = pex_info or PexInfo.default()
     self._frozen = False
     self._interpreter = interpreter or PythonInterpreter.get()
+    self._shebang = self._interpreter.identity.hashbang()
     self._logger = logging.getLogger(__name__)
     self._preamble = to_bytes(preamble or '')
     self._distributions = set()
@@ -240,6 +241,18 @@ class PEXBuilder(object):
     self._ensure_unfrozen('Setting an entry point')
     self._pex_info.entry_point = entry_point
 
+  def set_shebang(self, shebang):
+    """Set the exact shebang line for the PEX file.
+
+    For example, pex_builder.set_shebang('/home/wickman/Local/bin/python3.4').  This is
+    used to override the default behavior which is to have a #!/usr/bin/env line referencing an
+    interpreter compatible with the one used to build the PEX.
+
+    :param shebang: The shebang line minus the #!.
+    :type shebang: str
+    """
+    self._shebang = '#!%s' % shebang
+
   def _add_dist_dir(self, path, dist_name):
     for root, _, files in os.walk(path):
       for f in files:
@@ -402,7 +415,7 @@ class PEXBuilder(object):
       safe_mkdir(os.path.dirname(filename))
     with open(filename + '~', 'ab') as pexfile:
       assert os.path.getsize(pexfile.name) == 0
-      pexfile.write(to_bytes('%s\n' % self._interpreter.identity.hashbang()))
+      pexfile.write(to_bytes('%s\n' % self._shebang))
     self._chroot.zip(filename + '~', mode='a')
     if os.path.exists(filename):
       os.unlink(filename)
