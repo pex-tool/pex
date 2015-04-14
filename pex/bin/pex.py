@@ -54,6 +54,10 @@ def increment_verbosity(option, opt_str, _, parser):
   setattr(parser.values, option.dest, verbosity + 1)
 
 
+def process_disable_cache(option, option_str, option_value, parser):
+  setattr(parser.values, option.dest, [])
+
+
 def process_pypi_option(option, option_str, option_value, parser, builder):
   if option_str.startswith('--no'):
     setattr(parser.values, option.dest, [])
@@ -134,6 +138,13 @@ def configure_clp_pex_resolution(parser, builder):
       callback_args=(builder,),
       type=str,
       help='Additional cheeseshop indices to use to satisfy requirements.')
+
+  group.add_option(
+      '--disable-cache',
+      action='callback',
+      dest='cache_dir',
+      callback=process_disable_cache,
+      help='Disable caching in the pex tool entirely.')
 
   group.add_option(
       '--cache-dir',
