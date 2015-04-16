@@ -15,15 +15,12 @@ from pkg_resources import Distribution, Requirement, find_distributions
 
 from .base import maybe_requirement
 from .compatibility import string
-from .tracer import TraceLogger
+from .tracer import TRACER
 
 try:
   from numbers import Integral
 except ImportError:
   Integral = (int, long)
-
-
-TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex.interpreter: ')
 
 
 # Determine in the most platform-compatible way possible the identity of the interpreter

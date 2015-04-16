@@ -70,27 +70,30 @@ def find_in_path(target_interpreter):
       return try_path
 
 
-def maybe_reexec_pex(target_interpreter):
+def maybe_reexec_pex():
+  from .variables import ENV
+  if not ENV.PEX_PYTHON:
+    return
+
   from .common import die
   from .tracer import TRACER
-  target = find_in_path(target_interpreter)
+
+  target_python = ENV.PEX_PYTHON
+  target = find_in_path(target_python)
   if not target:
     die('Failed to find interpreter specified by PEX_PYTHON: %s' % target)
   current = os.path.realpath(sys.executable)
   if os.path.exists(target) and target != current:
     TRACER.log('Detected PEX_PYTHON, re-exec to %s' % target)
-    del os.environ['PEX_PYTHON']
-    os.execve(target, [target_interpreter] + sys.argv, os.environ)
+    ENV.delete('PEX_PYTHON')
+    os.execve(target, [target_python] + sys.argv, ENV.copy())
 
 
 def bootstrap_pex(entry_point):
   from .finders import register_finders
   monkeypatch_build_zipmanifest()
   register_finders()
-
-  python_env = os.getenv('PEX_PYTHON')
-  if python_env:
-    maybe_reexec_pex(python_env)
+  maybe_reexec_pex()
 
   from . import pex
   pex.PEX(entry_point).execute()
