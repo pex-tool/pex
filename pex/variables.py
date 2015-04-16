@@ -90,6 +90,15 @@ class Variables(object):
     return self._get_bool('PEX_COVERAGE', default=False)
 
   @property
+  def PEX_COVERAGE_FILENAME(self):
+    """Filename
+
+    Write the coverage data to the specified filename.  If PEX_COVERAGE_FILENAME is not specified
+    but PEX_COVERAGE is, coverage information will be printed to stdout and not saved.
+    """
+    return self._get_path('PEX_COVERAGE_FILENAME', default=None)
+
+  @property
   def PEX_FORCE_LOCAL(self):
     """Boolean
 
@@ -143,24 +152,25 @@ class Variables(object):
 
   @property
   def PEX_PROFILE(self):
-    """Filename
+    """Boolean
 
-    Enable application profiling and dump a profile into the specified filename in the standard
-    "profile" module format.
+    Enable application profiling.  If specified and PEX_PROFILE_FILENAME is not specified, PEX will
+    print profiling information to stdout.
     """
     return self._get_path('PEX_PROFILE', default=None)
 
   @property
-  def PEX_PROFILE_ENTRIES(self):
-    """Integer
+  def PEX_PROFILE_FILENAME(self):
+    """Filename
 
-    Toggle the number of profile entries printed out to stdout when profiling.  Default: 1000.
+    Profile the application and dump a profile into the specified filename in the standard
+    "profile" module format.
     """
-    return self._get_int('PEX_PROFILE_ENTRIES', default=1000)
+    return self._get_path('PEX_PROFILE_FILENAME', default=None)
 
   @property
   def PEX_PROFILE_SORT(self):
-    """Integer
+    """String
 
     Toggle the profile sorting algorithm used to print out profile columns.  Default:
     'cumulative'.

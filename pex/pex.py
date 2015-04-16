@@ -13,7 +13,7 @@ from site import USER_SITE
 import pkg_resources
 from pkg_resources import EntryPoint, find_distributions
 
-from .common import die, safe_mkdir
+from .common import die
 from .compatibility import exec_function
 from .environment import PEXEnvironment
 from .finders import get_entry_point_from_console_script, get_script_from_distributions
@@ -37,15 +37,6 @@ class PEX(object):  # noqa: T000
 
   class Error(Exception): pass
   class NotFound(Error): pass
-
-  @classmethod
-  def start_coverage(cls):
-    try:
-      import coverage
-      cov = coverage.coverage(auto_data=True, data_suffix=True)
-      cov.start()
-    except ImportError:
-      sys.stderr.write('Could not bootstrap coverage module!\n')
 
   @classmethod
   def clean_environment(cls):
@@ -233,6 +224,59 @@ class PEX(object):  # noqa: T000
     finally:
       patch_all(old_sys_path, old_sys_path_importer_cache, old_sys_modules)
 
+  @classmethod
+  def _wrap_coverage(cls, runner, *args):
+    if 'PEX_COVERAGE' not in os.environ and 'PEX_COVERAGE_FILENAME' not in os.environ:
+      runner(*args)
+      return
+
+    try:
+      import coverage
+    except ImportError:
+      die('Could not bootstrap coverage module, aborting.')
+
+    if 'PEX_COVERAGE_FILENAME' in os.environ:
+      cov = coverage.coverage(data_file=os.environ['PEX_COVERAGE_FILENAME'])
+    else:
+      cov = coverage.coverage(data_suffix=True)
+
+    TRACER.log('Starting coverage.')
+    cov.start()
+
+    try:
+      runner(*args)
+    finally:
+      TRACER.log('Stopping coverage')
+      cov.stop()
+
+      # TODO(wickman) Post-process coverage to elide $PEX_ROOT and make
+      # the report more useful/less noisy.
+      if 'PEX_COVERAGE_FILENAME' in os.environ:
+        cov.save()
+      else:
+        cov.report(show_missing=False, ignore_errors=True, file=sys.stdout)
+
+  @classmethod
+  def _wrap_profiling(cls, runner, *args):
+    if 'PEX_PROFILE' not in os.environ and 'PEX_PROFILE_FILENAME' not in os.environ:
+      runner(*args)
+      return
+
+    try:
+      import cProfile as profile
+    except ImportError:
+      import profile
+
+    profiler = profile.Profile()
+
+    try:
+      return profiler.runcall(runner, *args)
+    finally:
+      if 'PEX_PROFILE_FILENAME' in os.environ:
+        profiler.dump_stats(os.environ['PEX_PROFILE_FILENAME'])
+      else:
+        profiler.print_stats(sort=os.environ.get('PEX_PROFILE_SORT', 'cumulative'))
+
   def execute(self):
     """Execute the PEX.
 
@@ -242,14 +286,12 @@ class PEX(object):  # noqa: T000
     try:
       with self.patch_sys():
         working_set = self._env.activate()
-        if self._vars.PEX_COVERAGE:
-          self.start_coverage()
         TRACER.log('PYTHONPATH contains:')
         for element in sys.path:
           TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
         TRACER.log('  * - paths that do not exist or will be imported via zipimport')
         with self.patch_pkg_resources(working_set):
-          self._execute()
+          self._wrap_coverage(self._wrap_profiling, self._execute)
     except Exception:
       # Allow the current sys.excepthook to handle this app exception before we tear things down in
       # finally, then reraise so that the exit status is reflected correctly.
@@ -349,22 +391,10 @@ class PEX(object):  # noqa: T000
         globals().pop('__file__')
       sys.argv[0] = old_argv0
 
-  # TODO(wickman) Find a way to make PEX_PROFILE work with all execute_*
-  def execute_entry(self, entry_point):
-    runner = self.execute_pkg_resources if ':' in entry_point else self.execute_module
-
-    if not self._vars.PEX_PROFILE:
-      runner(entry_point)
-    else:
-      import pstats, cProfile
-      safe_mkdir(os.path.dirname(self._vars.PEX_PROFILE))
-      cProfile.runctx('runner(entry_point)',
-          globals=globals(),
-          locals=locals(),
-          filename=self._vars.PEX_PROFILE)
-      (pstats.Stats(self._vars.PEX_PROFILE)
-             .sort_stats(self._vars.PEX_PROFILE_SORT)
-             .print_stats(self._vars.PEX_PROFILE_ENTRIES))
+  @classmethod
+  def execute_entry(cls, entry_point):
+    runner = cls.execute_pkg_resources if ':' in entry_point else cls.execute_module
+    runner(entry_point)
 
   @staticmethod
   def execute_module(module_name):
