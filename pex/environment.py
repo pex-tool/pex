@@ -22,10 +22,8 @@ from .interpreter import PythonInterpreter
 from .package import distribution_compatible
 from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
-from .tracer import TraceLogger
+from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
-
-TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex.environment: ')
 
 
 class PEXEnvironment(Environment):
@@ -136,6 +134,39 @@ class PEXEnvironment(Environment):
 
     return self._working_set
 
+  def _resolve(self, working_set, reqs):
+    reqs = reqs[:]
+    unresolved_reqs = []
+
+    while True:
+      with TRACER.timed('Resolving %s' %
+          ' '.join(map(str, reqs)) if reqs else 'empty dependency list', V=2):
+        try:
+          resolved = working_set.resolve(reqs, env=self)
+        except DistributionNotFound as e:
+          TRACER.log('Failed to resolve a requirement: %s' % e)
+          unresolved_req = e.args[0]
+          unresolved_reqs.append(unresolved_req)
+          reqs.remove(unresolved_req)
+        else:
+          break
+
+    if unresolved_reqs:
+      TRACER.log('Unresolved requirements:')
+      for req in unresolved_reqs:
+        TRACER.log('  - %s' % req)
+      TRACER.log('Distributions contained within this pex:')
+      if not self._pex_info.distributions:
+        TRACER.log('  None')
+      else:
+        for dist in self._pex_info.distributions:
+          TRACER.log('  - %s' % dist)
+      if not self._pex_info.ignore_errors:
+        die('Failed to execute PEX file, missing compatible dependencies for:\n%s' % (
+            '\n'.join(map(str, unresolved_reqs))))
+
+    return resolved
+
   def _activate(self):
     self.update_candidate_distributions(self.load_internal_cache(self._pex, self._pex_info))
 
@@ -145,20 +176,7 @@ class PEXEnvironment(Environment):
     all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
 
     working_set = WorkingSet([])
-
-    with TRACER.timed('Resolving %s' %
-        ' '.join(map(str, all_reqs)) if all_reqs else 'empty dependency list', V=2):
-      try:
-        resolved = working_set.resolve(all_reqs, env=self)
-      except DistributionNotFound as e:
-        TRACER.log('Failed to resolve a requirement: %s' % e)
-        TRACER.log('Distributions contained within this pex:')
-        if not self._pex_info.distributions:
-          TRACER.log('  None')
-        else:
-          for dist in self._pex_info.distributions:
-            TRACER.log('  - %s' % dist)
-        die('Failed to execute PEX file, missing compatible dependency for %s' % e)
+    resolved = self._resolve(working_set, all_reqs)
 
     for dist in resolved:
       with TRACER.timed('Activating %s' % dist):

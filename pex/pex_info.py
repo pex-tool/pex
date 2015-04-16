@@ -25,6 +25,7 @@ def process_bool(value, negate=False):
       pex_info[value] = False if negate else True
     else:
       raise ValueError('Unknown value for %s: %r' % (env_variable, value))
+  return apply_bool
 
 
 def process_string(value):
