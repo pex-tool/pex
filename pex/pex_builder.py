@@ -10,7 +10,7 @@ from pkg_resources import DefaultProvider, ZipProvider, get_provider
 
 from .common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
 from .compatibility import to_bytes
-from .finders import get_script_from_distributions
+from .finders import get_script_from_distributions, get_entry_point_from_console_script
 from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
@@ -183,23 +183,6 @@ class PEXBuilder(object):
     entry_point.replace(os.path.sep, '.')
     self._pex_info.entry_point = entry_point.rpartition('.')[0]
 
-  @classmethod
-  def _get_entry_point_from_console_script(cls, script, distributions):
-    # check all distributions for the console_script "script"
-    entries = frozenset(filter(None, (
-        dist.get_entry_map().get('console_scripts', {}).get(script) for dist in distributions)))
-
-    # if multiple matches, freak out
-    if len(entries) > 1:
-      raise cls.InvalidExecutableSpecification(
-          'Ambiguous script specification %s matches multiple entry points:%s' % (
-              script, ' '.join(map(str, entries))))
-
-    if entries:
-      entry_point = next(iter(entries))
-      # entry points are of the form 'foo = bar', we just want the 'bar' part:
-      return str(entry_point).split('=')[1].strip()
-
   def set_script(self, script):
     """Set the entry point of this PEX environment based upon a distribution script.
 
@@ -210,7 +193,7 @@ class PEXBuilder(object):
     """
 
     # check if 'script' is a console_script
-    entry_point = self._get_entry_point_from_console_script(script, self._distributions)
+    entry_point = get_entry_point_from_console_script(script, self._distributions)
     if entry_point:
       self.set_entry_point(entry_point)
       return

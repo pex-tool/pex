@@ -275,3 +275,20 @@ def get_script_from_distributions(name, dists):
     if script_path:
       return dist, script_path, script_content
   return None, None, None
+
+
+def get_entry_point_from_console_script(script, dists):
+  # check all distributions for the console_script "script"
+  entries = frozenset(filter(None, (
+      dist.get_entry_map().get('console_scripts', {}).get(script) for dist in dists)))
+
+  # if multiple matches, freak out
+  if len(entries) > 1:
+    raise RuntimeError(
+        'Ambiguous script specification %s matches multiple entry points:%s' % (
+            script, ' '.join(map(str, entries))))
+
+  if entries:
+    entry_point = next(iter(entries))
+    # entry points are of the form 'foo = bar', we just want the 'bar' part:
+    return str(entry_point).split('=')[1].strip()

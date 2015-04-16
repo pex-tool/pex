@@ -11,12 +11,13 @@ from distutils import sysconfig
 from site import USER_SITE
 
 import pkg_resources
-from pkg_resources import EntryPoint, find_distributions
+from pkg_resources import EntryPoint, WorkingSet, find_distributions
+
 
 from .common import die, safe_mkdir
 from .compatibility import exec_function
 from .environment import PEXEnvironment
-from .finders import get_script_from_distributions
+from .finders import get_script_from_distributions, get_entry_point_from_console_script
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
@@ -49,14 +50,13 @@ class PEX(object):  # noqa: T000
       sys.stderr.write('Could not bootstrap coverage module!\n')
 
   @classmethod
-  def clean_environment(cls, forking=False):
+  def clean_environment(cls):
     try:
       del os.environ['MACOSX_DEPLOYMENT_TARGET']
     except KeyError:
       pass
-    if not forking:
-      for key in filter(lambda key: key.startswith('PEX_'), os.environ):
-        del os.environ[key]
+    for key in filter(lambda key: key.startswith('PEX_'), os.environ):
+      del os.environ[key]
 
   def __init__(self, pex=sys.argv[0], interpreter=None):
     self._pex = pex
@@ -306,14 +306,24 @@ class PEX(object):  # noqa: T000
       code.interact()
 
   def execute_script(self, script_name):
+    # TODO(wickman) This should be acheived by running clean_environment
+    # prior to invocation.
+    if 'PEX_SCRIPT' in os.environ:
+      del os.environ['PEX_SCRIPT']
+
     # TODO(wickman) PEXEnvironment should probably have a working_set property
     # or possibly just __iter__.
-    dist, script_path, script_content = get_script_from_distributions(
-        script_name, self._env.activate())
+    dists = list(self._env.activate())
+
+    entry_point = get_entry_point_from_console_script(script_name, dists)
+    if entry_point:
+      return self.execute_entry(entry_point)
+
+    dist, script_path, script_content = get_script_from_distributions(script_name, dists)
     if not dist:
       raise self.NotFound('Could not find script %s in pex!' % script_name)
     TRACER.log('Found script %s in %s' % (script_name, dist))
-    self.execute_content(script_path, script_content, argv0=script_name)
+    return self.execute_content(script_path, script_content, argv0=script_name)
 
   @classmethod
   def execute_content(cls, name, content, argv0=None):
@@ -401,7 +411,7 @@ class PEX(object):  # noqa: T000
 
     Remaining keyword arguments are passed directly to subprocess.Popen.
     """
-    self.clean_environment(forking=True)
+    self.clean_environment()
 
     cmdline = self.cmdline(args)
     TRACER.log('PEX.run invoking %s' % ' '.join(cmdline))
