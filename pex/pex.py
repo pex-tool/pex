@@ -20,9 +20,8 @@ from .finders import get_entry_point_from_console_script, get_script_from_distri
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
-from .tracer import TraceLogger
-
-TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex: ')
+from .tracer import TRACER
+from .variables import ENV
 
 
 class DevNull(object):
@@ -57,7 +56,7 @@ class PEX(object):  # noqa: T000
     for key in filter(lambda key: key.startswith('PEX_'), os.environ):
       del os.environ[key]
 
-  def __init__(self, pex=sys.argv[0], interpreter=None):
+  def __init__(self, pex=sys.argv[0], interpreter=None, env=ENV):
     self._pex = pex
     self._interpreter = interpreter or PythonInterpreter.get()
     self._pex_info = PexInfo.from_pex(self._pex)
@@ -65,6 +64,7 @@ class PEX(object):  # noqa: T000
     env_pex_info = self._pex_info.copy()
     env_pex_info.update(self._pex_info_overrides)
     self._env = PEXEnvironment(self._pex, env_pex_info)
+    self._vars = env
 
   @classmethod
   def _extras_paths(cls):
@@ -242,7 +242,7 @@ class PEX(object):  # noqa: T000
     try:
       with self.patch_sys():
         working_set = self._env.activate()
-        if 'PEX_COVERAGE' in os.environ:
+        if self._vars.PEX_COVERAGE:
           self.start_coverage()
         TRACER.log('PYTHONPATH contains:')
         for element in sys.path:
@@ -259,13 +259,13 @@ class PEX(object):  # noqa: T000
       # squash all exceptions on interpreter teardown -- the primary type here are
       # atexit handlers failing to run because of things such as:
       #   http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
-      if 'PEX_TEARDOWN_VERBOSE' not in os.environ:
+      if not self._vars.PEX_TEARDOWN_VERBOSE:
         sys.stderr.flush()
         sys.stderr = DevNull()
         sys.excepthook = lambda *a, **kw: None
 
   def _execute(self):
-    if 'PEX_INTERPRETER' in os.environ:
+    if self._vars.PEX_INTERPRETER:
       return self.execute_interpreter()
 
     if self._pex_info_overrides.script and self._pex_info_overrides.entry_point:
@@ -285,11 +285,11 @@ class PEX(object):  # noqa: T000
     else:
       return self.execute_interpreter()
 
-  @classmethod
-  def execute_interpreter(cls):
-    force_interpreter = 'PEX_INTERPRETER' in os.environ
+  def execute_interpreter(self):
+    force_interpreter = self._vars.PEX_INTERPRETER
+    # TODO(wickman) Is this necessary?
     if force_interpreter:
-      del os.environ['PEX_INTERPRETER']
+      self._vars.delete('PEX_INTERPRETER')
     TRACER.log('%s, dropping into interpreter' % (
         'PEX_INTERPRETER specified' if force_interpreter else 'No entry point specified'))
     if sys.argv[1:]:
@@ -299,7 +299,7 @@ class PEX(object):  # noqa: T000
       except IOError as e:
         die("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
       sys.argv = sys.argv[1:]
-      cls.execute_content(name, content)
+      self.execute_content(name, content)
     else:
       import code
       code.interact()
@@ -350,24 +350,21 @@ class PEX(object):  # noqa: T000
       sys.argv[0] = old_argv0
 
   # TODO(wickman) Find a way to make PEX_PROFILE work with all execute_*
-  @classmethod
-  def execute_entry(cls, entry_point):
-    runner = cls.execute_pkg_resources if ':' in entry_point else cls.execute_module
+  def execute_entry(self, entry_point):
+    runner = self.execute_pkg_resources if ':' in entry_point else self.execute_module
 
-    if 'PEX_PROFILE' not in os.environ:
+    if not self._vars.PEX_PROFILE:
       runner(entry_point)
     else:
       import pstats, cProfile
-      profile_output = os.environ['PEX_PROFILE']
-      safe_mkdir(os.path.dirname(profile_output))
-      cProfile.runctx('runner(entry_point)', globals=globals(), locals=locals(),
-                      filename=profile_output)
-      try:
-        entries = int(os.environ.get('PEX_PROFILE_ENTRIES', 1000))
-      except ValueError:
-        entries = 1000
-      pstats.Stats(profile_output).sort_stats(
-          os.environ.get('PEX_PROFILE_SORT', 'cumulative')).print_stats(entries)
+      safe_mkdir(os.path.dirname(self._vars.PEX_PROFILE))
+      cProfile.runctx('runner(entry_point)',
+          globals=globals(),
+          locals=locals(),
+          filename=self._vars.PEX_PROFILE)
+      (pstats.Stats(self._vars.PEX_PROFILE)
+             .sort_stats(self._vars.PEX_PROFILE_SORT)
+             .print_stats(self._vars.PEX_PROFILE_ENTRIES))
 
   @staticmethod
   def execute_module(module_name):
