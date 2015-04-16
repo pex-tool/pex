@@ -5,7 +5,6 @@ from __future__ import absolute_import, print_function
 
 import json
 import os
-import sys
 import warnings
 from collections import namedtuple
 
@@ -13,6 +12,7 @@ from .common import open_zip
 from .compatibility import string as compatibility_string
 from .compatibility import PY2
 from .orderedset import OrderedSet
+from .variables import ENV
 
 PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
 
@@ -47,28 +47,15 @@ class PexInfo(object):
 
   # Environment options
   pex_root: ~/.pex                   # root of all pex-related files
-                                     # PEX_ROOT
-
   entry_point: string                # entry point into this pex
-                                     # PEX_MODULE
-
   script: string                     # script to execute in this pex environment
                                      # at most one of script/entry_point can be specified
-                                     # PEX_SCRIPT
-
   zip_safe: True, default False      # is this pex zip safe?
-                                     # PEX_FORCE_LOCAL
-
   inherit_path: True, default False  # should this pex inherit site-packages + PYTHONPATH?
-                                     # PEX_INHERIT_PATH
-
   ignore_errors: True, default False # should we ignore inability to resolve dependencies?
-                                     # PEX_IGNORE_ERRORS
-
   always_write_cache: False          # should we always write the internal cache to disk first?
                                      # this is useful if you have very large dependencies that
                                      # do not fit in RAM constrained environments
-                                     # PEX_ALWAYS_CACHE
 
   .. versionchanged:: 0.8
     Removed the ``repositories`` and ``indices`` information, as they were never
@@ -77,15 +64,6 @@ class PexInfo(object):
 
   PATH = 'PEX-INFO'
   INTERNAL_CACHE = '.deps'
-  ENVIRONMENT_VARIABLES = {
-      'PEX_ROOT': process_string('pex_root'),
-      'PEX_MODULE': process_string('entry_point'),
-      'PEX_SCRIPT': process_string('script'),
-      'PEX_FORCE_LOCAL': process_bool('zip_safe', negate=True),
-      'PEX_INHERIT_PATH': process_string('inherit_path'),
-      'PEX_IGNORE_ERRORS': process_bool('ignore_errors'),
-      'PEX_ALWAYS_CACHE': process_bool('always_write_cache'),
-  }
 
   @classmethod
   def make_build_properties(cls):
@@ -125,13 +103,18 @@ class PexInfo(object):
     return cls(info=json.loads(content))
 
   @classmethod
-  def from_env(cls):
-    pex_info = {}
-    for variable, processor in cls.ENVIRONMENT_VARIABLES.items():
-      if variable in os.environ:
-        cls.debug('processing %s = %s' % (variable, os.environ[variable]))
-        processor(pex_info, os.environ[variable])
-    return cls(info=pex_info)
+  def from_env(cls, env=ENV):
+    pex_info = {
+      'pex_root': env.PEX_ROOT,
+      'entry_point': env.PEX_MODULE,
+      'script': env.PEX_SCRIPT,
+      'zip_safe': not env.PEX_FORCE_LOCAL,
+      'inherit_path': env.PEX_INHERIT_PATH,
+      'ignore_errors': env.PEX_IGNORE_ERRORS,
+      'always_write_cache': env.PEX_ALWAYS_CACHE,
+    }
+    # Filter out empty entries.
+    return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))
 
   @classmethod
   def _parse_requirement_tuple(cls, requirement_tuple):
@@ -144,11 +127,6 @@ class PexInfo(object):
     elif isinstance(requirement_tuple, compatibility_string):
       return requirement_tuple
     raise ValueError('Malformed PEX requirement: %r' % (requirement_tuple,))
-
-  @classmethod
-  def debug(cls, msg):
-    if 'PEX_VERBOSE' in os.environ:
-      print('PEX: %s' % msg, file=sys.stderr)
 
   def __init__(self, info=None):
     """Construct a new PexInfo.  This should not be used directly."""
@@ -273,8 +251,7 @@ class PexInfo(object):
 
   @property
   def pex_root(self):
-    pex_root = self._pex_info.get('pex_root', os.path.join('~', '.pex'))
-    return os.path.expanduser(os.environ.get('PEX_ROOT', pex_root))
+    return os.path.expanduser(self._pex_info.get('pex_root', os.path.join('~', '.pex')))
 
   @pex_root.setter
   def pex_root(self, value):

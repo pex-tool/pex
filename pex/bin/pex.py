@@ -13,6 +13,7 @@ import os
 import shutil
 import sys
 from optparse import OptionGroup, OptionParser, OptionValueError
+from textwrap import TextWrapper
 
 from pex.archiver import Archiver
 from pex.base import maybe_requirement
@@ -32,6 +33,7 @@ from pex.resolvable import Resolvable
 from pex.resolver import CachingResolver, Resolver
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER, TraceLogger
+from pex.variables import Variables
 from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT, __version__
 
 CANNOT_DISTILL = 101
@@ -102,6 +104,14 @@ def process_precedence(option, option_str, option_value, parser, builder):
     builder.no_use_wheel()
   else:
     raise OptionValueError
+
+
+def print_variable_help(option, option_str, option_value, parser):
+  for variable_name, variable_type, variable_help in Variables.iter_help():
+    print('\n%s: %s\n' % (variable_name, variable_type))
+    for line in TextWrapper(initial_indent=' ' * 4, subsequent_indent=' ' * 4).wrap(variable_help):
+      print(line)
+  sys.exit(0)
 
 
 def configure_clp_pex_resolution(parser, builder):
@@ -326,6 +336,13 @@ def configure_clp():
       action='callback',
       callback=increment_verbosity,
       help='Turn on logging verbosity, may be specified multiple times.')
+
+  parser.add_option(
+      '--help-variables',
+      action='callback',
+      callback=print_variable_help,
+      help='Print out help about the various environment variables used to change the behavior of '
+           'a running PEX file.')
 
   return parser, resolver_options_builder
 

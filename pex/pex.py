@@ -16,13 +16,12 @@ from pkg_resources import EntryPoint, find_distributions
 from .common import die
 from .compatibility import exec_function
 from .environment import PEXEnvironment
-from .finders import get_script_from_distributions
+from .finders import get_entry_point_from_console_script, get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
-from .tracer import TraceLogger
-
-TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex: ')
+from .tracer import TRACER
+from .variables import ENV
 
 
 class DevNull(object):
@@ -40,16 +39,15 @@ class PEX(object):  # noqa: T000
   class NotFound(Error): pass
 
   @classmethod
-  def clean_environment(cls, forking=False):
+  def clean_environment(cls):
     try:
       del os.environ['MACOSX_DEPLOYMENT_TARGET']
     except KeyError:
       pass
-    if not forking:
-      for key in filter(lambda key: key.startswith('PEX_'), os.environ):
-        del os.environ[key]
+    for key in filter(lambda key: key.startswith('PEX_'), os.environ):
+      del os.environ[key]
 
-  def __init__(self, pex=sys.argv[0], interpreter=None):
+  def __init__(self, pex=sys.argv[0], interpreter=None, env=ENV):
     self._pex = pex
     self._interpreter = interpreter or PythonInterpreter.get()
     self._pex_info = PexInfo.from_pex(self._pex)
@@ -57,6 +55,7 @@ class PEX(object):  # noqa: T000
     env_pex_info = self._pex_info.copy()
     env_pex_info.update(self._pex_info_overrides)
     self._env = PEXEnvironment(self._pex, env_pex_info)
+    self._vars = env
 
   @classmethod
   def _extras_paths(cls):
@@ -302,13 +301,13 @@ class PEX(object):  # noqa: T000
       # squash all exceptions on interpreter teardown -- the primary type here are
       # atexit handlers failing to run because of things such as:
       #   http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
-      if 'PEX_TEARDOWN_VERBOSE' not in os.environ:
+      if not self._vars.PEX_TEARDOWN_VERBOSE:
         sys.stderr.flush()
         sys.stderr = DevNull()
         sys.excepthook = lambda *a, **kw: None
 
   def _execute(self):
-    if 'PEX_INTERPRETER' in os.environ:
+    if self._vars.PEX_INTERPRETER:
       return self.execute_interpreter()
 
     if self._pex_info_overrides.script and self._pex_info_overrides.entry_point:
@@ -328,11 +327,11 @@ class PEX(object):  # noqa: T000
     else:
       return self.execute_interpreter()
 
-  @classmethod
-  def execute_interpreter(cls):
-    force_interpreter = 'PEX_INTERPRETER' in os.environ
+  def execute_interpreter(self):
+    force_interpreter = self._vars.PEX_INTERPRETER
+    # TODO(wickman) Is this necessary?
     if force_interpreter:
-      del os.environ['PEX_INTERPRETER']
+      self._vars.delete('PEX_INTERPRETER')
     TRACER.log('%s, dropping into interpreter' % (
         'PEX_INTERPRETER specified' if force_interpreter else 'No entry point specified'))
     if sys.argv[1:]:
@@ -342,20 +341,30 @@ class PEX(object):  # noqa: T000
       except IOError as e:
         die("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
       sys.argv = sys.argv[1:]
-      cls.execute_content(name, content)
+      self.execute_content(name, content)
     else:
       import code
       code.interact()
 
   def execute_script(self, script_name):
+    # TODO(wickman) This should be acheived by running clean_environment
+    # prior to invocation.
+    if 'PEX_SCRIPT' in os.environ:
+      del os.environ['PEX_SCRIPT']
+
     # TODO(wickman) PEXEnvironment should probably have a working_set property
     # or possibly just __iter__.
-    dist, script_path, script_content = get_script_from_distributions(
-        script_name, self._env.activate())
+    dists = list(self._env.activate())
+
+    entry_point = get_entry_point_from_console_script(script_name, dists)
+    if entry_point:
+      return self.execute_entry(entry_point)
+
+    dist, script_path, script_content = get_script_from_distributions(script_name, dists)
     if not dist:
       raise self.NotFound('Could not find script %s in pex!' % script_name)
     TRACER.log('Found script %s in %s' % (script_name, dist))
-    self.execute_content(script_path, script_content, argv0=script_name)
+    return self.execute_content(script_path, script_content, argv0=script_name)
 
   @classmethod
   def execute_content(cls, name, content, argv0=None):
@@ -428,7 +437,7 @@ class PEX(object):  # noqa: T000
 
     Remaining keyword arguments are passed directly to subprocess.Popen.
     """
-    self.clean_environment(forking=True)
+    self.clean_environment()
 
     cmdline = self.cmdline(args)
     TRACER.log('PEX.run invoking %s' % ' '.join(cmdline))

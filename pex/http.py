@@ -12,6 +12,7 @@ from email import message_from_string
 from .common import safe_mkdtemp, safe_open
 from .compatibility import PY3, AbstractClass
 from .tracer import TRACER
+from .variables import ENV
 
 try:
   import requests
@@ -194,13 +195,13 @@ class RequestsContext(Context):
 
     return session
 
-  def __init__(self, session=None, verify=True, max_retries=5):
+  def __init__(self, session=None, verify=True, env=ENV):
     if requests is None:
       raise RuntimeError('requests is not available.  Cannot use a RequestsContext.')
 
     self._verify = verify
 
-    max_retries = int(os.environ.get('PEX_HTTP_RETRIES', max_retries))
+    max_retries = env.PEX_HTTP_RETRIES
 
     if max_retries < 0:
       raise ValueError('max_retries may not be negative.')
