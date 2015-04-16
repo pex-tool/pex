@@ -11,13 +11,12 @@ from distutils import sysconfig
 from site import USER_SITE
 
 import pkg_resources
-from pkg_resources import EntryPoint, WorkingSet, find_distributions
-
+from pkg_resources import EntryPoint, find_distributions
 
 from .common import die, safe_mkdir
 from .compatibility import exec_function
 from .environment import PEXEnvironment
-from .finders import get_script_from_distributions, get_entry_point_from_console_script
+from .finders import get_entry_point_from_console_script, get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo

@@ -10,7 +10,7 @@ from pkg_resources import DefaultProvider, ZipProvider, get_provider
 
 from .common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
 from .compatibility import to_bytes
-from .finders import get_script_from_distributions, get_entry_point_from_console_script
+from .finders import get_entry_point_from_console_script, get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
