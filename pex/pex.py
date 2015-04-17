@@ -11,7 +11,7 @@ from distutils import sysconfig
 from site import USER_SITE
 
 import pkg_resources
-from pkg_resources import EntryPoint, find_distributions
+from pkg_resources import EntryPoint, WorkingSet, find_distributions
 
 from .common import die
 from .compatibility import exec_function
@@ -51,11 +51,34 @@ class PEX(object):  # noqa: T000
     self._pex = pex
     self._interpreter = interpreter or PythonInterpreter.get()
     self._pex_info = PexInfo.from_pex(self._pex)
-    self._pex_info_overrides = PexInfo.from_env()
-    env_pex_info = self._pex_info.copy()
-    env_pex_info.update(self._pex_info_overrides)
-    self._env = PEXEnvironment(self._pex, env_pex_info)
+    self._pex_info_overrides = PexInfo.from_env(env=env)
     self._vars = env
+    self._envs = []
+    self._working_set = None
+
+  def _activate(self):
+    if not self._working_set:
+      working_set = WorkingSet([])
+
+      # set up the local .pex environment
+      pex_info = self._pex_info.copy()
+      pex_info.update(self._pex_info_overrides)
+      self._envs.append(PEXEnvironment(self._pex, pex_info))
+
+      # set up other environments as specified in PEX_PATH
+      for pex_path in filter(None, self._vars.PEX_PATH.split(os.pathsep)):
+        pex_info = PexInfo.from_pex(pex_path)
+        pex_info.update(self._pex_info_overrides)
+        self._envs.append(PEXEnvironment(pex_path, pex_info))
+
+      # activate all of them
+      for env in self._envs:
+        for dist in env.activate():
+          working_set.add(dist)
+
+      self._working_set = working_set
+
+    return self._working_set
 
   @classmethod
   def _extras_paths(cls):
@@ -285,7 +308,7 @@ class PEX(object):  # noqa: T000
     """
     try:
       with self.patch_sys():
-        working_set = self._env.activate()
+        working_set = self._activate()
         TRACER.log('PYTHONPATH contains:')
         for element in sys.path:
           TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))

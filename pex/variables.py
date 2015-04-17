@@ -197,6 +197,18 @@ class Variables(object):
     return self._get_path('PEX_ROOT', default=None)
 
   @property
+  def PEX_PATH(self):
+    """A set of one or more PEX files
+
+    Merge the packages from other PEX files into the current environment.  This allows you to
+    do things such as create a PEX file containing the "coverage" module or create PEX files
+    containing plugin entry points to be consumed by a main application.  Paths should be
+    specified in the same manner as $PATH, e.g. PEX_PATH=/path/to/pex1.pex:/path/to/pex2.pex
+    and so forth.
+    """
+    return self._get_string('PEX_PATH', default='')
+
+  @property
   def PEX_SCRIPT(self):
     """String
 
