@@ -30,7 +30,7 @@ from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
 from pex.resolvable import Resolvable
-from pex.resolver import CachingResolver, Resolver
+from pex.resolver import CachingResolver, Resolver, Unsatisfiable
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER, TraceLogger
 from pex.variables import Variables
@@ -467,7 +467,10 @@ def build_pex(args, options, resolver_option_builder):
     resolver = Resolver(**resolver_kwargs)
 
   with TRACER.timed('Resolving distributions'):
-    resolveds = resolver.resolve(resolvables)
+    try:
+      resolveds = resolver.resolve(resolvables)
+    except Unsatisfiable as e:
+      die(e)
 
   for dist in resolveds:
     log('  %s' % dist, v=options.verbosity)

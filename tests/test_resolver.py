@@ -10,7 +10,7 @@ from pex.common import safe_copy
 from pex.fetcher import Fetcher
 from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
-from pex.resolver import _ResolvableSet, resolve
+from pex.resolver import Unsatisfiable, _ResolvableSet, resolve
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.testing import make_sdist
 
@@ -43,7 +43,7 @@ def test_resolvable_set():
 
   rs.merge(rq, [source_pkg, binary_pkg])
   assert rs.get('foo') == set([source_pkg, binary_pkg])
-  assert rs.packages() == [(rq, set([source_pkg, binary_pkg]))]
+  assert rs.packages() == [(rq, set([source_pkg, binary_pkg]), None)]
 
   # test methods
   assert rs.extras('foo') == set(['ext'])
@@ -52,7 +52,7 @@ def test_resolvable_set():
   rs.merge(rq, [source_pkg])
   assert rs.get('foo') == set([source_pkg])
 
-  with pytest.raises(_ResolvableSet.Unsatisfiable):
+  with pytest.raises(Unsatisfiable):
     rs.merge(rq, [binary_pkg])
 
 
