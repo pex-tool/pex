@@ -24,7 +24,6 @@ from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
 from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
-from .variables import ENV
 
 
 class PEXEnvironment(Environment):
