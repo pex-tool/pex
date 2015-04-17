@@ -202,7 +202,6 @@ class RequestsContext(Context):
     self._verify = verify
 
     max_retries = env.PEX_HTTP_RETRIES
-
     if max_retries < 0:
       raise ValueError('max_retries may not be negative.')
 

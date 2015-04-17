@@ -17,23 +17,6 @@ from .variables import ENV
 PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
 
 
-def process_bool(value, negate=False):
-  def apply_bool(pex_info, env_variable):
-    if env_variable.strip().lower() in ('0', 'false'):
-      pex_info[value] = True if negate else False
-    elif env_variable.strip().lower() in ('1', 'true'):
-      pex_info[value] = False if negate else True
-    else:
-      raise ValueError('Unknown value for %s: %r' % (env_variable, value))
-  return apply_bool
-
-
-def process_string(value):
-  def apply_string(pex_info, env_variable):
-    pex_info[value] = env_variable
-  return apply_string
-
-
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.
 class PexInfo(object):
   """PEX metadata.

@@ -90,7 +90,7 @@ class PEXEnvironment(Environment):
             zip_safe_distributions.append(dist)
             continue
 
-        with TRACER.timed('Caching %s into %s' % (dist, cached_location)):
+        with TRACER.timed('Caching %s' % dist):
           newly_cached_distributions.append(
             CacheHelper.cache_distribution(zf, internal_dist_path, cached_location))
     return existing_cached_distributions, newly_cached_distributions, zip_safe_distributions
@@ -99,7 +99,7 @@ class PEXEnvironment(Environment):
   def load_internal_cache(cls, pex, pex_info):
     """Possibly cache out the internal cache."""
     internal_cache = os.path.join(pex, pex_info.internal_cache)
-    with TRACER.timed('Searching dependency cache: %s' % internal_cache):
+    with TRACER.timed('Searching dependency cache: %s' % internal_cache, V=2):
       if os.path.isdir(pex):
         for dist in find_distributions(internal_cache):
           yield dist
@@ -120,7 +120,7 @@ class PEXEnvironment(Environment):
   def update_candidate_distributions(self, distribution_iter):
     for dist in distribution_iter:
       if self.can_add(dist):
-        with TRACER.timed('Adding %s:%s' % (dist, dist.location)):
+        with TRACER.timed('Adding %s:%s' % (dist, dist.location), V=2):
           self.add(dist)
 
   def can_add(self, dist):
@@ -128,7 +128,7 @@ class PEXEnvironment(Environment):
 
   def activate(self):
     if not self._activated:
-      with TRACER.timed('Activating PEX virtual environment'):
+      with TRACER.timed('Activating PEX virtual environment from %s' % self._pex):
         self._working_set = self._activate()
       self._activated = True
 
@@ -179,11 +179,11 @@ class PEXEnvironment(Environment):
     resolved = self._resolve(working_set, all_reqs)
 
     for dist in resolved:
-      with TRACER.timed('Activating %s' % dist):
+      with TRACER.timed('Activating %s' % dist, V=2):
         working_set.add(dist)
 
         if os.path.isdir(dist.location):
-          with TRACER.timed('Adding sitedir'):
+          with TRACER.timed('Adding sitedir', V=2):
             site.addsitedir(dist.location)
 
         dist.activate()
