@@ -377,7 +377,7 @@ class PEX(object):  # noqa: T000
 
     # TODO(wickman) PEXEnvironment should probably have a working_set property
     # or possibly just __iter__.
-    dists = list(self._env.activate())
+    dists = list(self._activate())
 
     entry_point = get_entry_point_from_console_script(script_name, dists)
     if entry_point:
