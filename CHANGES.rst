@@ -13,6 +13,20 @@ CHANGES
   itself using the interpreter specified, e.g. ``PEX_PYTHON=python3.4`` or
   ``PEX_PYTHON=/exact/path/to/interpreter``.  `#27 <https://github.com/pantsbuild/pex/issues/27>`_.
 
+* Adds support for ``PEX_PATH`` environment variable which allows merging of PEX environments at
+  runtime.  This can be used to inject plugins or entry_points or modules from one PEX into
+  another without explicitly building them together. `#30 <https://github.com/pantsbuild/pex/issues/30>`_.
+
+* Consolidates documentation of ``PEX_`` environment variables and adds the ``--help-variables`` option
+  to the pex client.  Partially addresses `#13 <https://github.com/pantsbuild/pex/issues/13>`_.
+
+* Bug fix: ``PEX_COVERAGE`` and ``PEX_PROFILE`` did not function correctly when SystemExit was raised.
+  Fixes `#81 <https://github.com/pantsbuild/pex/issues/81>`_.
+
+* Adds helper method to dump a package subdirectory onto disk from within a zipped PEX file.  This
+  can be useful for applications that know they're running within a PEX and would prefer some
+  static assets dumped to disk instead of running as an unzipped PEX file.
+  `#12 <https://github.com/pantsbuild/pex/pull/12>`_.
 
 ----------
 1.0.0.dev2
