@@ -126,7 +126,7 @@ class ResolvableRepository(Resolvable):
       # further delegate
       pass
 
-    # TODO(wickman) Implement.
+    # TODO(wickman) Implement: Issue #93.
     raise cls.InvalidRequirement('Versioning system URLs not supported.')
 
   def __init__(self, options):

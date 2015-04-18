@@ -18,6 +18,7 @@ PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
 
 
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.
+# Issue #92.
 class PexInfo(object):
   """PEX metadata.
 

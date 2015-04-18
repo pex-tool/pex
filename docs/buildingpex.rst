@@ -5,7 +5,15 @@ Building .pex files
 *******************
 
 The easiest way to build .pex files is with the ``pex`` utility, which is
-made available when you ``pip install pex``.
+made available when you ``pip install pex``.  Do this within a virtualenv, then you can use
+pex to bootstrap itself::
+
+    $ pex pex requests -c pex -o ~/bin/pex
+
+This command creates a pex file containing pex and requests, using the
+console script named "pex", saving it in ~/bin/pex.  At this point, assuming
+~/bin is on your $PATH, then you can use pex in or outside of any
+virtualenv.
 
 
 Invoking the ``pex`` utility
@@ -22,7 +30,7 @@ and invoke it.  When no entry point is specified, "invocation" means starting an
     >>>
 
 This creates an ephemeral environment that only exists for the duration of the ``pex`` command invocation
-and is garbage collected immediately following.
+and is garbage collected immediately on exit.
 
 You can tailor which interpreter is used by specifying ``--python=PATH``.  PATH can be either the
 absolute path of a Python binary or the name of a Python interpreter within the environment, e.g.::
@@ -39,13 +47,13 @@ absolute path of a Python binary or the name of a Python interpreter within the 
     SyntaxError: invalid syntax
 
 
-
 Specifying requirements
 -----------------------
 
-Requirements are specified using the same form as expected by ``setuptools``, e.g. ``flask``, ``setuptools==2.1.2``,
-``Django>=1.4,<1.6``.  These are specified as arguments to pex and any number (including 0) may be specified.
-For example, to start an environment with ``flask`` and ``psutil>1``::
+Requirements are specified using the same form as expected by ``pip`` and ``setuptools``, e.g.
+``flask``, ``setuptools==2.1.2``, ``Django>=1.4,<1.6``.  These are specified as arguments to pex
+and any number (including 0) may be specified.  For example, to start an environment with ``flask``
+and ``psutil>1``::
 
     $ pex flask 'psutil>1'
     Python 2.6.9 (unknown, Jan  2 2014, 14:52:48)
@@ -58,28 +66,24 @@ You can then import and manipulate modules like you would otherwise::
 
     >>> import flask
     >>> import psutil
-    >>> flask.__path__
-    ['/private/var/folders/4d/9tz0cd5n2n7947xs21gspsxc0000gp/T/tmpYuGpFW/.deps/Flask-0.10.1-py2.6.egg/flask']
-    >>> psutil.__path__
-    ['/private/var/folders/4d/9tz0cd5n2n7947xs21gspsxc0000gp/T/tmpYuGpFW/.deps/psutil-2.0.0-py2.6-macosx-10.4-x86_64.egg/psutil']
+    >>> ...
+
+Requirements can also be specified using the requirements.txt format, using ``pex -r``.  This can be a handy
+way to freeze a virtualenv into a PEX file::
+
+    $ pex -r <(pip freeze) -o my_application.pex
 
 
 Specifying entry points
 -----------------------
 
-Entry points define how the environment is executed and may be specified using the ``-e`` option.
+Entry points define how the environment is executed and may be specified in one of three ways.
+
+pex <options> -- script.py
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 As mentioned above, if no entry points are specified, the default behavior is to emulate an
-interpreter::
-
-    $ pex flask
-    Python 2.6.9 (unknown, Jan  2 2014, 14:52:48)
-    [GCC 4.2.1 (Based on Apple Inc. build 5658) (LLVM build 2336.11.00)] on darwin
-    Type "help", "copyright", "credits" or "license" for more information.
-    (InteractiveConsole)
-    >>> import flask
-
-Like an interpreter, if a source file is specified, it is invoked::
+interpreter.  First we create a simple flask application::
 
     $ cat <<EOF > flask_hello_world.py
     > from flask import Flask
@@ -92,11 +96,17 @@ Like an interpreter, if a source file is specified, it is invoked::
     > app.run()
     > EOF
 
+Then, like an interpreter, if a source file is specified as a parameter to pex, it is invoked::
+
     $ pex flask -- ./flask_hello_world.py
     * Running on http://127.0.0.1:5000/
 
-As an example of using a non-empty entry point, consider the Python ``pydoc``
-module which may be invoked directly with ``python -m pydoc``::
+pex -m
+^^^^^^
+
+Of course, your code may be within the PEX file or it may be some predetermined entry point
+within the standard library.  ``pex -m`` behaves very similarly to ``python -m``.  Consider
+``python -m pydoc``::
 
     $ python -m pydoc
     pydoc - the Python documentation tool
@@ -107,9 +117,9 @@ module which may be invoked directly with ``python -m pydoc``::
         reference to a class or function within a module or module in a
         ...
 
-This can be emulated using the ``pex`` tool using ``-e pydoc``::
+This can be emulated using the ``pex`` tool using ``-m pydoc``::
 
-    $ pex -e pydoc
+    $ pex -m pydoc
     pydoc - the Python documentation tool
 
     tmpInGItD <name> ...
@@ -121,14 +131,15 @@ This can be emulated using the ``pex`` tool using ``-e pydoc``::
 Arguments will be passed unescaped following ``--`` on the command line.  So in order to
 get pydoc help on the ``flask.app`` package in Flask::
 
-    $ pex flask -e pydoc -- flask.app
+    $ pex flask -m pydoc -- flask.app
+
     Help on module flask.app in flask:
 
     NAME
         flask.app
 
     FILE
-        /private/var/folders/4d/9tz0cd5n2n7947xs21gspsxc0000gp/T/tmpbRZq38/.deps/Flask-0.10.1-py2.6.egg/flask/app.py
+        /private/var/folders/rd/_tjz8zts3g14md1kmf38z6w80000gn/T/tmp3PCy5a/.deps/Flask-0.10.1-py2-none-any.whl/flask/app.py
 
     DESCRIPTION
         flask.app
@@ -153,6 +164,28 @@ anything, for example a one-off invocation of Sphinx with the readthedocs theme 
     -E            don't use a saved environment, always read all files
     ...
 
+pex -c
+^^^^^^
+
+Of course, it would be nice if you don't have to know the ``package:target`` for the console scripts of
+your favorite python packages, so pex allows you to use ``-c`` to specify a console script as defined
+by the distribution.  For example, Fabric provides the ``fab`` tool when pip installed:
+
+    $ pex Fabric -c fab -- --help
+    Fatal error: Couldn't find any fabfiles!
+
+    Remember that -f can be used to specify fabfile path, and use -h for help.
+
+    Aborting.
+
+Even scripts defined by the "scripts" section of a distribution can be used, e.g. with boto:
+
+    $ pex boto -c mturk
+    usage: mturk [-h] [-P] [--nicknames PATH]
+                 {bal,hit,hits,new,extend,expire,rm,as,approve,reject,unreject,bonus,notify,give-qual,revoke-qual}
+                 ...
+    mturk: error: too few arguments
+
 
 Saving .pex files
 -----------------
@@ -163,7 +196,7 @@ exist for the duration of the pex command lifetime and immediately garbage colle
 If the ``-o PATH`` option is specified, a PEX file of the environment is saved to disk at ``PATH``.  For example
 we can package a standalone Sphinx as above::
 
-    $ pex sphinx sphinx_rtd_theme -e sphinx:main -o sphinx.pex
+    $ pex sphinx sphinx_rtd_theme -c sphinx -o sphinx.pex
 
 Instead of executing the environment, it is saved to disk::
 
@@ -204,27 +237,39 @@ and when invoked uses the environment PyPy::
     (InteractiveConsole)
     >>> import flask
 
+To specify an explicit Python shebang line (e.g. from a non-standard location or not on $PATH),
+you can use the ``--python-shebang`` option::
+
+    $ dist/pex --python-shebang='/Users/wickman/Python/CPython-3.4.2/bin/python3.4' -o my.pex
+    $ head -1 my.pex
+    #!/Users/wickman/Python/CPython-3.4.2/bin/python3.4
+
+Furthermore, this can be manipulated at runtime using the ``PEX_PYTHON`` environment variable.
+
 
 Tailoring requirement resolution
 --------------------------------
 
-By default, ``pex`` fetches artifacts from PyPI.  This can be disabled with ``--no-index``.
+In general, ``pex`` honors the same options as pip when it comes to resolving packages.  Like pip,
+by default ``pex`` fetches artifacts from PyPI.  This can be disabled with ``--no-index``.
 
-If PyPI fetching is disabled, you will need to specify a search repository via ``-f/--find-links``.  This
-may be a directory on disk or a remote simple http server.
+If PyPI fetching is disabled, you will need to specify a search repository via ``-f/--find-links``. 
+This may be a directory on disk or a remote simple http server.
 
 For example, you can delegate artifact fetching and resolution to ``pip wheel`` for whatever
 reason -- perhaps you're running a firewalled mirror -- but continue to package with pex::
 
-    $ pip wheel sphinx sphinx_rtd_theme
-    $ pex sphinx sphinx_rtd_theme -e sphinx:main --no-index --find-links=wheelhouse -o sphinx.pex
+    $ pip wheel -w /tmp/wheelhouse sphinx sphinx_rtd_theme
+    $ pex -f /tmp/wheelhouse --no-index -e sphinx:main -o sphinx.pex sphinx sphinx_rtd_theme
 
 
-Tailoring PEX execution
------------------------
+Tailoring PEX execution at build time
+-------------------------------------
 
-There are a few options that can tailor how PEX environments are invoked.  These can mostly be
-found by running ``pex --help``.  There are a few worth mentioning here:
+There are a few options that can tailor how PEX environments are invoked.  These can be found
+by running ``pex --help``.  Every flag mentioned here has a corresponding environment variable
+that can be used to override the runtime behavior.
+
 
 ``--zip-safe``/``--not-zip-safe``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -254,9 +299,25 @@ the biggest benefits of using .pex files, however there are some cases where it 
 if a package does not package correctly an an egg or wheel.)
 
 
+``--ignore-errors``
+^^^^^^^^^^^^^^^^^^^
+
+If not all of the PEX environment's dependencies resolve correctly (e.g. you are overriding the current
+Python interpreter with ``PEX_PYTHON``) this forces the PEX file to execute despite this.  Can be useful
+in certain situations when particular extensions may not be necessary to run a particular command.
+
+
+Tailoring PEX execution at runtime
+----------------------------------
+
+Tailoring of PEX execution can be done at runtime by setting various environment variables.
+The source of truth for these environment variables can be found in the
+`pex.variables API <api/index.html#module-pex.variables>`_.
+
+
 Other ways to build PEX files
 -----------------------------
 
 There are other supported ways to build pex files:
   * Using pants.  See `Pants Python documentation <http://pantsbuild.github.io/python-readme.html>`_.
-  * Programmatically via the ``pex`` API.
+  * Programmatically via the pex API.

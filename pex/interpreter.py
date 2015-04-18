@@ -1,7 +1,7 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-"""pex support for interpreter environments."""
+"""pex support for interacting with interpreters."""
 
 from __future__ import absolute_import
 
