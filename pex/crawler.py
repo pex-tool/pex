@@ -1,6 +1,8 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+"""Support for webpage parsing and crawling."""
+
 import os
 import re
 import threading
@@ -20,6 +22,8 @@ else:
 
 
 class PageParser(object):
+  """A helper class to extract and differentiate ordinary and download links from webpages."""
+
   HREF_RE = re.compile(r"""href=(?:"([^"]*)"|\'([^\']*)\'|([^>\s\n]*))""", re.I | re.S)
   REL_RE = re.compile(r"""<[^>]*\srel\s*=\s*['"]?([^'">]+)[^>]*>""", re.I)
   REL_SKIP_EXTENSIONS = frozenset(['.zip', '.tar', '.tar.gz', '.tar.bz2', '.tgz', '.exe'])
@@ -58,6 +62,8 @@ def partition(L, pred):
 
 
 class Crawler(object):
+  """A multi-threaded crawler that supports local (disk) and remote (web) crawling."""
+
   @classmethod
   def crawl_local(cls, link):
     try:

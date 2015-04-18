@@ -46,7 +46,7 @@ def get_pex_info(entry_point):
   raise ValueError('Invalid entry_point: %s' % entry_point)
 
 
-# TODO(wickman) Remove once resolved:
+# TODO(wickman) Remove once resolved (#91):
 #   https://bitbucket.org/pypa/setuptools/issue/154/build_zipmanifest-results-should-be
 def monkeypatch_build_zipmanifest():
   import pkg_resources

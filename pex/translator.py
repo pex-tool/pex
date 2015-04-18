@@ -167,6 +167,7 @@ class Translator(object):
     # TODO(wickman) Consider interpreter=None to indicate "universal" packages
     # since the .whl format can support this.
     # Also consider platform=None to require platform-inspecific packages.
+    # Issue #95.
     interpreter = interpreter or PythonInterpreter.get()
     whl_translator = WheelTranslator(platform=platform, interpreter=interpreter)
     egg_translator = EggTranslator(platform=platform, interpreter=interpreter)

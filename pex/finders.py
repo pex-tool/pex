@@ -9,7 +9,7 @@ finder only searches paths ending in .egg and not in .whl (zipped or unzipped.)
 pex.finders augments pkg_resources with additional finders to achieve functional
 parity between wheels and eggs in terms of findability with find_distributions.
 
-To use: ::
+To use:
    >>> from pex.finders import register_finders
    >>> register_finders()
 """

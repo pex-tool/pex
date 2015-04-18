@@ -273,7 +273,7 @@ class PEX(object):  # noqa: T000
       cov.stop()
 
       # TODO(wickman) Post-process coverage to elide $PEX_ROOT and make
-      # the report more useful/less noisy.
+      # the report more useful/less noisy.  #89
       if 'PEX_COVERAGE_FILENAME' in os.environ:
         cov.save()
       else:
@@ -371,7 +371,7 @@ class PEX(object):  # noqa: T000
 
   def execute_script(self, script_name):
     # TODO(wickman) This should be acheived by running clean_environment
-    # prior to invocation.
+    # prior to invocation.  #90
     if 'PEX_SCRIPT' in os.environ:
       del os.environ['PEX_SCRIPT']
 

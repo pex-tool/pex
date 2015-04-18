@@ -12,6 +12,8 @@ __all__ = ('ENV', 'Variables')
 
 
 class Variables(object):
+  """Environment variables supported by the PEX runtime."""
+
   @classmethod
   def process_pydoc(cls, pydoc):
     if pydoc is None:
@@ -29,8 +31,9 @@ class Variables(object):
       variable_type, variable_text = cls.process_pydoc(getattr(value, '__doc__'))
       yield variable_name, variable_type, variable_text
 
-  def __init__(self, environ=os.environ):
-    self._environ = environ
+  def __init__(self, environ=None):
+    # TODO(wickman) Should this be an os.environ.copy()?
+    self._environ = environ if environ is not None else os.environ
 
   def copy(self):
     return self._environ.copy()
@@ -238,7 +241,7 @@ class Variables(object):
     """
     return self._get_int('PEX_VERBOSE', default=0)
 
-  # TODO(wickman) Remove and push into --flags.
+  # TODO(wickman) Remove and push into --flags.  #94
   @property
   def PEX_HTTP_RETRIES(self):
     """Integer

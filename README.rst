@@ -45,24 +45,25 @@ possible and is more in-line with what pex does philosophically.
 Simple Examples
 ===============
 
-Launch an interpreter with ``requests`` and ``flask`` in the environment:
+Launch an interpreter with ``requests``, ``flask`` and ``psutil`` in the environment:
 
 .. code-block:: bash
 
-    $ pex requests flask
+    $ pex requests flask 'psutil>2,<3'
 
-Or instead launch an interpreter with the requirements from requirements.txt:
+Or instead freeze your current virtualenv via requirements.txt and execute it anywhere:
 
 .. code-block:: bash
 
-    $ pex -r requirements.txt
+    $ pex -r <(pip freeze) -o my_virtualenv.pex
+    $ deactivate
+    $ ./my_virtualenv.pex
 
-Run webserver.py in an environment containing ``flask`` and the setup.py package in
-the current working directory:
+Run webserver.py in an environment containing ``flask`` as a quick way to experiment:
 
-.. code-block::
+.. code-block:: bash
 
-    $ pex flask -s . -- webserver.py
+    $ pex flask -- webserver.py
 
 Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sphinx:main``:
 
@@ -70,20 +71,36 @@ Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sph
 
     $ pex sphinx -e sphinx:main -- --help
 
-Build a standalone pex binary into ``pex.pex``:
+Build a standalone pex binary into ``pex.pex`` using the ``pex`` console_scripts entry point:
 
-.. code-block::
+.. code-block:: bash
 
-    $ pex pex -e pex.bin.pex:main -o pex.pex
+    $ pex pex -c pex -o pex.pex
 
-Build a standalone pex binary but invoked using a specific Python version:
+You can also build pex files that use a specific interpreter type:
 
-.. code-block::
+.. code-block:: bash
 
-    $ pex pex -e pex.bin.pex:main --python=pypy -o pypy-pex.pex
+    $ pex pex -c pex --python=pypy -o pypy-pex.pex
 
 Most pex options compose well with one another, so the above commands can be
-mixed and matched.
+mixed and matched.  For a full list of options, just type ``pex --help``.
+
+
+Integrating pex into your workflow
+==================================
+
+If you use tox (and you should!), a simple way to integrate pex into your
+workflow is to add a packaging test environment to your ``tox.ini``:
+
+.. code-block:: ini
+
+    [testenv:package]
+    deps = pex
+    commands = pex . -o dist/app.pex
+
+Then ``tox -e package`` will produce a relocateable copy of your application
+that you can copy to staging or production environments.
 
 
 Documentation
@@ -103,29 +120,11 @@ the test suite, just invoke tox:
 
     $ tox
 
-To generate a coverage report (with more substantial integration tests):
+If you don't have tox, you can generate a pex of tox:
 
-.. code-block:: bash
+.. code-block::
 
-   $ tox -e coverage
-
-To check style and sort ordering:
-
-.. code-block:: bash
-
-   $ tox -e style,isort-check
-
-To generate and open local sphinx documentation:
-
-.. code-block:: bash
-
-   $ tox -e docs
-
-To run the 'pex' tool from source (for 3.4, use 'py34-run'):
-
-.. code-block:: bash
-
-   $ tox -e py27-run -- <cmdline>
+    $ pex tox -c tox -o ~/bin/tox
 
 
 Contributing
