@@ -104,7 +104,7 @@ Then, like an interpreter, if a source file is specified as a parameter to pex, 
 pex -m
 ^^^^^^
 
-Of course, your code may be within the PEX file or it may be some predetermined entry point
+Your code may be within the PEX file or it may be some predetermined entry point
 within the standard library.  ``pex -m`` behaves very similarly to ``python -m``.  Consider
 ``python -m pydoc``::
 
@@ -167,9 +167,9 @@ anything, for example a one-off invocation of Sphinx with the readthedocs theme 
 pex -c
 ^^^^^^
 
-Of course, it would be nice if you don't have to know the ``package:target`` for the console scripts of
-your favorite python packages, so pex allows you to use ``-c`` to specify a console script as defined
-by the distribution.  For example, Fabric provides the ``fab`` tool when pip installed:
+If you don't know the ``package:target`` for the console scripts of
+your favorite python packages, pex allows you to use ``-c`` to specify a console script as defined
+by the distribution.  For example, Fabric provides the ``fab`` tool when pip installed::
 
     $ pex Fabric -c fab -- --help
     Fatal error: Couldn't find any fabfiles!
@@ -178,7 +178,7 @@ by the distribution.  For example, Fabric provides the ``fab`` tool when pip ins
 
     Aborting.
 
-Even scripts defined by the "scripts" section of a distribution can be used, e.g. with boto:
+Even scripts defined by the "scripts" section of a distribution can be used, e.g. with boto::
 
     $ pex boto -c mturk
     usage: mturk [-h] [-P] [--nicknames PATH]
