@@ -39,6 +39,7 @@ setup(
   packages = [
     'pex',
     'pex.bin',
+    'pex.commands',
   ],
   install_requires = [
     SETUPTOOLS_REQUIREMENT,
@@ -52,6 +53,9 @@ setup(
     'pytest',
   ],
   entry_points = {
+    'distutils.commands': [
+      'bdist_pex = pex.commands.bdist_pex:bdist_pex',
+    ],
     'console_scripts': [
       'pex = pex.bin.pex:main',
     ],

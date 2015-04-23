@@ -110,8 +110,13 @@ class PEXBuilder(object):
       interpreter exit.
     """
     chroot_clone = self._chroot.clone(into=into)
-    return self.__class__(
-        chroot=chroot_clone, interpreter=self._interpreter, pex_info=self._pex_info.copy())
+    clone = self.__class__(
+        chroot=chroot_clone,
+        interpreter=self._interpreter,
+        pex_info=self._pex_info.copy())
+    for dist in self._distributions:
+      clone.add_distribution(dist)
+    return clone
 
   def path(self):
     return self.chroot().path()
@@ -204,7 +209,9 @@ class PEXBuilder(object):
       self._pex_info.script = script
       return
 
-    raise self.InvalidExecutableSpecification('Could not find script %s in PEX!' % script)
+    raise self.InvalidExecutableSpecification(
+        'Could not find script %r in any distribution %s within PEX!' % (
+            script, ', '.join(self._distributions)))
 
   def set_entry_point(self, entry_point):
     """Set the entry point of this PEX environment.
