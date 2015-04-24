@@ -35,6 +35,7 @@ class InstallerBase(object):
   SETUP_BOOTSTRAP_MODULE = "sys.path.insert(0, %(path)r); import %(module)s"
   SETUP_BOOTSTRAP_FOOTER = """
 __file__ = 'setup.py'
+sys.argv[0] = 'setup.py'
 exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
 """
 
