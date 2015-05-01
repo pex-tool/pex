@@ -295,7 +295,8 @@ class PEX(object):  # noqa: T000
     the interpreter.
     """
     try:
-      self.patch_sys()
+      if not self._pex_info.inherit_path:
+        self.patch_sys()
       working_set = self._activate()
       TRACER.log('PYTHONPATH contains:')
       for element in sys.path:
