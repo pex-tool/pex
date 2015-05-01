@@ -222,30 +222,18 @@ class PEX(object):  # noqa: T000
   # Thar be dragons -- when this contextmanager exits, the interpreter is
   # potentially in a wonky state since the patches here (minimum_sys_modules
   # for example) actually mutate global state.  This should not be
-  # considered a reversible operation despite being a contextmanager.
+  # considered a reversible operation.
   @classmethod
-  @contextmanager
   def patch_sys(cls):
     """Patch sys with all site scrubbed."""
     def patch_dict(old_value, new_value):
       old_value.clear()
       old_value.update(new_value)
 
-    def patch_all(path, path_importer_cache, modules):
-      sys.path[:] = path
-      patch_dict(sys.path_importer_cache, path_importer_cache)
-      patch_dict(sys.modules, modules)
-
-    old_sys_path, old_sys_path_importer_cache, old_sys_modules = (
-        sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = cls.minimum_sys()
-
-    patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
-
-    try:
-      yield
-    finally:
-      patch_all(old_sys_path, old_sys_path_importer_cache, old_sys_modules)
+    sys.path[:] = new_sys_path
+    patch_dict(sys.path_importer_cache, new_sys_path_importer_cache)
+    patch_dict(sys.modules, new_sys_modules)
 
   @classmethod
   def _wrap_coverage(cls, runner, *args):
@@ -307,14 +295,14 @@ class PEX(object):  # noqa: T000
     the interpreter.
     """
     try:
-      with self.patch_sys():
-        working_set = self._activate()
-        TRACER.log('PYTHONPATH contains:')
-        for element in sys.path:
-          TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
-        TRACER.log('  * - paths that do not exist or will be imported via zipimport')
-        with self.patch_pkg_resources(working_set):
-          self._wrap_coverage(self._wrap_profiling, self._execute)
+      self.patch_sys()
+      working_set = self._activate()
+      TRACER.log('PYTHONPATH contains:')
+      for element in sys.path:
+        TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
+      TRACER.log('  * - paths that do not exist or will be imported via zipimport')
+      with self.patch_pkg_resources(working_set):
+        self._wrap_coverage(self._wrap_profiling, self._execute)
     except Exception:
       # Allow the current sys.excepthook to handle this app exception before we tear things down in
       # finally, then reraise so that the exit status is reflected correctly.
