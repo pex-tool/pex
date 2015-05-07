@@ -61,7 +61,7 @@ class bdist_pex(Command):
         log.info('Writing %s to %s.pex' % (script_name, script_name))
         self._write(pex_builder, script_name, script=script_name)
     else:
-      if len(self.distribution.entry_points['console_scripts']) == 1:
+      if len(self.distribution.entry_points.get('console_scripts', [])) == 1:
         script_name = self.distribution.entry_points['console_scripts'][0].split('=')[0].strip()
         log.info('Writing %s to %s.pex' % (script_name, name))
         self._write(pex_builder, name, script=script_name)
