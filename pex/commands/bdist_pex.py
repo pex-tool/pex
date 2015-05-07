@@ -29,18 +29,17 @@ class bdist_pex(Command):
   def finalize_options(self):
     self.pex_args = self.pex_args.split()
 
-  def _write(self, pex_builder, name, script=None):
+  def _write(self, pex_builder, target, script=None):
     builder = pex_builder.clone()
 
     if script is not None:
       builder.set_script(script)
 
-    target = os.path.join(self.bdist_dir, name + '.pex')
-
     builder.build(target)
 
   def run(self):
     name = self.distribution.get_name()
+    version = self.distribution.get_version()
     parser, options_builder = configure_clp()
     package_dir = os.path.dirname(os.path.realpath(os.path.expanduser(self.distribution.script_name)))
 
@@ -58,13 +57,15 @@ class bdist_pex(Command):
     if self.bdist_all:
       for entry_point in self.distribution.entry_points['console_scripts']:
         script_name = entry_point.split('=')[0].strip()
-        log.info('Writing %s to %s.pex' % (script_name, script_name))
-        self._write(pex_builder, script_name, script=script_name)
+        target = os.path.join(self.bdist_dir, script_name + '.pex')
+        log.info('Writing %s to %s' % (script_name, target))
+        self._write(pex_builder, target, script=script_name)
     else:
+      target = os.path.join(self.bdist_dir, name + '-' + version + '.pex')
       if len(self.distribution.entry_points.get('console_scripts', [])) == 1:
         script_name = self.distribution.entry_points['console_scripts'][0].split('=')[0].strip()
-        log.info('Writing %s to %s.pex' % (script_name, name))
-        self._write(pex_builder, name, script=script_name)
+        log.info('Writing %s to %s' % (script_name, target))
+        self._write(pex_builder, target, script=script_name)
       else:
-        log.info('Writing environment pex into %s.pex' % name)
-        self._write(pex_builder, name, script=None)
+        log.info('Writing environment pex into %s' % target)
+        self._write(pex_builder, target, script=None)
