@@ -14,7 +14,7 @@ class bdist_pex(Command):
   user_options = [
       ('bdist-all', None, 'pexify all defined entry points'),
       ('bdist-dir', None, 'the directory into which pexes will be written, default: dist.'),
-      ('pex-args', None, 'additional arguments to the pex tool'),
+      ('pex-args=', None, 'additional arguments to the pex tool'),
   ]
 
   boolean_options = [
