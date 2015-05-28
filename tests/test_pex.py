@@ -7,6 +7,7 @@ from types import ModuleType
 
 import pytest
 
+from pex.compatibility import to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
 from pex.testing import make_installer, run_simple_pex_test
@@ -39,11 +40,24 @@ def test_excepthook_honored():
   assert rc == 42
 
 
-def test_pex_sys_exit_does_not_raise():
-  body = "import sys; sys.exit(2)"
+def _test_sys_exit(arg, expected_output, expected_rc):
+  body = "import sys; sys.exit({arg})".format(arg=arg)
   so, rc = run_simple_pex_test(body)
-  assert so == b'', 'Should not print SystemExit exception.'
-  assert rc == 2
+  assert so == expected_output, 'Should not print SystemExit traceback.'
+  assert rc == expected_rc
+
+
+def test_pex_sys_exit_does_not_print_for_numeric_value():
+  _test_sys_exit(2, b'', 2)
+
+
+def test_pex_sys_exit_prints_non_numeric_value_no_traceback():
+  text = 'something went wrong'
+
+  sys_exit_arg = '"' + text + '"'
+  # encode the string somehow that's compatible with 2 and 3
+  expected_output = to_bytes(text) + b'\n'
+  _test_sys_exit(sys_exit_arg, expected_output, 1)
 
 
 @pytest.mark.skipif('hasattr(sys, "pypy_version_info")')

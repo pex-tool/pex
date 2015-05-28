@@ -320,6 +320,12 @@ class PEX(object):  # noqa: T000
       # finally, then reraise so that the exit status is reflected correctly.
       sys.excepthook(*sys.exc_info())
       raise
+    except SystemExit as se:
+      # Print a SystemExit error message, avoiding a traceback in python3.
+      # This must happen here, as sys.stderr is about to be torn down
+      if not isinstance(se.code, int):
+        print(se.code, file=sys.stderr)
+      raise
     finally:
       # squash all exceptions on interpreter teardown -- the primary type here are
       # atexit handlers failing to run because of things such as:
