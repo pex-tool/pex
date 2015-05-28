@@ -79,9 +79,6 @@ PROJECT_CONTENT = {
           package_data={'my_package': ['package_data/*.dat']},
       )
   '''),
-  'MANIFEST.in': dedent('''
-  include setup.py
-  '''),
   'scripts/hello_world': '#!/usr/bin/env python\nprint("hello world!")\n',
   'scripts/shell_script': '#!/usr/bin/env bash\necho hello world\n',
   'my_package/__init__.py': 0,
