@@ -5,6 +5,7 @@
 # checkstyle: noqa
 
 import os
+from contextlib import contextmanager
 
 from .common import die
 
@@ -32,8 +33,7 @@ class Variables(object):
       yield variable_name, variable_type, variable_text
 
   def __init__(self, environ=None):
-    # TODO(wickman) Should this be an os.environ.copy()?
-    self._environ = environ if environ is not None else os.environ
+    self._environ = environ.copy() if environ is not None else os.environ
 
   def copy(self):
     return self._environ.copy()
@@ -71,6 +71,15 @@ class Variables(object):
       die('Invalid value for %s, must be an integer, got %r' % (variable, self._environ[variable]))
     except KeyError:
       return default
+
+  @contextmanager
+  def patch(self, **kw):
+    """Update the environment for the duration of a context."""
+    old_environ = self._environ
+    self._environ = self._environ.copy()
+    self._environ.update(kw)
+    yield
+    self._environ = old_environ
 
   @property
   def PEX_ALWAYS_CACHE(self):

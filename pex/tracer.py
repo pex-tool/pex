@@ -1,7 +1,6 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import os
 import sys
 import threading
 import time
@@ -38,25 +37,6 @@ class TraceLogger(object):
   """
     A multi-threaded tracer.
   """
-  _ENV_OVERRIDES = {}
-
-  @classmethod
-  @contextmanager
-  def env_override(cls, **override_dict):
-    OLD_ENV = cls._ENV_OVERRIDES.copy()
-    cls._ENV_OVERRIDES.update(**override_dict)
-    yield
-    cls._ENV_OVERRIDES = OLD_ENV
-
-  @classmethod
-  def env_filter(cls, env_variable):
-    def predicate(verbosity):
-      try:
-        env_verbosity = int(os.environ.get(env_variable, cls._ENV_OVERRIDES.get(env_variable, -1)))
-      except ValueError:
-        env_verbosity = -1
-      return verbosity <= env_verbosity
-    return predicate
 
   def __init__(self, predicate=None, output=sys.stderr, clock=time, prefix=''):
     """

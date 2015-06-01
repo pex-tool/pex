@@ -32,8 +32,8 @@ from pex.requirements import requirements_from_file
 from pex.resolvable import Resolvable
 from pex.resolver import CachingResolver, Resolver, Unsatisfiable
 from pex.resolver_options import ResolverOptionsBuilder
-from pex.tracer import TRACER, TraceLogger
-from pex.variables import Variables
+from pex.tracer import TRACER
+from pex.variables import ENV, Variables
 from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT, __version__
 
 CANNOT_DISTILL = 101
@@ -504,7 +504,7 @@ def main():
 
   options, reqs = parser.parse_args(args=args)
 
-  with TraceLogger.env_override(PEX_VERBOSE=options.verbosity):
+  with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
     with TRACER.timed('Building pex'):
       pex_builder = build_pex(reqs, options, resolver_options_builder)
 
