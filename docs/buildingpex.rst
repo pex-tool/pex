@@ -307,6 +307,13 @@ Python interpreter with ``PEX_PYTHON``) this forces the PEX file to execute desp
 in certain situations when particular extensions may not be necessary to run a particular command.
 
 
+``--platform``
+^^^^^^^^^^^^^^^^^^^
+
+The platform to build the pex for. Right now it defaults to the current system, but you can specify
+something like ``linux-x86_64`` or ``macosx-10.6-x86_64``. This will look for bdists for the particular platform.
+
+
 Tailoring PEX execution at runtime
 ----------------------------------
 
