@@ -120,7 +120,7 @@ class PEXEnvironment(Environment):
   def update_candidate_distributions(self, distribution_iter):
     for dist in distribution_iter:
       if self.can_add(dist):
-        with TRACER.timed('Adding %s:%s' % (dist, dist.location), V=2):
+        with TRACER.timed('Adding %s' % dist, V=2):
           self.add(dist)
 
   def can_add(self, dist):
@@ -136,20 +136,22 @@ class PEXEnvironment(Environment):
 
   def _resolve(self, working_set, reqs):
     reqs = reqs[:]
-    unresolved_reqs = []
+    unresolved_reqs = set()
+    resolveds = set()
 
-    while True:
-      with TRACER.timed('Resolving %s' %
-          ' '.join(map(str, reqs)) if reqs else 'empty dependency list', V=2):
+    # Resolve them one at a time so that we can figure out which ones we need to elide should
+    # there be an interpreter incompatibility.
+    for req in reqs:
+      with TRACER.timed('Resolving %s' % req, V=2):
         try:
-          resolved = working_set.resolve(reqs, env=self)
+          resolveds.update(working_set.resolve([req], env=self))
         except DistributionNotFound as e:
           TRACER.log('Failed to resolve a requirement: %s' % e)
-          unresolved_req = e.args[0]
-          unresolved_reqs.append(unresolved_req)
-          reqs.remove(unresolved_req)
-        else:
-          break
+          unresolved_reqs.add(e.args[0].project_name)
+          if e.args[1]:
+            unresolved_reqs.update(e.args[1])
+
+    unresolved_reqs = set([req.lower() for req in unresolved_reqs])
 
     if unresolved_reqs:
       TRACER.log('Unresolved requirements:')
@@ -165,7 +167,7 @@ class PEXEnvironment(Environment):
         die('Failed to execute PEX file, missing compatible dependencies for:\n%s' % (
             '\n'.join(map(str, unresolved_reqs))))
 
-    return resolved
+    return resolveds
 
   def _activate(self):
     self.update_candidate_distributions(self.load_internal_cache(self._pex, self._pex_info))
