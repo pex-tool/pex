@@ -2,9 +2,33 @@
 CHANGES
 =======
 
-----------
-1.0.0.dev3
-----------
+-----
+1.0.0
+-----
+
+The 1.0.0 release of pex introduces a few breaking changes: ``pex -r`` now takes requirements.txt files
+instead of requirement specs, ``pex -s`` has now been removed since source specs are accepted as arguments,
+and ``pex -p`` has been removed in favor of its alias ``pex -o``.
+
+The pex *command line interface* now adheres to semver insofar as backwards incompatible CLI
+changes will invoke a major version change.  Any backwards incompatible changes to the PEX
+environment variable semantics will also result in a major version change.  The pex *API* adheres
+to semver insofar as backwards incompatible API changes will invoke minor version changes.
+
+For users of the PEX API, it is recommended to add minor version ranges, e.g. ``pex>=1.0,<1.1``.
+For users of the PEX CLI, major version ranges such as ``pex>=1,<2`` should be sufficient.
+
+* BREAKING CHANGE: Removes the ``-s`` option in favor of specifying directories directly as
+  arguments to the pex command line.
+
+* BREAKING CHANGE: ``pex -r`` now takes requirements.txt filenames and *not* requirement
+  specs.  Requirement specs are now passed as arguments to the pex tool.  Use ``--`` to escape
+  command line arguments passed to interpreters spawned by pex.  Implements
+  `#5 <https://github.com/pantsbuild/pex/issues/5>`_.
+
+* Adds a number of flag aliases to be more compatible with pip command lines: ``--no-index``,
+  ``-f``, ``--find-links``, ``--index-url``, ``--no-use-wheel``.  Removes ``-p`` in favor of
+  ``-o`` exclusively.
 
 * Adds ``--python-shebang`` option to the pex tool in order to set the ``#!`` shebang to an exact
   path.  `#53 <https://github.com/pantsbuild/pex/issues/53>`_.
@@ -20,30 +44,13 @@ CHANGES
 * Consolidates documentation of ``PEX_`` environment variables and adds the ``--help-variables`` option
   to the pex client.  Partially addresses `#13 <https://github.com/pantsbuild/pex/issues/13>`_.
 
-* Bug fix: ``PEX_COVERAGE`` and ``PEX_PROFILE`` did not function correctly when SystemExit was raised.
-  Fixes `#81 <https://github.com/pantsbuild/pex/issues/81>`_.
-
 * Adds helper method to dump a package subdirectory onto disk from within a zipped PEX file.  This
   can be useful for applications that know they're running within a PEX and would prefer some
   static assets dumped to disk instead of running as an unzipped PEX file.
   `#12 <https://github.com/pantsbuild/pex/pull/12>`_.
 
-----------
-1.0.0.dev2
-----------
-
 * Now supports extras for static URLs and installable directories.
   `#65 <https://github.com/pantsbuild/pex/issues/65>`_.
-
-* BREAKING CHANGE: Removes the ``-s`` option in favor of specifying directories directly as
-  arguments to the pex command line.
-
-* Fixes caching in the PEX tool since we don't cache the source distributions of installable
-  directories.  `#24 <https://github.com/pantsbuild/pex/issues/24>`_.
-
-----------
-1.0.0.dev1
-----------
 
 * Adds ``-m`` and ``--entry-point`` alias to the existing ``-e`` option for entry points in
   the pex tool to evoke the similarity to ``python -m``.
@@ -53,18 +60,14 @@ CHANGES
   scripts defined in the ``scripts`` section of setup.py.
   `#59 <https://github.com/pantsbuild/pex/issues/59>`_.
 
-----------
-1.0.0.dev0
-----------
+* Adds more debugging information when encountering unresolvable requirements.
+  `#79 <https://github.com/pantsbuild/pex/issues/79>`_.
 
-* Adds a number of flag aliases to be more compatible with pip command lines: ``--no-index``,
-  ``-f``, ``--find-links``, ``--index-url``, ``--no-use-wheel``.  Removes ``-p`` in favor of
-  ``-o`` exclusively.
+* Bug fix: ``PEX_COVERAGE`` and ``PEX_PROFILE`` did not function correctly when SystemExit was raised.
+  Fixes `#81 <https://github.com/pantsbuild/pex/issues/81>`_.
 
-* BREAKING CHANGE: ``pex -r`` now takes requirements.txt filenames and *not* requirement
-  specs.  Requirement specs are now passed as arguments to the pex tool.  Use ``--`` to escape
-  command line arguments passed to interpreters spawned by pex.  Implements
-  `#5 <https://github.com/pantsbuild/pex/issues/5>`_.
+* Bug fix: Fixes caching in the PEX tool since we don't cache the source distributions of installable
+  directories.  `#24 <https://github.com/pantsbuild/pex/issues/24>`_.
 
 -----
 0.9.0
