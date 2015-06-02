@@ -117,6 +117,52 @@ class PEXEnvironment(Environment):
     super(PEXEnvironment, self).__init__(
         search_path=sys.path if pex_info.inherit_path else [], **kw)
 
+  def maybe_reexec_for_library_path(self):
+    """Makes sure the files in the native-libs directory are accessible.
+
+    Because of the way native library loaders work, this function may not
+    return, and moreover, will re-launch the python interpreter.
+
+    We take advantage of the fact that pexs are deterministically extracted."""
+    if not self._pex_info.native_libraries:
+      return
+
+    if os.path.isdir(self._pex):
+      exploded_dir = self._pex
+    else:
+      exploded_dir = self.force_local(self._pex, self._pex_info)
+      assert not self._pex_info.zip_safe
+
+    assert os.path.isdir(exploded_dir)
+
+    if os.uname()[0] == 'Darwin':
+      var_name = 'DYLD_LIBRARY_PATH'
+    else:
+      var_name = 'LD_LIBRARY_PATH'
+
+    expected_path = os.environ.get(
+      'PEX_NATIVE_LIBS_PATH', os.path.join(exploded_dir, 'native-libs'))
+
+    paths = []
+    if os.environ.get(var_name):
+      paths = os.environ[var_name].split(':')
+    if expected_path in paths:
+      TRACER.log('Found native libraries in %s' % expected_path)
+      return
+
+    paths.insert(0, expected_path)
+    os.environ[var_name] = ':'.join(paths)
+
+    TRACER.log('Re-execing for %s' % var_name)
+    sys.stderr.flush()
+    sys.stdout.flush()
+    # This is technically not quite right since we may have been launched as
+    # `./foo.pex ...` and not `python ./foo.pex`. Since python doesn't
+    # seem to expose this information, there should be no harm in always
+    # using the latter form. Separately, this also means that any arguments to
+    # `python` won't be copied over.
+    os.execve(sys.executable, [sys.executable] + sys.argv, os.environ)
+
   def update_candidate_distributions(self, distribution_iter):
     for dist in distribution_iter:
       if self.can_add(dist):
