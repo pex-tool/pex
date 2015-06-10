@@ -2,10 +2,10 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import sys
 
 import pytest
 from twitter.common.contextutil import temporary_dir
-import sys
 
 from pex.common import safe_copy
 from pex.fetcher import Fetcher

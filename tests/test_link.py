@@ -57,4 +57,3 @@ def test_link_schemes():
 def test_link_equality():
   assert Link('http://www.google.com') == Link('http://www.google.com')
   assert Link('http://www.google.com') != Link('http://www.twitter.com')
-
