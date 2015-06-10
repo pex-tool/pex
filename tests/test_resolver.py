@@ -45,7 +45,7 @@ def test_diamond_local_resolve_cached():
       safe_copy(sdist, os.path.join(dd, os.path.basename(sdist)))
     fetchers = [Fetcher([dd])]
     with temporary_dir() as cd:
-      dists = resolve(['project1', 'project2'], fetchers=fetchers, cache=cd, cache_ttl=sys.maxint)
+      dists = resolve(['project1', 'project2'], fetchers=fetchers, cache=cd, cache_ttl=1000)
       assert len(dists) == 2
 
 
