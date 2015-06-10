@@ -2,6 +2,13 @@
 CHANGES
 =======
 
+----------
+1.0.1.dev1
+----------
+
+* Bug fix: Fix complex resolutions when using a cache.
+  Fixes: `#24 <https://github.com/pantsbuild/pex/issues/24>`_.
+
 -----
 1.0.0
 -----
