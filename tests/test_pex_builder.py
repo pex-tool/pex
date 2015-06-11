@@ -70,18 +70,33 @@ def test_pex_builder_shebang():
 
 def test_pex_builder_compilation():
   with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td1, td2, td3):
-    src = os.path.join(td1, 'exe.py')
+    src = os.path.join(td1, 'src.py')
     with open(src, 'w') as fp:
+      fp.write(exe_main)
+
+    exe = os.path.join(td1, 'exe.py')
+    with open(exe, 'w') as fp:
       fp.write(exe_main)
 
     def build_and_check(path, precompile):
       pb = PEXBuilder(path)
-      pb.add_source(src, 'exe.py', precompile_python=precompile)
-      pyc_exists = os.path.exists(os.path.join(path, 'exe.pyc'))
+      pb.add_source(src, 'lib/src.py')
+      pb.set_executable(exe, 'exe.py')
+      pb.freeze(bytecode_compile=precompile)
+      for py_file in ('exe.pyc', 'lib/src.pyc', '__main__.pyc'):
+        pyc_exists = os.path.exists(os.path.join(path, py_file))
+        if precompile:
+          assert pyc_exists
+        else:
+          assert not pyc_exists
+      bootstrap_dir = os.path.join(path, PEXBuilder.BOOTSTRAP_DIR)
+      bootstrap_pycs = []
+      for _, _, files in os.walk(bootstrap_dir):
+        bootstrap_pycs.extend(f for f in files if f.endswith('.pyc'))
       if precompile:
-        assert pyc_exists
+        assert len(bootstrap_pycs) > 0
       else:
-        assert not pyc_exists
+        assert 0 == len(bootstrap_pycs)
 
     build_and_check(td2, False)
     build_and_check(td3, True)

@@ -10,9 +10,9 @@ from pkg_resources import DefaultProvider, ZipProvider, get_provider
 
 from .common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
 from .compatibility import to_bytes
+from .compiler import Compiler
 from .finders import get_entry_point_from_console_script, get_script_from_distributions
 from .interpreter import PythonInterpreter
-from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
 from .util import CacheHelper, DistributionHelper
 
@@ -127,21 +127,15 @@ class PEXBuilder(object):
     self._ensure_unfrozen('Changing PexInfo')
     self._pex_info = value
 
-  def add_source(self, filename, env_filename, precompile_python=True):
+  def add_source(self, filename, env_filename):
     """Add a source to the PEX environment.
 
     :param filename: The source filename to add to the PEX.
-    :param env_filename: The destination filename in the PEX.
-    :param compile_python: If True, precompile .py files into .pyc files.
+    :param env_filename: The destination filename in the PEX.  This path
       must be a relative path.
     """
     self._ensure_unfrozen('Adding source')
-    self._copy_or_link(filename, env_filename, 'source')
-    if precompile_python and filename.endswith('.py'):
-      env_filename_pyc = os.path.splitext(env_filename)[0] + '.pyc'
-      with open(filename) as fp:
-        pyc_object = CodeMarshaller.from_py(fp.read(), env_filename)
-      self._chroot.write(pyc_object.to_pyc(), env_filename_pyc, 'source')
+    self._copy_or_link(filename, env_filename, "source")
 
   def add_resource(self, filename, env_filename):
     """Add a resource to the PEX environment.
@@ -323,6 +317,15 @@ class PEXBuilder(object):
             self._chroot.write(bytes(import_string, 'UTF-8'), sub_path)
           init_digest.add(sub_path)
 
+  def _precompile_source(self):
+    source_relpaths = [path for label in ('source', 'executable', 'main', 'bootstrap')
+                       for path in self._chroot.filesets.get(label, ()) if path.endswith('.py')]
+
+    compiler = Compiler(self.interpreter)
+    compiled_relpaths = compiler.compile(self._chroot.path(), source_relpaths)
+    for compiled in compiled_relpaths:
+      self._chroot.touch(compiled, label='bytecode')
+
   def _prepare_manifest(self):
     self._chroot.write(self._pex_info.dump().encode('utf-8'), PexInfo.PATH, label='manifest')
 
@@ -356,8 +359,10 @@ class PEXBuilder(object):
 
     for fn, content_stream in DistributionHelper.walk_data(setuptools):
       if fn.startswith('pkg_resources') or fn.startswith('_markerlib'):
-        self._chroot.write(content_stream.read(), os.path.join(self.BOOTSTRAP_DIR, fn), 'resource')
-        wrote_setuptools = True
+        if fn.endswith('.py'):
+          dst = os.path.join(self.BOOTSTRAP_DIR, fn)
+          self._chroot.write(content_stream.read(), dst, 'bootstrap')
+          wrote_setuptools = True
 
     if not wrote_setuptools:
       raise RuntimeError(
@@ -376,10 +381,12 @@ class PEXBuilder(object):
       for fn in provider.resource_listdir(''):
         if fn.endswith('.py'):
           self._chroot.write(provider.get_resource_string(source_name, fn),
-            os.path.join(self.BOOTSTRAP_DIR, target_location, fn), 'resource')
+            os.path.join(self.BOOTSTRAP_DIR, target_location, fn), 'bootstrap')
 
-  def freeze(self):
+  def freeze(self, bytecode_compile=True):
     """Freeze the PEX.
+
+    :param bytecode_compile: If True, precompile .py files into .pyc files when freezing code.
 
     Freezing the PEX writes all the necessary metadata and environment bootstrapping code.  It may
     only be called once and renders the PEXBuilder immutable.
@@ -390,18 +397,21 @@ class PEXBuilder(object):
     self._prepare_manifest()
     self._prepare_bootstrap()
     self._prepare_main()
+    if bytecode_compile:
+      self._precompile_source()
     self._frozen = True
 
-  def build(self, filename):
+  def build(self, filename, bytecode_compile=True):
     """Package the PEX into a zipfile.
 
     :param filename: The filename where the PEX should be stored.
+    :param bytecode_compile: If True, precompile .py files into .pyc files.
 
     If the PEXBuilder is not yet frozen, it will be frozen by ``build``.  This renders the
     PEXBuilder immutable.
     """
     if not self._frozen:
-      self.freeze()
+      self.freeze(bytecode_compile=bytecode_compile)
     try:
       os.unlink(filename + '~')
       self._logger.warn('Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
