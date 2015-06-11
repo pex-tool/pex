@@ -55,7 +55,8 @@ class PEXBuilder(object):
 
   BOOTSTRAP_DIR = ".bootstrap"
 
-  def __init__(self, path=None, interpreter=None, chroot=None, pex_info=None, preamble=None):
+  def __init__(self, path=None, interpreter=None, chroot=None, pex_info=None, preamble=None,
+               copy=False):
     """Initialize a pex builder.
 
     :keyword path: The path to write the PEX as it is built.  If ``None`` is specified,
@@ -67,6 +68,8 @@ class PEXBuilder(object):
     :keyword preamble: If supplied, execute this code prior to bootstrapping this PEX
       environment.
     :type preamble: str
+    :keyword copy: If False, attempt to create the pex environment via hard-linking, falling
+                   back to copying across devices. If True, always copy.
 
     .. versionchanged:: 0.8
       The temporary directory created when ``path`` is not specified is now garbage collected on
@@ -79,6 +82,7 @@ class PEXBuilder(object):
     self._shebang = self._interpreter.identity.hashbang()
     self._logger = logging.getLogger(__name__)
     self._preamble = to_bytes(preamble or '')
+    self._copy = copy
     self._distributions = set()
 
   def _ensure_unfrozen(self, name='Operation'):
@@ -123,17 +127,17 @@ class PEXBuilder(object):
     self._ensure_unfrozen('Changing PexInfo')
     self._pex_info = value
 
-  # TODO(wickman) Add option to not compile/marshal sources.
-  def add_source(self, filename, env_filename):
+  def add_source(self, filename, env_filename, precompile_python=True):
     """Add a source to the PEX environment.
 
     :param filename: The source filename to add to the PEX.
-    :param env_filename: The destination filename in the PEX.  This path
+    :param env_filename: The destination filename in the PEX.
+    :param compile_python: If True, precompile .py files into .pyc files.
       must be a relative path.
     """
     self._ensure_unfrozen('Adding source')
-    self._chroot.link(filename, env_filename, "source")
-    if filename.endswith('.py'):
+    self._copy_or_link(filename, env_filename, 'source')
+    if precompile_python and filename.endswith('.py'):
       env_filename_pyc = os.path.splitext(env_filename)[0] + '.pyc'
       with open(filename) as fp:
         pyc_object = CodeMarshaller.from_py(fp.read(), env_filename)
@@ -147,7 +151,7 @@ class PEXBuilder(object):
       must be a relative path.
     """
     self._ensure_unfrozen('Adding a resource')
-    self._chroot.link(filename, env_filename, "resource")
+    self._copy_or_link(filename, env_filename, "resource")
 
   def add_requirement(self, req):
     """Add a requirement to the PEX environment.
@@ -178,7 +182,7 @@ class PEXBuilder(object):
     if self._chroot.get("executable"):
       raise self.InvalidExecutableSpecification(
           "Setting executable on a PEXBuilder that already has one!")
-    self._chroot.link(filename, env_filename, "executable")
+    self._copy_or_link(filename, env_filename, "executable")
     entry_point = env_filename
     entry_point.replace(os.path.sep, '.')
     self._pex_info.entry_point = entry_point.rpartition('.')[0]
@@ -242,7 +246,7 @@ class PEXBuilder(object):
         filename = os.path.join(root, f)
         relpath = os.path.relpath(filename, path)
         target = os.path.join(self._pex_info.internal_cache, dist_name, relpath)
-        self._chroot.link(filename, target)
+        self._copy_or_link(filename, target)
     return CacheHelper.dir_hash(path)
 
   def _add_dist_zip(self, path, dist_name):
@@ -325,6 +329,12 @@ class PEXBuilder(object):
   def _prepare_main(self):
     self._chroot.write(self._preamble + b'\n' + BOOTSTRAP_ENVIRONMENT,
         '__main__.py', label='main')
+
+  def _copy_or_link(self, src, dst, label=None):
+    if self._copy:
+      self._chroot.copy(src, dst, label)
+    else:
+      self._chroot.link(src, dst, label)
 
   # TODO(wickman) Ideally we unqualify our setuptools dependency and inherit whatever is
   # bundled into the environment so long as it is compatible (and error out if not.)

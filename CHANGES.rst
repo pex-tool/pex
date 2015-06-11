@@ -2,6 +2,13 @@
 CHANGES
 =======
 
+----------
+1.0.1.dev1
+----------
+
+* Allow PEXBuilder to optionally copy files into the PEX environment instead of hard-linking them.
+* Allow PEXBuilder to optionally skip precompilation of .py files into .pyc files.
+
 -----
 1.0.0
 -----
