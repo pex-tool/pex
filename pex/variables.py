@@ -5,6 +5,7 @@
 # checkstyle: noqa
 
 import os
+import sys
 from contextlib import contextmanager
 
 from .common import die
@@ -32,8 +33,9 @@ class Variables(object):
       variable_type, variable_text = cls.process_pydoc(getattr(value, '__doc__'))
       yield variable_name, variable_type, variable_text
 
-  def __init__(self, environ=None):
-    self._environ = environ.copy() if environ is not None else os.environ
+  def __init__(self, environ=None, rc='~/.pexrc'):
+    self._environ = self._from_rc(rc)
+    self._environ.update(environ.copy() if environ else os.environ)
 
   def copy(self):
     return self._environ.copy()
@@ -43,6 +45,16 @@ class Variables(object):
 
   def set(self, variable, value):
     self._environ[variable] = str(value)
+
+  def _from_rc(self, rc):
+    ret_vars = {}
+    for filename in [rc, os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]:
+      try:
+        with open(os.path.expanduser(filename)) as fh:
+          ret_vars.update(dict(map(lambda x: x.strip().split('='), fh)))
+      except IOError:
+        continue
+    return ret_vars
 
   def _get_bool(self, variable, default=False):
     value = self._environ.get(variable)
