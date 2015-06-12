@@ -3,11 +3,12 @@
 
 import contextlib
 import os
-import runpy
 
+import marshal
 import pytest
 from twitter.common.contextutil import temporary_dir
 
+from pex import compatibility
 from pex.common import safe_open
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
@@ -41,11 +42,19 @@ def test_compile_success():
 
     results = {}
     for compiled in compiled_relpaths:
-      global_symbols = runpy.run_path(os.path.join(root, compiled))
-      results[compiled] = global_symbols
+      compiled_abspath = os.path.join(root, compiled)
+      with open(compiled_abspath, 'rb') as fp:
+        fp.read(4)  # Skip the magic header.
+        fp.read(4)  # Skip the timestamp.
+        if compatibility.PY3:
+          fp.read(4)  # Skip the size.
+        code = marshal.load(fp)
+      local_symbols = {}
+      exec(code, {}, local_symbols)
+      results[compiled] = local_symbols
 
-    assert 'a.py' == results.pop('a.pyc')['basename']
-    assert 'c.py' == results.pop('c/c.pyc')['basename']
+    assert {'basename': 'a.py'} == results.pop('a.pyc')
+    assert {'basename': 'c.py'} == results.pop('c/c.pyc')
     assert 0 == len(results)
 
 
