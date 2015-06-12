@@ -83,8 +83,8 @@ def test_pex_builder_compilation():
       pb.add_source(src, 'lib/src.py')
       pb.set_executable(exe, 'exe.py')
       pb.freeze(bytecode_compile=precompile)
-      for py_file in ('exe.pyc', 'lib/src.pyc', '__main__.pyc'):
-        pyc_exists = os.path.exists(os.path.join(path, py_file))
+      for pyc_file in ('exe.pyc', 'lib/src.pyc', '__main__.pyc'):
+        pyc_exists = os.path.exists(os.path.join(path, pyc_file))
         if precompile:
           assert pyc_exists
         else:
