@@ -6,6 +6,10 @@ CHANGES
 1.0.1.dev1
 ----------
 
+* Allow PEXBuilder to optionally copy files into the PEX environment instead of hard-linking them.
+
+* Allow PEXBuilder to optionally skip precompilation of .py files into .pyc files.
+
 * Bug fix: Fix complex resolutions when using a cache.
   Fixes: `#120 <https://github.com/pantsbuild/pex/issues/120>`_.
 
