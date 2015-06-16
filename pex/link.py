@@ -76,6 +76,9 @@ class Link(object):
       purl = urlparse.urlparse(self._normalize(url))
     self._url = purl
 
+  def __ne__(self, other):
+    return not self.__eq__(other)
+
   def __eq__(self, link):
     return self.__class__ == link.__class__ and self._url == link._url
 
