@@ -56,9 +56,9 @@ class _ResolvedPackages(namedtuple('_ResolvedPackages', 'resolvable packages par
 
 
 class _ResolvableSet(object):
-  def __init__(self):
+  def __init__(self, tuples=None):
     # A list of _ResolvedPackages
-    self.__tuples = []
+    self.__tuples = tuples or []
 
   def _collapse(self):
     # Collapse all resolvables by name along with the intersection of all compatible packages.
@@ -123,9 +123,7 @@ class _ResolvableSet(object):
       packages = OrderedSet(built_packages.get(p, p) for p in resolved_packages.packages)
       return _ResolvedPackages(resolved_packages.resolvable, packages, resolved_packages.parent)
 
-    resolvable_set = _ResolvableSet()
-    resolvable_set.__tuples = [map_packages(rp) for rp in self.__tuples]
-    return resolvable_set
+    return _ResolvableSet([map_packages(rp) for rp in self.__tuples])
 
 
 class Resolver(object):
@@ -256,8 +254,7 @@ class CachingResolver(Resolver):
       os.rename(target + '~', target)
     os.utime(target, None)
 
-    cached_dist = DistributionHelper.distribution_from_path(target)
-    return cached_dist
+    return DistributionHelper.distribution_from_path(target)
 
 
 def resolve(
