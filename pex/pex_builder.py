@@ -359,7 +359,7 @@ class PEXBuilder(object):
 
     for fn, content_stream in DistributionHelper.walk_data(setuptools):
       if fn.startswith('pkg_resources') or fn.startswith('_markerlib'):
-        if fn.endswith('.py'):
+        if not fn.endswith('.pyc'):  # We'll compile our own .pyc's later.
           dst = os.path.join(self.BOOTSTRAP_DIR, fn)
           self._chroot.write(content_stream.read(), dst, 'bootstrap')
           wrote_setuptools = True
