@@ -148,7 +148,10 @@ class PEXEnvironment(Environment):
         except DistributionNotFound as e:
           TRACER.log('Failed to resolve a requirement: %s' % e)
           unresolved_reqs.add(e.args[0].project_name)
-          if e.args[1]:
+          # Older versions of pkg_resources just call `DistributionNotFound(req)` instead of the
+          # modern `DistributionNotFound(req, requirers)` and so we may not have the 2nd requirers
+          # slot at all.
+          if len(e.args) >= 2 and e.args[1]:
             unresolved_reqs.update(e.args[1])
 
     unresolved_reqs = set([req.lower() for req in unresolved_reqs])
