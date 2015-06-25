@@ -51,10 +51,16 @@ class Variables(object):
     for filename in [rc, os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]:
       try:
         with open(os.path.expanduser(filename)) as fh:
-          ret_vars.update(dict(map(lambda x: x.strip().split('='), fh)))
+          rc_items = map(self._get_kv, fh)
+          ret_vars.update(dict(filter(None, rc_items)))
       except IOError:
         continue
     return ret_vars
+
+  def _get_kv(self, variable):
+    kv = variable.strip().split('=')
+    if len(list(filter(None, kv))) == 2:
+      return kv
 
   def _get_bool(self, variable, default=False):
     value = self._environ.get(variable)
@@ -271,6 +277,14 @@ class Variables(object):
     Default: 5.
     """
     return self._get_int('PEX_HTTP_RETRIES', default=5)
+
+  @property
+  def PEX_IGNORE_RCFILES(self):
+    """Boolean
+
+    Explicitly disable the reading/parsing of pexrc files (~/.pexrc). Default: false.
+    """
+    return self._get_bool('PEX_IGNORE_RCFILES', default=False)
 
 
 # Global singleton environment
