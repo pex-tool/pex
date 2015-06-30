@@ -30,7 +30,7 @@ def test_force_local():
     assert os.path.exists(pb.info.zip_unsafe_cache)
     assert len(os.listdir(pb.info.zip_unsafe_cache)) == 1
     assert [os.path.basename(code_cache)] == os.listdir(pb.info.zip_unsafe_cache)
-    assert set(os.listdir(code_cache)) == set([PexInfo.PATH, '__main__.py'])
+    assert set(os.listdir(code_cache)) == set([PexInfo.PATH, '__main__.py', '__main__.pyc'])
 
     # idempotence
     assert PEXEnvironment.force_local(pex_file.name, pb.info) == code_cache

@@ -7,7 +7,11 @@ CHANGES
 ----------
 
 * Allow PEXBuilder to optionally copy files into the PEX environment instead of hard-linking them.
+
 * Allow PEXBuilder to optionally skip precompilation of .py files into .pyc files.
+
+* Bug fix: PEXBuilder did not respect the target interpreter when compiling source to bytecode.
+  Fixes `#127 <https://github.com/pantsbuild/pex/issues/127>`_.
 
 -----
 1.0.0
