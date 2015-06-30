@@ -293,7 +293,8 @@ class Chroot(object):
     Has similar exceptional cases as Chroot.copy
     """
     dst = self._normalize(dst)
-    self.write('', dst, label, mode='a')
+    self._tag(dst, label)
+    touch(os.path.join(self.chroot, dst))
 
   def get(self, label):
     """Get all files labeled with ``label``"""

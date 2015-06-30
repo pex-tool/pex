@@ -40,7 +40,7 @@ will execute ``my_module/__main__.py`` if it exists.
 Because of the flexibility of the Python import subsystem, ``python -m
 my_module`` works regardless if ``my_module`` is on disk or within a zip
 file.  Adding ``#!/usr/bin/env python`` to the top of a .zip file containing
-a ``__main__.py`` and and marking it executable will turn it into an
+a ``__main__.py`` and marking it executable will turn it into an
 executable Python program.  pex takes advantage of this feature in order to
 build executable .pex files.  This is described more thoroughly in
 `PEP 441 <https://www.python.org/dev/peps/pep-0441/>`_.
