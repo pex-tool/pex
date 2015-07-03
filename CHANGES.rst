@@ -13,6 +13,9 @@ CHANGES
 * Bug fix: PEXBuilder did not respect the target interpreter when compiling source to bytecode.
   Fixes `#127 <https://github.com/pantsbuild/pex/issues/127>`_.
 
+* Bug fix: Fix complex resolutions when using a cache.
+  Fixes: `#120 <https://github.com/pantsbuild/pex/issues/120>`_.
+
 -----
 1.0.0
 -----

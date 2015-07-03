@@ -77,6 +77,7 @@ PROJECT_CONTENT = {
               'scripts/shell_script',
           ],
           package_data={'my_package': ['package_data/*.dat']},
+          install_requires=%(install_requires)r,
       )
   '''),
   'scripts/hello_world': '#!/usr/bin/env python\nprint("hello world!")\n',
@@ -89,21 +90,23 @@ PROJECT_CONTENT = {
 
 
 @contextlib.contextmanager
-def make_installer(name='my_project', installer_impl=EggInstaller, zip_safe=True):
-  interp = {'project_name': name, 'zip_safe': zip_safe}
+def make_installer(name='my_project', installer_impl=EggInstaller, zip_safe=True,
+                   install_reqs=None):
+  interp = {'project_name': name, 'zip_safe': zip_safe, 'install_requires': install_reqs or []}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
     yield installer_impl(td)
 
 
 @contextlib.contextmanager
-def make_source_dir(name='my_project'):
-  interp = {'project_name': name, 'zip_safe': True}
+def make_source_dir(name='my_project', install_reqs=None):
+  interp = {'project_name': name, 'zip_safe': True, 'install_requires': install_reqs or []}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
     yield td
 
 
-def make_sdist(name='my_project', zip_safe=True):
-  with make_installer(name=name, installer_impl=Packager, zip_safe=zip_safe) as packager:
+def make_sdist(name='my_project', zip_safe=True, install_reqs=None):
+  with make_installer(name=name, installer_impl=Packager, zip_safe=zip_safe,
+                      install_reqs=install_reqs) as packager:
     return packager.sdist()
 
 
