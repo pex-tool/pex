@@ -34,8 +34,11 @@ class Variables(object):
       yield variable_name, variable_type, variable_text
 
   def __init__(self, environ=None, rc='~/.pexrc'):
-    self._environ = self._from_rc(rc)
-    self._environ.update(environ.copy() if environ else os.environ)
+    self._environ = environ.copy() if environ else os.environ
+    if not self.PEX_IGNORE_RCFILES:
+      rc_values = self._from_rc(rc).copy()
+      rc_values.update(self._environ)
+      self._environ = rc_values
 
   def copy(self):
     return self._environ.copy()

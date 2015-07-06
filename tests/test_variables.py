@@ -98,3 +98,11 @@ def test_pexrc_precedence():
     pexrc.flush()
     v = Variables(environ={'HELLO': 42}, rc=pexrc.name)
     assert v._get_int('HELLO') == 42
+
+
+def test_rc_ignore():
+  with tempfile.NamedTemporaryFile(mode='w') as pexrc:
+    pexrc.write('HELLO=FORTYTWO')
+    pexrc.flush()
+    v = Variables(environ={'PEX_IGNORE_RC_FILES': True, 'HELLO': 42}, rc=pexrc.name)
+    assert v._get_int('HELLO') == 42
