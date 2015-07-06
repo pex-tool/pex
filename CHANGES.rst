@@ -2,9 +2,9 @@
 CHANGES
 =======
 
-----------
-1.0.1.dev1
-----------
+-----
+1.0.1
+-----
 
 * Allow PEXBuilder to optionally copy files into the PEX environment instead of hard-linking them.
 
