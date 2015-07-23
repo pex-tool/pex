@@ -2,6 +2,14 @@
 CHANGES
 =======
 
+----------
+1.0.2.dev0
+----------
+
+* Bug fix: PEX-INFO values were overridden by environment `Variables` with default values that were
+  not explicitly set in the environment.
+  Fixes `#135 <https://github.com/pantsbuild/pex/issues/135>`_.
+
 -----
 1.0.1
 -----
