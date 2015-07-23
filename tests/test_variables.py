@@ -72,3 +72,20 @@ def test_pex_vars_set():
   assert v._get_int('HELLO') == 42
   v.delete('HELLO')
   assert v._get_int('HELLO') is None
+
+
+def test_pex_vars_defaults_stripped():
+  v = Variables(environ={})
+  stripped = v.strip_defaults()
+
+  # bool
+  assert v.PEX_ALWAYS_CACHE is not None
+  assert stripped.PEX_ALWAYS_CACHE is None
+
+  # string
+  assert v.PEX_PATH is not None
+  assert stripped.PEX_PATH is None
+
+  # int
+  assert v.PEX_VERBOSE is not None
+  assert stripped.PEX_VERBOSE is None

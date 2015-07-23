@@ -32,8 +32,9 @@ class Variables(object):
       variable_type, variable_text = cls.process_pydoc(getattr(value, '__doc__'))
       yield variable_name, variable_type, variable_text
 
-  def __init__(self, environ=None):
+  def __init__(self, environ=None, use_defaults=True):
     self._environ = environ.copy() if environ is not None else os.environ
+    self._use_defaults = use_defaults
 
   def copy(self):
     return self._environ.copy()
@@ -43,6 +44,9 @@ class Variables(object):
 
   def set(self, variable, value):
     self._environ[variable] = str(value)
+
+  def _defaulted(self, default):
+    return default if self._use_defaults else None
 
   def _get_bool(self, variable, default=False):
     value = self._environ.get(variable)
@@ -54,10 +58,10 @@ class Variables(object):
       else:
         die('Invalid value for %s, must be 0/1/false/true, got %r' % (variable, value))
     else:
-      return default
+      return self._defaulted(default)
 
   def _get_string(self, variable, default=None):
-    return self._environ.get(variable, default)
+    return self._environ.get(variable, self._defaulted(default))
 
   def _get_path(self, variable, default=None):
     value = self._get_string(variable, default=default)
@@ -70,7 +74,14 @@ class Variables(object):
     except ValueError:
       die('Invalid value for %s, must be an integer, got %r' % (variable, self._environ[variable]))
     except KeyError:
-      return default
+      return self._defaulted(default)
+
+  def strip_defaults(self):
+    """Returns a copy of these variables but with defaults stripped.
+
+    Any variables not explicitly set in the environment will have a value of `None`.
+    """
+    return Variables(environ=self.copy(), use_defaults=False)
 
   @contextmanager
   def patch(self, **kw):

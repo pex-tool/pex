@@ -88,16 +88,18 @@ class PexInfo(object):
 
   @classmethod
   def from_env(cls, env=ENV):
+    supplied_env = env.strip_defaults()
+    zip_safe = None if supplied_env.PEX_FORCE_LOCAL is None else not supplied_env.PEX_FORCE_LOCAL
     pex_info = {
-      'pex_root': env.PEX_ROOT,
-      'entry_point': env.PEX_MODULE,
-      'script': env.PEX_SCRIPT,
-      'zip_safe': not env.PEX_FORCE_LOCAL,
-      'inherit_path': env.PEX_INHERIT_PATH,
-      'ignore_errors': env.PEX_IGNORE_ERRORS,
-      'always_write_cache': env.PEX_ALWAYS_CACHE,
+      'pex_root': supplied_env.PEX_ROOT,
+      'entry_point': supplied_env.PEX_MODULE,
+      'script': supplied_env.PEX_SCRIPT,
+      'zip_safe': zip_safe,
+      'inherit_path': supplied_env.PEX_INHERIT_PATH,
+      'ignore_errors': supplied_env.PEX_IGNORE_ERRORS,
+      'always_write_cache': supplied_env.PEX_ALWAYS_CACHE,
     }
-    # Filter out empty entries.
+    # Filter out empty entries not explicitly set in the environment.
     return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))
 
   @classmethod
@@ -260,10 +262,10 @@ class PexInfo(object):
     self._distributions.update(other.distributions)
     self._requirements.update(other.requirements)
 
-  def dump(self):
+  def dump(self, **kwargs):
     pex_info_copy = self._pex_info.copy()
     pex_info_copy['requirements'] = list(self._requirements)
-    return json.dumps(pex_info_copy)
+    return json.dumps(pex_info_copy, **kwargs)
 
   def copy(self):
     return PexInfo(info=self._pex_info.copy())
