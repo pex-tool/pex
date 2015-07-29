@@ -238,7 +238,7 @@ def unregister_finders():
 
 def get_script_from_egg(name, dist):
   """Returns location, content of script in distribution or (None, None) if not there."""
-  if name in dist.metadata_listdir('scripts'):
+  if dist.resource_isdir('EGG-INFO/scripts') and name in dist.metadata_listdir('scripts'):
     return (
         os.path.join(dist.egg_info, 'scripts', name),
         dist.get_metadata('scripts/%s' % name).replace('\r\n', '\n').replace('\r', '\n'))
@@ -264,8 +264,13 @@ def get_script_from_whl(name, dist):
 def get_script_from_distribution(name, dist):
   if isinstance(dist._provider, FixedEggMetadata):
     return get_script_from_egg(name, dist)
-  elif isinstance(dist._provider, (WheelMetadata, pkg_resources.PathMetadata)):
+  elif isinstance(dist._provider, (WheelMetadata)):
     return get_script_from_whl(name, dist)
+  elif isinstance(dist._provider, (pkg_resources.PathMetadata)):
+    script_path, script = get_script_from_egg(name, dist)
+    if script_path == None:
+      script_path, script = get_script_from_whl(name, dist)
+    return script_path, script
   return None, None
 
 
