@@ -268,7 +268,7 @@ def get_script_from_distribution(name, dist):
     return get_script_from_whl(name, dist)
   elif isinstance(dist._provider, (pkg_resources.PathMetadata)):
     script_path, script = get_script_from_egg(name, dist)
-    if script_path == None:
+    if script_path is None:
       script_path, script = get_script_from_whl(name, dist)
     return script_path, script
   return None, None
