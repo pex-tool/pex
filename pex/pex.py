@@ -243,11 +243,7 @@ class PEX(object):  # noqa: T000
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = cls.minimum_sys()
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
-
-    try:
-      yield
-    finally:
-      patch_all(old_sys_path, old_sys_path_importer_cache, old_sys_modules)
+    yield
 
   def _wrap_coverage(self, runner, *args):
     if not self._vars.PEX_COVERAGE and self._vars.PEX_COVERAGE_FILENAME is None:

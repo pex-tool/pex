@@ -10,6 +10,14 @@ CHANGES
   not explicitly set in the environment.
   Fixes `#135 <https://github.com/pantsbuild/pex/issues/135>`_.
 
+* Bug fix: Since `69649c1 <https://github.com/pantsbuild/pex/commit/69649c1>`_ we have been unpatching
+  the side-effects of ``sys.modules`` after ``PEX.execute``.  This takes all modules imported during
+  the PEX lifecycle and sets all their attributes to ``None``.  Unfortunately, ``sys.excepthook``,
+  ``atexit`` and ``__del__`` may still try to operate using these tainted modules, causing exceptions
+  on interpreter teardown.  This reverts just the ``sys`` unpatching so that the abovementioned
+  teardown hooks behave more predictably.
+  Fixes `#141 <https://github.com/pantsbuild/pex/issues/141>`_.
+
 -----
 1.0.1
 -----
