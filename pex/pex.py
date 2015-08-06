@@ -321,7 +321,7 @@ class PEX(object):  # noqa: T000
     except SystemExit as se:
       # Print a SystemExit error message, avoiding a traceback in python3.
       # This must happen here, as sys.stderr is about to be torn down
-      if not isinstance(se.code, int):
+      if not isinstance(se.code, int) and se.code is not None:
         print(se.code, file=sys.stderr)
       raise
     finally:
