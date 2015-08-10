@@ -3,8 +3,17 @@ CHANGES
 =======
 
 ----------
-1.0.2.dev0
+1.0.3.dev0
 ----------
+
+* Bug fix: Accommodate OSX `Python` python binaries.  Previously the OSX python distributions shipped
+  with OSX, XCode and available via https://www.python.org/downloads/ could fail to be detected using
+  the `PythonInterpreter` class.
+  Fixes `#144 <https://github.com/pantsbuild/pex/issues/144>`_.
+
+-----
+1.0.2
+-----
 
 * Bug fix: PEX-INFO values were overridden by environment `Variables` with default values that were
   not explicitly set in the environment.
