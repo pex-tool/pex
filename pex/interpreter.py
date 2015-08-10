@@ -178,7 +178,10 @@ class PythonIdentity(object):
 class PythonInterpreter(object):
   REGEXEN = (
     re.compile(r'jython$'),
-    re.compile(r'python$'),
+
+    # NB: OSX ships python binaries named Python so we allow for capital-P.
+    re.compile(r'[Pp]ython$'),
+
     re.compile(r'python[23].[0-9]$'),
     re.compile(r'pypy$'),
     re.compile(r'pypy-1.[0-9]$'),
