@@ -1,23 +1,24 @@
 import os
-import pprint
 from distutils import log
-
-from pex.bin.pex import configure_clp, build_pex
-from pex.common import die
 
 from setuptools import Command
 
+from pex.bin.pex import build_pex, configure_clp
+from pex.common import die
+from pex.variables import ENV
 
-class bdist_pex(Command):
-  description = "create a PEX file from a source distribution"
 
-  user_options = [
+# Suppress checkstyle violations due to setuptools command requirements.
+class bdist_pex(Command):  # noqa
+  description = "create a PEX file from a source distribution"  # noqa
+
+  user_options = [  # noqa
       ('bdist-all', None, 'pexify all defined entry points'),
-      ('bdist-dir', None, 'the directory into which pexes will be written, default: dist.'),
+      ('bdist-dir=', None, 'the directory into which pexes will be written, default: dist.'),
       ('pex-args=', None, 'additional arguments to the pex tool'),
   ]
 
-  boolean_options = [
+  boolean_options = [  # noqa
     'bdist-all',
   ]
 
@@ -41,7 +42,8 @@ class bdist_pex(Command):
     name = self.distribution.get_name()
     version = self.distribution.get_version()
     parser, options_builder = configure_clp()
-    package_dir = os.path.dirname(os.path.realpath(os.path.expanduser(self.distribution.script_name)))
+    package_dir = os.path.dirname(os.path.realpath(os.path.expanduser(
+        self.distribution.script_name)))
 
     if self.bdist_dir is None:
       self.bdist_dir = os.path.join(package_dir, 'dist')
@@ -52,20 +54,32 @@ class bdist_pex(Command):
       die('Must not specify entry_point or script to --pex-args')
 
     reqs = [package_dir] + reqs
-    pex_builder = build_pex(reqs, options, options_builder)
+
+    with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
+      pex_builder = build_pex(reqs, options, options_builder)
+
+    def split_and_strip(entry_point):
+      console_script, entry_point = entry_point.split('=', 2)
+      return console_script.strip(), entry_point.strip()
+
+    try:
+      console_scripts = dict(split_and_strip(script)
+          for script in self.distribution.entry_points.get('console_scripts', []))
+    except ValueError:
+      console_scripts = {}
 
     if self.bdist_all:
-      for entry_point in self.distribution.entry_points['console_scripts']:
-        script_name = entry_point.split('=')[0].strip()
-        target = os.path.join(self.bdist_dir, script_name + '.pex')
+      # Write all entry points into unversioned pex files.
+      for script_name in console_scripts:
+        target = os.path.join(self.bdist_dir, script_name)
         log.info('Writing %s to %s' % (script_name, target))
         self._write(pex_builder, target, script=script_name)
-    else:
+    elif name in console_scripts:
+      # The package has a namesake entry point, so use it.
       target = os.path.join(self.bdist_dir, name + '-' + version + '.pex')
-      if len(self.distribution.entry_points.get('console_scripts', [])) == 1:
-        script_name = self.distribution.entry_points['console_scripts'][0].split('=')[0].strip()
-        log.info('Writing %s to %s' % (script_name, target))
-        self._write(pex_builder, target, script=script_name)
-      else:
-        log.info('Writing environment pex into %s' % target)
-        self._write(pex_builder, target, script=None)
+      log.info('Writing %s to %s' % (name, target))
+      self._write(pex_builder, target, script=name)
+    else:
+      # The package has no namesake entry point, so build an environment pex.
+      log.info('Writing environment pex into %s' % target)
+      self._write(pex_builder, target, script=None)

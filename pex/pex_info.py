@@ -269,4 +269,4 @@ class PexInfo(object):
     return json.dumps(pex_info_copy, **kwargs)
 
   def copy(self):
-    return PexInfo.from_json(self.dump())
+    return self.from_json(self.dump())

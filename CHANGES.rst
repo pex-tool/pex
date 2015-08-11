@@ -6,6 +6,9 @@ CHANGES
 1.1.0.dev0
 ----------
 
+* Adds the ``bdist_pex`` command to setuptools.
+  `#99 <https://github.com/pantsbuild/pex/issues/99>`_.
+
 * Bug fix: We did not normalize package names in ``ResolvableSet``, so it was possible to depend on
   ``sphinx`` and ``Sphinx-1.4a0.tar.gz`` and get two versions build and included into the pex.
   `#147 <https://github.com/pantsbuild/pex/issues/147>`_.
@@ -16,22 +19,22 @@ CHANGES
 1.0.3
 -----
 
-* Bug fix: Accommodate OSX `Python` python binaries.  Previously the OSX python distributions shipped
+* Bug fix: Accommodate OSX ``Python`` python binaries.  Previously the OSX python distributions shipped
   with OSX, XCode and available via https://www.python.org/downloads/ could fail to be detected using
-  the `PythonInterpreter` class.
+  the ``PythonInterpreter`` class.
   Fixes `#144 <https://github.com/pantsbuild/pex/issues/144>`_.
 
 * Bug fix: PEX_SCRIPT failed when the script was from a not-zip-safe egg.
   Original PR `#139 <https://github.com/pantsbuild/pex/pull/139>`_.
 
-* Bug fix: `sys.exit` called without arguments would cause `None` to be printed on stderr since pex 1.0.1.
+* Bug fix: ``sys.exit`` called without arguments would cause `None` to be printed on stderr since pex 1.0.1.
   `#143 <https://github.com/pantsbuild/pex/pull/143>`_.
 
 -----
 1.0.2
 -----
 
-* Bug fix: PEX-INFO values were overridden by environment `Variables` with default values that were
+* Bug fix: PEX-INFO values were overridden by environment ``Variables`` with default values that were
   not explicitly set in the environment.
   Fixes `#135 <https://github.com/pantsbuild/pex/issues/135>`_.
 
