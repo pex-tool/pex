@@ -2,9 +2,9 @@
 CHANGES
 =======
 
-----------
-1.0.3.dev0
-----------
+-----
+1.0.3
+-----
 
 * Bug fix: Accommodate OSX `Python` python binaries.  Previously the OSX python distributions shipped
   with OSX, XCode and available via https://www.python.org/downloads/ could fail to be detected using
