@@ -120,17 +120,19 @@ def test_minimum_sys_modules():
   assert tainted_module.__path__ == ['good_path']
 
 
+@pytest.mark.parametrize('zip_safe', (False, True))
 @pytest.mark.parametrize('project_name', ('my_project', 'my-project'))
 @pytest.mark.parametrize('installer_impl', (EggInstaller, WheelInstaller))
-def test_pex_script(installer_impl, project_name):
-  with make_installer(name=project_name, installer_impl=installer_impl) as installer:
+def test_pex_script(installer_impl, project_name, zip_safe):
+  kw = dict(name=project_name, installer_impl=installer_impl, zip_safe=zip_safe)
+  with make_installer(**kw) as installer:
     bdist = DistributionHelper.distribution_from_path(installer.bdist())
 
     env_copy = os.environ.copy()
     env_copy['PEX_SCRIPT'] = 'hello_world'
     so, rc = run_simple_pex_test('', env=env_copy)
     assert rc == 1, so.decode('utf-8')
-    assert b'Could not find' in so
+    assert b'Could not find script hello_world' in so
 
     so, rc = run_simple_pex_test('', env=env_copy, dists=[bdist])
     assert rc == 0, so.decode('utf-8')

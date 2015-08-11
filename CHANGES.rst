@@ -11,6 +11,12 @@ CHANGES
   the `PythonInterpreter` class.
   Fixes `#144 <https://github.com/pantsbuild/pex/issues/144>`_.
 
+* Bug fix: PEX_SCRIPT failed when the script was from a not-zip-safe egg.
+  Original PR `#139 <https://github.com/pantsbuild/pex/pull/139>`_.
+
+* Bug fix: `sys.exit` called without arguments would cause `None` to be printed on stderr since pex 1.0.1.
+  `#143 <https://github.com/pantsbuild/pex/pull/143>`_.
+
 -----
 1.0.2
 -----

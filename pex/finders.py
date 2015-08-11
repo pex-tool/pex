@@ -262,9 +262,19 @@ def get_script_from_whl(name, dist):
 
 
 def get_script_from_distribution(name, dist):
-  if isinstance(dist._provider, FixedEggMetadata):
+  # PathMetadata: exploded distribution on disk.
+  if isinstance(dist._provider, pkg_resources.PathMetadata):
+    if dist.egg_info.endswith('EGG-INFO'):
+      return get_script_from_egg(name, dist)
+    elif dist.egg_info.endswith('.dist-info'):
+      return get_script_from_whl(name, dist)
+    else:
+      return None, None
+  # FixedEggMetadata: Zipped egg
+  elif isinstance(dist._provider, FixedEggMetadata):
     return get_script_from_egg(name, dist)
-  elif isinstance(dist._provider, (WheelMetadata, pkg_resources.PathMetadata)):
+  # WheelMetadata: Zipped whl (in theory should not experience this at runtime.)
+  elif isinstance(dist._provider, WheelMetadata):
     return get_script_from_whl(name, dist)
   return None, None
 

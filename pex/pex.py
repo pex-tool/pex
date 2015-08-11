@@ -392,7 +392,7 @@ class PEX(object):  # noqa: T000
     try:
       ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
     except SyntaxError:
-      die('Unable to parse %s.  PEX script support only supports Python scripts.')
+      die('Unable to parse %s.  PEX script support only supports Python scripts.' % name)
     old_name, old_file = globals().get('__name__'), globals().get('__file__')
     try:
       old_argv0, sys.argv[0] = sys.argv[0], argv0
