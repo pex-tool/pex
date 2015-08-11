@@ -2,6 +2,14 @@
 CHANGES
 =======
 
+----------
+1.1.0.dev0
+----------
+
+* Bug fix: We did not normalize package names in ``ResolvableSet``, so it was possible to depend on
+  ``sphinx`` and ``Sphinx-1.4a0.tar.gz`` and get two versions build and included into the pex.
+  `#147 <https://github.com/pantsbuild/pex/issues/147>`_.
+
 -----
 1.0.3
 -----
