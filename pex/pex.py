@@ -160,7 +160,7 @@ class PEX(object):  # noqa: T000
         TRACER.log('Tainted path element: %s' % path_element)
         site_distributions.update(all_distribution_paths(path_element))
       else:
-        TRACER.log('Not a tained path element: %s' % path_element, V=2)
+        TRACER.log('Not a tainted path element: %s' % path_element, V=2)
 
     user_site_distributions.update(all_distribution_paths(USER_SITE))
 
