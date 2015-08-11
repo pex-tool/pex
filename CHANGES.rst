@@ -10,6 +10,8 @@ CHANGES
   ``sphinx`` and ``Sphinx-1.4a0.tar.gz`` and get two versions build and included into the pex.
   `#147 <https://github.com/pantsbuild/pex/issues/147>`_.
 
+* Adds a pex-identifying User-Agent. `#101 <https://github.com/pantsbuild/pex/issues/101>`_.
+
 -----
 1.0.3
 -----
