@@ -60,6 +60,14 @@ def test_pex_sys_exit_prints_non_numeric_value_no_traceback():
   _test_sys_exit(sys_exit_arg, expected_output, 1)
 
 
+def test_pex_sys_exit_doesnt_print_none():
+  _test_sys_exit('', to_bytes(''), 0)
+
+
+def test_pex_sys_exit_prints_objects():
+  _test_sys_exit('Exception("derp")', to_bytes('derp\n'), 1)
+
+
 @pytest.mark.skipif('hasattr(sys, "pypy_version_info")')
 def test_pex_atexit_swallowing():
   body = textwrap.dedent("""
