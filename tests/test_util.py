@@ -87,36 +87,39 @@ def test_zipsafe():
         assert DistributionHelper.zipsafe(dist) is zip_safe
 
 
-def test_access_zipped_assets():
-  try:
-    import __builtin__
-    builtin_path = __builtin__.__name__
-  except ImportError:
-    # Python3
-    import builtins
-    builtin_path = builtins.__name__
+try:
+  import __builtin__ as python_builtins
+except ImportError:
+  import builtins as python_builtins
+
+
+@mock.patch('pex.util.safe_mkdtemp', autospec=True, spec_set=True)
+@mock.patch('pex.util.safe_mkdir', autospec=True, spec_set=True)
+@mock.patch('pex.util.resource_listdir', autospec=True, spec_set=True)
+@mock.patch('pex.util.resource_isdir', autospec=True, spec_set=True)
+@mock.patch('pex.util.resource_string', autospec=True, spec_set=True)
+def test_access_zipped_assets(
+    mock_resource_string,
+    mock_resource_isdir,
+    mock_resource_listdir,
+    mock_safe_mkdir,
+    mock_safe_mkdtemp):
 
   mock_open = mock.mock_open()
-  with nested(mock.patch('%s.open' % builtin_path, mock_open, create=True),
-      mock.patch('pex.util.resource_string', autospec=True, spec_set=True),
-      mock.patch('pex.util.resource_isdir', autospec=True, spec_set=True),
-      mock.patch('pex.util.resource_listdir', autospec=True, spec_set=True),
-      mock.patch('pex.util.safe_mkdtemp', autospec=True, spec_set=True)) as (
-          _, mock_resource_string, mock_resource_isdir, mock_resource_listdir, mock_safe_mkdtemp):
+  mock_safe_mkdtemp.side_effect = iter(['tmpJIMMEH', 'faketmpDir'])
+  mock_resource_listdir.side_effect = iter([['./__init__.py', './directory/'], ['file.py']])
+  mock_resource_isdir.side_effect = iter([False, True, False])
+  mock_resource_string.return_value = 'testing'
 
-    mock_safe_mkdtemp.side_effect = iter(['tmpJIMMEH', 'faketmpDir'])
-    mock_resource_listdir.side_effect = iter([['./__init__.py', './directory/'], ['file.py']])
-    mock_resource_isdir.side_effect = iter([False, True, False])
-    mock_resource_string.return_value = 'testing'
-
+  with mock.patch('%s.open' % python_builtins.__name__, mock_open, create=True):
     temp_dir = DistributionHelper.access_zipped_assets('twitter.common', 'dirutil')
-
     assert mock_resource_listdir.call_count == 2
     assert mock_open.call_count == 2
     file_handle = mock_open.return_value.__enter__.return_value
     assert file_handle.write.call_count == 2
     assert mock_safe_mkdtemp.mock_calls == [mock.call()]
     assert temp_dir == 'tmpJIMMEH'
+    assert mock_safe_mkdir.mock_calls == [mock.call(os.path.join('tmpJIMMEH', 'directory'))]
 
 
 def test_access_zipped_assets_integration():
