@@ -190,7 +190,7 @@ class Installer(InstallerBase):
 class DistributionPackager(InstallerBase):
   def mixins(self):
     mixins = super(DistributionPackager, self).mixins().copy()
-    mixins.update(setuptools='setuptools>=1')
+    mixins.update(setuptools=SETUPTOOLS_REQUIREMENT)
     return mixins
 
   def find_distribution(self):
