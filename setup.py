@@ -59,5 +59,8 @@ setup(
     'console_scripts': [
       'pex = pex.bin.pex:main',
     ],
+    'distutils.commands': [
+      'bdist_pex = pex.bdist_pex:bdist_pex',
+    ],
   },
 )

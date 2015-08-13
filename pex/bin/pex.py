@@ -491,11 +491,13 @@ def build_pex(args, options, resolver_option_builder):
   return pex_builder
 
 
-def main():
+def main(args=None):
   parser, resolver_options_builder = configure_clp()
 
-  # split arguments early because optparse is dumb
-  args = sys.argv[1:]
+  if args is None:
+    # split arguments early because optparse is dumb
+    args = sys.argv[1:]
+
   try:
     separator = args.index('--')
     args, cmdline = args[:separator], args[separator + 1:]
