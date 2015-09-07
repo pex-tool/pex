@@ -40,6 +40,10 @@ def test_page_parser_basic():
       assert lpp("<a href='stuff'> <a href=%s>" % target) == (['stuff', href], [])
 
 
+def test_page_parser_amps():
+  assert lpp('<a href="things?one=1&amp;two=2"') == (['things?one=1&two=2'], [])
+
+
 def test_page_parser_rels():
   VALID_RELS = tuple(PageParser.REL_TYPES)
   for rel in VALID_RELS + ('', ' ', 'blah'):

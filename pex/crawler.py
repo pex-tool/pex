@@ -33,7 +33,9 @@ class PageParser(object):
   def href_match_to_url(cls, match):
     def pick(group):
       return '' if group is None else group
-    return pick(match.group(1)) or pick(match.group(2)) or pick(match.group(3))
+    url = pick(match.group(1)) or pick(match.group(2)) or pick(match.group(3))
+    url = url.replace('&amp;', '&') # TODO Replace all html entities, in a way that's portable across python 2 and 3
+    return url
 
   @classmethod
   def rel_links(cls, page):
