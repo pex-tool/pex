@@ -123,4 +123,3 @@ def test_pex_vars_defaults_stripped():
   # int
   assert v.PEX_VERBOSE is not None
   assert stripped.PEX_VERBOSE is None
->>>>>>> upstream/master
