@@ -106,3 +106,21 @@ def test_rc_ignore():
     pexrc.flush()
     v = Variables(environ={'PEX_IGNORE_RC_FILES': True, 'HELLO': 42}, rc=pexrc.name)
     assert v._get_int('HELLO') == 42
+
+
+def test_pex_vars_defaults_stripped():
+  v = Variables(environ={})
+  stripped = v.strip_defaults()
+
+  # bool
+  assert v.PEX_ALWAYS_CACHE is not None
+  assert stripped.PEX_ALWAYS_CACHE is None
+
+  # string
+  assert v.PEX_PATH is not None
+  assert stripped.PEX_PATH is None
+
+  # int
+  assert v.PEX_VERBOSE is not None
+  assert stripped.PEX_VERBOSE is None
+>>>>>>> upstream/master

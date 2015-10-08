@@ -160,7 +160,7 @@ class PEX(object):  # noqa: T000
         TRACER.log('Tainted path element: %s' % path_element)
         site_distributions.update(all_distribution_paths(path_element))
       else:
-        TRACER.log('Not a tained path element: %s' % path_element, V=2)
+        TRACER.log('Not a tainted path element: %s' % path_element, V=2)
 
     user_site_distributions.update(all_distribution_paths(USER_SITE))
 
@@ -243,11 +243,7 @@ class PEX(object):  # noqa: T000
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = cls.minimum_sys()
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
-
-    try:
-      yield
-    finally:
-      patch_all(old_sys_path, old_sys_path_importer_cache, old_sys_modules)
+    yield
 
   def _wrap_coverage(self, runner, *args):
     if not self._vars.PEX_COVERAGE and self._vars.PEX_COVERAGE_FILENAME is None:
@@ -325,7 +321,7 @@ class PEX(object):  # noqa: T000
     except SystemExit as se:
       # Print a SystemExit error message, avoiding a traceback in python3.
       # This must happen here, as sys.stderr is about to be torn down
-      if not isinstance(se.code, int):
+      if not isinstance(se.code, int) and se.code is not None:
         print(se.code, file=sys.stderr)
       raise
     finally:
@@ -396,7 +392,7 @@ class PEX(object):  # noqa: T000
     try:
       ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
     except SyntaxError:
-      die('Unable to parse %s.  PEX script support only supports Python scripts.')
+      die('Unable to parse %s.  PEX script support only supports Python scripts.' % name)
     old_name, old_file = globals().get('__name__'), globals().get('__file__')
     try:
       old_argv0, sys.argv[0] = sys.argv[0], argv0

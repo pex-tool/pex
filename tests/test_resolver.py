@@ -53,18 +53,21 @@ def test_resolvable_set():
   rs = _ResolvableSet()
   rq = ResolvableRequirement.from_string('foo[ext]', builder)
   source_pkg = SourcePackage.from_href('foo-2.3.4.tar.gz')
-  binary_pkg = EggPackage.from_href('foo-2.3.4-py3.4.egg')
+  binary_pkg = EggPackage.from_href('Foo-2.3.4-py3.4.egg')
 
   rs.merge(rq, [source_pkg, binary_pkg])
-  assert rs.get('foo') == set([source_pkg, binary_pkg])
+  assert rs.get(source_pkg.name) == set([source_pkg, binary_pkg])
+  assert rs.get(binary_pkg.name) == set([source_pkg, binary_pkg])
   assert rs.packages() == [(rq, set([source_pkg, binary_pkg]), None)]
 
   # test methods
   assert rs.extras('foo') == set(['ext'])
+  assert rs.extras('Foo') == set(['ext'])
 
   # test filtering
   rs.merge(rq, [source_pkg])
   assert rs.get('foo') == set([source_pkg])
+  assert rs.get('Foo') == set([source_pkg])
 
   with pytest.raises(Unsatisfiable):
     rs.merge(rq, [binary_pkg])
@@ -88,6 +91,3 @@ def test_resolvable_set_built():
   updated_rs.merge(rq, [binary_pkg])
   assert updated_rs.get('foo') == set([binary_pkg])
   assert updated_rs.packages() == [(rq, set([binary_pkg]), None)]
-
-
-# TODO(wickman) Write more than simple resolver test.

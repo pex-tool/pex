@@ -8,6 +8,8 @@ import shutil
 import time
 from collections import namedtuple
 
+from pkg_resources import safe_name
+
 from .common import safe_mkdir
 from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
@@ -56,6 +58,10 @@ class _ResolvedPackages(namedtuple('_ResolvedPackages', 'resolvable packages par
 
 
 class _ResolvableSet(object):
+  @classmethod
+  def normalize(cls, name):
+    return safe_name(name).lower()
+
   def __init__(self, tuples=None):
     # A list of _ResolvedPackages
     self.__tuples = tuples or []
@@ -71,7 +77,7 @@ class _ResolvableSet(object):
     # adversely but could be the source of subtle resolution quirks.
     resolvables = {}
     for resolved_packages in self.__tuples:
-      key = resolved_packages.resolvable.name
+      key = self.normalize(resolved_packages.resolvable.name)
       previous = resolvables.get(key, _ResolvedPackages.empty())
       if previous.resolvable is None:
         resolvables[key] = resolved_packages
@@ -86,7 +92,7 @@ class _ResolvableSet(object):
           '(from: %s)' % resolved_packages.parent if resolved_packages.parent else '')
     return ', '.join(
         render_resolvable(resolved_packages) for resolved_packages in self.__tuples
-        if resolved_packages.resolvable.name == name)
+        if self.normalize(resolved_packages.resolvable.name) == self.normalize(name))
 
   def _check(self):
     # Check whether or not the resolvables in this set are satisfiable, raise an exception if not.
@@ -102,7 +108,8 @@ class _ResolvableSet(object):
 
   def get(self, name):
     """Get the set of compatible packages given a resolvable name."""
-    resolvable, packages, parent = self._collapse().get(name, _ResolvedPackages.empty())
+    resolvable, packages, parent = self._collapse().get(
+        self.normalize(name), _ResolvedPackages.empty())
     return packages
 
   def packages(self):
@@ -111,7 +118,8 @@ class _ResolvableSet(object):
 
   def extras(self, name):
     return set.union(
-        *[set(tup.resolvable.extras()) for tup in self.__tuples if tup.resolvable.name == name])
+        *[set(tup.resolvable.extras()) for tup in self.__tuples
+          if self.normalize(tup.resolvable.name) == self.normalize(name)])
 
   def replace_built(self, built_packages):
     """Return a copy of this resolvable set but with built packages.
