@@ -2,9 +2,16 @@
 CHANGES
 =======
 
-----------
-1.1.0.dev0
-----------
+-----
+1.1.0
+-----
+
+* Add support for ``.pexrc`` files for influencing the pex environment. See the notes `here
+  <https://github.com/pantsbuild/pex/blob/master/docs/buildingpex.rst#tailoring-pex-execution-at-build-time>`_.
+  `#128 <https://github.com/pantsbuild/pex/pull/128>`_.
+
+* Bug fix: PEX_PROFILE_FILENAME and PEX_PROFILE_SORT were not respected.
+  `#154 <https://github.com/pantsbuild/pex/issues/154>`_.
 
 * Adds the ``bdist_pex`` command to setuptools.
   `#99 <https://github.com/pantsbuild/pex/issues/99>`_.
