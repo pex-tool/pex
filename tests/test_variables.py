@@ -1,6 +1,8 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import tempfile
+
 import pytest
 
 from pex.variables import Variables
@@ -72,6 +74,38 @@ def test_pex_vars_set():
   assert v._get_int('HELLO') == 42
   v.delete('HELLO')
   assert v._get_int('HELLO') is None
+
+
+def test_pex_get_kv():
+  v = Variables(environ={})
+  assert v._get_kv('HELLO') is None
+  assert v._get_kv('=42') is None
+  assert v._get_kv('TOO=MANY=COOKS') is None
+  assert v._get_kv('THIS=WORKS') == ['THIS', 'WORKS']
+
+
+def test_pex_from_rc():
+  with tempfile.NamedTemporaryFile(mode='w') as pexrc:
+    pexrc.write('HELLO=42')
+    pexrc.flush()
+    v = Variables(rc=pexrc.name)
+    assert v._get_int('HELLO') == 42
+
+
+def test_pexrc_precedence():
+  with tempfile.NamedTemporaryFile(mode='w') as pexrc:
+    pexrc.write('HELLO=FORTYTWO')
+    pexrc.flush()
+    v = Variables(environ={'HELLO': 42}, rc=pexrc.name)
+    assert v._get_int('HELLO') == 42
+
+
+def test_rc_ignore():
+  with tempfile.NamedTemporaryFile(mode='w') as pexrc:
+    pexrc.write('HELLO=FORTYTWO')
+    pexrc.flush()
+    v = Variables(environ={'PEX_IGNORE_RC_FILES': True, 'HELLO': 42}, rc=pexrc.name)
+    assert v._get_int('HELLO') == 42
 
 
 def test_pex_vars_defaults_stripped():

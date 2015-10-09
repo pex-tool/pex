@@ -5,6 +5,7 @@
 # checkstyle: noqa
 
 import os
+import sys
 from contextlib import contextmanager
 
 from .common import die
@@ -32,9 +33,13 @@ class Variables(object):
       variable_type, variable_text = cls.process_pydoc(getattr(value, '__doc__'))
       yield variable_name, variable_type, variable_text
 
-  def __init__(self, environ=None, use_defaults=True):
-    self._environ = environ.copy() if environ is not None else os.environ
+  def __init__(self, environ=None, rc='~/.pexrc', use_defaults=True):
     self._use_defaults = use_defaults
+    self._environ = environ.copy() if environ else os.environ
+    if not self.PEX_IGNORE_RCFILES:
+      rc_values = self._from_rc(rc).copy()
+      rc_values.update(self._environ)
+      self._environ = rc_values
 
   def copy(self):
     return self._environ.copy()
@@ -44,6 +49,22 @@ class Variables(object):
 
   def set(self, variable, value):
     self._environ[variable] = str(value)
+
+  def _from_rc(self, rc):
+    ret_vars = {}
+    for filename in [rc, os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]:
+      try:
+        with open(os.path.expanduser(filename)) as fh:
+          rc_items = map(self._get_kv, fh)
+          ret_vars.update(dict(filter(None, rc_items)))
+      except IOError:
+        continue
+    return ret_vars
+
+  def _get_kv(self, variable):
+    kv = variable.strip().split('=')
+    if len(list(filter(None, kv))) == 2:
+      return kv
 
   def _defaulted(self, default):
     return default if self._use_defaults else None
@@ -270,6 +291,14 @@ class Variables(object):
     Default: 5.
     """
     return self._get_int('PEX_HTTP_RETRIES', default=5)
+
+  @property
+  def PEX_IGNORE_RCFILES(self):
+    """Boolean
+
+    Explicitly disable the reading/parsing of pexrc files (~/.pexrc). Default: false.
+    """
+    return self._get_bool('PEX_IGNORE_RCFILES', default=False)
 
 
 # Global singleton environment

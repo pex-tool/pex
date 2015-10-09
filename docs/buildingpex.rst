@@ -322,7 +322,8 @@ Tailoring PEX execution at build time
 
 There are a few options that can tailor how PEX environments are invoked.  These can be found
 by running ``pex --help``.  Every flag mentioned here has a corresponding environment variable
-that can be used to override the runtime behavior.
+that can be used to override the runtime behavior which can be set directly in your environment,
+or sourced from a ``.pexrc`` file (checking for ``~/.pexrc`` first, then for a relative ``.pexrc``).
 
 
 ``--zip-safe``/``--not-zip-safe``
