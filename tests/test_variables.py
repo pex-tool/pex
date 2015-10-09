@@ -104,8 +104,8 @@ def test_rc_ignore():
   with tempfile.NamedTemporaryFile(mode='w') as pexrc:
     pexrc.write('HELLO=FORTYTWO')
     pexrc.flush()
-    v = Variables(environ={'PEX_IGNORE_RC_FILES': True, 'HELLO': 42}, rc=pexrc.name)
-    assert v._get_int('HELLO') == 42
+    v = Variables(environ={'PEX_IGNORE_RCFILES': 'True'}, rc=pexrc.name)
+    assert 'HELLO' not in v._environ
 
 
 def test_pex_vars_defaults_stripped():
