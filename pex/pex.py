@@ -282,6 +282,8 @@ class PEX(object):  # noqa: T000
       runner(*args)
       return
 
+    pex_profile_filename = self._vars.PEX_PROFILE_FILENAME
+    pex_profile_sort = self._vars.PEX_PROFILE_SORT
     try:
       import cProfile as profile
     except ImportError:
@@ -292,10 +294,10 @@ class PEX(object):  # noqa: T000
     try:
       return profiler.runcall(runner, *args)
     finally:
-      if self._vars.PEX_PROFILE_FILENAME is not None:
-        profiler.dump_stats(self._vars.PEX_PROFILE_FILENAME)
+      if pex_profile_filename is not None:
+        profiler.dump_stats(pex_profile_filename)
       else:
-        profiler.print_stats(sort=self._vars.PEX_PROFILE_SORT)
+        profiler.print_stats(sort=pex_profile_sort)
 
   def execute(self):
     """Execute the PEX.
