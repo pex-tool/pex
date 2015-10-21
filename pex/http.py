@@ -113,12 +113,19 @@ class Context(AbstractClass):
     os.rename(target_tmp, target)
     return target
 
+  def set_ssl(self, client_cert=None, ca_bundle=None):
+    """"Set any SSL options that should be used in processing requests
+
+    :keyword client_cert: The location of the client certificate to use
+    :keyword ca_bundle: The location of any alternate bundle to use
+    """
+    raise self.Error("This specific context does not support SSL")
 
 class UrllibContext(Context):
   """Default Python standard library Context."""
 
   def open(self, link):
-    return urllib_request.urlopen(link.url)
+    return urllib_request.urlopen(link.url, **self._ssl_options)
 
   def content(self, link):
     if link.local:
@@ -200,7 +207,7 @@ class RequestsContext(Context):
     if requests is None:
       raise RuntimeError('requests is not available.  Cannot use a RequestsContext.')
 
-    self._verify = verify
+    self._ssl_options = {'verify': verify}
 
     max_retries = env.PEX_HTTP_RETRIES
     if max_retries < 0:
@@ -216,7 +223,7 @@ class RequestsContext(Context):
     for attempt in range(self._max_retries + 1):
       try:
         return StreamFilelike(self._session.get(
-            link.url, verify=self._verify, stream=True, headers={'User-Agent': self.USER_AGENT}),
+            link.url, stream=True, headers={'User-Agent': self.USER_AGENT}, **self._ssl_options),
             link)
       except requests.exceptions.ReadTimeout:
         # Connect timeouts are handled by the HTTPAdapter, unfortunately read timeouts are not
@@ -239,6 +246,13 @@ class RequestsContext(Context):
 
     with contextlib.closing(self.open(link)) as request:
       return request.read().decode(request.encoding or self.DEFAULT_ENCODING, 'replace')
+
+  def set_ssl(self, client_cert=None, ca_bundle=None):
+    if client_cert:
+      self._ssl_options['cert'] = client_cert
+
+    if ca_bundle:
+      self._ssl_options['verify'] = ca_bundle
 
 
 if requests:

@@ -114,6 +114,9 @@ class ResolverOptionsBuilder(object):
         [precedent for precedent in self._precedence if precedent is not SourcePackage])
     return self
 
+  def ssl_options(self, client_cert=None, ca_bundle=None):
+    self._context.set_ssl(client_cert=client_cert, ca_bundle=ca_bundle)
+
   def build(self, key):
     return ResolverOptions(
         fetchers=self._fetchers,

@@ -17,7 +17,7 @@ except ImportError:
 def test_empty_iteration():
   crawler_mock = mock.create_autospec(Crawler, spec_set=True)
   crawler_mock.crawl.return_value = []
-  iterator = Iterator(crawler=crawler_mock)
+  iterator = Iterator(crawler_mock)
 
   assert list(iterator.iter(Requirement.parse('foo'))) == []
   assert len(crawler_mock.crawl.mock_calls) == 1
@@ -30,7 +30,7 @@ def test_iteration_with_return():
   pex_url = 'https://pypi.python.org/packages/source/p/pex/pex-0.8.6.tar.gz'
   crawler_mock = mock.create_autospec(Crawler, spec_set=True)
   crawler_mock.crawl.return_value = [pex_url]
-  iterator = Iterator(crawler=crawler_mock, follow_links=True)
+  iterator = Iterator(crawler_mock, follow_links=True)
 
   assert list(iterator.iter(Requirement.parse('pex'))) == [SourcePackage(pex_url)]
   assert len(crawler_mock.crawl.mock_calls) == 1

@@ -186,6 +186,23 @@ def configure_clp_pex_resolution(parser, builder):
       callback_args=(builder,),
       help='Whether to allow building of distributions from source; Default: allow builds')
 
+  group.add_option(
+      '--cert',
+      metavar='PATH',
+      default=None,
+      dest='ca_bundle',
+      type=str,
+      help='Path to alternate CA bundle.')
+
+  group.add_option(
+      '--client-cert',
+      metavar='PATH',
+      default=None,
+      dest='client_cert',
+      type=str,
+      help='Path to SSL client certificate, a single file containing the private key and the certificate '
+           'in PEM format.')
+
   # Set the pex tool to fetch from PyPI by default if nothing is specified.
   parser.set_default('repos', [PyPIFetcher()])
   parser.add_option_group(group)
@@ -363,7 +380,7 @@ def _resolve_and_link_interpreter(requirement, fetchers, target_link, installer_
       return egg
 
   context = Context.get()
-  iterator = Iterator(fetchers=fetchers, crawler=Crawler(context))
+  iterator = Iterator(Crawler(context), fetchers=fetchers)
   links = [link for link in iterator.iter(requirement) if isinstance(link, SourcePackage)]
 
   with TRACER.timed('Interpreter cache resolving %s' % requirement, V=2):
@@ -503,6 +520,7 @@ def main():
     args, cmdline = args, []
 
   options, reqs = parser.parse_args(args=args)
+  resolver_options_builder.ssl_options(client_cert=options.client_cert, ca_bundle=options.ca_bundle)
 
   with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
     with TRACER.timed('Building pex'):
