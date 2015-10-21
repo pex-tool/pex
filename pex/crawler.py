@@ -20,6 +20,22 @@ else:
   from Queue import Empty, Queue
   from urlparse import urlparse
 
+try:
+  from html import unescape as unescape_html
+except ImportError:
+  # >= 3 python < 3.3
+  try:
+    from html.parser import HTMLParser
+  except ImportError:
+    from HTMLParser import HTMLParser
+
+    try:
+      unescape_html = lambda x: HTMLParser.unescape.__func__(HTMLParser, x)
+    except AttributeError:
+      # Python 3.3 It has html.escape, but not html.unescape
+      unescape_html = lambda x: HTMLParser.unescape(HTMLParser, x)
+
+
 
 class PageParser(object):
   """A helper class to extract and differentiate ordinary and download links from webpages."""
@@ -48,13 +64,14 @@ class PageParser(object):
         parsed_href = urlparse(href)
         if any(parsed_href.path.endswith(ext) for ext in cls.REL_SKIP_EXTENSIONS):
           continue
-        yield href
+        yield unescape_html(href)
 
   @classmethod
   def links(cls, page):
     """return all links on a page, including potentially rel= links."""
     for match in cls.HREF_RE.finditer(page):
-      yield cls.href_match_to_url(match)
+      href = cls.href_match_to_url(match)
+      yield unescape_html(href)
 
 
 def partition(L, pred):
