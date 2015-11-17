@@ -102,6 +102,12 @@ class PEX(object):  # noqa: T000
       site_libs = set(getsitepackages())
     except ImportError:
       site_libs = set()
+    homebrew_prefix = '/usr/local'
+    homebrew_path = '%s/lib/python%d.%d/site-packages' % \
+                    (homebrew_prefix, sys.version_info[0], sys.version_info[1])
+    if os.path.realpath(sys.executable).startswith('%s/Cellar/python' % homebrew_prefix) \
+        and homebrew_path in sys.path:
+      site_libs.update([homebrew_path])
     site_libs.update([sysconfig.get_python_lib(plat_specific=False),
                       sysconfig.get_python_lib(plat_specific=True)])
     real_site_libs = set(os.path.realpath(path) for path in site_libs)
