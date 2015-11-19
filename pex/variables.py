@@ -52,7 +52,7 @@ class Variables(object):
 
   def _from_rc(self, rc):
     ret_vars = {}
-    for filename in [rc, os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]:
+    for filename in ['/etc/pexrc', rc, os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]:
       try:
         with open(os.path.expanduser(filename)) as fh:
           rc_items = map(self._get_kv, fh)
