@@ -82,8 +82,7 @@ def maybe_reexec_pex():
   target = find_in_path(target_python)
   if not target:
     die('Failed to find interpreter specified by PEX_PYTHON: %s' % target)
-  current = os.path.realpath(sys.executable)
-  if os.path.exists(target) and target != current:
+  if os.path.exists(target) and os.path.realpath(target) != os.path.realpath(sys.executable):
     TRACER.log('Detected PEX_PYTHON, re-exec to %s' % target)
     ENV.delete('PEX_PYTHON')
     os.execve(target, [target_python] + sys.argv, ENV.copy())
