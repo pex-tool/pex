@@ -167,7 +167,8 @@ class Resolver(object):
     if dist is None:
       raise Untranslateable('Package %s is not translateable by %s' % (package, translator))
     if not distribution_compatible(dist, self._interpreter, self._platform):
-      raise Untranslateable('Could not get distribution for %s on appropriate platform.' % package)
+      raise Untranslateable(
+        'Could not get distribution for %s on platform %s.' % (package, self._platform))
     return dist
 
   def resolve(self, resolvables, resolvable_set=None):
