@@ -3,6 +3,19 @@ CHANGES
 =======
 
 -----
+1.1.1
+-----
+
+* Fix infinite recursion when ``PEX_PYTHON`` points at a symlink.
+  `#182 <https://github.com/pantsbuild/pex/pull/182>`_
+
+* Add ``/etc/pexrc`` to the list of pexrc locations to check.
+  `#183 <https://github.com/pantsbuild/pex/pull/183>`_
+
+* Improve error messaging for platform constrained Untranslateable errors.
+  `#179 <https://github.com/pantsbuild/pex/pull/179>`_
+
+-----
 1.1.0
 -----
 
