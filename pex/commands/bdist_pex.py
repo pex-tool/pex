@@ -55,7 +55,7 @@ class bdist_pex(Command):  # noqa
 
     reqs = [package_dir] + reqs
 
-    with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
+    with ENV.patch(PEX_VERBOSE=str(options.verbosity), PEX_ROOT=options.pex_root):
       pex_builder = build_pex(reqs, options, options_builder)
 
     def split_and_strip(entry_point):
