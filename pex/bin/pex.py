@@ -159,9 +159,9 @@ def configure_clp_pex_resolution(parser, builder):
   group.add_option(
       '--cache-dir',
       dest='cache_dir',
-      default=os.path.expanduser('~/.pex/build'),
+      default='{pex_root}/build',
       help='The local cache directory to use for speeding up requirement '
-           'lookups. [Default: %default]')
+           'lookups. [Default: ~/.pex/build]')
 
   group.add_option(
       '--cache-ttl',
@@ -266,9 +266,9 @@ def configure_clp_pex_environment(parser):
   group.add_option(
       '--interpreter-cache-dir',
       dest='interpreter_cache_dir',
-      default=os.path.expanduser('~/.pex/interpreters'),
+      default='{pex_root}/interpreters',
       help='The interpreter cache to use for keeping track of interpreter dependencies '
-           'for the pex tool. [Default: %default]')
+           'for the pex tool. [Default: ~/.pex/interpreters]')
 
   parser.add_option_group(group)
 
@@ -336,6 +336,13 @@ def configure_clp():
       action='callback',
       callback=increment_verbosity,
       help='Turn on logging verbosity, may be specified multiple times.')
+
+  parser.add_option(
+      '--pex-root',
+      dest='pex_root',
+      default=None,
+      help='Specify the pex root used in this invocation of pex. [Default: ~/.pex]'
+  )
 
   parser.add_option(
       '--help-variables',
@@ -491,6 +498,11 @@ def build_pex(args, options, resolver_option_builder):
   return pex_builder
 
 
+def make_relative_to_root(path):
+  """Update options so that defaults are user relative to specified pex_root."""
+  return os.path.normpath(path.format(pex_root=ENV.PEX_ROOT))
+
+
 def main():
   parser, resolver_options_builder = configure_clp()
 
@@ -503,6 +515,13 @@ def main():
     args, cmdline = args, []
 
   options, reqs = parser.parse_args(args=args)
+  if options.pex_root:
+    ENV.set('PEX_ROOT', options.pex_root)
+  else:
+    options.pex_root = ENV.PEX_ROOT  # If option not specified fallback to env variable.
+
+  options.cache_dir = make_relative_to_root(options.cache_dir)
+  options.interpreter_cache_dir = make_relative_to_root(options.interpreter_cache_dir)
 
   with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
     with TRACER.timed('Building pex'):

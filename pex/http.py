@@ -248,7 +248,7 @@ if requests:
 class CachedRequestsContext(RequestsContext):
   """A requests-based Context with CacheControl support."""
 
-  DEFAULT_CACHE = '~/.pex/cache'
+  DEFAULT_CACHE = os.path.join(ENV.PEX_ROOT, 'cache')
 
   def __init__(self, cache=None, **kw):
     self._cache = os.path.realpath(os.path.expanduser(cache or self.DEFAULT_CACHE))
