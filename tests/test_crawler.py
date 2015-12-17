@@ -6,7 +6,13 @@ import os
 from twitter.common.contextutil import temporary_dir
 
 from pex.crawler import Crawler, PageParser
+from pex.http import Context
 from pex.link import Link
+
+try:
+  from unittest import mock
+except ImportError:
+  import mock
 
 
 def lpp(page):
@@ -100,6 +106,56 @@ def test_crawler_unknown_scheme():
   Crawler().crawl('ftp://ftp.cdrom.com') == (set(), set())
 
 
-# TODO(wickman)
-#   test remote http crawling via mock
-#   test page decoding via mock
+MOCK_INDEX_TMPL = '''
+<h1>Index of /home/third_party/python</h1>
+<table>
+<tr>
+  <td valign="top"><img src="/icons/back.gif" alt="[DIR]"></td>
+  <td>&nbsp;</td>
+  <td align="right">  - </td>
+  <td>&nbsp;</td>
+</tr>
+%s
+</table>
+'''
+
+MOCK_INDEX_A = MOCK_INDEX_TMPL % '''
+<tr>
+  <td valign="top"><img src="/icons/compressed.gif" alt="[   ]"></td>
+  <td><a href="3to2-1.0.tar.gz">3to2-1.0.tar.gz</a></td>
+  <td align="right">16-Apr-2015 23:18  </td>
+  <td align="right"> 45K</td>
+  <td>GZIP compressed docume></td>
+</tr>
+'''
+
+MOCK_INDEX_B = MOCK_INDEX_TMPL % '''
+<tr>
+  <td valign="top"><img src="/icons/compressed.gif" alt="[   ]"></td>
+  <td>
+    <a href="APScheduler-2.1.0.tar.gz">APScheduler-2.1.0.tar.gz</a>
+  </td>
+  <td align="right">16-Apr-2015 23:18  </td>
+  <td align="right"> 41K</td>
+  <td>GZIP compressed docume></td>
+</tr>
+'''
+
+
+def test_crawler_remote():
+  Crawler.reset_cache()
+
+  mock_context = mock.create_autospec(Context, spec_set=True)
+  mock_context.content.side_effect = [MOCK_INDEX_A, MOCK_INDEX_B, Exception('shouldnt get here')]
+  expected_output = set([Link('http://url1.test.com/3to2-1.0.tar.gz'),
+                         Link('http://url2.test.com/APScheduler-2.1.0.tar.gz')])
+
+  c = Crawler(mock_context)
+  test_links = [Link('http://url1.test.com'), Link('http://url2.test.com')]
+  assert c.crawl(test_links) == expected_output
+
+  # Test memoization of Crawler.crawl().
+  assert c.crawl(test_links) == expected_output
+
+
+# TODO(wickman): test page decoding via mock
