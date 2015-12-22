@@ -22,6 +22,15 @@ else:
   from urlparse import urlparse
 
 
+def unescape(s):
+  """Unescapes html. Taken from https://wiki.python.org/moin/EscapingHtml"""
+  s = s.replace("&lt;", "<")
+  s = s.replace("&gt;", ">")
+  # this has to be last:
+  s = s.replace("&amp;", "&")
+  return s
+
+
 class PageParser(object):
   """A helper class to extract and differentiate ordinary and download links from webpages."""
 
@@ -34,7 +43,7 @@ class PageParser(object):
   def href_match_to_url(cls, match):
     def pick(group):
       return '' if group is None else group
-    return pick(match.group(1)) or pick(match.group(2)) or pick(match.group(3))
+    return unescape(pick(match.group(1)) or pick(match.group(2)) or pick(match.group(3)))
 
   @classmethod
   def rel_links(cls, page):
