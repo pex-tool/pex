@@ -95,7 +95,7 @@ class PythonIdentity(object):
   @classmethod
   def from_path(cls, dirname):
     interp, version = dirname.split('-')
-    major, minor, patch = version.split('.')
+    major, minor, patch = version.split('.')[:3]
     return cls(str(interp), int(major), int(minor), int(patch))
 
   def __init__(self, interpreter, major, minor, patch):

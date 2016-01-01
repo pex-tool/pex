@@ -7,6 +7,7 @@ import os
 import re
 import threading
 import traceback
+import xml.sax.saxutils
 
 from .compatibility import PY3
 from .http import Context
@@ -34,7 +35,8 @@ class PageParser(object):
   def href_match_to_url(cls, match):
     def pick(group):
       return '' if group is None else group
-    return pick(match.group(1)) or pick(match.group(2)) or pick(match.group(3))
+    return xml.sax.saxutils.unescape(
+      pick(match.group(1)) or pick(match.group(2)) or pick(match.group(3)))
 
   @classmethod
   def rel_links(cls, page):
