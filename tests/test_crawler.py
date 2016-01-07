@@ -46,6 +46,12 @@ def test_page_parser_basic():
       assert lpp("<a href='stuff'> <a href=%s>" % target) == (['stuff', href], [])
 
 
+def test_page_parser_escaped_html():
+  url = 'url?param1=val&param2=val2'
+  link = 'a href="%s"' % url.replace('&', '&amp;')
+  assert lpp(link) == ([url], [])
+
+
 def test_page_parser_rels():
   VALID_RELS = tuple(PageParser.REL_TYPES)
   for rel in VALID_RELS + ('', ' ', 'blah'):
