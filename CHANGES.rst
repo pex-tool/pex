@@ -3,6 +3,19 @@ CHANGES
 =======
 
 -----
+1.1.2
+-----
+
+* Bump setuptools & wheel version pinning.
+  `#194 <https://github.com/pantsbuild/pex/pull/194>`_
+
+* Unescape html in PageParser.href_match_to_url.
+  `#191 <https://github.com/pantsbuild/pex/pull/191>`_
+
+* Memoize calls to Crawler.crawl() for performance win in find-links based resolution.
+  `#187 <https://github.com/pantsbuild/pex/pull/187>`_
+
+-----
 1.1.1
 -----
 
