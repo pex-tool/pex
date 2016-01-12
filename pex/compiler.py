@@ -4,9 +4,9 @@
 from __future__ import absolute_import
 
 import subprocess
-import tempfile
 
 from .compatibility import to_bytes
+from .util import named_temporary_file
 
 
 _COMPILER_MAIN = """
@@ -78,7 +78,7 @@ class Compiler(object):
     :returns: A list of relative paths of the compiled bytecode files.
     :raises: A :class:`Compiler.Error` if there was a problem bytecode compiling any of the files.
     """
-    with tempfile.NamedTemporaryFile() as fp:
+    with named_temporary_file() as fp:
       fp.write(to_bytes(_COMPILER_MAIN % {'root': root, 'relpaths': relpaths}, encoding='utf-8'))
       fp.flush()
       process = subprocess.Popen([self._interpreter.binary, fp.name],
