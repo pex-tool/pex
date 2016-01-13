@@ -9,7 +9,7 @@ from types import ModuleType
 import pytest
 from twitter.common.contextutil import temporary_dir
 
-from pex.compatibility import nested, to_bytes
+from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
 from pex.testing import make_installer, run_simple_pex_test
@@ -137,6 +137,7 @@ def test_site_libs():
     assert site_packages in site_libs
 
 
+@pytest.mark.skipif(WINDOWS, reason='No symlinks on windows')
 def test_site_libs_symlink():
   with nested(mock.patch.object(PEX, '_get_site_packages'), temporary_dir()) as (
           mock_site_packages, tempdir):

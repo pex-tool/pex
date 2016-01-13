@@ -4,9 +4,12 @@
 import os
 import sys
 
-from twitter.common.contextutil import environment_as, temporary_dir, temporary_file
+import pytest
+from twitter.common.contextutil import environment_as, temporary_dir
 
+from pex.compatibility import WINDOWS
 from pex.testing import run_simple_pex_test
+from pex.util import named_temporary_file
 
 
 def test_pex_execute():
@@ -21,7 +24,7 @@ def test_pex_raise():
 
 
 def test_pex_interpreter():
-  with temporary_file() as fp:
+  with named_temporary_file() as fp:
     fp.write(b"print('Hello world')")
     fp.flush()
 
@@ -33,6 +36,7 @@ def test_pex_interpreter():
     assert rc == 0
 
 
+@pytest.mark.skipif(WINDOWS, reason='No symlinks on windows')
 def test_pex_python_symlink():
   with temporary_dir() as td:
     with environment_as(HOME=td):

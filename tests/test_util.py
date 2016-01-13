@@ -4,18 +4,17 @@
 import contextlib
 import functools
 import os
-import subprocess
 import zipfile
 from hashlib import sha1
 from textwrap import dedent
 
-from twitter.common.contextutil import temporary_dir, temporary_file
+from twitter.common.contextutil import temporary_dir
 
 from pex.common import safe_mkdir
 from pex.compatibility import nested
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex_builder import PEXBuilder
-from pex.testing import make_bdist, temporary_content, write_zipfile
+from pex.testing import make_bdist, run_simple_pex, temporary_content, write_zipfile
 from pex.util import CacheHelper, DistributionHelper, named_temporary_file
 
 try:
@@ -27,17 +26,17 @@ except ImportError:
 def test_hash():
   empty_hash = sha1().hexdigest()
 
-  with temporary_file() as fp:
+  with named_temporary_file() as fp:
     fp.flush()
     assert empty_hash == CacheHelper.hash(fp.name)
 
-  with temporary_file() as fp:
+  with named_temporary_file() as fp:
     string = b'asdf' * 1024 * sha1().block_size + b'extra padding'
     fp.write(string)
     fp.flush()
     assert sha1(string).hexdigest() == CacheHelper.hash(fp.name)
 
-  with temporary_file() as fp:
+  with named_temporary_file() as fp:
     empty_hash = sha1()
     fp.write(b'asdf')
     fp.flush()
@@ -59,7 +58,7 @@ def test_hash_consistency():
   for reverse in (False, True):
     with temporary_content(CONTENT) as td:
       dir_hash = CacheHelper.dir_hash(td)
-      with temporary_file() as tf:
+      with named_temporary_file() as tf:
         write_zipfile(td, tf.name, reverse=reverse)
         with contextlib.closing(zipfile.ZipFile(tf.name, 'r')) as zf:
           zip_hash = CacheHelper.zip_hash(zf)
@@ -147,18 +146,13 @@ def test_access_zipped_assets_integration():
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
 
-    po = subprocess.Popen(
-        [pex],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
-    po.wait()
-    output = po.stdout.read()
+    output, returncode = run_simple_pex(pex)
     try:
       output = output.decode('UTF-8')
     except ValueError:
       pass
     assert output == 'accessed\n'
-    assert po.returncode == 0
+    assert returncode == 0
 
 
 def test_named_temporary_file():

@@ -5,6 +5,7 @@ import contextlib
 import os
 import random
 import subprocess
+import sys
 import tempfile
 import zipfile
 from textwrap import dedent
@@ -13,7 +14,7 @@ from .common import safe_mkdir, safe_rmtree
 from .compatibility import nested
 from .installer import EggInstaller, Packager
 from .pex_builder import PEXBuilder
-from .util import DistributionHelper
+from .util import DistributionHelper, named_temporary_file
 
 
 @contextlib.contextmanager
@@ -23,6 +24,19 @@ def temporary_dir():
     yield td
   finally:
     safe_rmtree(td)
+
+
+@contextlib.contextmanager
+def temporary_filename():
+  """Creates a temporary filename.
+
+  This is useful when you need to pass a filename to an API. Windows requires all
+  handles to a file be closed before deleting/renaming it, so this makes it a bit
+  simpler."""
+  with named_temporary_file() as fp:
+    fp.write(b'')
+    fp.close()
+    yield fp.name
 
 
 def random_bytes(length):
@@ -162,12 +176,12 @@ def write_simple_pex(td, exe_contents, dists=None, coverage=False):
 # TODO(wickman) Why not PEX.run?
 def run_simple_pex(pex, args=(), env=None):
   po = subprocess.Popen(
-      [pex] + list(args),
+      [sys.executable, pex] + list(args),
       stdout=subprocess.PIPE,
       stderr=subprocess.STDOUT,
       env=env)
   po.wait()
-  return po.stdout.read(), po.returncode
+  return po.stdout.read().replace(b'\r', b''), po.returncode
 
 
 def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False):

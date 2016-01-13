@@ -6,11 +6,11 @@ from contextlib import contextmanager
 from io import BytesIO
 
 import pytest
-from twitter.common.contextutil import temporary_file
 
 from pex.compatibility import PY2
 from pex.http import Context, RequestsContext, StreamFilelike, UrllibContext
 from pex.link import Link
+from pex.util import named_temporary_file
 from pex.variables import Variables
 
 try:
@@ -107,7 +107,7 @@ def test_requests_context():
       assert fp.read() == BLOB
 
   # test local reading
-  with temporary_file() as tf:
+  with named_temporary_file() as tf:
     tf.write(b'goop')
     tf.flush()
     assert context.read(Link.wrap(tf.name)) == b'goop'
@@ -225,7 +225,7 @@ def test_requests_context_retries_read_timeout_retries_exhausted():
 def test_urllib_context_utf8_encoding():
   BYTES = b'this is a decoded utf8 string'
 
-  with temporary_file() as tf:
+  with named_temporary_file() as tf:
     tf.write(BYTES)
     tf.flush()
     local_link = Link.wrap(tf.name)
