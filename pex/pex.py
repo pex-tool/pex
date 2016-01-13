@@ -96,12 +96,16 @@ class PEX(object):  # noqa: T000
       yield os.path.join(standard_lib, path)
 
   @classmethod
-  def _site_libs(cls):
+  def _get_site_packages(cls):
     try:
       from site import getsitepackages
-      site_libs = set(getsitepackages())
+      return set(getsitepackages())
     except ImportError:
-      site_libs = set()
+      return set()
+
+  @classmethod
+  def site_libs(cls):
+    site_libs = cls._get_site_packages()
     site_libs.update([sysconfig.get_python_lib(plat_specific=False),
                       sysconfig.get_python_lib(plat_specific=True)])
     # On windows getsitepackages() returns the python stdlib too.
@@ -193,7 +197,7 @@ class PEX(object):  # noqa: T000
     :returns: (sys.path, sys.path_importer_cache, sys.modules) tuple of a
       bare python installation.
     """
-    site_libs = set(cls._site_libs())
+    site_libs = set(cls.site_libs())
     for site_lib in site_libs:
       TRACER.log('Found site-library: %s' % site_lib)
     for extras_path in cls._extras_paths():

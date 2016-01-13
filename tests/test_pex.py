@@ -2,16 +2,23 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import sys
 import textwrap
 from types import ModuleType
 
 import pytest
+from twitter.common.contextutil import temporary_dir
 
-from pex.compatibility import to_bytes
+from pex.compatibility import nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
 from pex.testing import make_installer, run_simple_pex_test
 from pex.util import DistributionHelper
+
+try:
+  from unittest import mock
+except ImportError:
+  import mock
 
 
 @pytest.mark.skipif('sys.version_info > (3,)')
@@ -118,6 +125,43 @@ def test_minimum_sys_modules():
   new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
   assert new_modules == modules
   assert tainted_module.__path__ == ['good_path']
+
+
+def test_site_libs():
+  with nested(mock.patch.object(PEX, '_get_site_packages'), temporary_dir()) as (
+          mock_site_packages, tempdir):
+    site_packages = os.path.join(tempdir, 'site-packages')
+    os.mkdir(site_packages)
+    mock_site_packages.return_value = set([site_packages])
+    site_libs = PEX.site_libs()
+    assert site_packages in site_libs
+
+
+def test_site_libs_symlink():
+  with nested(mock.patch.object(PEX, '_get_site_packages'), temporary_dir()) as (
+          mock_site_packages, tempdir):
+    site_packages = os.path.join(tempdir, 'site-packages')
+    os.mkdir(site_packages)
+    site_packages_link = os.path.join(tempdir, 'site-packages-link')
+    os.symlink(site_packages, site_packages_link)
+    mock_site_packages.return_value = set([site_packages_link])
+
+    site_libs = PEX.site_libs()
+    assert os.path.realpath(site_packages) in site_libs
+    assert site_packages_link in site_libs
+
+
+def test_site_libs_excludes_prefix():
+  """Windows returns sys.prefix as part of getsitepackages(). Make sure to exclude it."""
+
+  with nested(mock.patch.object(PEX, '_get_site_packages'), temporary_dir()) as (
+          mock_site_packages, tempdir):
+    site_packages = os.path.join(tempdir, 'site-packages')
+    os.mkdir(site_packages)
+    mock_site_packages.return_value = set([site_packages, sys.prefix])
+    site_libs = PEX.site_libs()
+    assert site_packages in site_libs
+    assert sys.prefix not in site_libs
 
 
 @pytest.mark.parametrize('zip_safe', (False, True))
