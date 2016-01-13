@@ -11,6 +11,7 @@ import tempfile
 from pkg_resources import Distribution, PathMetadata
 
 from .common import safe_mkdtemp, safe_rmtree
+from .compatibility import WINDOWS
 from .interpreter import PythonInterpreter
 from .tracer import TRACER
 from .version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
@@ -209,7 +210,10 @@ class Packager(DistributionPackager):
   """
 
   def _setup_command(self):
-    return ['sdist', '--formats=gztar', '--dist-dir=%s' % self._install_tmp]
+    if WINDOWS:
+      return ['sdist', '--formats=zip', '--dist-dir=%s' % self._install_tmp]
+    else:
+      return ['sdist', '--formats=gztar', '--dist-dir=%s' % self._install_tmp]
 
   @after_installation
   def sdist(self):
