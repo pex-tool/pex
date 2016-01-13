@@ -8,7 +8,7 @@ import posixpath
 from collections import Iterable
 
 from .compatibility import string as compatible_string
-from .compatibility import PY3
+from .compatibility import PY3, WINDOWS, pathname2url, url2pathname
 from .util import Memoizer
 
 if PY3:
@@ -52,7 +52,8 @@ class Link(object):
 
   @classmethod
   def _normalize(cls, filename):
-    return 'file://' + os.path.realpath(os.path.expanduser(filename))
+    return urlparse.urljoin('file:', pathname2url(
+        os.path.realpath(os.path.expanduser(filename))))
 
   # A cache for the result of from_filename
   _FROM_FILENAME_CACHE = Memoizer()
@@ -72,8 +73,10 @@ class Link(object):
     :param url: A string-like object representing a url.
     """
     purl = urlparse.urlparse(url)
-    if purl.scheme == '':
+    if purl.scheme == '' or (
+        WINDOWS and len(purl.scheme) == 1):  # This is likely a drive letter.
       purl = urlparse.urlparse(self._normalize(url))
+
     self._url = purl
 
   def __ne__(self, other):
@@ -95,12 +98,18 @@ class Link(object):
   @property
   def filename(self):
     """The basename of this url."""
-    return posixpath.basename(self._url.path)
+    return urlparse.unquote(posixpath.basename(self._url.path))
 
   @property
   def path(self):
     """The full path of this url with any hostname and scheme components removed."""
-    return self._url.path
+    return urlparse.unquote(self._url.path)
+
+  @property
+  def local_path(self):
+    """Returns the local filesystem path (only works for file:// urls)."""
+    assert self.local, 'local_path called on a non-file:// url %s' % (self.url,)
+    return url2pathname(self.path)
 
   @property
   def url(self):
@@ -110,7 +119,7 @@ class Link(object):
   @property
   def fragment(self):
     """The url fragment following '#' if any."""
-    return self._url.fragment
+    return urlparse.unquote(self._url.fragment)
 
   @property
   def scheme(self):

@@ -162,7 +162,7 @@ class Resolver(object):
       local_package = Package.from_href(context.fetch(package))
     if local_package is None:
       raise Untranslateable('Could not fetch package %s' % package)
-    with TRACER.timed('Translating %s into distribution' % local_package.path, V=2):
+    with TRACER.timed('Translating %s into distribution' % local_package.local_path, V=2):
       dist = translator.translate(local_package)
     if dist is None:
       raise Untranslateable('Package %s is not translateable by %s' % (package, translator))
@@ -221,7 +221,7 @@ class CachingResolver(Resolver):
   def filter_packages_by_ttl(cls, packages, ttl, now=None):
     now = now if now is not None else time.time()
     return [package for package in packages
-        if package.remote or package.local and (now - os.path.getmtime(package.path)) < ttl]
+        if package.remote or package.local and (now - os.path.getmtime(package.local_path)) < ttl]
 
   def __init__(self, cache, cache_ttl, *args, **kw):
     self.__cache = cache
@@ -251,7 +251,7 @@ class CachingResolver(Resolver):
     # cache package locally
     if package.remote:
       package = Package.from_href(options.get_context().fetch(package, into=self.__cache))
-      os.utime(package.path, None)
+      os.utime(package.local_path, None)
 
     # build into distribution
     dist = super(CachingResolver, self).build(package, options)

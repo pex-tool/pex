@@ -212,7 +212,7 @@ class RequestsContext(Context):
   def open(self, link):
     # requests does not support file:// -- so we must short-circuit manually
     if link.local:
-      return open(link.path, 'rb')  # noqa: T802
+      return open(link.local_path, 'rb')  # noqa: T802
     for attempt in range(self._max_retries + 1):
       try:
         return StreamFilelike(self._session.get(
