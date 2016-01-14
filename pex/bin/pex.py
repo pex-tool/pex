@@ -30,7 +30,7 @@ from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
 from pex.resolvable import Resolvable
-from pex.resolver import CachingResolver, Resolver, Unsatisfiable
+from pex.resolver import Unsatisfiable, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER
 from pex.variables import ENV, Variables
@@ -255,10 +255,12 @@ def configure_clp_pex_environment(parser):
   group.add_option(
       '--python',
       dest='python',
-      default=None,
+      default=[None],
+      type=str,
+      action='append',
       help='The Python interpreter to use to build the pex.  Either specify an explicit '
-           'path to an interpreter, or specify a binary accessible on $PATH. '
-           'Default: Use current interpreter.')
+           'path to an interpreter, or specify a binary accessible on $PATH.  This option '
+           'can be used multiple times.  Default: Use current interpreter.')
 
   group.add_option(
       '--python-shebang',
@@ -271,8 +273,11 @@ def configure_clp_pex_environment(parser):
   group.add_option(
       '--platform',
       dest='platform',
-      default=Platform.current(),
-      help='The platform for which to build the PEX.  Default: %default')
+      default=[Platform.current()],
+      type=str,
+      action='append',
+      help='The platform(s) for which to build the PEX.  This option can be used multiple '
+           'times.  Default: %default')
 
   group.add_option(
       '--interpreter-cache-dir',
@@ -431,35 +436,36 @@ def resolve_interpreter(cache, fetchers, interpreter, requirement):
     return interpreter.with_extra(egg.name, egg.raw_version, egg.path)
 
 
-def interpreter_from_options(options):
+def get_interpreter(python_interpreter, interpreter_cache_dir, repos, use_wheel):
   interpreter = None
 
-  if options.python:
-    if os.path.exists(options.python):
-      interpreter = PythonInterpreter.from_binary(options.python)
+  if python_interpreter:
+    if os.path.exists(python_interpreter):
+      interpreter = PythonInterpreter.from_binary(python_interpreter)
     else:
-      interpreter = PythonInterpreter.from_env(options.python)
+      interpreter = PythonInterpreter.from_env(python_interpreter)
     if interpreter is None:
-      die('Failed to find interpreter: %s' % options.python)
+      die('Failed to find interpreter: %s' % python_interpreter)
   else:
     interpreter = PythonInterpreter.get()
 
   with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
-    resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, options.repos)
+    _resolve_interpreter_func = functools.partial(resolve_interpreter, interpreter_cache_dir, repos)
 
     # resolve setuptools
-    interpreter = resolve(interpreter, SETUPTOOLS_REQUIREMENT)
+    interpreter = _resolve_interpreter_func(interpreter, SETUPTOOLS_REQUIREMENT)
 
     # possibly resolve wheel
-    if interpreter and options.use_wheel:
-      interpreter = resolve(interpreter, WHEEL_REQUIREMENT)
+    if interpreter and use_wheel:
+      interpreter = _resolve_interpreter_func(interpreter, WHEEL_REQUIREMENT)
 
     return interpreter
 
 
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreter', V=2):
-    interpreter = interpreter_from_options(options)
+    interpreter = get_interpreter(options.python[0], options.interpreter_cache_dir,
+            options.repos, options.use_wheel)
 
   if interpreter is None:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
@@ -473,20 +479,20 @@ def build_pex(args, options, resolver_option_builder):
   pex_info.inherit_path = options.inherit_path
 
   resolvables = [Resolvable.get(arg, resolver_option_builder) for arg in args]
+  interpreters = list()
+  for i in options.python:
+    interpreters.append(get_interpreter(i, options.interpreter_cache_dir, options.repos,
+        options.use_wheel))
 
   for requirements_txt in options.requirement_files:
     resolvables.extend(requirements_from_file(requirements_txt, resolver_option_builder))
 
-  resolver_kwargs = dict(interpreter=interpreter, platform=options.platform)
-
-  if options.cache_dir:
-    resolver = CachingResolver(options.cache_dir, options.cache_ttl, **resolver_kwargs)
-  else:
-    resolver = Resolver(**resolver_kwargs)
+  resolver_kwargs = dict(interpreters=interpreters, platforms=options.platform,
+          cache=options.cache_dir, cache_ttl=options.cache_ttl)
 
   with TRACER.timed('Resolving distributions'):
     try:
-      resolveds = resolver.resolve(resolvables)
+      resolveds = resolve_multi(resolvables, **resolver_kwargs)
     except Unsatisfiable as e:
       die(e)
 

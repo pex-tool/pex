@@ -344,3 +344,21 @@ def resolve(
     resolver = Resolver(interpreter=interpreter, platform=platform)
 
   return resolver.resolve(resolvables_from_iterable(requirements, builder))
+
+
+def resolve_multi(requirements,
+                  fetchers=None,
+                  interpreters=None,
+                  platforms=None,
+                  context=None,
+                  precedence=None,
+                  cache=None,
+                  cache_ttl=None):
+  
+  resolveds = list()
+  for platform in platforms:
+    for interpreter in interpreters:
+      for r in resolve(requirements, fetchers, interpreter, platform, context, precedence, cache, cache_ttl):
+        resolveds.append(r)
+
+  return resolveds
