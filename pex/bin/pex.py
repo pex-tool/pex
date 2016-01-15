@@ -487,12 +487,10 @@ def build_pex(args, options, resolver_option_builder):
   for requirements_txt in options.requirement_files:
     resolvables.extend(requirements_from_file(requirements_txt, resolver_option_builder))
 
-  resolver_kwargs = dict(interpreters=interpreters, platforms=options.platform,
-          cache=options.cache_dir, cache_ttl=options.cache_ttl)
-
   with TRACER.timed('Resolving distributions'):
     try:
-      resolveds = resolve_multi(resolvables, **resolver_kwargs)
+      resolveds = resolve_multi(resolvables, interpreters=interpreters, platforms=options.platform,
+              cache=options.cache_dir, cache_ttl=options.cache_ttl)
     except Unsatisfiable as e:
       die(e)
 
