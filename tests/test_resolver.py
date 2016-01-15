@@ -10,8 +10,9 @@ from pex.common import safe_copy
 from pex.fetcher import Fetcher
 from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
-from pex.resolver import Unsatisfiable, _ResolvableSet, resolve
+from pex.resolver import Unsatisfiable, _ResolvableSet, resolve, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
+from pex.interpreter import PythonInterpreter
 from pex.testing import make_sdist
 
 
@@ -24,6 +25,15 @@ def test_empty_resolve():
     assert empty_resolve == []
 
 
+def test_empty_resolve_multi():
+  empty_resolve_multi = resolve_multi([])
+  assert empty_resolve_multi == []
+
+  with temporary_dir() as td:
+    empty_resolve_multi = resolve_multi([], cache=td)
+    assert empty_resolve_multi == []
+
+
 def test_simple_local_resolve():
   project_sdist = make_sdist(name='project')
 
@@ -32,6 +42,40 @@ def test_simple_local_resolve():
     fetchers = [Fetcher([td])]
     dists = resolve(['project'], fetchers=fetchers)
     assert len(dists) == 1
+
+
+def test_simple_local_resolve_multi():
+  project_sdist = make_sdist(name='project')
+  interpreters = [PythonInterpreter.from_env('python2'), PythonInterpreter.from_env('python3')]
+  platforms = ['linux-x86_64', 'macosx-10.11-x86_64'] 
+
+  with temporary_dir() as td:
+    safe_copy(project_sdist, os.path.join(td, os.path.basename(project_sdist)))
+    fetchers = [Fetcher([td])]
+    dists = resolve_multi(['project'], fetchers=fetchers, interpreters=interpreters, platforms=platforms)
+    assert len(dists) == 4
+
+
+def test_platform_resolve_multi():
+  project_sdist = make_sdist(name='project')
+  interpreters = [PythonInterpreter.from_env('python2'), PythonInterpreter.from_env('python3')]
+
+  with temporary_dir() as td:
+    safe_copy(project_sdist, os.path.join(td, os.path.basename(project_sdist)))
+    fetchers = [Fetcher([td])]
+    dists = resolve_multi(['project'], fetchers=fetchers, interpreters=interpreters)
+    assert len(dists) == 2
+
+
+def test_interpreters_resolve_multi():
+  project_sdist = make_sdist(name='project')
+  platforms = ['linux-x86_64', 'macosx-10.11-x86_64'] 
+
+  with temporary_dir() as td:
+    safe_copy(project_sdist, os.path.join(td, os.path.basename(project_sdist)))
+    fetchers = [Fetcher([td])]
+    dists = resolve_multi(['project'], fetchers=fetchers, platforms=platforms)
+    assert len(dists) == 2
 
 
 def test_diamond_local_resolve_cached():
