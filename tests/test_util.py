@@ -16,7 +16,7 @@ from pex.compatibility import nested
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex_builder import PEXBuilder
 from pex.testing import make_bdist, temporary_content, write_zipfile
-from pex.util import CacheHelper, DistributionHelper
+from pex.util import CacheHelper, DistributionHelper, named_temporary_file
 
 try:
   from unittest import mock
@@ -159,3 +159,16 @@ def test_access_zipped_assets_integration():
       pass
     assert output == 'accessed\n'
     assert po.returncode == 0
+
+
+def test_named_temporary_file():
+  name = ''
+  with named_temporary_file() as fp:
+    name = fp.name
+    fp.write(b'hi')
+    fp.flush()
+    assert os.path.exists(name)
+    with open(name) as new_fp:
+      assert new_fp.read() == 'hi'
+
+  assert not os.path.exists(name)

@@ -7,6 +7,7 @@ import contextlib
 import errno
 import os
 import shutil
+import tempfile
 import uuid
 from hashlib import sha1
 from threading import Lock
@@ -200,3 +201,19 @@ class Memoizer(object):
   def store(self, key, value):
     with self._lock:
       self._data[key] = value
+
+
+@contextlib.contextmanager
+def named_temporary_file(*args, **kwargs):
+  """
+  Due to a bug in python (https://bugs.python.org/issue14243), we need
+  this to be able to use the temporary file without deleting it.
+  """
+  assert 'delete' not in kwargs
+  kwargs['delete'] = False
+  fp = tempfile.NamedTemporaryFile(*args, **kwargs)
+  try:
+    with fp:
+      yield fp
+  finally:
+    os.remove(fp.name)
