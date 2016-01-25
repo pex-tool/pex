@@ -133,7 +133,7 @@ class SourcePackage(Package):
 
   @property
   def raw_version(self):
-    return safe_name(self._raw_version)
+    return self._raw_version
 
   # SourcePackages are always compatible as they can be translated to a distribution.
   def compatible(self, identity, platform=Platform.current()):
@@ -167,7 +167,7 @@ class EggPackage(Package):
 
   @property
   def raw_version(self):
-    return safe_name(self._raw_version)
+    return self._raw_version
 
   @property
   def py_version(self):

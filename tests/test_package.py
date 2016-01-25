@@ -24,6 +24,15 @@ def test_source_packages():
   assert sl.raw_version == '1.5'
 
 
+def test_local_specifier():
+  for ext in ('.tar.gz', '.tar', '.tgz', '.zip', '.tar.bz2'):
+    sl = SourcePackage('a_p_r-3.1.3+pexed.1' + ext)
+    assert sl.name == 'a-p-r'
+    assert sl.raw_version == '3.1.3+pexed.1'
+    assert sl.version == parse_version(sl.raw_version)
+    assert sl.satisfies('a_p_r==3.1.3+pexed.1')
+
+
 def test_egg_packages():
   el = EggPackage('psutil-0.4.1-py2.6-macosx-10.7-intel.egg')
   assert el.name == 'psutil'
