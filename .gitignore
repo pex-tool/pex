@@ -6,5 +6,6 @@
 /dist/*
 /docs/_build
 /.tox
+/.idea
 /.coverage*
 /htmlcov
