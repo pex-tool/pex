@@ -68,6 +68,7 @@ class bdist_pex(Command):  # noqa
     except ValueError:
       console_scripts = {}
 
+    target = os.path.join(self.bdist_dir, name + '-' + version + '.pex')
     if self.bdist_all:
       # Write all entry points into unversioned pex files.
       for script_name in console_scripts:
@@ -76,7 +77,6 @@ class bdist_pex(Command):  # noqa
         self._write(pex_builder, target, script=script_name)
     elif name in console_scripts:
       # The package has a namesake entry point, so use it.
-      target = os.path.join(self.bdist_dir, name + '-' + version + '.pex')
       log.info('Writing %s to %s' % (name, target))
       self._write(pex_builder, target, script=name)
     else:
