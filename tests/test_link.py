@@ -51,7 +51,17 @@ def test_link_schemes():
   link = Link('/foo/bar')
   assert link.scheme == 'file'
   assert link.local
-  assert link.path == os.path.realpath('/foo/bar')
+  assert link.local_path == os.path.realpath('/foo/bar')
+
+
+def test_link_escaping():
+  link = Link('/foo/bar#baz.pex')
+  assert link.scheme == 'file'
+  assert link.local
+  assert link.local_path == os.path.realpath('/foo/bar#baz.pex')
+
+  link = Link('http://www.google.com/%20/%3Afile+%2B2.tar.gz')
+  assert link.filename == ':file++2.tar.gz'
 
 
 def test_link_equality():

@@ -1,6 +1,8 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import os.path
+
 import pytest
 
 from pex.orderedset import OrderedSet
@@ -46,7 +48,8 @@ def test_from_empty_env():
 
 
 def test_from_env():
-  environ = dict(PEX_ROOT='/pex_root',
+  pex_root = os.path.realpath('/pex_root')
+  environ = dict(PEX_ROOT=pex_root,
                  PEX_MODULE='entry:point',
                  PEX_SCRIPT='script.sh',
                  PEX_FORCE_LOCAL='true',
@@ -54,7 +57,7 @@ def test_from_env():
                  PEX_IGNORE_ERRORS='true',
                  PEX_ALWAYS_CACHE='true')
 
-  info = dict(pex_root='/pex_root',
+  info = dict(pex_root=pex_root,
               entry_point='entry:point',
               script='script.sh',
               zip_safe=False,

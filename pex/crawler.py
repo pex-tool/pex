@@ -85,11 +85,11 @@ class Crawler(object):
   @classmethod
   def crawl_local(cls, link):
     try:
-      dirents = os.listdir(link.path)
+      dirents = os.listdir(link.local_path)
     except OSError as e:
-      TRACER.log('Failed to read %s: %s' % (link.path, e), V=1)
+      TRACER.log('Failed to read %s: %s' % (link.local_path, e), V=1)
       return set(), set()
-    files, dirs = partition([os.path.join(link.path, fn) for fn in dirents], os.path.isdir)
+    files, dirs = partition([os.path.join(link.local_path, fn) for fn in dirents], os.path.isdir)
     return set(map(Link.from_filename, files)), set(map(Link.from_filename, dirs))
 
   @classmethod

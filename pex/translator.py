@@ -88,7 +88,7 @@ class SourceTranslator(TranslatorBase):
 
     installer = None
     version = self._interpreter.version
-    unpack_path = Archiver.unpack(package.path)
+    unpack_path = Archiver.unpack(package.local_path)
     into = into or safe_mkdtemp()
 
     try:
@@ -147,7 +147,7 @@ class BinaryTranslator(TranslatorBase):
       return None
     into = into or safe_mkdtemp()
     target_path = os.path.join(into, package.filename)
-    safe_copy(package.path, target_path)
+    safe_copy(package.local_path, target_path)
     return DistributionHelper.distribution_from_path(target_path)
 
 
