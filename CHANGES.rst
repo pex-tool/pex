@@ -3,6 +3,28 @@ CHANGES
 =======
 
 -----
+1.1.3
+-----
+
+This release includes an initial body of work towards Windows support, ABI tag support for CPython 2.x and a fix for version number normalization.
+
+* Add python 2.x abi tag support.
+  `#214 <https://github.com/pantsbuild/pex/pull/214>`_
+  `Fixes #213 <https://github.com/pantsbuild/pex/issues/213>`_
+
+* Add .idea to .gitignore.
+  `#205 <https://github.com/pantsbuild/pex/pull/205>`_
+
+* Don't normalize version numbers as names.
+  `#204 <https://github.com/pantsbuild/pex/pull/204>`_
+
+* More fixes for windows.
+  `#202 <https://github.com/pantsbuild/pex/pull/202>`_
+
+* Fixes to get pex to work on windows.
+  `#198 <https://github.com/pantsbuild/pex/pull/198>`_
+
+-----
 1.1.2
 -----
 
