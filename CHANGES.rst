@@ -3,6 +3,15 @@ CHANGES
 =======
 
 -----
+1.1.4
+-----
+
+This release is a quick fix for a regression that inadvertently went out in 1.1.3 (Issue #216).
+
+* Add a test for the regression in `FixedEggMetadata._zipinfo_name` and revert the breaking commit.
+  `Fixes #216 <https://github.com/pantsbuild/pex/issues/216>`_
+
+-----
 1.1.3
 -----
 
