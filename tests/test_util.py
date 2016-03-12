@@ -166,3 +166,11 @@ def test_named_temporary_file():
       assert new_fp.read() == 'hi'
 
   assert not os.path.exists(name)
+
+
+def test_distributionhelper_egg_assert():
+  d = DistributionHelper.distribution_from_path(
+    './tests/example_packages/setuptools-18.0.1-py2.7.egg',
+    'setuptools'
+  )
+  assert len(d.resource_listdir('/')) > 3
