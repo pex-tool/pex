@@ -211,7 +211,7 @@ class PEXBuilder(object):
 
     raise self.InvalidExecutableSpecification(
         'Could not find script %r in any distribution %s within PEX!' % (
-            script, ', '.join(self._distributions)))
+            script, ', '.join(str(d) for d in self._distributions)))
 
   def set_entry_point(self, entry_point):
     """Set the entry point of this PEX environment.
