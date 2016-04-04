@@ -154,7 +154,7 @@ class PEX(object):  # noqa: T000
     return new_modules
 
   @classmethod
-  def minimum_sys_path(cls, site_libs):
+  def minimum_sys_path(cls, site_libs, inherit_path):
     site_distributions = OrderedSet()
     user_site_distributions = OrderedSet()
 
@@ -171,13 +171,17 @@ class PEX(object):  # noqa: T000
 
     user_site_distributions.update(all_distribution_paths(USER_SITE))
 
-    for path in site_distributions:
-      TRACER.log('Scrubbing from site-packages: %s' % path)
 
     for path in user_site_distributions:
       TRACER.log('Scrubbing from user site: %s' % path)
 
-    scrub_paths = site_distributions | user_site_distributions
+    if inherit_path:
+      scrub_paths = user_site_distributions
+    else:
+      scrub_paths = site_distributions | user_site_distributions
+      for path in site_distributions:
+        TRACER.log('Scrubbing from site-packages: %s' % path)
+
     scrubbed_sys_path = list(OrderedSet(sys.path) - scrub_paths)
     scrub_from_importer_cache = filter(
       lambda key: any(key.startswith(path) for path in scrub_paths),
@@ -191,7 +195,7 @@ class PEX(object):  # noqa: T000
     return scrubbed_sys_path, scrubbed_importer_cache
 
   @classmethod
-  def minimum_sys(cls):
+  def minimum_sys(cls, inherit_path):
     """Return the minimum sys necessary to run this interpreter, a la python -S.
 
     :returns: (sys.path, sys.path_importer_cache, sys.modules) tuple of a
@@ -205,7 +209,7 @@ class PEX(object):  # noqa: T000
       site_libs.add(extras_path)
     site_libs = set(os.path.normpath(path) for path in site_libs)
 
-    sys_path, sys_path_importer_cache = cls.minimum_sys_path(site_libs)
+    sys_path, sys_path_importer_cache = cls.minimum_sys_path(site_libs, inherit_path)
     sys_modules = cls.minimum_sys_modules(site_libs)
 
     return sys_path, sys_path_importer_cache, sys_modules
@@ -234,7 +238,7 @@ class PEX(object):  # noqa: T000
   # considered a reversible operation despite being a contextmanager.
   @classmethod
   @contextmanager
-  def patch_sys(cls):
+  def patch_sys(cls, inherit_path):
     """Patch sys with all site scrubbed."""
     def patch_dict(old_value, new_value):
       old_value.clear()
@@ -247,7 +251,7 @@ class PEX(object):  # noqa: T000
 
     old_sys_path, old_sys_path_importer_cache, old_sys_modules = (
         sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
-    new_sys_path, new_sys_path_importer_cache, new_sys_modules = cls.minimum_sys()
+    new_sys_path, new_sys_path_importer_cache, new_sys_modules = cls.minimum_sys(inherit_path)
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
     yield
@@ -314,7 +318,8 @@ class PEX(object):  # noqa: T000
     """
     teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
     try:
-      with self.patch_sys():
+      pex_inherit_path = True if self._vars.PEX_INHERIT_PATH or self._pex_info.inherit_path else False
+      with self.patch_sys(pex_inherit_path):
         working_set = self._activate()
         TRACER.log('PYTHONPATH contains:')
         for element in sys.path:
