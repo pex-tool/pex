@@ -32,7 +32,7 @@ def test_pex_root():
           env['PEX_INTERPRETER'] = '1'
 
           output_path = os.path.join(output_dir, 'pex.pex')
-          args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={}'.format(td)]
+          args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={0}'.format(td)]
           results = run_pex_command(args=args, env=env)
           results.assert_success()
           assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
