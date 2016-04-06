@@ -8,8 +8,10 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from collections import namedtuple
 from textwrap import dedent
 
+from .bin.pex import main
 from .common import safe_mkdir, safe_rmtree
 from .compatibility import nested
 from .installer import EggInstaller, Packager
@@ -171,6 +173,41 @@ def write_simple_pex(td, exe_contents, dists=None, coverage=False):
   pb.freeze()
 
   return pb
+
+
+class integ_results(namedtuple('results', 'output return_code exception')):
+  """Convenience object to return integration run results."""
+  def assert_success(self):
+    assert self.exception is None and self.return_code is None
+
+  def assert_failure(self):
+    assert self.exception or self.return_code
+
+
+def run_pex_command(args, env=None):
+  """Simulate running pex command for integration testing.
+
+  This is different from run_simple_pex in that it calls the pex command rather
+  than running a generated pex.  This is useful for testing end to end runs
+  with specific command line arguments or env options.
+  """
+  def logger_callback(_output):
+    def mock_logger(msg, v=None):
+      _output.append(msg)
+
+    return mock_logger
+
+  exception = None
+  error_code = None
+  output = []
+
+  try:
+    main(args=args, log_callback=logger_callback(output))
+  except SystemExit as e:
+    error_code = e.code
+  except Exception as e:
+    exception = e
+  return integ_results(output, error_code, exception)
 
 
 # TODO(wickman) Why not PEX.run?

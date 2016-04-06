@@ -503,11 +503,18 @@ def make_relative_to_root(path):
   return os.path.normpath(path.format(pex_root=ENV.PEX_ROOT))
 
 
-def main():
+def main(args=None, log_callback=None):
+  if log_callback is not None:
+    log = log_callback
+
   parser, resolver_options_builder = configure_clp()
 
-  # split arguments early because optparse is dumb
-  args = sys.argv[1:]
+  if args is None:
+    # split arguments early because optparse is dumb
+    args = sys.argv[1:]
+  else:
+    args = args[:]
+
   try:
     separator = args.index('--')
     args, cmdline = args[:separator], args[separator + 1:]
@@ -542,7 +549,7 @@ def main():
 
     log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline), v=options.verbosity)
     pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)
-    sys.exit(pex.run(args=list(cmdline)))
+    raise SystemExit(pex.run(args=list(cmdline)))
 
 
 if __name__ == '__main__':
