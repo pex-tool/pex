@@ -7,7 +7,8 @@ import pytest
 
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
-from pex.variables import Variables
+from pex.variables import Variables, ENV
+from pex.bin.pex import make_relative_to_root
 
 
 def make_pex_info(requirements):
@@ -45,6 +46,14 @@ def test_from_empty_env():
   environ = Variables(environ={})
   info = {}
   assert_same_info(PexInfo(info=info), PexInfo.from_env(env=environ))
+
+
+def test_make_relative():
+  with ENV.patch(PEX_ROOT='/pex_root'):
+    assert '/pex_root/interpreters' == make_relative_to_root('{pex_root}/interpreters')
+
+    #Verify the user can specify arbitrary absolute paths.
+    assert '/tmp/interpreters' == make_relative_to_root('/tmp/interpreters')
 
 
 def test_from_env():
