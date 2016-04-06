@@ -8,7 +8,7 @@ import pytest
 from twitter.common.contextutil import environment_as, temporary_dir
 
 from pex.compatibility import WINDOWS
-from pex.testing import run_simple_pex_test, run_pex_command
+from pex.testing import run_pex_command, run_simple_pex_test
 from pex.util import named_temporary_file
 
 
