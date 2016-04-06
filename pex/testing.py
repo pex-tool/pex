@@ -175,8 +175,9 @@ def write_simple_pex(td, exe_contents, dists=None, coverage=False):
   return pb
 
 
-class integ_results(namedtuple('results', 'output return_code exception')):
+class IntegResults(namedtuple('results', 'output return_code exception')):
   """Convenience object to return integration run results."""
+
   def assert_success(self):
     assert self.exception is None and self.return_code is None
 
@@ -207,7 +208,7 @@ def run_pex_command(args, env=None):
     error_code = e.code
   except Exception as e:
     exception = e
-  return integ_results(output, error_code, exception)
+  return IntegResults(output, error_code, exception)
 
 
 # TODO(wickman) Why not PEX.run?
