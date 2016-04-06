@@ -5,10 +5,10 @@ import os.path
 
 import pytest
 
+from pex.bin.pex import make_relative_to_root
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.variables import Variables, ENV
-from pex.bin.pex import make_relative_to_root
 
 
 def make_pex_info(requirements):
