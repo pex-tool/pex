@@ -503,17 +503,8 @@ def make_relative_to_root(path):
   return os.path.normpath(path.format(pex_root=ENV.PEX_ROOT))
 
 
-def main(args=None, log_callback=None):
-  if log_callback is not None:
-    log = log_callback
-
+def main(args=None, log_callback=log):
   parser, resolver_options_builder = configure_clp()
-
-  if args is None:
-    # split arguments early because optparse is dumb
-    args = sys.argv[1:]
-  else:
-    args = args[:]
 
   try:
     separator = args.index('--')
@@ -553,4 +544,5 @@ def main(args=None, log_callback=None):
 
 
 if __name__ == '__main__':
-  main()
+  # split arguments early because optparse is dumb
+  main(sys.argv[1:])
