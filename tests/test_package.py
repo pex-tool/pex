@@ -44,9 +44,18 @@ def test_egg_packages():
   for req in ('foo', 'bar==0.4.1'):
     assert not el.satisfies(req)
 
+  # Legacy pkg_resources normalized version numbers.
+  el = EggPackage('pyfoo-1.0.0_bar-py2.7-linux-x86_64.egg')
+  assert el.name == 'pyfoo'
+  assert el.raw_version == '1.0.0-bar'
+  assert el.py_version == '2.7'
+  assert el.platform == 'linux-x86_64'
+  for req in ('pyfoo', 'pyfoo==1.0.0-bar'):
+    assert el.satisfies(req)
+
   el = EggPackage('pytz-2012b-py2.6.egg')
   assert el.name == 'pytz'
-  assert el.raw_version == '2012b'
+  assert el.raw_version == '2012b0'
   assert el.py_version == '2.6'
   assert el.platform is None
 

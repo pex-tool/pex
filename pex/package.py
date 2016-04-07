@@ -3,7 +3,7 @@
 
 import os
 
-from pkg_resources import EGG_NAME, parse_version, safe_name
+from pkg_resources import EGG_NAME, parse_version, safe_name, safe_version
 
 from .archiver import Archiver
 from .base import maybe_requirement
@@ -133,7 +133,7 @@ class SourcePackage(Package):
 
   @property
   def raw_version(self):
-    return self._raw_version
+    return safe_version(self._raw_version)
 
   # SourcePackages are always compatible as they can be translated to a distribution.
   def compatible(self, identity, platform=Platform.current()):
@@ -167,7 +167,7 @@ class EggPackage(Package):
 
   @property
   def raw_version(self):
-    return self._raw_version
+    return safe_version(self._raw_version)
 
   @property
   def py_version(self):
