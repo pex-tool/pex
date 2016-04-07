@@ -42,10 +42,20 @@ INVALID_OPTIONS = 103
 INVALID_ENTRY_POINT = 104
 
 
-def log(msg, v=False):
-  if v:
-    print(msg, file=sys.stderr)
+class logger(object):
+  def _default_logger(self, msg, v):
+    if v:
+      print(msg, file=sys.stderr)
 
+  _logger = _default_logger
+
+  def __call__(self, msg, v):
+    self._logger(msg, v)
+
+  def set_logger(self, logger_callback):
+    self._logger = logger_callback
+
+log = logger()
 
 def parse_bool(option, opt_str, _, parser):
   setattr(parser.values, option.dest, not opt_str.startswith('--no'))
@@ -503,7 +513,7 @@ def make_relative_to_root(path):
   return os.path.normpath(path.format(pex_root=ENV.PEX_ROOT))
 
 
-def main(args=None, log_callback=log):
+def main(args):
   parser, resolver_options_builder = configure_clp()
 
   try:

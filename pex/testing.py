@@ -11,7 +11,7 @@ import zipfile
 from collections import namedtuple
 from textwrap import dedent
 
-from .bin.pex import main
+from .bin.pex import log, main
 from .common import safe_mkdir, safe_rmtree
 from .compatibility import nested
 from .installer import EggInstaller, Packager
@@ -201,9 +201,9 @@ def run_pex_command(args, env=None):
   exception = None
   error_code = None
   output = []
-
+  log.set_logger(logger_callback(output))
   try:
-    main(args=args, log_callback=logger_callback(output))
+    main(args=args)
   except SystemExit as e:
     error_code = e.code
   except Exception as e:
