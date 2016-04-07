@@ -42,7 +42,7 @@ INVALID_OPTIONS = 103
 INVALID_ENTRY_POINT = 104
 
 
-class logger(object):
+class Logger(object):
   def _default_logger(self, msg, v):
     if v:
       print(msg, file=sys.stderr)
@@ -55,7 +55,7 @@ class logger(object):
   def set_logger(self, logger_callback):
     self._LOGGER = logger_callback
 
-log = logger()
+log = Logger()
 
 
 def parse_bool(option, opt_str, _, parser):
