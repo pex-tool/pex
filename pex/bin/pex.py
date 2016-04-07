@@ -47,15 +47,16 @@ class logger(object):
     if v:
       print(msg, file=sys.stderr)
 
-  _logger = _default_logger
+  _LOGGER = _default_logger
 
   def __call__(self, msg, v):
-    self._logger(msg, v)
+    self._LOGGER(msg, v)
 
   def set_logger(self, logger_callback):
-    self._logger = logger_callback
+    self._LOGGER = logger_callback
 
 log = logger()
+
 
 def parse_bool(option, opt_str, _, parser):
   setattr(parser.values, option.dest, not opt_str.startswith('--no'))
