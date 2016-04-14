@@ -113,7 +113,10 @@ class PEXBuilder(object):
     clone = self.__class__(
         chroot=chroot_clone,
         interpreter=self._interpreter,
-        pex_info=self._pex_info.copy())
+        pex_info=self._pex_info.copy(),
+        preamble=self._preamble,
+        copy=self._copy)
+    clone.set_shebang(self._shebang)
     for dist in self._distributions:
       clone.add_distribution(dist)
     return clone
@@ -236,10 +239,10 @@ class PEXBuilder(object):
     used to override the default behavior which is to have a #!/usr/bin/env line referencing an
     interpreter compatible with the one used to build the PEX.
 
-    :param shebang: The shebang line minus the #!.
+    :param shebang: The shebang line. If it does not include the leading '#!' it will be added.
     :type shebang: str
     """
-    self._shebang = '#!%s' % shebang
+    self._shebang = '#!%s' % shebang if not shebang.startswith('#!') else shebang
 
   def _add_dist_dir(self, path, dist_name):
     for root, _, files in os.walk(path):

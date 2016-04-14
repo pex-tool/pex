@@ -58,15 +58,19 @@ def test_pex_builder():
 
 
 def test_pex_builder_shebang():
-  pb = PEXBuilder()
-  pb.set_shebang('foobar')
+  def builder(shebang):
+    pb = PEXBuilder()
+    pb.set_shebang(shebang)
+    return pb
 
-  with temporary_dir() as td:
-    target = os.path.join(td, 'foo.pex')
-    pb.build(target)
-    expected_preamble = b'#!foobar\n'
-    with open(target, 'rb') as fp:
-      assert fp.read(len(expected_preamble)) == expected_preamble
+  for pb in builder('foobar'), builder('#!foobar'):
+    for b in pb, pb.clone():
+      with temporary_dir() as td:
+        target = os.path.join(td, 'foo.pex')
+        b.build(target)
+        expected_preamble = b'#!foobar\n'
+        with open(target, 'rb') as fp:
+          assert fp.read(len(expected_preamble)) == expected_preamble
 
 
 def test_pex_builder_compilation():
@@ -114,13 +118,17 @@ def test_pex_builder_copy_or_link():
       pb = PEXBuilder(path, copy=copy)
       pb.add_source(src, 'exe.py')
 
-      s1 = os.stat(src)
-      s2 = os.stat(os.path.join(path, 'exe.py'))
-      is_link = (s1[stat.ST_INO], s1[stat.ST_DEV]) == (s2[stat.ST_INO], s2[stat.ST_DEV])
-      if copy:
-        assert not is_link
-      else:
-        assert is_link
+      path_clone = os.path.join(path, '__clone')
+      pb.clone(into=path_clone)
+
+      for root in path, path_clone:
+        s1 = os.stat(src)
+        s2 = os.stat(os.path.join(root, 'exe.py'))
+        is_link = (s1[stat.ST_INO], s1[stat.ST_DEV]) == (s2[stat.ST_INO], s2[stat.ST_DEV])
+        if copy:
+          assert not is_link
+        else:
+          assert is_link
 
     build_and_check(td2, False)
     build_and_check(td3, True)
