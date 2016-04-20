@@ -1,4 +1,5 @@
 import os
+from configparser import ConfigParser
 from distutils import log
 
 from setuptools import Command
@@ -67,6 +68,10 @@ class bdist_pex(Command):  # noqa
           for script in self.distribution.entry_points.get('console_scripts', []))
     except ValueError:
       console_scripts = {}
+    except AttributeError:
+      parser = ConfigParser()
+      parser.read_string(self.distribution.entry_points)
+      console_scripts = parser['console_scripts'] if parser.has_section('console_scripts') else {}
 
     target = os.path.join(self.bdist_dir, name + '-' + version + '.pex')
     if self.bdist_all:
