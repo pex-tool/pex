@@ -6,6 +6,7 @@ from setuptools import Command
 
 from pex.bin.pex import build_pex, configure_clp
 from pex.common import die
+from pex.compatibility import string
 from pex.variables import ENV
 
 
