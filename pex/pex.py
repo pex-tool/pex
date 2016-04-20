@@ -171,7 +171,6 @@ class PEX(object):  # noqa: T000
 
     user_site_distributions.update(all_distribution_paths(USER_SITE))
 
-
     for path in user_site_distributions:
       TRACER.log('Scrubbing from user site: %s' % path)
 
@@ -318,7 +317,8 @@ class PEX(object):  # noqa: T000
     """
     teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
     try:
-      pex_inherit_path = True if self._vars.PEX_INHERIT_PATH or self._pex_info.inherit_path else False
+      pex_inherit_path = True if (
+        self._vars.PEX_INHERIT_PATH or self._pex_info.inherit_path) else False
       with self.patch_sys(pex_inherit_path):
         working_set = self._activate()
         TRACER.log('PYTHONPATH contains:')
