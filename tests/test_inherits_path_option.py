@@ -3,8 +3,7 @@
 
 import os
 
-from twitter.common.contextutil import environment_as
-from twitter.common.contextutil import temporary_dir
+from twitter.common.contextutil import environment_as, temporary_dir
 
 from pex.pex_builder import PEXBuilder
 from pex.testing import run_simple_pex, write_simple_pex
