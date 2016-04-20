@@ -1,10 +1,12 @@
 import os
 from distutils import log
 
+from configparser import ConfigParser
 from setuptools import Command
 
 from pex.bin.pex import build_pex, configure_clp
 from pex.common import die
+from pex.compatibility import string
 from pex.variables import ENV
 
 
@@ -38,6 +40,29 @@ class bdist_pex(Command):  # noqa
 
     builder.build(target)
 
+  def parse_entry_points(self):
+    def split_and_strip(entry_point):
+      console_script, entry_point = entry_point.split('=', 2)
+      return console_script.strip(), entry_point.strip()
+
+    raw_entry_points = self.distribution.entry_points
+
+    if isinstance(raw_entry_points, string):
+      parser = ConfigParser()
+      parser.read_string(raw_entry_points)
+      if parser.has_section('console_scripts'):
+        return parser['console_scripts']
+    elif isinstance(raw_entry_points, dict):
+      try:
+        return dict(split_and_strip(script)
+            for script in raw_entry_points.get('console_scripts', []))
+      except ValueError:
+        pass
+    elif raw_entry_points is not None:
+      die('When entry_points is provided, it must be a string or dict.')
+
+    return {}
+
   def run(self):
     name = self.distribution.get_name()
     version = self.distribution.get_version()
@@ -58,15 +83,7 @@ class bdist_pex(Command):  # noqa
     with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
       pex_builder = build_pex(reqs, options, options_builder)
 
-    def split_and_strip(entry_point):
-      console_script, entry_point = entry_point.split('=', 2)
-      return console_script.strip(), entry_point.strip()
-
-    try:
-      console_scripts = dict(split_and_strip(script)
-          for script in self.distribution.entry_points.get('console_scripts', []))
-    except ValueError:
-      console_scripts = {}
+    console_scripts = self.parse_entry_points()
 
     target = os.path.join(self.bdist_dir, name + '-' + version + '.pex')
     if self.bdist_all:

@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-
 from contextlib import contextmanager
 
 from twitter.common.contextutil import environment_as, temporary_dir
