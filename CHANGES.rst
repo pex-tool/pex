@@ -3,12 +3,31 @@ CHANGES
 =======
 
 -----
+1.1.5
+-----
+
+* Fix ``PEXBuilder.clone`` and thus ``bdist_pex --pex-args`` for ``--python`` and ``--python-shebang``.
+  `#234 <https://github.com/pantsbuild/pex/pull/234>`_
+  `Fixes #233 <https://github.com/pantsbuild/pex/issues/233>`_
+
+* Fix old ``pkg_resources`` egg version normalization.
+  `#227 <https://github.com/pantsbuild/pex/pull/227>`_
+  `Fixes #226 <https://github.com/pantsbuild/pex/issues/226>`_
+
+* Fix the ``inherit_path`` handling.
+  `#224 <https://github.com/pantsbuild/pex/pull/224>`_
+
+* Fix handling of bad distribution script names when used as the pex entrypoint.
+  `#221 <https://github.com/pantsbuild/pex/issues/221>`_
+  `Fixes #220 <https://github.com/pantsbuild/pex/issues/220>`_
+
+-----
 1.1.4
 -----
 
 This release is a quick fix for a regression that inadvertently went out in 1.1.3 (Issue #216).
 
-* Add a test for the regression in `FixedEggMetadata._zipinfo_name` and revert the breaking commit.
+* Add a test for the regression in ``FixedEggMetadata._zipinfo_name`` and revert the breaking commit.
   `Fixes #216 <https://github.com/pantsbuild/pex/issues/216>`_
 
 -----
