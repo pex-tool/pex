@@ -1,4 +1,5 @@
 import os
+from configparser import ConfigParser
 from distutils import log
 
 from configparser import ConfigParser
