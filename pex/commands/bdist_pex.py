@@ -1,12 +1,11 @@
 import os
 from distutils import log
 
-from configparser import ConfigParser
 from setuptools import Command
 
 from pex.bin.pex import build_pex, configure_clp
 from pex.common import die
-from pex.compatibility import string
+from pex.compatibility import ConfigParser, StringIO, string
 from pex.variables import ENV
 
 
@@ -49,9 +48,9 @@ class bdist_pex(Command):  # noqa
 
     if isinstance(raw_entry_points, string):
       parser = ConfigParser()
-      parser.read_string(raw_entry_points)
+      parser.readfp(StringIO(raw_entry_points))
       if parser.has_section('console_scripts'):
-        return parser['console_scripts']
+        return dict(parser.items('console_scripts'))
     elif isinstance(raw_entry_points, dict):
       try:
         return dict(split_and_strip(script)

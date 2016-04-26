@@ -23,6 +23,13 @@ except ImportError:
     from io import StringIO
     from io import BytesIO
 
+try:
+  # Python 2.x
+  from ConfigParser import ConfigParser
+except ImportError:
+  # Python 3.x
+  from configparser import ConfigParser
+
 AbstractClass = ABCMeta('AbstractClass', (object,), {})
 PY2 = sys_version_info[0] == 2
 PY3 = sys_version_info[0] == 3
@@ -94,6 +101,7 @@ WINDOWS = os.name == 'nt'
 __all__ = (
   'AbstractClass',
   'BytesIO',
+  'ConfigParser',
   'PY2',
   'PY3',
   'StringIO',
