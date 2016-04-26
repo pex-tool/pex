@@ -3,6 +3,20 @@ CHANGES
 =======
 
 -----
+1.1.6
+-----
+
+This release is a quick fix for a regression that inadvertently went out in 1.1.5 (Issue #243).
+
+* Fix the ``bdist_pex`` ``setuptools`` command to work for python2.
+  `#246 <https://github.com/pantsbuild/pex/pull/246>`_
+  `Fixes #243 <https://github.com/pantsbuild/pex/issues/243>`_
+
+* Upgrade pex dependencies on ``setuptools`` and ``wheel``.
+  `#244 <https://github.com/pantsbuild/pex/pull/244>`_
+  `Fixes #238 <https://github.com/pantsbuild/pex/issues/238>`_
+
+-----
 1.1.5
 -----
 
