@@ -3,5 +3,5 @@
 
 __version__ = '1.1.5'
 
-SETUPTOOLS_REQUIREMENT = 'setuptools>=2.2,<20'
-WHEEL_REQUIREMENT = 'wheel>=0.24.0,<0.27.0'
+SETUPTOOLS_REQUIREMENT = 'setuptools>=2.2,<20.11'
+WHEEL_REQUIREMENT = 'wheel>=0.24.0,<0.30.0'
