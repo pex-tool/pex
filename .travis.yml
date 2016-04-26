@@ -13,8 +13,9 @@ env:
   - TOXENV=py27-requests-cachecontrol
   - TOXENV=py33
   - TOXENV=py34
-  - TOXENV=py34-requests
-  - TOXENV=py34-requests-cachecontrol
+  - TOXENV=py35
+  - TOXENV=py35-requests
+  - TOXENV=py35-requests-cachecontrol
   - TOXENV=pypy
   - TOXENV=style
   - TOXENV=isort-check
