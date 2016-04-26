@@ -551,7 +551,7 @@ def main(args):
 
     log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline), v=options.verbosity)
     pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)
-    raise SystemExit(pex.run(args=list(cmdline)))
+    sys.exit(pex.run(args=list(cmdline)))
 
 
 if __name__ == '__main__':
