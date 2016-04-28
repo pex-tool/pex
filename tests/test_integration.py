@@ -8,7 +8,7 @@ import pytest
 from twitter.common.contextutil import environment_as, temporary_dir
 
 from pex.compatibility import WINDOWS
-from pex.testing import run_simple_pex_test
+from pex.testing import run_pex_command, run_simple_pex_test
 from pex.util import named_temporary_file
 
 
@@ -21,6 +21,23 @@ def test_pex_execute():
 def test_pex_raise():
   body = "raise Exception('This will improve coverage.')"
   run_simple_pex_test(body, coverage=True)
+
+
+def test_pex_root():
+  with temporary_dir() as tmp_home:
+    with environment_as(HOME=tmp_home):
+      with temporary_dir() as td:
+        with temporary_dir() as output_dir:
+          env = os.environ.copy()
+          env['PEX_INTERPRETER'] = '1'
+
+          output_path = os.path.join(output_dir, 'pex.pex')
+          args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={0}'.format(td)]
+          results = run_pex_command(args=args, env=env)
+          results.assert_success()
+          assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
+          assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
+          assert 'build' in os.listdir(td), 'Expected build directory in tmp pex root.'
 
 
 def test_pex_interpreter():

@@ -238,7 +238,7 @@ class Variables(object):
     The directory location for PEX to cache any dependencies and code.  PEX must write
     not-zip-safe eggs and all wheels to disk in order to activate them.  Default: ~/.pex
     """
-    return self._get_path('PEX_ROOT', default=None)
+    return self._get_path('PEX_ROOT', default=os.path.expanduser('~/.pex'))
 
   @property
   def PEX_PATH(self):
