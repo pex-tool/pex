@@ -514,7 +514,8 @@ def make_relative_to_root(path):
   return os.path.normpath(path.format(pex_root=ENV.PEX_ROOT))
 
 
-def main(args):
+def main(args=None):
+  args = args or sys.argv[1:]
   parser, resolver_options_builder = configure_clp()
 
   try:
@@ -555,5 +556,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-  # split arguments early because optparse is dumb
-  main(sys.argv[1:])
+  main()
