@@ -4,7 +4,6 @@
 import contextlib
 import os
 import random
-import subprocess
 import sys
 import tempfile
 import zipfile
@@ -14,6 +13,7 @@ from textwrap import dedent
 from .bin.pex import log, main
 from .common import safe_mkdir, safe_rmtree
 from .compatibility import nested
+from .executor import Executor
 from .installer import EggInstaller, Packager
 from .pex_builder import PEXBuilder
 from .util import DistributionHelper, named_temporary_file
@@ -213,13 +213,9 @@ def run_pex_command(args, env=None):
 
 # TODO(wickman) Why not PEX.run?
 def run_simple_pex(pex, args=(), env=None):
-  po = subprocess.Popen(
-      [sys.executable, pex] + list(args),
-      stdout=subprocess.PIPE,
-      stderr=subprocess.STDOUT,
-      env=env)
-  po.wait()
-  return po.stdout.read().replace(b'\r', b''), po.returncode
+  process = Executor.open_process([sys.executable, pex] + list(args), env=env, combined=True)
+  stdout, stderr = process.communicate()
+  return stdout.replace(b'\r', b''), process.returncode
 
 
 def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False):

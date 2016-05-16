@@ -4,7 +4,6 @@
 from __future__ import absolute_import, print_function
 
 import os
-import subprocess
 import sys
 import tempfile
 
@@ -12,6 +11,7 @@ from pkg_resources import Distribution, PathMetadata
 
 from .common import safe_mkdtemp, safe_rmtree
 from .compatibility import WINDOWS
+from .executor import Executor
 from .interpreter import PythonInterpreter
 from .tracer import TRACER
 from .version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
@@ -100,22 +100,19 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
       return self._installed
 
     with TRACER.timed('Installing %s' % self._install_tmp, V=2):
-      command = [self._interpreter.binary, '-']
-      command.extend(self._setup_command())
-      po = subprocess.Popen(command,
-          stdin=subprocess.PIPE,
-          stdout=subprocess.PIPE,
-          stderr=subprocess.PIPE,
-          env=self._interpreter.sanitized_environment(),
-          cwd=self._source_dir)
-      so, se = po.communicate(self.bootstrap_script.encode('ascii'))
-      self._installed = po.returncode == 0
-
-    if not self._installed:
-      name = os.path.basename(self._source_dir)
-      print('**** Failed to install %s. stdout:\n%s' % (name, so.decode('utf-8')), file=sys.stderr)
-      print('**** Failed to install %s. stderr:\n%s' % (name, se.decode('utf-8')), file=sys.stderr)
-      return self._installed
+      command = [self._interpreter.binary, '-'] + self._setup_command()
+      try:
+        Executor.execute(command,
+                         env=self._interpreter.sanitized_environment(),
+                         cwd=self._source_dir,
+                         stdin_payload=self.bootstrap_script.encode('ascii'))
+        self._installed = True
+      except Executor.NonZeroExit as e:
+        self._installed = False
+        name = os.path.basename(self._source_dir)
+        print('**** Failed to install %s (caused by: %r\n):' % (name, e), file=sys.stderr)
+        print('stdout:\n%s\nstderr:\n%s\n' % (e.stdout, e.stderr), file=sys.stderr)
+        return self._installed
 
     self._postprocess()
     return self._installed
