@@ -35,7 +35,9 @@ setup(
   classifiers = [
     'Intended Audience :: Developers',
     'License :: OSI Approved :: Apache Software License',
-    'Operating System :: OS Independent',
+    'Operating System :: Unix',
+    'Operating System :: POSIX :: Linux',
+    'Operating System :: MacOS :: MacOS X',
     'Programming Language :: Python',
     'Programming Language :: Python :: 2',
     'Programming Language :: Python :: 2.6',
