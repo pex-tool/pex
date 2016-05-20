@@ -5,9 +5,11 @@ import os
 
 from setuptools import setup
 
+with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as fp:
+  LONG_DESCRIPTION = fp.read() + '\n'
 
 with open(os.path.join(os.path.dirname(__file__), 'CHANGES.rst')) as fp:
-  LONG_DESCRIPTION = fp.read()
+  LONG_DESCRIPTION += fp.read()
 
 
 # This seems to be a fairly standard version file pattern.
@@ -33,8 +35,17 @@ setup(
   classifiers = [
     'Intended Audience :: Developers',
     'License :: OSI Approved :: Apache Software License',
-    'Operating System :: OS Independent',
+    'Operating System :: Unix',
+    'Operating System :: POSIX :: Linux',
+    'Operating System :: MacOS :: MacOS X',
     'Programming Language :: Python',
+    'Programming Language :: Python :: 2',
+    'Programming Language :: Python :: 2.6',
+    'Programming Language :: Python :: 2.7',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.3',
+    'Programming Language :: Python :: 3.4',
+    'Programming Language :: Python :: 3.5',
   ],
   packages = [
     'pex',
