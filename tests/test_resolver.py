@@ -8,11 +8,11 @@ from twitter.common.contextutil import temporary_dir
 
 from pex.common import safe_copy
 from pex.fetcher import Fetcher
+from pex.interpreter import PythonInterpreter
 from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
 from pex.resolver import Unsatisfiable, _ResolvableSet, resolve, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
-from pex.interpreter import PythonInterpreter
 from pex.testing import make_sdist
 
 
@@ -47,12 +47,13 @@ def test_simple_local_resolve():
 def test_simple_local_resolve_multi():
   project_sdist = make_sdist(name='project')
   interpreters = [PythonInterpreter.from_env('python2'), PythonInterpreter.from_env('python3')]
-  platforms = ['linux-x86_64', 'macosx-10.11-x86_64'] 
+  platforms = ['linux-x86_64', 'macosx-10.11-x86_64']
 
   with temporary_dir() as td:
     safe_copy(project_sdist, os.path.join(td, os.path.basename(project_sdist)))
     fetchers = [Fetcher([td])]
-    dists = resolve_multi(['project'], fetchers=fetchers, interpreters=interpreters, platforms=platforms)
+    dists = resolve_multi(['project'], fetchers=fetchers,
+                          interpreters=interpreters, platforms=platforms)
     assert len(dists) == 4
 
 
@@ -69,7 +70,7 @@ def test_platform_resolve_multi():
 
 def test_interpreters_resolve_multi():
   project_sdist = make_sdist(name='project')
-  platforms = ['linux-x86_64', 'macosx-10.11-x86_64'] 
+  platforms = ['linux-x86_64', 'macosx-10.11-x86_64']
 
   with temporary_dir() as td:
     safe_copy(project_sdist, os.path.join(td, os.path.basename(project_sdist)))

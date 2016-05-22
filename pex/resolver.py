@@ -374,7 +374,8 @@ def resolve_multi(requirements,
   resolveds = list()
   for platform in platforms:
     for interpreter in interpreters:
-      for r in resolve(requirements, fetchers, interpreter, platform, context, precedence, cache, cache_ttl):
+      for r in resolve(requirements, fetchers, interpreter, platform, context,
+                       precedence, cache, cache_ttl):
         resolveds.append(r)
 
   return resolveds
