@@ -91,7 +91,7 @@ exec(compile(io.open(__file__, encoding='utf-8').read().replace('\\r\\n', '\\n')
       if not path:
         assert not self._strict  # This should be caught by validation
         continue
-      bootstrap_modules.append(self.SETUP_BOOTSTRAP_MODULE % {'path': path, 'module': module})
+      bootstrap_modules.append(self.SETUP_BOOTSTRAP_MODULE % {'path': str(path), 'module': module})
     return '\n'.join(
         [self.SETUP_BOOTSTRAP_HEADER] + bootstrap_modules + [self.SETUP_BOOTSTRAP_FOOTER])
 
