@@ -68,7 +68,7 @@ def increment_verbosity(option, opt_str, _, parser):
 
 
 def process_disable_cache(option, option_str, option_value, parser):
-  setattr(parser.values, option.dest, [])
+  setattr(parser.values, option.dest, None)
 
 
 def process_pypi_option(option, option_str, option_value, parser, builder):
@@ -534,7 +534,9 @@ def main(args=None):
   else:
     options.pex_root = ENV.PEX_ROOT  # If option not specified fallback to env variable.
 
-  options.cache_dir = make_relative_to_root(options.cache_dir)
+  # Don't alter cache if it is disabled.
+  if options.cache_dir:
+    options.cache_dir = make_relative_to_root(options.cache_dir)
   options.interpreter_cache_dir = make_relative_to_root(options.interpreter_cache_dir)
 
   with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
