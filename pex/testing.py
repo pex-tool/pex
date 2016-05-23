@@ -214,7 +214,7 @@ def run_pex_command(args, env=None):
 # TODO(wickman) Why not PEX.run?
 def run_simple_pex(pex, args=(), env=None):
   process = Executor.open_process([sys.executable, pex] + list(args), env=env, combined=True)
-  stdout, stderr = process.communicate()
+  stdout, _ = process.communicate()
   return stdout.replace(b'\r', b''), process.returncode
 
 
