@@ -1,6 +1,13 @@
 Release Notes
 =============
 
+1.1.8
+-----
+
+* Bugfix: Repair a regression in `--disable-cache`.
+  `#261 <https://github.com/pantsbuild/pex/pull/261>`_
+  `Fixes #260 <https://github.com/pantsbuild/pex/issues/260>`_
+
 1.1.7
 -----
 
