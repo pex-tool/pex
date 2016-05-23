@@ -1,6 +1,18 @@
 Release Notes
 =============
 
+1.1.7
+-----
+
+* Add README and supported python versions to PyPI description.
+  `#258 <https://github.com/pantsbuild/pex/pull/258>`_
+
+* Use `open` with utf-8 support.
+  `#231 <https://github.com/pantsbuild/pex/pull/231>`_
+
+* Add `--pex-root` option.
+  `#206 <https://github.com/pantsbuild/pex/pull/206>`_
+
 1.1.6
 -----
 
