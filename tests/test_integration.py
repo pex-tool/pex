@@ -39,6 +39,7 @@ def test_pex_root():
           assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
           assert 'build' in os.listdir(td), 'Expected build directory in tmp pex root.'
 
+
 def test_cache_disable():
   with temporary_dir() as tmp_home:
     with environment_as(HOME=tmp_home):
@@ -53,6 +54,7 @@ def test_cache_disable():
           results.assert_success()
           assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
           assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
+
 
 def test_pex_interpreter():
   with named_temporary_file() as fp:
