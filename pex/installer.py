@@ -32,12 +32,12 @@ def after_installation(function):
 
 
 class InstallerBase(object):
-  SETUP_BOOTSTRAP_HEADER = "import io, sys"
+  SETUP_BOOTSTRAP_HEADER = "import sys"
   SETUP_BOOTSTRAP_MODULE = "sys.path.insert(0, %(path)r); import %(module)s"
   SETUP_BOOTSTRAP_FOOTER = """
 __file__ = 'setup.py'
 sys.argv[0] = 'setup.py'
-exec(compile(io.open(__file__, encoding='utf-8').read().replace('\\r\\n', '\\n'), __file__, 'exec'))
+exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
 """
 
   class Error(Exception): pass
