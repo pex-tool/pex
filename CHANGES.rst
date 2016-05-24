@@ -1,6 +1,13 @@
 Release Notes
 =============
 
+1.1.9
+-----
+
+* Bugfix:  Open setup.py in binary mode.
+  `#264 <https://github.com/pantsbuild/pex/pull/264>`_
+  `Fixes #263 <https://github.com/pantsbuild/pex/issues/263>`_
+
 1.1.8
 -----
 
