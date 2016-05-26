@@ -140,6 +140,21 @@ def safe_rmtree(directory):
     shutil.rmtree(directory, True)
 
 
+def rename_if_empty(src, dest, allowable_errors=(errno.EEXIST, errno.ENOTEMPTY)):
+  """Rename `src` to `dest` using `os.rename()`.
+
+  If an `OSError` with errno in `allowable_errors` is encountered during the rename, the `dest`
+  dir is left unchanged and the `src` directory will simply be removed.
+  """
+  try:
+    os.rename(src, dest)
+  except OSError as e:
+    if e.errno in allowable_errors:
+      safe_rmtree(src)
+    else:
+      raise
+
+
 def chmod_plus_x(path):
   """Equivalent of unix `chmod a+x path`"""
   path_mode = os.stat(path).st_mode
