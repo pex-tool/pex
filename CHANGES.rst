@@ -1,10 +1,17 @@
 Release Notes
 =============
 
+1.1.10
+------
+
+* Improve failure modes for os.rename() as used in distribution caching.
+  `#271 <https://github.com/pantsbuild/pex/pull/271>`_
+  `Fixes #265 <https://github.com/pantsbuild/pex/issues/265>`_
+
 1.1.9
 -----
 
-* Bugfix:  Open setup.py in binary mode.
+* Bugfix: Open setup.py in binary mode.
   `#264 <https://github.com/pantsbuild/pex/pull/264>`_
   `Fixes #263 <https://github.com/pantsbuild/pex/issues/263>`_
 
