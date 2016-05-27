@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import contextlib
-import errno
 import os
 import shutil
 import tempfile
@@ -14,7 +13,7 @@ from threading import Lock
 
 from pkg_resources import find_distributions, resource_isdir, resource_listdir, resource_string
 
-from .common import safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
+from .common import rename_if_empty, safe_mkdir, safe_mkdtemp, safe_open
 from .finders import register_finders
 
 
@@ -176,13 +175,8 @@ class CacheHelper(object):
           with contextlib.closing(zf.open(name)) as zi:
             with safe_open(os.path.join(target_dir_tmp, target_name), 'wb') as fp:
               shutil.copyfileobj(zi, fp)
-      try:
-        os.rename(target_dir_tmp, target_dir)
-      except OSError as e:
-        if e.errno == errno.ENOTEMPTY:
-          safe_rmtree(target_dir_tmp)
-        else:
-          raise
+
+      rename_if_empty(target_dir_tmp, target_dir)
 
     dist = DistributionHelper.distribution_from_path(target_dir)
     assert dist is not None, 'Failed to cache distribution %s' % source
