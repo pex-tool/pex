@@ -107,7 +107,7 @@ Documentation
 =============
 
 More documentation about pex, building .pex files, and how .pex files work
-is available at http://pex.rtfd.org.
+is available at https://pex.readthedocs.io.
 
 
 Development
