@@ -457,9 +457,10 @@ def interpreter_from_options(options):
     return interpreter
 
 
-def build_pex(args, options, resolver_option_builder):
-  with TRACER.timed('Resolving interpreter', V=2):
-    interpreter = interpreter_from_options(options)
+def build_pex(args, options, resolver_option_builder, interpreter=None):
+  if interpreter is None:
+    with TRACER.timed('Resolving interpreter', V=2):
+      interpreter = interpreter_from_options(options)
 
   if interpreter is None:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
