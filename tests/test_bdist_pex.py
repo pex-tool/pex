@@ -35,6 +35,7 @@ def assert_entry_points(entry_points):
       process = subprocess.Popen([os.path.join(project_dir, 'dist', 'my_app-0.0.0.pex')],
                                  stdout=subprocess.PIPE)
       stdout, _ = process.communicate()
+      assert '{pex_root}' not in os.listdir(project_dir)
       assert 0 == process.returncode
       assert stdout == b'hello world!\n'
 

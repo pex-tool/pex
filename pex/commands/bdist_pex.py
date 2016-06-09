@@ -3,7 +3,7 @@ from distutils import log
 
 from setuptools import Command
 
-from pex.bin.pex import build_pex, configure_clp
+from pex.bin.pex import build_pex, configure_clp, make_relative_to_root
 from pex.common import die
 from pex.compatibility import ConfigParser, StringIO, string
 from pex.variables import ENV
@@ -73,6 +73,10 @@ class bdist_pex(Command):  # noqa
       self.bdist_dir = os.path.join(package_dir, 'dist')
 
     options, reqs = parser.parse_args(self.pex_args)
+
+    # Update cache_dir with pex_root in case this is being called directly.
+    if options.cache_dir:
+      options.cache_dir = make_relative_to_root(options.cache_dir)
 
     if options.entry_point or options.script:
       die('Must not specify entry_point or script to --pex-args')
