@@ -444,7 +444,7 @@ class PEX(object):  # noqa: T000
     else:
       # setuptools < 11.3
       runner = entry.load(require=False)
-    runner()
+    sys.exit(runner())
 
   def cmdline(self, args=()):
     """The commandline to run this environment.
