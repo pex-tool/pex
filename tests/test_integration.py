@@ -3,13 +3,15 @@
 
 import os
 import sys
+from textwrap import dedent
 
 import pytest
 from twitter.common.contextutil import environment_as, temporary_dir
 
 from pex.compatibility import WINDOWS
-from pex.testing import run_pex_command, run_simple_pex_test
-from pex.util import named_temporary_file
+from pex.installer import EggInstaller
+from pex.testing import run_pex_command, run_simple_pex_test, temporary_content
+from pex.util import DistributionHelper, named_temporary_file
 
 
 def test_pex_execute():
@@ -88,3 +90,31 @@ def test_pex_python_symlink():
       body = "print('Hello')"
       _, rc = run_simple_pex_test(body, coverage=True)
       assert rc == 0
+
+
+def test_entry_point_exit_code():
+  setup_py = dedent("""
+    from setuptools import setup
+
+    setup(
+      name='my_app',
+      version='0.0.0',
+      zip_safe=True,
+      packages=[''],
+      entry_points={'console_scripts': ['my_app = my_app:do_something']},
+    )
+  """)
+
+  error_msg = 'setuptools expects this to exit non-zero'
+
+  my_app = dedent("""
+    def do_something():
+      return '%s'
+  """ % error_msg)
+
+  with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
+    installer = EggInstaller(project_dir)
+    dist = DistributionHelper.distribution_from_path(installer.bdist())
+    so, rc = run_simple_pex_test('', env={'PEX_SCRIPT': 'my_app'}, dists=[dist])
+    assert so.decode('utf-8').strip() == error_msg
+    assert rc == 1
