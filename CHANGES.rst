@@ -1,6 +1,13 @@
 Release Notes
 =============
 
+1.1.11
+------
+
+* Update cache dir when bdist_pex.run is called directly.
+  `#278 <https://github.com/pantsbuild/pex/pull/278>`_
+  `Fixes #274 <https://github.com/pantsbuild/pex/issues/274>`_
+
 1.1.10
 ------
 
