@@ -391,7 +391,7 @@ class PEX(object):  # noqa: T000
 
     entry_point = get_entry_point_from_console_script(script_name, dists)
     if entry_point:
-      return self.execute_entry(entry_point)
+      sys.exit(self.execute_entry(entry_point))
 
     dist, script_path, script_content = get_script_from_distributions(script_name, dists)
     if not dist:
@@ -426,7 +426,7 @@ class PEX(object):  # noqa: T000
   @classmethod
   def execute_entry(cls, entry_point):
     runner = cls.execute_pkg_resources if ':' in entry_point else cls.execute_module
-    runner(entry_point)
+    return runner(entry_point)
 
   @staticmethod
   def execute_module(module_name):
@@ -444,7 +444,7 @@ class PEX(object):  # noqa: T000
     else:
       # setuptools < 11.3
       runner = entry.load(require=False)
-    sys.exit(runner())
+    return runner()
 
   def cmdline(self, args=()):
     """The commandline to run this environment.
