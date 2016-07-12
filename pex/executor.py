@@ -41,14 +41,12 @@ class Executor(object):
       self.exc = exc
 
   @classmethod
-  def open_process(cls, cmd, env=None, cwd=None, preexec_fn=None, combined=False, **kwargs):
+  def open_process(cls, cmd, env=None, cwd=None, combined=False, **kwargs):
     """Opens a process object via subprocess.Popen().
 
     :param string|list cmd: A list or string representing the command to run.
     :param dict env: An environment dict for the execution.
     :param string cwd: The target cwd for command execution.
-    :param callable preexec_fn: A callable that will get invoked in the child process just prior to
-                                subprocess execution.
     :param bool combined: Whether or not to combine stdin and stdout streams.
     :return: A `subprocess.Popen` object.
     :raises: `Executor.ExecutableNotFound` when the executable requested to run does not exist.
@@ -56,7 +54,7 @@ class Executor(object):
     assert len(cmd) > 0, 'cannot execute an empty command!'
 
     try:
-      process = subprocess.Popen(
+      return subprocess.Popen(
         cmd,
         stdin=kwargs.pop('stdin', subprocess.PIPE),
         stdout=kwargs.pop('stdout', subprocess.PIPE),
@@ -68,23 +66,20 @@ class Executor(object):
     except (IOError, OSError) as e:
       if e.errno == errno.ENOENT:
         raise cls.ExecutableNotFound(cmd, e)
-    return process
 
   @classmethod
-  def execute(cls, cmd, env=None, cwd=None, preexec_fn=None, stdin_payload=None, **kwargs):
+  def execute(cls, cmd, env=None, cwd=None, stdin_payload=None, **kwargs):
     """Execute a command via subprocess.Popen and returns the stdio.
 
     :param string|list cmd: A list or string representing the command to run.
     :param dict env: An environment dict for the execution.
     :param string cwd: The target cwd for command execution.
-    :param function preexec_fn: A callable that will get invoked in the child process just prior to
-                                subprocess execution.
     :param string stdin_payload: A string representing the stdin payload, if any, to send.
     :return: A tuple of strings representing (stdout, stderr), pre-decoded for utf-8.
     :raises: `Executor.ExecutableNotFound` when the executable requested to run does not exist.
              `Executor.NonZeroExit` when the execution fails with a non-zero exit code.
     """
-    process = cls.open_process(cmd=cmd, env=env, cwd=cwd, preexec_fn=preexec_fn, **kwargs)
+    process = cls.open_process(cmd=cmd, env=env, cwd=cwd, **kwargs)
     stdout_raw, stderr_raw = process.communicate(input=stdin_payload)
     # N.B. In cases where `stdout` or `stderr` is passed as parameters, these can be None.
     stdout = stdout_raw.decode('utf-8') if stdout_raw is not None else stdout_raw

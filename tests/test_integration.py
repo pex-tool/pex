@@ -10,7 +10,7 @@ from twitter.common.contextutil import environment_as, temporary_dir
 
 from pex.compatibility import WINDOWS
 from pex.installer import EggInstaller
-from pex.testing import run_pex_command, run_simple_pex_test, temporary_content
+from pex.testing import run_pex_command, run_simple_pex, run_simple_pex_test, temporary_content
 from pex.util import DistributionHelper, named_temporary_file
 
 
@@ -75,6 +75,43 @@ def test_pex_interpreter():
     so, rc = run_simple_pex_test("", args=(fp.name,), coverage=True, env=env)
     assert so == b'Hello world\n'
     assert rc == 0
+
+
+def test_pex_repl_cli():
+  """Tests the REPL in the context of the pex cli itself."""
+  stdin_payload = b'import sys; sys.exit(3)'
+
+  with temporary_dir() as output_dir:
+    # Create a temporary pex containing just `requests` with no entrypoint.
+    pex_path = os.path.join(output_dir, 'pex.pex')
+    results = run_pex_command(['--disable-cache',
+                               'wheel',
+                               'requests',
+                               './',
+                               '-e', 'pex.bin.pex:main',
+                               '-o', pex_path])
+    results.assert_success()
+
+    # Test that the REPL is functional.
+    stdout, rc = run_simple_pex(pex_path, stdin=stdin_payload)
+    assert rc == 3
+    assert b'>>>' in stdout
+
+
+def test_pex_repl_built():
+  """Tests the REPL in the context of a built pex."""
+  stdin_payload = b'import requests; import sys; sys.exit(3)'
+
+  with temporary_dir() as output_dir:
+    # Create a temporary pex containing just `requests` with no entrypoint.
+    pex_path = os.path.join(output_dir, 'requests.pex')
+    results = run_pex_command(['--disable-cache', 'requests', '-o', pex_path])
+    results.assert_success()
+
+    # Test that the REPL is functional.
+    stdout, rc = run_simple_pex(pex_path, stdin=stdin_payload)
+    assert rc == 3
+    assert b'>>>' in stdout
 
 
 @pytest.mark.skipif(WINDOWS, reason='No symlinks on windows')

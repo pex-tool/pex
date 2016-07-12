@@ -212,9 +212,9 @@ def run_pex_command(args, env=None):
 
 
 # TODO(wickman) Why not PEX.run?
-def run_simple_pex(pex, args=(), env=None):
+def run_simple_pex(pex, args=(), env=None, stdin=None):
   process = Executor.open_process([sys.executable, pex] + list(args), env=env, combined=True)
-  stdout, _ = process.communicate()
+  stdout, _ = process.communicate(input=stdin)
   return stdout.replace(b'\r', b''), process.returncode
 
 
