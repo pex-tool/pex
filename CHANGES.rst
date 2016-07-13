@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+1.1.12
+------
+
+* Fix bdist_pex interpreter cache directory. (#286)
+  `#286 <https://github.com/pantsbuild/pex/pull/286>`_
+
+* Normalize and edify subprocess execution. (#255)
+  `#255 <https://github.com/pantsbuild/pex/pull/255>`_
+
+* Don't ignore exit codes when using setuptools entry points. (#280)
+  `#280 <https://github.com/pantsbuild/pex/pull/280>`_
+  `Fixes #137 <https://github.com/pantsbuild/pex/issues/137>`_
+
 1.1.11
 ------
 
