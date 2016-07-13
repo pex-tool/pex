@@ -155,6 +155,7 @@ class PEX(object):  # noqa: T000
 
   @classmethod
   def minimum_sys_path(cls, site_libs, inherit_path):
+    scrub_paths = OrderedSet()
     site_distributions = OrderedSet()
     user_site_distributions = OrderedSet()
 
@@ -171,13 +172,10 @@ class PEX(object):  # noqa: T000
 
     user_site_distributions.update(all_distribution_paths(USER_SITE))
 
-    for path in user_site_distributions:
-      TRACER.log('Scrubbing from user site: %s' % path)
-
-    if inherit_path:
-      scrub_paths = user_site_distributions
-    else:
+    if not inherit_path:
       scrub_paths = site_distributions | user_site_distributions
+      for path in user_site_distributions:
+        TRACER.log('Scrubbing from user site: %s' % path)
       for path in site_distributions:
         TRACER.log('Scrubbing from site-packages: %s' % path)
 
