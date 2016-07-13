@@ -4,7 +4,6 @@
 from __future__ import absolute_import, print_function
 
 import os
-import subprocess
 import sys
 from contextlib import contextmanager
 from distutils import sysconfig
@@ -16,6 +15,7 @@ from pkg_resources import EntryPoint, WorkingSet, find_distributions
 from .common import die
 from .compatibility import exec_function
 from .environment import PEXEnvironment
+from .executor import Executor
 from .finders import get_entry_point_from_console_script, get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
@@ -457,7 +457,7 @@ class PEX(object):  # noqa: T000
     cmds.extend(args)
     return cmds
 
-  def run(self, args=(), with_chroot=False, blocking=True, setsid=False, **kw):
+  def run(self, args=(), with_chroot=False, blocking=True, setsid=False, **kwargs):
     """Run the PythonEnvironment in an interpreter in a subprocess.
 
     :keyword args: Additional arguments to be passed to the application being invoked by the
@@ -473,9 +473,12 @@ class PEX(object):  # noqa: T000
 
     cmdline = self.cmdline(args)
     TRACER.log('PEX.run invoking %s' % ' '.join(cmdline))
-    process = subprocess.Popen(
-        cmdline,
-        cwd=self._pex if with_chroot else os.getcwd(),
-        preexec_fn=os.setsid if setsid else None,
-        **kw)
+    process = Executor.open_process(cmdline,
+                                    cwd=self._pex if with_chroot else os.getcwd(),
+                                    preexec_fn=os.setsid if setsid else None,
+                                    # Explicitly don't redirect stdio for this execution.
+                                    stdin=None,
+                                    stdout=None,
+                                    stderr=None,
+                                    **kwargs)
     return process.wait() if blocking else process

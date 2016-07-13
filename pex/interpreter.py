@@ -7,7 +7,6 @@ from __future__ import absolute_import
 
 import os
 import re
-import subprocess
 import sys
 from collections import defaultdict
 
@@ -15,6 +14,7 @@ from pkg_resources import Distribution, Requirement, find_distributions
 
 from .base import maybe_requirement
 from .compatibility import string
+from .executor import Executor
 from .tracer import TRACER
 
 try:
@@ -235,20 +235,12 @@ class PythonInterpreter(object):
   def _from_binary_external(cls, binary, path_extras):
     environ = cls.sanitized_environment()
     environ['PYTHONPATH'] = ':'.join(path_extras)
-    po = subprocess.Popen(
-        [binary],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        env=environ)
-    so, _ = po.communicate(ID_PY)
-    output = so.decode('utf8').splitlines()
+    stdout, _ = Executor.execute([binary], env=environ, stdin_payload=ID_PY)
+    output = stdout.splitlines()
     if len(output) == 0:
       raise cls.IdentificationError('Could not establish identity of %s' % binary)
     identity, extras = output[0], output[1:]
-    return cls(
-        binary,
-        PythonIdentity.from_id_string(identity),
-        extras=cls._parse_extras(extras))
+    return cls(binary, PythonIdentity.from_id_string(identity), extras=cls._parse_extras(extras))
 
   @classmethod
   def expand_path(cls, path):

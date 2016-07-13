@@ -3,9 +3,8 @@
 
 from __future__ import absolute_import
 
-import subprocess
-
 from .compatibility import to_bytes
+from .executor import Executor
 from .util import named_temporary_file
 
 
@@ -59,7 +58,8 @@ main(root, relpaths)
 
 
 class Compiler(object):
-  class Error(Exception):
+  class Error(Exception): pass
+  class CompilationFailure(Error):  # N.B. This subclasses `Error` only for backwards compatibility.
     """Indicates an error compiling one or more python source files."""
 
   def __init__(self, interpreter):
@@ -81,10 +81,12 @@ class Compiler(object):
     with named_temporary_file() as fp:
       fp.write(to_bytes(_COMPILER_MAIN % {'root': root, 'relpaths': relpaths}, encoding='utf-8'))
       fp.flush()
-      process = subprocess.Popen([self._interpreter.binary, fp.name],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-      out, err = process.communicate()
-      if process.returncode != 0:
-        raise self.Error(err)
-      return [pyc_relpath.decode('utf-8') for pyc_relpath in out.splitlines()]
+
+      try:
+        out, _ = Executor.execute([self._interpreter.binary, fp.name])
+      except Executor.NonZeroExit as e:
+        raise self.CompilationFailure(
+          'encountered %r during bytecode compilation.\nstderr was:\n%s\n' % (e, e.stderr)
+        )
+
+      return out.splitlines()
