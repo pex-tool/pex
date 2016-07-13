@@ -77,6 +77,7 @@ class bdist_pex(Command):  # noqa
     # Update cache_dir with pex_root in case this is being called directly.
     if options.cache_dir:
       options.cache_dir = make_relative_to_root(options.cache_dir)
+    options.interpreter_cache_dir = make_relative_to_root(options.interpreter_cache_dir)
 
     if options.entry_point or options.script:
       die('Must not specify entry_point or script to --pex-args')
