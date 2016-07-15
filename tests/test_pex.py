@@ -7,12 +7,17 @@ import textwrap
 from types import ModuleType
 
 import pytest
-from twitter.common.contextutil import temporary_dir
 
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
-from pex.testing import make_installer, run_simple_pex_test
+from pex.testing import (
+    make_installer,
+    named_temporary_file,
+    run_simple_pex_test,
+    temporary_dir,
+    write_simple_pex
+)
 from pex.util import DistributionHelper
 
 try:
@@ -187,3 +192,17 @@ def test_pex_script(installer_impl, project_name, zip_safe):
     so, rc = run_simple_pex_test('', env=env_copy, dists=[bdist])
     assert rc == 1, so.decode('utf-8')
     assert b'Unable to parse' in so
+
+
+def test_pex_run():
+  with named_temporary_file() as fake_stdout:
+    with temporary_dir() as temp_dir:
+      pex = write_simple_pex(
+        temp_dir,
+        'import sys; sys.stdout.write("hello"); sys.stderr.write("hello"); sys.exit(0)'
+      )
+      rc = PEX(pex.path()).run(stdin=None, stdout=fake_stdout, stderr=fake_stdout)
+      assert rc == 0
+
+      fake_stdout.seek(0)
+      assert fake_stdout.read() == b'hellohello'
