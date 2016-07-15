@@ -477,8 +477,8 @@ class PEX(object):  # noqa: T000
                                     cwd=self._pex if with_chroot else os.getcwd(),
                                     preexec_fn=os.setsid if setsid else None,
                                     # Explicitly don't redirect stdio for this execution.
-                                    stdin=None,
-                                    stdout=None,
-                                    stderr=None,
+                                    stdin=kwargs.pop('stdin', None),
+                                    stdout=kwargs.pop('stdout', None),
+                                    stderr=kwargs.pop('stderr', None),
                                     **kwargs)
     return process.wait() if blocking else process
