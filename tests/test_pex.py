@@ -196,13 +196,14 @@ def test_pex_script(installer_impl, project_name, zip_safe):
 
 
 def test_pex_run():
-  with named_temporary_file() as fake_stdout, temporary_dir() as temp_dir:
-    pex = write_simple_pex(
-      temp_dir,
-      'import sys; sys.stdout.write("hello"); sys.stderr.write("hello"); sys.exit(0)'
-    )
-    rc = PEX(pex.path()).run(stdin=None, stdout=fake_stdout, stderr=fake_stdout)
-    assert rc == 0
+  with named_temporary_file() as fake_stdout:
+    with temporary_dir() as temp_dir:
+      pex = write_simple_pex(
+        temp_dir,
+        'import sys; sys.stdout.write("hello"); sys.stderr.write("hello"); sys.exit(0)'
+      )
+      rc = PEX(pex.path()).run(stdin=None, stdout=fake_stdout, stderr=fake_stdout)
+      assert rc == 0
 
-    fake_stdout.seek(0)
-    assert fake_stdout.read() == b'hellohello'
+      fake_stdout.seek(0)
+      assert fake_stdout.read() == b'hellohello'
