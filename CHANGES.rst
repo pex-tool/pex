@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.1.13
+------
+
+* Repair passing of stdio kwargs to PEX.run(). (#288)
+  `#288 <https://github.com/pantsbuild/pex/pull/288>`_
+
 1.1.12
 ------
 
