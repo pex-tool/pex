@@ -7,7 +7,6 @@ import textwrap
 from types import ModuleType
 
 import pytest
-from twitter.common.contextutil import temporary_dir
 
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
