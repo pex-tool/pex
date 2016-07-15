@@ -8,7 +8,6 @@ from twitter.common.contextutil import temporary_dir
 
 from pex.executor import Executor
 
-
 TEST_EXECUTABLE = '/a/nonexistent/path/to/nowhere'
 TEST_CMD_LIST = [TEST_EXECUTABLE, '--version']
 TEST_CMD_STR = ' '.join(TEST_CMD_LIST)
