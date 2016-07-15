@@ -476,7 +476,6 @@ class PEX(object):  # noqa: T000
     process = Executor.open_process(cmdline,
                                     cwd=self._pex if with_chroot else os.getcwd(),
                                     preexec_fn=os.setsid if setsid else None,
-                                    # Explicitly don't redirect stdio for this execution.
                                     stdin=kwargs.pop('stdin', None),
                                     stdout=kwargs.pop('stdout', None),
                                     stderr=kwargs.pop('stderr', None),
