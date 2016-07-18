@@ -1,4 +1,5 @@
 import os
+import shlex
 from distutils import log
 
 from setuptools import Command
@@ -29,7 +30,7 @@ class bdist_pex(Command):  # noqa
     self.pex_args = ''
 
   def finalize_options(self):
-    self.pex_args = self.pex_args.split()
+    self.pex_args = shlex.split(self.pex_args)
 
   def _write(self, pex_builder, target, script=None):
     builder = pex_builder.clone()
