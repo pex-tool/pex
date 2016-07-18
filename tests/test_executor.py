@@ -6,6 +6,7 @@ import os
 import pytest
 from twitter.common.contextutil import temporary_dir
 
+from pex.common import safe_mkdir
 from pex.executor import Executor
 
 TEST_EXECUTABLE = '/a/nonexistent/path/to/nowhere'
@@ -90,3 +91,12 @@ def test_executor_exceptions_nonzeroexit(cmd):
   assert exc.exit_code == TEST_CODE
   assert exc.stdout == TEST_STDOUT
   assert exc.stderr == TEST_STDERR
+
+
+def test_executor_execute_dir():
+  with temporary_dir() as temp_dir:
+    test_dir = os.path.realpath(os.path.join(temp_dir, 'tmp'))
+    safe_mkdir(test_dir)
+    assert os.path.isdir(test_dir)
+    with pytest.raises(Executor.ExecutionError):
+      Executor.execute(test_dir)
