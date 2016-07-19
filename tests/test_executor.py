@@ -98,5 +98,6 @@ def test_executor_execute_dir():
     test_dir = os.path.realpath(os.path.join(temp_dir, 'tmp'))
     safe_mkdir(test_dir)
     assert os.path.isdir(test_dir)
-    with pytest.raises(Executor.ExecutionError):
+    with pytest.raises(Executor.ExecutionError) as e:
       Executor.execute(test_dir)
+    assert test_dir in str(e)

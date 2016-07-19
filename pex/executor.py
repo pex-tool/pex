@@ -13,10 +13,13 @@ class Executor(object):
   class ExecutionError(Exception):
     """Indicates failure to execute."""
 
-    def __init__(self, msg, cmd):
-      super(Executor.ExecutionError, self).__init__(msg)  # noqa
+    def __init__(self, msg, cmd, exc=None):
+      super(Executor.ExecutionError, self).__init__(  # noqa
+        '%s while trying to execute `%s`' % (msg, cmd)
+      )
       self.executable = cmd.split()[0] if isinstance(cmd, string) else cmd[0]
       self.cmd = cmd
+      self.exc = exc
 
   class NonZeroExit(ExecutionError):
     """Indicates a non-zero exit code."""
@@ -66,6 +69,8 @@ class Executor(object):
     except (IOError, OSError) as e:
       if e.errno == errno.ENOENT:
         raise cls.ExecutableNotFound(cmd, e)
+      else:
+        raise cls.ExecutionError(repr(e), cmd, e)
 
   @classmethod
   def execute(cls, cmd, env=None, cwd=None, stdin_payload=None, **kwargs):
