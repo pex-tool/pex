@@ -1,6 +1,18 @@
 Release Notes
 =============
 
+1.1.14
+------
+
+* Repair Executor error handling for other classes of IOError/OSError. (#292)
+  `#292 <https://github.com/pantsbuild/pex/pull/292>`_
+
+* Fix bdist_pex --pex-args. (#285)
+  `#285 <https://github.com/pantsbuild/pex/pull/285>`_
+
+* Inherit user site with --inherit-path. (#284)
+  `#284 <https://github.com/pantsbuild/pex/pull/284>`_
+
 1.1.13
 ------
 
