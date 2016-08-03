@@ -13,6 +13,7 @@ from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
 from pex.resolver import Unsatisfiable, _ResolvableSet, resolve, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
+from pex.interpreter import PythonInterpreter
 from pex.testing import make_sdist
 
 
