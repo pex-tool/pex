@@ -12,7 +12,7 @@ include multiple platform-specific Python distributions, meaning that a single p
 can be portable across Linux and OS X.
 
 pex files can be built using the ``pex`` tool.  Build systems such as `Pants
-<http://pantsbuild.github.io/>`_ and `Buck <http://facebook.github.io/buck/>`_ also
+<http://pantsbuild.github.io/>`_, `{py}gradle <https://github.com/linkedin/pygradle>`_ and `Buck <http://facebook.github.io/buck/>`_ also
 support building .pex files directly.
 
 Still unsure about what pex does or how it works?  Watch this quick lightning
