@@ -89,9 +89,9 @@ class DistributionHelper(object):
     # Monkeypatch pkg_resources finders should it not already be so.
     register_finders()
     if name is None:
-      distributions = list(find_distributions(path))
+      distributions = set(find_distributions(path))
       if len(distributions) == 1:
-        return distributions[0]
+        return distributions.pop()
     else:
       for dist in find_distributions(path):
         if dist.project_name == name:
