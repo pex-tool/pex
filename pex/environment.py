@@ -82,17 +82,20 @@ class PEXEnvironment(Environment):
           distribution_name, dist_digest))
         if os.path.exists(cached_location):
           dist = DistributionHelper.distribution_from_path(cached_location)
-          existing_cached_distributions.append(dist)
-          continue
+          if dist is not None:
+            existing_cached_distributions.append(dist)
+            continue
         else:
           dist = DistributionHelper.distribution_from_path(os.path.join(pex, internal_dist_path))
-          if DistributionHelper.zipsafe(dist) and not pex_info.always_write_cache:
-            zip_safe_distributions.append(dist)
-            continue
+          if dist is not None:
+            if DistributionHelper.zipsafe(dist) and not pex_info.always_write_cache:
+              zip_safe_distributions.append(dist)
+              continue
 
         with TRACER.timed('Caching %s' % dist):
           newly_cached_distributions.append(
             CacheHelper.cache_distribution(zf, internal_dist_path, cached_location))
+
     return existing_cached_distributions, newly_cached_distributions, zip_safe_distributions
 
   @classmethod
