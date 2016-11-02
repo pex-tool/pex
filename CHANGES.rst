@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.1.15
+------
+
+* Fix #309 by deduplicating output of the distribution finder. (#310)
+  `#310 <https://github.com/pantsbuild/pex/pull/310>`_
+
+* Update wheel dependency to >0.26.0. (#304)
+  `#304 <https://github.com/pantsbuild/pex/pull/304>`_
+
 1.1.14
 ------
 
