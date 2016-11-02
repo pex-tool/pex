@@ -94,6 +94,18 @@ class PEX(object):  # noqa: T000
     extras_paths = filter(None, makefile.get('EXTRASPATH', '').split(':'))
     for path in extras_paths:
       yield os.path.join(standard_lib, path)
+    # macOS Sierra support
+    framework = sysconfig.get_config_var("PYTHONFRAMEWORK")
+    if not framework:
+      raise StopIteration()
+    third_party = os.path.join("/Library", framework, sys.version[:3], "site-packages")
+    yield third_party
+    extras_pth = os.path.join(third_party, 'Extras.pth')
+    if not os.path.exists(extras_pth):
+      raise StopIteration()
+    with open(extras_pth, 'r') as fd:
+      for line in fd.readlines():
+        yield line.strip()
 
   @classmethod
   def _get_site_packages(cls):
