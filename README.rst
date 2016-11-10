@@ -113,7 +113,7 @@ is available at https://pex.readthedocs.io.
 Development
 ===========
 
-pex uses `tox <https://testrun.org/tox/latest/>`_ for test and development automation.  To run
+pex uses `tox <https://tox.readthedocs.io/en/latest/>`_ for test and development automation.  To run
 the test suite, just invoke tox:
 
 .. code-block:: bash
