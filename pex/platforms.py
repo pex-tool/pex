@@ -27,6 +27,13 @@ class Platform(object):
     'fat64': ('ppc64', 'x86_64'),
     'universal': ('i386', 'ppc', 'ppc64', 'x86_64')
   }
+  LINUX_PLATFORM_COMPATIBILITY = {
+    'linux_x86_64': ('manylinux1_x86_64', 'linux_x86_64'),
+    'linux_i686': ('manylinux1_i686', 'linux_i686', 'linux_i386'),
+    'linux_i386': ('linux_i386',),
+    'manylinux1_i686': ('manylinux1_i686',),
+    'manylinux1_x86_64': ('manylinux1_x86_64',),
+  }
 
   @staticmethod
   def current():
