@@ -195,7 +195,7 @@ class PEXBuilder(object):
           "Setting executable on a PEXBuilder that already has one!")
     self._copy_or_link(filename, env_filename, "executable")
     entry_point = env_filename
-    entry_point.replace(os.path.sep, '.')
+    entry_point = entry_point.replace(os.path.sep, '.')
     self._pex_info.entry_point = entry_point.rpartition('.')[0]
 
   def set_script(self, script):

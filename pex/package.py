@@ -205,8 +205,8 @@ class WheelPackage(Package):
     except ValueError:
       raise self.InvalidPackage('Wheel filename malformed.')
     # See https://github.com/pypa/pip/issues/1150 for why this is unavoidable.
-    self._name.replace('_', '-')
-    self._raw_version.replace('_', '-')
+    self._name = self._name.replace('_', '-')
+    self._raw_version = self._raw_version.replace('_', '-')
     self._supported_tags = frozenset(self._iter_tags())
 
   @property
