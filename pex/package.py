@@ -201,7 +201,7 @@ class WheelPackage(Package):
       raise self.InvalidPackage('Not a wheel: %s' % filename)
     try:
       self._name, self._raw_version, self._py_tag, self._abi_tag, self._arch_tag = (
-          filename.split('-'))
+          filename.rsplit('-', 4))
     except ValueError:
       raise self.InvalidPackage('Wheel filename malformed.')
     # See https://github.com/pypa/pip/issues/1150 for why this is unavoidable.
@@ -259,7 +259,6 @@ def distribution_compatible(dist, interpreter=None, platform=None):
   """
   interpreter = interpreter or PythonInterpreter.get()
   platform = platform or Platform.current()
-
   package = Package.from_href(dist.location)
   if not package:
     return False
