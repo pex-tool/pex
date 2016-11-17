@@ -150,7 +150,7 @@ class ResolvableRepository(Resolvable):
 
   @property
   def name(self):
-    raise NotImplemented
+    raise NotImplementedError
 
   @property
   def exact(self):
