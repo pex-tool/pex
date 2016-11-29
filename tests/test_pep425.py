@@ -9,8 +9,11 @@ from pex.pep425 import PEP425, PEP425Extras
 
 def test_platform_iterator():
   # non macosx
-  assert list(PEP425Extras.platform_iterator('blah')) == ['blah']
-  assert list(PEP425Extras.platform_iterator('linux_x86_64')) == ['linux_x86_64']
+  assert set(PEP425Extras.platform_iterator('blah')) == set(['blah'])
+  assert set(PEP425Extras.platform_iterator('linux_x86_64')) == set([
+    'linux_x86_64',
+    'manylinux1_x86_64'
+  ])
 
   # macosx
   assert set(PEP425Extras.platform_iterator('macosx_10_4_x86_64')) == set([
@@ -45,10 +48,10 @@ def test_iter_supported_tags():
   def iter_solutions():
     for interp in ('cp', 'py'):
       for interp_suffix in ('2', '20', '21', '22', '23', '24', '25', '26'):
-        for platform in ('linux_x86_64', 'any'):
+        for platform in ('linux_x86_64', 'any', 'manylinux1_x86_64'):
           abis = ['none']
 
-          if interp == 'cp' and interp_suffix == '26' and platform == 'linux_x86_64':
+          if interp == 'cp' and interp_suffix == '26' and platform != 'any':
             abis.extend([
               'cp%s' % interp_suffix,
               'cp%sdmu' % interp_suffix, 'cp%sdm' % interp_suffix,
