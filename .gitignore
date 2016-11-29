@@ -11,3 +11,5 @@
 /.coverage*
 /htmlcov
 /.pyenv_test
+.cache/*
+.eggs/*
