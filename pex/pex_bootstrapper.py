@@ -46,20 +46,6 @@ def get_pex_info(entry_point):
   raise ValueError('Invalid entry_point: %s' % entry_point)
 
 
-# TODO(wickman) Remove once resolved (#91):
-#   https://bitbucket.org/pypa/setuptools/issue/154/build_zipmanifest-results-should-be
-def monkeypatch_build_zipmanifest():
-  import pkg_resources
-  if not hasattr(pkg_resources, 'build_zipmanifest'):
-    return
-  old_build_zipmanifest = pkg_resources.build_zipmanifest
-  def memoized_build_zipmanifest(archive, memo={}):
-    if archive not in memo:
-      memo[archive] = old_build_zipmanifest(archive)
-    return memo[archive]
-  pkg_resources.build_zipmanifest = memoized_build_zipmanifest
-
-
 def find_in_path(target_interpreter):
   if os.path.exists(target_interpreter):
     return target_interpreter
@@ -90,7 +76,6 @@ def maybe_reexec_pex():
 
 def bootstrap_pex(entry_point):
   from .finders import register_finders
-  monkeypatch_build_zipmanifest()
   register_finders()
   maybe_reexec_pex()
 
@@ -104,7 +89,6 @@ def bootstrap_pex_env(entry_point):
   from .finders import register_finders
   from .pex_info import PexInfo
 
-  monkeypatch_build_zipmanifest()
   register_finders()
 
   PEXEnvironment(entry_point, PexInfo.from_pex(entry_point)).activate()
