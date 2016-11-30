@@ -16,12 +16,12 @@ from .platforms import Platform
 class PEP425Extras(object):
   """Extensions to platform handling beyond PEP425."""
 
-  @classmethod
-  def is_macosx_platform(cls, platform):
+  @staticmethod
+  def is_macosx_platform(platform):
     return platform.startswith('macosx')
 
-  @classmethod
-  def is_linux_platform(cls, platform):
+  @staticmethod
+  def is_linux_platform(platform):
     return platform.startswith('linux') or platform.startswith('manylinux')
 
   @classmethod
@@ -50,8 +50,8 @@ class PEP425Extras(object):
       for binary_compat in platform_equivalents:
         yield 'macosx_%s_%s_%s' % (platform_major, minor, binary_compat)
 
-  @classmethod
-  def iter_compatible_linux_platforms(cls, supported_platform):
+  @staticmethod
+  def iter_compatible_linux_platforms(supported_platform):
     platform_equivalents = set(Platform.LINUX_PLATFORM_COMPATIBILITY.get(supported_platform, ()))
     platform_equivalents.add(supported_platform)
     for platform in platform_equivalents:
