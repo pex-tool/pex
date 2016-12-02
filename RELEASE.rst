@@ -66,12 +66,12 @@ Prepare binary assets
 
     $ tox -e py27-package
     ...
-    $ ./dist/py27 --version
+    $ ./dist/pex27 --version
     pex27 1.1.1
 
     $ tox -e py35-package
     ...
-    $ ./dist/py35 --version
+    $ ./dist/pex35 --version
     pex35 1.1.1
 
 Craft the Release
