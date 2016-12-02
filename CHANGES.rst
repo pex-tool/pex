@@ -1,6 +1,18 @@
 Release Notes
 =============
 
+1.1.16
+------
+
+* Adjust FileFinder import to work with Python 3.6. (#318)
+  `#318 <https://github.com/pantsbuild/pex/pull/318>`_
+
+* Kill zipmanifest monkeypatching. (#322)
+  `#322 <https://github.com/pantsbuild/pex/pull/322>`_
+
+* Bump setuptools range to latest. (#323)
+  `#323 <https://github.com/pantsbuild/pex/pull/323>`_
+
 1.1.15
 ------
 
