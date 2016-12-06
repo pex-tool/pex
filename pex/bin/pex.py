@@ -26,10 +26,10 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import validate_constraints
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
+from pex.pep425tags import get_platform
 from pex.pex import PEX
 from pex.pex_bootstrapper import find_compatible_interpreters
 from pex.pex_builder import PEXBuilder
-from pex.platforms import Platform
 from pex.requirements import requirements_from_file
 from pex.resolvable import Resolvable
 from pex.resolver import Unsatisfiable, resolve_multi
@@ -560,6 +560,31 @@ def build_pex(args, options, resolver_option_builder):
   except TypeError:
     # options.preamble_file is None
     preamble = None
+  # Copied from pip
+  if options.python_version:
+    python_versions = [options.python_version]
+  else:
+    python_versions = None
+
+  is_dist_restriction_set = any([
+    options.python_version,
+    options.platform,
+    options.abi,
+    options.implementation,
+  ])
+  all_dist_restrictions_set = all([
+    options.python_version,
+    options.platform,
+    options.abi,
+    options.implementation,
+  ])
+  if is_dist_restriction_set and (not resolver_option_builder.no_allow_builds or
+                                  not all_dist_restrictions_set):
+    raise ValueError(
+        "--no-build must be set and --no-wheel must not be set when "
+        "restricting platform and interpreter constraints using "
+        "--python-version, --platform, --abi, or --implementation."
+    )
 
   interpreter = min(interpreters)
 
@@ -670,7 +695,7 @@ def main(args=None):
       os.rename(tmp_name, options.pex_name)
       return 0
 
-    if options.platform and Platform.current() not in options.platform:
+    if options.platform and get_platform() not in options.platform:
       log('WARNING: attempting to run PEX with incompatible platforms!')
 
     pex_builder.freeze()

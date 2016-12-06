@@ -17,7 +17,7 @@ from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
 from .package import Package, distribution_compatible
-from .platforms import Platform
+from .pep425tags import get_supported
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
 from .tracer import TRACER
@@ -142,20 +142,37 @@ class _ResolvableSet(object):
 
 
 class Resolver(object):
-  """Interface for resolving resolvable entities into python packages."""
+  """Interface for resolving resolvable entities into python packages.
+
+  :param versions: a list of string versions, of the form ["33", "32"],
+    or None. The first version will be assumed to support our ABI.
+  :param platform: specify the exact platform you want valid
+    tags for, or None. If None, use the local system platform.
+  :param impl: specify the exact implementation you want valid
+    tags for, or None. If None, use the local interpreter impl.
+  :param abi: specify the exact abi you want valid
+    tags for, or None. If None, use the local interpreter abi.
+  """
 
   class Error(Exception): pass
 
-  @classmethod
-  def filter_packages_by_interpreter(cls, packages, interpreter, platform):
+  def filter_packages_by_interpreter(self, packages):
     return [package for package in packages
-        if package.compatible(interpreter.identity, platform)]
+            if package.compatible(self._supported_tags)]
 
-  def __init__(self, allow_prereleases=None, interpreter=None, platform=None, pkg_blacklist=None):
+  def __init__(self, allow_prereleases=None, interpreter=None, versions=None,
+               platform=None, impl=None, abi=None, pkg_blacklist=None):
     self._interpreter = interpreter or PythonInterpreter.get()
-    self._platform = platform or Platform.current()
+    self._platform = platform
     self._allow_prereleases = allow_prereleases
     self._blacklist = pkg_blacklist.copy() if pkg_blacklist else {}
+    self._impl = impl
+    self._abi = abi
+    self._versions = versions
+    self._supported_tags = get_supported(versions=self._versions,
+                                         platform=self._platform,
+                                         impl=self._impl,
+                                         abi=abi)
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
@@ -163,11 +180,11 @@ class Resolver(object):
         StaticIterator(existing, allow_prereleases=self._allow_prereleases))
     else:
       existing = resolvable.packages()
-    return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
+    return self.filter_packages_by_interpreter(existing)
 
   def build(self, package, options):
     context = options.get_context()
-    translator = options.get_translator(self._interpreter, self._platform)
+    translator = options.get_translator(self._interpreter, self._supported_tags)
     with TRACER.timed('Fetching %s' % package.url, V=2):
       local_package = Package.from_href(context.fetch(package))
     if local_package is None:
@@ -176,7 +193,7 @@ class Resolver(object):
       dist = translator.translate(local_package)
     if dist is None:
       raise Untranslateable('Package %s is not translateable by %s' % (package, translator))
-    if not distribution_compatible(dist, self._interpreter, self._platform):
+    if not distribution_compatible(dist, self._supported_tags):
       raise Untranslateable(
         'Could not get distribution for %s on platform %s.' % (package, self._platform))
     return dist
@@ -268,11 +285,7 @@ class CachingResolver(Resolver):
   def package_iterator(self, resolvable, existing=None):
     iterator = Iterator(fetchers=[Fetcher([self.__cache])],
                         allow_prereleases=self._allow_prereleases)
-    packages = self.filter_packages_by_interpreter(
-      resolvable.compatible(iterator),
-      self._interpreter,
-      self._platform
-    )
+    packages = self.filter_packages_by_interpreter(resolvable.compatible(iterator))
 
     if packages and self.__cache_ttl:
       packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
@@ -320,9 +333,14 @@ def resolve(requirements,
     unspecified, the default is to look for packages on PyPI.
   :keyword interpreter: (optional) A :class:`PythonInterpreter` object to use for building
     distributions and for testing distribution compatibility.
-  :keyword platform: (optional) A PEP425-compatible platform string to use for filtering
-    compatible distributions.  If unspecified, the current platform is used, as determined by
-    `Platform.current()`.
+  :keyword versions: (optional) a list of string versions, of the form ["33", "32"],
+    or None. The first version will be assumed to support our ABI.
+  :keyword platform: (optional) specify the exact platform you want valid
+    tags for, or None. If None, use the local system platform.
+  :keyword impl: (optional) specify the exact implementation you want valid
+    tags for, or None. If None, use the local interpreter impl.
+  :keyword abi: (optional) specify the exact abi you want valid
+    tags for, or None. If None, use the local interpreter abi.
   :keyword context: (optional) A :class:`Context` object to use for network access.  If
     unspecified, the resolver will attempt to use the best available network context.
   :keyword precedence: (optional) An ordered list of allowable :class:`Package` classes

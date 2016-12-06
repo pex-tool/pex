@@ -25,7 +25,7 @@ class ResolverOptionsInterface(object):
   def get_sorter(self):
     raise NotImplemented
 
-  def get_translator(self, interpreter, platform):
+  def get_translator(self, interpreter, supported_tags):
     raise NotImplemented
 
   def get_iterator(self):
@@ -184,7 +184,7 @@ class ResolverOptions(ResolverOptionsInterface):
   def get_sorter(self):
     return Sorter(self._precedence)
 
-  def get_translator(self, interpreter, platform):
+  def get_translator(self, interpreter, supported_tags):
     translators = []
 
     # TODO(wickman) This is not ideal -- consider an explicit link between a Package
@@ -192,15 +192,15 @@ class ResolverOptions(ResolverOptionsInterface):
     # easily add new package types (or we just forego that forever.)
     for package in self._precedence:
       if package is WheelPackage:
-        translators.append(WheelTranslator(interpreter=interpreter, platform=platform))
+        translators.append(WheelTranslator(supported_tags=supported_tags))
       elif package is EggPackage:
-        translators.append(EggTranslator(interpreter=interpreter, platform=platform))
+        translators.append(EggTranslator(supported_tags=supported_tags))
       elif package is SourcePackage:
         installer_impl = WheelInstaller if WheelPackage in self._precedence else EggInstaller
         translators.append(SourceTranslator(
             installer_impl=installer_impl,
             interpreter=interpreter,
-            platform=platform))
+            supported_tags=supported_tags))
 
     return ChainedTranslator(*translators)
 
