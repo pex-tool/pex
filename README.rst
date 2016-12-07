@@ -12,7 +12,7 @@ include multiple platform-specific Python distributions, meaning that a single p
 can be portable across Linux and OS X.
 
 pex files can be built using the ``pex`` tool.  Build systems such as `Pants
-<http://pantsbuild.github.io/>`_, `Buck <http://facebook.github.io/buck/>`_, and  `{py}gradle <https://github.com/linkedin/pygradle>`_  also
+<http://pantsbuild.org/>`_, `Buck <http://facebook.github.io/buck/>`_, and  `{py}gradle <https://github.com/linkedin/pygradle>`_  also
 support building .pex files directly.
 
 Still unsure about what pex does or how it works?  Watch this quick lightning
@@ -113,7 +113,7 @@ is available at https://pex.readthedocs.io.
 Development
 ===========
 
-pex uses `tox <https://testrun.org/tox/latest/>`_ for test and development automation.  To run
+pex uses `tox <https://testrun.org/tox/en/latest/>`_ for test and development automation.  To run
 the test suite, just invoke tox:
 
 .. code-block:: bash
@@ -130,4 +130,4 @@ If you don't have tox, you can generate a pex of tox:
 Contributing
 ============
 
-To contribute, follow these instructions: http://pantsbuild.github.io/howto_contribute.html
+To contribute, follow these instructions: http://pantsbuild.org/howto_contribute.html
