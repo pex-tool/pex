@@ -238,7 +238,7 @@ def unregister_finders():
 
 def get_script_from_egg(name, dist):
   """Returns location, content of script in distribution or (None, None) if not there."""
-  if name in dist.metadata_listdir('scripts'):
+  if dist.metadata_isdir('scripts') and name in dist.metadata_listdir('scripts'):
     return (
         os.path.join(dist.egg_info, 'scripts', name),
         dist.get_metadata('scripts/%s' % name).replace('\r\n', '\n').replace('\r', '\n'))
