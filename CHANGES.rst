@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.1.17
+------
+
+* Make PEX_PATH unify pex sources, as well as requirements. (#329)
+  `#329 <https://github.com/pantsbuild/pex/pull/329>`_
+
 1.1.16
 ------
 
