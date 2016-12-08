@@ -102,6 +102,7 @@ def test_remove_finder():
       remove_finder('foo', 'bar')
       mock_register_finder.assert_called_with('foo', pkg_resources.find_nothing)
 
+
 def test_get_script_from_egg():
   # Make sure eggs without scripts don't cause errors
   dists = list(
