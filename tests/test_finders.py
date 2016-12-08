@@ -7,7 +7,7 @@ import pkg_resources
 
 from pex.finders import _add_finder as add_finder
 from pex.finders import _remove_finder as remove_finder
-from pex.finders import ChainedFinder, get_script_from_egg, find_eggs_in_zip
+from pex.finders import ChainedFinder, find_eggs_in_zip, get_script_from_egg
 
 try:
   import mock
@@ -106,8 +106,7 @@ def test_get_script_from_egg():
   # Make sure eggs without scripts don't cause errors
   dists = list(
     find_eggs_in_zip(
-      zipimport.zipimporter(
-        './tests/example_packages/Flask_Cache-0.13.1-py2.7.egg'),
+      zipimport.zipimporter('./tests/example_packages/Flask_Cache-0.13.1-py2.7.egg'),
       './tests/example_packages/Flask_Cache-0.13.1-py2.7.egg',
       only=True))
 
