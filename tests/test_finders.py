@@ -7,8 +7,7 @@ import pkg_resources
 
 from pex.finders import _add_finder as add_finder
 from pex.finders import _remove_finder as remove_finder
-from pex.finders import get_script_from_egg, find_eggs_in_zip
-from pex.finders import ChainedFinder
+from pex.finders import ChainedFinder, get_script_from_egg, find_eggs_in_zip
 
 try:
   import mock
