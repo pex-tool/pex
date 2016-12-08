@@ -233,9 +233,8 @@ class PEX(object):  # noqa: T000
   # potentially in a wonky state since the patches here (minimum_sys_modules
   # for example) actually mutate global state.  This should not be
   # considered a reversible operation despite being a contextmanager.
-  @classmethod
   @contextmanager
-  def patch_sys(cls, inherit_path):
+  def patch_sys(self, inherit_path):
     """Patch sys with all site scrubbed."""
     def patch_dict(old_value, new_value):
       old_value.clear()
@@ -248,7 +247,9 @@ class PEX(object):  # noqa: T000
 
     old_sys_path, old_sys_path_importer_cache, old_sys_modules = (
         sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
-    new_sys_path, new_sys_path_importer_cache, new_sys_modules = cls.minimum_sys(inherit_path)
+    new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
+
+    new_sys_path.extend(filter(None, self._vars.PEX_PATH.split(os.pathsep)))
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
     yield

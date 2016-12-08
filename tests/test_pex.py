@@ -206,3 +206,35 @@ def test_pex_run():
 
       fake_stdout.seek(0)
       assert fake_stdout.read() == b'hellohello'
+
+
+def test_pex_paths():
+  # Tests that PEX_PATH allows importing sources from the referenced pex.
+  with named_temporary_file() as fake_stdout:
+    with temporary_dir() as temp_dir:
+      pex1_path = os.path.join(temp_dir, 'pex1')
+      write_simple_pex(
+        pex1_path,
+        exe_contents='',
+        sources=[
+          ('foo_pkg/__init__.py', ''),
+          ('foo_pkg/foo_module.py', 'def foo_func():\n  return "42"')
+        ]
+      )
+
+      pex2_path = os.path.join(temp_dir, 'pex2')
+      pex2 = write_simple_pex(
+        pex2_path,
+        'import sys; from bar_pkg.bar_module import bar_func; '
+        'sys.stdout.write(bar_func()); sys.exit(0)',
+        sources=[
+          ('bar_pkg/bar_module.py',
+           'from foo_pkg.foo_module import foo_func\ndef bar_func():\n  return foo_func()')
+        ]
+      )
+
+      rc = PEX(pex2.path()).run(stdin=None, stdout=fake_stdout, env={'PEX_PATH': pex1_path})
+      assert rc == 0
+
+      fake_stdout.seek(0)
+      assert fake_stdout.read() == b'42'
