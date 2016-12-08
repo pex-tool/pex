@@ -163,13 +163,7 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False)
   dists = dists or []
   sources = sources or []
 
-  def makedirs(d):
-    try:
-      os.makedirs(d)
-    except OSError:
-      pass
-
-  makedirs(td)
+  safe_mkdir(td)
 
   with open(os.path.join(td, 'exe.py'), 'w') as fp:
     fp.write(exe_contents)
@@ -181,7 +175,7 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False)
 
   for env_filename, contents in sources:
     src_path = os.path.join(td, env_filename)
-    makedirs(os.path.dirname(src_path))
+    safe_mkdir(os.path.dirname(src_path))
     with open(src_path, 'w') as fp:
       fp.write(contents)
     pb.add_source(src_path, env_filename)
