@@ -1,11 +1,13 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import zipimport
+
 import pkg_resources
 
 from pex.finders import _add_finder as add_finder
 from pex.finders import _remove_finder as remove_finder
-from pex.finders import ChainedFinder
+from pex.finders import ChainedFinder, find_eggs_in_zip, get_script_from_egg
 
 try:
   import mock
@@ -99,3 +101,19 @@ def test_remove_finder():
       mock_get_finder.return_value = ChainedFinder(['bar'])
       remove_finder('foo', 'bar')
       mock_register_finder.assert_called_with('foo', pkg_resources.find_nothing)
+
+
+def test_get_script_from_egg():
+  # Make sure eggs without scripts don't cause errors
+  dists = list(
+    find_eggs_in_zip(
+      zipimport.zipimporter('./tests/example_packages/Flask_Cache-0.13.1-py2.7.egg'),
+      './tests/example_packages/Flask_Cache-0.13.1-py2.7.egg',
+      only=True))
+
+  assert len(dists) == 1
+
+  (location, content) = get_script_from_egg('non_existent_script', dists[0])
+
+  assert location is None
+  assert content is None
