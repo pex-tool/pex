@@ -150,16 +150,20 @@ except ImportError:
 """
 
 
-def write_simple_pex(td, exe_contents, dists=None, coverage=False):
+def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False):
   """Write a pex file that contains an executable entry point
 
   :param td: temporary directory path
   :param exe_contents: entry point python file
   :type exe_contents: string
   :param dists: distributions to include, typically sdists or bdists
+  :param sources: sources to include, as a list of pairs (env_filename, contents)
   :param coverage: include coverage header
   """
   dists = dists or []
+  sources = sources or []
+
+  safe_mkdir(td)
 
   with open(os.path.join(td, 'exe.py'), 'w') as fp:
     fp.write(exe_contents)
@@ -168,6 +172,13 @@ def write_simple_pex(td, exe_contents, dists=None, coverage=False):
 
   for dist in dists:
     pb.add_egg(dist.location)
+
+  for env_filename, contents in sources:
+    src_path = os.path.join(td, env_filename)
+    safe_mkdir(os.path.dirname(src_path))
+    with open(src_path, 'w') as fp:
+      fp.write(contents)
+    pb.add_source(src_path, env_filename)
 
   pb.set_executable(os.path.join(td, 'exe.py'))
   pb.freeze()
