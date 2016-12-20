@@ -308,6 +308,10 @@ class PEX(object):  # noqa: T000
       else:
         profiler.print_stats(sort=pex_profile_sort)
 
+  def path(self):
+    """Return the path this PEX was built at."""
+    return self._pex
+
   def execute(self):
     """Execute the PEX.
 
