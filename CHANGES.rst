@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.1.18
+------
+
+* Expose a PEX instance's path. (#332)
+  `#332 <https://github.com/pantsbuild/pex/pull/332>`_
+
+* Check for scripts directory in get_script_from_egg (#328)
+  `#328 <https://github.com/pantsbuild/pex/pull/328>`_
+
 1.1.17
 ------
 
