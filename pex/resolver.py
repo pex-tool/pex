@@ -43,7 +43,9 @@ class StaticIterator(IteratorInterface):
         yield package
 
 
-class _ResolvedPackages(namedtuple('_ResolvedPackages', 'resolvable packages parent constraint_only')):
+class _ResolvedPackages(namedtuple('_ResolvedPackages',
+                                   'resolvable packages parent constraint_only')):
+
   @classmethod
   def empty(cls):
     return cls(None, OrderedSet(), None, False)
@@ -104,7 +106,8 @@ class _ResolvableSet(object):
 
   def merge(self, resolvable, packages, parent=None):
     """Add a resolvable and its resolved packages."""
-    self.__tuples.append(_ResolvedPackages(resolvable, OrderedSet(packages), parent, resolvable.is_constraint))
+    self.__tuples.append(_ResolvedPackages(resolvable, OrderedSet(packages),
+                                           parent, resolvable.is_constraint))
     self._check()
 
   def get(self, name):
@@ -130,7 +133,8 @@ class _ResolvableSet(object):
     """
     def map_packages(resolved_packages):
       packages = OrderedSet(built_packages.get(p, p) for p in resolved_packages.packages)
-      return _ResolvedPackages(resolved_packages.resolvable, packages, resolved_packages.parent, resolved_packages.constraint_only)
+      return _ResolvedPackages(resolved_packages.resolvable, packages,
+                               resolved_packages.parent, resolved_packages.constraint_only)
 
     return _ResolvableSet([map_packages(rp) for rp in self.__tuples])
 
@@ -191,7 +195,7 @@ class Resolver(object):
       built_packages = {}
       for resolvable, packages, parent, constraint_only in resolvable_set.packages():
         if constraint_only:
-            continue
+          continue
         assert len(packages) > 0, 'ResolvableSet.packages(%s) should not be empty' % resolvable
         package = next(iter(packages))
         if resolvable.name in processed_packages:

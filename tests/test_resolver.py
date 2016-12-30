@@ -58,7 +58,7 @@ def test_resolvable_set():
   rs.merge(rq, [source_pkg, binary_pkg])
   assert rs.get(source_pkg.name) == set([source_pkg, binary_pkg])
   assert rs.get(binary_pkg.name) == set([source_pkg, binary_pkg])
-  assert rs.packages() == [(rq, set([source_pkg, binary_pkg]), None)]
+  assert rs.packages() == [(rq, set([source_pkg, binary_pkg]), None, False)]
 
   # test methods
   assert rs.extras('foo') == set(['ext'])
@@ -82,7 +82,7 @@ def test_resolvable_set_built():
 
   rs.merge(rq, [source_pkg])
   assert rs.get('foo') == set([source_pkg])
-  assert rs.packages() == [(rq, set([source_pkg]), None)]
+  assert rs.packages() == [(rq, set([source_pkg]), None, False)]
 
   with pytest.raises(Unsatisfiable):
     rs.merge(rq, [binary_pkg])
@@ -90,4 +90,4 @@ def test_resolvable_set_built():
   updated_rs = rs.replace_built({source_pkg: binary_pkg})
   updated_rs.merge(rq, [binary_pkg])
   assert updated_rs.get('foo') == set([binary_pkg])
-  assert updated_rs.packages() == [(rq, set([binary_pkg]), None)]
+  assert updated_rs.packages() == [(rq, set([binary_pkg]), None, False)]

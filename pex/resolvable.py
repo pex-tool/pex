@@ -37,7 +37,15 @@ class Resolvable(AbstractClass):
 
   _REGISTRY = []
 
-  is_constraint = False
+  @property
+  def is_constraint(self):
+    if hasattr(self, "_is_constraint"):
+      return self._is_constraint
+    return False
+
+  @is_constraint.setter
+  def set_is_constraint(self, value):
+    self._is_constraint = value
 
   @classmethod
   def register(cls, implementation):
