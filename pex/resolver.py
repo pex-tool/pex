@@ -140,8 +140,6 @@ class Resolver(object):
 
   class Error(Exception): pass
 
-  is_constraint = False
-
   @classmethod
   def filter_packages_by_interpreter(cls, packages, interpreter, platform):
     return [package for package in packages
