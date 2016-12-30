@@ -37,6 +37,8 @@ class Resolvable(AbstractClass):
 
   _REGISTRY = []
 
+  is_constraint = False
+
   @classmethod
   def register(cls, implementation):
     """Register an implementation of a Resolvable.

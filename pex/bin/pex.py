@@ -341,6 +341,16 @@ def configure_clp():
            'times.')
 
   parser.add_option(
+      '--constraints',
+      dest='constraint_files',
+      metavar='FILE',
+      default=[],
+      type=str,
+      action='append',
+      help='Add requirements from the given requirements file.  This option can be used multiple '
+           'times.')
+
+  parser.add_option(
       '-v',
       dest='verbosity',
       default=0,
@@ -476,6 +486,13 @@ def build_pex(args, options, resolver_option_builder):
 
   for requirements_txt in options.requirement_files:
     resolvables.extend(requirements_from_file(requirements_txt, resolver_option_builder))
+
+  for constraints_txt in options.constraint_files:
+    constraints = []
+    for r in requirements_from_file(constraints_txt, resolver_option_builder):
+      r.is_constraint = True
+      constraints.append(r)
+    resolvables.extend(constraints)
 
   resolver_kwargs = dict(interpreter=interpreter, platform=options.platform)
 
