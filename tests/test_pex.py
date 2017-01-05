@@ -131,6 +131,21 @@ def test_minimum_sys_modules():
   assert new_modules == modules
   assert tainted_module.__path__ == ['good_path']
 
+  # If __path__ is not a list the module is removed; typically this implies
+  # it's a namespace package (https://www.python.org/dev/peps/pep-0420/) where
+  # __path__ is a _NamespacePath.
+  try:
+    from importlib._bootstrap_external import _NamespacePath
+    bad_path = _NamespacePath("hello", "world", None)
+  except ImportError:
+    bad_path = {"hello": "world"}
+  class FakeModule(object):
+    __path__ = bad_path   # Not a list as expected
+  tainted_module = FakeModule()
+  modules = {'tainted_module': tainted_module}
+  new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
+  assert new_modules == {}
+
 
 def test_site_libs():
   with nested(mock.patch.object(PEX, '_get_site_packages'), temporary_dir()) as (
