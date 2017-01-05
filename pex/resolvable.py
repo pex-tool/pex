@@ -44,7 +44,7 @@ class Resolvable(AbstractClass):
     return False
 
   @is_constraint.setter
-  def set_is_constraint(self, value):
+  def is_constraint(self, value):
     self._is_constraint = value
 
   @classmethod

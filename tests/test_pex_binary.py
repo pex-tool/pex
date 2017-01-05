@@ -80,3 +80,9 @@ def test_clp_requirements_txt():
   parser, builder = configure_clp()
   options, _ = parser.parse_args(args='-r requirements1.txt -r requirements2.txt'.split())
   assert options.requirement_files == ['requirements1.txt', 'requirements2.txt']
+
+
+def test_clp_constraints_txt():
+  parser, builder = configure_clp()
+  options, _ = parser.parse_args(args='--constraint requirements1.txt'.split())
+  assert options.constraint_files == ['requirements1.txt']

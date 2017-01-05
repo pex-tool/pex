@@ -10,7 +10,7 @@ from pex.common import safe_copy
 from pex.fetcher import Fetcher
 from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
-from pex.resolver import Unsatisfiable, _ResolvableSet, resolve
+from pex.resolver import Unsatisfiable, _ResolvableSet, Resolver, resolve
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.testing import make_sdist
 
@@ -71,6 +71,48 @@ def test_resolvable_set():
 
   with pytest.raises(Unsatisfiable):
     rs.merge(rq, [binary_pkg])
+
+
+def test_resolvable_set_is_constraint_only():
+  builder = ResolverOptionsBuilder()
+  rs = _ResolvableSet()
+  c = ResolvableRequirement.from_string('foo', builder)
+  c.is_constraint = True
+
+  package = SourcePackage.from_href('foo-2.3.4.tar.gz')
+  rs.merge(c, [package])
+
+  assert rs.packages() == [(c, set([package]), None, True)]
+
+
+def test_resolvable_set_constraint_and_non_constraint():
+  builder = ResolverOptionsBuilder()
+  rs = _ResolvableSet()
+  constraint = ResolvableRequirement.from_string('foo', builder)
+  constraint.is_constraint = True
+
+  package = SourcePackage.from_href('foo-2.3.4.tar.gz')
+
+  rq = ResolvableRequirement.from_string('foo', builder)
+  rs.merge(constraint, [package])
+  rs.merge(rq, [package])
+
+  assert rs.packages() == [(rq, set([package]), None, False)]
+
+
+def test_resolver_with_constraint():
+  builder = ResolverOptionsBuilder()
+  r = Resolver()
+  rs = _ResolvableSet()
+  constraint = ResolvableRequirement.from_string('foo', builder)
+  constraint.is_constraint = True
+
+  package = SourcePackage.from_href('foo-2.3.4.tar.gz')
+
+  rq = ResolvableRequirement.from_string('foo', builder)
+  rs.merge(constraint, [package])
+  rs.merge(rq, [package])
+  assert r.resolve([], resolvable_set=rs) == []
 
 
 def test_resolvable_set_built():
