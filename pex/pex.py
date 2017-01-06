@@ -142,12 +142,9 @@ class PEX(object):  # noqa: T000
         continue
 
       # Unexpected objects, e.g. namespace packages, should just be dropped:
-      if module.__path__:
-        try:
-          module.__path__[0]
-        except (TypeError, KeyError, IndexError):
-          TRACER.log('Dropping %s' % (module_name,), V=3)
-          continue
+      if not isinstance(module.__path__, list):
+        TRACER.log('Dropping %s' % (module_name,), V=3)
+        continue
 
       # Pop off site-impacting __path__ elements in-place.
       for k in reversed(range(len(module.__path__))):
