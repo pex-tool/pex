@@ -344,3 +344,38 @@ def resolve(
     resolver = Resolver(interpreter=interpreter, platform=platform)
 
   return resolver.resolve(resolvables_from_iterable(requirements, builder))
+
+
+def resolve_multi(requirements,
+                  fetchers=None,
+                  interpreters=None,
+                  platforms=None,
+                  context=None,
+                  precedence=None,
+                  cache=None,
+                  cache_ttl=None):
+
+  """Produce all distributions needed to (recursively) meet `requirements` for multiple
+  interpreters and/or platforms.
+
+  :keyword interpreters: (optional) An iterable of :class:`PythonInterpreter` objects to use
+    for building distributions and for testing distribution compatibility.
+  :keyword platforms: (optional) An iterable of PEP425-compatible platform strings to use for
+    filtering compatible distributions.  If unspecified, the current platform is used, as
+    determined by `Platform.current()`.
+
+  This method is just a wrapper around the :func:`resolver` method for resolving requirements
+  for multiple interpreters and/or platforms.
+  """
+
+  platforms = platforms or [Platform.current()]
+  interpreters = interpreters or [PythonInterpreter.get()]
+
+  resolveds = list()
+  for platform in platforms:
+    for interpreter in interpreters:
+      for r in resolve(requirements, fetchers, interpreter, platform, context,
+                       precedence, cache, cache_ttl):
+        resolveds.append(r)
+
+  return resolveds
