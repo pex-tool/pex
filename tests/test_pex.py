@@ -140,8 +140,9 @@ def test_minimum_sys_modules():
   except ImportError:
     bad_path = {"hello": "world"}
   class FakeModule(object):
-    __path__ = bad_path   # Not a list as expected
+    pass
   tainted_module = FakeModule()
+  tainted_module.__path__ = bad_path   # Not a list as expected
   modules = {'tainted_module': tainted_module}
   new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
   assert new_modules == {}
