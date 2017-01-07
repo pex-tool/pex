@@ -100,6 +100,40 @@ def test_resolvable_set_constraint_and_non_constraint():
   assert rs.packages() == [(rq, set([package]), None, False)]
 
 
+def test_constraints_limits_versions_usable():
+  builder = ResolverOptionsBuilder()
+  rs = _ResolvableSet()
+  req = ResolvableRequirement.from_string("foo>0.5", builder)
+  constraint = ResolvableRequirement.from_string("foo==0.7", builder)
+  constraint.is_constraint = True
+
+  version_packages = []
+  for version in range(6, 10):
+    version_string = "foo-0.{0}.tar.gz".format(version)
+    package = SourcePackage.from_href(version_string)
+    version_packages.append(package)
+  rs.merge(req, version_packages)
+  rs.merge(constraint, [version_packages[1]])
+  assert rs.packages() == [(req, set([version_packages[1]]), None, False)]
+
+
+def test_constraints_range():
+  builder = ResolverOptionsBuilder()
+  rs = _ResolvableSet()
+  req = ResolvableRequirement.from_string("foo>0.5", builder)
+  constraint = ResolvableRequirement.from_string("foo<0.9", builder)
+  constraint.is_constraint = True
+
+  version_packages = []
+  for version in range(1, 10):
+    version_string = "foo-0.{0}.tar.gz".format(version)
+    package = SourcePackage.from_href(version_string)
+    version_packages.append(package)
+  rs.merge(req, version_packages[4:])
+  rs.merge(constraint, version_packages[:8])
+  assert rs.packages() == [(req, set(version_packages[4:8]), None, False)]
+
+
 def test_resolver_with_constraint():
   builder = ResolverOptionsBuilder()
   r = Resolver()
