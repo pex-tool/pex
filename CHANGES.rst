@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.1.19
+------
+
+* Implement --constraints in pex (#335)
+  `#335 <https://github.com/pantsbuild/pex/pull/335>`_
+
+* Make sure namespace packages (e.g. virtualenvwrapper) don't break pex (#338)
+  `#338 <https://github.com/pantsbuild/pex/pull/338>`_
+
 1.1.18
 ------
 
