@@ -10,7 +10,7 @@ from pex.common import safe_copy
 from pex.fetcher import Fetcher
 from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
-from pex.resolver import Unsatisfiable, _ResolvableSet, resolve
+from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.testing import make_sdist
 
@@ -58,7 +58,7 @@ def test_resolvable_set():
   rs.merge(rq, [source_pkg, binary_pkg])
   assert rs.get(source_pkg.name) == set([source_pkg, binary_pkg])
   assert rs.get(binary_pkg.name) == set([source_pkg, binary_pkg])
-  assert rs.packages() == [(rq, set([source_pkg, binary_pkg]), None)]
+  assert rs.packages() == [(rq, set([source_pkg, binary_pkg]), None, False)]
 
   # test methods
   assert rs.extras('foo') == set(['ext'])
@@ -73,6 +73,82 @@ def test_resolvable_set():
     rs.merge(rq, [binary_pkg])
 
 
+def test_resolvable_set_is_constraint_only():
+  builder = ResolverOptionsBuilder()
+  rs = _ResolvableSet()
+  c = ResolvableRequirement.from_string('foo', builder)
+  c.is_constraint = True
+
+  package = SourcePackage.from_href('foo-2.3.4.tar.gz')
+  rs.merge(c, [package])
+
+  assert rs.packages() == [(c, set([package]), None, True)]
+
+
+def test_resolvable_set_constraint_and_non_constraint():
+  builder = ResolverOptionsBuilder()
+  rs = _ResolvableSet()
+  constraint = ResolvableRequirement.from_string('foo', builder)
+  constraint.is_constraint = True
+
+  package = SourcePackage.from_href('foo-2.3.4.tar.gz')
+
+  rq = ResolvableRequirement.from_string('foo', builder)
+  rs.merge(constraint, [package])
+  rs.merge(rq, [package])
+
+  assert rs.packages() == [(rq, set([package]), None, False)]
+
+
+def test_constraints_limits_versions_usable():
+  builder = ResolverOptionsBuilder()
+  rs = _ResolvableSet()
+  req = ResolvableRequirement.from_string("foo>0.5", builder)
+  constraint = ResolvableRequirement.from_string("foo==0.7", builder)
+  constraint.is_constraint = True
+
+  version_packages = []
+  for version in range(6, 10):
+    version_string = "foo-0.{0}.tar.gz".format(version)
+    package = SourcePackage.from_href(version_string)
+    version_packages.append(package)
+  rs.merge(req, version_packages)
+  rs.merge(constraint, [version_packages[1]])
+  assert rs.packages() == [(req, set([version_packages[1]]), None, False)]
+
+
+def test_constraints_range():
+  builder = ResolverOptionsBuilder()
+  rs = _ResolvableSet()
+  req = ResolvableRequirement.from_string("foo>0.5", builder)
+  constraint = ResolvableRequirement.from_string("foo<0.9", builder)
+  constraint.is_constraint = True
+
+  version_packages = []
+  for version in range(1, 10):
+    version_string = "foo-0.{0}.tar.gz".format(version)
+    package = SourcePackage.from_href(version_string)
+    version_packages.append(package)
+  rs.merge(req, version_packages[4:])
+  rs.merge(constraint, version_packages[:8])
+  assert rs.packages() == [(req, set(version_packages[4:8]), None, False)]
+
+
+def test_resolver_with_constraint():
+  builder = ResolverOptionsBuilder()
+  r = Resolver()
+  rs = _ResolvableSet()
+  constraint = ResolvableRequirement.from_string('foo', builder)
+  constraint.is_constraint = True
+
+  package = SourcePackage.from_href('foo-2.3.4.tar.gz')
+
+  rq = ResolvableRequirement.from_string('foo', builder)
+  rs.merge(constraint, [package])
+  rs.merge(rq, [package])
+  assert r.resolve([], resolvable_set=rs) == []
+
+
 def test_resolvable_set_built():
   builder = ResolverOptionsBuilder()
   rs = _ResolvableSet()
@@ -82,7 +158,7 @@ def test_resolvable_set_built():
 
   rs.merge(rq, [source_pkg])
   assert rs.get('foo') == set([source_pkg])
-  assert rs.packages() == [(rq, set([source_pkg]), None)]
+  assert rs.packages() == [(rq, set([source_pkg]), None, False)]
 
   with pytest.raises(Unsatisfiable):
     rs.merge(rq, [binary_pkg])
@@ -90,4 +166,4 @@ def test_resolvable_set_built():
   updated_rs = rs.replace_built({source_pkg: binary_pkg})
   updated_rs.merge(rq, [binary_pkg])
   assert updated_rs.get('foo') == set([binary_pkg])
-  assert updated_rs.packages() == [(rq, set([binary_pkg]), None)]
+  assert updated_rs.packages() == [(rq, set([binary_pkg]), None, False)]

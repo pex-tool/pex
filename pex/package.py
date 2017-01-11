@@ -224,6 +224,16 @@ class WheelPackage(Package):
         return True
     return False
 
+  def __eq__(self, other):
+    return (self._name == other._name and
+            self._raw_version == other._raw_version and
+            self._py_tag == other._py_tag and
+            self._abi_tag == other._abi_tag and
+            self._arch_tag == other._arch_tag)
+
+  def __hash__(self):
+    return hash((self._name, self._raw_version, self._py_tag, self._abi_tag, self._arch_tag))
+
 
 Package.register(SourcePackage)
 Package.register(EggPackage)

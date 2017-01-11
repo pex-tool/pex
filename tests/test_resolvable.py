@@ -111,3 +111,11 @@ def test_resolvables_from_iterable():
       ResolvablePackage.from_string('foo-2.3.4.tar.gz', builder),
       ResolvableRequirement.from_string('foo==2.3.4', builder),
   ]
+
+
+def test_resolvable_is_constraint_getter_setter():
+  builder = ResolverOptionsBuilder()
+  req = ResolvableRequirement.from_string('foo', builder)
+  assert req.is_constraint is False
+  req.is_constraint = True
+  assert req.is_constraint is True

@@ -37,6 +37,16 @@ class Resolvable(AbstractClass):
 
   _REGISTRY = []
 
+  @property
+  def is_constraint(self):
+    if hasattr(self, "_is_constraint"):
+      return self._is_constraint
+    return False
+
+  @is_constraint.setter
+  def is_constraint(self, value):
+    self._is_constraint = value
+
   @classmethod
   def register(cls, implementation):
     """Register an implementation of a Resolvable.
