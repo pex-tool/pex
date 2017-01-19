@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.1.20
+------
+
+* Add dummy flush method for clean interpreter exit with python3.6 (#343)
+  `#343 <https://github.com/pantsbuild/pex/pull/343>`_
+
 1.1.19
 ------
 
