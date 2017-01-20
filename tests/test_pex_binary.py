@@ -86,3 +86,17 @@ def test_clp_constraints_txt():
   parser, builder = configure_clp()
   options, _ = parser.parse_args(args='--constraint requirements1.txt'.split())
   assert options.constraint_files == ['requirements1.txt']
+
+
+def test_clp_prereleases():
+  with parser_pair() as (builder, parser):
+    configure_clp_pex_resolution(parser, builder)
+
+    options, _ = parser.parse_args(args=[])
+    assert not builder._allow_prereleases
+
+    options, _ = parser.parse_args(args=['--no-pre'])
+    assert not builder._allow_prereleases
+
+    options, _ = parser.parse_args(args=['--pre'])
+    assert builder._allow_prereleases

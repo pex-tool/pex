@@ -85,7 +85,7 @@ PROJECT_CONTENT = {
 
       setup(
           name=%(project_name)r,
-          version='0.0.0',
+          version=%(version)r,
           zip_safe=%(zip_safe)r,
           packages=['my_package'],
           scripts=[
@@ -106,29 +106,39 @@ PROJECT_CONTENT = {
 
 
 @contextlib.contextmanager
-def make_installer(name='my_project', installer_impl=EggInstaller, zip_safe=True,
+def make_installer(name='my_project', version='0.0.0', installer_impl=EggInstaller, zip_safe=True,
                    install_reqs=None):
-  interp = {'project_name': name, 'zip_safe': zip_safe, 'install_requires': install_reqs or []}
+  interp = {'project_name': name,
+            'version': version,
+            'zip_safe': zip_safe,
+            'install_requires': install_reqs or []}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
     yield installer_impl(td)
 
 
 @contextlib.contextmanager
-def make_source_dir(name='my_project', install_reqs=None):
-  interp = {'project_name': name, 'zip_safe': True, 'install_requires': install_reqs or []}
+def make_source_dir(name='my_project', version='0.0.0', install_reqs=None):
+  interp = {'project_name': name,
+            'version': version,
+            'zip_safe': True,
+            'install_requires': install_reqs or []}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
     yield td
 
 
-def make_sdist(name='my_project', zip_safe=True, install_reqs=None):
-  with make_installer(name=name, installer_impl=Packager, zip_safe=zip_safe,
+def make_sdist(name='my_project', version='0.0.0', zip_safe=True, install_reqs=None):
+  with make_installer(name=name, version=version, installer_impl=Packager, zip_safe=zip_safe,
                       install_reqs=install_reqs) as packager:
     return packager.sdist()
 
 
 @contextlib.contextmanager
-def make_bdist(name='my_project', installer_impl=EggInstaller, zipped=False, zip_safe=True):
-  with make_installer(name=name, installer_impl=installer_impl, zip_safe=zip_safe) as installer:
+def make_bdist(name='my_project', version='0.0.0', installer_impl=EggInstaller, zipped=False,
+               zip_safe=True):
+  with make_installer(name=name,
+                      version=version,
+                      installer_impl=installer_impl,
+                      zip_safe=zip_safe) as installer:
     dist_location = installer.bdist()
     if zipped:
       yield DistributionHelper.distribution_from_path(dist_location)

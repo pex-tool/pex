@@ -102,6 +102,15 @@ def process_index_url(option, option_str, option_value, parser, builder):
   builder.add_index(option_value)
 
 
+def process_prereleases(option, option_str, option_value, parser, builder):
+  if option_str == '--pre':
+    builder.allow_prereleases(True)
+  elif option_str == '--no-pre':
+    builder.allow_prereleases(False)
+  else:
+    raise OptionValueError
+
+
 def process_precedence(option, option_str, option_value, parser, builder):
   if option_str == '--build':
     builder.allow_builds()
@@ -159,6 +168,16 @@ def configure_clp_pex_resolution(parser, builder):
       callback_args=(builder,),
       type=str,
       help='Additional cheeseshop indices to use to satisfy requirements.')
+
+  group.add_option(
+    '--pre', '--no-pre',
+    dest='allow_prereleases',
+    default=False,
+    action='callback',
+    callback=process_prereleases,
+    callback_args=(builder,),
+    help='Whether to include pre-release and development versions of requirements; '
+         'Default: only stable versions are used')
 
   group.add_option(
       '--disable-cache',

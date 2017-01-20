@@ -22,10 +22,11 @@ class IteratorInterface(AbstractClass):
 class Iterator(IteratorInterface):
   """A requirement iterator, the glue between fetchers, crawlers and requirements."""
 
-  def __init__(self, fetchers=None, crawler=None, follow_links=False):
+  def __init__(self, fetchers=None, crawler=None, follow_links=False, allow_prereleases=False):
     self._crawler = crawler or Crawler()
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
     self.__follow_links = follow_links
+    self.__allow_prereleases = allow_prereleases
 
   def _iter_requirement_urls(self, req):
     return itertools.chain.from_iterable(fetcher.urls(req) for fetcher in self._fetchers)
@@ -34,5 +35,5 @@ class Iterator(IteratorInterface):
     url_iterator = self._iter_requirement_urls(req)
     crawled_url_iterator = self._crawler.crawl(url_iterator, follow_links=self.__follow_links)
     for package in filter(None, map(Package.from_href, crawled_url_iterator)):
-      if package.satisfies(req):
+      if package.satisfies(req, allow_prereleases=self.__allow_prereleases):
         yield package
