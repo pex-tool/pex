@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+1.2.0
+-----
+
+This release changes pex requirement resolution behavior. Only stable requirements are resolved by
+default now. The previous behavior that included pre-releases can be retained by passing `--pre` on
+the pex command line or passing `allow_prereleases=True` via the API.
+
+* Upgrade dependencies to modern version ranges. (#351)
+  `#351 <https://github.com/pantsbuild/pex/pull/351>`_
+
+* Add support for controlling prerelease resolution. (#350)
+  `#350 <https://github.com/pantsbuild/pex/pull/350>`_
+  `Fixes #28 <https://github.com/pantsbuild/pex/issues/28>`_
+
 1.1.20
 ------
 
