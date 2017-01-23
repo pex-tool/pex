@@ -8,8 +8,8 @@ This release changes pex requirement resolution behavior. Only stable requiremen
 default now. The previous behavior that included pre-releases can be retained by passing `--pre` on
 the pex command line or passing `allow_prereleases=True` via the API.
 
-* Upgrade dependencies to modern version ranges. (#351)
-  `#351 <https://github.com/pantsbuild/pex/pull/351>`_
+* Upgrade dependencies to modern version ranges. (#352)
+  `#352 <https://github.com/pantsbuild/pex/pull/352>`_
 
 * Add support for controlling prerelease resolution. (#350)
   `#350 <https://github.com/pantsbuild/pex/pull/350>`_
