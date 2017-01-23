@@ -43,12 +43,14 @@ class ResolverOptionsBuilder(object):
                allow_all_external=False,
                allow_external=None,
                allow_unverified=None,
+               allow_prereleases=False,
                precedence=None,
                context=None):
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
     self._allow_all_external = allow_all_external
     self._allow_external = allow_external if allow_external is not None else set()
     self._allow_unverified = allow_unverified if allow_unverified is not None else set()
+    self._allow_prereleases = allow_prereleases
     self._precedence = precedence if precedence is not None else Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = context or Context.get()
 
@@ -58,6 +60,7 @@ class ResolverOptionsBuilder(object):
         allow_all_external=self._allow_all_external,
         allow_external=self._allow_external.copy(),
         allow_unverified=self._allow_unverified.copy(),
+        allow_prereleases=self._allow_prereleases,
         precedence=self._precedence[:],
         context=self._context,
     )
@@ -114,11 +117,16 @@ class ResolverOptionsBuilder(object):
         [precedent for precedent in self._precedence if precedent is not SourcePackage])
     return self
 
+  def allow_prereleases(self, allowed):
+    self._allow_prereleases = allowed
+    return self
+
   def build(self, key):
     return ResolverOptions(
         fetchers=self._fetchers,
         allow_external=self._allow_all_external or key in self._allow_external,
         allow_unverified=key in self._allow_unverified,
+        allow_prereleases=self._allow_prereleases,
         precedence=self._precedence,
         context=self._context,
     )
@@ -129,11 +137,13 @@ class ResolverOptions(ResolverOptionsInterface):
                fetchers=None,
                allow_external=False,
                allow_unverified=False,
+               allow_prereleases=False,
                precedence=None,
                context=None):
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
     self._allow_external = allow_external
     self._allow_unverified = allow_unverified
+    self._allow_prereleases = allow_prereleases
     self._precedence = precedence if precedence is not None else Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = context or Context.get()
 
@@ -171,4 +181,5 @@ class ResolverOptions(ResolverOptionsInterface):
         fetchers=self._fetchers,
         crawler=self.get_crawler(),
         follow_links=self._allow_external,
+        allow_prereleases=self._allow_prereleases
     )

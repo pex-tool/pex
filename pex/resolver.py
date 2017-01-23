@@ -281,7 +281,8 @@ def resolve(
     context=None,
     precedence=None,
     cache=None,
-    cache_ttl=None):
+    cache_ttl=None,
+    allow_prereleases=False):
 
   """Produce all distributions needed to (recursively) meet `requirements`
 
@@ -296,7 +297,6 @@ def resolve(
     `Platform.current()`.
   :keyword context: (optional) A :class:`Context` object to use for network access.  If
     unspecified, the resolver will attempt to use the best available network context.
-  :type threads: int
   :keyword precedence: (optional) An ordered list of allowable :class:`Package` classes
     to be used for producing distributions.  For example, if precedence is supplied as
     ``(WheelPackage, SourcePackage)``, wheels will be preferred over building from source, and
@@ -311,6 +311,8 @@ def resolve(
     is older than cache_ttl seconds, it will be ignored.  If ``cache_ttl`` is not specified,
     resolving inexact requirements will always result in making network calls through the
     ``context``.
+  :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
+    unspecified only stable versions will be resolved.
   :returns: List of :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -341,6 +343,7 @@ def resolve(
 
   builder = ResolverOptionsBuilder(
       fetchers=fetchers,
+      allow_prereleases=allow_prereleases,
       precedence=precedence,
       context=context,
   )

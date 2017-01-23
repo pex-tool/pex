@@ -48,6 +48,26 @@ def test_diamond_local_resolve_cached():
       assert len(dists) == 2
 
 
+def test_resolve_prereleases():
+  stable_dep = make_sdist(name='dep', version='2.0.0')
+  prerelease_dep = make_sdist(name='dep', version='3.0.0rc3')
+
+  with temporary_dir() as td:
+    for sdist in (stable_dep, prerelease_dep):
+      safe_copy(sdist, os.path.join(td, os.path.basename(sdist)))
+    fetchers = [Fetcher([td])]
+
+    def assert_resolve(expected_version, **resolve_kwargs):
+      dists = resolve(['dep>=1,<4'], fetchers=fetchers, **resolve_kwargs)
+      assert 1 == len(dists)
+      dist = dists[0]
+      assert expected_version == dist.version
+
+    assert_resolve('2.0.0')
+    assert_resolve('2.0.0', allow_prereleases=False)
+    assert_resolve('3.0.0rc3', allow_prereleases=True)
+
+
 def test_resolvable_set():
   builder = ResolverOptionsBuilder()
   rs = _ResolvableSet()

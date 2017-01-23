@@ -53,6 +53,24 @@ def test_all_external():
   assert reqs[1].options._allow_external
 
 
+def test_allow_prereleases():
+  # Prereleases should be disallowed by default.
+  reqs = requirements_from_lines(dedent("""
+  simple_requirement
+  specific_requirement==2
+  """).splitlines())
+  assert not reqs[0].options._allow_prereleases
+  assert not reqs[1].options._allow_prereleases
+
+  reqs = requirements_from_lines(dedent("""
+  --pre
+  simple_requirement
+  specific_requirement==2
+  """).splitlines())
+  assert reqs[0].options._allow_prereleases
+  assert reqs[1].options._allow_prereleases
+
+
 def test_index_types():
   reqs = requirements_from_lines(dedent("""
   simple_requirement
