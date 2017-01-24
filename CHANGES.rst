@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+1.2.1
+-----
+
+This release is a quick fix for a bootstrapping bug that inadvertently went out in 1.2.0 (Issue
+#354).
+
+* Ensure `packaging` dependency is self-contained. (#355)
+  `#355 <https://github.com/pantsbuild/pex/pull/355>`_
+  `Fixes #354 <https://github.com/pantsbuild/pex/issues/354>`_
+
 1.2.0
 -----
 

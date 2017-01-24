@@ -3,7 +3,6 @@
 
 import os
 
-from packaging.specifiers import SpecifierSet
 from pkg_resources import EGG_NAME, parse_version, safe_name, safe_version
 
 from .archiver import Archiver
@@ -80,15 +79,10 @@ class Package(Link):
     link_name = safe_name(self.name).lower()
     if link_name != requirement.key:
       return False
-
-    # TODO(John Sirois): This is a bit roundabout. Modern setuptools `Requirement` objects expose a
-    # `specifiers` field which is a `SpecifierSet`, but we can't be sure we have that. We can be
-    # sure though we have the `Requirement.specs` list of `(op, version)` tuples in all versions of
-    # setuptools we depend upon (we use `Requirement.specs` elsewhere in the codebase as well).
-    # Kill this re-parsing once our lower-bound setuptools dependency give access to
-    # `Requirement.specifiers`.
-    specifiers = ','.join(op + version for op, version in requirement.specs)
-    return self.raw_version in SpecifierSet(specifiers, prereleases=allow_prereleases)
+    # NB: If we upgrade to setuptools>=34 the SpecifierSet used here (requirement.specifier) will
+    # come from a non-vendored `packaging` package and pex's bootstrap code in `PEXBuilder` will
+    # need an update.
+    return requirement.specifier.contains(self.raw_version, prereleases=allow_prereleases)
 
   def compatible(self, identity, platform=Platform.current()):
     """Is this link compatible with the given :class:`PythonIdentity` identity and platform?

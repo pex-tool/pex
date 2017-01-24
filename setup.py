@@ -53,7 +53,6 @@ setup(
     'pex.commands',
   ],
   install_requires = [
-    PACKAGING_REQUIREMENT,
     SETUPTOOLS_REQUIREMENT,
   ],
   tests_require = [
