@@ -23,6 +23,12 @@ except ImportError:
 try:
   from cachecontrol import CacheControl
   from cachecontrol.caches import FileCache
+
+  # Newer versions of CacheControl move the importing of `lockfile` to
+  # class instansiation, and raise an ImportError in the __init__ method.
+  #
+  # https://github.com/ionrock/cachecontrol/commit/a561ac9c1ef15db9bc6ead5d08443e6198cc69e1
+  FileCache(directory=None)  # noqa
 except ImportError:
   CacheControl = FileCache = None
 
