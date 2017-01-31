@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.2.2
+-----
+
+* Fix CacheControl import. (#357)
+  `#357 <https://github.com/pantsbuild/pex/pull/357>`_
+
 1.2.1
 -----
 
