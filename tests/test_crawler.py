@@ -152,6 +152,7 @@ def test_crawler_remote():
   Crawler.reset_cache()
 
   mock_context = mock.create_autospec(Context, spec_set=True)
+  mock_context.resolve = lambda link: link
   mock_context.content.side_effect = [MOCK_INDEX_A, MOCK_INDEX_B, Exception('shouldnt get here')]
   expected_output = set([Link('http://url1.test.com/3to2-1.0.tar.gz'),
                          Link('http://url2.test.com/APScheduler-2.1.0.tar.gz')])
@@ -161,6 +162,19 @@ def test_crawler_remote():
   assert c.crawl(test_links) == expected_output
 
   # Test memoization of Crawler.crawl().
+  assert c.crawl(test_links) == expected_output
+
+
+def test_crawler_remote_redirect():
+  Crawler.reset_cache()
+
+  mock_context = mock.create_autospec(Context, spec_set=True)
+  mock_context.resolve = lambda link: Link('http://url2.test.com')
+  mock_context.content.side_effect = [MOCK_INDEX_A]
+  expected_output = set([Link('http://url2.test.com/3to2-1.0.tar.gz')])
+
+  c = Crawler(mock_context)
+  test_links = [Link('http://url1.test.com')]
   assert c.crawl(test_links) == expected_output
 
 
