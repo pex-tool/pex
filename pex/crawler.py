@@ -95,6 +95,7 @@ class Crawler(object):
   @classmethod
   def crawl_remote(cls, context, link):
     try:
+      link = context.resolve(link)
       content = context.content(link)
     except context.Error as e:
       TRACER.log('Failed to read %s: %s' % (link.url, e), V=1)
