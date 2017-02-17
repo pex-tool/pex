@@ -248,8 +248,12 @@ class CachingResolver(Resolver):
 
       if self.__cache_ttl:
         packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
-        if packages:
-          return packages
+        # Return both cached packages and the pypi packages. The edge case is if a inexact
+        # resolvable finds a cached version, it needs to return that cached package AND all pypi
+        # packages because the cached version might not match another resolvable which has a tighter
+        # bound or an exact version.
+        return packages + super(CachingResolver, self).package_iterator(resolvable,
+                                                                        existing=existing)
 
     return super(CachingResolver, self).package_iterator(resolvable, existing=existing)
 
