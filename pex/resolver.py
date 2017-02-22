@@ -3,6 +3,7 @@
 
 from __future__ import print_function
 
+import itertools
 import os
 import shutil
 import time
@@ -238,24 +239,26 @@ class CachingResolver(Resolver):
 
   # Short-circuiting package iterator.
   def package_iterator(self, resolvable, existing=None):
-    iterator = Iterator(fetchers=[Fetcher([self.__cache])])
-    packages = self.filter_packages_by_interpreter(
-        resolvable.compatible(iterator), self._interpreter, self._platform)
+    packages = []
+    if self.__cache_ttl or resolvable.exact:
+      iterator = Iterator(fetchers=[Fetcher([self.__cache])])
+      packages = self.filter_packages_by_interpreter(
+        resolvable.compatible(iterator),
+        self._interpreter,
+        self._platform
+      )
 
-    if packages:
-      if resolvable.exact:
-        return packages
+      if packages:
+        if resolvable.exact:
+          return packages
 
-      if self.__cache_ttl:
-        packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
-        # Return both cached packages and the pypi packages. The edge case is if a inexact
-        # resolvable finds a cached version, it needs to return that cached package AND all pypi
-        # packages because the cached version might not match another resolvable which has a tighter
-        # bound or an exact version.
-        return packages + super(CachingResolver, self).package_iterator(resolvable,
-                                                                        existing=existing)
+        if self.__cache_ttl:
+          packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
 
-    return super(CachingResolver, self).package_iterator(resolvable, existing=existing)
+    return itertools.chain(
+      packages,
+      super(CachingResolver, self).package_iterator(resolvable, existing=existing)
+    )
 
   # Caching sandwich.
   def build(self, package, options):
