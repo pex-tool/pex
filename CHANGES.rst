@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.2.3
+-----
+
+* Follow redirects on HTTP requests (#361)
+  `#361 <https://github.com/pantsbuild/pex/pull/361>`_
+
+* Fix corner case in cached dependency resolution (#362)
+  `#362 <https://github.com/pantsbuild/pex/pull/362>`_
+
 1.2.2
 -----
 
