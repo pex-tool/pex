@@ -2,9 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import time
 
 import pytest
-import time
 from twitter.common.contextutil import temporary_dir
 
 from pex.common import safe_copy
