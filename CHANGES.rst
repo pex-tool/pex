@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.2.4
+-----
+
+* Fix bug in cached dependency resolution with exact resolvable. (#365)
+  `#365 <https://github.com/pantsbuild/pex/pull/365>`_
+
+* Treat .pth injected paths as extras. (#370)
+  `#370 <https://github.com/pantsbuild/pex/pull/370>`_
+
 1.2.3
 -----
 
