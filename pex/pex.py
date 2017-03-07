@@ -106,7 +106,6 @@ class PEX(object):  # noqa: T000
     for pth_path in cls._scan_pth_files(sitedirs):
       TRACER.log('Found .pth file: %s' % pth_path, V=3)
       for extras_path in iter_pth_paths(pth_path):
-        TRACER.log('  Extracted extras path: %s' % extras_path, V=4)
         yield extras_path
 
   @staticmethod
