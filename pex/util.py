@@ -218,14 +218,15 @@ def named_temporary_file(*args, **kwargs):
 
 
 def iter_pth_paths(filename):
-  """Given a .pth file, extract and yield all inner paths. Largely lifted from site.py."""
-  dirname = os.path.dirname(filename)
-  known_paths = set()
-
+  """Given a .pth file, extract and yield all inner paths without honoring imports. This shadows
+  python's site.py behavior, which is invoked at interpreter startup."""
   try:
     f = open(filename, 'rU')  # noqa
   except IOError:
     return
+
+  dirname = os.path.dirname(filename)
+  known_paths = set()
 
   with f:
     for line in f:

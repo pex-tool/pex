@@ -115,7 +115,7 @@ class PEX(object):  # noqa: T000
       if not os.path.exists(dir_path):
         continue
 
-      pth_filenames = (f for f in os.listdir(dir_path) if f.endswith(os.extsep + 'pth'))
+      pth_filenames = (f for f in os.listdir(dir_path) if f.endswith('.pth'))
       for pth_filename in pth_filenames:
         yield os.path.join(dir_path, pth_filename)
 
