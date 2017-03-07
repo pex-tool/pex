@@ -14,8 +14,8 @@ from threading import Lock
 
 from pkg_resources import find_distributions, resource_isdir, resource_listdir, resource_string
 
-from .compatibility import exec_function
 from .common import rename_if_empty, safe_mkdir, safe_mkdtemp, safe_open
+from .compatibility import exec_function
 from .finders import register_finders
 
 
@@ -223,7 +223,7 @@ def iter_pth_paths(filename):
   known_paths = set()
 
   try:
-    f = open(filename, 'rU')
+    f = open(filename, 'rU')  # noqa
   except IOError:
     return
 

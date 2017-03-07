@@ -11,7 +11,7 @@ from textwrap import dedent
 from twitter.common.contextutil import temporary_dir
 
 from pex.common import safe_mkdir
-from pex.compatibility import nested
+from pex.compatibility import nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex_builder import PEXBuilder
 from pex.testing import make_bdist, run_simple_pex, temporary_content, write_zipfile
@@ -204,5 +204,5 @@ def test_iter_pth_paths(mock_exists):
     for i, pth_content in enumerate(PTH_TEST_MAPPING):
       pth_tmp_path = os.path.abspath(os.path.join(tmpdir, 'test%s.pth' % i))
       with open(pth_tmp_path, 'wb') as f:
-        f.write(pth_content)
+        f.write(to_bytes(pth_content))
       assert sorted(PTH_TEST_MAPPING[pth_content]) == sorted(list(iter_pth_paths(pth_tmp_path)))
