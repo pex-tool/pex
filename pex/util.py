@@ -14,6 +14,7 @@ from threading import Lock
 
 from pkg_resources import find_distributions, resource_isdir, resource_listdir, resource_string
 
+from .compatibility import exec_function
 from .common import rename_if_empty, safe_mkdir, safe_mkdtemp, safe_open
 from .finders import register_finders
 
@@ -233,7 +234,7 @@ def iter_pth_paths(filename):
         continue
       elif line.startswith(('import ', 'import\t')):
         try:
-          exec line
+          exec_function(line)
           continue
         except Exception:
           # Defer error handling to the higher level site.py logic invoked at startup.
