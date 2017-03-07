@@ -197,7 +197,7 @@ def configure_clp_pex_resolution(parser, builder):
       '--cache-ttl',
       dest='cache_ttl',
       type=int,
-      default=None,
+      default=3600,
       help='The cache TTL to use for inexact requirement specifications.')
 
   group.add_option(
