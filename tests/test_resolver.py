@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import time
 
 import pytest
 from twitter.common.contextutil import temporary_dir
@@ -68,6 +69,15 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
       # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should also
       # return SourcePackages found in td
       dists = resolve(['project', 'project==1.1.0'], fetchers=fetchers, cache=cd, cache_ttl=1000)
+      assert len(dists) == 1
+      assert dists[0].version == '1.1.0'
+      # Third run, if exact resolvable and inexact resolvable, and cache_ttl is expired, exact
+      # resolvable should pull from pypi as well since inexact will and the resulting
+      # resolvable_set.merge() would fail.
+      Crawler.reset_cache()
+      time.sleep(1)
+      dists = resolve(['project', 'project==1.1.0'], fetchers=fetchers, cache=cd,
+                      cache_ttl=1)
       assert len(dists) == 1
       assert dists[0].version == '1.1.0'
 

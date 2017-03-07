@@ -239,21 +239,15 @@ class CachingResolver(Resolver):
 
   # Short-circuiting package iterator.
   def package_iterator(self, resolvable, existing=None):
-    packages = []
-    if self.__cache_ttl or resolvable.exact:
-      iterator = Iterator(fetchers=[Fetcher([self.__cache])])
-      packages = self.filter_packages_by_interpreter(
-        resolvable.compatible(iterator),
-        self._interpreter,
-        self._platform
-      )
+    iterator = Iterator(fetchers=[Fetcher([self.__cache])])
+    packages = self.filter_packages_by_interpreter(
+      resolvable.compatible(iterator),
+      self._interpreter,
+      self._platform
+    )
 
-      if packages:
-        if resolvable.exact:
-          return packages
-
-        if self.__cache_ttl:
-          packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
+    if packages and self.__cache_ttl:
+      packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
 
     return itertools.chain(
       packages,
