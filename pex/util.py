@@ -9,6 +9,7 @@ import shutil
 import tempfile
 import uuid
 from hashlib import sha1
+from site import makepath
 from threading import Lock
 
 from pkg_resources import find_distributions, resource_isdir, resource_listdir, resource_string
@@ -213,3 +214,32 @@ def named_temporary_file(*args, **kwargs):
       yield fp
   finally:
     os.remove(fp.name)
+
+
+def iter_pth_paths(filename):
+  """Given a .pth file, extract and yield all inner paths. Largely lifted from site.py."""
+  dirname = os.path.dirname(filename)
+  known_paths = set()
+
+  try:
+    f = open(filename, 'rU')
+  except IOError:
+    return
+
+  with f:
+    for line in f:
+      line = line.rstrip()
+      if not line or line.startswith('#'):
+        continue
+      elif line.startswith(('import ', 'import\t')):
+        try:
+          exec line
+          continue
+        except Exception:
+          # Defer error handling to the higher level site.py logic invoked at startup.
+          return
+      else:
+        extras_dir, extras_dir_case_insensitive = makepath(dirname, line)
+        if extras_dir_case_insensitive not in known_paths and os.path.exists(extras_dir):
+          yield extras_dir
+          known_paths.add(extras_dir_case_insensitive)
