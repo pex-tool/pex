@@ -21,6 +21,7 @@ from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
 from .tracer import TRACER
+from .util import iter_pth_paths
 from .variables import ENV
 
 
@@ -88,18 +89,38 @@ class PEX(object):  # noqa: T000
   @classmethod
   def _extras_paths(cls):
     standard_lib = sysconfig.get_python_lib(standard_lib=True)
+
     try:
       makefile = sysconfig.parse_makefile(sysconfig.get_makefile_filename())
     except (AttributeError, IOError):
       # This is not available by default in PyPy's distutils.sysconfig or it simply is
       # no longer available on the system (IOError ENOENT)
       makefile = {}
+
     extras_paths = filter(None, makefile.get('EXTRASPATH', '').split(':'))
     for path in extras_paths:
       yield os.path.join(standard_lib, path)
 
-  @classmethod
-  def _get_site_packages(cls):
+    # Handle .pth injected paths as extras.
+    sitedirs = cls._get_site_packages()
+    for pth_path in cls._scan_pth_files(sitedirs):
+      TRACER.log('Found .pth file: %s' % pth_path, V=3)
+      for extras_path in iter_pth_paths(pth_path):
+        yield extras_path
+
+  @staticmethod
+  def _scan_pth_files(dir_paths):
+    """Given an iterable of directory paths, yield paths to all .pth files within."""
+    for dir_path in dir_paths:
+      if not os.path.exists(dir_path):
+        continue
+
+      pth_filenames = (f for f in os.listdir(dir_path) if f.endswith('.pth'))
+      for pth_filename in pth_filenames:
+        yield os.path.join(dir_path, pth_filename)
+
+  @staticmethod
+  def _get_site_packages():
     try:
       from site import getsitepackages
       return set(getsitepackages())
