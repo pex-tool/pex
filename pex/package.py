@@ -67,18 +67,20 @@ class Package(Link):
   def version(self):
     return parse_version(self.raw_version)
 
-  def satisfies(self, requirement, allow_prereleases=False):
+  def satisfies(self, requirement, allow_prereleases=None):
     """Determine whether this package matches the requirement.
 
     :param requirement: The requirement to compare this Package against
     :type requirement: string or :class:`pkg_resources.Requirement`
-    :param bool allow_prereleases: Whether to allow prereleases to satisfy the `requirement`.
+    :param Optional[bool] allow_prereleases: Whether to allow prereleases to satisfy
+      the `requirement`.
     :returns: True if the package matches the requirement, otherwise False
     """
     requirement = maybe_requirement(requirement)
     link_name = safe_name(self.name).lower()
     if link_name != requirement.key:
       return False
+
     # NB: If we upgrade to setuptools>=34 the SpecifierSet used here (requirement.specifier) will
     # come from a non-vendored `packaging` package and pex's bootstrap code in `PEXBuilder` will
     # need an update.

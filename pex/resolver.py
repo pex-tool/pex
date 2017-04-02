@@ -283,7 +283,7 @@ def resolve(
     precedence=None,
     cache=None,
     cache_ttl=None,
-    allow_prereleases=False):
+    allow_prereleases=None):
 
   """Produce all distributions needed to (recursively) meet `requirements`
 
@@ -313,7 +313,7 @@ def resolve(
     resolving inexact requirements will always result in making network calls through the
     ``context``.
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
-    unspecified only stable versions will be resolved.
+    unspecified only stable versions will be resolved, unless explicitly included.
   :returns: List of :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for

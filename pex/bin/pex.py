@@ -172,12 +172,12 @@ def configure_clp_pex_resolution(parser, builder):
   group.add_option(
     '--pre', '--no-pre',
     dest='allow_prereleases',
-    default=False,
+    default=None,
     action='callback',
     callback=process_prereleases,
     callback_args=(builder,),
     help='Whether to include pre-release and development versions of requirements; '
-         'Default: only stable versions are used')
+         'Default: only stable versions are used, unless explicitly requested')
 
   group.add_option(
       '--disable-cache',

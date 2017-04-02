@@ -56,6 +56,8 @@ def requirements_from_lines(lines, builder=None, relpath=None):
       builder.allow_unverified(_get_parameter(line))
     elif line.startswith('--pre'):
       builder.allow_prereleases(True)
+    elif line.startswith('--no-pre'):
+      builder.allow_prereleases(False)
     elif line.startswith('--no-index'):
       builder.clear_indices()
     elif line.startswith('--no-use-wheel'):

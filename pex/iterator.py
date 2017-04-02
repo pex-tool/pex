@@ -22,7 +22,7 @@ class IteratorInterface(AbstractClass):
 class Iterator(IteratorInterface):
   """A requirement iterator, the glue between fetchers, crawlers and requirements."""
 
-  def __init__(self, fetchers=None, crawler=None, follow_links=False, allow_prereleases=False):
+  def __init__(self, fetchers=None, crawler=None, follow_links=False, allow_prereleases=None):
     self._crawler = crawler or Crawler()
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
     self.__follow_links = follow_links
