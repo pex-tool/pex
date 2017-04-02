@@ -35,12 +35,13 @@ class Unsatisfiable(Exception):
 class StaticIterator(IteratorInterface):
   """An iterator that iterates over a static list of packages."""
 
-  def __init__(self, packages):
+  def __init__(self, packages, allow_prereleases=None):
     self._packages = packages
+    self._allow_prereleases = allow_prereleases
 
   def iter(self, req):
     for package in self._packages:
-      if package.satisfies(req):
+      if package.satisfies(req, allow_prereleases=self._allow_prereleases):
         yield package
 
 
@@ -150,13 +151,15 @@ class Resolver(object):
     return [package for package in packages
         if package.compatible(interpreter.identity, platform)]
 
-  def __init__(self, interpreter=None, platform=None):
+  def __init__(self, allow_prereleases=None, interpreter=None, platform=None):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = platform or Platform.current()
+    self._allow_prereleases = allow_prereleases
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
-      existing = resolvable.compatible(StaticIterator(existing))
+      existing = resolvable.compatible(
+        StaticIterator(existing, allow_prereleases=self._allow_prereleases))
     else:
       existing = resolvable.packages()
     return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
@@ -239,7 +242,8 @@ class CachingResolver(Resolver):
 
   # Short-circuiting package iterator.
   def package_iterator(self, resolvable, existing=None):
-    iterator = Iterator(fetchers=[Fetcher([self.__cache])])
+    iterator = Iterator(fetchers=[Fetcher([self.__cache])],
+                        allow_prereleases=self._allow_prereleases)
     packages = self.filter_packages_by_interpreter(
       resolvable.compatible(iterator),
       self._interpreter,
@@ -350,8 +354,11 @@ def resolve(
   )
 
   if cache:
-    resolver = CachingResolver(cache, cache_ttl, interpreter=interpreter, platform=platform)
+    resolver = CachingResolver(
+      cache, cache_ttl,
+      allow_prereleases=allow_prereleases, interpreter=interpreter, platform=platform)
   else:
-    resolver = Resolver(interpreter=interpreter, platform=platform)
+    resolver = Resolver(
+      allow_prereleases=allow_prereleases, interpreter=interpreter, platform=platform)
 
   return resolver.resolve(resolvables_from_iterable(requirements, builder))
