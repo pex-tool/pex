@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+1.2.5
+-----
+
+This release follows-up on 1.2.0 fixing bugs in the pre-release resolving code paths.
+
+* Resolving pre-release when explicitly requested (#372)
+  `#374 <https://github.com/pantsbuild/pex/pull/374>`_
+
+* Pass allow_prerelease to other iterators (Static, Caching) (#373)
+  `#373 <https://github.com/pantsbuild/pex/pull/373>`_
+
 1.2.4
 -----
 
