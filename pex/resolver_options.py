@@ -43,7 +43,7 @@ class ResolverOptionsBuilder(object):
                allow_all_external=False,
                allow_external=None,
                allow_unverified=None,
-               allow_prereleases=False,
+               allow_prereleases=None,
                precedence=None,
                context=None):
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
@@ -137,7 +137,7 @@ class ResolverOptions(ResolverOptionsInterface):
                fetchers=None,
                allow_external=False,
                allow_unverified=False,
-               allow_prereleases=False,
+               allow_prereleases=None,
                precedence=None,
                context=None):
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]

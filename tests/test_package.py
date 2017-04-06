@@ -128,3 +128,22 @@ def test_prereleases():
 
     assert not prerelease_package.satisfies(requirement, allow_prereleases=False)
     assert prerelease_package.satisfies(requirement, allow_prereleases=True)
+
+
+def test_explicit_prereleases():
+  def source_package(version):
+    return SourcePackage('setuptools-%s.tar.gz' % version)
+
+  def egg_package(version):
+    return EggPackage('setuptools-%s-py2.7.egg' % version)
+
+  def wheel_package(version):
+    return WheelPackage('file:///tmp/setuptools-%s-py2.py3-none-any.whl' % version)
+
+  requirement = 'setuptools==7.0b1'
+
+  for package in (egg_package, source_package, egg_package, wheel_package):
+    prerelease_package = package('7.0b1')
+
+    # satisfies should not exclude prereleases if explicitly requested
+    assert prerelease_package.satisfies(requirement)
