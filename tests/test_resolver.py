@@ -102,6 +102,67 @@ def test_resolve_prereleases():
     assert_resolve('3.0.0rc3', allow_prereleases=True)
 
 
+def test_resolve_prereleases_cached():
+  stable_dep = make_sdist(name='dep', version='2.0.0')
+  prerelease_dep = make_sdist(name='dep', version='3.0.0rc3')
+
+  with temporary_dir() as td:
+    for sdist in (stable_dep, prerelease_dep):
+      safe_copy(sdist, os.path.join(td, os.path.basename(sdist)))
+    fetchers = [Fetcher([td])]
+
+    with temporary_dir() as cd:
+      def assert_resolve(dep, expected_version, **resolve_kwargs):
+        dists = resolve(
+          [dep], cache=cd, cache_ttl=1000, **resolve_kwargs)
+        assert 1 == len(dists)
+        dist = dists[0]
+        assert expected_version == dist.version
+
+      Crawler.reset_cache()
+
+      # First do a run to load it into the cache.
+      assert_resolve('dep>=1,<4', '3.0.0rc3', allow_prereleases=True, fetchers=fetchers)
+
+      # This simulates running from another pex command. The Crawler cache actually caches an empty
+      # cache so this fails in the same "process".
+      Crawler.reset_cache()
+
+      # Now assert that we can get it from the cache by removing the source.
+      assert_resolve('dep>=1,<4', '3.0.0rc3', allow_prereleases=True, fetchers=[])
+
+      # It should also be able to resolve without allow_prereleases, if explicitly requested.
+      Crawler.reset_cache()
+      assert_resolve('dep>=1.rc1,<4', '3.0.0rc3', fetchers=[])
+
+
+def test_resolve_prereleases_multiple_set():
+  stable_dep = make_sdist(name='dep', version='2.0.0')
+  prerelease_dep1 = make_sdist(name='dep', version='3.0.0rc3')
+  prerelease_dep2 = make_sdist(name='dep', version='3.0.0rc4')
+  prerelease_dep3 = make_sdist(name='dep', version='3.0.0rc5')
+
+  with temporary_dir() as td:
+    for sdist in (stable_dep, prerelease_dep1, prerelease_dep2, prerelease_dep3):
+      safe_copy(sdist, os.path.join(td, os.path.basename(sdist)))
+    fetchers = [Fetcher([td])]
+
+    def assert_resolve(expected_version, **resolve_kwargs):
+      dists = resolve(
+        [
+          'dep>=3.0.0rc1',
+          'dep==3.0.0rc4',
+        ],
+        fetchers=fetchers, **resolve_kwargs)
+      assert 1 == len(dists)
+      dist = dists[0]
+      assert expected_version == dist.version
+
+    # This should resolve with explicit prerelease being set or implicitly.
+    assert_resolve('3.0.0rc4', allow_prereleases=True)
+    assert_resolve('3.0.0rc4')
+
+
 def test_resolvable_set():
   builder = ResolverOptionsBuilder()
   rs = _ResolvableSet()
