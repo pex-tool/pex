@@ -203,10 +203,8 @@ class Resolver(object):
         assert len(packages) > 0, 'ResolvableSet.packages(%s) should not be empty' % resolvable
         package = next(iter(packages))
         if resolvable.name in processed_packages:
-          # TODO implement backtracking?
-          if package != processed_packages[resolvable.name]:
-            raise self.Error('Ambiguous resolvable: %s' % resolvable)
-          continue
+          if package == processed_packages[resolvable.name]:
+            continue
         if package not in distributions:
           dist = self.build(package, resolvable.options)
           built_package = Package.from_href(dist.location)
@@ -222,7 +220,22 @@ class Resolver(object):
             distribution.requires(extras=resolvable_set.extras(resolvable.name)))
       resolvable_set = resolvable_set.replace_built(built_packages)
 
-    return list(distributions.values())
+    # We may have built multiple distributions depending upon if we found transitive dependencies
+    # for the same package. But ultimately, resolvable_set.packages() contains the correct version
+    # for all packages. So loop through it and only return the package version in
+    # resolvable_set.packages() that is found in distributions.
+    dists = []
+    # No point in proceeding if distributions is empty
+    if not distributions:
+      return dists
+
+    for resolvable, packages, parent, constraint_only in resolvable_set.packages():
+      if constraint_only:
+        continue
+      assert len(packages) > 0, 'ResolvableSet.packages(%s) should not be empty' % resolvable
+      package = next(iter(packages))
+      dists.append(distributions[package])
+    return dists
 
 
 class CachingResolver(Resolver):

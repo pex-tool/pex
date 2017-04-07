@@ -82,6 +82,24 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
       assert dists[0].version == '1.1.0'
 
 
+def test_ambiguous_transitive_resolvable():
+  # If an unbounded or larger bounded resolvable is resolved first, and a
+  # transitive resolvable is resolved later in another round, Error(Ambiguous resolvable) can be
+  # raised because foo pulls in foo-2.0.0 and bar->foo==1.0.0 pulls in foo-1.0.0.
+  foo1_0 = make_sdist(name='foo', version='1.0.0')
+  foo2_0 = make_sdist(name='foo', version='2.0.0')
+  bar1_0 = make_sdist(name='bar', version='1.0.0', install_reqs=['foo==1.0.0'])
+  with temporary_dir() as td:
+    for sdist in (foo1_0, foo2_0, bar1_0):
+      safe_copy(sdist, os.path.join(td, os.path.basename(sdist)))
+    fetchers = [Fetcher([td])]
+    with temporary_dir() as cd:
+      dists = resolve(['foo', 'bar'], fetchers=fetchers, cache=cd,
+                      cache_ttl=1000)
+      assert len(dists) == 2
+      assert dists[0].version == '1.0.0'
+
+
 def test_resolve_prereleases():
   stable_dep = make_sdist(name='dep', version='2.0.0')
   prerelease_dep = make_sdist(name='dep', version='3.0.0rc3')
