@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.2.6
+-----
+
+* Fix for Ambiguous Resolvable bug in transitive dependency resolution (#367)
+  `#367 <https://github.com/pantsbuild/pex/pull/367>`_
+
 1.2.5
 -----
 
