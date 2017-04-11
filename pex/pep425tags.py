@@ -1,6 +1,7 @@
 # This file was copied from the pip project master branch on 2016/12/05
-# It was modified slightly to change a few import paths and remove the
-# OrderedDict dependency
+# It was modified slightly to change a few import paths, remove the
+# OrderedDict dependency, remove unneeded globals, and change get_supported to
+# expect a single version.
 """Generate and work with PEP 425 Compatibility Tags."""
 from __future__ import absolute_import
 
@@ -22,7 +23,7 @@ except ImportError:  # pragma nocover
 
 logger = logging.getLogger(__name__)
 
-_osx_arch_pat = re.compile(r'(.+)_(\d+)_(\d+)_(.+)')
+_OSX_ARCH_PAT = re.compile(r'(.+)_(\d+)_(\d+)_(.+)')
 
 
 def get_config_var(var):
@@ -224,13 +225,13 @@ def get_darwin_arches(major, minor, machine):
   return arches
 
 
-def get_supported(versions=None, noarch=False, platform=None,
+def get_supported(version=None, noarch=False, platform=None,
                   impl=None, abi=None):
   """Return a list of supported tags for each version specified in
   `versions`.
 
-  :param versions: a list of string versions, of the form ["33", "32"],
-    or None. The first version will be assumed to support our ABI.
+  :param version: string version (e.g., "33", "32") or None.
+    If None, use local system Python version.
   :param platform: specify the exact platform you want valid
     tags for, or None. If None, use the local system platform.
   :param impl: specify the exact implementation you want valid
@@ -241,13 +242,15 @@ def get_supported(versions=None, noarch=False, platform=None,
   supported = []
 
   # Versions must be given with respect to the preference
-  if versions is None:
+  if version is None:
     versions = []
     version_info = get_impl_version_info()
     major = version_info[:-1]
     # Support all previous minor Python versions.
     for minor in range(version_info[-1], -1, -1):
       versions.append(''.join(map(str, major + (minor,))))
+  else:
+    versions = [version]
 
   impl = impl or get_abbr_impl()
 
@@ -271,7 +274,7 @@ def get_supported(versions=None, noarch=False, platform=None,
     arch = platform or get_platform()
     if arch.startswith('macosx'):
       # support macosx-10.6-intel on macosx-10.9-x86_64
-      match = _osx_arch_pat.match(arch)
+      match = _OSX_ARCH_PAT.match(arch)
       if match:
         name, major, minor, actual_arch = match.groups()
         tpl = '{0}_{1}_%i_%s'.format(name, major)
@@ -318,8 +321,3 @@ def get_supported(versions=None, noarch=False, platform=None,
       supported.append(('py%s' % (version[0]), 'none', 'any'))
 
   return supported
-
-supported_tags = get_supported()
-supported_tags_noarch = get_supported(noarch=True)
-
-implementation_tag = get_impl_tag()

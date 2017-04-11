@@ -166,11 +166,11 @@ class EggPackage(Package):
     self._supported_tags.add(('py' + self._py_version.replace('.', ''), abi_tag, tag_platform))
     # Work around PyPy versions being weird in pep425tags.get_supported
     if self.py_version == '2.7':
-      self._supported_tags.add(('pp2', 'none', tag_platform))
+      self._supported_tags.add(('pp2', abi_tag, tag_platform))
     elif self.py_version == '3.2':
-      self._supported_tags.add(('pp320', 'none', tag_platform))
+      self._supported_tags.add(('pp320', abi_tag, tag_platform))
     elif self.py_version == '3.3':
-      self._supported_tags.add(('pp350', 'none', tag_platform))
+      self._supported_tags.add(('pp350', abi_tag, tag_platform))
 
   def __hash__(self):
     return hash((self.name, self.version, self.py_version, self.platform))
