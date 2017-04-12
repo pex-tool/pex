@@ -560,6 +560,12 @@ def build_pex(args, options, resolver_option_builder):
   except TypeError:
     # options.preamble_file is None
     preamble = None
+  if options.supported_tags:
+    (options.platform,
+     options.implementation,
+     options.python_version,
+     options.abi) = options.supported_tags.rsplit('-', 3)
+
   # Copied from pip
   dist_restrictions = [
     options.python_version,
