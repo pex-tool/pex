@@ -177,6 +177,9 @@ class CacheHelper(object):
           with contextlib.closing(zf.open(name)) as zi:
             with safe_open(os.path.join(target_dir_tmp, target_name), 'wb') as fp:
               shutil.copyfileobj(zi, fp)
+              fileinfo = zf.getinfo(zi.name)
+              perm = fileinfo.external_attr >> 16
+              os.chmod(fp.name, int(str(perm), 8))
 
       rename_if_empty(target_dir_tmp, target_dir)
 

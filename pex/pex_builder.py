@@ -14,8 +14,8 @@ from .compiler import Compiler
 from .finders import get_entry_point_from_console_script, get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .pex_info import PexInfo
+import shutil
 from .util import CacheHelper, DistributionHelper
-
 
 BOOTSTRAP_ENVIRONMENT = b"""
 import os
@@ -259,7 +259,12 @@ class PEXBuilder(object):
         if name.endswith('/'):
           continue
         target = os.path.join(self._pex_info.internal_cache, dist_name, name)
-        self._chroot.write(zf.read(name), target)
+        tmp_location = '/tmp/.pex/deps/'
+        zf.extract(name, tmp_location)
+        info = zf.getinfo(name)
+        perm = info.external_attr >> 16
+        self._chroot.write(zf.read(name), target, perm=perm)
+        shutil.rmtree(tmp_location)
       return CacheHelper.zip_hash(zf)
 
   def _prepare_code_hash(self):
@@ -366,7 +371,6 @@ class PEXBuilder(object):
 
     if setuptools is None:
       raise RuntimeError('Failed to find setuptools while building pex!')
-
     for fn, content_stream in DistributionHelper.walk_data(setuptools):
       if fn.startswith('pkg_resources') or fn.startswith('_markerlib'):
         if not fn.endswith('.pyc'):  # We'll compile our own .pyc's later.

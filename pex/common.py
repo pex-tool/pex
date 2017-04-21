@@ -290,7 +290,7 @@ class Chroot(object):
     safe_copy(abs_src, abs_dst, overwrite=False)
     # TODO: Ensure the target and dest are the same if the file already exists.
 
-  def write(self, data, dst, label=None, mode='wb'):
+  def write(self, data, dst, label=None, mode='wb', perm=None):
     """Write data to ``chroot/dst`` with optional label.
 
     Has similar exceptional cases as ``Chroot.copy``
@@ -298,8 +298,11 @@ class Chroot(object):
     dst = self._normalize(dst)
     self._tag(dst, label)
     self._ensure_parent(dst)
-    with open(os.path.join(self.chroot, dst), mode) as wp:
+    _file = os.path.join(self.chroot, dst)
+    with open(_file, mode) as wp:
       wp.write(data)
+    if perm:
+      os.chmod(_file, perm)
 
   def touch(self, dst, label=None):
     """Perform 'touch' on ``chroot/dst`` with optional label.
@@ -334,4 +337,8 @@ class Chroot(object):
   def zip(self, filename, mode='wb'):
     with contextlib.closing(zipfile.ZipFile(filename, mode)) as zf:
       for f in sorted(self.files()):
-        zf.write(os.path.join(self.chroot, f), arcname=f, compress_type=zipfile.ZIP_DEFLATED)
+        filepath = os.path.join(self.chroot, f)
+        perm = oct(os.stat(filepath)[stat.ST_MODE])[-3:]
+        zf.write(filepath, arcname=f, compress_type=zipfile.ZIP_DEFLATED)
+        fileinfo = zf.getinfo(f)
+        fileinfo.external_attr = int(perm) << 16
