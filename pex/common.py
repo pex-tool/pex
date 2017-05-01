@@ -338,7 +338,7 @@ class Chroot(object):
     with contextlib.closing(zipfile.ZipFile(filename, mode)) as zf:
       for f in sorted(self.files()):
         filepath = os.path.join(self.chroot, f)
-        perm = oct(os.stat(filepath)[stat.ST_MODE])[-3:]
         zf.write(filepath, arcname=f, compress_type=zipfile.ZIP_DEFLATED)
+        perm = os.stat(filepath).st_mode
         fileinfo = zf.getinfo(f)
-        fileinfo.external_attr = int(perm) << 16
+        fileinfo.external_attr = perm << 16

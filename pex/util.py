@@ -179,7 +179,7 @@ class CacheHelper(object):
               shutil.copyfileobj(zi, fp)
               fileinfo = zf.getinfo(zi.name)
               perm = fileinfo.external_attr >> 16
-              os.chmod(fp.name, int(str(perm), 8))
+              os.chmod(fp.name, perm)
 
       rename_if_empty(target_dir_tmp, target_dir)
 
