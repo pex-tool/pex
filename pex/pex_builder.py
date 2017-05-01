@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import logging
 import os
+import shutil
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
 
@@ -14,8 +15,8 @@ from .compiler import Compiler
 from .finders import get_entry_point_from_console_script, get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .pex_info import PexInfo
-import shutil
 from .util import CacheHelper, DistributionHelper
+
 
 BOOTSTRAP_ENVIRONMENT = b"""
 import os
