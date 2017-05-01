@@ -260,12 +260,9 @@ class PEXBuilder(object):
         if name.endswith('/'):
           continue
         target = os.path.join(self._pex_info.internal_cache, dist_name, name)
-        tmp_location = '/tmp/.pex/deps/'
-        zf.extract(name, tmp_location)
         info = zf.getinfo(name)
         perm = info.external_attr >> 16
         self._chroot.write(zf.read(name), target, perm=perm)
-        shutil.rmtree(tmp_location)
       return CacheHelper.zip_hash(zf)
 
   def _prepare_code_hash(self):
