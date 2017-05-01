@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import logging
 import os
-import shutil
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
 

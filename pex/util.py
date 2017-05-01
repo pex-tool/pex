@@ -177,15 +177,18 @@ class CacheHelper(object):
           with contextlib.closing(zf.open(name)) as zi:
             with safe_open(os.path.join(target_dir_tmp, target_name), 'wb') as fp:
               shutil.copyfileobj(zi, fp)
-              fileinfo = zf.getinfo(zi.name)
-              perm = fileinfo.external_attr >> 16
-              os.chmod(fp.name, perm)
+              cls.copy_perm(zf.getinfo(zi.name), fp.name)
 
       rename_if_empty(target_dir_tmp, target_dir)
 
     dist = DistributionHelper.distribution_from_path(target_dir)
     assert dist is not None, 'Failed to cache distribution %s' % source
     return dist
+
+  @classmethod
+  def copy_perm(cls, fileinfo, filename):
+    perm = fileinfo.external_attr >> 16
+    os.chmod(filename, perm)
 
 
 class Memoizer(object):
