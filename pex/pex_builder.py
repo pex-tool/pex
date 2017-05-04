@@ -337,7 +337,8 @@ class PEXBuilder(object):
       self._chroot.touch(compiled, label='bytecode')
 
   def _prepare_manifest(self):
-    self._chroot.write(self._pex_info.dump().encode('utf-8'), PexInfo.PATH, label='manifest')
+    self._chroot.write(self._pex_info.dump(sort_keys=True).encode('utf-8'),
+                       PexInfo.PATH, label='manifest')
 
   def _prepare_main(self):
     self._chroot.write(self._preamble + b'\n' + BOOTSTRAP_ENVIRONMENT,
