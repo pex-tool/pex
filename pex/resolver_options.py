@@ -172,7 +172,10 @@ class ResolverOptions(ResolverOptionsInterface):
         translators.append(EggTranslator(interpreter=interpreter, platform=platform))
       elif package is SourcePackage:
         installer_impl = WheelInstaller if WheelPackage in self._precedence else EggInstaller
-        translators.append(SourceTranslator(installer_impl=installer_impl, interpreter=interpreter))
+        translators.append(SourceTranslator(
+            installer_impl=installer_impl,
+            interpreter=interpreter,
+            platform=platform))
 
     return ChainedTranslator(*translators)
 
