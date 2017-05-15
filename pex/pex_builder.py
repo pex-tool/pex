@@ -7,6 +7,7 @@ import logging
 import os
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
+from wheel.install import WheelFile
 
 from .common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
 from .compatibility import to_bytes
@@ -253,7 +254,29 @@ class PEXBuilder(object):
         self._copy_or_link(filename, target)
     return CacheHelper.dir_hash(path)
 
+  def _get_installer_paths(self, dist_name):
+    """Set up an overrides dict for WheelFile.install that installs the contents
+    of a wheel into its own base in the pex dependencies cache.
+    """
+    base = os.path.join(self.path(), self._pex_info.internal_cache, dist_name)
+    return {
+      'purelib': os.path.join(base),
+      'headers': os.path.join(base, 'headers'),
+      'scripts': os.path.join(base, 'bin'),
+      'platlib': base,
+      'data': base
+    }
+
   def _add_dist_zip(self, path, dist_name):
+    # We need to distinguish between wheels and other zips. Most of the time,
+    # when we have a zip, it contains its contents in an importable form.
+    # But wheels don't have to be importable, so we need to force them
+    # into an importable shape. We can do that by installing it into its own
+    # wheel dir.
+    if dist_name.endswith("whl"):
+      wf = WheelFile(path)
+      wf.install(overrides=self._get_installer_paths(dist_name), force=True)
+
     with open_zip(path) as zf:
       for name in zf.namelist():
         if name.endswith('/'):
