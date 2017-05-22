@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.2.7
+-----
+
+* Sort keys in PEX-INFO file so the output is deterministic. (#384)
+  `#384 <https://github.com/pantsbuild/pex/pull/384>`_
+
+* Pass platform for SourceTranslator (#386)
+  `#386 <https://github.com/pantsbuild/pex/pull/386>`_
+
 1.2.6
 -----
 
