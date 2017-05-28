@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import logging
 import os
+import tempfile
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
 from wheel.install import WheelFile
@@ -254,15 +255,14 @@ class PEXBuilder(object):
         self._copy_or_link(filename, target)
     return CacheHelper.dir_hash(path)
 
-  def _get_installer_paths(self, dist_name):
+  def _get_installer_paths(self, dist_name, base):
     """Set up an overrides dict for WheelFile.install that installs the contents
     of a wheel into its own base in the pex dependencies cache.
     """
-    base = os.path.join(self.path(), self._pex_info.internal_cache, dist_name)
     return {
-      'purelib': os.path.join(base),
+      'purelib': base,
       'headers': os.path.join(base, 'headers'),
-      'scripts': os.path.join(base, 'bin'),
+      'scripts': os.path.join(base, 'scripts'),
       'platlib': base,
       'data': base
     }
@@ -274,8 +274,26 @@ class PEXBuilder(object):
     # into an importable shape. We can do that by installing it into its own
     # wheel dir.
     if dist_name.endswith("whl"):
-      wf = WheelFile(path)
-      wf.install(overrides=self._get_installer_paths(dist_name), force=True)
+      try:
+        tmp = tempfile.mkdtemp()
+        whltmp = os.path.join(tmp, dist_name)
+        os.mkdir(whltmp)
+        wf = WheelFile(path)
+        wf.install(overrides=self._get_installer_paths(dist_name, whltmp), force=True)
+        def add_wheel_file(self, dir, files):
+          pruned_dir = os.path.relpath(dir, tmp)
+          for file in files:
+            fullpath = os.path.join(dir, file)
+            if os.path.isdir(fullpath):
+              continue
+            target = os.path.join(self._pex_info.internal_cache, pruned_dir, file)
+            with open(fullpath, "r") as i:
+              self._chroot.write(i.read(), target)
+        os.path.walk(whltmp, add_wheel_file, self)
+      finally:
+        #shutil.rmtree(tmp)
+        print("crap")
+      return CacheHelper.dir_hash(whltmp)
 
     with open_zip(path) as zf:
       for name in zf.namelist():

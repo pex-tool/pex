@@ -3,7 +3,6 @@
 
 import os
 import stat
-import subprocess
 import zipfile
 from contextlib import closing
 
@@ -75,9 +74,7 @@ def test_pex_builder_wheeldep():
   with nested(temporary_dir(), make_bdist('p1', zipped=True)) as (td, p1):
     pyparsing_path = "./tests/example_packages/pyparsing-2.1.10-py2.py3-none-any.whl"
     dist = DistributionHelper.distribution_from_path(pyparsing_path)
-    print("Adding dist %s @ %s" % (dist, pyparsing_path))
     write_pex(td, wheeldeps_exe_main, dists=[p1, dist])
-    subprocess.check_call(["cp", "-r", td, "/tmp/foo"])
     success_txt = os.path.join(td, 'success.txt')
     PEX(td).run(args=[success_txt])
     assert os.path.exists(success_txt)
