@@ -281,16 +281,16 @@ class PEXBuilder(object):
         os.mkdir(whltmp)
         wf = WheelFile(path)
         wf.install(overrides=self._get_installer_paths(dist_name, whltmp), force=True)
-        def add_wheel_file(self, wdir, files):
-          pruned_dir = os.path.relpath(wdir, tmp)
+        for (root, _, files) in os.walk(whltmp):
+          #def add_wheel_file(self, wdir, files):
+          pruned_dir = os.path.relpath(root, tmp)
           for f in files:
-            fullpath = os.path.join(wdir, f)
+            fullpath = os.path.join(root, f)
             if os.path.isdir(fullpath):
               continue
             target = os.path.join(self._pex_info.internal_cache, pruned_dir, f)
             with open(fullpath, "r") as i:
               self._chroot.write(i.read(), target)
-        os.path.walk(whltmp, add_wheel_file, self)
       finally:
         shutil.rmtree(tmp)
       return CacheHelper.dir_hash(whltmp)
