@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import logging
 import os
+import shutil
 import tempfile
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
@@ -262,7 +263,7 @@ class PEXBuilder(object):
     return {
       'purelib': base,
       'headers': os.path.join(base, 'headers'),
-      'scripts': os.path.join(base, 'scripts'),
+      'scripts': os.path.join(base, 'bin'),
       'platlib': base,
       'data': base
     }
@@ -274,23 +275,24 @@ class PEXBuilder(object):
     # into an importable shape. We can do that by installing it into its own
     # wheel dir.
     if dist_name.endswith("whl"):
-      tmp = tempfile.mkdtemp()
-      whltmp = os.path.join(tmp, dist_name)
-      os.mkdir(whltmp)
-      wf = WheelFile(path)
-      wf.install(overrides=self._get_installer_paths(dist_name, whltmp), force=True)
-
-      def add_wheel_file(self, wdir, files):
-        pruned_dir = os.path.relpath(wdir, tmp)
-        for f in files:
-          fullpath = os.path.join(wdir, f)
-          if os.path.isdir(fullpath):
-            continue
-          target = os.path.join(self._pex_info.internal_cache, pruned_dir, f)
-          with open(fullpath, "r") as i:
-            self._chroot.write(i.read(), target)
-
-      os.path.walk(whltmp, add_wheel_file, self)
+      try:
+        tmp = tempfile.mkdtemp()
+        whltmp = os.path.join(tmp, dist_name)
+        os.mkdir(whltmp)
+        wf = WheelFile(path)
+        wf.install(overrides=self._get_installer_paths(dist_name, whltmp), force=True)
+        def add_wheel_file(self, wdir, files):
+          pruned_dir = os.path.relpath(wdir, tmp)
+          for f in files:
+            fullpath = os.path.join(wdir, f)
+            if os.path.isdir(fullpath):
+              continue
+            target = os.path.join(self._pex_info.internal_cache, pruned_dir, f)
+            with open(fullpath, "r") as i:
+              self._chroot.write(i.read(), target)
+        os.path.walk(whltmp, add_wheel_file, self)
+      finally:
+        shutil.rmtree(tmp)
       return CacheHelper.dir_hash(whltmp)
 
     with open_zip(path) as zf:

@@ -250,7 +250,7 @@ def safer_name(name):
 
 
 def get_script_from_whl(name, dist):
-  wheel_scripts_dir = 'scripts'
+  wheel_scripts_dir = 'bin'
   if dist.resource_isdir(wheel_scripts_dir) and name in dist.resource_listdir(wheel_scripts_dir):
     script_path = os.path.join(wheel_scripts_dir, name)
     return (
