@@ -289,8 +289,7 @@ class PEXBuilder(object):
             if os.path.isdir(fullpath):
               continue
             target = os.path.join(self._pex_info.internal_cache, pruned_dir, f)
-            with open(fullpath, "r") as i:
-              self._chroot.write(i.read(), target)
+            self._chroot.copy(fullpath, target)
       finally:
         shutil.rmtree(tmp)
       return CacheHelper.dir_hash(whltmp)
