@@ -62,6 +62,7 @@ absolute path of a Python binary or the name of a Python interpreter within the 
                                ^
     SyntaxError: invalid syntax
 
+Note that ``pex`` requires ``wheel`` to be installed.
 
 Specifying requirements
 -----------------------
@@ -95,6 +96,22 @@ way to freeze a virtualenv into a PEX file:
 
     $ pex -r <(pip freeze) -o my_application.pex
 
+Specifying source directories
+-----------------------------
+
+Source directories are source distributions typically built with ``python setup.py sdist``.
+The ``-s`` option specifies the path to a source directory.::
+
+    $ python setup.py sdist
+    $ tar -xzvf dist/foo-x.y
+    $ pex -s foo-x.y
+    Python 2.7.7 (unknown, Jan  2 2014, 14:52:48)
+    [GCC 4.2.1 (Based on Apple Inc. build 5658) (LLVM build 2336.11.00)] on darwin
+    Type "help", "copyright", "credits" or "license" for more information.
+    (InteractiveConsole)
+    >>> import foo.bar
+
+It may be useful to clear the cache in ``~/.pex/build/`` to ensure clean results.
 
 Specifying entry points
 -----------------------
@@ -351,7 +368,7 @@ By default, PEX environments are completely scrubbed empty of any packages insta
 Setting ``--inherit-path`` allows packages within site-packages to be considered as candidate distributions
 to be included for the execution of this environment.  This is strongly discouraged as it circumvents one of
 the biggest benefits of using .pex files, however there are some cases where it can be advantageous (for example
-if a package does not package correctly an an egg or wheel.)
+if a package does not package correctly as an egg or wheel.)
 
 
 ``--ignore-errors``
