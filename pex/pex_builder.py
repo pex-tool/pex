@@ -282,7 +282,6 @@ class PEXBuilder(object):
         wf = WheelFile(path)
         wf.install(overrides=self._get_installer_paths(dist_name, whltmp), force=True)
         for (root, _, files) in os.walk(whltmp):
-          #def add_wheel_file(self, wdir, files):
           pruned_dir = os.path.relpath(root, tmp)
           for f in files:
             fullpath = os.path.join(root, f)
