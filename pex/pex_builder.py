@@ -9,7 +9,6 @@ import shutil
 import tempfile
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
-from wheel.install import WheelFile
 
 from .common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
 from .compatibility import to_bytes
@@ -274,6 +273,7 @@ class PEXBuilder(object):
     # But wheels don't have to be importable, so we need to force them
     # into an importable shape. We can do that by installing it into its own
     # wheel dir.
+    from wheel.install import WheelFile
     if dist_name.endswith("whl"):
       try:
         tmp = tempfile.mkdtemp()
