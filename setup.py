@@ -61,6 +61,7 @@ setup(
     'twitter.common.lang>=0.3.1,<0.4.0',
     'twitter.common.testing>=0.3.1,<0.4.0',
     'twitter.common.dirutil>=0.3.1,<0.4.0',
+    'wheel==0.29.0',
     'pytest',
   ],
   entry_points = {
