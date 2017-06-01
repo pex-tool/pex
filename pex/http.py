@@ -7,6 +7,7 @@ import os
 import shutil
 import uuid
 from abc import abstractmethod
+
 from email import message_from_string
 
 from .common import safe_mkdtemp, safe_open
