@@ -67,6 +67,8 @@ def test_pex_builder():
       assert fp.read() == 'success'
 
 
+@pytest.mark.skipif(sys.version_info < (2, 7),
+                    reason="wheel script installation is broken on python 2.6")
 def test_pex_builder_wheeldep():
   """Repeat the pex_builder test, but this time include an import of
   something from a wheel that doesn't come in importable form.
