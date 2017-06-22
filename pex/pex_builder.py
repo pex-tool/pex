@@ -1,11 +1,12 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import logging
 import os
 import shutil
+import sys
 import tempfile
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
@@ -273,7 +274,11 @@ class PEXBuilder(object):
     # But wheels don't have to be importable, so we need to force them
     # into an importable shape. We can do that by installing it into its own
     # wheel dir.
-    if dist_name.endswith("whl"):
+    if not self.interpreter.supports_wheel_install():
+      print("*** Wheel dependencies may not work correctly with Python 2.6.", file=sys.stderr)
+      print("*** Your generated pex may experience errors", file=sys.stderr)
+
+    if self.interpreter.supports_wheel_install() and dist_name.endswith("whl"):
       from wheel.install import WheelFile
       try:
         tmp = tempfile.mkdtemp()
