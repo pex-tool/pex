@@ -3,6 +3,7 @@
 
 import os
 import stat
+import sys
 import zipfile
 from contextlib import closing
 
