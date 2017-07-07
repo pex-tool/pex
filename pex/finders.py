@@ -245,12 +245,8 @@ def get_script_from_egg(name, dist):
   return None, None
 
 
-def safer_name(name):
-  return name.replace('-', '_')
-
-
 def get_script_from_whl(name, dist):
-  # This can get called in different contexts; in some, it looks for files in the 
+  # This can get called in different contexts; in some, it looks for files in the
   # wheel archives being used to produce a pex; in others, it looks for files in the
   # install wheel directory included in the pex. So we need to look at both locations.
   datadir_name = "%s-%s.data" % (dist.project_name, dist.version)
