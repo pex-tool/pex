@@ -5,7 +5,6 @@ from __future__ import absolute_import, print_function
 
 import logging
 import os
-import sys
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
 
@@ -274,7 +273,7 @@ class PEXBuilder(object):
     # wheel dir.
     if not self.interpreter.supports_wheel_install():
       self._logger.warn("Wheel dependency on %s may not work correctly with Python 2.6." %
-                        dist_name, file=sys.stderr)
+                        dist_name)
 
     if self.interpreter.supports_wheel_install() and dist_name.endswith("whl"):
       from wheel.install import WheelFile
