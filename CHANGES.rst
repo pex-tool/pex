@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.2.8
+-----
+
+* Minimum setuptools version should be 20.3 (#391)
+  `#391 <https://github.com/pantsbuild/pex/pull/391>`_
+
+* Improve wheel support in pex. (#388)
+  `#388 <https://github.com/pantsbuild/pex/pull/388>`_
+
 1.2.7
 -----
 
