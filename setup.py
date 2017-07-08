@@ -54,6 +54,7 @@ setup(
   ],
   install_requires = [
     SETUPTOOLS_REQUIREMENT,
+    WHEEL_REQUIREMENT,
   ],
   tests_require = [
     'mock',

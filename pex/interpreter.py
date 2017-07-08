@@ -400,6 +400,10 @@ class PythonInterpreter(object):
       if req.key == dist_name and dist_version in req:
         return location
 
+  def supports_wheel_install(self):
+    """Wheel installs are broken in python 2.6"""
+    return self.version >= (2, 7)
+
   def __hash__(self):
     return hash((self._binary, self._identity))
 

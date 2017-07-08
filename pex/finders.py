@@ -245,19 +245,22 @@ def get_script_from_egg(name, dist):
   return None, None
 
 
-def safer_name(name):
-  return name.replace('-', '_')
-
-
 def get_script_from_whl(name, dist):
-  # This is true as of at least wheel==0.24.  Might need to take into account the
-  # metadata version bundled with the wheel.
-  wheel_scripts_dir = '%s-%s.data/scripts' % (safer_name(dist.key), dist.version)
-  if dist.resource_isdir(wheel_scripts_dir) and name in dist.resource_listdir(wheel_scripts_dir):
-    script_path = os.path.join(wheel_scripts_dir, name)
-    return (
-        os.path.join(dist.egg_info, script_path),
-        dist.get_resource_string('', script_path).replace(b'\r\n', b'\n').replace(b'\r', b'\n'))
+  # This can get called in different contexts; in some, it looks for files in the
+  # wheel archives being used to produce a pex; in others, it looks for files in the
+  # install wheel directory included in the pex. So we need to look at both locations.
+  datadir_name = "%s-%s.data" % (dist.project_name, dist.version)
+  wheel_scripts_dirs = ['bin', 'scripts',
+                         os.path.join(datadir_name, "bin"),
+                         os.path.join(datadir_name, "scripts")]
+  for wheel_scripts_dir in wheel_scripts_dirs:
+    if (dist.resource_isdir(wheel_scripts_dir) and
+        name in dist.resource_listdir(wheel_scripts_dir)):
+      # We always install wheel scripts into bin
+      script_path = os.path.join(wheel_scripts_dir, name)
+      return (
+          os.path.join(dist.egg_info, script_path),
+          dist.get_resource_string('', script_path).replace(b'\r\n', b'\n').replace(b'\r', b'\n'))
   return None, None
 
 

@@ -2,9 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import contextlib
+import marshal
 import os
 
-import marshal
 import pytest
 from twitter.common.contextutil import temporary_dir
 

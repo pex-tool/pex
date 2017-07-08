@@ -3,6 +3,7 @@
 
 import os
 import stat
+import sys
 import zipfile
 from contextlib import closing
 
@@ -20,6 +21,16 @@ from pex.util import DistributionHelper
 
 exe_main = """
 import sys
+from my_package.my_module import do_something
+do_something()
+
+with open(sys.argv[1], 'w') as fp:
+  fp.write('success')
+"""
+
+wheeldeps_exe_main = """
+import sys
+from pyparsing import *
 from my_package.my_module import do_something
 do_something()
 
@@ -52,6 +63,23 @@ def test_pex_builder():
 
     success_txt = os.path.join(td1, 'success.txt')
     PEX(td1).run(args=[success_txt])
+    assert os.path.exists(success_txt)
+    with open(success_txt) as fp:
+      assert fp.read() == 'success'
+
+
+@pytest.mark.skipif(sys.version_info < (2, 7),
+                    reason="wheel script installation is broken on python 2.6")
+def test_pex_builder_wheeldep():
+  """Repeat the pex_builder test, but this time include an import of
+  something from a wheel that doesn't come in importable form.
+  """
+  with nested(temporary_dir(), make_bdist('p1', zipped=True)) as (td, p1):
+    pyparsing_path = "./tests/example_packages/pyparsing-2.1.10-py2.py3-none-any.whl"
+    dist = DistributionHelper.distribution_from_path(pyparsing_path)
+    write_pex(td, wheeldeps_exe_main, dists=[p1, dist])
+    success_txt = os.path.join(td, 'success.txt')
+    PEX(td).run(args=[success_txt])
     assert os.path.exists(success_txt)
     with open(success_txt) as fp:
       assert fp.read() == 'success'

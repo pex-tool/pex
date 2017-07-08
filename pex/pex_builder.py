@@ -1,7 +1,7 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import logging
 import os
@@ -253,7 +253,45 @@ class PEXBuilder(object):
         self._copy_or_link(filename, target)
     return CacheHelper.dir_hash(path)
 
+  def _get_installer_paths(self, base):
+    """Set up an overrides dict for WheelFile.install that installs the contents
+    of a wheel into its own base in the pex dependencies cache.
+    """
+    return {
+      'purelib': base,
+      'headers': os.path.join(base, 'headers'),
+      'scripts': os.path.join(base, 'bin'),
+      'platlib': base,
+      'data': base
+    }
+
   def _add_dist_zip(self, path, dist_name):
+    # We need to distinguish between wheels and other zips. Most of the time,
+    # when we have a zip, it contains its contents in an importable form.
+    # But wheels don't have to be importable, so we need to force them
+    # into an importable shape. We can do that by installing it into its own
+    # wheel dir.
+    if not self.interpreter.supports_wheel_install():
+      self._logger.warn("Wheel dependency on %s may not work correctly with Python 2.6." %
+                        dist_name)
+
+    if self.interpreter.supports_wheel_install() and dist_name.endswith("whl"):
+      from wheel.install import WheelFile
+      tmp = safe_mkdtemp()
+      whltmp = os.path.join(tmp, dist_name)
+      os.mkdir(whltmp)
+      wf = WheelFile(path)
+      wf.install(overrides=self._get_installer_paths(whltmp), force=True)
+      for (root, _, files) in os.walk(whltmp):
+        pruned_dir = os.path.relpath(root, tmp)
+        for f in files:
+          fullpath = os.path.join(root, f)
+          if os.path.isdir(fullpath):
+            continue
+          target = os.path.join(self._pex_info.internal_cache, pruned_dir, f)
+          self._chroot.copy(fullpath, target)
+      return CacheHelper.dir_hash(whltmp)
+
     with open_zip(path) as zf:
       for name in zf.namelist():
         if name.endswith('/'):
