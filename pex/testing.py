@@ -46,6 +46,13 @@ def random_bytes(length):
       map(chr, (random.randint(ord('a'), ord('z')) for _ in range(length)))).encode('utf-8')
 
 
+def get_dep_dist_names_from_pex(pex_path, match_prefix=''):
+  """Given an on-disk pex, extract all of the unique first-level paths under `.deps`."""
+  with zipfile.ZipFile(pex_path) as pex_zip:
+    dep_gen = (f.split(os.sep)[1] for f in pex_zip.namelist() if f.startswith('.deps/'))
+    return set(item for item in dep_gen if item.startswith(match_prefix))
+
+
 @contextlib.contextmanager
 def temporary_content(content_map, interp=None, seed=31337):
   """Write content to disk where content is map from string => (int, string).

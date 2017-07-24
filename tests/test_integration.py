@@ -10,8 +10,19 @@ from twitter.common.contextutil import environment_as, temporary_dir
 
 from pex.compatibility import WINDOWS
 from pex.installer import EggInstaller
-from pex.testing import run_pex_command, run_simple_pex, run_simple_pex_test, temporary_content
+from pex.testing import (
+    get_dep_dist_names_from_pex,
+    run_pex_command,
+    run_simple_pex,
+    run_simple_pex_test,
+    temporary_content
+)
 from pex.util import DistributionHelper, named_temporary_file
+
+NOT_CPYTHON_36 = (
+  "hasattr(sys, 'pypy_version_info') or "
+  "(sys.version_info[0], sys.version_info[1]) != (3, 6)"
+)
 
 
 def test_pex_execute():
@@ -155,3 +166,23 @@ def test_entry_point_exit_code():
     so, rc = run_simple_pex_test('', env={'PEX_SCRIPT': 'my_app'}, dists=[dist])
     assert so.decode('utf-8').strip() == error_msg
     assert rc == 1
+
+
+@pytest.mark.skipif(NOT_CPYTHON_36)
+def test_pex_multi_resolve():
+  """Tests multi-interpreter + multi-platform resolution."""
+  with temporary_dir() as output_dir:
+    pex_path = os.path.join(output_dir, 'pex.pex')
+    results = run_pex_command(['--disable-cache',
+                               'lxml==3.8.0',
+                               '--platform=manylinux1-x86_64',
+                               '--platform=macosx-10.6-x86_64',
+                               '--python=python2.7',
+                               '--python=python3.6',
+                               '-o', pex_path])
+    results.assert_success()
+
+    included_dists = get_dep_dist_names_from_pex(pex_path, 'lxml')
+    assert len(included_dists) == 4
+    for dist_substr in ('-cp27-', '-cp36-', '-manylinux1_x86_64', '-macosx_'):
+      assert any(dist_substr in f for f in included_dists)
