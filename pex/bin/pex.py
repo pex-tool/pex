@@ -297,14 +297,14 @@ def configure_clp_pex_environment(parser):
       type=str,
       action='append',
       help='The platform for which to build the PEX. This option can be passed multiple times '
-           'to create a multi-platform compatible pex. Default: %default')
+           'to create a multi-platform compatible pex. Default: current platform.')
 
   group.add_option(
       '--interpreter-cache-dir',
       dest='interpreter_cache_dir',
       default='{pex_root}/interpreters',
       help='The interpreter cache to use for keeping track of interpreter dependencies '
-           'for the pex tool. [Default: ~/.pex/interpreters]')
+           'for the pex tool. Default: `~/.pex/interpreters`.')
 
   parser.add_option_group(group)
 
@@ -493,7 +493,7 @@ def get_interpreter(python_interpreter, interpreter_cache_dir, repos, use_wheel)
 
 
 def _lowest_version_interpreter(interpreters):
-  """Given an iterable of interpreters, return the one with the lowest version."""
+  """Given a list of interpreters, return the one with the lowest version."""
   lowest = interpreters[0]
   for i in interpreters[1:]:
     lowest = lowest if lowest < i else i
