@@ -543,13 +543,13 @@ def build_pex(args, options, resolver_option_builder):
                                 platforms=options.platform,
                                 cache=options.cache_dir,
                                 cache_ttl=options.cache_ttl)
+
+      for dist in resolveds:
+        log('  %s' % dist, v=options.verbosity)
+        pex_builder.add_distribution(dist)
+        pex_builder.add_requirement(dist.as_requirement())
     except Unsatisfiable as e:
       die(e)
-
-  for dist in resolveds:
-    log('  %s' % dist, v=options.verbosity)
-    pex_builder.add_distribution(dist)
-    pex_builder.add_requirement(dist.as_requirement())
 
   if options.entry_point and options.script:
     die('Must specify at most one entry point or script.', INVALID_OPTIONS)
