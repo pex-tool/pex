@@ -1,6 +1,7 @@
 *~
 *.pyc
 *.egg-info
+/.cache
 /venv
 /build/*
 /dist/*

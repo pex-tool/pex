@@ -291,17 +291,15 @@ class CachingResolver(Resolver):
     return DistributionHelper.distribution_from_path(target)
 
 
-def resolve(
-    requirements,
-    fetchers=None,
-    interpreter=None,
-    platform=None,
-    context=None,
-    precedence=None,
-    cache=None,
-    cache_ttl=None,
-    allow_prereleases=None):
-
+def resolve(requirements,
+            fetchers=None,
+            interpreter=None,
+            platform=None,
+            context=None,
+            precedence=None,
+            cache=None,
+            cache_ttl=None,
+            allow_prereleases=None):
   """Produce all distributions needed to (recursively) meet `requirements`
 
   :param requirements: An iterator of Requirement-like things, either
@@ -359,19 +357,85 @@ def resolve(
     classes.
   """
 
-  builder = ResolverOptionsBuilder(
-      fetchers=fetchers,
-      allow_prereleases=allow_prereleases,
-      precedence=precedence,
-      context=context,
-  )
+  builder = ResolverOptionsBuilder(fetchers=fetchers,
+                                   allow_prereleases=allow_prereleases,
+                                   precedence=precedence,
+                                   context=context)
 
   if cache:
-    resolver = CachingResolver(
-      cache, cache_ttl,
-      allow_prereleases=allow_prereleases, interpreter=interpreter, platform=platform)
+    resolver = CachingResolver(cache,
+                               cache_ttl,
+                               allow_prereleases=allow_prereleases,
+                               interpreter=interpreter,
+                               platform=platform)
   else:
-    resolver = Resolver(
-      allow_prereleases=allow_prereleases, interpreter=interpreter, platform=platform)
+    resolver = Resolver(allow_prereleases=allow_prereleases,
+                        interpreter=interpreter,
+                        platform=platform)
 
   return resolver.resolve(resolvables_from_iterable(requirements, builder))
+
+
+def resolve_multi(requirements,
+                  fetchers=None,
+                  interpreters=None,
+                  platforms=None,
+                  context=None,
+                  precedence=None,
+                  cache=None,
+                  cache_ttl=None,
+                  allow_prereleases=None):
+  """A generator function that produces all distributions needed to meet `requirements`
+  for multiple interpreters and/or platforms.
+
+  :param requirements: An iterator of Requirement-like things, either
+    :class:`pkg_resources.Requirement` objects or requirement strings.
+  :keyword fetchers: (optional) A list of :class:`Fetcher` objects for locating packages.  If
+    unspecified, the default is to look for packages on PyPI.
+  :keyword interpreters: (optional) An iterable of :class:`PythonInterpreter` objects to use
+    for building distributions and for testing distribution compatibility.
+  :keyword platforms: (optional) An iterable of PEP425-compatible platform strings to use for
+    filtering compatible distributions.  If unspecified, the current platform is used, as
+    determined by `Platform.current()`.
+  :keyword context: (optional) A :class:`Context` object to use for network access.  If
+    unspecified, the resolver will attempt to use the best available network context.
+  :keyword precedence: (optional) An ordered list of allowable :class:`Package` classes
+    to be used for producing distributions.  For example, if precedence is supplied as
+    ``(WheelPackage, SourcePackage)``, wheels will be preferred over building from source, and
+    eggs will not be used at all.  If ``(WheelPackage, EggPackage)`` is suppplied, both wheels and
+    eggs will be used, but the resolver will not resort to building anything from source.
+  :keyword cache: (optional) A directory to use to cache distributions locally.
+  :keyword cache_ttl: (optional integer in seconds) If specified, consider non-exact matches when
+    resolving requirements.  For example, if ``setuptools==2.2`` is specified and setuptools 2.2 is
+    available in the cache, it will always be used.  However, if a non-exact requirement such as
+    ``setuptools>=2,<3`` is specified and there exists a setuptools distribution newer than
+    cache_ttl seconds that satisfies the requirement, then it will be used.  If the distribution
+    is older than cache_ttl seconds, it will be ignored.  If ``cache_ttl`` is not specified,
+    resolving inexact requirements will always result in making network calls through the
+    ``context``.
+  :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
+    unspecified only stable versions will be resolved, unless explicitly included.
+  :yields: All :class:`pkg_resources.Distribution` instances meeting ``requirements``.
+  :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
+  :raises Untranslateable: If no compatible distributions could be acquired for
+    a particular requirement.
+  """
+
+  interpreters = interpreters or [PythonInterpreter.get()]
+  platforms = platforms or [Platform.current()]
+
+  seen = set()
+  for interpreter in interpreters:
+    for platform in platforms:
+      for resolvable in resolve(requirements,
+                                fetchers,
+                                interpreter,
+                                platform,
+                                context,
+                                precedence,
+                                cache,
+                                cache_ttl,
+                                allow_prereleases):
+        if resolvable not in seen:
+          seen.add(resolvable)
+          yield resolvable

@@ -30,7 +30,7 @@ from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
 from pex.resolvable import Resolvable
-from pex.resolver import CachingResolver, Resolver, Unsatisfiable
+from pex.resolver import Unsatisfiable, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER
 from pex.variables import ENV, Variables
@@ -274,9 +274,12 @@ def configure_clp_pex_environment(parser):
   group.add_option(
       '--python',
       dest='python',
-      default=None,
+      default=[],
+      type='str',
+      action='append',
       help='The Python interpreter to use to build the pex.  Either specify an explicit '
-           'path to an interpreter, or specify a binary accessible on $PATH. '
+           'path to an interpreter, or specify a binary accessible on $PATH. This option '
+           'can be passed multiple times to create a multi-interpreter compatible pex. '
            'Default: Use current interpreter.')
 
   group.add_option(
@@ -290,15 +293,18 @@ def configure_clp_pex_environment(parser):
   group.add_option(
       '--platform',
       dest='platform',
-      default=Platform.current(),
-      help='The platform for which to build the PEX.  Default: %default')
+      default=[],
+      type=str,
+      action='append',
+      help='The platform for which to build the PEX. This option can be passed multiple times '
+           'to create a multi-platform compatible pex. Default: current platform.')
 
   group.add_option(
       '--interpreter-cache-dir',
       dest='interpreter_cache_dir',
       default='{pex_root}/interpreters',
       help='The interpreter cache to use for keeping track of interpreter dependencies '
-           'for the pex tool. [Default: ~/.pex/interpreters]')
+           'for the pex tool. Default: `~/.pex/interpreters`.')
 
   parser.add_option_group(group)
 
@@ -460,39 +466,54 @@ def resolve_interpreter(cache, fetchers, interpreter, requirement):
     return interpreter.with_extra(egg.name, egg.raw_version, egg.path)
 
 
-def interpreter_from_options(options):
+def get_interpreter(python_interpreter, interpreter_cache_dir, repos, use_wheel):
   interpreter = None
 
-  if options.python:
-    if os.path.exists(options.python):
-      interpreter = PythonInterpreter.from_binary(options.python)
+  if python_interpreter:
+    if os.path.exists(python_interpreter):
+      interpreter = PythonInterpreter.from_binary(python_interpreter)
     else:
-      interpreter = PythonInterpreter.from_env(options.python)
+      interpreter = PythonInterpreter.from_env(python_interpreter)
     if interpreter is None:
-      die('Failed to find interpreter: %s' % options.python)
+      die('Failed to find interpreter: %s' % python_interpreter)
   else:
     interpreter = PythonInterpreter.get()
 
   with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
-    resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, options.repos)
+    resolve = functools.partial(resolve_interpreter, interpreter_cache_dir, repos)
 
     # resolve setuptools
     interpreter = resolve(interpreter, SETUPTOOLS_REQUIREMENT)
 
     # possibly resolve wheel
-    if interpreter and options.use_wheel:
+    if interpreter and use_wheel:
       interpreter = resolve(interpreter, WHEEL_REQUIREMENT)
 
     return interpreter
 
 
-def build_pex(args, options, resolver_option_builder):
-  with TRACER.timed('Resolving interpreter', V=2):
-    interpreter = interpreter_from_options(options)
+def _lowest_version_interpreter(interpreters):
+  """Given a list of interpreters, return the one with the lowest version."""
+  lowest = interpreters[0]
+  for i in interpreters[1:]:
+    lowest = lowest if lowest < i else i
+  return lowest
 
-  if interpreter is None:
+
+def build_pex(args, options, resolver_option_builder):
+  with TRACER.timed('Resolving interpreters', V=2):
+    interpreters = [
+      get_interpreter(interpreter,
+                      options.interpreter_cache_dir,
+                      options.repos,
+                      options.use_wheel)
+      for interpreter in options.python or [None]
+    ]
+
+  if not interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
+  interpreter = _lowest_version_interpreter(interpreters)
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter)
 
   pex_info = pex_builder.info
@@ -515,23 +536,20 @@ def build_pex(args, options, resolver_option_builder):
       constraints.append(r)
     resolvables.extend(constraints)
 
-  resolver_kwargs = dict(interpreter=interpreter, platform=options.platform)
-
-  if options.cache_dir:
-    resolver = CachingResolver(options.cache_dir, options.cache_ttl, **resolver_kwargs)
-  else:
-    resolver = Resolver(**resolver_kwargs)
-
   with TRACER.timed('Resolving distributions'):
     try:
-      resolveds = resolver.resolve(resolvables)
+      resolveds = resolve_multi(resolvables,
+                                interpreters=interpreters,
+                                platforms=options.platform,
+                                cache=options.cache_dir,
+                                cache_ttl=options.cache_ttl)
+
+      for dist in resolveds:
+        log('  %s' % dist, v=options.verbosity)
+        pex_builder.add_distribution(dist)
+        pex_builder.add_requirement(dist.as_requirement())
     except Unsatisfiable as e:
       die(e)
-
-  for dist in resolveds:
-    log('  %s' % dist, v=options.verbosity)
-    pex_builder.add_distribution(dist)
-    pex_builder.add_requirement(dist.as_requirement())
 
   if options.entry_point and options.script:
     die('Must specify at most one entry point or script.', INVALID_OPTIONS)
@@ -585,8 +603,8 @@ def main(args=None):
       os.rename(tmp_name, options.pex_name)
       return 0
 
-    if options.platform != Platform.current():
-      log('WARNING: attempting to run PEX with differing platform!')
+    if options.platform and Platform.current() not in options.platform:
+      log('WARNING: attempting to run PEX with incompatible platforms!')
 
     pex_builder.freeze()
 
