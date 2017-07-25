@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.2.9
+-----
+
+* Add first-class support for multi-interpreter and multi-platform pex construction. (#394)
+  `#394 <https://github.com/pantsbuild/pex/pull/394>`_
+
 1.2.8
 -----
 
