@@ -1,64 +1,65 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2017 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
 
-import re
-import sys
+from collections import namedtuple
 
-from pkg_resources import compatible_platforms, get_supported_platform
+from .pep425tags import get_abbr_impl, get_abi_tag, get_impl_ver, get_platform, get_supported
 
 
-class Platform(object):
-  class UnknownPlatformError(Exception):
-    def __init__(self, platform):
-      super(Platform.UnknownPlatformError, self).__init__('Unknown platform: %s' % platform)  # noqa
+class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
+  """Represents a target platform and it's extended interpreter compatibility
+  tags (e.g. implementation, version and ABI)."""
 
-  # It blows my mind this code is not in distutils or distribute.
-  MACOSX_VERSION_STRING = re.compile(r"macosx-(\d+)\.(\d+)-(\S+)")
-  MACOSX_PLATFORM_COMPATIBILITY = {
-    'i386': ('i386',),
-    'ppc': ('ppc',),
-    'x86_64': ('x86_64',),
-    'ppc64': ('ppc64',),
-    'fat': ('i386', 'ppc'),
-    'intel': ('i386', 'x86_64'),
-    'fat3': ('i386', 'ppc', 'x86_64'),
-    'fat64': ('ppc64', 'x86_64'),
-    'universal': ('i386', 'ppc', 'ppc64', 'x86_64')
-  }
+  SEP = '-'
 
-  @staticmethod
-  def current():
-    return get_supported_platform()
+  def __new__(cls, platform, impl=None, version=None, abi=None):
+    platform = platform.replace('-', '_').replace('.', '_')
+    if all((impl, version, abi)):
+      abi = cls._maybe_prefix_abi(impl, version, abi)
+    return super(cls, Platform).__new__(cls, platform, impl, version, abi)
 
-  @staticmethod
-  def python():
-    return sys.version[:3]
+  def __str__(self):
+    return self.SEP.join(self) if all(self) else self.platform
 
   @classmethod
-  def compatible(cls, package, platform):
-    if package is None or platform is None or package == platform:
-      return True
-    MAJOR, MINOR, PLATFORM = range(1, 4)
-    package_match = cls.MACOSX_VERSION_STRING.match(package)
-    platform_match = cls.MACOSX_VERSION_STRING.match(platform)
-    if not (package_match and platform_match):
-      return compatible_platforms(package, platform)
-    if package_match.group(MAJOR) != platform_match.group(MAJOR):
-      return False
-    if int(package_match.group(MINOR)) > int(platform_match.group(MINOR)):
-      return False
-    package_platform = package_match.group(PLATFORM)
-    if package_platform not in cls.MACOSX_PLATFORM_COMPATIBILITY:
-      raise cls.UnknownPlatformError(package_platform)
-    sys_platform = platform_match.group(PLATFORM)
-    if sys_platform not in cls.MACOSX_PLATFORM_COMPATIBILITY:
-      raise cls.UnknownPlatformError(sys_platform)
-    package_compatibility = set(cls.MACOSX_PLATFORM_COMPATIBILITY[package_platform])
-    system_compatibility = set(cls.MACOSX_PLATFORM_COMPATIBILITY[sys_platform])
-    return bool(package_compatibility.intersection(system_compatibility))
+  def current(cls):
+    platform = get_platform()
+    impl = get_abbr_impl()
+    version = get_impl_ver()
+    abi = get_abi_tag()
+    return cls(platform, impl, version, abi)
+
+  @classmethod
+  def create(cls, platform):
+    if isinstance(platform, Platform):
+      return platform
+
+    platform = platform.lower()
+    if platform == 'current':
+      return cls.current()
+
+    try:
+      platform, impl, version, abi = platform.rsplit(cls.SEP, 3)
+    except ValueError:
+      return cls(platform)
+    else:
+      return cls(platform, impl, version, abi)
 
   @staticmethod
-  def version_compatible(package_py_version, py_version):
-    return package_py_version is None or py_version is None or package_py_version == py_version
+  def _maybe_prefix_abi(impl, version, abi):
+    # N.B. This permits users to pass in simpler extended platform strings like
+    # `linux-x86_64-cp-27-mu` vs e.g. `linux-x86_64-cp-27-cp27mu`.
+    impl_ver = ''.join((impl, version))
+    return abi if abi.startswith(impl_ver) else ''.join((impl_ver, abi))
+
+  def supported_tags(self, force_manylinux=None):
+    """Returns a list of supported PEP425 tags for the current platform."""
+    return get_supported(
+      platform=self.platform,
+      impl=self.impl,
+      version=self.version,
+      abi=self.abi,
+      force_manylinux=force_manylinux
+    )

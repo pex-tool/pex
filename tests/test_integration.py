@@ -1,7 +1,10 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+# import functools
 import os
+# import platform
+# import subprocess
 import sys
 from textwrap import dedent
 
@@ -19,6 +22,11 @@ from pex.testing import (
 )
 from pex.util import DistributionHelper, named_temporary_file
 
+# NOT_CPYTHON27_OR_36_LINUX = (
+#   "hasattr(sys, 'pypy_version_info') or (platform.system() != 'Linux' and "
+#   "(sys.version_info[0], sys.version_info[1]) not in [(2, 7), (3, 6)])"
+# )
+#
 NOT_CPYTHON_36 = (
   "hasattr(sys, 'pypy_version_info') or "
   "(sys.version_info[0], sys.version_info[1]) != (3, 6)"
@@ -175,7 +183,7 @@ def test_pex_multi_resolve():
     pex_path = os.path.join(output_dir, 'pex.pex')
     results = run_pex_command(['--disable-cache',
                                'lxml==3.8.0',
-                               '--platform=manylinux1-x86_64',
+                               '--platform=linux-x86_64',
                                '--platform=macosx-10.6-x86_64',
                                '--python=python2.7',
                                '--python=python3.6',
@@ -326,3 +334,79 @@ def test_pex_path_in_pex_info_and_env():
     stdout, rc = run_simple_pex(pex_out_path, [test_file_path], env=env)
     assert rc == 0
     assert stdout == b'Success!\n'
+
+@pytest.mark.skipif(NOT_CPYTHON_36)
+def test_pex_multi_resolve_2():
+  """Tests multi-interpreter + multi-platform resolution."""
+  with temporary_dir() as output_dir:
+    pex_path = os.path.join(output_dir, 'pex.pex')
+    results = run_pex_command(['--disable-cache',
+                               'lxml==3.8.0',
+                               '--platform=linux-x86_64',
+                               '--platform=macosx-10.6-x86_64',
+                               '--python=python2.7',
+                               '-o', pex_path])
+    results.assert_success()
+
+    included_dists = get_dep_dist_names_from_pex(pex_path, 'lxml')
+    assert len(included_dists) == 2
+    for dist_substr in ('-cp27-', '-manylinux1_x86_64', '-macosx_'):
+      assert any(dist_substr in f for f in included_dists)
+
+# def test_pex_manylinux_and_tag_selection():
+#   """Tests resolver manylinux support and tag targeting."""
+#   with temporary_dir() as output_dir:
+#     def do_resolve(req_name, req_version, platform, extra_flags=None):
+#       extra_flags = extra_flags or ''
+#       pex_path = os.path.join(output_dir, 'test.pex')
+#       results = run_pex_command(['--disable-cache',
+#                                  '--no-build',
+#                                  '%s==%s' % (req_name, req_version),
+#                                  '--platform=%s' % (platform),
+#                                  '-o', pex_path] + extra_flags.split())
+#       return pex_path, results
+#
+#     def test_resolve(req_name, req_version, platform, substr, extra_flags=None):
+#       pex_path, results = do_resolve(req_name, req_version, platform, extra_flags)
+#       results.assert_success()
+#       included_dists = get_dep_dist_names_from_pex(pex_path, req_name.replace('-', '_'))
+#       assert any(
+#         substr in d for d in included_dists
+#       ), 'couldnt find {} in {}'.format(substr, included_dists)
+#
+#     def ensure_failure(req_name, req_version, platform, extra_flags):
+#       pex_path, results = do_resolve(req_name, req_version, platform, extra_flags)
+#       results.assert_failure()
+#
+#     msgpack, msgpack_ver = 'msgpack-python', '0.4.7'
+#     test_msgpack = functools.partial(test_resolve, msgpack, msgpack_ver)
+#     test_msgpack('linux-x86_64', 'manylinux1_x86_64.whl')
+#     test_msgpack('linux-x86_64-cp-27-m', 'msgpack_python-0.4.7-cp27-cp27m-manylinux1_x86_64.whl')
+#     test_msgpack('linux-x86_64-cp-27-mu',
+#                  'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_x86_64.whl')
+#
+#     ensure_failure(msgpack, msgpack_ver, 'linux-x86_64', '--no-manylinux')
+
+
+# @pytest.mark.skipif(NOT_CPYTHON27_OR_36_LINUX)
+# def test_pex_manylinux_runtime():
+#   """Tests resolver manylinux support and runtime resolution (and --platform=current)."""
+#   test_stub = dedent(
+#     """
+#     import msgpack
+#     print(msgpack.unpackb(msgpack.packb([1, 2, 3])))
+#     """
+#   )
+#
+#   with temporary_content({'tester.py': test_stub}) as output_dir:
+#     pex_path = os.path.join(output_dir, 'test.pex')
+#     tester_path = os.path.join(output_dir, 'tester.py')
+#     results = run_pex_command(['--disable-cache',
+#                                '--no-build',
+#                                'msgpack-python==0.4.7',
+#                                '--platform=current'.format(platform),
+#                                '-o', pex_path])
+#     results.assert_success()
+#
+#     out = subprocess.check_output([pex_path, tester_path])
+#     assert out.strip() == '[1, 2, 3]'

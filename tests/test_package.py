@@ -82,7 +82,7 @@ def test_wheel_package():
 
 
 @pytest.mark.parametrize("package_name", [
-  "transmute_core-0.4.5-py2.py3-none-any-gobbledy.whl"
+  "transmute_core-0.4.5-py2.py3.whl"
 ])
 def test_invalid_wheel_package_name(package_name):
   with pytest.raises(WheelPackage.InvalidPackage):

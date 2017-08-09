@@ -101,7 +101,8 @@ class WheelMetadata(pkg_resources.EggMetadata):
 
   @classmethod
   def _split_wheelname(cls, wheelname):
-    split_wheelname = wheelname.split('-')
+    split_wheelname = wheelname.rsplit('-', 4)
+    split_wheelname[0] = split_wheelname[0].replace('-', '_')
     return '-'.join(split_wheelname[:-3])
 
   def _setup_prefix(self):

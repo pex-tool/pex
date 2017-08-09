@@ -18,10 +18,10 @@ from pkg_resources import (
 )
 
 from .common import die, open_zip, safe_mkdir, safe_rmtree
-from .interpreter import PythonInterpreter
 from .package import distribution_compatible
 from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
+from .platforms import Platform
 from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
 
@@ -110,13 +110,13 @@ class PEXEnvironment(Environment):
         for dist in itertools.chain(*cls.write_zipped_internal_cache(pex, pex_info)):
           yield dist
 
-  def __init__(self, pex, pex_info, interpreter=None, **kw):
+  def __init__(self, pex, pex_info, supported_tags=None, **kw):
     self._internal_cache = os.path.join(pex, pex_info.internal_cache)
     self._pex = pex
     self._pex_info = pex_info
     self._activated = False
     self._working_set = None
-    self._interpreter = interpreter or PythonInterpreter.get()
+    self._supported_tags = supported_tags or Platform.current().supported_tags()
     super(PEXEnvironment, self).__init__(
         search_path=sys.path if pex_info.inherit_path else [], **kw)
 
@@ -127,7 +127,7 @@ class PEXEnvironment(Environment):
           self.add(dist)
 
   def can_add(self, dist):
-    return distribution_compatible(dist, self._interpreter, self.platform)
+    return distribution_compatible(dist, self._supported_tags)
 
   def activate(self):
     if not self._activated:

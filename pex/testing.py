@@ -206,7 +206,7 @@ class IntegResults(namedtuple('results', 'output return_code exception')):
   """Convenience object to return integration run results."""
 
   def assert_success(self):
-    assert self.exception is None and self.return_code is None
+    assert self.exception is None and self.return_code in [None, 0]
 
   def assert_failure(self):
     assert self.exception or self.return_code
