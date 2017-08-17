@@ -356,6 +356,14 @@ def configure_clp():
            'immediately and not save it to a file.')
 
   parser.add_option(
+      '-p', '--preamble-file',
+      dest='preamble_file',
+      metavar='FILE',
+      default=None,
+      type=str,
+      help='The name of a file to be included as the preamble for the generated .pex file')
+
+  parser.add_option(
       '-r', '--requirement',
       dest='requirement_files',
       metavar='FILE',
@@ -513,8 +521,15 @@ def build_pex(args, options, resolver_option_builder):
   if not interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
+  try:
+    with open(options.preamble_file) as preamble_fd:
+      preamble = preamble_fd.read()
+  except TypeError:
+    # options.preamble_file is None
+    preamble = None
+
   interpreter = _lowest_version_interpreter(interpreters)
-  pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter)
+  pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
   pex_info = pex_builder.info
   pex_info.zip_safe = options.zip_safe
