@@ -1,6 +1,8 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from tempfile import NamedTemporaryFile
+
 from contextlib import contextmanager
 from optparse import OptionParser
 
@@ -86,6 +88,18 @@ def test_clp_constraints_txt():
   parser, builder = configure_clp()
   options, _ = parser.parse_args(args='--constraint requirements1.txt'.split())
   assert options.constraint_files == ['requirements1.txt']
+
+
+def test_clp_preamble_file():
+  with NamedTemporaryFile() as tmpfile:
+    tmpfile.write('print "foo!"')
+    tmpfile.flush()
+
+    parser, builder = configure_clp()
+    options, _ = parser.parse_args(args=['--preamble-file', tmpfile.name])
+    assert options.preamble_file == tmpfile.name
+
+    # XXX ? can we assert that the PEXBuilder actually gets the contents of the preamble file?
 
 
 def test_clp_prereleases():
