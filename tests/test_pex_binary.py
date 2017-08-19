@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from optparse import OptionParser
 from tempfile import NamedTemporaryFile
 
-from pex.bin.pex import configure_clp, configure_clp_pex_resolution
+from pex.bin.pex import configure_clp, configure_clp_pex_resolution, build_pex
 from pex.compatibility import to_bytes
 from pex.fetcher import PyPIFetcher
 from pex.package import SourcePackage, WheelPackage
@@ -95,10 +95,12 @@ def test_clp_preamble_file():
     tmpfile.write(to_bytes('print "foo!"'))
     tmpfile.flush()
 
-    # XXX ? can we assert that the PEXBuilder actually gets the contents of the preamble file?
-    parser, builder = configure_clp()
-    options, _ = parser.parse_args(args=['--preamble-file', tmpfile.name])
+    parser, resolver_options_builder = configure_clp()
+    options, reqs = parser.parse_args(args=['--preamble-file', tmpfile.name])
     assert options.preamble_file == tmpfile.name
+
+    pex_builder = build_pex(reqs, options, resolver_options_builder)
+    assert pex_builder._preamble == to_bytes('print "foo!"')
 
 
 def test_clp_prereleases():

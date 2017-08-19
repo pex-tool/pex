@@ -101,6 +101,30 @@ def test_pex_builder_shebang():
           assert fp.read(len(expected_preamble)) == expected_preamble
 
 
+def test_pex_builder_preamble():
+  with temporary_dir() as td:
+    target = os.path.join(td, 'foo.pex')
+    should_create = os.path.join(td, 'foo.1')
+
+    tempfile_preamble = "\n".join([
+      "import sys",
+      "open('{0}', 'w').close()".format(should_create),
+      "sys.exit(3)"
+    ])
+
+    pex_builder = PEXBuilder(preamble=tempfile_preamble)
+    pex_builder.build(target)
+
+    assert not os.path.exists(should_create)
+
+    pex = PEX(target)
+    process = pex.run(blocking=False)
+    process.wait()
+
+    assert process.returncode == 3
+    assert os.path.exists(should_create)
+
+
 def test_pex_builder_compilation():
   with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td1, td2, td3):
     src = os.path.join(td1, 'src.py')
