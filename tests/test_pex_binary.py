@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from optparse import OptionParser
 from tempfile import NamedTemporaryFile
 
-from pex.bin.pex import configure_clp, configure_clp_pex_resolution, build_pex
+from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution
 from pex.compatibility import to_bytes
 from pex.fetcher import PyPIFetcher
 from pex.package import SourcePackage, WheelPackage
