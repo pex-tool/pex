@@ -3,8 +3,10 @@
 
 from contextlib import contextmanager
 from optparse import OptionParser
+from tempfile import NamedTemporaryFile
 
-from pex.bin.pex import configure_clp, configure_clp_pex_resolution
+from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution
+from pex.compatibility import to_bytes
 from pex.fetcher import PyPIFetcher
 from pex.package import SourcePackage, WheelPackage
 from pex.resolver_options import ResolverOptionsBuilder
@@ -86,6 +88,19 @@ def test_clp_constraints_txt():
   parser, builder = configure_clp()
   options, _ = parser.parse_args(args='--constraint requirements1.txt'.split())
   assert options.constraint_files == ['requirements1.txt']
+
+
+def test_clp_preamble_file():
+  with NamedTemporaryFile() as tmpfile:
+    tmpfile.write(to_bytes('print "foo!"'))
+    tmpfile.flush()
+
+    parser, resolver_options_builder = configure_clp()
+    options, reqs = parser.parse_args(args=['--preamble-file', tmpfile.name])
+    assert options.preamble_file == tmpfile.name
+
+    pex_builder = build_pex(reqs, options, resolver_options_builder)
+    assert pex_builder._preamble == to_bytes('print "foo!"')
 
 
 def test_clp_prereleases():
