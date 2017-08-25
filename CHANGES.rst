@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.2.10
+------
+
+* Allow passing a preamble file to the CLI (#400)
+  `#400 <https://github.com/pantsbuild/pex/pull/400>`_
+
 1.2.9
 -----
 
