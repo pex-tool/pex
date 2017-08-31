@@ -61,14 +61,7 @@ matrix:
       env: TOXENV=pypy
 
 install:
-  # NB: We only directly need tox, but in some of the python environments we run in (2.6, 2.7, 3.3,
-  # 3.4) we get an old version of setuptools (12.0.5) that leads to a failure of tox to execute
-  # pex's own setup.py file:
-  #
-  #   error in pex setup command: 'install_requires' must be a string or list of strings containing
-  #   valid project/version requirement specifiers
-  #
-  - pip install -U setuptools tox
+  - pip install -U tox
 
 script:
   - tox -v
