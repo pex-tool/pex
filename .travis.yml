@@ -3,6 +3,8 @@
 # "machines".
 # See: http://docs.travis-ci.com/user/workers/container-based-infrastructure/
 sudo: false
+# The pypy test shard fails with "too many open files" under Trusty so we pin to Precise.
+dist: precise
 
 # TRAVIS_PYTHON_VERSION
 
