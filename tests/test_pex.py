@@ -186,8 +186,6 @@ def test_site_libs_excludes_prefix():
     assert sys.prefix not in site_libs
 
 
-@pytest.mark.skipif(sys.version_info < (2, 7),
-                    reason="wheel script installation is broken on python 2.6")
 @pytest.mark.parametrize('zip_safe', (False, True))
 @pytest.mark.parametrize('project_name', ('my_project', 'my-project'))
 @pytest.mark.parametrize('installer_impl', (EggInstaller, WheelInstaller))

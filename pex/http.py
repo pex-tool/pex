@@ -37,10 +37,12 @@ if PY3:
 else:
   import urllib2 as urllib_request
 
-# This is available as hashlib.algorithms_guaranteed in >=3.2 and as
-# hashlib.algorithms in >=2.7, but not available in 2.6, so we enumerate
-# here.
-HASHLIB_ALGORITHMS = frozenset(['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512'])
+try:
+  # The hashlib.algorithms_guaranteed function is available in >=2.7.9 and >=3.2.
+  HASHLIB_ALGORITHMS = frozenset(hashlib.algorithms_guaranteed)
+except AttributeError:
+  # And the hashlib.algorithms function covers the rest of the 2.7 versions we support.
+  HASHLIB_ALGORITHMS = frozenset(hashlib.algorithms)
 
 
 class Context(AbstractClass):
