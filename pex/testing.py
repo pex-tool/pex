@@ -6,12 +6,11 @@ import os
 import random
 import sys
 import tempfile
-import zipfile
 from collections import namedtuple
 from textwrap import dedent
 
 from .bin.pex import log, main
-from .common import safe_mkdir, safe_rmtree
+from .common import open_zip, safe_mkdir, safe_rmtree
 from .compatibility import nested
 from .executor import Executor
 from .installer import EggInstaller, Packager
@@ -48,7 +47,7 @@ def random_bytes(length):
 
 def get_dep_dist_names_from_pex(pex_path, match_prefix=''):
   """Given an on-disk pex, extract all of the unique first-level paths under `.deps`."""
-  with zipfile.ZipFile(pex_path) as pex_zip:
+  with open_zip(pex_path) as pex_zip:
     dep_gen = (f.split(os.sep)[1] for f in pex_zip.namelist() if f.startswith('.deps/'))
     return set(item for item in dep_gen if item.startswith(match_prefix))
 
@@ -80,7 +79,7 @@ def yield_files(directory):
 
 
 def write_zipfile(directory, dest, reverse=False):
-  with contextlib.closing(zipfile.ZipFile(dest, 'w')) as zf:
+  with open_zip(dest, 'w') as zf:
     for filename, rel_filename in sorted(yield_files(directory), reverse=reverse):
       zf.write(filename, arcname=rel_filename)
   return dest
@@ -152,7 +151,7 @@ def make_bdist(name='my_project', version='0.0.0', installer_impl=EggInstaller, 
     else:
       with temporary_dir() as td:
         extract_path = os.path.join(td, os.path.basename(dist_location))
-        with contextlib.closing(zipfile.ZipFile(dist_location)) as zf:
+        with open_zip(dist_location) as zf:
           zf.extractall(extract_path)
         yield DistributionHelper.distribution_from_path(extract_path)
 

@@ -1,16 +1,14 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import contextlib
 import functools
 import os
-import zipfile
 from hashlib import sha1
 from textwrap import dedent
 
 from twitter.common.contextutil import temporary_dir
 
-from pex.common import safe_mkdir
+from pex.common import open_zip, safe_mkdir
 from pex.compatibility import nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex_builder import PEXBuilder
@@ -60,7 +58,7 @@ def test_hash_consistency():
       dir_hash = CacheHelper.dir_hash(td)
       with named_temporary_file() as tf:
         write_zipfile(td, tf.name, reverse=reverse)
-        with contextlib.closing(zipfile.ZipFile(tf.name, 'r')) as zf:
+        with open_zip(tf.name, 'r') as zf:
           zip_hash = CacheHelper.zip_hash(zf)
           assert zip_hash == dir_hash
           assert zip_hash != sha1().hexdigest()  # make sure it's not an empty hash
