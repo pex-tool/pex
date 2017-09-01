@@ -1,69 +1,9 @@
-# Enables support for a docker container-based build
-# which should provide faster startup times and beefier
-# "machines".
-# See: http://docs.travis-ci.com/user/workers/container-based-infrastructure/
-sudo: false
-# The pypy test shard fails with "too many open files" under Trusty so we pin to Precise.
-dist: precise
-
-# TRAVIS_PYTHON_VERSION
-
 matrix:
   include:
-    - language: python
-      python: "2.7"
-      env: TOXENV=style
-
-    - language: python
-      python: "2.7"
-      env: TOXENV=isort-check
-
-    - language: python
-      python: "2.6"
-      env: TOXENV=py26
-
-    - language: python
-      python: "2.7"
-      env: TOXENV=py27
-
-    - language: python
-      python: "2.7"
-      env: TOXENV=py27-requests
-
-    - language: python
-      python: "2.7"
-      env: TOXENV=py27-requests-cachecontrol
-
-    - language: python
-      python: "3.3"
-      env: TOXENV=py33
-
-    - language: python
-      python: "3.4"
-      env: TOXENV=py34
-
-    - language: python
-      python: "3.5"
-      env: TOXENV=py35
-
-    - language: python
-      python: "3.6"
-      env: TOXENV=py36
-
-    - language: python
-      python: "3.6"
-      env: TOXENV=py36-requests
-
-    - language: python
-      python: "3.6"
-      env: TOXENV=py36-requests-cachecontrol
-
-    - language: python
-      python: "pypy"
-      env: TOXENV=pypy
-
-install:
-  - pip install -U tox
+    - dist: precise
+      sudo: false
+    - dist: trusty
+      sudo: false
 
 script:
-  - tox -v
+  - ulimit -n
