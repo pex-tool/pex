@@ -6,22 +6,9 @@
 
 import os
 from abc import ABCMeta
+from io import BytesIO, StringIO
 from numbers import Integral, Real
 from sys import version_info as sys_version_info
-
-# TODO(wickman)  Since the io package is available in 2.6.x, use that instead of
-# cStringIO/StringIO
-try:
-  # CPython 2.x
-  from cStringIO import StringIO
-except ImportError:
-  try:
-    # Python 2.x
-    from StringIO import StringIO
-  except:
-    # Python 3.x
-    from io import StringIO
-    from io import BytesIO
 
 try:
   # Python 2.x
@@ -33,13 +20,12 @@ except ImportError:
 AbstractClass = ABCMeta('AbstractClass', (object,), {})
 PY2 = sys_version_info[0] == 2
 PY3 = sys_version_info[0] == 3
-StringIO = StringIO
-BytesIO = BytesIO if PY3 else StringIO
 
 integer = (Integral,)
 real = (Real,)
 numeric = integer + real
 string = (str,) if PY3 else (str, unicode)
+unicode_string = (str,) if PY3 else (unicode,)
 bytes = (bytes,)
 
 if PY2:
@@ -50,6 +36,14 @@ if PY2:
       return st
     else:
       raise ValueError('Cannot convert %s to bytes' % type(st))
+
+  def to_unicode(st, encoding='utf-8'):
+    if isinstance(st, unicode):
+      return st
+    elif isinstance(st, (str, bytes)):
+      return unicode(st, encoding)
+    else:
+      raise ValueError('Cannot convert %s to a unicode string' % type(st))
 else:
   def to_bytes(st, encoding='utf-8'):
     if isinstance(st, str):
@@ -58,6 +52,14 @@ else:
       return st
     else:
       raise ValueError('Cannot convert %s to bytes.' % type(st))
+
+  def to_unicode(st, encoding='utf-8'):
+    if isinstance(st, str):
+      return st
+    elif isinstance(st, bytes):
+      return str(st, encoding)
+    else:
+      raise ValueError('Cannot convert %s to a unicode string' % type(st))
 
 _PY3_EXEC_FUNCTION = """
 def exec_function(ast, globals_map):

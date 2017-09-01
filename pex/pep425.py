@@ -92,7 +92,7 @@ class PEP425(object):  # noqa
     """Given a set of tags, iterate over supported tags.
 
     :param impl: Python implementation tag e.g. cp, jy, pp.
-    :param version: E.g. '26', '33'
+    :param version: E.g. '27', '33'
     :param platform: Platform as from :function:`pkg_resources.get_supported_platform`,
     for example 'linux-x86_64' or 'macosx-10.4-x86_64'.
     :returns: Iterator over (pyver, abi, platform) tuples.

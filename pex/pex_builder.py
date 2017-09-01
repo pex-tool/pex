@@ -271,11 +271,7 @@ class PEXBuilder(object):
     # But wheels don't have to be importable, so we need to force them
     # into an importable shape. We can do that by installing it into its own
     # wheel dir.
-    if not self.interpreter.supports_wheel_install():
-      self._logger.warn("Wheel dependency on %s may not work correctly with Python 2.6." %
-                        dist_name)
-
-    if self.interpreter.supports_wheel_install() and dist_name.endswith("whl"):
+    if dist_name.endswith("whl"):
       from wheel.install import WheelFile
       tmp = safe_mkdtemp()
       whltmp = os.path.join(tmp, dist_name)

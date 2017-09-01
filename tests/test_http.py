@@ -120,7 +120,7 @@ class MockHttpLibResponse(BytesIO):
     self.version = 'HTTP/1.1'
     self.reason = 'OK'
     if PY2:
-      self.msg = HTTPMessage(BytesIO('Content-Type: application/x-compressed\r\n'))
+      self.msg = HTTPMessage(BytesIO(b'Content-Type: application/x-compressed\r\n'))
     else:
       self.msg = HTTPMessage()
       self.msg.add_header('Content-Type', 'application/x-compressed')
