@@ -37,8 +37,8 @@ and invoke it.  When no entry point is specified, "invocation" means starting an
 .. code-block:: bash
 
     $ pex
-    Python 2.6.9 (unknown, Jan  2 2014, 14:52:48)
-    [GCC 4.2.1 (Based on Apple Inc. build 5658) (LLVM build 2336.11.00)] on darwin
+    Python 3.6.2 (default, Jul 20 2017, 03:52:27)
+    [GCC 7.1.1 20170630] on linux
     Type "help", "copyright", "credits" or "license" for more information.
     (InteractiveConsole)
     >>>
@@ -51,16 +51,24 @@ absolute path of a Python binary or the name of a Python interpreter within the 
 
 .. code-block:: bash
 
-    $ pex --python=python3.3
-    Python 3.3.3 (default, Jan  2 2014, 14:57:01)
-    [GCC 4.2.1 Compatible Apple Clang 4.0 ((tags/Apple/clang-421.0.60))] on darwin
+    $ pex
+    Python 3.6.2 (default, Jul 20 2017, 03:52:27)
+    [GCC 7.1.1 20170630] on linux
     Type "help", "copyright", "credits" or "license" for more information.
     (InteractiveConsole)
-    >>> print "this won't work!"
+    >>> print "This won't work!"
       File "<console>", line 1
-        print "this won't work!"
+        print "This won't work!"
                                ^
-    SyntaxError: invalid syntax
+    SyntaxError: Missing parentheses in call to 'print'
+    >>>
+    $ pex --python=python2.7
+    Python 2.7.13 (default, Jul 21 2017, 03:24:34)
+    [GCC 7.1.1 20170630] on linux2
+    Type "help", "copyright", "credits" or "license" for more information.
+    (InteractiveConsole)
+    >>> print "This works."
+    This works.
 
 
 Specifying requirements
@@ -74,8 +82,8 @@ and ``psutil>1``:
 .. code-block:: bash
 
     $ pex flask 'psutil>1'
-    Python 2.6.9 (unknown, Jan  2 2014, 14:52:48)
-    [GCC 4.2.1 (Based on Apple Inc. build 5658) (LLVM build 2336.11.00)] on darwin
+    Python 3.6.2 (default, Jul 20 2017, 03:52:27)
+    [GCC 7.1.1 20170630] on linux
     Type "help", "copyright", "credits" or "license" for more information.
     (InteractiveConsole)
     >>>
