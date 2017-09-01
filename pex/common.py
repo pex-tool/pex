@@ -332,6 +332,6 @@ class Chroot(object):
     shutil.rmtree(self.chroot)
 
   def zip(self, filename, mode='wb'):
-    with contextlib.closing(zipfile.ZipFile(filename, mode)) as zf:
+    with open_zip(filename, mode) as zf:
       for f in sorted(self.files()):
         zf.write(os.path.join(self.chroot, f), arcname=f, compress_type=zipfile.ZIP_DEFLATED)

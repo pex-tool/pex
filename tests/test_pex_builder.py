@@ -4,13 +4,12 @@
 import os
 import stat
 import sys
-import zipfile
-from contextlib import closing
 
 import pytest
 from twitter.common.contextutil import temporary_dir
 from twitter.common.dirutil import safe_mkdir
 
+from pex.common import open_zip
 from pex.compatibility import WINDOWS, nested
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -55,7 +54,7 @@ def test_pex_builder():
       td1, td2, p1):
     target_egg_dir = os.path.join(td2, os.path.basename(p1.location))
     safe_mkdir(target_egg_dir)
-    with closing(zipfile.ZipFile(p1.location, 'r')) as zf:
+    with open_zip(p1.location, 'r') as zf:
       zf.extractall(target_egg_dir)
     p1 = DistributionHelper.distribution_from_path(target_egg_dir)
 
