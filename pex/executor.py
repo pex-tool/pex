@@ -2,9 +2,21 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import errno
-import subprocess
+import os
 
-from .compatibility import string
+from .compatibility import PY2, string
+from .tracer import TRACER
+
+if os.name == 'posix' and PY2:
+  try:
+    # Use the subprocess backports if they're available for improved robustness.
+    import subprocess32 as subprocess
+  except ImportError:
+    TRACER.log('Please build pex with the subprocess32 module for more reliable requirement '
+               'installation and interpreter execution.')
+    import subprocess
+else:
+  import subprocess
 
 
 class Executor(object):
