@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+1.2.11
+------
+
+* Leverage `subprocess32` when available. (#411)
+  `#411 <https://github.com/pantsbuild/pex/pull/411>`_
+
+* Kill support for python 2.6. (#408)
+  `#405 <https://github.com/pantsbuild/pex/issues/405>`_
+  `#408 <https://github.com/pantsbuild/pex/pull/408>`_
+
 1.2.10
 ------
 
