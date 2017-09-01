@@ -24,6 +24,10 @@ matrix:
 
     - language: python
       python: "2.7"
+      env: TOXENV=py27-subprocess
+
+    - language: python
+      python: "2.7"
       env: TOXENV=py27-requests
 
     - language: python

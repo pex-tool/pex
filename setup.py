@@ -56,6 +56,14 @@ setup(
     SETUPTOOLS_REQUIREMENT,
     WHEEL_REQUIREMENT,
   ],
+  extras_require={
+    # For improved subprocess robustness under python2.7.
+    'subprocess': ['subprocess32>=3.2.7'],
+    # For improved requirement resolution and fetching robustness.
+    'requests': ['requests>=2.8.14'],
+    # For improved requirement resolution and fetching performance.
+    'cachecontrol': ['CacheControl>=0.12.3'],
+  },
   tests_require = [
     'mock',
     'twitter.common.contextutil>=0.3.1,<0.4.0',
