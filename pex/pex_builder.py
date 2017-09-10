@@ -408,6 +408,7 @@ class PEXBuilder(object):
           dst = os.path.join(self.BOOTSTRAP_DIR, fn)
           self._chroot.write(content_stream.read(), dst, 'bootstrap')
           wrote_setuptools = True
+          break
 
     if not wrote_setuptools:
       raise RuntimeError(
@@ -457,19 +458,23 @@ class PEXBuilder(object):
     """
     if not self._frozen:
       self.freeze(bytecode_compile=bytecode_compile)
-    try:
-      os.unlink(filename + '~')
-      self._logger.warn('Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
-    except OSError:
-      # The expectation is that the file does not exist, so continue
-      pass
-    if os.path.dirname(filename):
-      safe_mkdir(os.path.dirname(filename))
-    with open(filename + '~', 'ab') as pexfile:
-      assert os.path.getsize(pexfile.name) == 0
-      pexfile.write(to_bytes('%s\n' % self._shebang))
-    self._chroot.zip(filename + '~', mode='a')
-    if os.path.exists(filename):
-      os.unlink(filename)
-    os.rename(filename + '~', filename)
-    chmod_plus_x(filename)
+    if hasattr(filename, 'read'):
+      filename.write(to_bytes('%s\n' % self._shebang))
+      self._chroot.zip(filename, mode='a')
+    else:
+      try:
+        os.unlink(filename + '~')
+        self._logger.warn('Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
+      except OSError:
+        # The expectation is that the file does not exist, so continue
+        pass
+      if os.path.dirname(filename):
+        safe_mkdir(os.path.dirname(filename))
+      with open(filename + '~', 'ab') as pexfile:
+        assert os.path.getsize(pexfile.name) == 0
+        pexfile.write(to_bytes('%s\n' % self._shebang))
+      self._chroot.zip(filename + '~', mode='a')
+      if os.path.exists(filename):
+        os.unlink(filename)
+      os.rename(filename + '~', filename)
+      chmod_plus_x(filename)
