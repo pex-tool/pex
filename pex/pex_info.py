@@ -166,6 +166,19 @@ class PexInfo(object):
     self._pex_info['zip_safe'] = bool(value)
 
   @property
+  def pex_path(self):
+    """The PEX_PATH to search in to resolve dependencies.
+
+    This is meant to replace PEX_PATH environment variable which gets scrubbed on a python
+    module re-exec and loses context for the executing environment.
+    """
+    return self._pex_info.get('pex_path')
+
+  @pex_path.setter
+  def pex_path(self, value):
+    self._pex_info['pex_path'] = value
+
+  @property
   def inherit_path(self):
     """Whether or not this PEX should be allowed to inherit system dependencies.
 

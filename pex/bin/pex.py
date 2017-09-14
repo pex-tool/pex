@@ -150,6 +150,13 @@ def configure_clp_pex_resolution(parser, builder):
       help='Whether to use pypi to resolve dependencies; Default: use pypi')
 
   group.add_option(
+    '--pex-path',
+    dest='pex_path',
+    type=str,
+    default=None,
+    help='Pex path for resolving pexes that should be composed into the output pex environment.')
+
+  group.add_option(
       '-f', '--find-links', '--repo',
       metavar='PATH/URL',
       action='callback',
@@ -533,6 +540,7 @@ def build_pex(args, options, resolver_option_builder):
 
   pex_info = pex_builder.info
   pex_info.zip_safe = options.zip_safe
+  pex_info.pex_path = options.pex_path
   pex_info.always_write_cache = options.always_write_cache
   pex_info.ignore_errors = options.ignore_errors
   pex_info.inherit_path = options.inherit_path
@@ -600,6 +608,7 @@ def main(args=None):
     ENV.set('PEX_ROOT', options.pex_root)
   else:
     options.pex_root = ENV.PEX_ROOT  # If option not specified fallback to env variable.
+
 
   # Don't alter cache if it is disabled.
   if options.cache_dir:
