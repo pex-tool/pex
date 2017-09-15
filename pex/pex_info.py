@@ -98,6 +98,7 @@ class PexInfo(object):
       'inherit_path': supplied_env.PEX_INHERIT_PATH,
       'ignore_errors': supplied_env.PEX_IGNORE_ERRORS,
       'always_write_cache': supplied_env.PEX_ALWAYS_CACHE,
+      'pex_path': supplied_env.PEX_PATH,
     }
     # Filter out empty entries not explicitly set in the environment.
     return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))
