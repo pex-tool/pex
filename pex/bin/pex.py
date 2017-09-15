@@ -609,7 +609,6 @@ def main(args=None):
   else:
     options.pex_root = ENV.PEX_ROOT  # If option not specified fallback to env variable.
 
-
   # Don't alter cache if it is disabled.
   if options.cache_dir:
     options.cache_dir = make_relative_to_root(options.cache_dir)
