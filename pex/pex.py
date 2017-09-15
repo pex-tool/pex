@@ -71,8 +71,13 @@ class PEX(object):  # noqa: T000
       pex_info.update(self._pex_info_overrides)
       self._envs.append(PEXEnvironment(self._pex, pex_info))
 
+      # set default value to empty string if pex path is not specified
+      #  in either the environment or with the --pex-path arg to pex cli
+      if pex_info.pex_path is None:
+        pex_info.pex_path = ''
+
       # set up other environments as specified in PEX_PATH
-      for pex_path in filter(None, self._vars.PEX_PATH.split(os.pathsep)):
+      for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
         pex_info = PexInfo.from_pex(pex_path)
         pex_info.update(self._pex_info_overrides)
         self._envs.append(PEXEnvironment(pex_path, pex_info))
