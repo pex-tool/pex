@@ -216,10 +216,10 @@ def test_pex_re_exec_failure():
           env = os.environ.copy()
           env['RAN_ONCE'] = '1'
           subprocess.call([sys.executable] + sys.argv, env=env)
-          sys.exit() 
+          sys.exit()
         '''))
 
-    # set up env for pex build
+    # set up env for pex build with PEX_PATH in the environment
     env = os.environ.copy()
     env['PEX_PATH'] = pex_path
     env['RAN_ONCE'] = '0'
@@ -232,8 +232,8 @@ def test_pex_re_exec_failure():
 
     # run test.py with composite env
     stdout, rc = run_simple_pex(pex_out_path, [test_file_path], env=env)
-    #raise StandardError(stdout)
-    #assert rc == 0
+
+    assert rc == 0
     assert stdout == 'Hello world\n'
 
 
@@ -249,7 +249,7 @@ def test_pex_path_arg():
     res2.assert_success()
     pex_path = os.path.join(output_dir, 'pex2.pex') + ":" + os.path.join(output_dir, 'pex1.pex')
 
-    # create test file test.py that attmepts to import modules from pex1/pex2
+    # create test file test.py that attempts to import modules from pex1/pex2
     test_file_path = os.path.join(output_dir, 'test.py')
     with open(test_file_path, 'w') as fh:
       fh.write(dedent('''\
@@ -263,17 +263,18 @@ def test_pex_path_arg():
         else:
           env = os.environ.copy()
           env['RAN_ONCE'] = '1'
-          subprocess.call([sys.executable] + sys.argv, env=env)
+          subprocess.call([sys.executable] + [env['PEX']] + sys.argv, env=env)
           sys.exit()
         '''))
 
     # set up env for pex build
     env = os.environ.copy()
-
+    # necessary to break execution upon successful re-exec
     env['RAN_ONCE'] = '0'
-
-    # build composite pex of pex1/pex1
+    # set the pex arg for test.py
     pex_out_path = os.path.join(output_dir, 'out.pex')
+    env['PEX'] = pex_out_path
+    # build out.pex composed from pex1/pex1
     run_pex_command(['--disable-cache',
       '--pex-path={}'.format(pex_path),
       'wheel',
@@ -281,6 +282,6 @@ def test_pex_path_arg():
 
     # run test.py with composite env
     stdout, rc = run_simple_pex(pex_out_path, [test_file_path], env=env)
-    raise StandardError(stdout)
-    #assert rc == 0
-    #assert stdout == 'Hello world\n'
+
+    assert rc == 0
+    assert stdout == 'Success!\n'
