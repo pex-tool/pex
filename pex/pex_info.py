@@ -168,10 +168,10 @@ class PexInfo(object):
 
   @property
   def pex_path(self):
-    """The PEX_PATH to search in to resolve dependencies.
+    """A colon separated list of other pex files to merge into the runtime environment.
 
-    This is meant to replace PEX_PATH environment variable which gets scrubbed on a python
-    module re-exec and loses context for the executing environment.
+    This pex info property is used to persist the PEX_PATH environment variable into the pex info
+    metadata for reuse within a built pex.
     """
     return self._pex_info.get('pex_path')
 

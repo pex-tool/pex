@@ -188,7 +188,7 @@ def test_pex_multi_resolve():
       assert any(dist_substr in f for f in included_dists)
 
 
-@pytest.mark.xfail
+@pytest.mark.xfail(reason='See https://github.com/pantsbuild/pants/issues/4682')
 def test_pex_re_exec_failure():
   with temporary_dir() as output_dir:
 
@@ -199,18 +199,18 @@ def test_pex_re_exec_failure():
     pex2_path = os.path.join(output_dir, 'pex2.pex')
     res2 = run_pex_command(['--disable-cache', 'flask', '-o', pex2_path])
     res2.assert_success()
-    pex_path = os.path.join(output_dir, 'pex2.pex') + ":" + os.path.join(output_dir, 'pex1.pex')
+    pex_path = ':'.join(os.path.join(output_dir, name) for name in ('pex1.pex', 'pex2.pex'))
 
     # create test file test.py that attmepts to import modules from pex1/pex2
     test_file_path = os.path.join(output_dir, 'test.py')
     with open(test_file_path, 'w') as fh:
-      fh.write(dedent('''\
+      fh.write(dedent('''
         import scapy
         import flask
         import sys
         import os
         import subprocess
-        if os.environ['RAN_ONCE'] == '1':
+        if 'RAN_ONCE' in os.environ::
           print('Hello world')
         else:
           env = os.environ.copy()
@@ -222,13 +222,12 @@ def test_pex_re_exec_failure():
     # set up env for pex build with PEX_PATH in the environment
     env = os.environ.copy()
     env['PEX_PATH'] = pex_path
-    env['RAN_ONCE'] = '0'
 
     # build composite pex of pex1/pex1
     pex_out_path = os.path.join(output_dir, 'out.pex')
     run_pex_command(['--disable-cache',
       'wheel',
-      '-o', pex_out_path], env=env)
+      '-o', pex_out_path])
 
     # run test.py with composite env
     stdout, rc = run_simple_pex(pex_out_path, [test_file_path], env=env)
@@ -247,41 +246,35 @@ def test_pex_path_arg():
     pex2_path = os.path.join(output_dir, 'pex2.pex')
     res2 = run_pex_command(['--disable-cache', 'flask', '-o', pex2_path])
     res2.assert_success()
-    pex_path = os.path.join(output_dir, 'pex2.pex') + ":" + os.path.join(output_dir, 'pex1.pex')
+    pex_path = ':'.join(os.path.join(output_dir, name) for name in ('pex1.pex', 'pex2.pex'))
 
+    # parameterize the pex arg for test.py
+    pex_out_path = os.path.join(output_dir, 'out.pex')
     # create test file test.py that attempts to import modules from pex1/pex2
     test_file_path = os.path.join(output_dir, 'test.py')
     with open(test_file_path, 'w') as fh:
-      fh.write(dedent('''\
+      fh.write(dedent('''
         import scapy
         import flask
         import sys
         import os
         import subprocess
-        if os.environ['RAN_ONCE'] == '1':
+        if 'RAN_ONCE' in os.environ:
           print('Success!')
         else:
           env = os.environ.copy()
           env['RAN_ONCE'] = '1'
-          subprocess.call([sys.executable] + [env['PEX']] + sys.argv, env=env)
+          subprocess.call([sys.executable] + ['%s'] + sys.argv, env=env)
           sys.exit()
-        '''))
+        ''' % pex_out_path))
 
-    # set up env for pex build
-    env = os.environ.copy()
-    # necessary to break execution upon successful re-exec
-    env['RAN_ONCE'] = '0'
-    # set the pex arg for test.py
-    pex_out_path = os.path.join(output_dir, 'out.pex')
-    env['PEX'] = pex_out_path
     # build out.pex composed from pex1/pex1
     run_pex_command(['--disable-cache',
       '--pex-path={}'.format(pex_path),
       'wheel',
-      '-o', pex_out_path], env=env)
+      '-o', pex_out_path])
 
     # run test.py with composite env
-    stdout, rc = run_simple_pex(pex_out_path, [test_file_path], env=env)
-
+    stdout, rc = run_simple_pex(pex_out_path, [test_file_path])
     assert rc == 0
     assert stdout == 'Success!\n'

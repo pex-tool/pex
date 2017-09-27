@@ -154,7 +154,7 @@ def configure_clp_pex_resolution(parser, builder):
     dest='pex_path',
     type=str,
     default=None,
-    help='Pex path for resolving pexes that should be composed into the output pex environment.')
+    help='A colon separated list of other pex files to merge into the runtime environment.')
 
   group.add_option(
       '-f', '--find-links', '--repo',
