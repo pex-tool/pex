@@ -125,6 +125,35 @@ def test_pex_repl_built():
     assert b'>>>' in stdout
 
 
+def test_pex_module_cli():
+  """Tests running a module in the context of the pex cli itself."""
+  with temporary_dir() as output_dir:
+    # Create a temporary pex containing just `requests` with no entrypoint.
+    pex_path = os.path.join(output_dir, 'requests.pex')
+    results = run_pex_command(['--disable-cache',
+                               'requests',
+                               '-m', 'pydoc',
+                               '-o', pex_path])
+    results.assert_success()
+
+    stdout, rc = run_simple_pex(pex_path)
+    assert rc == 0
+    assert b'pydoc - the Python documentation tool' in stdout
+
+
+def test_pex_module_built():
+  """Tests running a module in the context of a built pex."""
+  with temporary_dir() as output_dir:
+    # Create a temporary pex containing just `requests` with no entrypoint.
+    pex_path = os.path.join(output_dir, 'requests.pex')
+    results = run_pex_command(['--disable-cache', 'requests', '-o', pex_path])
+    results.assert_success()
+
+    stdout, rc = run_simple_pex(pex_path, args=['-m', 'pydoc'])
+    assert rc == 0
+    assert b'pydoc - the Python documentation tool' in stdout
+
+
 @pytest.mark.skipif(WINDOWS, reason='No symlinks on windows')
 def test_pex_python_symlink():
   with temporary_dir() as td:

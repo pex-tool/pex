@@ -407,7 +407,14 @@ class PEX(object):  # noqa: T000
       return self.execute_interpreter()
 
   def execute_interpreter(self):
-    if sys.argv[1:]:
+    if len(sys.argv) < 2:
+      import code
+      code.interact()
+    elif len(sys.argv) > 2 and sys.argv[1] == '-m':
+      mod = sys.argv[2]
+      sys.argv = sys.argv[2:]
+      self.execute_module(mod)
+    else:
       try:
         with open(sys.argv[1]) as fp:
           name, content = sys.argv[1], fp.read()
@@ -415,9 +422,6 @@ class PEX(object):  # noqa: T000
         die("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
       sys.argv = sys.argv[1:]
       self.execute_content(name, content)
-    else:
-      import code
-      code.interact()
 
   def execute_script(self, script_name):
     dists = list(self._activate())
