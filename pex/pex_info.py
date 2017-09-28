@@ -98,6 +98,7 @@ class PexInfo(object):
       'inherit_path': supplied_env.PEX_INHERIT_PATH,
       'ignore_errors': supplied_env.PEX_IGNORE_ERRORS,
       'always_write_cache': supplied_env.PEX_ALWAYS_CACHE,
+      'pex_path': supplied_env.PEX_PATH,
     }
     # Filter out empty entries not explicitly set in the environment.
     return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))
@@ -164,6 +165,19 @@ class PexInfo(object):
   @zip_safe.setter
   def zip_safe(self, value):
     self._pex_info['zip_safe'] = bool(value)
+
+  @property
+  def pex_path(self):
+    """A colon separated list of other pex files to merge into the runtime environment.
+
+    This pex info property is used to persist the PEX_PATH environment variable into the pex info
+    metadata for reuse within a built pex.
+    """
+    return self._pex_info.get('pex_path')
+
+  @pex_path.setter
+  def pex_path(self, value):
+    self._pex_info['pex_path'] = value
 
   @property
   def inherit_path(self):
