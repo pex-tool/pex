@@ -233,7 +233,7 @@ def test_pex_re_exec_failure():
     stdout, rc = run_simple_pex(pex_out_path, [test_file_path], env=env)
 
     assert rc == 0
-    assert stdout == 'Hello world\n'
+    assert stdout == b'Hello world\n'
 
 
 def test_pex_path_arg():
@@ -277,4 +277,4 @@ def test_pex_path_arg():
     # run test.py with composite env
     stdout, rc = run_simple_pex(pex_out_path, [test_file_path])
     assert rc == 0
-    assert stdout == 'Success!\n'
+    assert stdout == b'Success!\n'
