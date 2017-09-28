@@ -194,7 +194,7 @@ def test_pex_re_exec_failure():
 
     # create 2 pex files for PEX_PATH
     pex1_path = os.path.join(output_dir, 'pex1.pex')
-    res1 = run_pex_command(['--disable-cache', 'scapy', '-o', pex1_path])
+    res1 = run_pex_command(['--disable-cache', 'requests', '-o', pex1_path])
     res1.assert_success()
     pex2_path = os.path.join(output_dir, 'pex2.pex')
     res2 = run_pex_command(['--disable-cache', 'flask', '-o', pex2_path])
@@ -205,7 +205,7 @@ def test_pex_re_exec_failure():
     test_file_path = os.path.join(output_dir, 'test.py')
     with open(test_file_path, 'w') as fh:
       fh.write(dedent('''
-        import scapy
+        import requests
         import flask
         import sys
         import os
@@ -241,7 +241,7 @@ def test_pex_path_arg():
 
     # create 2 pex files for PEX_PATH
     pex1_path = os.path.join(output_dir, 'pex1.pex')
-    res1 = run_pex_command(['--disable-cache', 'scapy', '-o', pex1_path])
+    res1 = run_pex_command(['--disable-cache', 'requests', '-o', pex1_path])
     res1.assert_success()
     pex2_path = os.path.join(output_dir, 'pex2.pex')
     res2 = run_pex_command(['--disable-cache', 'flask', '-o', pex2_path])
@@ -254,7 +254,7 @@ def test_pex_path_arg():
     test_file_path = os.path.join(output_dir, 'test.py')
     with open(test_file_path, 'w') as fh:
       fh.write(dedent('''
-        import scapy
+        import requests
         import flask
         import sys
         import os
