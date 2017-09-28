@@ -69,10 +69,10 @@ Prepare binary assets
     $ ./dist/pex27 --version
     pex27 1.1.1
 
-    $ tox -e py35-package
+    $ tox -e py36-package
     ...
-    $ ./dist/pex35 --version
-    pex35 1.1.1
+    $ ./dist/pex36 --version
+    pex36 1.1.1
 
 Craft the Release
 -----------------
@@ -88,7 +88,7 @@ Open a tab to construct the current:
 1. Use "Release <VERSION>" as the release name (e.g. "Release 1.1.1")
 2. Copy and paste the most recent CHANGES.rst section.
 3. Adapt the syntax from RestructuredText to Markdown (e.g. ``#ID <links>`` -> ``#ID``).
-4. Upload both the ``pex27`` and ``pex35`` artifacts.
+4. Upload both the ``pex27`` and ``pex36`` artifacts.
 
 Check your work
 ---------------
@@ -103,10 +103,10 @@ Check your work
     $ ./pex27 --version
     pex27 1.1.1
 
-    $ curl -L https://github.com/pantsbuild/pex/releases/download/v1.1.1/pex35 -O
+    $ curl -L https://github.com/pantsbuild/pex/releases/download/v1.1.1/pex36 -O
       % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                      Dload  Upload   Total   Spent    Left  Speed
     100   578    0   578    0     0    296      0 --:--:--  0:00:01 --:--:--   296
     100 1406k  100 1406k    0     0   131k      0  0:00:10  0:00:10 --:--:--  256k
-    $ ./pex35 --version
-    pex35 1.1.1
+    $ ./pex36 --version
+    pex36 1.1.1
