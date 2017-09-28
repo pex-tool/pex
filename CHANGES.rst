@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.2.12
+------
+
+* Create --pex-path argument for pex cli and load pex path into pex-info metadata (#417)
+  `#417 <https://github.com/pantsbuild/pex/pull/417>`_
+
 1.2.11
 ------
 
