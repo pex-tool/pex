@@ -565,7 +565,8 @@ def build_pex(args, options, resolver_option_builder):
                                 interpreters=interpreters,
                                 platforms=options.platform,
                                 cache=options.cache_dir,
-                                cache_ttl=options.cache_ttl)
+                                cache_ttl=options.cache_ttl,
+                                allow_prereleases=resolver_option_builder.prereleases_allowed)
 
       for dist in resolveds:
         log('  %s' % dist, v=options.verbosity)

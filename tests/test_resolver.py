@@ -177,6 +177,33 @@ def test_resolve_prereleases_cached():
       assert_resolve('dep>=1.rc1,<4', '3.0.0rc3', fetchers=[])
 
 
+def test_resolve_prereleases_and_no_version():
+  prerelease_dep = make_sdist(name='dep', version='3.0.0rc3')
+
+  with temporary_dir() as td:
+    safe_copy(prerelease_dep, os.path.join(td, os.path.basename(prerelease_dep)))
+    fetchers = [Fetcher([td])]
+
+    def assert_resolve(deps, expected_version, **resolve_kwargs):
+      dists = list(
+        resolve_multi(deps, fetchers=fetchers, **resolve_kwargs)
+      )
+      assert 1 == len(dists)
+      dist = dists[0]
+      assert expected_version == dist.version
+
+    # When allow_prereleases is specified, the requirement (from two dependencies)
+    # for a specific pre-release version and no version specified, accepts the pre-release
+    # version correctly.
+    assert_resolve(['dep==3.0.0rc3', 'dep'], '3.0.0rc3', allow_prereleases=True)
+
+    # Without allow_prereleases set, the pre-release version is rejected.
+    # This used to be an issue when a command-line use did not pass the `--pre` option
+    # correctly into the API call for resolve_multi() from build_pex() in pex.py.
+    with pytest.raises(Unsatisfiable):
+      assert_resolve(['dep==3.0.0rc3', 'dep'], '3.0.0rc3')
+
+
 def test_resolve_prereleases_multiple_set():
   stable_dep = make_sdist(name='dep', version='2.0.0')
   prerelease_dep1 = make_sdist(name='dep', version='3.0.0rc3')

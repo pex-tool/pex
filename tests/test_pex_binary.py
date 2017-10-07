@@ -1,16 +1,26 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import os
 from contextlib import contextmanager
 from optparse import OptionParser
 from tempfile import NamedTemporaryFile
 
+from twitter.common.contextutil import temporary_dir
+
 from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution
+from pex.common import safe_copy
 from pex.compatibility import to_bytes
-from pex.fetcher import PyPIFetcher
+from pex.fetcher import Fetcher, PyPIFetcher
 from pex.package import SourcePackage, WheelPackage
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.sorter import Sorter
+from pex.testing import make_sdist
+
+try:
+  from unittest import mock
+except ImportError:
+  import mock
 
 
 @contextmanager
@@ -115,3 +125,63 @@ def test_clp_prereleases():
 
     options, _ = parser.parse_args(args=['--pre'])
     assert builder._allow_prereleases
+
+
+def test_clp_prereleases_resolver():
+  prerelease_dep = make_sdist(name='dep', version='1.2.3b1')
+  with temporary_dir() as td:
+    safe_copy(prerelease_dep, os.path.join(td, os.path.basename(prerelease_dep)))
+    fetcher = Fetcher([td])
+
+    # When no specific options are specified, allow_prereleases is None
+    parser, resolver_options_builder = configure_clp()
+    assert resolver_options_builder._allow_prereleases is None
+
+    # When we specify `--pre`, allow_prereleases is True
+    options, reqs = parser.parse_args(args=['--pre', 'dep==1.2.3b1', 'dep'])
+    assert resolver_options_builder._allow_prereleases
+    # We need to use our own fetcher instead of PyPI
+    resolver_options_builder._fetchers.insert(0, fetcher)
+
+    #####
+    # The resolver created during processing of command line options (configure_clp)
+    # is not actually passed into the API call (resolve_multi) from build_pex().
+    # Instead, resolve_multi() calls resolve() where a new ResolverOptionsBuilder instance
+    # is created. The only way to supply our own fetcher to that new instance is to patch it
+    # here in the test so that it can fetch our test package (dep-1.2.3b1). Hence, this class
+    # below and the change in the `pex.resolver` module where the patched object resides.
+    #
+    import pex.resolver
+
+    class BuilderWithFetcher(ResolverOptionsBuilder):
+      def __init__(self,
+                   fetchers=None,
+                   allow_all_external=False,
+                   allow_external=None,
+                   allow_unverified=None,
+                   allow_prereleases=None,
+                   precedence=None,
+                   context=None
+                   ):
+        super(BuilderWithFetcher, self).__init__(fetchers=fetchers,
+                                                 allow_all_external=allow_all_external,
+                                                 allow_external=allow_external,
+                                                 allow_unverified=allow_unverified,
+                                                 allow_prereleases=allow_prereleases,
+                                                 precedence=precedence,
+                                                 context=context)
+        self._fetchers.insert(0, fetcher)
+    # end stub
+    #####
+
+    # Without a corresponding fix in pex.py, this test failed for a dependency requirement of
+    # dep==1.2.3b1 from one package and just dep (any version accepted) from another package.
+    # The failure was an exit from build_pex() with the message:
+    #
+    # Could not satisfy all requirements for dep==1.2.3b1:
+    #     dep==1.2.3b1, dep
+    #
+    # With a correct behavior the assert line is reached and pex_builder object created.
+    with mock.patch.object(pex.resolver, 'ResolverOptionsBuilder', BuilderWithFetcher):
+      pex_builder = build_pex(reqs, options, resolver_options_builder)
+      assert pex_builder is not None
