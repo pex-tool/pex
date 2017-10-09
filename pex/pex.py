@@ -279,7 +279,10 @@ class PEX(object):  # noqa: T000
         sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
-    new_sys_path.extend(filter(None, self._vars.PEX_PATH.split(os.pathsep)))
+    if self._pex_info.pex_path:
+      new_sys_path.extend(filter(None, self._pex_info.pex_path.split(os.pathsep)))
+    elif self._vars.PEX_PATH:
+      new_sys_path.extend(filter(None, self._vars.PEX_PATH.split(os.pathsep)))
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
     yield
