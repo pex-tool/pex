@@ -68,11 +68,15 @@ class PEX(object):  # noqa: T000
 
       # set up the local .pex environment
       pex_info = self._pex_info.copy()
+      pex_info_pex_path = pex_info.pex_path
+      overrides_pex_path = self._pex_info_overrides.pex_path
       pex_info.update(self._pex_info_overrides)
+      pex_info.pex_path = ":".join(filter(None, [pex_info_pex_path, overrides_pex_path]))
       self._envs.append(PEXEnvironment(self._pex, pex_info))
-
+      # by this point, pex_info.pex_path will have a single pex path merged from pex_path
+      # in PEX-INFO and pex_path set in the environment
       if pex_info.pex_path:
-        # set up other environments as specified in PEX_PATH
+        # set up other environments as specified in pex_path
         for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
           pex_info = PexInfo.from_pex(pex_path)
           pex_info.update(self._pex_info_overrides)
@@ -279,10 +283,7 @@ class PEX(object):  # noqa: T000
         sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
-    if self._pex_info.pex_path:
-      new_sys_path.extend(filter(None, self._pex_info.pex_path.split(os.pathsep)))
-    elif self._vars.PEX_PATH:
-      new_sys_path.extend(filter(None, self._vars.PEX_PATH.split(os.pathsep)))
+    new_sys_path.extend(self._merge_split(self._pex_info.pex_path, self._vars.PEX_PATH))
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
     yield
@@ -492,6 +493,10 @@ class PEX(object):  # noqa: T000
     cmds.append(self._pex)
     cmds.extend(args)
     return cmds
+
+  def _merge_split(self, *paths):
+    merged_paths = ":".join(filter(None, paths))
+    return filter(None, merged_paths.split(':'))
 
   def run(self, args=(), with_chroot=False, blocking=True, setsid=False, **kwargs):
     """Run the PythonEnvironment in an interpreter in a subprocess.
