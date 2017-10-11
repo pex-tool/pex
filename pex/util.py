@@ -248,8 +248,7 @@ def iter_pth_paths(filename):
 
 
 def merge_split(*paths):
-  """
-  Merge paths into a single path delimited by colons and split on colons to return
+  """Merge paths into a single path delimited by colons and split on colons to return
   a list of paths.
 
   :param paths: a variable length list of path strings
