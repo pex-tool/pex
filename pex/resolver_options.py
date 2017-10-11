@@ -117,6 +117,31 @@ class ResolverOptionsBuilder(object):
         [precedent for precedent in self._precedence if precedent is not SourcePackage])
     return self
 
+  # TODO: Make this whole interface more Pythonic.
+  #
+  # This method would be better defined as a property allow_prereleases.
+  # Unfortunately, the existing method below already usurps the name allow_prereleases.
+  # It is an existing API that returns self as if it was written in an attempt to allow
+  # Java style chaining of method calls.
+  # Due to that return type, it cannot be used as a Python property setter.
+  # It's currently used in this manner:
+  #
+  #     builder.allow_prereleases(True)
+  #
+  # and we cannot change it into @allow_prereleases.setter and use in this manner:
+  #
+  #     builder.allow_prereleases = True
+  #
+  # without affecting the existing API calls.
+  #
+  # The code review shows that, for this particular method (allow_prereleases),
+  # the return value (self) is never used in the current API calls.
+  # It would be worth examining if the API change for this and some other methods here
+  # would be a good idea.
+  @property
+  def prereleases_allowed(self):
+    return self._allow_prereleases
+
   def allow_prereleases(self, allowed):
     self._allow_prereleases = allowed
     return self
