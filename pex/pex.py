@@ -68,16 +68,17 @@ class PEX(object):  # noqa: T000
 
       # set up the local .pex environment
       pex_info = self._pex_info.copy()
-      combined_pex_paths = self._merge_split(pex_info.pex_path, self._vars.PEX_PATH)
+      combined_pex_paths = [pex_info.pex_path, self._vars.PEX_PATH]
       pex_info.update(self._pex_info_overrides)
+      pex_info.pex_path = ':'.join(filter(None, combined_pex_paths))
       self._envs.append(PEXEnvironment(self._pex, pex_info))
-      # N.B. By this point, `combined_pex_paths` will contain a single pex path
-      # merged from pex_path in PEX-INFO and PEX_PATH set in the environment.
+      # N.B. by this point, `pex_info.pex_path` will contain a single pex path
+      # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
       # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
       # in the environment.
-      if combined_pex_paths:
+      if pex_info.pex_path:
         # set up other environments as specified in pex_path
-        for pex_path in combined_pex_paths:
+        for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
           pex_info = PexInfo.from_pex(pex_path)
           pex_info.update(self._pex_info_overrides)
           self._envs.append(PEXEnvironment(pex_path, pex_info))

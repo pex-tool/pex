@@ -294,7 +294,7 @@ def test_pex_path_in_pex_info_and_env():
 
     # create a pex for environment PEX_PATH
     pex3_path = os.path.join(output_dir, 'pex3.pex')
-    res3 = run_pex_command(['--disable-cache', 'bitarray', '-o', pex3_path])
+    res3 = run_pex_command(['--disable-cache', 'wheel', '-o', pex3_path])
     res3.assert_success()
     env_pex_path = os.path.join(output_dir, 'pex3.pex')
 
@@ -306,7 +306,7 @@ def test_pex_path_in_pex_info_and_env():
       fh.write(dedent('''
         import requests
         import flask
-        import bitarray
+        import wheel
         import sys
         import os
         import subprocess
@@ -316,7 +316,6 @@ def test_pex_path_in_pex_info_and_env():
     # build out.pex composed from pex1/pex1
     run_pex_command(['--disable-cache',
       '--pex-path={}'.format(pex_path),
-      'wheel',
       '-o', pex_out_path])
 
     # load secondary PEX_PATH
