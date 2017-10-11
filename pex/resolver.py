@@ -17,7 +17,7 @@ from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
 from .package import Package, distribution_compatible
-from .pep425tags import get_supported
+from .pep425tags import get_abbr_impl, get_abi_tag, get_impl_ver, get_platform, get_supported
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
 from .tracer import TRACER
@@ -142,17 +142,7 @@ class _ResolvableSet(object):
 
 
 class Resolver(object):
-  """Interface for resolving resolvable entities into python packages.
-
-  :param versions: a list of string versions, of the form ["33", "32"],
-    or None. The first version will be assumed to support our ABI.
-  :param platform: specify the exact platform you want valid
-    tags for, or None. If None, use the local system platform.
-  :param impl: specify the exact implementation you want valid
-    tags for, or None. If None, use the local interpreter impl.
-  :param abi: specify the exact abi you want valid
-    tags for, or None. If None, use the local interpreter abi.
-  """
+  """Interface for resolving resolvable entities into python packages."""
 
   class Error(Exception): pass
 
@@ -160,18 +150,17 @@ class Resolver(object):
     return [package for package in packages
             if package.compatible(self._supported_tags)]
 
-  def __init__(self, allow_prereleases=None, interpreter=None, versions=None,
-               platform=None, impl=None, abi=None, pkg_blacklist=None):
+  def __init__(self, allow_prereleases=None, interpreter=None, platform=None,
+               pkg_blacklist=None):
     self._interpreter = interpreter or PythonInterpreter.get()
-    self._platform = platform
+    self._platform = platform or get_platform()
+    # Turn a platform string into something we can actually use
+    platform_tag, version, impl, abi = platform_to_tags(self._platform)
     self._allow_prereleases = allow_prereleases
     self._blacklist = pkg_blacklist.copy() if pkg_blacklist else {}
-    self._impl = impl
-    self._abi = abi
-    self._versions = versions
-    self._supported_tags = get_supported(versions=self._versions,
-                                         platform=self._platform,
-                                         impl=self._impl,
+    self._supported_tags = get_supported(version=version,
+                                         platform=platform_tag,
+                                         impl=impl,
                                          abi=abi)
 
   def package_iterator(self, resolvable, existing=None):
@@ -313,6 +302,20 @@ class CachingResolver(Resolver):
     os.utime(target, None)
 
     return DistributionHelper.distribution_from_path(target)
+
+
+def platform_to_tags(platform):
+  """Splits a "platform" like linux_x86_64-36-cp-cp36m into its components.
+
+  If a simple platform without hyphens is specified, we will fall back to using
+  the current interpreter's tags.
+  """
+  if platform.count('-') >= 3:
+    tags = platform.rsplit('-', 3)
+  else:
+    tags = [platform, get_impl_ver(), get_abbr_impl(), get_abi_tag()]
+  tags[0] = tags[0].replace('.', '_').replace('-', '_')
+  return tags
 
 
 def resolve(requirements,
@@ -471,7 +474,7 @@ def resolve_multi(requirements,
   """
 
   interpreters = interpreters or [PythonInterpreter.get()]
-  platforms = platforms or [Platform.current()]
+  platforms = platforms or [get_platform()]
 
   seen = set()
   for interpreter in interpreters:

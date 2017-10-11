@@ -329,7 +329,11 @@ def configure_clp_pex_environment(parser):
       type=str,
       action='append',
       help='The platform for which to build the PEX. This option can be passed multiple times '
-           'to create a multi-platform compatible pex. Default: current platform.')
+           'to create a multi-platform compatible pex. To build manylinux wheels for specific '
+           'tags, you can add them to the platform with hyphens like PLATFORM-PYVER-IMPL-ABI, '
+           'where PYVER is a two-digit string representing the python version (e.g., 36), IMPL'
+           ' is the python implementation abbreviation (e.g., cp, pp, jp), and ABI is the ABI tag '
+           '(e.g., cp36m, cp27mu, abi3, none). Default: current platform.')
 
   group.add_option(
       '--interpreter-cache-dir',
@@ -560,26 +564,6 @@ def build_pex(args, options, resolver_option_builder):
   except TypeError:
     # options.preamble_file is None
     preamble = None
-  if options.supported_tags:
-    (options.platform,
-     options.implementation,
-     options.python_version,
-     options.abi) = options.supported_tags.rsplit('-', 3)
-
-  # Copied from pip
-  dist_restrictions = [
-    options.python_version,
-    options.platform,
-    options.abi,
-    options.implementation,
-  ]
-  if any(dist_restrictions) and (not resolver_option_builder.no_allow_builds or
-                                 not all(dist_restrictions)):
-    raise ValueError(
-        "--no-build must be set and --no-wheel must not be set when "
-        "restricting platform and interpreter constraints using "
-        "--python-version, --platform, --abi, or --implementation."
-    )
 
   interpreter = min(interpreters)
 
