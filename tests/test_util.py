@@ -211,3 +211,11 @@ def test_merge_split():
   path_1, path_2 = '/pex/path/1:/pex/path/2', '/pex/path/3:/pex/path/4'
   result = merge_split(path_1, path_2)
   assert result == ['/pex/path/1', '/pex/path/2', '/pex/path/3', '/pex/path/4']
+
+  path_1, path_2 = '/pex/path/1:', '/pex/path/3:/pex/path/4'
+  result = merge_split(path_1, path_2)
+  assert result == ['/pex/path/1', '/pex/path/3', '/pex/path/4']
+
+  path_1, path_2 = '/pex/path/1::/pex/path/2', '/pex/path/3:/pex/path/4'
+  result = merge_split(path_1, path_2)
+  assert result == ['/pex/path/1', '/pex/path/2', '/pex/path/3', '/pex/path/4']
