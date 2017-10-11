@@ -13,8 +13,13 @@ from pex.compatibility import nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex_builder import PEXBuilder
 from pex.testing import make_bdist, run_simple_pex, temporary_content, write_zipfile
-from pex.util import (CacheHelper, DistributionHelper, iter_pth_paths, named_temporary_file,
-  merge_split)
+from pex.util import (
+    CacheHelper,
+    DistributionHelper,
+    iter_pth_paths,
+    merge_split,
+    named_temporary_file
+)
 
 try:
   from unittest import mock

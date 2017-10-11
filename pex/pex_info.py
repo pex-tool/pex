@@ -12,8 +12,8 @@ from .common import open_zip
 from .compatibility import string as compatibility_string
 from .compatibility import PY2
 from .orderedset import OrderedSet
-from .variables import ENV
 from .util import merge_split
+from .variables import ENV
 
 PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
 
