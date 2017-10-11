@@ -21,7 +21,7 @@ from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
 from .tracer import TRACER
-from .util import iter_pth_paths
+from .util import iter_pth_paths, merge_split
 from .variables import ENV
 
 
@@ -68,9 +68,8 @@ class PEX(object):  # noqa: T000
 
       # set up the local .pex environment
       pex_info = self._pex_info.copy()
-      combined_pex_paths = [pex_info.pex_path, self._vars.PEX_PATH]
       pex_info.update(self._pex_info_overrides)
-      pex_info.pex_path = ':'.join(filter(None, combined_pex_paths))
+      pex_info.merge_pex_path(self._vars.PEX_PATH)
       self._envs.append(PEXEnvironment(self._pex, pex_info))
       # N.B. by this point, `pex_info.pex_path` will contain a single pex path
       # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
@@ -137,7 +136,7 @@ class PEX(object):  # noqa: T000
   def site_libs(cls):
     site_libs = cls._get_site_packages()
     site_libs.update([sysconfig.get_python_lib(plat_specific=False),
-      sysconfig.get_python_lib(plat_specific=True)])
+                      sysconfig.get_python_lib(plat_specific=True)])
     # On windows getsitepackages() returns the python stdlib too.
     if sys.prefix in site_libs:
       site_libs.remove(sys.prefix)
@@ -281,10 +280,10 @@ class PEX(object):  # noqa: T000
       patch_dict(sys.modules, modules)
 
     old_sys_path, old_sys_path_importer_cache, old_sys_modules = (
-      sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
+        sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
-    new_sys_path.extend(self._merge_split(self._pex_info.pex_path, self._vars.PEX_PATH))
+    new_sys_path.extend(merge_split(self._pex_info.pex_path, self._vars.PEX_PATH))
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
     yield
@@ -494,10 +493,6 @@ class PEX(object):  # noqa: T000
     cmds.append(self._pex)
     cmds.extend(args)
     return cmds
-
-  def _merge_split(self, *paths):
-    filtered_paths = filter(None, paths)
-    return [p for p in ':'.join(filtered_paths).split(':') if p]
 
   def run(self, args=(), with_chroot=False, blocking=True, setsid=False, **kwargs):
     """Run the PythonEnvironment in an interpreter in a subprocess.

@@ -13,6 +13,7 @@ from .compatibility import string as compatibility_string
 from .compatibility import PY2
 from .orderedset import OrderedSet
 from .variables import ENV
+from .util import merge_split
 
 PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
 
@@ -98,7 +99,6 @@ class PexInfo(object):
       'inherit_path': supplied_env.PEX_INHERIT_PATH,
       'ignore_errors': supplied_env.PEX_IGNORE_ERRORS,
       'always_write_cache': supplied_env.PEX_ALWAYS_CACHE,
-      'pex_path': supplied_env.PEX_PATH,
     }
     # Filter out empty entries not explicitly set in the environment.
     return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))
@@ -284,3 +284,11 @@ class PexInfo(object):
 
   def copy(self):
     return self.from_json(self.dump())
+
+  def merge_pex_path(self, pex_path):
+    """Merges a new PEX_PATH definition into the existing one (if any).
+    :param string pex_path: The PEX_PATH to merge.
+    """
+    if not pex_path:
+      return
+    self.pex_path = ':'.join(merge_split(self.pex_path, pex_path))
