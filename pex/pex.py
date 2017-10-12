@@ -21,7 +21,7 @@ from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
 from .tracer import TRACER
-from .util import iter_pth_paths
+from .util import iter_pth_paths, merge_split
 from .variables import ENV
 
 
@@ -69,10 +69,14 @@ class PEX(object):  # noqa: T000
       # set up the local .pex environment
       pex_info = self._pex_info.copy()
       pex_info.update(self._pex_info_overrides)
+      pex_info.merge_pex_path(self._vars.PEX_PATH)
       self._envs.append(PEXEnvironment(self._pex, pex_info))
-
+      # N.B. by this point, `pex_info.pex_path` will contain a single pex path
+      # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
+      # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
+      # in the environment.
       if pex_info.pex_path:
-        # set up other environments as specified in PEX_PATH
+        # set up other environments as specified in pex_path
         for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
           pex_info = PexInfo.from_pex(pex_path)
           pex_info.update(self._pex_info_overrides)
@@ -279,7 +283,7 @@ class PEX(object):  # noqa: T000
         sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
-    new_sys_path.extend(filter(None, self._vars.PEX_PATH.split(os.pathsep)))
+    new_sys_path.extend(merge_split(self._pex_info.pex_path, self._vars.PEX_PATH))
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
     yield

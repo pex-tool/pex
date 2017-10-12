@@ -245,3 +245,14 @@ def iter_pth_paths(filename):
         if extras_dir_case_insensitive not in known_paths and os.path.exists(extras_dir):
           yield extras_dir
           known_paths.add(extras_dir_case_insensitive)
+
+
+def merge_split(*paths):
+  """Merge paths into a single path delimited by colons and split on colons to return
+  a list of paths.
+
+  :param paths: a variable length list of path strings
+  :return: a list of paths from the merged path list split by colons
+  """
+  filtered_paths = filter(None, paths)
+  return [p for p in ':'.join(filtered_paths).split(':') if p]

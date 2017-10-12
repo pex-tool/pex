@@ -278,3 +278,51 @@ def test_pex_path_arg():
     stdout, rc = run_simple_pex(pex_out_path, [test_file_path])
     assert rc == 0
     assert stdout == b'Success!\n'
+
+
+def test_pex_path_in_pex_info_and_env():
+  with temporary_dir() as output_dir:
+
+    # create 2 pex files for PEX-INFO pex_path
+    pex1_path = os.path.join(output_dir, 'pex1.pex')
+    res1 = run_pex_command(['--disable-cache', 'requests', '-o', pex1_path])
+    res1.assert_success()
+    pex2_path = os.path.join(output_dir, 'pex2.pex')
+    res2 = run_pex_command(['--disable-cache', 'flask', '-o', pex2_path])
+    res2.assert_success()
+    pex_path = ':'.join(os.path.join(output_dir, name) for name in ('pex1.pex', 'pex2.pex'))
+
+    # create a pex for environment PEX_PATH
+    pex3_path = os.path.join(output_dir, 'pex3.pex')
+    res3 = run_pex_command(['--disable-cache', 'wheel', '-o', pex3_path])
+    res3.assert_success()
+    env_pex_path = os.path.join(output_dir, 'pex3.pex')
+
+    # parameterize the pex arg for test.py
+    pex_out_path = os.path.join(output_dir, 'out.pex')
+    # create test file test.py that attempts to import modules from pex1/pex2
+    test_file_path = os.path.join(output_dir, 'test.py')
+    with open(test_file_path, 'w') as fh:
+      fh.write(dedent('''
+        import requests
+        import flask
+        import wheel
+        import sys
+        import os
+        import subprocess
+        print('Success!')
+        '''))
+
+    # build out.pex composed from pex1/pex1
+    run_pex_command(['--disable-cache',
+      '--pex-path={}'.format(pex_path),
+      '-o', pex_out_path])
+
+    # load secondary PEX_PATH
+    env = os.environ.copy()
+    env['PEX_PATH'] = env_pex_path
+
+    # run test.py with composite env
+    stdout, rc = run_simple_pex(pex_out_path, [test_file_path], env=env)
+    assert rc == 0
+    assert stdout == b'Success!\n'
