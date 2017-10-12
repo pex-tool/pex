@@ -17,7 +17,7 @@ from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
 from .package import Package, distribution_compatible
-from .pep425tags import get_abbr_impl, get_abi_tag, get_impl_ver, get_platform, get_supported
+from .pep425tags import get_platform, get_supported
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
 from .tracer import TRACER
