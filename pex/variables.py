@@ -13,25 +13,8 @@ from .common import die
 __all__ = ('ENV', 'Variables')
 
 
-class Variables(object):
+class _Variables(object):
   """Environment variables supported by the PEX runtime."""
-
-  @classmethod
-  def process_pydoc(cls, pydoc):
-    if pydoc is None:
-      return 'Unknown', 'Unknown'
-    pydoc = pydoc.splitlines()
-    variable_type = pydoc[0]
-    variable_text = ' '.join(filter(None, (line.strip() for line in pydoc[2:])))
-    return variable_type, variable_text
-
-  @classmethod
-  def iter_help(cls):
-    for variable_name, value in sorted(cls.__dict__.items()):
-      if not variable_name.startswith('PEX_'):
-        continue
-      variable_type, variable_text = cls.process_pydoc(getattr(value, '__doc__'))
-      yield variable_name, variable_type, variable_text
 
   def __init__(self, environ=None, rc='~/.pexrc', use_defaults=True):
     self._use_defaults = use_defaults
@@ -299,6 +282,42 @@ class Variables(object):
     Explicitly disable the reading/parsing of pexrc files (~/.pexrc). Default: false.
     """
     return self._get_bool('PEX_IGNORE_RCFILES', default=False)
+
+
+class Variables(object):
+  proxied = None
+
+  @classmethod
+  def process_pydoc(cls, pydoc):
+    if pydoc is None:
+      return 'Unknown', 'Unknown'
+    pydoc = pydoc.splitlines()
+    variable_type = pydoc[0]
+    variable_text = ' '.join(filter(None, (line.strip() for line in pydoc[2:])))
+    return variable_type, variable_text
+
+  @classmethod
+  def iter_help(cls):
+    for variable_name, value in sorted(_Variables.__dict__.items()):
+      if not variable_name.startswith('PEX_'):
+        continue
+      variable_type, variable_text = cls.process_pydoc(getattr(value, '__doc__'))
+      yield variable_name, variable_type, variable_text
+
+  def __init__(self, *args, **kwargs):
+    self.args = args
+    self.kwargs = kwargs
+
+  def __getattr__(self, attr):
+    if self.proxied is None:
+      self.proxied = _Variables(*self.args, **self.kwargs)
+
+    try:
+      attr = getattr(self.proxied, attr)
+    except AttributeError:
+      attr = self.__getattribute__(attr)
+
+    return attr
 
 
 # Global singleton environment
