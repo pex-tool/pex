@@ -168,9 +168,11 @@ class EggPackage(Package):
     if self.py_version == '2.7':
       self._supported_tags.add(('pp2', abi_tag, tag_platform))
     elif self.py_version == '3.2':
-      self._supported_tags.add(('pp320', abi_tag, tag_platform))
+      self._supported_tags.add(('pp321', abi_tag, tag_platform))
     elif self.py_version == '3.3':
-      self._supported_tags.add(('pp350', abi_tag, tag_platform))
+      self._supported_tags.add(('pp352', abi_tag, tag_platform))
+    elif self.py_version == '3.5':
+      self._supported_tags.add(('pp357', abi_tag, tag_platform))
 
   def __hash__(self):
     return hash((self.name, self.version, self.py_version, self.platform))
