@@ -220,6 +220,7 @@ def run_pex_command(args, env=None):
   than running a generated pex.  This is useful for testing end to end runs
   with specific command line arguments or env options.
   """
+  args.insert(0, '-vvvvv')
   def logger_callback(_output):
     def mock_logger(msg, v=None):
       _output.append(msg)
