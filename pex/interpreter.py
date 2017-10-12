@@ -16,7 +16,14 @@ from pkg_resources import Distribution, Requirement, find_distributions
 from .base import maybe_requirement
 from .compatibility import string
 from .executor import Executor
-from .pep425tags import get_abbr_impl, get_abi_tag, get_config_var, get_flag, get_impl_ver, get_impl_version_info
+from .pep425tags import (
+    get_abbr_impl,
+    get_abi_tag,
+    get_config_var,
+    get_flag,
+    get_impl_ver,
+    get_impl_version_info
+)
 from .tracer import TRACER
 
 try:
