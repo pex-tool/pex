@@ -10,15 +10,10 @@ import logging
 import platform
 import re
 import sys
+import sysconfig
 import warnings
 
 from .glibc import have_compatible_glibc
-
-try:
-  import sysconfig
-except ImportError:  # pragma nocover
-  # Python < 2.7
-  import distutils.sysconfig as sysconfig
 
 
 logger = logging.getLogger(__name__)

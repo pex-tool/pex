@@ -155,7 +155,7 @@ class Resolver(object):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = platform or get_platform()
     # Turn a platform string into something we can actually use
-    platform_tag, version, impl, abi = platform_to_tags(self._platform)
+    platform_tag, version, impl, abi = platform_to_tags(self._platform, self._interpreter)
     self._allow_prereleases = allow_prereleases
     self._blacklist = pkg_blacklist.copy() if pkg_blacklist else {}
     self._supported_tags = get_supported(version=version,
@@ -304,7 +304,7 @@ class CachingResolver(Resolver):
     return DistributionHelper.distribution_from_path(target)
 
 
-def platform_to_tags(platform):
+def platform_to_tags(platform, interpreter):
   """Splits a "platform" like linux_x86_64-36-cp-cp36m into its components.
 
   If a simple platform without hyphens is specified, we will fall back to using
@@ -313,7 +313,8 @@ def platform_to_tags(platform):
   if platform.count('-') >= 3:
     tags = platform.rsplit('-', 3)
   else:
-    tags = [platform, get_impl_ver(), get_abbr_impl(), get_abi_tag()]
+    tags = [platform, interpreter.identity.impl_ver,
+            interpreter.identity.abbr_impl, interpreter.identity.abi_tag]
   tags[0] = tags[0].replace('.', '_').replace('-', '_')
   return tags
 
