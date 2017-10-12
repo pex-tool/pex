@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.2.13
+------
+
+* Fix handling of pre-release option. (#424)
+  `#424 <https://github.com/pantsbuild/pex/pull/424>`_
+
+* Patch sys module using pex_path from PEX-INFO metadata (#421)
+  `#421 <https://github.com/pantsbuild/pex/pull/421>`_
+
 1.2.12
 ------
 
