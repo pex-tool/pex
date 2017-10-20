@@ -15,7 +15,6 @@ import warnings
 
 from .glibc import have_compatible_glibc
 
-
 logger = logging.getLogger(__name__)
 
 _OSX_ARCH_PAT = re.compile(r'(.+)_(\d+)_(\d+)_(.+)')
