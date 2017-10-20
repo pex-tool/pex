@@ -196,6 +196,21 @@ class PexInfo(object):
     self._pex_info['inherit_path'] = bool(value)
 
   @property
+  def interpreter_constraints(self):
+    """A comma-seperated list of constraints that determine the interpreter compatibility for this
+    pex, using the Requirement-style format, e.g. ``'CPython>=3', or just '>=2.7,<3'``
+    for requirements agnostic to interpreter class.
+
+    This property will be used at exec time when bootstrapping a pex to search PEX_PYTHON_PATH
+    for a list of compatible interpreters.
+    """
+    return self._pex_info.get('interpreter_constraints', False)
+
+  @interpreter_constraints.setter
+  def interpreter_constraints(self, value):
+    self._pex_info['interpreter_constraints'] = value
+
+  @property
   def ignore_errors(self):
     return self._pex_info.get('ignore_errors', False)
 

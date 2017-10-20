@@ -10,6 +10,7 @@ from twitter.common.contextutil import environment_as, temporary_dir
 
 from pex.compatibility import WINDOWS
 from pex.installer import EggInstaller
+from pex.pex_bootstrapper import read_pexinfo_from_zip
 from pex.testing import (
     get_dep_dist_names_from_pex,
     run_pex_command,
@@ -326,3 +327,73 @@ def test_pex_path_in_pex_info_and_env():
     stdout, rc = run_simple_pex(pex_out_path, [test_file_path], env=env)
     assert rc == 0
     assert stdout == b'Success!\n'
+
+
+def test_interpreter_constraints_to_pex_info():
+  with temporary_dir() as output_dir:
+    # constraint without interpreter class
+    pex_out_path = os.path.join(output_dir, 'pex1.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraints=">=2.7,<3"',
+      '-o', pex_out_path])
+    if sys.version_info[0] == 3:
+      assert res.return_code == 102
+    else:
+      res.assert_success()
+      pex_info = read_pexinfo_from_zip(pex_out_path)
+      assert '>=2.7,<3' in pex_info
+
+    # constraint with interpreter class
+    pex_out_path = os.path.join(output_dir, 'pex2.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraints="CPython>=2.7,<3"',
+      '-o', pex_out_path])
+    if sys.version_info[0] == 3:
+      assert res.return_code == 102
+    else:
+      res.assert_success()
+      pex_info = read_pexinfo_from_zip(pex_out_path)
+      assert 'CPython>=2.7,<3' in pex_info
+
+
+@pytest.mark.skipif(NOT_CPYTHON_36)
+def test_interpreter_constraints_to_pex_info_py36():
+  with temporary_dir() as output_dir:
+    # constraint without interpreter class
+    pex_out_path = os.path.join(output_dir, 'pex1.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraints=">=3"',
+      '-o', pex_out_path])
+    res.assert_success()
+    pex_info = read_pexinfo_from_zip(pex_out_path)
+    assert b'>=3' in pex_info
+
+    # constraint with interpreter class
+    pex_out_path = os.path.join(output_dir, 'pex2.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraints="CPython>=3"',
+      '-o', pex_out_path])
+    res.assert_success()
+    pex_info = read_pexinfo_from_zip(pex_out_path)
+    assert b'CPython>=3' in pex_info
+
+
+def test_resolve_interpreter_with_constraints_option():
+  with temporary_dir() as output_dir:
+    pex_out_path = os.path.join(output_dir, 'pex1.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraints=">=2.7,<3"',
+      '-o', pex_out_path])
+    if sys.version_info[0] == 3:
+      assert res.return_code == 102
+    else:
+      res.assert_success()
+
+    pex_out_path = os.path.join(output_dir, 'pex2.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraints=">3"',
+      '-o', pex_out_path])
+    if sys.version_info[0] == 3:
+      res.assert_success()
+    else:
+      assert res.return_code == 102

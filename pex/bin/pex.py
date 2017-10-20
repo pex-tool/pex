@@ -23,6 +23,7 @@ from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
 from pex.installer import EggInstaller
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import matched_interpreters, parse_interpreter_constraints
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
 from pex.pex import PEX
@@ -290,6 +291,15 @@ def configure_clp_pex_environment(parser):
            'Default: Use current interpreter.')
 
   group.add_option(
+    '--interpreter-constraints',
+    dest='interpreter_constraints',
+    default='',
+    type='str',
+    help='A comma-seperated list of constraints that determine the interpreter compatibility for '
+         'this pex, using the Requirement-style format, e.g. "CPython>=3", or just ">=2.7,<3" '
+         'for requirements agnostic to interpreter class.')
+
+  group.add_option(
       '--python-shebang',
       dest='python_shebang',
       default=None,
@@ -525,6 +535,11 @@ def build_pex(args, options, resolver_option_builder):
       for interpreter in options.python or [None]
     ]
 
+  if options.interpreter_constraints:
+    safe_constraints = options.interpreter_constraints.strip("'").strip('"')
+    constraints = parse_interpreter_constraints(safe_constraints)
+    interpreters = list(matched_interpreters(interpreters, constraints, True))
+
   if not interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
@@ -544,6 +559,8 @@ def build_pex(args, options, resolver_option_builder):
   pex_info.always_write_cache = options.always_write_cache
   pex_info.ignore_errors = options.ignore_errors
   pex_info.inherit_path = options.inherit_path
+  if options.interpreter_constraints:
+    pex_info.interpreter_constraints = safe_constraints
 
   resolvables = [Resolvable.get(arg, resolver_option_builder) for arg in args]
 
