@@ -335,6 +335,7 @@ def test_pex_path_in_pex_info_and_env():
     assert rc == 0
     assert stdout == b'Success!\n'
 
+
 @pytest.mark.skipif(NOT_CPYTHON_36)
 def test_pex_multi_resolve_2():
   """Tests multi-interpreter + multi-platform resolution."""
