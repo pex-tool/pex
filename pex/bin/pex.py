@@ -331,9 +331,11 @@ def configure_clp_pex_environment(parser):
       help='The platform for which to build the PEX. This option can be passed multiple times '
            'to create a multi-platform compatible pex. To build manylinux wheels for specific '
            'tags, you can add them to the platform with hyphens like PLATFORM-PYVER-IMPL-ABI, '
-           'where PYVER is a two-digit string representing the python version (e.g., 36), IMPL'
-           ' is the python implementation abbreviation (e.g., cp, pp, jp), and ABI is the ABI tag '
-           '(e.g., cp36m, cp27mu, abi3, none). Default: current platform.')
+           'where PLATFORM is either "manylinux1-x86_64" or "manylinux1-i686", PYVER is a two-'
+           'digit string representing the python version (e.g., 36), IMPL is the python '
+           'implementation abbreviation (e.g., cp, pp, jp), and ABI is the ABI tag (e.g., '
+           'cp36m, cp27mu, abi3, none). For example: manylinux1_x86_64-36-cp-cp36m. '
+           'Default: current platform.')
 
   group.add_option(
       '--interpreter-cache-dir',
