@@ -18,10 +18,12 @@ from pkg_resources import (
 )
 
 from .common import die, open_zip, safe_mkdir, safe_rmtree
+from .interpreter import PythonInterpreter
 from .package import distribution_compatible
-from .pep425tags import get_supported
+from .pep425tags import get_platform, get_supported
 from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
+from .resolver import platform_to_tags
 from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
 
@@ -161,6 +163,7 @@ class PEXEnvironment(Environment):
     unresolved_reqs = set([req.lower() for req in unresolved_reqs])
 
     if unresolved_reqs:
+      platform_str = '-'.join(platform_to_tags(get_platform(), PythonInterpreter.get()))
       TRACER.log('Unresolved requirements:')
       for req in unresolved_reqs:
         TRACER.log('  - %s' % req)
@@ -171,8 +174,8 @@ class PEXEnvironment(Environment):
         for dist in self._pex_info.distributions:
           TRACER.log('  - %s' % dist)
       if not self._pex_info.ignore_errors:
-        die('Failed to execute PEX file, missing compatible dependencies for:\n%s' % (
-            '\n'.join(map(str, unresolved_reqs))))
+        die('Failed to execute PEX file, missing %s compatible dependencies for:\n%s' % (
+             platform_str, '\n'.join(map(str, unresolved_reqs))))
 
     return resolveds
 
