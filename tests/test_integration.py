@@ -11,6 +11,7 @@ from twitter.common.contextutil import environment_as, temporary_dir
 from pex.compatibility import WINDOWS
 from pex.installer import EggInstaller
 from pex.pex_bootstrapper import read_pexinfo_from_zip
+from pex.pex_info import PexInfo
 from pex.testing import (
     get_dep_dist_names_from_pex,
     run_pex_command,
@@ -340,20 +341,20 @@ def test_interpreter_constraints_to_pex_info():
       assert res.return_code == 102
     else:
       res.assert_success()
-      pex_info = read_pexinfo_from_zip(pex_out_path)
-      assert '>=2.7,<3' in pex_info
+      pex_info = PexInfo.from_json(read_pexinfo_from_zip(pex_out_path))
+      assert '>=2.7,<3' == pex_info.interpreter_constraints
 
     # constraint with interpreter class
     pex_out_path = os.path.join(output_dir, 'pex2.pex')
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraints="CPython>=2.7,<3"',
       '-o', pex_out_path])
-    if sys.version_info[0] == 3:
+    if sys.version_info[0] == 3 or hasattr(sys, 'pypy_version_info'):
       assert res.return_code == 102
     else:
       res.assert_success()
-      pex_info = read_pexinfo_from_zip(pex_out_path)
-      assert 'CPython>=2.7,<3' in pex_info
+      pex_info = PexInfo.from_json(read_pexinfo_from_zip(pex_out_path))
+      assert 'CPython>=2.7,<3' == pex_info.interpreter_constraints
 
 
 @pytest.mark.skipif(NOT_CPYTHON_36)
@@ -365,8 +366,8 @@ def test_interpreter_constraints_to_pex_info_py36():
       '--interpreter-constraints=">=3"',
       '-o', pex_out_path])
     res.assert_success()
-    pex_info = read_pexinfo_from_zip(pex_out_path)
-    assert b'>=3' in pex_info
+    pex_info = PexInfo.from_json(read_pexinfo_from_zip(pex_out_path))
+    assert '>=3' == pex_info.interpreter_constraints
 
     # constraint with interpreter class
     pex_out_path = os.path.join(output_dir, 'pex2.pex')
@@ -374,8 +375,8 @@ def test_interpreter_constraints_to_pex_info_py36():
       '--interpreter-constraints="CPython>=3"',
       '-o', pex_out_path])
     res.assert_success()
-    pex_info = read_pexinfo_from_zip(pex_out_path)
-    assert b'CPython>=3' in pex_info
+    pex_info = PexInfo.from_json(read_pexinfo_from_zip(pex_out_path))
+    assert 'CPython>=3' == pex_info.interpreter_constraints
 
 
 def test_resolve_interpreter_with_constraints_option():
