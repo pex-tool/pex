@@ -127,12 +127,16 @@ class PythonIdentity(object):
     return self._version
 
   @property
+  def version_str(self):
+    return '.'.join(map(str, self.version))
+
+  @property
   def requirement(self):
     return self.distribution.as_requirement()
 
   @property
   def distribution(self):
-    return Distribution(project_name=self._interpreter, version='.'.join(map(str, self._version)))
+    return Distribution(project_name=self.interpreter, version=self.version_str)
 
   @classmethod
   def parse_requirement(cls, requirement, default_interpreter='CPython'):
@@ -171,6 +175,47 @@ class PythonIdentity(object):
     # return the python version in the format of the 'python' key for distributions
     # specifically, '2.7', '3.2', etc.
     return '%d.%d' % (self.version[0:2])
+
+  def pkg_resources_env(self, platform_str):
+    """A dict that can be used in place of packaging.default_environment"""
+    os_name = ''
+    platform_machine = ''
+    platform_release = ''
+    platform_system = ''
+    platform_version = ''
+    sys_platform = ''
+    if 'win' in platform_str:
+      os_name = 'nt'
+      platform_machine = 'AMD64' if '64' in platform_str else 'x86'
+      platform_system = 'Windows'
+      sys_platform = 'win32'
+    elif 'linux' in platform_str:
+      os_name = 'posix'
+      platform_machine = 'x86_64' if '64' in platform_str else 'i686'
+      platform_system = 'Linux'
+      sys_platform = 'linux2' if self._version[0] == 2 else 'linux'
+    elif 'macosx' in platform_str:
+      os_name = 'posix'
+      platform_str = platform_str.replace('.', '_')
+      platform_machine = platform_str.split('_', 3)[-1]
+      # Darwin version are macOS version + 4
+      platform_release = '{}.0.0'.format(int(platform_str.split('_')[2]) + 4)
+      platform_system = 'Darwin'
+      platform_version = 'Darwin Kernel Version {}'.format(platform_release)
+      sys_platform = 'darwin'
+    return {
+      "implementation_name": self.interpreter.lower(),
+      "implementation_version": self.version_str,
+      "os_name": os_name,
+      "platform_machine": platform_machine,
+      "platform_release": platform_release,
+      "platform_system": platform_system,
+      "platform_version": platform_version,
+      "python_full_version": self.version_str,
+      "platform_python_implementation": self.interpreter,
+      "python_version": self.version_str[:3],
+      "sys_platform": sys_platform,
+    }
 
   def __str__(self):
     return '%s-%s.%s.%s' % (self._interpreter,

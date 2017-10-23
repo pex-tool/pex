@@ -8,12 +8,14 @@ import os
 import shutil
 import time
 from collections import namedtuple
+from contextlib import contextmanager
 
+import pkg_resources
 from pkg_resources import safe_name
 
 from .common import safe_mkdir
 from .fetcher import Fetcher
-from .interpreter import PythonInterpreter
+from .interpreter import PythonIdentity, PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
 from .package import Package, distribution_compatible
@@ -22,6 +24,18 @@ from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
 from .tracer import TRACER
 from .util import DistributionHelper
+
+
+@contextmanager
+def patched_packing_env(env):
+  """Monkey patch packaging.markers.default_environment"""
+  old_env = pkg_resources.packaging.markers.default_environment
+  new_env = lambda: env
+  pkg_resources._vendor.packaging.markers.default_environment = new_env
+  try:
+    yield
+  finally:
+    pkg_resources._vendor.packaging.markers.default_environment = old_env
 
 
 class Untranslateable(Exception):
@@ -156,6 +170,7 @@ class Resolver(object):
     self._platform = platform or get_platform()
     # Turn a platform string into something we can actually use
     platform_tag, version, impl, abi = platform_to_tags(self._platform, self._interpreter)
+    self._identity = PythonIdentity(impl, abi, version)
     self._allow_prereleases = allow_prereleases
     self._blacklist = pkg_blacklist.copy() if pkg_blacklist else {}
     self._supported_tags = get_supported(version=version,
@@ -232,7 +247,10 @@ class Resolver(object):
         distribution = distributions[package]
         processed_packages[resolvable.name] = package
         new_parent = '%s->%s' % (parent, resolvable) if parent else str(resolvable)
-        resolvables.extend(
+        # We patch packaging.markers.default_environment here so we find optional reqs for the
+        # platform we're building the PEX for, rather than the one we're on.
+        with patched_packing_env(self._identity.pkg_resources_env(self._platform)):
+          resolvables.extend(
             (ResolvableRequirement(req, resolvable.options), new_parent) for req in
             distribution.requires(extras=resolvable_set.extras(resolvable.name)))
       resolvable_set = resolvable_set.replace_built(built_packages)
