@@ -6,7 +6,8 @@ import os
 from twitter.common.contextutil import temporary_dir
 
 from pex.common import open_zip
-from pex.pex_bootstrapper import get_pex_info
+from pex.interpreter import PythonInterpreter
+from pex.pex_bootstrapper import _find_compatible_interpreter_in_pex_python_path, get_pex_info
 from pex.testing import write_simple_pex
 
 
@@ -28,3 +29,22 @@ def test_get_pex_info():
 
       # same when encoded
       assert pex_info.dump() == pex_info_2.dump()
+
+
+def test_find_compatible_interpreter_in_python_path():
+  interpreters = PythonInterpreter.all()
+  pi2 = list(filter(lambda x: '2.' in x.binary, interpreters))
+  pi3 = list(filter(lambda x: '3.' in x.binary, interpreters))
+  pex_python_path = ':'.join([pi2[0].binary] + [pi3[0].binary])
+
+  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '<3')
+  assert interpreter.binary == pi2[0].binary
+
+  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '>3')
+  assert interpreter.binary == pi3[0].binary
+
+  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '<2')
+  assert interpreter is None
+
+  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '>4')
+  assert interpreter is None

@@ -10,8 +10,8 @@ from twitter.common.contextutil import environment_as, temporary_dir
 
 from pex.compatibility import WINDOWS
 from pex.installer import EggInstaller
-from pex.pex_bootstrapper import read_pexinfo_from_zip
-from pex.pex_info import PexInfo
+from pex.interpreter import PythonInterpreter
+from pex.pex_bootstrapper import get_pex_info
 from pex.testing import (
     get_dep_dist_names_from_pex,
     run_pex_command,
@@ -341,7 +341,7 @@ def test_interpreter_constraints_to_pex_info():
       assert res.return_code == 102
     else:
       res.assert_success()
-      pex_info = PexInfo.from_json(read_pexinfo_from_zip(pex_out_path))
+      pex_info = get_pex_info(pex_out_path)
       assert '>=2.7,<3' == pex_info.interpreter_constraints
 
     # constraint with interpreter class
@@ -353,7 +353,7 @@ def test_interpreter_constraints_to_pex_info():
       assert res.return_code == 102
     else:
       res.assert_success()
-      pex_info = PexInfo.from_json(read_pexinfo_from_zip(pex_out_path))
+      pex_info = get_pex_info(pex_out_path)
       assert 'CPython>=2.7,<3' == pex_info.interpreter_constraints
 
 
@@ -366,7 +366,7 @@ def test_interpreter_constraints_to_pex_info_py36():
       '--interpreter-constraints=">=3"',
       '-o', pex_out_path])
     res.assert_success()
-    pex_info = PexInfo.from_json(read_pexinfo_from_zip(pex_out_path))
+    pex_info = get_pex_info(pex_out_path)
     assert '>=3' == pex_info.interpreter_constraints
 
     # constraint with interpreter class
@@ -375,7 +375,7 @@ def test_interpreter_constraints_to_pex_info_py36():
       '--interpreter-constraints="CPython>=3"',
       '-o', pex_out_path])
     res.assert_success()
-    pex_info = PexInfo.from_json(read_pexinfo_from_zip(pex_out_path))
+    pex_info = get_pex_info(pex_out_path)
     assert 'CPython>=3' == pex_info.interpreter_constraints
 
 
@@ -398,3 +398,44 @@ def test_resolve_interpreter_with_constraints_option():
       res.assert_success()
     else:
       assert res.return_code == 102
+
+
+@pytest.mark.skipif("hasattr(sys, 'pypy_version_info')")
+def test_interpreter_resolution_with_pex_python_path():
+  with temporary_dir() as td:
+    pexrc_path = os.path.join(td, '.pexrc')
+    # the line below will return the Python binaries installed on system,
+    # including binary of current tox env. If PPP is working correctly, the system binaries
+    # will be used to exec the pex instead of the executable of the current tox env.
+    interpreters = PythonInterpreter.all()
+    pi2 = list(filter(lambda i: '2.' in i.binary, interpreters))
+    pi3 = list(filter(lambda i: '3.' in i.binary, interpreters))
+    if not pi2 and not pi3:
+      print("Failed to find multiple python interpreters on system")
+    else:
+      with open(pexrc_path, 'w') as pexrc:
+        # set pex python path
+        pex_python_path = ':'.join([pi2[0].binary] + [pi3[0].binary])
+        pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
+
+      # constraint to build pex cleanly; PPP + pex_bootstrapper.py
+      # will use these constraints to override sys.executable
+      interpreter_constraint = '>3' if sys.version_info[0] == 3 else '<3'
+
+      pex_out_path = os.path.join(td, 'pex.pex')
+      res = run_pex_command(['--disable-cache',
+        '--interpreter-constraints="%s"' % interpreter_constraint,
+        '-o', pex_out_path])
+      res.assert_success()
+
+      stdin_payload = b'import sys; sys.exit(0)'
+      stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+      assert rc == 0
+      version = pi3[0].version if sys.version_info[0] == 3 else pi2[0].version
+      # check that the system python was used instead of tox env python, indicating success
+      if sys.version_info[0] == 3:
+        version_str = '.'.join([str(x)for x in version])
+        bytes_version_str = version_str.encode()
+        assert bytes_version_str in stdout
+      else:
+        assert '.'.join([str(x)for x in version]) in stdout

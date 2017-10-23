@@ -232,6 +232,18 @@ class Variables(object):
     return self._get_string('PEX_PYTHON', default=None)
 
   @property
+  def PEX_PYTHON_PATH(self):
+    """String
+
+    A colon-seperated string containing paths to binaires of blessed Python interpreters
+    for overriding the Python interpreter used to invoke this PEX. Must be absolute paths to the
+    interpreter.
+
+    Ex: "/path/to/python27:/path/to/python36"
+    """
+    return self._get_string('PEX_PYTHON_PATH', default=None)
+
+  @property
   def PEX_ROOT(self):
     """Directory
 

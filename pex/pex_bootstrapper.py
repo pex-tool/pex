@@ -5,6 +5,12 @@ import os
 import sys
 
 from .common import open_zip
+from .interpreter import PythonInterpreter
+from .interpreter_constraints import (
+    lowest_version_interpreter,
+    matched_interpreters,
+    parse_interpreter_constraints
+)
 
 __all__ = ('bootstrap_pex',)
 
@@ -46,38 +52,42 @@ def get_pex_info(entry_point):
   raise ValueError('Invalid entry_point: %s' % entry_point)
 
 
-def find_in_path(target_interpreter):
-  if os.path.exists(target_interpreter):
-    return target_interpreter
+def _find_compatible_interpreter_in_pex_python_path(target_python_path, compatibility_constraints):
+  parsed_compatibility_constraints = parse_interpreter_constraints(compatibility_constraints)
+  try_binaries = []
+  for binary in target_python_path.split(os.pathsep):
+    try_binaries.append(PythonInterpreter.from_binary(binary))
+  compatible_interpreters = list(matched_interpreters(
+    try_binaries, parsed_compatibility_constraints, meet_all_constraints=True))
+  return lowest_version_interpreter(compatible_interpreters)
 
-  for directory in os.getenv('PATH', '').split(os.pathsep):
-    try_path = os.path.join(directory, target_interpreter)
-    if os.path.exists(try_path):
-      return try_path
 
-
-def maybe_reexec_pex():
+def maybe_reexec_pex(compatibility_constraints=None):
   from .variables import ENV
-  if not ENV.PEX_PYTHON:
+  if not ENV.PEX_PYTHON_PATH or not compatibility_constraints:
     return
 
   from .common import die
   from .tracer import TRACER
 
-  target_python = ENV.PEX_PYTHON
-  target = find_in_path(target_python)
+  target_python_path = ENV.PEX_PYTHON_PATH
+  lowest_version_compatible_interpreter = _find_compatible_interpreter_in_pex_python_path(
+    target_python_path, compatibility_constraints)
+  target = lowest_version_compatible_interpreter.binary
   if not target:
-    die('Failed to find interpreter specified by PEX_PYTHON: %s' % target)
+    die('Failed to find compatible interpreter in PEX_PYTHON_PATH for constraints: %s'
+        % compatibility_constraints)
   if os.path.exists(target) and os.path.realpath(target) != os.path.realpath(sys.executable):
-    TRACER.log('Detected PEX_PYTHON, re-exec to %s' % target)
-    ENV.delete('PEX_PYTHON')
-    os.execve(target, [target_python] + sys.argv, ENV.copy())
+    TRACER.log('Detected PEX_PYTHON_PATH, re-exec to %s' % target)
+    ENV.delete('PEX_PYTHON_PATH')
+    os.execve(target, [target] + sys.argv, ENV.copy())
 
 
 def bootstrap_pex(entry_point):
   from .finders import register_finders
   register_finders()
-  maybe_reexec_pex()
+  pex_info = get_pex_info(entry_point)
+  maybe_reexec_pex(pex_info.interpreter_constraints)
 
   from . import pex
   pex.PEX(entry_point).execute()
