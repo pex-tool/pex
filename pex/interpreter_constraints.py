@@ -3,30 +3,31 @@
 
 # A library of functions for filtering Python interpreters based on compatibility constraints
 
-def _matches(interpreter, filters, match_all=False):
-  if match_all:
+def _matches(interpreter, filters, meet_all_constraints=False):
+  if meet_all_constraints:
     return all(interpreter.identity.matches(filt) for filt in filters)
   else:
     return any(interpreter.identity.matches(filt) for filt in filters)
 
 
-def _matching(interpreters, filters, match_all=False):
+def _matching(interpreters, filters, meet_all_constraints=False):
   for interpreter in interpreters:
-    if _matches(interpreter, filters, match_all):
+    if _matches(interpreter, filters, meet_all_constraints):
       yield interpreter
 
 
-def matched_interpreters(interpreters, filters, match_all=False):
+def matched_interpreters(interpreters, filters, meet_all_constraints=False):
   """Given some filters, yield any interpreter that matches at least one of them, or all of them
-     if match_all is set to True.
+     if meet_all_constraints is set to True.
 
   :param interpreters: a list of PythonInterpreter objects for filtering
   :param filters: A sequence of strings that constrain the interpreter compatibility for this
     pex, using the Requirement-style format, e.g. ``'CPython>=3', or just ['>=2.7','<3']``
     for requirements agnostic to interpreter class.
-  :param match_all: whether to match against all constraints. Defaults to matching one constraint.
+  :param meet_all_constraints: whether to match against all filters.
+    Defaults to matching interpreters that match at least one filter.
   """
-  for match in _matching(interpreters, filters, match_all):
+  for match in _matching(interpreters, filters, meet_all_constraints):
     yield match
 
 
@@ -45,3 +46,13 @@ def parse_interpreter_constraints(constraints_string):
       constraints_string.split(',')))
   else:
     return list(map(lambda x: x.strip(), constraints_string.split(',')))
+
+
+def lowest_version_interpreter(interpreters):
+  """Given a list of interpreters, return the one with the lowest version."""
+  if not interpreters:
+    return None
+  lowest = interpreters[0]
+  for i in interpreters[1:]:
+    lowest = lowest if lowest < i else i
+  return lowest

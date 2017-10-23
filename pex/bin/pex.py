@@ -23,7 +23,11 @@ from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
 from pex.installer import EggInstaller
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import matched_interpreters, parse_interpreter_constraints
+from pex.interpreter_constraints import (
+    lowest_version_interpreter,
+    matched_interpreters,
+    parse_interpreter_constraints
+)
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
 from pex.pex import PEX
@@ -517,14 +521,6 @@ def get_interpreter(python_interpreter, interpreter_cache_dir, repos, use_wheel)
     return interpreter
 
 
-def _lowest_version_interpreter(interpreters):
-  """Given a list of interpreters, return the one with the lowest version."""
-  lowest = interpreters[0]
-  for i in interpreters[1:]:
-    lowest = lowest if lowest < i else i
-  return lowest
-
-
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreters', V=2):
     interpreters = [
@@ -538,7 +534,7 @@ def build_pex(args, options, resolver_option_builder):
   if options.interpreter_constraints:
     safe_constraints = options.interpreter_constraints.strip("'").strip('"')
     constraints = parse_interpreter_constraints(safe_constraints)
-    interpreters = list(matched_interpreters(interpreters, constraints, True))
+    interpreters = list(matched_interpreters(interpreters, constraints, meet_all_constraints=True))
 
   if not interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
@@ -550,7 +546,7 @@ def build_pex(args, options, resolver_option_builder):
     # options.preamble_file is None
     preamble = None
 
-  interpreter = _lowest_version_interpreter(interpreters)
+  interpreter = lowest_version_interpreter(interpreters)
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
   pex_info = pex_builder.info
