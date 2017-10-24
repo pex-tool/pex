@@ -2,7 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import sys
 
+import pytest
 from twitter.common.contextutil import temporary_dir
 
 from pex.common import open_zip
@@ -31,20 +33,25 @@ def test_get_pex_info():
       assert pex_info.dump() == pex_info_2.dump()
 
 
+@pytest.mark.skipif("hasattr(sys, 'pypy_version_info')")
 def test_find_compatible_interpreter_in_python_path():
   root_dir = os.getcwd()
-  interpreters = [PythonInterpreter.from_binary(root_dir + '/.tox/py27/bin/python2.7'),
-                  PythonInterpreter.from_binary(root_dir + '/.tox/py36/bin/python3.6')]
-  pi2 = list(filter(lambda x: '2' in x.binary, interpreters))
-  pi3 = list(filter(lambda x: '3' in x.binary, interpreters))
-  # for some reason pi2 from binary chops off 2.7 from the binary name so I add here
-  pex_python_path = ':'.join([pi2[0].binary + '2.7'] + [pi3[0].binary])
+  if sys.version_info[0] == 3:
+    interpreters = [PythonInterpreter.from_binary(root_dir + '/.tox/py36/bin/python3.6'),
+                    PythonInterpreter.from_binary(root_dir + '/.tox/py36-requests/bin/python3.6')]
+  else:
+    interpreters = [PythonInterpreter.from_binary(root_dir + '/.tox/py27/bin/python2.7'),
+                    PythonInterpreter.from_binary(root_dir + '/.tox/py27-requests/bin/python2.7')]
 
-  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '<3')
-  assert interpreter.binary == pi2[0].binary
+  pex_python_path = ':'.join([interpreters[0].binary] + [interpreters[1].binary])
 
-  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '>3')
-  assert interpreter.binary == pi3[0].binary
+  if sys.version_info[0] == 3:
+    interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '>3')
+    # the returned interpreter will the rightmost interpreter in PPP if all versions are the same
+    assert interpreter.binary == interpreters[1].binary
+  else:
+    interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '<3')
+    assert interpreter.binary == interpreters[1].binary
 
   interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '<2')
   assert interpreter is None

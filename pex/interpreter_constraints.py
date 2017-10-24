@@ -3,6 +3,9 @@
 
 # A library of functions for filtering Python interpreters based on compatibility constraints
 
+from .interpreter import PythonIdentity
+
+
 def _matches(interpreter, filters, meet_all_constraints=False):
   if meet_all_constraints:
     return all(interpreter.identity.matches(filt) for filt in filters)
@@ -14,6 +17,16 @@ def _matching(interpreters, filters, meet_all_constraints=False):
   for interpreter in interpreters:
     if _matches(interpreter, filters, meet_all_constraints):
       yield interpreter
+
+
+def check_requirements_are_well_formed(constraints):
+  # Check that the compatibility requirements are well-formed.
+  for req in constraints:
+    try:
+      PythonIdentity.parse_requirement(req)
+    except ValueError as e:
+      from .common import die
+      die("Compatibility requirements are not formatted properly: %s", str(e))
 
 
 def matched_interpreters(interpreters, filters, meet_all_constraints=False):
@@ -41,11 +54,14 @@ def parse_interpreter_constraints(constraints_string):
     Example: 'CPython>=2.7,<3'
     Return: ['CPython>=2.7', 'CPython<3']
   """
+
   if 'CPython' in constraints_string:
-    return list(map(lambda x: 'CPython' + x.strip() if not 'CPython' in x else x.strip(),
+    ret = list(map(lambda x: 'CPython' + x.strip() if 'CPython' not in x else x.strip(),
       constraints_string.split(',')))
   else:
-    return list(map(lambda x: x.strip(), constraints_string.split(',')))
+    ret = list(map(lambda x: x.strip(), constraints_string.split(',')))
+  check_requirements_are_well_formed(ret)
+  return ret
 
 
 def lowest_version_interpreter(interpreters):
