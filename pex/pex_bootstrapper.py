@@ -52,11 +52,15 @@ def get_pex_info(entry_point):
   raise ValueError('Invalid entry_point: %s' % entry_point)
 
 
+def _get_python_interpreter(binary):
+  return PythonInterpreter.from_binary(binary)
+
+
 def _find_compatible_interpreter_in_pex_python_path(target_python_path, compatibility_constraints):
   parsed_compatibility_constraints = parse_interpreter_constraints(compatibility_constraints)
   try_binaries = []
   for binary in target_python_path.split(os.pathsep):
-    try_binaries.append(PythonInterpreter.from_binary(binary))
+    try_binaries.append(_get_python_interpreter(binary))
   compatible_interpreters = list(matched_interpreters(
     try_binaries, parsed_compatibility_constraints, meet_all_constraints=True))
   return lowest_version_interpreter(compatible_interpreters)
