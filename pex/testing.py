@@ -1,5 +1,6 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+from __future__ import print_function
 
 import contextlib
 import os
@@ -12,7 +13,7 @@ from textwrap import dedent
 
 from .bin.pex import log, main
 from .common import open_zip, safe_mkdir, safe_rmtree
-from .compatibility import nested
+from .compatibility import PY3, nested
 from .executor import Executor
 from .installer import EggInstaller, Packager
 from .pex_builder import PEXBuilder
@@ -244,6 +245,7 @@ def run_pex_command(args, env=None):
 def run_simple_pex(pex, args=(), env=None, stdin=None):
   process = Executor.open_process([sys.executable, pex] + list(args), env=env, combined=True)
   stdout, _ = process.communicate(input=stdin)
+  print(stdout.decode('utf-8') if PY3 else stdout)
   return stdout.replace(b'\r', b''), process.returncode
 
 
