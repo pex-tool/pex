@@ -32,10 +32,13 @@ def test_get_pex_info():
 
 
 def test_find_compatible_interpreter_in_python_path():
-  interpreters = PythonInterpreter.all()
-  pi2 = list(filter(lambda x: '2.' in x.binary, interpreters))
-  pi3 = list(filter(lambda x: '3.' in x.binary, interpreters))
-  pex_python_path = ':'.join([pi2[0].binary] + [pi3[0].binary])
+  root_dir = os.getcwd()
+  interpreters = [PythonInterpreter.from_binary(root_dir + '/.tox/py27/bin/python2.7'),
+                  PythonInterpreter.from_binary(root_dir + '/.tox/py36/bin/python3.6')]
+  pi2 = list(filter(lambda x: '2' in x.binary, interpreters))
+  pi3 = list(filter(lambda x: '3' in x.binary, interpreters))
+  # for some reason pi2 from binary chops off 2.7 from the binary name so I add here
+  pex_python_path = ':'.join([pi2[0].binary + '2.7'] + [pi3[0].binary])
 
   interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '<3')
   assert interpreter.binary == pi2[0].binary

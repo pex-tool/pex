@@ -407,15 +407,18 @@ def test_interpreter_resolution_with_pex_python_path():
     # the line below will return the Python binaries installed on system,
     # including binary of current tox env. If PPP is working correctly, the system binaries
     # will be used to exec the pex instead of the executable of the current tox env.
-    interpreters = PythonInterpreter.all()
-    pi2 = list(filter(lambda i: '2.' in i.binary, interpreters))
-    pi3 = list(filter(lambda i: '3.' in i.binary, interpreters))
+    root_dir = os.getcwd()
+    interpreters = [PythonInterpreter.from_binary(root_dir + '/.tox/py27/bin/python2.7'),
+                    PythonInterpreter.from_binary(root_dir + '/.tox/py36/bin/python3.6')]
+    pi2 = list(filter(lambda i: '2' in i.binary, interpreters))
+    pi3 = list(filter(lambda i: '3' in i.binary, interpreters))
     if not pi2 and not pi3:
       print("Failed to find multiple python interpreters on system")
     else:
       with open(pexrc_path, 'w') as pexrc:
         # set pex python path
-        pex_python_path = ':'.join([pi2[0].binary] + [pi3[0].binary])
+        # for some reason pi2 from binary chops off 2.7 from the binary name so I add here
+        pex_python_path = ':'.join([pi2[0].binary + '2.7'] + [pi3[0].binary])
         pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
 
       # constraint to build pex cleanly; PPP + pex_bootstrapper.py
