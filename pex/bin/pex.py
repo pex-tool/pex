@@ -122,6 +122,12 @@ def process_precedence(option, option_str, option_value, parser, builder):
   elif option_str in ('--no-wheel', '--no-use-wheel'):
     setattr(parser.values, option.dest, False)
     builder.no_use_wheel()
+  elif option_str == '--manylinux':
+    setattr(parser.values, option.dest, True)
+    builder.use_manylinux()
+  elif option_str in ('--no-manylinux', '--no-use-manylinux'):
+    setattr(parser.values, option.dest, False)
+    builder.no_use_manylinux()
   else:
     raise OptionValueError
 
@@ -223,6 +229,16 @@ def configure_clp_pex_resolution(parser, builder):
       callback_args=(builder,),
       help='Whether to allow building of distributions from source; Default: allow builds')
 
+  group.add_option(
+      '--manylinux', '--no-manylinux', '--no-use-manylinux',
+      dest='use_manylinux',
+      default=True,
+      action='callback',
+      callback=process_precedence,
+      callback_args=(builder,),
+      help=('Whether to allow resolution of manylinux packages for linux target '
+            'platforms; Default: allow manylinux'))
+
   # Set the pex tool to fetch from PyPI by default if nothing is specified.
   parser.set_default('repos', [PyPIFetcher()])
   parser.add_option_group(group)
@@ -299,12 +315,16 @@ def configure_clp_pex_environment(parser):
 
   group.add_option(
       '--platform',
-      dest='platform',
+      dest='platforms',
       default=[],
       type=str,
       action='append',
       help='The platform for which to build the PEX. This option can be passed multiple times '
-           'to create a multi-platform compatible pex. Default: current platform.')
+           'to create a multi-platform compatible pex. This option has short and extended forms. '
+           'The short form (e.g. `linux-x86_64`) represents a traditional platform name. The '
+           'extended form permits passing of the platform, implementation, version and ABI '
+           'tags in a one-shot arg (e.g. `linux-x86_64-cp-27-mu`). Default: current platform, '
+           'implementation, version and ABI.')
 
   group.add_option(
       '--interpreter-cache-dir',
@@ -563,10 +583,11 @@ def build_pex(args, options, resolver_option_builder):
     try:
       resolveds = resolve_multi(resolvables,
                                 interpreters=interpreters,
-                                platforms=options.platform,
+                                platforms=options.platforms,
                                 cache=options.cache_dir,
                                 cache_ttl=options.cache_ttl,
-                                allow_prereleases=resolver_option_builder.prereleases_allowed)
+                                allow_prereleases=resolver_option_builder.prereleases_allowed,
+                                use_manylinux=options.use_manylinux)
 
       for dist in resolveds:
         log('  %s' % dist, v=options.verbosity)
@@ -592,6 +613,14 @@ def build_pex(args, options, resolver_option_builder):
 def make_relative_to_root(path):
   """Update options so that defaults are user relative to specified pex_root."""
   return os.path.normpath(path.format(pex_root=ENV.PEX_ROOT))
+
+
+def _compatible_with_current_platform(platforms):
+  return (
+    not platforms or
+    'current' in platforms or
+    str(Platform.current()) in platforms
+  )
 
 
 def main(args=None):
@@ -627,8 +656,8 @@ def main(args=None):
       os.rename(tmp_name, options.pex_name)
       return 0
 
-    if options.platform and Platform.current() not in options.platform:
-      log('WARNING: attempting to run PEX with incompatible platforms!')
+    if not _compatible_with_current_platform(options.platforms):
+      log('WARNING: attempting to run PEX with incompatible build platform!', v=1)
 
     pex_builder.freeze()
 

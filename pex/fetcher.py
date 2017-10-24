@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import re
 import warnings
 from abc import abstractmethod
 
@@ -15,6 +16,11 @@ if PY3:
 else:
   import urlparse
   from urlparse import urljoin
+
+
+def normalize_name(name):
+  """Normalize package name according to PEP-503."""
+  return re.sub(r'[-_.]+', '-', name).lower()
 
 
 class FetcherBase(AbstractClass):
@@ -58,7 +64,7 @@ class PyPIFetcher(FetcherBase):
 
   def urls(self, req):
     req = maybe_requirement(req)
-    return [urljoin(self._pypi_base, '%s/' % req.project_name)]
+    return [urljoin(self._pypi_base, '%s/' % normalize_name(req.project_name))]
 
   def __eq__(self, other):
     if not isinstance(other, PyPIFetcher):

@@ -36,6 +36,13 @@ pex.finders module
     :members:
     :show-inheritance:
 
+pex.glibc module
+-----------------
+
+.. automodule:: pex.glibc
+    :members:
+    :show-inheritance:
+
 pex.http module
 --------------------
 
@@ -78,10 +85,10 @@ pex.package module
     :members:
     :show-inheritance:
 
-pex.pep425 module
+pex.pep425tags module
 -----------------
 
-.. automodule:: pex.pep425
+.. automodule:: pex.pep425tags
     :members:
     :show-inheritance:
 

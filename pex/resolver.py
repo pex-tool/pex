@@ -146,15 +146,16 @@ class Resolver(object):
 
   class Error(Exception): pass
 
-  @classmethod
-  def filter_packages_by_interpreter(cls, packages, interpreter, platform):
-    return [package for package in packages
-        if package.compatible(interpreter.identity, platform)]
-
-  def __init__(self, allow_prereleases=None, interpreter=None, platform=None):
-    self._interpreter = interpreter or PythonInterpreter.get()
-    self._platform = platform or Platform.current()
+  def __init__(self, allow_prereleases=None, interpreter=None, platform=None, use_manylinux=None):
     self._allow_prereleases = allow_prereleases
+    self._interpreter = interpreter or PythonInterpreter.get()
+    self._platform = Platform.create(platform) if platform else Platform.current()
+    self._supported_tags = self._platform.supported_tags(use_manylinux)
+
+  def filter_packages_by_interpreter(self, packages):
+    return [
+      package for package in packages if package.compatible(self._supported_tags)
+    ]
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
@@ -162,11 +163,11 @@ class Resolver(object):
         StaticIterator(existing, allow_prereleases=self._allow_prereleases))
     else:
       existing = resolvable.packages()
-    return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
+    return self.filter_packages_by_interpreter(existing)
 
   def build(self, package, options):
     context = options.get_context()
-    translator = options.get_translator(self._interpreter, self._platform)
+    translator = options.get_translator(self._interpreter, self._supported_tags)
     with TRACER.timed('Fetching %s' % package.url, V=2):
       local_package = Package.from_href(context.fetch(package))
     if local_package is None:
@@ -174,8 +175,14 @@ class Resolver(object):
     with TRACER.timed('Translating %s into distribution' % local_package.local_path, V=2):
       dist = translator.translate(local_package)
     if dist is None:
-      raise Untranslateable('Package %s is not translateable by %s' % (package, translator))
-    if not distribution_compatible(dist, self._interpreter, self._platform):
+      raise Untranslateable(
+        'Package %s is not translateable by %s for platform %s' % (
+          package,
+          translator,
+          self._platform
+        )
+      )
+    if not distribution_compatible(dist, self._supported_tags):
       raise Untranslateable(
         'Could not get distribution for %s on platform %s.' % (package, self._platform))
     return dist
@@ -257,11 +264,7 @@ class CachingResolver(Resolver):
   def package_iterator(self, resolvable, existing=None):
     iterator = Iterator(fetchers=[Fetcher([self.__cache])],
                         allow_prereleases=self._allow_prereleases)
-    packages = self.filter_packages_by_interpreter(
-      resolvable.compatible(iterator),
-      self._interpreter,
-      self._platform
-    )
+    packages = self.filter_packages_by_interpreter(resolvable.compatible(iterator))
 
     if packages and self.__cache_ttl:
       packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
@@ -299,7 +302,8 @@ def resolve(requirements,
             precedence=None,
             cache=None,
             cache_ttl=None,
-            allow_prereleases=None):
+            allow_prereleases=None,
+            use_manylinux=None):
   """Produce all distributions needed to (recursively) meet `requirements`
 
   :param requirements: An iterator of Requirement-like things, either
@@ -329,6 +333,7 @@ def resolve(requirements,
     ``context``.
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
     unspecified only stable versions will be resolved, unless explicitly included.
+  :keyword use_manylinux: (optional) Whether or not to use manylinux for linux resolves.
   :returns: List of :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -356,9 +361,9 @@ def resolve(requirements,
     ``resolver`` is now just a wrapper around the :class:`Resolver` and :class:`CachingResolver`
     classes.
   """
-
   builder = ResolverOptionsBuilder(fetchers=fetchers,
                                    allow_prereleases=allow_prereleases,
+                                   use_manylinux=use_manylinux,
                                    precedence=precedence,
                                    context=context)
 
@@ -366,10 +371,12 @@ def resolve(requirements,
     resolver = CachingResolver(cache,
                                cache_ttl,
                                allow_prereleases=allow_prereleases,
+                               use_manylinux=use_manylinux,
                                interpreter=interpreter,
                                platform=platform)
   else:
     resolver = Resolver(allow_prereleases=allow_prereleases,
+                        use_manylinux=use_manylinux,
                         interpreter=interpreter,
                         platform=platform)
 
@@ -384,7 +391,8 @@ def resolve_multi(requirements,
                   precedence=None,
                   cache=None,
                   cache_ttl=None,
-                  allow_prereleases=None):
+                  allow_prereleases=None,
+                  use_manylinux=None):
   """A generator function that produces all distributions needed to meet `requirements`
   for multiple interpreters and/or platforms.
 
@@ -435,7 +443,8 @@ def resolve_multi(requirements,
                                 precedence,
                                 cache,
                                 cache_ttl,
-                                allow_prereleases):
+                                allow_prereleases,
+                                use_manylinux):
         if resolvable not in seen:
           seen.add(resolvable)
           yield resolvable

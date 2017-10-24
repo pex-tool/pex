@@ -154,22 +154,8 @@ def test_clp_prereleases_resolver():
     import pex.resolver
 
     class BuilderWithFetcher(ResolverOptionsBuilder):
-      def __init__(self,
-                   fetchers=None,
-                   allow_all_external=False,
-                   allow_external=None,
-                   allow_unverified=None,
-                   allow_prereleases=None,
-                   precedence=None,
-                   context=None
-                   ):
-        super(BuilderWithFetcher, self).__init__(fetchers=fetchers,
-                                                 allow_all_external=allow_all_external,
-                                                 allow_external=allow_external,
-                                                 allow_unverified=allow_unverified,
-                                                 allow_prereleases=allow_prereleases,
-                                                 precedence=precedence,
-                                                 context=context)
+      def __init__(self, *args, **kwargs):
+        super(BuilderWithFetcher, self).__init__(*args, **kwargs)
         self._fetchers.insert(0, fetcher)
     # end stub
     #####
