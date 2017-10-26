@@ -400,6 +400,7 @@ def test_resolve_interpreter_with_constraints_option():
       assert res.return_code == 102
 
 
+@pytest.mark.skipif("sys.platform != 'darwin'")
 @pytest.mark.skipif("hasattr(sys, 'pypy_version_info')")
 def test_interpreter_resolution_with_pex_python_path():
   ensure_python_interpreter('2.7.10')
