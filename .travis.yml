@@ -8,6 +8,10 @@ dist: precise
 
 # TRAVIS_PYTHON_VERSION
 
+cache:
+  directories:
+    - .pyenv/
+
 matrix:
   include:
     - language: python

@@ -10,9 +10,9 @@ from twitter.common.contextutil import environment_as, temporary_dir
 
 from pex.compatibility import WINDOWS
 from pex.installer import EggInstaller
-from pex.interpreter import PythonInterpreter
 from pex.pex_bootstrapper import get_pex_info
 from pex.testing import (
+    ensure_python_interpreter,
     get_dep_dist_names_from_pex,
     run_pex_command,
     run_simple_pex,
@@ -402,27 +402,19 @@ def test_resolve_interpreter_with_constraints_option():
 
 @pytest.mark.skipif("hasattr(sys, 'pypy_version_info')")
 def test_interpreter_resolution_with_pex_python_path():
+  ensure_python_interpreter('2.7.10')
+  ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
-    # the line below will return the Python binaries installed on system,
-    # including binary of current tox env. If PPP is working correctly, the system binaries
-    # will be used to exec the pex instead of the executable of the current tox env.
-    root_dir = os.getcwd()
-    if sys.version_info[0] == 3:
-      interpreters = [PythonInterpreter.from_binary(root_dir + '/.tox/py36-requests/bin/python3.6'),
-                      PythonInterpreter.from_binary(root_dir + '/.tox/py36/bin/python3.6')]
-    else:
-      interpreters = [PythonInterpreter.from_binary(root_dir + '/.tox/py27-requests/bin/python2.7'),
-                      PythonInterpreter.from_binary(root_dir + '/.tox/py27/bin/python2.7')]
-
     with open(pexrc_path, 'w') as pexrc:
       # set pex python path
-      pex_python_path = ':'.join([interpreters[0].binary] + [interpreters[1].binary])
+      pex_python_path = ':'.join([os.getcwd() + '/.pyenv/versions/2.7.10/bin/python',
+                                  os.getcwd() + '/.pyenv/versions/3.6.3/bin/python'])
       pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
 
     # constraint to build pex cleanly; PPP + pex_bootstrapper.py
-    # will use these constraints to override sys.executable
-    interpreter_constraint = '>3' if sys.version_info[0] == 3 else '<3'
+    # will use these constraints to override sys.executable on pex re-exec
+    interpreter_constraint = '>3' if sys.version_info[0] == 3 else '>=2.7,<3'
 
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
@@ -430,15 +422,10 @@ def test_interpreter_resolution_with_pex_python_path():
       '-o', pex_out_path])
     res.assert_success()
 
-    stdin_payload = b'import sys; sys.exit(0)'
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
     stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
     assert rc == 0
-
-    version = interpreters[1].version
-    # check that the pex python path python was used instead of tox env python, indicating success
     if sys.version_info[0] == 3:
-      version_str = '.'.join([str(x)for x in version])
-      bytes_version_str = version_str.encode()
-      assert bytes_version_str in stdout
+      assert str(pex_python_path.split(':')[1]).encode() in stdout
     else:
-      assert '.'.join([str(x)for x in version]) in stdout
+      assert str(pex_python_path.split(':')[0]).encode() in stdout

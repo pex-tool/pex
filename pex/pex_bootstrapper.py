@@ -7,7 +7,7 @@ import sys
 from .common import open_zip
 from .interpreter import PythonInterpreter
 from .interpreter_constraints import (
-    lowest_version_interpreter,
+    highest_version_interpreter,
     matched_interpreters,
     parse_interpreter_constraints
 )
@@ -63,7 +63,7 @@ def _find_compatible_interpreter_in_pex_python_path(target_python_path, compatib
     try_binaries.append(_get_python_interpreter(binary))
   compatible_interpreters = list(matched_interpreters(
     try_binaries, parsed_compatibility_constraints, meet_all_constraints=True))
-  return lowest_version_interpreter(compatible_interpreters)
+  return highest_version_interpreter(compatible_interpreters)
 
 
 def maybe_reexec_pex(compatibility_constraints=None):

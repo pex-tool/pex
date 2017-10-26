@@ -72,3 +72,13 @@ def lowest_version_interpreter(interpreters):
   for i in interpreters[1:]:
     lowest = lowest if lowest < i else i
   return lowest
+
+
+def highest_version_interpreter(interpreters):
+  """Given a list of interpreters, return the one with the highest version."""
+  if not interpreters:
+    return None
+  highest = interpreters[0]
+  for i in interpreters[1:]:
+    highest = i if highest < i else highest
+  return highest

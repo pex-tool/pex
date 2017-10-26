@@ -4,6 +4,7 @@
 import contextlib
 import os
 import random
+import subprocess
 import sys
 import tempfile
 from collections import namedtuple
@@ -277,3 +278,17 @@ def combine_pex_coverage(coverage_file_iter):
 
   combined.write()
   return combined.filename
+
+
+def bootstrap_python_installer():
+  install_location = os.getcwd() + '/.pyenv'
+  if not os.path.exists(install_location):
+    subprocess.call(["git", "clone", 'https://github.com/pyenv/pyenv.git', install_location])
+
+
+def ensure_python_interpreter(version):
+  bootstrap_python_installer()
+  install_location = os.getcwd() + '/.pyenv/versions/' + version
+  if not os.path.exists(install_location):
+    os.environ['PYENV_ROOT'] = os.getcwd() + '/.pyenv'
+    subprocess.call([os.getcwd() + '/.pyenv/bin/pyenv', 'install', version])

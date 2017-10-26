@@ -16,8 +16,6 @@ except ImportError:
   import unittest.mock as mock
 
 
-
-
 @pytest.fixture
 def py27_interpreter():
   mock_interpreter = mock.MagicMock()
@@ -78,7 +76,6 @@ def test_get_pex_info():
 
 @mock.patch('pex.interpreter_constraints._matches', side_effect=mock_matches)
 @mock.patch('pex.pex_bootstrapper._get_python_interpreter', side_effect=mock_get_python_interpreter)
-@pytest.mark.skipif("hasattr(sys, 'pypy_version_info')")
 def test_find_compatible_interpreter_in_python_path(mock_get_python_interpreter, mock_matches):
   pex_python_path = ':'.join(['/path/to/python2.7', '/path/to/python3.6'])
 
