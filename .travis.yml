@@ -12,6 +12,9 @@ cache:
   directories:
     - .pyenv/
 
+install:
+  - git clone https://github.com/pyenv/pyenv.git ./.pyenv
+
 matrix:
   include:
     - language: python

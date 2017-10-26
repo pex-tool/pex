@@ -291,7 +291,6 @@ def bootstrap_python_installer():
     log.info("LOGGING SUBPROCESS: %s" % p.communicate())
 
 
-
 def ensure_python_interpreter(version):
   bootstrap_python_installer()
   install_location = os.getcwd() + '/.pyenv/versions/' + version
