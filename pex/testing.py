@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import contextlib
+import logging
 import os
 import random
 import subprocess
@@ -18,6 +19,8 @@ from .installer import EggInstaller, Packager
 from .pex_builder import PEXBuilder
 from .util import DistributionHelper, named_temporary_file
 
+
+log = logging.getLogger(__name__)
 
 @contextlib.contextmanager
 def temporary_dir():
@@ -283,11 +286,10 @@ def combine_pex_coverage(coverage_file_iter):
 def bootstrap_python_installer():
   install_location = os.getcwd() + '/.pyenv'
   if not os.path.exists(install_location):
-    #subprocess.call(["git", "clone", 'https://github.com/pyenv/pyenv.git', install_location])
     p = subprocess.Popen(["git", "clone", 'https://github.com/pyenv/pyenv.git', install_location],
       stdout=subprocess.PIPE)
-    print(p.communicate())
-    raise ValueError(p.communicate())
+    log.info("LOGGING SUBPROCESS: %s" % p.communicate())
+
 
 
 def ensure_python_interpreter(version):
