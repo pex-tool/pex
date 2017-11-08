@@ -335,26 +335,28 @@ def test_interpreter_constraints_to_pex_info():
     # constraint without interpreter class
     pex_out_path = os.path.join(output_dir, 'pex1.pex')
     res = run_pex_command(['--disable-cache',
-      '--interpreter-constraints=">=2.7,<3"',
+      '--interpreter-constraint=>=2.7',
+      '--interpreter-constraint=<3',
       '-o', pex_out_path])
     if sys.version_info[0] == 3:
       assert res.return_code == 102
     else:
       res.assert_success()
       pex_info = get_pex_info(pex_out_path)
-      assert '>=2.7,<3' == pex_info.interpreter_constraints
+      assert ['>=2.7', '<3'] == pex_info.interpreter_constraints
 
     # constraint with interpreter class
     pex_out_path = os.path.join(output_dir, 'pex2.pex')
     res = run_pex_command(['--disable-cache',
-      '--interpreter-constraints="CPython>=2.7,<3"',
+      '--interpreter-constraint=CPython>=2.7',
+      '--interpreter-constraint=CPython<3',
       '-o', pex_out_path])
     if sys.version_info[0] == 3 or hasattr(sys, 'pypy_version_info'):
       assert res.return_code == 102
     else:
       res.assert_success()
       pex_info = get_pex_info(pex_out_path)
-      assert 'CPython>=2.7,<3' == pex_info.interpreter_constraints
+      assert ['CPython>=2.7', 'CPython<3'] == pex_info.interpreter_constraints
 
 
 @pytest.mark.skipif(NOT_CPYTHON_36)
@@ -363,44 +365,48 @@ def test_interpreter_constraints_to_pex_info_py36():
     # constraint without interpreter class
     pex_out_path = os.path.join(output_dir, 'pex1.pex')
     res = run_pex_command(['--disable-cache',
-      '--interpreter-constraints=">=3"',
+      '--interpreter-constraint=>=3',
       '-o', pex_out_path])
     res.assert_success()
     pex_info = get_pex_info(pex_out_path)
-    assert '>=3' == pex_info.interpreter_constraints
+    assert ['>=3'] == pex_info.interpreter_constraints
 
     # constraint with interpreter class
     pex_out_path = os.path.join(output_dir, 'pex2.pex')
     res = run_pex_command(['--disable-cache',
-      '--interpreter-constraints="CPython>=3"',
+      '--interpreter-constraint=CPython>=3',
       '-o', pex_out_path])
     res.assert_success()
     pex_info = get_pex_info(pex_out_path)
-    assert 'CPython>=3' == pex_info.interpreter_constraints
+    assert ['CPython>=3'] == pex_info.interpreter_constraints
 
 
-def test_resolve_interpreter_with_constraints_option():
+def test_interpreter_resolution_with_constraint_option():
   with temporary_dir() as output_dir:
     pex_out_path = os.path.join(output_dir, 'pex1.pex')
     res = run_pex_command(['--disable-cache',
-      '--interpreter-constraints=">=2.7,<3"',
+      '--interpreter-constraint=>=2.7',
+      '--interpreter-constraint=<3',
       '-o', pex_out_path])
     if sys.version_info[0] == 3:
       assert res.return_code == 102
     else:
       res.assert_success()
+      pex_info = get_pex_info(pex_out_path)
+      assert pex_info.build_properties['version'][0] == 2
 
     pex_out_path = os.path.join(output_dir, 'pex2.pex')
     res = run_pex_command(['--disable-cache',
-      '--interpreter-constraints=">3"',
+      '--interpreter-constraint=>3',
       '-o', pex_out_path])
     if sys.version_info[0] == 3:
       res.assert_success()
+      pex_info = get_pex_info(pex_out_path)
+      assert pex_info.build_properties['version'][0] == 3
     else:
       assert res.return_code == 102
 
 
-@pytest.mark.skipif("hasattr(sys, 'pypy_version_info')")
 def test_interpreter_resolution_with_pex_python_path():
   ensure_python_interpreter('2.7.10')
   ensure_python_interpreter('3.6.3')
@@ -408,17 +414,19 @@ def test_interpreter_resolution_with_pex_python_path():
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       # set pex python path
-      pex_python_path = ':'.join([os.getcwd() + '/.pyenv/versions/2.7.10/bin/python',
-                                  os.getcwd() + '/.pyenv/versions/3.6.3/bin/python'])
+      pex_python_path = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
+                                  os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
       pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
 
-    # constraint to build pex cleanly; PPP + pex_bootstrapper.py
+    # constraints to build pex cleanly; PPP + pex_bootstrapper.py
     # will use these constraints to override sys.executable on pex re-exec
-    interpreter_constraint = '>3' if sys.version_info[0] == 3 else '>=2.7,<3'
+    interpreter_constraint1 = '>3' if sys.version_info[0] == 3 else '<3'
+    interpreter_constraint2 = '<3.8' if sys.version_info[0] == 3 else '>=2.7'
 
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
-      '--interpreter-constraints="%s"' % interpreter_constraint,
+      '--interpreter-constraint=%s' % interpreter_constraint1,
+      '--interpreter-constraint=%s' % interpreter_constraint2,
       '-o', pex_out_path])
     res.assert_success()
 
@@ -429,3 +437,151 @@ def test_interpreter_resolution_with_pex_python_path():
       assert str(pex_python_path.split(':')[1]).encode() in stdout
     else:
       assert str(pex_python_path.split(':')[0]).encode() in stdout
+
+
+@pytest.mark.skipif(NOT_CPYTHON_36)
+def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
+  ensure_python_interpreter('2.7.10')
+  ensure_python_interpreter('3.6.3')
+  with temporary_dir() as td:
+    pexrc_path = os.path.join(td, '.pexrc')
+    with open(pexrc_path, 'w') as pexrc:
+      # set both PPP and PP
+      pex_python_path = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
+        os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
+      pexrc.write("PEX_PYTHON_PATH=%s\n" % pex_python_path)
+      pex_python = '/path/to/some/python'
+      pexrc.write("PEX_PYTHON=%s" % pex_python)
+
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraint=>3',
+      '--interpreter-constraint=<3.8',
+      '-o', pex_out_path])
+    res.assert_success()
+
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+    assert rc == 0
+    correct_interpreter_path = pex_python_path.split(':')[1].encode()
+    assert correct_interpreter_path in stdout
+
+
+@pytest.mark.skipif(NOT_CPYTHON_36)
+def test_pex_python():
+  ensure_python_interpreter('2.7.10')
+  ensure_python_interpreter('3.6.3')
+  with temporary_dir() as td:
+    pexrc_path = os.path.join(td, '.pexrc')
+    with open(pexrc_path, 'w') as pexrc:
+      pex_python = os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'
+      pexrc.write("PEX_PYTHON=%s" % pex_python)
+
+    # test PEX_PYTHON
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraint=>3',
+      '--interpreter-constraint=<3.8',
+      '-o', pex_out_path])
+    res.assert_success()
+
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+    assert rc == 0
+    correct_interpreter_path = pex_python.encode()
+    assert correct_interpreter_path in stdout
+
+    # test PEX_PYTHON with incompatible constraints
+    pexrc_path = os.path.join(td, '.pexrc')
+    with open(pexrc_path, 'w') as pexrc:
+      # set PEX_PYTHON
+      pex_python = os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7'
+      pexrc.write("PEX_PYTHON=%s" % pex_python)
+
+    pex_out_path = os.path.join(td, 'pex2.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraint=>3',
+      '--interpreter-constraint=<3.8',
+      '-o', pex_out_path])
+    res.assert_success()
+
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+    assert rc == 1
+    fail_str = 'not compatible with specified interpreter constraints'.encode()
+    assert fail_str in stdout
+
+    # test PEX_PYTHON with no constraints
+    pex_out_path = os.path.join(td, 'pex3.pex')
+    res = run_pex_command(['--disable-cache',
+      '-o', pex_out_path])
+    res.assert_success()
+
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+    assert rc == 0
+    correct_interpreter_path = pex_python.encode()
+    assert correct_interpreter_path in stdout
+
+
+def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
+  with temporary_dir() as td:
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+      '-o', pex_out_path])
+    res.assert_success()
+
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+    assert rc == 0
+    assert str(sys.executable).encode() in stdout
+
+
+def test_pex_exec_with_pex_python_path_only():
+  ensure_python_interpreter('2.7.10')
+  ensure_python_interpreter('3.6.3')
+  with temporary_dir() as td:
+    pexrc_path = os.path.join(td, '.pexrc')
+    with open(pexrc_path, 'w') as pexrc:
+      # set pex python path
+      pex_python_path = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
+        os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
+      pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
+
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+      '-o', pex_out_path])
+    res.assert_success()
+
+    # test that pex bootstrapper selects lowest version interpreter
+    # in pex python path (python2.7)
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+    assert rc == 0
+    assert str(pex_python_path.split(':')[0]).encode() in stdout
+
+
+def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
+  ensure_python_interpreter('2.7.10')
+  ensure_python_interpreter('3.6.3')
+  with temporary_dir() as td:
+    pexrc_path = os.path.join(td, '.pexrc')
+    with open(pexrc_path, 'w') as pexrc:
+      # set both PPP and PP
+      pex_python_path = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
+        os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
+      pexrc.write("PEX_PYTHON_PATH=%s\n" % pex_python_path)
+      pex_python = '/path/to/some/python'
+      pexrc.write("PEX_PYTHON=%s" % pex_python)
+
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+      '-o', pex_out_path])
+    res.assert_success()
+
+    # test that pex bootstrapper selects lowest version interpreter
+    # in pex python path (python2.7)
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+    assert rc == 0
+    assert str(pex_python_path.split(':')[0]).encode() in stdout

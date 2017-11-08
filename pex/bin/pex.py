@@ -23,11 +23,7 @@ from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
 from pex.installer import EggInstaller
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import (
-    lowest_version_interpreter,
-    matched_interpreters,
-    parse_interpreter_constraints
-)
+from pex.interpreter_constraints import check_requirements_are_well_formed, matched_interpreters
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
 from pex.pex import PEX
@@ -295,13 +291,15 @@ def configure_clp_pex_environment(parser):
            'Default: Use current interpreter.')
 
   group.add_option(
-    '--interpreter-constraints',
-    dest='interpreter_constraints',
-    default='',
+    '--interpreter-constraint',
+    dest='interpreter_constraint',
+    default=[],
     type='str',
-    help='A comma-seperated list of constraints that determine the interpreter compatibility for '
-         'this pex, using the Requirement-style format, e.g. "CPython>=3", or just ">=2.7,<3" '
-         'for requirements agnostic to interpreter class.')
+    action='append',
+    help='A constraint that determines the interpreter compatibility for '
+         'this pex, using the Requirement-style format, e.g. "CPython>=3", or ">=2.7" '
+         'for requirements agnostic to interpreter class. This option can be passed multiple '
+         'times.')
 
   group.add_option(
       '--python-shebang',
@@ -531,9 +529,10 @@ def build_pex(args, options, resolver_option_builder):
       for interpreter in options.python or [None]
     ]
 
-  if options.interpreter_constraints:
-    safe_constraints = options.interpreter_constraints.strip("'").strip('"')
-    constraints = parse_interpreter_constraints(safe_constraints)
+  if options.interpreter_constraint:
+    constraints = options.interpreter_constraint
+    # TODO: add check to see if constraints are mutually exclusive (bad) so no time is wasted
+    check_requirements_are_well_formed(constraints)
     interpreters = list(matched_interpreters(interpreters, constraints, meet_all_constraints=True))
 
   if not interpreters:
@@ -546,7 +545,8 @@ def build_pex(args, options, resolver_option_builder):
     # options.preamble_file is None
     preamble = None
 
-  interpreter = lowest_version_interpreter(interpreters)
+  # TODO: make whether to take min or max version interpreter configurable
+  interpreter = min(interpreters)
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
   pex_info = pex_builder.info
@@ -555,8 +555,9 @@ def build_pex(args, options, resolver_option_builder):
   pex_info.always_write_cache = options.always_write_cache
   pex_info.ignore_errors = options.ignore_errors
   pex_info.inherit_path = options.inherit_path
-  if options.interpreter_constraints:
-    pex_info.interpreter_constraints = safe_constraints
+  if options.interpreter_constraint:
+    for ic in constraints:
+      pex_builder.add_interpreter_constraint(ic)
 
   resolvables = [Resolvable.get(arg, resolver_option_builder) for arg in args]
 

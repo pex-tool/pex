@@ -312,6 +312,27 @@ class Variables(object):
     """
     return self._get_bool('PEX_IGNORE_RCFILES', default=False)
 
+  @property
+  def SHOULD_EXIT_BOOTSTRAP_REEXEC(self):
+    """Boolean
+
+    Whether to re-exec in maybe_reexec_pex function of pex_bootstrapper.py. Default: false.
+    This is neccesary because that function relies on checking against variables present in the
+    ENV to determine whether to re-exec or return to current execution. When we introduced
+    interpreter constraints to a pex, these constraints can influence interpreter selection without
+    the need for a PEX_PYTHON or PEX_PYTHON_PATH ENV variable set. Since re-exec previously checked
+    for PEX_PYTHON or PEX_PYTHON_PATH but not constraints, this would result in a loop with no
+    stopping criteria. Setting SHOULD_EXIT_BOOTSTRAP_REEXEC will let the runtime know to break out
+    of a second execution of maybe_reexec_pex if neither PEX_PYTHON or PEX_PYTHON_PATH are set but
+    interpreter constraints are specified.
+    """
+    value = self._environ.get('SHOULD_EXIT_REEXEC', 'False')
+    return False if value == 'False' else True
+
+  @SHOULD_EXIT_BOOTSTRAP_REEXEC.setter
+  def SHOULD_EXIT_BOOTSTRAP_REEXEC(self, value):
+    self._environ['SHOULD_EXIT_REEXEC'] = str(value)
+
 
 # Global singleton environment
 ENV = Variables()

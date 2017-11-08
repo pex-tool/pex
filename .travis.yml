@@ -10,10 +10,7 @@ dist: precise
 
 cache:
   directories:
-    - .pyenv/
-
-install:
-  - git clone https://github.com/pyenv/pyenv.git ./.pyenv
+    - .pyenv_test
 
 matrix:
   include:

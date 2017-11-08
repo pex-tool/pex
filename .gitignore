@@ -10,4 +10,4 @@
 /.idea
 /.coverage*
 /htmlcov
-/.pyenv
+/.pyenv_test

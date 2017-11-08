@@ -26,7 +26,7 @@ def check_requirements_are_well_formed(constraints):
       PythonIdentity.parse_requirement(req)
     except ValueError as e:
       from .common import die
-      die("Compatibility requirements are not formatted properly: %s", str(e))
+      die("Compatibility requirements are not formatted properly: %s" % str(e))
 
 
 def matched_interpreters(interpreters, filters, meet_all_constraints=False):
@@ -42,43 +42,3 @@ def matched_interpreters(interpreters, filters, meet_all_constraints=False):
   """
   for match in _matching(interpreters, filters, meet_all_constraints):
     yield match
-
-
-def parse_interpreter_constraints(constraints_string):
-  """Given a single string defining interpreter constraints, separate them into a list of
-    individual constraint items for PythonIdentity to consume.
-
-    Example: '>=2.7, <3'
-    Return: ['>=2.7', '<3']
-
-    Example: 'CPython>=2.7,<3'
-    Return: ['CPython>=2.7', 'CPython<3']
-  """
-
-  if 'CPython' in constraints_string:
-    ret = list(map(lambda x: 'CPython' + x.strip() if 'CPython' not in x else x.strip(),
-      constraints_string.split(',')))
-  else:
-    ret = list(map(lambda x: x.strip(), constraints_string.split(',')))
-  check_requirements_are_well_formed(ret)
-  return ret
-
-
-def lowest_version_interpreter(interpreters):
-  """Given a list of interpreters, return the one with the lowest version."""
-  if not interpreters:
-    return None
-  lowest = interpreters[0]
-  for i in interpreters[1:]:
-    lowest = lowest if lowest < i else i
-  return lowest
-
-
-def highest_version_interpreter(interpreters):
-  """Given a list of interpreters, return the one with the highest version."""
-  if not interpreters:
-    return None
-  highest = interpreters[0]
-  for i in interpreters[1:]:
-    highest = i if highest < i else highest
-  return highest

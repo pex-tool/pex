@@ -3,55 +3,16 @@
 
 import os
 
-import pytest
 from twitter.common.contextutil import temporary_dir
 
 from pex.common import open_zip
-from pex.pex_bootstrapper import _find_compatible_interpreter_in_pex_python_path, get_pex_info
-from pex.testing import write_simple_pex
-
-try:
-  import mock
-except ImportError:
-  import unittest.mock as mock
-
-
-@pytest.fixture
-def py27_interpreter():
-  mock_interpreter = mock.MagicMock()
-  mock_interpreter.binary = '/path/to/python2.7'
-  mock_interpreter.version = (2, 7, 10)
-  mock_interpreter.__lt__ = lambda x, y: x.version < y.version
-  return mock_interpreter
-
-
-@pytest.fixture
-def py36_interpreter():
-  mock_interpreter = mock.MagicMock()
-  mock_interpreter.binary = '/path/to/python3.6'
-  mock_interpreter.version = (3, 6, 3)
-  mock_interpreter.__lt__ = lambda x, y: x.version < y.version
-  return mock_interpreter
-
-
-def mock_get_python_interpreter(binary):
-  """Patch function for resolving PythonInterpreter mock objects from Pex Python Path"""
-  if '3' in binary:
-    return py36_interpreter()
-  elif '2' in binary:
-    return py27_interpreter()
-
-
-def mock_matches(interpreter, filters, meet_all_constraints):
-  """Patch function for determining if the supplied interpreter complies with the filters"""
-  if '>3' in filters:
-    return True if interpreter.version > (3, 0, 0) else False
-  elif '<3' in filters:
-    return True if interpreter.version < (3, 0, 0) else False
-  elif '>=2.7' in filters:
-    return True if interpreter.version > (2, 7, 0) else False
-  else:
-    return False
+from pex.interpreter import PythonInterpreter
+from pex.pex_bootstrapper import (
+    _find_compatible_interpreters,
+    _get_python_interpreter,
+    get_pex_info
+)
+from pex.testing import ensure_python_interpreter, write_simple_pex
 
 
 def test_get_pex_info():
@@ -74,19 +35,40 @@ def test_get_pex_info():
       assert pex_info.dump() == pex_info_2.dump()
 
 
-@mock.patch('pex.interpreter_constraints._matches', side_effect=mock_matches)
-@mock.patch('pex.pex_bootstrapper._get_python_interpreter', side_effect=mock_get_python_interpreter)
-def test_find_compatible_interpreter_in_python_path(mock_get_python_interpreter, mock_matches):
-  pex_python_path = ':'.join(['/path/to/python2.7', '/path/to/python3.6'])
+def test_find_compatible_interpreters():
+  ensure_python_interpreter('2.7.10')
+  ensure_python_interpreter('3.6.3')
+  pex_python_path = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
+                              os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
 
-  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '>3')
-  assert interpreter.binary == '/path/to/python3.6'
+  interpreters = _find_compatible_interpreters(pex_python_path, ['>3'])
+  assert interpreters[0].binary == pex_python_path.split(':')[1]
 
-  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '<3')
-  assert interpreter.binary == '/path/to/python2.7'
+  interpreters = _find_compatible_interpreters(pex_python_path, ['<3'])
+  assert interpreters[0].binary == pex_python_path.split(':')[0]
 
-  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '<2')
-  assert interpreter is None
+  interpreters = _find_compatible_interpreters(pex_python_path, ['<2'])
+  assert not interpreters
 
-  interpreter = _find_compatible_interpreter_in_pex_python_path(pex_python_path, '>4')
-  assert interpreter is None
+  interpreters = _find_compatible_interpreters(pex_python_path, ['>4'])
+  assert not interpreters
+
+  # test fallback to PATH
+  interpreters = _find_compatible_interpreters('', ['<3'])
+  assert len(interpreters) > 0
+  assert all([i.version < (3, 0, 0) for i in interpreters])
+  assert 'pyenv_test' not in ' '.join([i.binary for i in interpreters])
+
+  interpreters = _find_compatible_interpreters('', ['>3'])
+  assert len(interpreters) > 0
+  assert all([i.version > (3, 0, 0) for i in interpreters])
+  assert 'pyenv_test' not in ' '.join([i.binary for i in interpreters])
+
+
+def test_get_python_interpreter():
+  ensure_python_interpreter('2.7.10')
+  good_binary = os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python'
+  res1 = _get_python_interpreter(good_binary).binary
+  res2 = PythonInterpreter.from_binary(good_binary).binary
+  assert res1 == res2
+  assert _get_python_interpreter('bad/path/to/binary/Python') is None
