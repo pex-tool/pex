@@ -235,7 +235,7 @@ class Variables(object):
   def PEX_PYTHON_PATH(self):
     """String
 
-    A colon-seperated string containing paths to binaires of blessed Python interpreters
+    A colon-seperated string containing binaires of blessed Python interpreters
     for overriding the Python interpreter used to invoke this PEX. Must be absolute paths to the
     interpreter.
 
@@ -326,12 +326,11 @@ class Variables(object):
     of a second execution of maybe_reexec_pex if neither PEX_PYTHON or PEX_PYTHON_PATH are set but
     interpreter constraints are specified.
     """
-    value = self._environ.get('SHOULD_EXIT_REEXEC', 'False')
-    return False if value == 'False' else True
+    return bool(self._environ.get('SHOULD_EXIT_BOOTSTRAP_REEXEC', ''))
 
   @SHOULD_EXIT_BOOTSTRAP_REEXEC.setter
   def SHOULD_EXIT_BOOTSTRAP_REEXEC(self, value):
-    self._environ['SHOULD_EXIT_REEXEC'] = str(value)
+    self._environ['SHOULD_EXIT_BOOTSTRAP_REEXEC'] = str(value)
 
 
 # Global singleton environment

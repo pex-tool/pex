@@ -208,7 +208,8 @@ class PexInfo(object):
     return self._interpreter_constraints
 
   def add_interpreter_constraint(self, value):
-    self._interpreter_constraints.append(str(value))
+    if str(value) not in self._interpreter_constraints:
+      self._interpreter_constraints.append(str(value))
 
   @property
   def ignore_errors(self):
@@ -290,6 +291,7 @@ class PexInfo(object):
     self._pex_info.update(other._pex_info)
     self._distributions.update(other.distributions)
     self._interpreter_constraints.extend(other.interpreter_constraints)
+    self._interpreter_constraints = list(set(self._interpreter_constraints))
     self._requirements.update(other.requirements)
 
   def dump(self, **kwargs):

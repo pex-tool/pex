@@ -61,14 +61,6 @@ def find_in_path(target_interpreter):
       return try_path
 
 
-def _get_python_interpreter(binary):
-  try:
-    return PythonInterpreter.from_binary(binary)
-  # from_binary attempts to execute the interpreter
-  except Executor.ExecutionError:
-    return None
-
-
 def _find_compatible_interpreters(pex_python_path, compatibility_constraints):
   """Find all compatible interpreters on the system within the supplied constraints and use
      PEX_PYTHON_PATH env variable if it is set. If not, fall back to interpreters on $PATH.
@@ -76,84 +68,87 @@ def _find_compatible_interpreters(pex_python_path, compatibility_constraints):
   if pex_python_path:
     interpreters = []
     for binary in pex_python_path.split(os.pathsep):
-      pi = _get_python_interpreter(binary)
-      if pi:
-        interpreters.append(pi)
+      try:
+        interpreters.append(PythonInterpreter.from_binary(binary))
+      except Executor.ExecutionError:
+        pass
     if not interpreters:
-      die('No interpreters from PEX_PYTHON_PATH can be found on the system. Exiting.')
+      die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
   else:
     # All qualifying interpreters found in $PATH
     interpreters = PythonInterpreter.all()
 
-  compatible_interpreters = list(matched_interpreters(
+  return list(matched_interpreters(
     interpreters, compatibility_constraints, meet_all_constraints=True))
-  return compatible_interpreters if compatible_interpreters else None
 
 
-def _handle_pex_python(target_python, compatibility_constraints):
+def _select_pex_python_interpreter(target_python, compatibility_constraints):
   """Re-exec using the PEX_PYTHON interpreter"""
   target = find_in_path(target_python)
+
   if not target:
     die('Failed to find interpreter specified by PEX_PYTHON: %s' % target)
   elif compatibility_constraints:
     pi = PythonInterpreter.from_binary(target)
-    if not all(pi.identity.matches(constraint) for constraint in compatibility_constraints):
+    if not list(matched_interpreters([pi], compatibility_constraints, meet_all_constraints=True)):
       die('Interpreter specified by PEX_PYTHON (%s) is not compatible with specified '
           'interpreter constraints: %s' % (target, str(compatibility_constraints)))
   if os.path.exists(target) and os.path.realpath(target) != os.path.realpath(sys.executable):
     TRACER.log('Detected PEX_PYTHON, re-exec to %s' % target)
-    ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC = True
-    os.execve(target, [target_python] + sys.argv, ENV.copy())
+    return target
 
 
-def _handle_general_interpreter_selection(pex_python_path, compatibility_constraints):
+def _select_interpreter(pex_python_path, compatibility_constraints):
   """Handle selection in the case that PEX_PYTHON_PATH is set or interpreter compatibility
      constraints are specified.
   """
   compatible_interpreters = _find_compatible_interpreters(
     pex_python_path, compatibility_constraints)
 
-  target = None
-  if compatible_interpreters:
-    target = min(compatible_interpreters).binary
-  if not target:
+  if not compatible_interpreters:
     die('Failed to find compatible interpreter for constraints: %s'
         % str(compatibility_constraints))
+  # TODO: https://github.com/pantsbuild/pex/issues/430
+  target = min(compatible_interpreters).binary
+
   if os.path.exists(target) and os.path.realpath(target) != os.path.realpath(sys.executable):
     if pex_python_path:
       TRACER.log('Detected PEX_PYTHON_PATH, re-exec to %s' % target)
     else:
       TRACER.log('Re-exec to interpreter %s that matches constraints: %s' % (target,
         str(compatibility_constraints)))
-    ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC = True
-    os.execve(target, [target] + sys.argv, ENV.copy())
+    return target
 
 
-def maybe_reexec_pex(compatibility_constraints=None):
+def maybe_reexec_pex(compatibility_constraints):
+
   if ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC:
     return
-  if ENV.PEX_PYTHON and ENV.PEX_PYTHON_PATH:
-    # both vars are defined, fall through to PEX_PYTHON_PATH resolution (give precedence to PPP)
-    pass
-  elif ENV.PEX_PYTHON:
-    # preserve PEX_PYTHON re-exec for backwards compatibility
-    _handle_pex_python(ENV.PEX_PYTHON, compatibility_constraints)
 
-  if not compatibility_constraints:
+  selected_interpreter = None
+  if ENV.PEX_PYTHON and not ENV.PEX_PYTHON_PATH:
+    # preserve PEX_PYTHON re-exec for backwards compatibility
+    selected_interpreter = _select_pex_python_interpreter(ENV.PEX_PYTHON, compatibility_constraints)
+  elif ENV.PEX_PYTHON_PATH:
+  #if not compatibility_constraints:
     # if no compatibility constraints are specified, we want to match against
     # the lowest-versioned interpreter in PEX_PYTHON_PATH if it is set
-    if not ENV.PEX_PYTHON_PATH:
+    #if not ENV.PEX_PYTHON_PATH:
       # no PEX_PYTHON_PATH, PEX_PYTHON, or interpreter constraints, continue as normal
-      return
-
-  _handle_general_interpreter_selection(ENV.PEX_PYTHON_PATH, compatibility_constraints)
+      #return
+    selected_interpreter = _select_interpreter(ENV.PEX_PYTHON_PATH, compatibility_constraints)
+  if selected_interpreter:
+    ENV.delete('PEX_PYTHON')
+    ENV.delete('PEX_PYTHON_PATH')
+    ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC = True
+    os.execve(selected_interpreter, [selected_interpreter] + sys.argv[1:], ENV.copy())
 
 
 def bootstrap_pex(entry_point):
   from .finders import register_finders
   register_finders()
-  pex_info = get_pex_info(entry_point)
-  with TRACER.timed('Bootstrapping pex with maybe_reexec_pex', V=2):
+  with TRACER.timed('Bootstrapping pex with maybe_reexec_pex', V=3):
+    pex_info = get_pex_info(entry_point)
     maybe_reexec_pex(pex_info.interpreter_constraints)
 
   from . import pex
