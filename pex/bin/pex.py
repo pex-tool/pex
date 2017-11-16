@@ -23,7 +23,7 @@ from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
 from pex.installer import EggInstaller
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import check_requirements_are_well_formed, matched_interpreters
+from pex.interpreter_constraints import matched_interpreters, validate_constraints
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
 from pex.pex import PEX
@@ -530,9 +530,15 @@ def build_pex(args, options, resolver_option_builder):
     ]
 
   if options.interpreter_constraint:
+    # Overwrite the current interpreter as defined by sys.executable.
+    # NB: options.python and interpreter constraints cannot be used together, so this will not
+    # affect usages of the interpreter(s) specified by the "--python" command line flag
+    if ENV.PEX_PYTHON_PATH:
+      interpreters = PythonInterpreter.all(ENV.PEX_PYTHON_PATH.split(os.pathsep))
+    else:
+      interpreters = PythonInterpreter.all()
     constraints = options.interpreter_constraint
-    # TODO: add check to see if constraints are mutually exclusive (bad) so no time is wasted
-    check_requirements_are_well_formed(constraints)
+    validate_constraints(constraints)
     interpreters = list(matched_interpreters(interpreters, constraints, meet_all_constraints=True))
 
   if not interpreters:
@@ -545,7 +551,6 @@ def build_pex(args, options, resolver_option_builder):
     # options.preamble_file is None
     preamble = None
 
-  # TODO: make whether to take min or max version interpreter configurable
   interpreter = min(interpreters)
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
@@ -619,6 +624,9 @@ def main(args=None):
     args, cmdline = args, []
 
   options, reqs = parser.parse_args(args=args)
+  if options.python and options.interpreter_constraint:
+    die('The "--python" and "--interpreter constraint" options cannot be used together.')
+
   if options.pex_root:
     ENV.set('PEX_ROOT', options.pex_root)
   else:
