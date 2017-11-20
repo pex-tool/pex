@@ -332,36 +332,23 @@ def test_pex_path_in_pex_info_and_env():
 
 def test_interpreter_constraints_to_pex_info():
   with temporary_dir() as output_dir:
+    os.environ["PATH"] = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
+      os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
     # constraint without interpreter class
     pex_out_path = os.path.join(output_dir, 'pex1.pex')
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraint=>=2.7',
       '--interpreter-constraint=<3',
       '-o', pex_out_path])
-    if sys.version_info[0] == 3:
-      assert res.return_code == 102
-    else:
-      res.assert_success()
-      pex_info = get_pex_info(pex_out_path)
-      assert ['>=2.7', '<3'] == pex_info.interpreter_constraints
-
-    # constraint with interpreter class
-    pex_out_path = os.path.join(output_dir, 'pex2.pex')
-    res = run_pex_command(['--disable-cache',
-      '--interpreter-constraint=CPython>=2.7',
-      '--interpreter-constraint=CPython<3',
-      '-o', pex_out_path])
-    if sys.version_info[0] == 3 or hasattr(sys, 'pypy_version_info'):
-      assert res.return_code == 102
-    else:
-      res.assert_success()
-      pex_info = get_pex_info(pex_out_path)
-      assert ['CPython>=2.7', 'CPython<3'] == pex_info.interpreter_constraints
+    res.assert_success()
+    pex_info = get_pex_info(pex_out_path)
+    assert ['>=2.7', '<3'] == pex_info.interpreter_constraints
 
 
-@pytest.mark.skipif(NOT_CPYTHON_36)
 def test_interpreter_constraints_to_pex_info_py36():
   with temporary_dir() as output_dir:
+    os.environ["PATH"] = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
+      os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
     # constraint without interpreter class
     pex_out_path = os.path.join(output_dir, 'pex1.pex')
     res = run_pex_command(['--disable-cache',
@@ -371,46 +358,26 @@ def test_interpreter_constraints_to_pex_info_py36():
     pex_info = get_pex_info(pex_out_path)
     assert ['>=3'] == pex_info.interpreter_constraints
 
-    # constraint with interpreter class
-    pex_out_path = os.path.join(output_dir, 'pex2.pex')
-    res = run_pex_command(['--disable-cache',
-      '--interpreter-constraint=CPython>=3',
-      '-o', pex_out_path])
-    res.assert_success()
-    pex_info = get_pex_info(pex_out_path)
-    assert ['CPython>=3'] == pex_info.interpreter_constraints
-
 
 def test_interpreter_resolution_with_constraint_option():
   with temporary_dir() as output_dir:
+    os.environ["PATH"] = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
+      os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
     pex_out_path = os.path.join(output_dir, 'pex1.pex')
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraint=>=2.7',
       '--interpreter-constraint=<3',
       '-o', pex_out_path])
-    if sys.version_info[0] == 3:
-      assert res.return_code == 102
-    else:
-      res.assert_success()
-      pex_info = get_pex_info(pex_out_path)
-      assert pex_info.build_properties['version'][0] == 2
-
-    pex_out_path = os.path.join(output_dir, 'pex2.pex')
-    res = run_pex_command(['--disable-cache',
-      '--interpreter-constraint=>3',
-      '-o', pex_out_path])
-    if sys.version_info[0] == 3:
-      res.assert_success()
-      pex_info = get_pex_info(pex_out_path)
-      assert pex_info.build_properties['version'][0] == 3
-    else:
-      assert res.return_code == 102
+    res.assert_success()
+    pex_info = get_pex_info(pex_out_path)
+    assert ['>=2.7', '<3'] == pex_info.interpreter_constraints
 
 
 def test_interpreter_resolution_with_pex_python_path():
   ensure_python_interpreter('2.7.10')
   ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
+    os.environ["PATH"] = '/path/that/will/not/be/used'
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       # set pex python path
@@ -432,6 +399,7 @@ def test_interpreter_resolution_with_pex_python_path():
 
     stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
     stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+
     assert rc == 0
     if sys.version_info[0] == 3:
       assert str(pex_python_path.split(':')[1]).encode() in stdout
@@ -444,6 +412,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
   ensure_python_interpreter('2.7.10')
   ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
+    os.environ["PATH"] = '/path/that/will/not/be/used'
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       # set both PPP and PP
@@ -472,7 +441,9 @@ def test_pex_python():
   ensure_python_interpreter('2.7.10')
   ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
+    os.environ["PATH"] = '/path/that/will/not/be/used'
     pexrc_path = os.path.join(td, '.pexrc')
+
     with open(pexrc_path, 'w') as pexrc:
       pex_python = os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'
       pexrc.write("PEX_PYTHON=%s" % pex_python)
@@ -526,6 +497,7 @@ def test_pex_python():
 
 def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
   with temporary_dir() as td:
+    os.environ["PATH"] = '/path/that/will/not/be/used'
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
       '-o', pex_out_path])
@@ -541,6 +513,7 @@ def test_pex_exec_with_pex_python_path_only():
   ensure_python_interpreter('2.7.10')
   ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
+    os.environ["PATH"] = '/path/that/will/not/be/used'
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       # set pex python path
@@ -565,6 +538,7 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
   ensure_python_interpreter('2.7.10')
   ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
+    os.environ["PATH"] = '/path/that/will/not/be/used'
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       # set both PPP and PP

@@ -61,13 +61,14 @@ def find_in_path(target_interpreter):
       return try_path
 
 
-def _find_compatible_interpreters(pex_python_path, compatibility_constraints):
+def find_compatible_interpreters(pex_python_path, compatibility_constraints):
   """Find all compatible interpreters on the system within the supplied constraints and use
      PEX_PYTHON_PATH env variable if it is set. If not, fall back to interpreters on $PATH.
   """
   if pex_python_path:
     interpreters = []
     for binary in pex_python_path.split(os.pathsep):
+
       try:
         interpreters.append(PythonInterpreter.from_binary(binary))
       except Executor.ExecutionError:
@@ -75,8 +76,12 @@ def _find_compatible_interpreters(pex_python_path, compatibility_constraints):
     if not interpreters:
       die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
   else:
-    # All qualifying interpreters found in $PATH
-    interpreters = PythonInterpreter.all()
+    if not os.getenv('PATH', ''):
+      # Use sys.executable if no PATH variable present
+      return [PythonInterpreter.get()]
+    else:
+      # All qualifying interpreters found in $PATH
+      interpreters = PythonInterpreter.all()
 
   return list(matched_interpreters(
     interpreters, compatibility_constraints, meet_all_constraints=True))
@@ -102,7 +107,7 @@ def _select_interpreter(pex_python_path, compatibility_constraints):
   """Handle selection in the case that PEX_PYTHON_PATH is set or interpreter compatibility
      constraints are specified.
   """
-  compatible_interpreters = _find_compatible_interpreters(
+  compatible_interpreters = find_compatible_interpreters(
     pex_python_path, compatibility_constraints)
 
   if not compatible_interpreters:

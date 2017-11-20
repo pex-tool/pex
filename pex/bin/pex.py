@@ -23,10 +23,11 @@ from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
 from pex.installer import EggInstaller
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import matched_interpreters, validate_constraints
+from pex.interpreter_constraints import validate_constraints
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
 from pex.pex import PEX
+from pex.pex_bootstrapper import find_compatible_interpreters
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
@@ -533,13 +534,9 @@ def build_pex(args, options, resolver_option_builder):
     # Overwrite the current interpreter as defined by sys.executable.
     # NB: options.python and interpreter constraints cannot be used together, so this will not
     # affect usages of the interpreter(s) specified by the "--python" command line flag
-    if ENV.PEX_PYTHON_PATH:
-      interpreters = PythonInterpreter.all(ENV.PEX_PYTHON_PATH.split(os.pathsep))
-    else:
-      interpreters = PythonInterpreter.all()
     constraints = options.interpreter_constraint
     validate_constraints(constraints)
-    interpreters = list(matched_interpreters(interpreters, constraints, meet_all_constraints=True))
+    interpreters = find_compatible_interpreters(ENV.PEX_PYTHON_PATH, constraints)
 
   if not interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
@@ -552,6 +549,7 @@ def build_pex(args, options, resolver_option_builder):
     preamble = None
 
   interpreter = min(interpreters)
+
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
   pex_info = pex_builder.info
