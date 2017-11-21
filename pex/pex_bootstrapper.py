@@ -79,6 +79,7 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
       # no $PATH, use sys.executable
       return [PythonInterpreter.get()]
     else:
+      raise ValueError(os.getenv('PATH', ''))
       # get all qualifying interpreters found in $PATH
       interpreters = PythonInterpreter.all()
 
