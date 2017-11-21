@@ -332,31 +332,33 @@ def test_pex_path_in_pex_info_and_env():
 
 def test_interpreter_constraints_to_pex_info():
   with temporary_dir() as output_dir:
-    env = os.environ.copy()
-    env['PATH'] = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
-      os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
-
     # target python 2
     pex_out_path = os.path.join(output_dir, 'pex1.pex')
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraint=>=2.7',
       '--interpreter-constraint=<3',
-      '-o', pex_out_path], env=env)
+      '-o', pex_out_path])
     res.assert_success()
     pex_info = get_pex_info(pex_out_path)
     assert ['>=2.7', '<3'] == pex_info.interpreter_constraints
 
+    # target python 3
+    pex_out_path = os.path.join(output_dir, 'pex1.pex')
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraint=>3',
+      '-o', pex_out_path])
+    res.assert_success()
+    pex_info = get_pex_info(pex_out_path)
+    assert ['>3'] == pex_info.interpreter_constraints
+
 
 def test_interpreter_resolution_with_constraint_option():
   with temporary_dir() as output_dir:
-    env = os.environ.copy()
-    env['PATH'] = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
-      os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
     pex_out_path = os.path.join(output_dir, 'pex1.pex')
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraint=>=2.7',
       '--interpreter-constraint=<3',
-      '-o', pex_out_path], env=env)
+      '-o', pex_out_path])
     res.assert_success()
     pex_info = get_pex_info(pex_out_path)
     assert ['>=2.7', '<3'] == pex_info.interpreter_constraints
