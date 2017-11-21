@@ -8,6 +8,10 @@ dist: precise
 
 # TRAVIS_PYTHON_VERSION
 
+env:
+  global:
+    - PATH=/home/travis/build/pantsbuild/pex/.tox/py36/bin:/home/travis/build/pantsbuild/pex/.tox/py27/bin
+
 cache:
   directories:
     - .pyenv_test
