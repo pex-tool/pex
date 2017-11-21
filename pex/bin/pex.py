@@ -534,6 +534,14 @@ def build_pex(args, options, resolver_option_builder):
   # It is only neccesary to cover the case where the pexrc file is located in the same
   # directory as the output pex. The other supported pexrc locations (/etc/pexrc) do not
   # require special treatment for reading at build time.
+  if options.pex_name:
+    if '/' in options.pex_name:  # the output pex is not in the working directory
+      pexrc_dir = os.path.dirname(options.pex_name)
+    else:
+      pexrc_dir = os.getcwd()
+  else:
+    pexrc_dir = ''
+  pexrc = os.path.join(pexrc_dir, '.pexrc')
 
   if options.interpreter_constraint:
     # Overwrite the current interpreter as defined by sys.executable.
@@ -541,7 +549,8 @@ def build_pex(args, options, resolver_option_builder):
     # affect usages of the interpreter(s) specified by the "--python" command line flag
     constraints = options.interpreter_constraint
     validate_constraints(constraints)
-    interpreters = find_compatible_interpreters(ENV.PEX_PYTHON_PATH, constraints)
+    pex_python_path = Variables.from_rc(pexrc).get('PEX_PYTHON_PATH', '')
+    interpreters = find_compatible_interpreters(pex_python_path, constraints)
 
   if not interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
