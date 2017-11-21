@@ -424,13 +424,10 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
     assert correct_interpreter_path in stdout
 
 
-@pytest.mark.skipif(NOT_CPYTHON_36)
 def test_pex_python():
   ensure_python_interpreter('2.7.10')
   ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
-    env = os.environ.copy()
-    env['PATH'] = '/some/path'
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       pex_python = os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'
@@ -441,11 +438,11 @@ def test_pex_python():
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraint=>3',
       '--interpreter-constraint=<3.8',
-      '-o', pex_out_path], env=env)
+      '-o', pex_out_path])
     res.assert_success()
 
     stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
     assert rc == 0
     correct_interpreter_path = pex_python.encode()
     assert correct_interpreter_path in stdout
@@ -460,11 +457,11 @@ def test_pex_python():
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraint=>3',
       '--interpreter-constraint=<3.8',
-      '-o', pex_out_path], env=env)
+      '-o', pex_out_path])
     res.assert_success()
 
     stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
     assert rc == 1
     fail_str = 'not compatible with specified interpreter constraints'.encode()
     assert fail_str in stdout
@@ -472,11 +469,11 @@ def test_pex_python():
     # test PEX_PYTHON with no constraints
     pex_out_path = os.path.join(td, 'pex3.pex')
     res = run_pex_command(['--disable-cache',
-      '-o', pex_out_path], env=env)
+      '-o', pex_out_path])
     res.assert_success()
 
     stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
     assert rc == 0
     correct_interpreter_path = pex_python.encode()
     assert correct_interpreter_path in stdout

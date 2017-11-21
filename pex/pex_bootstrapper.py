@@ -65,6 +65,7 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
   """Find all compatible interpreters on the system within the supplied constraints and use
      PEX_PYTHON_PATH env variable if it is set. If not, fall back to interpreters on $PATH.
   """
+  '''
   if pex_python_path:
     interpreters = []
     for binary in pex_python_path.split(os.pathsep):
@@ -80,7 +81,8 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
       return [PythonInterpreter.get()]
     else:
       # get all qualifying interpreters found in $PATH
-      interpreters = PythonInterpreter.all()
+  '''
+  interpreters = PythonInterpreter.all()
 
   return list(matched_interpreters(
     interpreters, compatibility_constraints, meet_all_constraints=True))
