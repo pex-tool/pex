@@ -75,7 +75,7 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
     if not interpreters:
       die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
   else:
-    if os.getenv('PATH', ''):
+    if not os.getenv('PATH', ''):
       # no $PATH, use sys.executable
       return [PythonInterpreter.get()]
     else:
