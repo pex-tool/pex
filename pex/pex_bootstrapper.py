@@ -68,7 +68,6 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
   if pex_python_path:
     interpreters = []
     for binary in pex_python_path.split(os.pathsep):
-
       try:
         interpreters.append(PythonInterpreter.from_binary(binary))
       except Executor.ExecutionError:
