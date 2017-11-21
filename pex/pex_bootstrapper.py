@@ -77,10 +77,10 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
       die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
   else:
     if not os.getenv('PATH', ''):
-      # Use sys.executable if no PATH variable present
+      # no $PATH, use sys.executable
       return [PythonInterpreter.get()]
     else:
-      # All qualifying interpreters found in $PATH
+      # get all qualifying interpreters found in $PATH
       interpreters = PythonInterpreter.all()
 
   return list(matched_interpreters(
@@ -135,12 +135,6 @@ def maybe_reexec_pex(compatibility_constraints):
     # preserve PEX_PYTHON re-exec for backwards compatibility
     selected_interpreter = _select_pex_python_interpreter(ENV.PEX_PYTHON, compatibility_constraints)
   elif ENV.PEX_PYTHON_PATH:
-  #if not compatibility_constraints:
-    # if no compatibility constraints are specified, we want to match against
-    # the lowest-versioned interpreter in PEX_PYTHON_PATH if it is set
-    #if not ENV.PEX_PYTHON_PATH:
-      # no PEX_PYTHON_PATH, PEX_PYTHON, or interpreter constraints, continue as normal
-      #return
     selected_interpreter = _select_interpreter(ENV.PEX_PYTHON_PATH, compatibility_constraints)
   if selected_interpreter:
     ENV.delete('PEX_PYTHON')

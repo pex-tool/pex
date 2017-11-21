@@ -76,7 +76,6 @@ class PEXBuilder(object):
       interpreter exit.
     """
     self._chroot = chroot or Chroot(path or safe_mkdtemp())
-    self._pex_info = pex_info or PexInfo.default()
     self._frozen = False
     self._interpreter = interpreter or PythonInterpreter.get()
     self._shebang = self._interpreter.identity.hashbang()
@@ -84,6 +83,10 @@ class PEXBuilder(object):
     self._preamble = to_bytes(preamble or '')
     self._copy = copy
     self._distributions = set()
+    if interpreter:
+      self._pex_info = pex_info or PexInfo.default(interpreter)
+    else:
+      self._pex_info = pex_info or PexInfo.default()
 
   def _ensure_unfrozen(self, name='Operation'):
     if self._frozen:

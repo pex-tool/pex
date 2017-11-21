@@ -33,11 +33,30 @@ class Variables(object):
       variable_type, variable_text = cls.process_pydoc(getattr(value, '__doc__'))
       yield variable_name, variable_type, variable_text
 
+  @classmethod
+  def from_rc(cls, rc):
+    """Read pex runtime configuration variables from a pexrc file."""
+    ret_vars = {}
+    for filename in ['/etc/pexrc', rc, os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]:
+      try:
+        with open(os.path.expanduser(filename)) as fh:
+          rc_items = map(cls._get_kv, fh)
+          ret_vars.update(dict(filter(None, rc_items)))
+      except IOError:
+        continue
+    return ret_vars
+
+  @classmethod
+  def _get_kv(cls, variable):
+    kv = variable.strip().split('=')
+    if len(list(filter(None, kv))) == 2:
+      return kv
+
   def __init__(self, environ=None, rc='~/.pexrc', use_defaults=True):
     self._use_defaults = use_defaults
     self._environ = environ.copy() if environ else os.environ
     if not self.PEX_IGNORE_RCFILES:
-      rc_values = self._from_rc(rc).copy()
+      rc_values = self.from_rc(rc).copy()
       rc_values.update(self._environ)
       self._environ = rc_values
 
@@ -49,22 +68,6 @@ class Variables(object):
 
   def set(self, variable, value):
     self._environ[variable] = str(value)
-
-  def _from_rc(self, rc):
-    ret_vars = {}
-    for filename in ['/etc/pexrc', rc, os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]:
-      try:
-        with open(os.path.expanduser(filename)) as fh:
-          rc_items = map(self._get_kv, fh)
-          ret_vars.update(dict(filter(None, rc_items)))
-      except IOError:
-        continue
-    return ret_vars
-
-  def _get_kv(self, variable):
-    kv = variable.strip().split('=')
-    if len(list(filter(None, kv))) == 2:
-      return kv
 
   def _defaulted(self, default):
     return default if self._use_defaults else None

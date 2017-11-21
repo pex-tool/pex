@@ -51,11 +51,16 @@ class PexInfo(object):
   INTERNAL_CACHE = '.deps'
 
   @classmethod
-  def make_build_properties(cls):
+  def make_build_properties(cls, interpreter=None):
     from .interpreter import PythonInterpreter
     from pkg_resources import get_platform
 
-    pi = PythonInterpreter.get()
+    if interpreter:
+      # construct pex info with proper build properties if using an
+      # interpreter other than sys.executable
+      pi = interpreter
+    else:
+      pi = PythonInterpreter.get()
     return {
       'class': pi.identity.interpreter,
       'version': pi.identity.version,
@@ -63,11 +68,11 @@ class PexInfo(object):
     }
 
   @classmethod
-  def default(cls):
+  def default(cls, interpreter=None):
     pex_info = {
       'requirements': [],
       'distributions': {},
-      'build_properties': cls.make_build_properties(),
+      'build_properties': cls.make_build_properties(interpreter),
     }
     return cls(info=pex_info)
 
