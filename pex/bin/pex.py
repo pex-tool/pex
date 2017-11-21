@@ -546,7 +546,7 @@ def build_pex(args, options, resolver_option_builder):
   if options.interpreter_constraint:
     # Overwrite the current interpreter as defined by sys.executable.
     # NB: options.python and interpreter constraints cannot be used together, so this will not
-    # affect usages of the interpreter(s) specified by the "--python" command line flag
+    # affect usages of the interpreter(s) specified by the "--python" command line flag.
     constraints = options.interpreter_constraint
     validate_constraints(constraints)
     pex_python_path = Variables.from_rc(pexrc).get('PEX_PYTHON_PATH', '')
