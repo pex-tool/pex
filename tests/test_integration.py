@@ -346,15 +346,6 @@ def test_interpreter_constraints_to_pex_info():
     pex_info = get_pex_info(pex_out_path)
     assert ['>=2.7', '<3'] == pex_info.interpreter_constraints
 
-    # target python 3
-    pex_out_path = os.path.join(output_dir, 'pex2.pex')
-    res = run_pex_command(['--disable-cache',
-      '--interpreter-constraint=>=3',
-      '-o', pex_out_path], env=env)
-    res.assert_success()
-    pex_info = get_pex_info(pex_out_path)
-    assert ['>=3'] == pex_info.interpreter_constraints
-
 
 def test_interpreter_resolution_with_constraint_option():
   with temporary_dir() as output_dir:
