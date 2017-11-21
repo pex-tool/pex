@@ -549,8 +549,8 @@ def build_pex(args, options, resolver_option_builder):
     # affect usages of the interpreter(s) specified by the "--python" command line flag
     constraints = options.interpreter_constraint
     validate_constraints(constraints)
-    pex_python_path = Variables.from_rc(pexrc).get('PEX_PYTHON_PATH', '')
-    interpreters = find_compatible_interpreters(pex_python_path, constraints)
+    #pex_python_path = Variables.from_rc(pexrc).get('PEX_PYTHON_PATH', '')
+    interpreters = find_compatible_interpreters('', constraints)
 
   if not interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
