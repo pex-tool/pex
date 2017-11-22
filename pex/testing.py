@@ -301,3 +301,4 @@ def ensure_python_interpreter(version):
   if not os.path.exists(install_location):
     os.environ['PYENV_ROOT'] = os.path.join(os.getcwd(), '.pyenv_test')
     subprocess.call([os.path.join(os.getcwd(), '.pyenv_test/bin/pyenv'), 'install', version])
+  return os.path.join(install_location, 'bin', 'python' + version[0:3])

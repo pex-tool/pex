@@ -35,7 +35,11 @@ class Variables(object):
 
   @classmethod
   def from_rc(cls, rc):
-    """Read pex runtime configuration variables from a pexrc file."""
+    """Read pex runtime configuration variables from a pexrc file.
+
+       :param rc: an absolute path to a pexrc file
+       :return ret_vars: a dict object containing key values pairs found in processed pexrc files
+    """
     ret_vars = {}
     for filename in ['/etc/pexrc', rc, os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]:
       try:
@@ -238,7 +242,7 @@ class Variables(object):
   def PEX_PYTHON_PATH(self):
     """String
 
-    A colon-seperated string containing binaires of blessed Python interpreters
+    A colon-separated string containing binaires of blessed Python interpreters
     for overriding the Python interpreter used to invoke this PEX. Must be absolute paths to the
     interpreter.
 
@@ -320,7 +324,7 @@ class Variables(object):
     """Boolean
 
     Whether to re-exec in maybe_reexec_pex function of pex_bootstrapper.py. Default: false.
-    This is neccesary because that function relies on checking against variables present in the
+    This is necessary because that function relies on checking against variables present in the
     ENV to determine whether to re-exec or return to current execution. When we introduced
     interpreter constraints to a pex, these constraints can influence interpreter selection without
     the need for a PEX_PYTHON or PEX_PYTHON_PATH ENV variable set. Since re-exec previously checked
