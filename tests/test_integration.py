@@ -366,14 +366,14 @@ def test_interpreter_resolution_with_constraint_option():
 
 
 def test_interpreter_resolution_with_pex_python_path():
-  ensure_python_interpreter('2.7.10')
-  ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       # set pex python path
-      pex_python_path = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
-                                  os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
+      pex_python_path = ':'.join([
+        ensure_python_interpreter('2.7.10'),
+        ensure_python_interpreter('3.6.3')
+      ])
       pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
 
     # constraints to build pex cleanly; PPP + pex_bootstrapper.py
@@ -400,14 +400,14 @@ def test_interpreter_resolution_with_pex_python_path():
 
 @pytest.mark.skipif(NOT_CPYTHON_36)
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
-  ensure_python_interpreter('2.7.10')
-  ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       # set both PPP and PP
-      pex_python_path = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
-        os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
+      pex_python_path = ':'.join([
+        ensure_python_interpreter('2.7.10'),
+        ensure_python_interpreter('3.6.3')
+      ])
       pexrc.write("PEX_PYTHON_PATH=%s\n" % pex_python_path)
       pex_python = '/path/to/some/python'
       pexrc.write("PEX_PYTHON=%s" % pex_python)
@@ -440,14 +440,14 @@ def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
 
 
 def test_pex_exec_with_pex_python_path_only():
-  ensure_python_interpreter('2.7.10')
-  ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       # set pex python path
-      pex_python_path = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
-        os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
+      pex_python_path = ':'.join([
+        ensure_python_interpreter('2.7.10'),
+        ensure_python_interpreter('3.6.3')
+      ])
       pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
 
     pex_out_path = os.path.join(td, 'pex.pex')
@@ -464,14 +464,14 @@ def test_pex_exec_with_pex_python_path_only():
 
 
 def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
-  ensure_python_interpreter('2.7.10')
-  ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
       # set both PPP and PP
-      pex_python_path = ':'.join([os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7',
-        os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'])
+      pex_python_path = ':'.join([
+        ensure_python_interpreter('2.7.10'),
+        ensure_python_interpreter('3.6.3')
+      ])
       pexrc.write("PEX_PYTHON_PATH=%s\n" % pex_python_path)
       pex_python = '/path/to/some/python'
       pexrc.write("PEX_PYTHON=%s" % pex_python)
