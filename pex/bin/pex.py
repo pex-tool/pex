@@ -530,8 +530,8 @@ def build_pex(args, options, resolver_option_builder):
       for interpreter in options.python or [None]
     ]
 
-  # NB: this block is neccesary to load variables from the pexrc runtime configuration.
-  # It is only neccesary to cover the case where the pexrc file is located in the same
+  # NB: this block is necessary to load variables from the pexrc runtime configuration.
+  # It is only necessary to cover the case where the pexrc file is located in the same
   # directory as the output pex. The other supported pexrc locations (/etc/pexrc) do not
   # require special treatment for reading at build time.
   if options.pex_name:
@@ -539,9 +539,9 @@ def build_pex(args, options, resolver_option_builder):
       pexrc_dir = os.path.dirname(options.pex_name)
     else:
       pexrc_dir = os.getcwd()
+    pexrc = os.path.join(pexrc_dir, '.pexrc')
   else:
-    pexrc_dir = ''
-  pexrc = os.path.join(pexrc_dir, '.pexrc')
+    pexrc = '.pexrc'
 
   if options.interpreter_constraint:
     # Overwrite the current interpreter as defined by sys.executable.
@@ -637,7 +637,7 @@ def main(args=None):
 
   options, reqs = parser.parse_args(args=args)
   if options.python and options.interpreter_constraint:
-    die('The "--python" and "--interpreter constraint" options cannot be used together.')
+    die('The "--python" and "--interpreter-constraint" options cannot be used together.')
 
   if options.pex_root:
     ENV.set('PEX_ROOT', options.pex_root)

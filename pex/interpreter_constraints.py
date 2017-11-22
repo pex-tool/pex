@@ -36,7 +36,9 @@ def matched_interpreters(interpreters, constraints, meet_all_constraints=False):
   :param meet_all_constraints: whether to match against all filters.
     Defaults to matching interpreters that match at least one filter.
   """
-  for match in _matching(interpreters, constraints, meet_all_constraints):
-    TRACER.log("Constraints on interpreters: %s, Matching Interpreter: %s"
-              % (constraints, match.binary), V=3)
-    yield match
+  check = all if meet_all_constraints else any
+  for interpreter in interpreters:
+    if check(interpreter.identity.matches(filt) for filt in constraints):
+      TRACER.log("Constraints on interpreters: %s, Matching Interpreter: %s"
+                 % (constraints, interpreter.binary), V=3)
+      yield interpreter

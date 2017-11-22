@@ -10,6 +10,8 @@ dist: precise
 
 env:
   global:
+    # This is necessary to have consistent testing of methods that rely on falling back to PATH for
+    # selecting a python interpreter.
     - PATH=/home/travis/build/pantsbuild/pex/.tox/py36/bin:/home/travis/build/pantsbuild/pex/.tox/py27/bin
 
 cache:
