@@ -36,14 +36,26 @@ def test_find_compatible_interpreters():
     ensure_python_interpreter('2.7.9'),
     ensure_python_interpreter('2.7.10'),
     ensure_python_interpreter('2.7.11'),
+    ensure_python_interpreter('3.4.2'),
+    ensure_python_interpreter('3.5.4'),
+    ensure_python_interpreter('3.6.2'),
     ensure_python_interpreter('3.6.3')
   ])
 
   interpreters = find_compatible_interpreters(pex_python_path, ['>3'])
-  assert interpreters[0].binary == pex_python_path.split(':')[3]  # 3.6.3
+  assert interpreters[0].binary == pex_python_path.split(':')[3]  # 3.4.2
 
   interpreters = find_compatible_interpreters(pex_python_path, ['<3'])
   assert interpreters[0].binary == pex_python_path.split(':')[0]  # 2.7.9
+
+  interpreters = find_compatible_interpreters(pex_python_path, ['>3.5.4'])
+  assert interpreters[0].binary == pex_python_path.split(':')[5]  # 3.6.2
+
+  interpreters = find_compatible_interpreters(pex_python_path, ['>3.4.2, <3.6'])
+  assert interpreters[0].binary == pex_python_path.split(':')[4]  # 3.5.4
+
+  interpreters = find_compatible_interpreters(pex_python_path, ['>3.6.2'])
+  assert interpreters[0].binary == pex_python_path.split(':')[6]  # 3.6.3
 
   interpreters = find_compatible_interpreters(pex_python_path, ['<2'])
   assert not interpreters

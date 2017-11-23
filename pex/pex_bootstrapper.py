@@ -71,7 +71,7 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
       try:
         interpreters.append(PythonInterpreter.from_binary(binary))
       except Executor.ExecutionError:
-        pass
+        TRACER.log("Python interpreter %s in PEX_PYTHON_PATH failed to load properly." % binary)
     if not interpreters:
       die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
   else:
