@@ -34,7 +34,7 @@ class Variables(object):
       yield variable_name, variable_type, variable_text
 
   @classmethod
-  def from_rc(cls, rc, build_time_rc_dir=''):
+  def from_rc(cls, rc='~/.pexrc', build_time_rc_dir=None):
     """Read pex runtime configuration variables from a pexrc file.
 
     :param rc: an absolute path to a pexrc file
