@@ -55,12 +55,7 @@ class PexInfo(object):
     from .interpreter import PythonInterpreter
     from pkg_resources import get_platform
 
-    if interpreter:
-      # construct pex info with proper build properties if using an
-      # interpreter other than sys.executable
-      pi = interpreter
-    else:
-      pi = PythonInterpreter.get()
+    pi = interpreter or PythonInterpreter.get()
     return {
       'class': pi.identity.interpreter,
       'version': pi.identity.version,

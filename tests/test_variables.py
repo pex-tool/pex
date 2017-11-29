@@ -1,6 +1,7 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import os
 import pytest
 
 from pex.util import named_temporary_file
@@ -84,27 +85,30 @@ def test_pex_get_kv():
 
 
 def test_pex_from_rc():
-  with named_temporary_file(mode='w') as pexrc:
+  with open('.pexrc', 'w') as pexrc:
     pexrc.write('HELLO=42')
     pexrc.flush()
-    v = Variables(rc=pexrc.name)
+    v = Variables()
     assert v._get_int('HELLO') == 42
+  os.remove('.pexrc')
 
 
 def test_pexrc_precedence():
-  with named_temporary_file(mode='w') as pexrc:
+  with open('.pexrc', 'w') as pexrc:
     pexrc.write('HELLO=FORTYTWO')
     pexrc.flush()
-    v = Variables(environ={'HELLO': 42}, rc=pexrc.name)
+    v = Variables(environ={'HELLO': 42})
     assert v._get_int('HELLO') == 42
+  os.remove('.pexrc')
 
 
 def test_rc_ignore():
-  with named_temporary_file(mode='w') as pexrc:
+  with open('.pexrc', 'w') as pexrc:
     pexrc.write('HELLO=FORTYTWO')
     pexrc.flush()
-    v = Variables(environ={'PEX_IGNORE_RCFILES': 'True'}, rc=pexrc.name)
+    v = Variables(environ={'PEX_IGNORE_RCFILES': 'True'})
     assert 'HELLO' not in v._environ
+  os.remove('.pexrc')
 
 
 def test_pex_vars_defaults_stripped():

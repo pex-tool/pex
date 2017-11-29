@@ -91,7 +91,7 @@ def _select_pex_python_interpreter(target_python, compatibility_constraints):
 
   if not target:
     die('Failed to find interpreter specified by PEX_PYTHON: %s' % target)
-  elif compatibility_constraints:
+  if compatibility_constraints:
     pi = PythonInterpreter.from_binary(target)
     if not list(matched_interpreters([pi], compatibility_constraints, meet_all_constraints=True)):
       die('Interpreter specified by PEX_PYTHON (%s) is not compatible with specified '
@@ -125,7 +125,7 @@ def maybe_reexec_pex(compatibility_constraints):
   a matching interpreter in accordance with the interpreter constraints. If both variables are
   present in a pexrc, this function gives precedence to PEX_PYTHON_PATH and errors out if no
   compatible interpreters can be found on said path. If neither variable is set, fall through to
-  plain pex execution using the currently executing Python interpreter.
+  plain pex execution using PATH searching or the currently executing interpreter.
 
   :param compatibility_constraints: list of requirements-style strings that constrain the
   Python interpreter to re-exec this pex with.

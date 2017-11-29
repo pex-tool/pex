@@ -34,11 +34,10 @@ class Variables(object):
       yield variable_name, variable_type, variable_text
 
   @classmethod
-  def from_rc(cls, rc='~/.pexrc', build_time_rc_dir=None):
+  def from_rc(cls, build_time_rc=None):
     """Read pex runtime configuration variables from a pexrc file.
 
-    :param rc: an absolute path to a pexrc file
-    :param build_time_rc_dir: an absolute path to a directory containing a pexrc. This is needed to
+    :param build_time_rc: an absolute path to a pexrc. This is needed to
     read a pexrc at build time in the case where a pexrc is located in the same directory as a the
     output pex.
 
@@ -46,13 +45,11 @@ class Variables(object):
     """
     ret_vars = {}
     rc_locations = ['/etc/pexrc',
-                    rc,
+                    '~/.pexrc',
                     os.path.join(os.path.dirname(sys.argv[0]), '.pexrc'),
-                    os.getcwd()]
-    if not rc:
-      rc_locations.append('~/.pexrc')
-    if build_time_rc_dir:
-      rc_locations.append(os.path.join(build_time_rc_dir, '.pexrc'))
+                    os.path.join(os.getcwd(), '.pexrc')]
+    if build_time_rc:
+      rc_locations.append(build_time_rc)
     for filename in rc_locations:
       try:
         with open(os.path.expanduser(filename)) as fh:
@@ -68,11 +65,11 @@ class Variables(object):
     if len(list(filter(None, kv))) == 2:
       return kv
 
-  def __init__(self, environ=None, rc='~/.pexrc', use_defaults=True):
+  def __init__(self, environ=None, use_defaults=True):
     self._use_defaults = use_defaults
     self._environ = environ.copy() if environ else os.environ
     if not self.PEX_IGNORE_RCFILES:
-      rc_values = self.from_rc(rc).copy()
+      rc_values = self.from_rc().copy()
       rc_values.update(self._environ)
       self._environ = rc_values
 
@@ -254,7 +251,7 @@ class Variables(object):
   def PEX_PYTHON_PATH(self):
     """String
 
-    A colon-separated string containing binaires of blessed Python interpreters
+    A colon-separated string containing paths of blessed Python interpreters
     for overriding the Python interpreter used to invoke this PEX. Must be absolute paths to the
     interpreter.
 

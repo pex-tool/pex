@@ -8,13 +8,6 @@ from .interpreter import PythonIdentity
 from .tracer import TRACER
 
 
-def _matching(interpreters, constraints, meet_all_constraints=False):
-  for interpreter in interpreters:
-    check = all if meet_all_constraints else any
-    if check(interpreter.identity.matches(filt) for filt in constraints):
-      yield interpreter
-
-
 def validate_constraints(constraints):
   # TODO: add check to see if constraints are mutually exclusive (bad) so no time is wasted
   # Check that the compatibility requirements are well-formed.

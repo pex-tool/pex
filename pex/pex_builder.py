@@ -83,10 +83,7 @@ class PEXBuilder(object):
     self._preamble = to_bytes(preamble or '')
     self._copy = copy
     self._distributions = set()
-    if interpreter:
-      self._pex_info = pex_info or PexInfo.default(interpreter)
-    else:
-      self._pex_info = pex_info or PexInfo.default()
+    self._pex_info = pex_info or PexInfo.default(interpreter)
 
   def _ensure_unfrozen(self, name='Operation'):
     if self._frozen:
