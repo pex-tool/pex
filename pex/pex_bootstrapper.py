@@ -138,6 +138,8 @@ def maybe_reexec_pex(compatibility_constraints):
   with TRACER.timed('Selecting runtime interpreter based on pexrc', V=3):
     if ENV.PEX_PYTHON and not ENV.PEX_PYTHON_PATH:
       # preserve PEX_PYTHON re-exec for backwards compatibility
+      # TODO: Kill this off completely in favor of PEX_PYTHON_PATH
+      # https://github.com/pantsbuild/pex/issues/431
       selected_interpreter = _select_pex_python_interpreter(ENV.PEX_PYTHON,
                                                             compatibility_constraints)
     elif ENV.PEX_PYTHON_PATH:
