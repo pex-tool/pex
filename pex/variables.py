@@ -34,13 +34,10 @@ class Variables(object):
       yield variable_name, variable_type, variable_text
 
   @classmethod
-  def from_rc(cls, build_time_rc=None):
+  def from_rc(cls, rc=None):
     """Read pex runtime configuration variables from a pexrc file.
 
-    :param build_time_rc: an absolute path to a pexrc. This is needed to
-    read a pexrc at build time in the case where a pexrc is located in the same directory as a the
-    output pex.
-
+    :param rc: an absolute path to a pexrc file.
     :return ret_vars: a dict object containing key values pairs found in processed pexrc files
     """
     ret_vars = {}
@@ -48,8 +45,8 @@ class Variables(object):
                     '~/.pexrc',
                     os.path.join(os.path.dirname(sys.argv[0]), '.pexrc'),
                     os.path.join(os.getcwd(), '.pexrc')]
-    if build_time_rc:
-      rc_locations.append(build_time_rc)
+    if rc:
+      rc_locations.append(rc)
     for filename in rc_locations:
       try:
         with open(os.path.expanduser(filename)) as fh:

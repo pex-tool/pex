@@ -303,6 +303,14 @@ def configure_clp_pex_environment(parser):
          'times.')
 
   group.add_option(
+    '--rcfile',
+    dest='rc_file',
+    default=None,
+    help='A path to a pexrc file. NOTE: this flag is for testing purposes only. It is to '
+         'be used in the case that a pexrc lives in the same directory as the created '
+         'output pex as is the case with the pex integration tests.')
+
+  group.add_option(
       '--python-shebang',
       dest='python_shebang',
       default=None,
@@ -535,10 +543,10 @@ def build_pex(args, options, resolver_option_builder):
     # affect usages of the interpreter(s) specified by the "--python" command line flag.
     constraints = options.interpreter_constraint
     validate_constraints(constraints)
-    # Special accommodations are needed at build time to read a pexrc that is in the same
-    # directory as the output pex.
-    pexrc = os.path.join(os.path.dirname(options.pex_name), '.pexrc')
-    rc_variables = Variables.from_rc(build_time_rc=pexrc)
+    pexrc = None
+    if options.rc_file:
+      pexrc = options.rc_file
+    rc_variables = Variables.from_rc(rc=pexrc)
     pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
     interpreters = find_compatible_interpreters(pex_python_path, constraints)
 

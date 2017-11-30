@@ -123,7 +123,8 @@ class PexInfo(object):
                        '%s of type %s' % (info, type(info)))
     self._pex_info = info or {}
     self._distributions = self._pex_info.get('distributions', {})
-    self._interpreter_constraints = self._pex_info.get('interpreter_constraints', [])
+    # cast as set because pex info from json must store interpreter_constraints as a list
+    self._interpreter_constraints = set(self._pex_info.get('interpreter_constraints', set()))
     requirements = self._pex_info.get('requirements', [])
     if not isinstance(requirements, (list, tuple)):
       raise ValueError('Expected requirements to be a list, got %s' % type(requirements))
@@ -205,11 +206,10 @@ class PexInfo(object):
     This property will be used at exec time when bootstrapping a pex to search PEX_PYTHON_PATH
     for a list of compatible interpreters.
     """
-    return self._interpreter_constraints
+    return list(self._interpreter_constraints)
 
   def add_interpreter_constraint(self, value):
-    if str(value) not in self._interpreter_constraints:
-      self._interpreter_constraints.append(str(value))
+    self._interpreter_constraints.add(str(value))
 
   @property
   def ignore_errors(self):
@@ -290,14 +290,13 @@ class PexInfo(object):
       raise TypeError('Cannot merge a %r with PexInfo' % type(other))
     self._pex_info.update(other._pex_info)
     self._distributions.update(other.distributions)
-    self._interpreter_constraints.extend(other.interpreter_constraints)
-    self._interpreter_constraints = list(set(self._interpreter_constraints))
+    self._interpreter_constraints.update(other.interpreter_constraints)
     self._requirements.update(other.requirements)
 
   def dump(self, **kwargs):
     pex_info_copy = self._pex_info.copy()
     pex_info_copy['requirements'] = list(self._requirements)
-    pex_info_copy['interpreter_constraints'] = self._interpreter_constraints
+    pex_info_copy['interpreter_constraints'] = list(self._interpreter_constraints)
     pex_info_copy['distributions'] = self._distributions.copy()
     return json.dumps(pex_info_copy, **kwargs)
 

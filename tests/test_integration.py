@@ -340,7 +340,7 @@ def test_interpreter_constraints_to_pex_info():
       '-o', pex_out_path])
     res.assert_success()
     pex_info = get_pex_info(pex_out_path)
-    assert ['>=2.7', '<3'] == pex_info.interpreter_constraints
+    assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
     # target python 3
     pex_out_path = os.path.join(output_dir, 'pex1.pex')
@@ -361,7 +361,7 @@ def test_interpreter_resolution_with_constraint_option():
       '-o', pex_out_path])
     res.assert_success()
     pex_info = get_pex_info(pex_out_path)
-    assert ['>=2.7', '<3'] == pex_info.interpreter_constraints
+    assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
     assert pex_info.build_properties['version'][0] < 3
 
 
@@ -383,6 +383,7 @@ def test_interpreter_resolution_with_pex_python_path():
 
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
+      '--rcfile=%s' % pexrc_path,
       '--interpreter-constraint=%s' % interpreter_constraint1,
       '--interpreter-constraint=%s' % interpreter_constraint2,
       '-o', pex_out_path])
@@ -414,6 +415,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
 
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
+      '--rcfile=%s' % pexrc_path,
       '--interpreter-constraint=>3',
       '--interpreter-constraint=<3.8',
       '-o', pex_out_path])
@@ -452,6 +454,7 @@ def test_pex_exec_with_pex_python_path_only():
 
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
+      '--rcfile=%s' % pexrc_path,
       '-o', pex_out_path])
     res.assert_success()
 
@@ -478,6 +481,7 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
 
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
+      '--rcfile=%s' % pexrc_path,
       '-o', pex_out_path])
     res.assert_success()
 
@@ -501,6 +505,7 @@ def test_pex_python():
     # test PEX_PYTHON with valid constraints
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
+      '--rcfile=%s' % pexrc_path,
       '--interpreter-constraint=>3',
       '--interpreter-constraint=<3.8',
       '-o', pex_out_path])
@@ -520,9 +525,10 @@ def test_pex_python():
 
     pex_out_path = os.path.join(td, 'pex2.pex')
     res = run_pex_command(['--disable-cache',
-        '--interpreter-constraint=>3',
-        '--interpreter-constraint=<3.8',
-        '-o', pex_out_path])
+      '--rcfile=%s' % pexrc_path,
+      '--interpreter-constraint=>3',
+      '--interpreter-constraint=<3.8',
+      '-o', pex_out_path])
     res.assert_success()
 
     stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
@@ -534,7 +540,8 @@ def test_pex_python():
     # test PEX_PYTHON with no constraints
     pex_out_path = os.path.join(td, 'pex3.pex')
     res = run_pex_command(['--disable-cache',
-        '-o', pex_out_path])
+      '--rcfile=%s' % pexrc_path,
+      '-o', pex_out_path])
     res.assert_success()
 
     stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
