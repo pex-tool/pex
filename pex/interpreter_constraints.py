@@ -1,4 +1,4 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2017 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 # A library of functions for filtering Python interpreters based on compatibility constraints
@@ -9,9 +9,10 @@ from .tracer import TRACER
 
 
 def validate_constraints(constraints):
-  # TODO: add check to see if constraints are mutually exclusive (bad) so no time is wasted
-  # Check that the compatibility requirements are well-formed.
+  # TODO: add check to see if constraints are mutually exclusive (bad) so no time is wasted:
+  # https://github.com/pantsbuild/pex/issues/432
   for req in constraints:
+    # Check that the compatibility requirements are well-formed.
     try:
       PythonIdentity.parse_requirement(req)
     except ValueError as e:
@@ -28,6 +29,7 @@ def matched_interpreters(interpreters, constraints, meet_all_constraints=False):
     for requirements agnostic to interpreter class.
   :param meet_all_constraints: whether to match against all filters.
     Defaults to matching interpreters that match at least one filter.
+  :return interpreter: returns a generator that yields compatible interpreters
   """
   check = all if meet_all_constraints else any
   for interpreter in interpreters:
