@@ -38,13 +38,13 @@ class Variables(object):
     """Read pex runtime configuration variables from a pexrc file.
 
     :param rc: an absolute path to a pexrc file.
-    :return ret_vars: a dict object containing key values pairs found in processed pexrc files
+    :return: A dict of key value pairs found in processed pexrc files.
+    :rtype: dict
     """
     ret_vars = {}
     rc_locations = ['/etc/pexrc',
                     '~/.pexrc',
-                    os.path.join(os.path.dirname(sys.argv[0]), '.pexrc'),
-                    os.path.join(os.getcwd(), '.pexrc')]
+                    os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]
     if rc:
       rc_locations.append(rc)
     for filename in rc_locations:
@@ -62,11 +62,11 @@ class Variables(object):
     if len(list(filter(None, kv))) == 2:
       return kv
 
-  def __init__(self, environ=None, use_defaults=True):
+  def __init__(self, environ=None, rc=None, use_defaults=True):
     self._use_defaults = use_defaults
     self._environ = environ.copy() if environ else os.environ
     if not self.PEX_IGNORE_RCFILES:
-      rc_values = self.from_rc().copy()
+      rc_values = self.from_rc(rc).copy()
       rc_values.update(self._environ)
       self._environ = rc_values
 

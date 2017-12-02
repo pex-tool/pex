@@ -1,6 +1,6 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+from __future__ import print_function
 import os
 import sys
 
@@ -71,7 +71,8 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
       try:
         interpreters.append(PythonInterpreter.from_binary(binary))
       except Executor.ExecutionError:
-        TRACER.log("Python interpreter %s in PEX_PYTHON_PATH failed to load properly." % binary)
+        print("Python interpreter %s in PEX_PYTHON_PATH failed to load properly." % binary,
+          file=sys.stderr)
     if not interpreters:
       die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
   else:

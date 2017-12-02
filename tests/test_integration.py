@@ -494,12 +494,10 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
 
 
 def test_pex_python():
-  ensure_python_interpreter('2.7.10')
-  ensure_python_interpreter('3.6.3')
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
-      pex_python = os.getcwd() + '/.pyenv_test/versions/3.6.3/bin/python3.6'
+      pex_python = ensure_python_interpreter('3.6.3')
       pexrc.write("PEX_PYTHON=%s" % pex_python)
 
     # test PEX_PYTHON with valid constraints
@@ -520,7 +518,7 @@ def test_pex_python():
     # test PEX_PYTHON with incompatible constraints
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
-      pex_python = os.getcwd() + '/.pyenv_test/versions/2.7.10/bin/python2.7'
+      pex_python = ensure_python_interpreter('2.7.10')
       pexrc.write("PEX_PYTHON=%s" % pex_python)
 
     pex_out_path = os.path.join(td, 'pex2.pex')
