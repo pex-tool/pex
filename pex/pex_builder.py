@@ -76,7 +76,6 @@ class PEXBuilder(object):
       interpreter exit.
     """
     self._chroot = chroot or Chroot(path or safe_mkdtemp())
-    self._pex_info = pex_info or PexInfo.default()
     self._frozen = False
     self._interpreter = interpreter or PythonInterpreter.get()
     self._shebang = self._interpreter.identity.hashbang()
@@ -84,6 +83,7 @@ class PEXBuilder(object):
     self._preamble = to_bytes(preamble or '')
     self._copy = copy
     self._distributions = set()
+    self._pex_info = pex_info or PexInfo.default(interpreter)
 
   def _ensure_unfrozen(self, name='Operation'):
     if self._frozen:
@@ -165,6 +165,15 @@ class PEXBuilder(object):
     """
     self._ensure_unfrozen('Adding a requirement')
     self._pex_info.add_requirement(req)
+
+  def add_interpreter_constraint(self, ic):
+    """Add an interpreter constraint to the PEX environment.
+
+    :param ic: A version constraint on the interpreter used to build and run this PEX environment.
+
+    """
+    self._ensure_unfrozen('Adding an interpreter constraint')
+    self._pex_info.add_interpreter_constraint(ic)
 
   def set_executable(self, filename, env_filename=None):
     """Set the executable for this environment.

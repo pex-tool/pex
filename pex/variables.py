@@ -33,11 +33,40 @@ class Variables(object):
       variable_type, variable_text = cls.process_pydoc(getattr(value, '__doc__'))
       yield variable_name, variable_type, variable_text
 
-  def __init__(self, environ=None, rc='~/.pexrc', use_defaults=True):
+  @classmethod
+  def from_rc(cls, rc=None):
+    """Read pex runtime configuration variables from a pexrc file.
+
+    :param rc: an absolute path to a pexrc file.
+    :return: A dict of key value pairs found in processed pexrc files.
+    :rtype: dict
+    """
+    ret_vars = {}
+    rc_locations = ['/etc/pexrc',
+                    '~/.pexrc',
+                    os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]
+    if rc:
+      rc_locations.append(rc)
+    for filename in rc_locations:
+      try:
+        with open(os.path.expanduser(filename)) as fh:
+          rc_items = map(cls._get_kv, fh)
+          ret_vars.update(dict(filter(None, rc_items)))
+      except IOError:
+        continue
+    return ret_vars
+
+  @classmethod
+  def _get_kv(cls, variable):
+    kv = variable.strip().split('=')
+    if len(list(filter(None, kv))) == 2:
+      return kv
+
+  def __init__(self, environ=None, rc=None, use_defaults=True):
     self._use_defaults = use_defaults
     self._environ = environ.copy() if environ else os.environ
     if not self.PEX_IGNORE_RCFILES:
-      rc_values = self._from_rc(rc).copy()
+      rc_values = self.from_rc(rc).copy()
       rc_values.update(self._environ)
       self._environ = rc_values
 
@@ -49,22 +78,6 @@ class Variables(object):
 
   def set(self, variable, value):
     self._environ[variable] = str(value)
-
-  def _from_rc(self, rc):
-    ret_vars = {}
-    for filename in ['/etc/pexrc', rc, os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]:
-      try:
-        with open(os.path.expanduser(filename)) as fh:
-          rc_items = map(self._get_kv, fh)
-          ret_vars.update(dict(filter(None, rc_items)))
-      except IOError:
-        continue
-    return ret_vars
-
-  def _get_kv(self, variable):
-    kv = variable.strip().split('=')
-    if len(list(filter(None, kv))) == 2:
-      return kv
 
   def _defaulted(self, default):
     return default if self._use_defaults else None
@@ -232,6 +245,18 @@ class Variables(object):
     return self._get_string('PEX_PYTHON', default=None)
 
   @property
+  def PEX_PYTHON_PATH(self):
+    """String
+
+    A colon-separated string containing paths of blessed Python interpreters
+    for overriding the Python interpreter used to invoke this PEX. Must be absolute paths to the
+    interpreter.
+
+    Ex: "/path/to/python27:/path/to/python36"
+    """
+    return self._get_string('PEX_PYTHON_PATH', default=None)
+
+  @property
   def PEX_ROOT(self):
     """Directory
 
@@ -299,6 +324,26 @@ class Variables(object):
     Explicitly disable the reading/parsing of pexrc files (~/.pexrc). Default: false.
     """
     return self._get_bool('PEX_IGNORE_RCFILES', default=False)
+
+  @property
+  def SHOULD_EXIT_BOOTSTRAP_REEXEC(self):
+    """Boolean
+
+    Whether to re-exec in maybe_reexec_pex function of pex_bootstrapper.py. Default: false.
+    This is necessary because that function relies on checking against variables present in the
+    ENV to determine whether to re-exec or return to current execution. When we introduced
+    interpreter constraints to a pex, these constraints can influence interpreter selection without
+    the need for a PEX_PYTHON or PEX_PYTHON_PATH ENV variable set. Since re-exec previously checked
+    for PEX_PYTHON or PEX_PYTHON_PATH but not constraints, this would result in a loop with no
+    stopping criteria. Setting SHOULD_EXIT_BOOTSTRAP_REEXEC will let the runtime know to break out
+    of a second execution of maybe_reexec_pex if neither PEX_PYTHON or PEX_PYTHON_PATH are set but
+    interpreter constraints are specified.
+    """
+    return bool(self._environ.get('SHOULD_EXIT_BOOTSTRAP_REEXEC', ''))
+
+  @SHOULD_EXIT_BOOTSTRAP_REEXEC.setter
+  def SHOULD_EXIT_BOOTSTRAP_REEXEC(self, value):
+    self._environ['SHOULD_EXIT_BOOTSTRAP_REEXEC'] = str(value)
 
 
 # Global singleton environment

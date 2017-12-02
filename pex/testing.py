@@ -4,6 +4,7 @@
 import contextlib
 import os
 import random
+import subprocess
 import sys
 import tempfile
 from collections import namedtuple
@@ -277,3 +278,27 @@ def combine_pex_coverage(coverage_file_iter):
 
   combined.write()
   return combined.filename
+
+
+def bootstrap_python_installer():
+  install_location = os.path.join(os.getcwd(), '.pyenv_test')
+  if not os.path.exists(install_location) or not os.path.exists(
+    os.path.join(os.getcwd(), '.pyenv_test')):
+    for _ in range(3):
+      try:
+        subprocess.call(['git', 'clone', 'https://github.com/pyenv/pyenv.git', install_location])
+      except StandardError:
+        continue
+      else:
+        break
+    else:
+      raise RuntimeError("Helper method could not clone pyenv from git")
+
+
+def ensure_python_interpreter(version):
+  bootstrap_python_installer()
+  install_location = os.path.join(os.getcwd(), '.pyenv_test/versions', version)
+  if not os.path.exists(install_location):
+    os.environ['PYENV_ROOT'] = os.path.join(os.getcwd(), '.pyenv_test')
+    subprocess.call([os.path.join(os.getcwd(), '.pyenv_test/bin/pyenv'), 'install', version])
+  return os.path.join(install_location, 'bin', 'python' + version[0:3])
