@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.2.14
+------
+
+* Add interpreter constraints option and use constraints to search for compatible interpreters at exec time (#427)
+  `#427 <https://github.com/pantsbuild/pex/pull/427>`_
+
 1.2.13
 ------
 

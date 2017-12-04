@@ -1,7 +1,7 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-__version__ = '1.2.13'
+__version__ = '1.2.14'
 
 # NB: If we upgrade to setuptools>=34 pex's bootstrap code in `PEXBuilder` will need an update to
 # include the `packaging` package in the `.bootstrap/` code since we use
