@@ -557,7 +557,7 @@ def test_entry_point_targeting():
       pex_python = ensure_python_interpreter('3.6.3')
       pexrc.write("PEX_PYTHON=%s" % pex_python)
 
-    # test PEX_PYTHON with valid constraints
+    # test pex with entry point
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
       'autopep8',
