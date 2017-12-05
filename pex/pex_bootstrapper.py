@@ -1,6 +1,7 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 from __future__ import print_function
+
 import os
 import sys
 
@@ -147,14 +148,14 @@ def maybe_reexec_pex(compatibility_constraints):
       selected_interpreter = _select_interpreter(ENV.PEX_PYTHON_PATH, compatibility_constraints)
 
   if selected_interpreter:
-    ENV.delete('PEX_PYTHON')
-    ENV.delete('PEX_PYTHON_PATH')
-    ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC = True
-    cmdline = [selected_interpreter] + sys.argv[1:]
+    cmdline = [selected_interpreter] + sys.argv
     TRACER.log('Re-executing: cmdline="%s", sys.executable="%s", PEX_PYTHON="%s", '
                'PEX_PYTHON_PATH="%s", COMPATIBILITY_CONSTRAINTS="%s"'
                % (cmdline, sys.executable, ENV.PEX_PYTHON, ENV.PEX_PYTHON_PATH,
                   compatibility_constraints))
+    ENV.delete('PEX_PYTHON')
+    ENV.delete('PEX_PYTHON_PATH')
+    ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC = True
     os.execve(selected_interpreter, cmdline, ENV.copy())
 
 
