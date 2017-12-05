@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.2.15
+------
+
+* Bugfix for entry point targeting + integration test (#435)
+  `#435 <https://github.com/pantsbuild/pex/pull/435>`_
+
 1.2.14
 ------
 
