@@ -113,7 +113,7 @@ def _select_interpreter(pex_python_path, compatibility_constraints):
   # TODO: https://github.com/pantsbuild/pex/issues/430
   target = min(compatible_interpreters).binary
 
-  if os.path.exists(target) and os.path.realpath(target) != os.path.realpath(sys.executable):
+  if os.path.exists(target):
     return target
 
 
@@ -133,7 +133,9 @@ def maybe_reexec_pex(compatibility_constraints):
   Python interpreter to re-exec this pex with.
 
   """
-  if ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC:
+  if os.environ.get('SHOULD_EXIT_BOOTSTRAP_REEXEC'):
+    # We've already been here and selected an interpreter. Continue to execution.
+    del os.environ['SHOULD_EXIT_BOOTSTRAP_REEXEC']
     return
 
   selected_interpreter = None
@@ -147,7 +149,7 @@ def maybe_reexec_pex(compatibility_constraints):
     elif ENV.PEX_PYTHON_PATH:
       selected_interpreter = _select_interpreter(ENV.PEX_PYTHON_PATH, compatibility_constraints)
 
-  if selected_interpreter:
+  if selected_interpreter and os.path.realpath(selected_interpreter) != os.path.realpath(sys.executable):
     cmdline = [selected_interpreter] + sys.argv
     TRACER.log('Re-executing: cmdline="%s", sys.executable="%s", PEX_PYTHON="%s", '
                'PEX_PYTHON_PATH="%s", COMPATIBILITY_CONSTRAINTS="%s"'
@@ -155,7 +157,7 @@ def maybe_reexec_pex(compatibility_constraints):
                   compatibility_constraints))
     ENV.delete('PEX_PYTHON')
     ENV.delete('PEX_PYTHON_PATH')
-    ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC = True
+    os.environ['SHOULD_EXIT_BOOTSTRAP_REEXEC'] = '1'
     os.execve(selected_interpreter, cmdline, ENV.copy())
 
 
