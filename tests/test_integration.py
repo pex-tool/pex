@@ -571,8 +571,8 @@ def test_entry_point_targeting():
 
 def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
   """
-  This test is a special test meant to verify proper function of the
-  pex bootstrapper's interpreter selection logic and validate the corresponding
+  This is a test for verifying the proper function of the
+  pex bootstrapper's interpreter selection logic and validate a corresponding
   bugfix. More details on the nature of the bug can be found at:
   https://github.com/pantsbuild/pex/pull/441
   """
@@ -584,17 +584,13 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
     # execute with. The child interpreter is the interpreter we expect the 
     # child pex to execute with. 
     if (sys.version_info[0], sys.version_info[1]) == (3, 6):
-      parent_interpreter_version = '3.6.2'
+      child_pex_interpreter_version = '3.6.3'
     else:
-      parent_interpreter_version = '2.7.10'
-    if (sys.version_info[0], sys.version_info[1]) == (3, 6):
-      child_interpreter_version = '3.6.3'
-    else:
-      child_interpreter_version = '2.7.11'
+      child_pex_interpreter_version = '2.7.10'
 
     # Write parent pex's pexrc.
     with open(pexrc_path, 'w') as pexrc:
-      pexrc.write("PEX_PYTHON=%s" % ensure_python_interpreter(parent_interpreter_version))
+      pexrc.write("PEX_PYTHON=%s" % sys.executable)
 
     test_setup_path = os.path.join(td, 'setup.py')
     with open(test_setup_path, 'w') as fh:
@@ -643,7 +639,7 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
             print(stdout)
           finally:
             shutil.rmtree(td)
-        '''.format(ensure_python_interpreter(child_interpreter_version))))
+        '''.format(ensure_python_interpreter(child_pex_interpreter_version))))
 
     pex_out_path = os.path.join(td, 'parent.pex')
     res = run_pex_command(['--disable-cache',
@@ -656,6 +652,6 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
     stdout, rc = run_simple_pex(pex_out_path)
     assert rc == 0
     # Ensure that child pex used the proper interpreter as specified by its pexrc.
-    correct_interpreter_path = ensure_python_interpreter(child_interpreter_version)
+    correct_interpreter_path = ensure_python_interpreter(child_pex_interpreter_version)
     correct_interpreter_path = correct_interpreter_path.encode()  # Py 2/3 compatibility 
     assert correct_interpreter_path in stdout

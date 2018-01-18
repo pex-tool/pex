@@ -133,9 +133,8 @@ def maybe_reexec_pex(compatibility_constraints):
   Python interpreter to re-exec this pex with.
 
   """
-  if os.environ.get('SHOULD_EXIT_BOOTSTRAP_REEXEC'):
+  if os.environ.pop('SHOULD_EXIT_BOOTSTRAP_REEXEC', None):
     # We've already been here and selected an interpreter. Continue to execution.
-    os.environ.pop('SHOULD_EXIT_BOOTSTRAP_REEXEC', None)
     return
 
   target = None
@@ -145,7 +144,7 @@ def maybe_reexec_pex(compatibility_constraints):
       # TODO: Kill this off completely in favor of PEX_PYTHON_PATH
       # https://github.com/pantsbuild/pex/issues/431
       target = _select_pex_python_interpreter(ENV.PEX_PYTHON,
-                                                            compatibility_constraints)
+                                              compatibility_constraints)
     elif ENV.PEX_PYTHON_PATH:
       target = _select_interpreter(ENV.PEX_PYTHON_PATH, compatibility_constraints)
 
