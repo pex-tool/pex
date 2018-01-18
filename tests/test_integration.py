@@ -569,19 +569,36 @@ def test_entry_point_targeting():
     assert 'usage: autopep8'.encode() in stdout
 
 
-
-
-
 def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
+  """
+  This test is a special test meant to verify proper function of the
+  pex bootstrapper's interpreter selection logic and validate the corresponding
+  bugfix. More details on the nature of the bug can be found at:
+  https://github.com/pantsbuild/pex/pull/441
+  """
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
+
+    # Select pexrc interpreter versions based on test environemnt.
+    # The parent interpreter is the interpreter we expect the parent pex to 
+    # execute with. The child interpreter is the interpreter we expect the 
+    # child pex to execute with. 
+    if (sys.version_info[0], sys.version_info[1]) == (3, 6):
+      parent_interpreter_version = '3.6.2'
+    else:
+      parent_interpreter_version = '2.7.10'
+    if (sys.version_info[0], sys.version_info[1]) == (3, 6):
+      child_interpreter_version = '3.6.3'
+    else:
+      child_interpreter_version = '2.7.11'
+
+    # Write parent pex's pexrc.
     with open(pexrc_path, 'w') as pexrc:
-      pexrc.write("PEX_PYTHON=%s" % ensure_python_interpreter('2.7.10'))
+      pexrc.write("PEX_PYTHON=%s" % ensure_python_interpreter(parent_interpreter_version))
 
     test_setup_path = os.path.join(td, 'setup.py')
     with open(test_setup_path, 'w') as fh:
       fh.write(dedent('''
-        #!/usr/bin/env python
         from setuptools import setup
 
         setup(
@@ -616,21 +633,19 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
             with open(test_file_path, 'w') as fh:
               fh.write(dedent("""
                 import sys
-                print(sys.argv[0])
                 print(sys.executable)
                 """))
-            pex_out_path = os.path.join(td, 'main.pex')
+            pex_out_path = os.path.join(td, 'child.pex')
             res = run_pex_command(['--disable-cache',
               '-o', pex_out_path])
             stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
             stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
             print(stdout)
-            print(res)
           finally:
             shutil.rmtree(td)
-        '''.format(ensure_python_interpreter('2.7.11'))))
+        '''.format(ensure_python_interpreter(child_interpreter_version))))
 
-    pex_out_path = os.path.join(td, 'main.pex')
+    pex_out_path = os.path.join(td, 'parent.pex')
     res = run_pex_command(['--disable-cache',
       'pex',
       '{}'.format(td),
@@ -638,9 +653,9 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
       '-o', pex_out_path])
     res.assert_success()
 
-    import pdb; pdb.set_trace()
     stdout, rc = run_simple_pex(pex_out_path)
     assert rc == 0
-    assert stdout.strip('\n') == ensure_python_interpreter('2.7.11')
-
-
+    # Ensure that child pex used the proper interpreter as specified by its pexrc.
+    correct_interpreter_path = ensure_python_interpreter(child_interpreter_version)
+    correct_interpreter_path = correct_interpreter_path.encode()  # Py 2/3 compatibility 
+    assert correct_interpreter_path in stdout
