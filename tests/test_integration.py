@@ -567,3 +567,91 @@ def test_entry_point_targeting():
 
     stdout, rc = run_simple_pex(pex_out_path)
     assert 'usage: autopep8'.encode() in stdout
+
+
+def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
+  """
+  This is a test for verifying the proper function of the
+  pex bootstrapper's interpreter selection logic and validate a corresponding
+  bugfix. More details on the nature of the bug can be found at:
+  https://github.com/pantsbuild/pex/pull/441
+  """
+  with temporary_dir() as td:
+    pexrc_path = os.path.join(td, '.pexrc')
+
+    # Select pexrc interpreter versions based on test environemnt.
+    # The parent interpreter is the interpreter we expect the parent pex to 
+    # execute with. The child interpreter is the interpreter we expect the 
+    # child pex to execute with. 
+    if (sys.version_info[0], sys.version_info[1]) == (3, 6):
+      child_pex_interpreter_version = '3.6.3'
+    else:
+      child_pex_interpreter_version = '2.7.10'
+
+    # Write parent pex's pexrc.
+    with open(pexrc_path, 'w') as pexrc:
+      pexrc.write("PEX_PYTHON=%s" % sys.executable)
+
+    test_setup_path = os.path.join(td, 'setup.py')
+    with open(test_setup_path, 'w') as fh:
+      fh.write(dedent('''
+        from setuptools import setup
+
+        setup(
+          name='tester',
+          version='1.0',
+          description='tests',
+          author='tester',
+          author_email='test@test.com',
+          packages=['testing']
+        )
+        '''))
+
+    os.mkdir(os.path.join(td, 'testing'))
+    test_init_path = os.path.join(td, 'testing/__init__.py')
+    with open(test_init_path, 'w') as fh:
+      fh.write(dedent('''
+        def tester():     
+          from pex.testing import (
+            run_pex_command,
+            run_simple_pex
+          )
+          import os
+          import tempfile
+          import shutil
+          from textwrap import dedent
+          td = tempfile.mkdtemp()
+          try:
+            pexrc_path = os.path.join(td, '.pexrc')
+            with open(pexrc_path, 'w') as pexrc:
+              pexrc.write("PEX_PYTHON={}")          
+            test_file_path = os.path.join(td, 'build_and_run_child_pex.py')
+            with open(test_file_path, 'w') as fh:
+              fh.write(dedent("""
+                import sys
+                print(sys.executable)
+                """))
+            pex_out_path = os.path.join(td, 'child.pex')
+            res = run_pex_command(['--disable-cache',
+              '-o', pex_out_path])
+            stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+            stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+            print(stdout)
+          finally:
+            shutil.rmtree(td)
+        '''.format(ensure_python_interpreter(child_pex_interpreter_version))))
+
+    pex_out_path = os.path.join(td, 'parent.pex')
+    res = run_pex_command(['--disable-cache',
+      'pex',
+      '{}'.format(td),
+      '-e', 'testing:tester',
+      '-o', pex_out_path])
+    res.assert_success()
+
+    stdout, rc = run_simple_pex(pex_out_path)
+    assert rc == 0
+    # Ensure that child pex used the proper interpreter as specified by its pexrc.
+    correct_interpreter_path = ensure_python_interpreter(child_pex_interpreter_version)
+    correct_interpreter_path = correct_interpreter_path.encode()  # Py 2/3 compatibility 
+    assert correct_interpreter_path in stdout

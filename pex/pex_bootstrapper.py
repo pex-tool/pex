@@ -113,7 +113,7 @@ def _select_interpreter(pex_python_path, compatibility_constraints):
   # TODO: https://github.com/pantsbuild/pex/issues/430
   target = min(compatible_interpreters).binary
 
-  if os.path.exists(target) and os.path.realpath(target) != os.path.realpath(sys.executable):
+  if os.path.exists(target):
     return target
 
 
@@ -133,30 +133,31 @@ def maybe_reexec_pex(compatibility_constraints):
   Python interpreter to re-exec this pex with.
 
   """
-  if ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC:
+  if os.environ.pop('SHOULD_EXIT_BOOTSTRAP_REEXEC', None):
+    # We've already been here and selected an interpreter. Continue to execution.
     return
 
-  selected_interpreter = None
+  target = None
   with TRACER.timed('Selecting runtime interpreter based on pexrc', V=3):
     if ENV.PEX_PYTHON and not ENV.PEX_PYTHON_PATH:
       # preserve PEX_PYTHON re-exec for backwards compatibility
       # TODO: Kill this off completely in favor of PEX_PYTHON_PATH
       # https://github.com/pantsbuild/pex/issues/431
-      selected_interpreter = _select_pex_python_interpreter(ENV.PEX_PYTHON,
-                                                            compatibility_constraints)
+      target = _select_pex_python_interpreter(ENV.PEX_PYTHON,
+                                              compatibility_constraints)
     elif ENV.PEX_PYTHON_PATH:
-      selected_interpreter = _select_interpreter(ENV.PEX_PYTHON_PATH, compatibility_constraints)
+      target = _select_interpreter(ENV.PEX_PYTHON_PATH, compatibility_constraints)
 
-  if selected_interpreter:
-    cmdline = [selected_interpreter] + sys.argv
+  if target and os.path.realpath(target) != os.path.realpath(sys.executable):
+    cmdline = [target] + sys.argv
     TRACER.log('Re-executing: cmdline="%s", sys.executable="%s", PEX_PYTHON="%s", '
                'PEX_PYTHON_PATH="%s", COMPATIBILITY_CONSTRAINTS="%s"'
                % (cmdline, sys.executable, ENV.PEX_PYTHON, ENV.PEX_PYTHON_PATH,
                   compatibility_constraints))
     ENV.delete('PEX_PYTHON')
     ENV.delete('PEX_PYTHON_PATH')
-    ENV.SHOULD_EXIT_BOOTSTRAP_REEXEC = True
-    os.execve(selected_interpreter, cmdline, ENV.copy())
+    os.environ['SHOULD_EXIT_BOOTSTRAP_REEXEC'] = '1'
+    os.execve(target, cmdline, ENV.copy())
 
 
 def bootstrap_pex(entry_point):
