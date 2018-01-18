@@ -567,3 +567,80 @@ def test_entry_point_targeting():
 
     stdout, rc = run_simple_pex(pex_out_path)
     assert 'usage: autopep8'.encode() in stdout
+
+
+
+
+
+def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
+  with temporary_dir() as td:
+    pexrc_path = os.path.join(td, '.pexrc')
+    with open(pexrc_path, 'w') as pexrc:
+      pexrc.write("PEX_PYTHON=%s" % ensure_python_interpreter('2.7.10'))
+
+    test_setup_path = os.path.join(td, 'setup.py')
+    with open(test_setup_path, 'w') as fh:
+      fh.write(dedent('''
+        #!/usr/bin/env python
+        from setuptools import setup
+
+        setup(
+          name='tester',
+          version='1.0',
+          description='tests',
+          author='tester',
+          author_email='test@test.com',
+          packages=['testing']
+        )
+        '''))
+
+    os.mkdir(os.path.join(td, 'testing'))
+    test_init_path = os.path.join(td, 'testing/__init__.py')
+    with open(test_init_path, 'w') as fh:
+      fh.write(dedent('''
+        def tester():     
+          from pex.testing import (
+            run_pex_command,
+            run_simple_pex
+          )
+          import os
+          import tempfile
+          import shutil
+          from textwrap import dedent
+          td = tempfile.mkdtemp()
+          try:
+            pexrc_path = os.path.join(td, '.pexrc')
+            with open(pexrc_path, 'w') as pexrc:
+              pexrc.write("PEX_PYTHON={}")          
+            test_file_path = os.path.join(td, 'build_and_run_child_pex.py')
+            with open(test_file_path, 'w') as fh:
+              fh.write(dedent("""
+                import sys
+                print(sys.argv[0])
+                print(sys.executable)
+                """))
+            pex_out_path = os.path.join(td, 'main.pex')
+            res = run_pex_command(['--disable-cache',
+              '-o', pex_out_path])
+            stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+            stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+            print(stdout)
+            print(res)
+          finally:
+            shutil.rmtree(td)
+        '''.format(ensure_python_interpreter('2.7.11'))))
+
+    pex_out_path = os.path.join(td, 'main.pex')
+    res = run_pex_command(['--disable-cache',
+      'pex',
+      '{}'.format(td),
+      '-e', 'testing:tester',
+      '-o', pex_out_path])
+    res.assert_success()
+
+    import pdb; pdb.set_trace()
+    stdout, rc = run_simple_pex(pex_out_path)
+    assert rc == 0
+    assert stdout.strip('\n') == ensure_python_interpreter('2.7.11')
+
+
