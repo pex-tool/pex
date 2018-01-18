@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.2.16
+------
+
+* Change PEX re-exec variable from ENV to os.environ (#441)
+  `#441 <https://github.com/pantsbuild/pex/pull/441>`_
+
 1.2.15
 ------
 
