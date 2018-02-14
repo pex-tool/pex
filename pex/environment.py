@@ -132,9 +132,7 @@ class PEXEnvironment(Environment):
   def activate(self):
     if not self._activated:
       with TRACER.timed('Activating PEX virtual environment from %s' % self._pex):
-        before = sys.path[:]
         self._working_set = self._activate()
-        sys.path = sys.path[len(before):] + before
       self._activated = True
 
     return self._working_set
