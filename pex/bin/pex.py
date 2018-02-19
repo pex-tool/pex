@@ -274,7 +274,7 @@ def configure_clp_pex_options(parser):
            'fallback (inherits sys.path after packaged dependencies), '
            'prefer (inherits sys.path before packaged dependencies), '
            'No value (alias for prefer, for backwards compatibility). '
-           '[Default: false]')
+           '[Default: %default]')
 
   parser.add_option_group(group)
 
