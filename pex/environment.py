@@ -117,8 +117,9 @@ class PEXEnvironment(Environment):
     self._activated = False
     self._working_set = None
     self._interpreter = interpreter or PythonInterpreter.get()
+    self._inherit_path = pex_info.inherit_path
     super(PEXEnvironment, self).__init__(
-        search_path=sys.path if pex_info.inherit_path else [], **kw)
+        search_path=[] if pex_info.inherit_path == 'false' else sys.path, **kw)
 
   def update_candidate_distributions(self, distribution_iter):
     for dist in distribution_iter:
@@ -192,7 +193,7 @@ class PEXEnvironment(Environment):
 
         if os.path.isdir(dist.location):
           with TRACER.timed('Adding sitedir', V=2):
-            if dist.location not in sys.path:
+            if dist.location not in sys.path and self._inherit_path == "fallback":
               # Prepend location to sys.path.
               # This ensures that bundled versions of libraries will be used before system-installed
               # versions, in case something is installed in both, helping to favor hermeticity in

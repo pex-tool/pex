@@ -188,14 +188,14 @@ class PexInfo(object):
     By default, PEX environments are scrubbed of all system distributions prior to execution.
     This means that PEX files cannot rely upon preexisting system libraries.
 
-    By default inherit_path is False.  This may be overridden at runtime by the $PEX_INHERIT_PATH
+    By default inherit_path is false.  This may be overridden at runtime by the $PEX_INHERIT_PATH
     environment variable.
     """
-    return self._pex_info.get('inherit_path', False)
+    return self._pex_info.get('inherit_path', 'false')
 
   @inherit_path.setter
   def inherit_path(self, value):
-    self._pex_info['inherit_path'] = bool(value)
+    self._pex_info['inherit_path'] = value
 
   @property
   def interpreter_constraints(self):
