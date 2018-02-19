@@ -24,23 +24,23 @@ class PexInfo(object):
   """PEX metadata.
 
   # Build metadata:
-  build_properties: BuildProperties # (key-value information about the build system)
-  code_hash: str                    # sha1 hash of all names/code in the archive
-  distributions: {dist_name: str}   # map from distribution name (i.e. path in
-                                    # the internal cache) to its cache key (sha1)
-  requirements: list                # list of requirements for this environment
+  build_properties: BuildProperties  # (key-value information about the build system)
+  code_hash: str                     # sha1 hash of all names/code in the archive
+  distributions: {dist_name: str}    # map from distribution name (i.e. path in
+                                     # the internal cache) to its cache key (sha1)
+  requirements: list                 # list of requirements for this environment
 
   # Environment options
-  pex_root: string                   # root of all pex-related files eg: ~/.pex
-  entry_point: string                # entry point into this pex
-  script: string                     # script to execute in this pex environment
-                                     # at most one of script/entry_point can be specified
-  zip_safe: True, default False      # is this pex zip safe?
-  inherit_path: True, default False  # should this pex inherit site-packages + PYTHONPATH?
-  ignore_errors: True, default False # should we ignore inability to resolve dependencies?
-  always_write_cache: False          # should we always write the internal cache to disk first?
-                                     # this is useful if you have very large dependencies that
-                                     # do not fit in RAM constrained environments
+  pex_root: string                    # root of all pex-related files eg: ~/.pex
+  entry_point: string                 # entry point into this pex
+  script: string                      # script to execute in this pex environment
+                                      # at most one of script/entry_point can be specified
+  zip_safe: True, default False       # is this pex zip safe?
+  inherit_path: false/fallback/prefer # should this pex inherit site-packages + PYTHONPATH?
+  ignore_errors: True, default False  # should we ignore inability to resolve dependencies?
+  always_write_cache: False           # should we always write the internal cache to disk first?
+                                      # this is useful if you have very large dependencies that
+                                      # do not fit in RAM constrained environments
 
   .. versionchanged:: 0.8
     Removed the ``repositories`` and ``indices`` information, as they were never
@@ -195,6 +195,10 @@ class PexInfo(object):
 
   @inherit_path.setter
   def inherit_path(self, value):
+    if value is False:
+      value = 'false'
+    elif value is True:
+      value = 'prefer'
     self._pex_info['inherit_path'] = value
 
   @property
