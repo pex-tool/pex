@@ -631,7 +631,7 @@ def main(args=None):
   # Fix up the args we're about to parse to preserve backwards compatibility.
   for i, arg in enumerate(args):
     if arg == '--inherit-path':
-      args[i] = arg + '=false'
+      args[i] = arg + '=prefer'
   parser, resolver_options_builder = configure_clp()
 
   try:

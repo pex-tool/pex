@@ -657,10 +657,13 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
     assert correct_interpreter_path in stdout
 
 def test_inherit_path_fallback():
-  inherit_path("fallback")
+  inherit_path("=fallback")
+
+def test_inherit_path_backwards_compatibility():
+  inherit_path("")
 
 def test_inherit_path_prefer():
-  inherit_path("prefer")
+  inherit_path("=prefer")
 
 def inherit_path(inherit_path):
   with temporary_dir() as output_dir:
@@ -673,7 +676,7 @@ def inherit_path(inherit_path):
     results = run_pex_command([
       '--disable-cache',
       'requests',
-      '--inherit-path={}'.format(inherit_path),
+      '--inherit-path{}'.format(inherit_path),
       '-o',
       pex_path,
     ])
@@ -694,7 +697,7 @@ def inherit_path(inherit_path):
     assert len(requests_paths) == 1
     assert len(sys_paths) == 1
 
-    if inherit_path == "fallback":
+    if inherit_path == "=fallback":
       assert requests_paths[0] < sys_paths[0]
     else:
       assert requests_paths[0] > sys_paths[0]
