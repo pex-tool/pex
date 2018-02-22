@@ -204,7 +204,7 @@ class PEXEnvironment(Environment):
               # leave sys.path unmodified, but will do everything else it would do. This is not part
               # of its advertised contract (which is very vague), but has been verified to be the
               # case by inspecting its source for both cpython 2.7 and cpython 3.7.
-              sys.path = [dist.location] + sys.path
+              sys.path.insert(0, dist.location)
             site.addsitedir(dist.location)
 
         dist.activate()

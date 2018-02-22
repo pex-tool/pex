@@ -624,14 +624,18 @@ def make_relative_to_root(path):
   return os.path.normpath(path.format(pex_root=ENV.PEX_ROOT))
 
 
-def main(args=None):
-  args = args[:] if args else sys.argv[1:]
+def transform_legacy_arg(arg):
   # inherit-path used to be a boolean arg (so either was absent, or --inherit-path)
   # Now it takes a string argument, so --inherit-path is invalid.
   # Fix up the args we're about to parse to preserve backwards compatibility.
-  for i, arg in enumerate(args):
-    if arg == '--inherit-path':
-      args[i] = arg + '=prefer'
+  if arg == '--inherit-path':
+    return '--inherit-path=prefer'
+  return arg
+
+
+def main(args=None):
+  args = args[:] if args else sys.argv[1:]
+  args = [transform_legacy_arg(arg) for arg in args]
   parser, resolver_options_builder = configure_clp()
 
   try:
