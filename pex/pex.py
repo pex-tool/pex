@@ -354,7 +354,9 @@ class PEX(object):  # noqa: T000
     """
     teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
     try:
-      pex_inherit_path = self._vars.PEX_INHERIT_PATH or self._pex_info.inherit_path
+      pex_inherit_path = self._vars.PEX_INHERIT_PATH
+      if pex_inherit_path == "false":
+        pex_inherit_path = self._pex_info.inherit_path
       with self.patch_sys(pex_inherit_path):
         working_set = self._activate()
         TRACER.log('PYTHONPATH contains:')

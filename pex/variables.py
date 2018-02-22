@@ -184,7 +184,7 @@ class Variables(object):
     advised, but can be used in situations when certain dependencies do not conform to standard
     packaging practices and thus cannot be bundled into PEX files.  Default: false.
     """
-    return self._get_bool('PEX_INHERIT_PATH', default=False)
+    return self._get_string('PEX_INHERIT_PATH', default='false')
 
   @property
   def PEX_INTERPRETER(self):

@@ -266,9 +266,14 @@ def configure_clp_pex_options(parser):
   group.add_option(
       '--inherit-path',
       dest='inherit_path',
-      default=False,
-      action='store_true',
+      default='false',
+      action='store',
+      choices=['false', 'fallback', 'prefer'],
       help='Inherit the contents of sys.path (including site-packages) running the pex. '
+           'Possible values: false (does not inherit sys.path), '
+           'fallback (inherits sys.path after packaged dependencies), '
+           'prefer (inherits sys.path before packaged dependencies), '
+           'No value (alias for prefer, for backwards compatibility). '
            '[Default: %default]')
 
   parser.add_option_group(group)
@@ -619,8 +624,18 @@ def make_relative_to_root(path):
   return os.path.normpath(path.format(pex_root=ENV.PEX_ROOT))
 
 
+def transform_legacy_arg(arg):
+  # inherit-path used to be a boolean arg (so either was absent, or --inherit-path)
+  # Now it takes a string argument, so --inherit-path is invalid.
+  # Fix up the args we're about to parse to preserve backwards compatibility.
+  if arg == '--inherit-path':
+    return '--inherit-path=prefer'
+  return arg
+
+
 def main(args=None):
-  args = args or sys.argv[1:]
+  args = args[:] if args else sys.argv[1:]
+  args = [transform_legacy_arg(arg) for arg in args]
   parser, resolver_options_builder = configure_clp()
 
   try:
