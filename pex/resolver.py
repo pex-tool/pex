@@ -3,6 +3,7 @@
 
 from __future__ import print_function
 
+import hashlib
 import itertools
 import os
 import shutil
@@ -192,6 +193,7 @@ class Resolver(object):
         resolvable, parent = resolvables.pop(0)
         if resolvable in processed_resolvables:
           continue
+        import pytest;pytest.set_trace()
         packages = self.package_iterator(resolvable, existing=resolvable_set.get(resolvable.name))
         resolvable_set.merge(resolvable, packages, parent)
         processed_resolvables.add(resolvable)
@@ -247,6 +249,13 @@ class CachingResolver(Resolver):
     return [package for package in packages
         if package.remote or package.local and (now - os.path.getmtime(package.local_path)) < ttl]
 
+  @classmethod
+  def get_cache_key(cls, dist_location):
+    digest = hashlib.sha1()
+    with open(dist_location) as fp:
+      digest.update(fp.read())
+    return digest.hexdigest()
+
   def __init__(self, cache, cache_ttl, *args, **kw):
     self.__cache = cache
     self.__cache_ttl = cache_ttl
@@ -282,7 +291,10 @@ class CachingResolver(Resolver):
     dist = super(CachingResolver, self).build(package, options)
 
     # if distribution is not in cache, copy
-    target = os.path.join(self.__cache, os.path.basename(dist.location))
+    dist_filename = os.path.basename(dist.location)
+    key_dir = self.get_cache_key(dist.location)
+    safe_mkdir(os.path.join(self.__cache, key_dir))
+    target = os.path.join(self.__cache, key_dir, dist_filename)
     if not os.path.exists(target):
       shutil.copyfile(dist.location, target + '~')
       os.rename(target + '~', target)
