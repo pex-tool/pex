@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.3.0
+------
+
+* inherit_path allows 'prefer', 'fallback', 'false' (#444)
+  `#444 <https://github.com/pantsbuild/pex/pull/444>`_
+
 1.2.16
 ------
 
