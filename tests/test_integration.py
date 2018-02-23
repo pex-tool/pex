@@ -703,7 +703,7 @@ def inherit_path(inherit_path):
     pex_path = os.path.join(output_dir, 'pex.pex')
     results = run_pex_command([
       '--disable-cache',
-      'msgpack_python',
+      'wheel',
       '--inherit-path{}'.format(inherit_path),
       '-o',
       pex_path,
@@ -719,10 +719,10 @@ def inherit_path(inherit_path):
       env=env,
     )
     assert rc == 0
-
-    stdout_lines = stdout.decode().split('\n')
-    requests_paths = tuple(i for i, l in enumerate(stdout_lines) if 'msgpack_python' in l)
-    sys_paths = tuple(i for i, l in enumerate(stdout_lines) if 'doesnotexist' in l)
+    print >> sys.stderr, stdout
+    stdout_lines = stdout.split('\n'.encode())
+    requests_paths = tuple(i for i, l in enumerate(stdout_lines) if 'wheel'.encode() in l)
+    sys_paths = tuple(i for i, l in enumerate(stdout_lines) if 'doesnotexist'.encode() in l)
     assert len(requests_paths) == 1
     assert len(sys_paths) == 1
 

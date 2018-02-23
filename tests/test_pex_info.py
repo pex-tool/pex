@@ -70,7 +70,7 @@ def test_from_env():
               entry_point='entry:point',
               script='script.sh',
               zip_safe=False,
-              inherit_path=True,
+              inherit_path='prefer',
               ignore_errors=True,
               always_write_cache=True)
 
