@@ -228,7 +228,6 @@ class Resolver(object):
         resolvable, parent = resolvables.pop(0)
         if resolvable in processed_resolvables:
           continue
-        import pytest;pytest.set_trace()
         packages = self.package_iterator(resolvable, existing=resolvable_set.get(resolvable.name))
 
         # TODO: Remove blacklist strategy in favor of smart requirement handling
@@ -309,7 +308,7 @@ class CachingResolver(Resolver):
 
   # Short-circuiting package iterator.
   def package_iterator(self, resolvable, existing=None):
-    iterator = Iterator(fetchers=[Fetcher([self.__cache])],
+    iterator = Iterator(fetchers=[Fetcher([self.__cache], include_subdirs=True)],
                         allow_prereleases=self._allow_prereleases)
     packages = self.filter_packages_by_supported_tags(resolvable.compatible(iterator))
 
@@ -340,7 +339,6 @@ class CachingResolver(Resolver):
       shutil.copyfile(dist.location, target + '~')
       os.rename(target + '~', target)
     os.utime(target, None)
-
     return DistributionHelper.distribution_from_path(target)
 
 
@@ -461,7 +459,6 @@ def resolve(requirements,
                         interpreter=interpreter,
                         platform=platform,
                         pkg_blacklist=pkg_blacklist)
-
   return resolver.resolve(resolvables_from_iterable(requirements, builder))
 
 
