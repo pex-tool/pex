@@ -31,13 +31,19 @@ def write_and_run_simple_pex(inheriting=False):
       yield run_simple_pex(pex_path)[0]
 
 
-def test_inherits_path_option():
-  with write_and_run_simple_pex(inheriting=True) as so:
+def test_inherits_path_fallback_option():
+  with write_and_run_simple_pex(inheriting='fallback') as so:
+    assert 'Scrubbing from user site' not in str(so), 'User packages should not be scrubbed.'
+    assert 'Scrubbing from site-packages' not in str(so), 'Site packages should not be scrubbed.'
+
+
+def test_inherits_path_prefer_option():
+  with write_and_run_simple_pex(inheriting='prefer') as so:
     assert 'Scrubbing from user site' not in str(so), 'User packages should not be scrubbed.'
     assert 'Scrubbing from site-packages' not in str(so), 'Site packages should not be scrubbed.'
 
 
 def test_does_not_inherit_path_option():
-  with write_and_run_simple_pex(inheriting=False) as so:
+  with write_and_run_simple_pex(inheriting='false') as so:
     assert 'Scrubbing from user site' in str(so), 'User packages should be scrubbed.'
     assert 'Scrubbing from site-packages' in str(so), 'Site packages should be scrubbed.'
