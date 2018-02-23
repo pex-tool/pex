@@ -206,7 +206,7 @@ class PEX(object):  # noqa: T000
 
     user_site_distributions.update(all_distribution_paths(USER_SITE))
 
-    if not inherit_path:
+    if inherit_path == 'false':
       scrub_paths = site_distributions | user_site_distributions
       for path in user_site_distributions:
         TRACER.log('Scrubbing from user site: %s' % path)
