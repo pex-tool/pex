@@ -1,8 +1,19 @@
 Release Notes
 =============
 
+1.3.1
+-----
+
+This is a bugfix release for a regression that inadvertently went out in 1.3.0.
+
+* scrub path when not inheriting (#449)
+  `#449 <https://github.com/pantsbuild/pex/pull/449>`_
+
+* Fix up inherits_path tests to use new values (#450)
+  `#450 <https://github.com/pantsbuild/pex/pull/450>`_
+
 1.3.0
-------
+-----
 
 * inherit_path allows 'prefer', 'fallback', 'false' (#444)
   `#444 <https://github.com/pantsbuild/pex/pull/444>`_
