@@ -62,7 +62,7 @@ def test_from_env():
                  PEX_MODULE='entry:point',
                  PEX_SCRIPT='script.sh',
                  PEX_FORCE_LOCAL='true',
-                 PEX_INHERIT_PATH='true',
+                 PEX_INHERIT_PATH='prefer',
                  PEX_IGNORE_ERRORS='true',
                  PEX_ALWAYS_CACHE='true')
 
@@ -70,7 +70,7 @@ def test_from_env():
               entry_point='entry:point',
               script='script.sh',
               zip_safe=False,
-              inherit_path=True,
+              inherit_path='prefer',
               ignore_errors=True,
               always_write_cache=True)
 
