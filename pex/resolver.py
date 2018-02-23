@@ -251,7 +251,7 @@ class CachingResolver(Resolver):
   @classmethod
   def get_cache_key(cls, dist_location):
     digest = hashlib.sha1()
-    with open(dist_location) as fp:
+    with open(dist_location, 'rb') as fp:
       digest.update(fp.read())
     return digest.hexdigest()
 
