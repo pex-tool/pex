@@ -694,7 +694,7 @@ def inherit_path(inherit_path):
       env=env,
     )
     assert rc == 0
-    print >> sys.stderr, stdout
+
     stdout_lines = stdout.split('\n'.encode())
     requests_paths = tuple(i for i, l in enumerate(stdout_lines) if 'wheel'.encode() in l)
     sys_paths = tuple(i for i, l in enumerate(stdout_lines) if 'doesnotexist'.encode() in l)

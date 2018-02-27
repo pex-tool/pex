@@ -10,6 +10,7 @@ import shutil
 import time
 from collections import namedtuple
 
+
 from pkg_resources import safe_name
 
 from .common import safe_mkdir
@@ -17,7 +18,7 @@ from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
-from .package import Package, distribution_compatible
+from .package import Package, distribution_compatible, SourcePackage, WheelPackage
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
@@ -165,7 +166,7 @@ class Resolver(object):
       existing = resolvable.packages()
     return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
 
-  def build(self, package, options):
+  def build(self, package, options, possibly_conflicting=None):
     context = options.get_context()
     translator = options.get_translator(self._interpreter, self._platform)
     with TRACER.timed('Fetching %s' % package.url, V=2):
@@ -202,12 +203,17 @@ class Resolver(object):
         if constraint_only:
           continue
         assert len(packages) > 0, 'ResolvableSet.packages(%s) should not be empty' % resolvable
+        import pytest;pytest.set_trace()
         package = next(iter(packages))
+        possibly_conflicting = None
+        versions = [x.raw_version for x in list(iter(packages))]
+        if len(list(filter(lambda x: len(x for x in list(iter(packages)) if x.raw_version in versions) > 1, list(iter(packages))))) > 1:
+          possibly_conflicting = list(filter(lambda x: len(x for x in list(iter(packages)) if x.raw_version in versions) > 1, list(iter(packages))))
         if resolvable.name in processed_packages:
           if package == processed_packages[resolvable.name]:
             continue
         if package not in distributions:
-          dist = self.build(package, resolvable.options)
+          dist = self.build(package, resolvable.options, possibly_conflicting=possibly_conflicting)
           built_package = Package.from_href(dist.location)
           built_packages[package] = built_package
           distributions[built_package] = dist
@@ -280,20 +286,30 @@ class CachingResolver(Resolver):
     )
 
   # Caching sandwich.
-  def build(self, package, options):
+  def build(self, package, options, possibly_conflicting=None):
     # cache package locally
     if package.remote:
       package = Package.from_href(options.get_context().fetch(package, into=self.__cache))
       os.utime(package.local_path, None)
-
     # build into distribution
     dist = super(CachingResolver, self).build(package, options)
+    #import pytest;pytest.set_trace()
+    if possibly_conflicting:
+      dists = {}
+      idx = 0
+      for package in possibly_conflicting:
+        idx += 1
+        dists[idx] = super(CachingResolver, self).build(package, options)
+      if self.get_cache_key(dists[1].location) != self.get_cache_key(dists[2].location):
+        dist = dists[2]
 
     # if distribution is not in cache, copy
     dist_filename = os.path.basename(dist.location)
-    key_dir = self.get_cache_key(dist.location)
-    safe_mkdir(os.path.join(self.__cache, key_dir))
-    target = os.path.join(self.__cache, key_dir, dist_filename)
+    cached_location = os.path.join(self.__cache, '%s.%s' % (
+      dist_filename, self.get_cache_key(dist.location)))
+    safe_mkdir(cached_location)
+
+    target = os.path.join(cached_location, dist_filename)
     if not os.path.exists(target):
       shutil.copyfile(dist.location, target + '~')
       os.rename(target + '~', target)
