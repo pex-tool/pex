@@ -3,6 +3,7 @@
 
 import os
 import time
+import zipfile
 
 import pytest
 from twitter.common.contextutil import temporary_dir
@@ -97,6 +98,52 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
       )
       assert len(dists) == 1
       assert dists[0].version == '1.1.0'
+
+
+def test_cml_changeset():
+  project1_0_0v1 = make_sdist(name='project', version='1.0.0', project_content_version=1)
+
+  with temporary_dir() as td:
+    with temporary_dir() as td2:
+      safe_copy(project1_0_0v1, os.path.join(td, os.path.basename(project1_0_0v1)))
+      fetchers = [Fetcher([td])]
+      with temporary_dir() as cd:
+        # First run, pinning 1.0.0 in the cache
+        dists = list(
+          resolve_multi(['project', 'project==1.0.0'],
+            fetchers=fetchers,
+            cache=cd,
+            cache_ttl=1000)
+        )
+        assert len(dists) == 1
+        assert dists[0].version == '1.0.0'
+        with temporary_dir() as zl:
+          zip = zipfile.ZipFile(dists[0].location)
+          zip.extractall(zl)
+          with open(os.path.join(zl, 'my_package', 'my_module.py')) as fp1:
+            contents = fp1.read()
+        assert 'hello world' in contents
+        # This simulates separate invocations of pex but allows us to keep the same tmp cache dir
+        Crawler.reset_cache()
+        project1_0_0v2 = make_sdist(name='project', version='1.0.0', project_content_version=2)
+        safe_copy(project1_0_0v2, os.path.join(td2, os.path.basename(project1_0_0v2)))
+        fetchers = [Fetcher([td2])]
+        dists = list(
+          resolve_multi(['project', 'project==1.0.0'],
+            fetchers=fetchers,
+            cache=cd,
+            cache_ttl=1000)
+        )
+        assert len(dists) == 1
+        assert dists[0].version == '1.0.0'
+        with temporary_dir() as zl:
+          zip = zipfile.ZipFile(dists[0].location)
+          zip.extractall(zl)
+          with open(os.path.join(zl, 'my_package', 'my_module.py')) as fp2:
+            contents = fp2.read()
+        assert 'hey world' in contents
+
+
 
 
 def test_ambiguous_transitive_resolvable():
