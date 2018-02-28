@@ -35,13 +35,7 @@ class FetcherBase(AbstractClass):
 
 
 class Fetcher(FetcherBase):
-  def __init__(self, urls, include_subdirs=False):
-    if include_subdirs:
-      subdir_urls = []
-      for url in urls:
-        for subdir in os.listdir(url):
-          subdir_urls.append(os.path.join(url, subdir))
-          urls = subdir_urls + urls
+  def __init__(self, urls):
     self._urls = urls
 
   def urls(self, _):
