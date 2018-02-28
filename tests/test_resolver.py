@@ -13,7 +13,7 @@ from pex.crawler import Crawler
 from pex.fetcher import Fetcher
 from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
-from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve_multi
+from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve_multi, resolve
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.testing import make_sdist
 
@@ -99,50 +99,52 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
       assert dists[0].version == '1.1.0'
 
 
-def test_cml_changeset():
-  project1_0_0v1 = make_sdist(name='project', version='1.0.0', project_content_version=1)
-
-  with temporary_dir() as td:
-    with temporary_dir() as td2:
-      safe_copy(project1_0_0v1, os.path.join(td, os.path.basename(project1_0_0v1)))
-      fetchers = [Fetcher([td])]
+def test_resolve_from_sdist_when_sdist_contents_conflict_with_cached_bdist():
+  # This exercises the change to the resolver cache that will protect against the issue
+  # described here: https://github.com/pantsbuild/pants/issues/5449
+  with temporary_dir() as fetcher_dir_run_1:
+    with temporary_dir() as fetcher_dir_run_2:
       with temporary_dir() as cd:
-        # First run, pinning 1.0.0 in the cache
-        dists = list(
-          resolve_multi(['project', 'project==1.0.0'],
-            fetchers=fetchers,
+        # First run, pinning project 1.0.0 in the cache
+        project1_0_0v1 = make_sdist(name='project', version='1.0.0', project_content_version=1)
+        safe_copy(project1_0_0v1, os.path.join(fetcher_dir_run_1, os.path.basename(project1_0_0v1)))
+        fetcher = [Fetcher([fetcher_dir_run_1])]
+        dist = list(
+          resolve(['project==1.0.0'],
+            fetchers=fetcher,
             cache=cd,
             cache_ttl=1000)
         )
-        assert len(dists) == 1
-        assert dists[0].version == '1.0.0'
-        with temporary_dir() as zl:
-          zip = zipfile.ZipFile(dists[0].location)
-          zip.extractall(zl)
-          with open(os.path.join(zl, 'my_package', 'my_module.py')) as fp1:
-            contents = fp1.read()
+        assert len(dist) == 1
+        assert dist[0].version == '1.0.0'
+        with temporary_dir() as project:
+          zf = zipfile.ZipFile(dist[0].location)
+          zf.extractall(project)
+          with open(os.path.join(project, 'my_package', 'my_module.py')) as fp:
+            contents = fp.read()
         assert 'hello world' in contents
+
         # This simulates separate invocations of pex but allows us to keep the same tmp cache dir
         Crawler.reset_cache()
+
+        # Second run, with a modified local sdist and a conflicting version pinned in the cache
         project1_0_0v2 = make_sdist(name='project', version='1.0.0', project_content_version=2)
-        safe_copy(project1_0_0v2, os.path.join(td2, os.path.basename(project1_0_0v2)))
-        fetchers = [Fetcher([td2])]
+        safe_copy(project1_0_0v2, os.path.join(fetcher_dir_run_2, os.path.basename(project1_0_0v2)))
+        fetcher = [Fetcher([fetcher_dir_run_2])]
         dists = list(
-          resolve_multi(['project', 'project==1.0.0'],
-            fetchers=fetchers,
+          resolve(['project==1.0.0'],
+            fetchers=fetcher,
             cache=cd,
             cache_ttl=1000)
         )
         assert len(dists) == 1
         assert dists[0].version == '1.0.0'
-        with temporary_dir() as zl:
-          zip = zipfile.ZipFile(dists[0].location)
-          zip.extractall(zl)
-          with open(os.path.join(zl, 'my_package', 'my_module.py')) as fp2:
-            contents = fp2.read()
+        with temporary_dir() as project:
+          zf = zipfile.ZipFile(dists[0].location)
+          zf.extractall(project)
+          with open(os.path.join(project, 'my_package', 'my_module.py')) as fp:
+            contents = fp.read()
         assert 'hey world' in contents
-
-
 
 
 def test_ambiguous_transitive_resolvable():

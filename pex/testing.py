@@ -86,7 +86,7 @@ def write_zipfile(directory, dest, reverse=False):
   return dest
 
 
-PROJECT_CONTENT1 = {
+PROJECT_CONTENT_V1 = {
   'setup.py': dedent('''
       from setuptools import setup
 
@@ -111,7 +111,7 @@ PROJECT_CONTENT1 = {
   'my_package/package_data/resource2.dat': 1000,
 }
 
-PROJECT_CONTENT2 = {
+PROJECT_CONTENT_V2 = {
   'setup.py': dedent('''
       from setuptools import setup
 
@@ -120,20 +120,10 @@ PROJECT_CONTENT2 = {
           version=%(version)r,
           zip_safe=%(zip_safe)r,
           packages=['my_package'],
-          scripts=[
-              'scripts/hello_world',
-              'scripts/shell_script',
-          ],
-          package_data={'my_package': ['package_data/*.dat']},
-          install_requires=%(install_requires)r,
       )
   '''),
-  'scripts/hello_world': '#!/usr/bin/env python\nprint("hey world!")\n',
-  'scripts/shell_script': '#!/usr/bin/env bash\necho hello world\n',
   'my_package/__init__.py': 0,
-  'my_package/my_module.py': 'def do_something():\n  print("hey world!")\n',
-  'my_package/package_data/resource1.dat': 1000,
-  'my_package/package_data/resource2.dat': 1000,
+  'my_package/my_module.py': 'def do_something():\n  print("hey world!")\n'
 }
 
 
@@ -144,7 +134,7 @@ def make_installer(name='my_project', version='0.0.0', installer_impl=EggInstall
             'version': version,
             'zip_safe': zip_safe,
             'install_requires': install_reqs or []}
-  content = PROJECT_CONTENT1 if project_content_version == 1 else PROJECT_CONTENT2
+  content = PROJECT_CONTENT_V1 if project_content_version == 1 else PROJECT_CONTENT_V2
   with temporary_content(content, interp=interp) as td:
     yield installer_impl(td)
 

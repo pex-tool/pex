@@ -10,7 +10,6 @@ import shutil
 import time
 from collections import namedtuple
 
-
 from pkg_resources import safe_name
 
 from .common import safe_mkdir
@@ -18,7 +17,7 @@ from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
-from .package import Package, distribution_compatible, SourcePackage, WheelPackage
+from .package import Package, distribution_compatible, SourcePackage
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
@@ -189,6 +188,12 @@ class Resolver(object):
     processed_packages = {}
     distributions = {}
 
+    def get_possibly_conflicting_package(pkgs):
+      pkgs = list(filter(lambda x: isinstance(x, SourcePackage), pkgs))
+      if not pkgs:
+        return []
+      return pkgs[0]  # return the first sdist found by Resolver#package_iterator
+
     while resolvables:
       while resolvables:
         resolvable, parent = resolvables.pop(0)
@@ -203,12 +208,11 @@ class Resolver(object):
         if constraint_only:
           continue
         assert len(packages) > 0, 'ResolvableSet.packages(%s) should not be empty' % resolvable
-        import pytest;pytest.set_trace()
         package = next(iter(packages))
         possibly_conflicting = None
-        versions = [x.raw_version for x in list(iter(packages))]
-        if len(list(filter(lambda x: len(x for x in list(iter(packages)) if x.raw_version in versions) > 1, list(iter(packages))))) > 1:
-          possibly_conflicting = list(filter(lambda x: len(x for x in list(iter(packages)) if x.raw_version in versions) > 1, list(iter(packages))))
+        if len(packages) > 1:
+          possibly_conflicting = get_possibly_conflicting_package(list(packages))
+
         if resolvable.name in processed_packages:
           if package == processed_packages[resolvable.name]:
             continue
@@ -269,8 +273,10 @@ class CachingResolver(Resolver):
 
   # Short-circuiting package iterator.
   def package_iterator(self, resolvable, existing=None):
-    iterator = Iterator(fetchers=[Fetcher([self.__cache], include_subdirs=True)],
+    current_cache = os.path.join(self.__cache, 'current')
+    iterator = Iterator(fetchers=[Fetcher([current_cache])],
                         allow_prereleases=self._allow_prereleases)
+
     packages = self.filter_packages_by_interpreter(
       resolvable.compatible(iterator),
       self._interpreter,
@@ -289,19 +295,18 @@ class CachingResolver(Resolver):
   def build(self, package, options, possibly_conflicting=None):
     # cache package locally
     if package.remote:
-      package = Package.from_href(options.get_context().fetch(package, into=self.__cache))
+      current_cache = os.path.join(self.__cache, 'current')
+      package = Package.from_href(options.get_context().fetch(package, into=current_cache))
       os.utime(package.local_path, None)
+
     # build into distribution
     dist = super(CachingResolver, self).build(package, options)
-    #import pytest;pytest.set_trace()
+
+    # compare against equivalent sdist
     if possibly_conflicting:
-      dists = {}
-      idx = 0
-      for package in possibly_conflicting:
-        idx += 1
-        dists[idx] = super(CachingResolver, self).build(package, options)
-      if self.get_cache_key(dists[1].location) != self.get_cache_key(dists[2].location):
-        dist = dists[2]
+      possibly_conflicting_dist = super(CachingResolver, self).build(possibly_conflicting, options)
+      if self.get_cache_key(dist.location) != self.get_cache_key(possibly_conflicting_dist.location):
+        dist = possibly_conflicting_dist
 
     # if distribution is not in cache, copy
     dist_filename = os.path.basename(dist.location)
@@ -314,6 +319,18 @@ class CachingResolver(Resolver):
       shutil.copyfile(dist.location, target + '~')
       os.rename(target + '~', target)
     os.utime(target, None)
+
+    # create current distribution directory if it does not exist
+    current_dist_dir = os.path.join(self.__cache, 'current')
+    if not os.path.exists(current_dist_dir):
+      safe_mkdir(current_dist_dir)
+
+    # copy the dist to current
+    current_target = os.path.join(current_dist_dir, dist_filename)
+    if not os.path.exists(current_target):
+      shutil.copyfile(dist.location, current_target + '~')
+      os.rename(current_target + '~', current_target)
+
     return DistributionHelper.distribution_from_path(target)
 
 
