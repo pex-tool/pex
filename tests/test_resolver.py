@@ -102,7 +102,7 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
 
 def test_resolve_from_sdist_when_sdist_contents_conflict_with_cached_bdist():
   # This exercises the change to the resolver cache that will protect against the issue
-  # described here: https://github.com/pantsbuild/pants/issues/5449
+  # described here: https://github.com/pantsbuild/pex/issues/452
   with temporary_dir() as fetcher_dir_run_1:
     with temporary_dir() as fetcher_dir_run_2:
       with temporary_dir() as cd:
