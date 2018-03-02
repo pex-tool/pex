@@ -17,7 +17,7 @@ from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
-from .package import Package, distribution_compatible, SourcePackage
+from .package import Package, distribution_compatible
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
@@ -165,7 +165,7 @@ class Resolver(object):
       existing = resolvable.packages()
     return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
 
-  def build(self, package, options, possibly_conflicting=None):
+  def build(self, package, options, uncached_pkg=None):
     context = options.get_context()
     translator = options.get_translator(self._interpreter, self._platform)
     with TRACER.timed('Fetching %s' % package.url, V=2):
@@ -188,11 +188,13 @@ class Resolver(object):
     processed_packages = {}
     distributions = {}
 
-    def get_possibly_conflicting_package(pkgs):
-      pkgs = list(filter(lambda x: isinstance(x, SourcePackage), pkgs))
+    def get_possibly_conflicting_package(cached_wheel_pkg, all_packages):
+      pkgs = list(filter(lambda x: x != cached_wheel_pkg and
+                                   x.name == cached_wheel_pkg.name and
+                                   x.raw_version == cached_wheel_pkg.raw_version, all_packages))
       if not pkgs:
         return []
-      return pkgs[0]  # return the first sdist found by Resolver#package_iterator
+      return pkgs[0]  # return the first uncached package found by Resolver#package_iterator
 
     while resolvables:
       while resolvables:
@@ -204,20 +206,22 @@ class Resolver(object):
         processed_resolvables.add(resolvable)
 
       built_packages = {}
+
       for resolvable, packages, parent, constraint_only in resolvable_set.packages():
         if constraint_only:
           continue
         assert len(packages) > 0, 'ResolvableSet.packages(%s) should not be empty' % resolvable
         package = next(iter(packages))
-        possibly_conflicting = None
+
+        possibly_conflicting_package = None
         if len(packages) > 1:
-          possibly_conflicting = get_possibly_conflicting_package(list(packages))
+          possibly_conflicting_package = get_possibly_conflicting_package(package, list(packages))
 
         if resolvable.name in processed_packages:
           if package == processed_packages[resolvable.name]:
             continue
         if package not in distributions:
-          dist = self.build(package, resolvable.options, possibly_conflicting=possibly_conflicting)
+          dist = self.build(package, resolvable.options, uncached_pkg=possibly_conflicting_package)
           built_package = Package.from_href(dist.location)
           built_packages[package] = built_package
           distributions[built_package] = dist
@@ -271,9 +275,14 @@ class CachingResolver(Resolver):
     safe_mkdir(self.__cache)
     super(CachingResolver, self).__init__(*args, **kw)
 
+  def ensure_current_dir(self):
+    current_dist_dir = os.path.join(self.__cache, 'current')
+    safe_mkdir(current_dist_dir)
+    return current_dist_dir
+
   # Short-circuiting package iterator.
   def package_iterator(self, resolvable, existing=None):
-    current_cache = os.path.join(self.__cache, 'current')
+    current_cache = self.ensure_current_dir()
     iterator = Iterator(fetchers=[Fetcher([current_cache])],
                         allow_prereleases=self._allow_prereleases)
 
@@ -292,21 +301,22 @@ class CachingResolver(Resolver):
     )
 
   # Caching sandwich.
-  def build(self, package, options, possibly_conflicting=None):
+  def build(self, package, options, uncached_pkg=None):
     # cache package locally
     if package.remote:
-      current_cache = os.path.join(self.__cache, 'current')
-      package = Package.from_href(options.get_context().fetch(package, into=current_cache))
+      cache_current_dir = self.ensure_current_dir()
+      package = Package.from_href(options.get_context().fetch(package, into=cache_current_dir))
       os.utime(package.local_path, None)
 
     # build into distribution
     dist = super(CachingResolver, self).build(package, options)
 
-    # compare against equivalent sdist
-    if possibly_conflicting:
-      possibly_conflicting_dist = super(CachingResolver, self).build(possibly_conflicting, options)
-      if self.get_cache_key(dist.location) != self.get_cache_key(possibly_conflicting_dist.location):
-        dist = possibly_conflicting_dist
+    # compare against a possibly conflicting dist
+    if uncached_pkg:
+      uncached_dist = super(CachingResolver, self).build(uncached_pkg, options)
+      if self.get_cache_key(dist.location) != self.get_cache_key(uncached_dist.location):
+        # the two dists have different contents, use the uncached dist
+        dist = uncached_dist
 
     # if distribution is not in cache, copy
     dist_filename = os.path.basename(dist.location)
@@ -320,17 +330,16 @@ class CachingResolver(Resolver):
       os.rename(target + '~', target)
     os.utime(target, None)
 
-    # create current distribution directory if it does not exist
-    current_dist_dir = os.path.join(self.__cache, 'current')
-    if not os.path.exists(current_dist_dir):
-      safe_mkdir(current_dist_dir)
+    # copy distribution to current
+    target_in_current = os.path.join(self.ensure_current_dir(), dist_filename)
+    if not os.path.exists(target_in_current):
+      shutil.copyfile(dist.location, target_in_current + '~')
+      os.rename(target_in_current + '~', target_in_current)
+    os.utime(target_in_current, None)
 
-    # copy the dist to current
-    current_target = os.path.join(current_dist_dir, dist_filename)
-    if not os.path.exists(current_target):
-      shutil.copyfile(dist.location, current_target + '~')
-      os.rename(current_target + '~', current_target)
-
+    # The zipimporter used by `distribution_from_path` has a cache of its own and will error
+    # out if we create a dist with different contents but the same zipimporter cache key. Loading
+    # the dist from its unique pex resolver cache location will inherently protect against this.
     return DistributionHelper.distribution_from_path(target)
 
 

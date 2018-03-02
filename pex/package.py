@@ -235,10 +235,13 @@ class WheelPackage(Package):
             self._raw_version == other._raw_version and
             self._py_tag == other._py_tag and
             self._abi_tag == other._abi_tag and
-            self._arch_tag == other._arch_tag)
+            self._arch_tag == other._arch_tag and
+            self.url == other.url)
 
   def __hash__(self):
-    return hash((self._name, self._raw_version, self._py_tag, self._abi_tag, self._arch_tag))
+    return hash(
+      (self._name, self._raw_version, self._py_tag, self._abi_tag, self._arch_tag, self.url)
+    )
 
 
 Package.register(SourcePackage)
