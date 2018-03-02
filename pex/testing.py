@@ -157,13 +157,17 @@ def make_source_dir(name='my_project', version='0.0.0', install_reqs=None):
             'version': version,
             'zip_safe': True,
             'install_requires': install_reqs or []}
-  with temporary_content(PROJECT_CONTENT1, interp=interp) as td:
+  with temporary_content(PROJECT_CONTENT_V1, interp=interp) as td:
     yield td
 
 
-def make_sdist(name='my_project', version='0.0.0', zip_safe=True, install_reqs=None, project_content_version=1):
+def make_sdist(name='my_project',
+               version='0.0.0',
+               zip_safe=True,
+               install_reqs=None,
+               project_content_version=1):
   with make_installer(name=name, version=version, installer_impl=Packager, zip_safe=zip_safe,
-                      install_reqs=install_reqs, project_content_version=project_content_version) as packager:
+      install_reqs=install_reqs, project_content_version=project_content_version) as packager:
     return packager.sdist()
 
 
