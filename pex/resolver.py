@@ -3,7 +3,6 @@
 
 from __future__ import print_function
 
-import hashlib
 import itertools
 import os
 import shutil
@@ -18,7 +17,7 @@ from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
-from .package import Package, distribution_compatible, WheelPackage
+from .package import Package, distribution_compatible
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
@@ -226,8 +225,7 @@ class Resolver(object):
       def predicate(x):
         return (x != cached_wheel_pkg and
                x.name == cached_wheel_pkg.name and
-               x.raw_version == cached_wheel_pkg.raw_version, all_packages and
-               isinstance(x, WheelPackage))
+               x.raw_version == cached_wheel_pkg.raw_version)
       for pkg in all_packages:
         # return the first uncached wheel package found by Resolver#package_iterator
         if predicate(pkg):
