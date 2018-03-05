@@ -17,7 +17,7 @@ from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
-from .package import Package, distribution_compatible
+from .package import Package, distribution_compatible, WheelPackage
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
@@ -165,7 +165,7 @@ class Resolver(object):
       existing = resolvable.packages()
     return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
 
-  def build(self, package, options, uncached_pkg=None):
+  def build(self, package, options, uncached_whl_pkg=None):
     context = options.get_context()
     translator = options.get_translator(self._interpreter, self._platform)
     with TRACER.timed('Fetching %s' % package.url, V=2):
@@ -188,13 +188,17 @@ class Resolver(object):
     processed_packages = {}
     distributions = {}
 
-    def get_possibly_conflicting_package(cached_wheel_pkg, all_packages):
-      pkgs = list(filter(lambda x: x != cached_wheel_pkg and
-                                   x.name == cached_wheel_pkg.name and
-                                   x.raw_version == cached_wheel_pkg.raw_version, all_packages))
-      if not pkgs:
-        return []
-      return pkgs[0]  # return the first uncached package found by Resolver#package_iterator
+    def get_possibly_conflicting_wheel_package(cached_wheel_pkg, all_packages):
+      def predicate(x):
+        return (x != cached_wheel_pkg and
+               x.name == cached_wheel_pkg.name and
+               x.raw_version == cached_wheel_pkg.raw_version, all_packages and
+               isinstance(x, WheelPackage))
+      for pkg in all_packages:
+        # return the first uncached wheel package found by Resolver#package_iterator
+        if predicate(pkg):
+          return pkg
+      return None
 
     while resolvables:
       while resolvables:
@@ -213,15 +217,15 @@ class Resolver(object):
         assert len(packages) > 0, 'ResolvableSet.packages(%s) should not be empty' % resolvable
         package = next(iter(packages))
 
-        possibly_conflicting_package = None
+        possibly_conflicting_pkg = None
         if len(packages) > 1:
-          possibly_conflicting_package = get_possibly_conflicting_package(package, list(packages))
+          possibly_conflicting_pkg = get_possibly_conflicting_wheel_package(package, list(packages))
 
         if resolvable.name in processed_packages:
           if package == processed_packages[resolvable.name]:
             continue
         if package not in distributions:
-          dist = self.build(package, resolvable.options, uncached_pkg=possibly_conflicting_package)
+          dist = self.build(package, resolvable.options, uncached_whl_pkg=possibly_conflicting_pkg)
           built_package = Package.from_href(dist.location)
           built_packages[package] = built_package
           distributions[built_package] = dist
@@ -264,10 +268,7 @@ class CachingResolver(Resolver):
 
   @classmethod
   def get_cache_key(cls, dist_location):
-    digest = hashlib.sha1()
-    with open(dist_location, 'rb') as fp:
-      digest.update(fp.read())
-    return digest.hexdigest()
+    return os.stat(dist_location).st_size
 
   def __init__(self, cache, cache_ttl, *args, **kw):
     self.__cache = cache
@@ -301,7 +302,7 @@ class CachingResolver(Resolver):
     )
 
   # Caching sandwich.
-  def build(self, package, options, uncached_pkg=None):
+  def build(self, package, options, uncached_whl_pkg=None):
     # cache package locally
     if package.remote:
       cache_current_dir = self.ensure_current_dir()
@@ -312,10 +313,10 @@ class CachingResolver(Resolver):
     dist = super(CachingResolver, self).build(package, options)
 
     # compare against a possibly conflicting dist
-    if uncached_pkg:
-      uncached_dist = super(CachingResolver, self).build(uncached_pkg, options)
+    if uncached_whl_pkg:
+      uncached_dist = super(CachingResolver, self).build(uncached_whl_pkg, options)
       if self.get_cache_key(dist.location) != self.get_cache_key(uncached_dist.location):
-        # the two dists have different contents, use the uncached dist
+        # the two dists have different contents, use the uncached wheel
         dist = uncached_dist
 
     # if distribution is not in cache, copy
