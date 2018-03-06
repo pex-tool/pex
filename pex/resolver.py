@@ -223,9 +223,10 @@ class Resolver(object):
 
     def get_possibly_conflicting_wheel_package(cached_wheel_pkg, all_packages):
       def predicate(x):
-        return (x != cached_wheel_pkg and
+        return (hash(x) != hash(cached_wheel_pkg) and
                x.name == cached_wheel_pkg.name and
-               x.raw_version == cached_wheel_pkg.raw_version)
+               x.raw_version == cached_wheel_pkg.raw_version and
+               'file://' in x.url)
       for pkg in all_packages:
         # return the first uncached wheel package found by Resolver#package_iterator
         if predicate(pkg):
