@@ -330,7 +330,7 @@ class CachingResolver(Resolver):
 
     # Add or overwrite current version of bdist
     current_target = os.path.join(self.ensure_current_dir(), dist_filename)
-    shutil.copy(dist.location, current_target)
+    shutil.copyfile(dist.location, current_target)
     os.utime(current_target, None)
 
     # The zipimporter used by `distribution_from_path` has a cache of its own and will error
