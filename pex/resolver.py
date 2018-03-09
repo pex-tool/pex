@@ -165,7 +165,7 @@ class Resolver(object):
 
     return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
 
-  def build(self, package, options, uncached_whl_pkg=None):
+  def build(self, package, options, uncached_pkg=None):
     context = options.get_context()
     translator = options.get_translator(self._interpreter, self._platform)
     with TRACER.timed('Fetching %s' % package.url, V=2):
@@ -188,17 +188,14 @@ class Resolver(object):
     processed_packages = {}
     distributions = {}
 
-    def get_possibly_conflicting_wheel_package(cached_wheel_pkg, all_packages):
+    def get_possibly_conflicting_local_package(cached_wheel_pkg, all_packages):
       def predicate(x):
-        return (hash(x) != hash(cached_wheel_pkg) and
-               x.name == cached_wheel_pkg.name and
-               x.raw_version == cached_wheel_pkg.raw_version and
-               'file://' in x.url)
-      for pkg in all_packages:
-        # return the first uncached wheel package found by Resolver#package_iterator
-        if predicate(pkg):
-          return pkg
-      return None
+        return (x.name == cached_wheel_pkg.name and
+                x.raw_version == cached_wheel_pkg.raw_version and
+                'file://' in x.url and
+                hash(x) != hash(cached_wheel_pkg))
+      # return the first potentially conflicting local package found by Resolver#package_iterator
+      return next((p for p in all_packages if predicate(p)), None)
 
     while resolvables:
       while resolvables:
@@ -219,13 +216,13 @@ class Resolver(object):
 
         possibly_conflicting_pkg = None
         if len(packages) > 1:
-          possibly_conflicting_pkg = get_possibly_conflicting_wheel_package(package, list(packages))
+          possibly_conflicting_pkg = get_possibly_conflicting_local_package(package, list(packages))
 
         if resolvable.name in processed_packages:
           if package == processed_packages[resolvable.name]:
             continue
         if package not in distributions:
-          dist = self.build(package, resolvable.options, uncached_whl_pkg=possibly_conflicting_pkg)
+          dist = self.build(package, resolvable.options, uncached_pkg=possibly_conflicting_pkg)
           built_package = Package.from_href(dist.location)
           built_packages[package] = built_package
           distributions[built_package] = dist
@@ -302,7 +299,7 @@ class CachingResolver(Resolver):
     )
 
   # Caching sandwich.
-  def build(self, package, options, uncached_whl_pkg=None):
+  def build(self, package, options, uncached_pkg=None):
     # cache package locally
     if package.remote:
       cache_current_dir = self.ensure_current_dir()
@@ -313,35 +310,33 @@ class CachingResolver(Resolver):
     dist = super(CachingResolver, self).build(package, options)
 
     # compare against a possibly conflicting dist
-    if uncached_whl_pkg:
-      uncached_dist = super(CachingResolver, self).build(uncached_whl_pkg, options)
+    if uncached_pkg:
+      uncached_dist = super(CachingResolver, self).build(uncached_pkg, options)
       if self.get_cache_key(dist.location) != self.get_cache_key(uncached_dist.location):
-        # the two dists have different contents, use the uncached wheel
+        # the two dists have different contents, use the uncached bdist
         dist = uncached_dist
 
-    # if distribution is not in cache, copy
+    # Add fingerprinted bdist if not present in cache
     dist_filename = os.path.basename(dist.location)
     cached_location = os.path.join(self.__cache, '%s.%s' % (
-      dist_filename, self.get_cache_key(dist.location)))
+        dist_filename, self.get_cache_key(dist.location)))
     safe_mkdir(cached_location)
 
-    target = os.path.join(cached_location, dist_filename)
-    if not os.path.exists(target):
-      shutil.copyfile(dist.location, target + '~')
-      os.rename(target + '~', target)
-    os.utime(target, None)
+    fingerprinted_target = os.path.join(cached_location, dist_filename)
+    if not os.path.exists(fingerprinted_target):
+      shutil.copyfile(dist.location, fingerprinted_target + '~')
+      os.rename(fingerprinted_target + '~', fingerprinted_target)
+    os.utime(fingerprinted_target, None)
 
-    # copy distribution to current
-    target_in_current = os.path.join(self.ensure_current_dir(), dist_filename)
-    if not os.path.exists(target_in_current):
-      shutil.copyfile(dist.location, target_in_current + '~')
-      os.rename(target_in_current + '~', target_in_current)
-    os.utime(target_in_current, None)
+    # Add or overwrite current version of bdist
+    current_target = os.path.join(self.ensure_current_dir(), dist_filename)
+    shutil.copy(dist.location, current_target)
+    os.utime(current_target, None)
 
     # The zipimporter used by `distribution_from_path` has a cache of its own and will error
     # out if we create a dist with different contents but the same zipimporter cache key. Loading
     # the dist from its unique pex resolver cache location will inherently protect against this.
-    return DistributionHelper.distribution_from_path(target)
+    return DistributionHelper.distribution_from_path(fingerprinted_target)
 
 
 def resolve(requirements,
