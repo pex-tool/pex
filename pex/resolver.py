@@ -151,10 +151,11 @@ class Resolver(object):
     return [package for package in packages
         if package.compatible(interpreter.identity, platform)]
 
-  def __init__(self, allow_prereleases=None, interpreter=None, platform=None):
+  def __init__(self, allow_prereleases=None, interpreter=None, platform=None, pkg_blacklist=None):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = platform or Platform.current()
     self._allow_prereleases = allow_prereleases
+    self._blacklist = pkg_blacklist or {}
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
@@ -180,6 +181,11 @@ class Resolver(object):
         'Could not get distribution for %s on platform %s.' % (package, self._platform))
     return dist
 
+  def resolvable_is_blacklisted(self, resolvable_name):
+    if not resolvable_name in self._blacklist:
+      return False
+    return self._interpreter.identity.matches(self._blacklist[resolvable_name])
+
   def resolve(self, resolvables, resolvable_set=None):
     resolvables = [(resolvable, None) for resolvable in resolvables]
     resolvable_set = resolvable_set or _ResolvableSet()
@@ -193,6 +199,12 @@ class Resolver(object):
         if resolvable in processed_resolvables:
           continue
         packages = self.package_iterator(resolvable, existing=resolvable_set.get(resolvable.name))
+
+        # TODO: Remove blacklist strategy in favor of smart requirement handling
+        # https://github.com/pantsbuild/pex/issues/456
+        if self.resolvable_is_blacklisted(resolvable.name):
+          processed_resolvables.add(resolvable)
+          continue
         resolvable_set.merge(resolvable, packages, parent)
         processed_resolvables.add(resolvable)
 
@@ -299,7 +311,8 @@ def resolve(requirements,
             precedence=None,
             cache=None,
             cache_ttl=None,
-            allow_prereleases=None):
+            allow_prereleases=None,
+            pkg_blacklist=None):
   """Produce all distributions needed to (recursively) meet `requirements`
 
   :param requirements: An iterator of Requirement-like things, either
@@ -329,6 +342,10 @@ def resolve(requirements,
     ``context``.
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
     unspecified only stable versions will be resolved, unless explicitly included.
+  :keyword pkg_blacklist: (optional) A blacklist dict (str->str) that maps package name to
+    an interpreter constraint. If a package name is in the blacklist and the interpreter
+    constraint matches the target interpreter, skip the requirement.
+    For example, {'functools32': 'CPython>3'}.
   :returns: List of :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -367,11 +384,13 @@ def resolve(requirements,
                                cache_ttl,
                                allow_prereleases=allow_prereleases,
                                interpreter=interpreter,
-                               platform=platform)
+                               platform=platform,
+                               pkg_blacklist=pkg_blacklist)
   else:
     resolver = Resolver(allow_prereleases=allow_prereleases,
                         interpreter=interpreter,
-                        platform=platform)
+                        platform=platform,
+                        pkg_blacklist=pkg_blacklist)
 
   return resolver.resolve(resolvables_from_iterable(requirements, builder))
 
@@ -384,7 +403,8 @@ def resolve_multi(requirements,
                   precedence=None,
                   cache=None,
                   cache_ttl=None,
-                  allow_prereleases=None):
+                  allow_prereleases=None,
+                  pkg_blacklist=None):
   """A generator function that produces all distributions needed to meet `requirements`
   for multiple interpreters and/or platforms.
 
@@ -415,6 +435,10 @@ def resolve_multi(requirements,
     ``context``.
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
     unspecified only stable versions will be resolved, unless explicitly included.
+  :keyword pkg_blacklist: (optional) A blacklist dict (str->str) that maps package name to
+    an interpreter constraint. If a package name is in the blacklist and the interpreter
+    constraint matches the target interpreter, skip the requirement.
+    For example, {'functools32': 'CPython>3'}.
   :yields: All :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -435,7 +459,8 @@ def resolve_multi(requirements,
                                 precedence,
                                 cache,
                                 cache_ttl,
-                                allow_prereleases):
+                                allow_prereleases,
+                                pkg_blacklist=pkg_blacklist):
         if resolvable not in seen:
           seen.add(resolvable)
           yield resolvable

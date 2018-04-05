@@ -2,17 +2,20 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import sys
 import time
 
 import pytest
 from twitter.common.contextutil import temporary_dir
 
 from pex.common import safe_copy
+from pex.compatibility import PY2
 from pex.crawler import Crawler
 from pex.fetcher import Fetcher
+from pex.interpreter import PythonInterpreter
 from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
-from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve_multi
+from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.testing import make_sdist
 
@@ -349,3 +352,32 @@ def test_resolvable_set_built():
   updated_rs.merge(rq, [binary_pkg])
   assert updated_rs.get('foo') == set([binary_pkg])
   assert updated_rs.packages() == [(rq, set([binary_pkg]), None, False)]
+
+def test_resolver_blacklist():
+  project = make_sdist(name='project', version='1.0.0')
+  other_project = make_sdist(name='other_project', version='1.1.0')
+
+  with temporary_dir() as td:
+    safe_copy(project, os.path.join(td, os.path.basename(project)))
+    safe_copy(other_project, os.path.join(td, os.path.basename(other_project)))
+    fetchers = [Fetcher([td])]
+
+    if PY2:
+      blacklist = {'project': '<3'}
+    else:
+      blacklist = {'project': '>3'}
+
+    dists = resolve(['project'], fetchers=fetchers, pkg_blacklist=blacklist)
+    assert len(dists) == 0
+
+    dists = resolve(['other_project'], fetchers=fetchers, pkg_blacklist=blacklist)
+    assert len(dists) == 1
+    assert '1.1.0' == dists[0].version
+
+    dists = list(resolve_multi(['project'], fetchers=fetchers, pkg_blacklist=blacklist))
+    assert len(dists) == 0
+
+    dists = list(resolve_multi(['project', 'other_project'], fetchers=fetchers,
+                                                             pkg_blacklist=blacklist))
+    assert len(dists) == 1
+    assert '1.1.0' == dists[0].version
