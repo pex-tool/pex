@@ -12,9 +12,10 @@ from pex.common import open_zip
 from pex.compatibility import WINDOWS, nested
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.testing import make_bdist
 from pex.testing import write_simple_pex as write_pex
+from pex.testing import make_bdist
 from pex.util import DistributionHelper
+
 
 exe_main = """
 import sys

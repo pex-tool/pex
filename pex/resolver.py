@@ -162,7 +162,6 @@ class Resolver(object):
         StaticIterator(existing, allow_prereleases=self._allow_prereleases))
     else:
       existing = resolvable.packages()
-
     return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
 
   def build(self, package, options, uncached_pkg=None):
@@ -207,7 +206,6 @@ class Resolver(object):
         processed_resolvables.add(resolvable)
 
       built_packages = {}
-
       for resolvable, packages, parent, constraint_only in resolvable_set.packages():
         if constraint_only:
           continue
@@ -283,7 +281,6 @@ class CachingResolver(Resolver):
     current_cache = self.ensure_current_dir()
     iterator = Iterator(fetchers=[Fetcher([current_cache])],
                         allow_prereleases=self._allow_prereleases)
-
     packages = self.filter_packages_by_interpreter(
       resolvable.compatible(iterator),
       self._interpreter,
@@ -420,6 +417,7 @@ def resolve(requirements,
     resolver = Resolver(allow_prereleases=allow_prereleases,
                         interpreter=interpreter,
                         platform=platform)
+
   return resolver.resolve(resolvables_from_iterable(requirements, builder))
 
 
