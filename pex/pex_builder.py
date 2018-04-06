@@ -16,6 +16,7 @@ from .interpreter import PythonInterpreter
 from .pex_info import PexInfo
 from .util import CacheHelper, DistributionHelper
 
+
 BOOTSTRAP_ENVIRONMENT = b"""
 import os
 import sys
