@@ -155,7 +155,7 @@ class Resolver(object):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = platform or Platform.current()
     self._allow_prereleases = allow_prereleases
-    self._blacklist = pkg_blacklist or {}
+    self._blacklist = pkg_blacklist.copy() if pkg_blacklist else {}
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
@@ -182,9 +182,10 @@ class Resolver(object):
     return dist
 
   def resolvable_is_blacklisted(self, resolvable_name):
-    if not resolvable_name in self._blacklist:
-      return False
-    return self._interpreter.identity.matches(self._blacklist[resolvable_name])
+    return (
+      resolvable_name in self._blacklist and
+      self._interpreter.identity.matches(self._blacklist[resolvable_name])
+    )
 
   def resolve(self, resolvables, resolvable_set=None):
     resolvables = [(resolvable, None) for resolvable in resolvables]
@@ -202,10 +203,8 @@ class Resolver(object):
 
         # TODO: Remove blacklist strategy in favor of smart requirement handling
         # https://github.com/pantsbuild/pex/issues/456
-        if self.resolvable_is_blacklisted(resolvable.name):
-          processed_resolvables.add(resolvable)
-          continue
-        resolvable_set.merge(resolvable, packages, parent)
+        if not self.resolvable_is_blacklisted(resolvable.name):
+          resolvable_set.merge(resolvable, packages, parent)
         processed_resolvables.add(resolvable)
 
       built_packages = {}
@@ -343,9 +342,11 @@ def resolve(requirements,
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
     unspecified only stable versions will be resolved, unless explicitly included.
   :keyword pkg_blacklist: (optional) A blacklist dict (str->str) that maps package name to
-    an interpreter constraint. If a package name is in the blacklist and the interpreter
-    constraint matches the target interpreter, skip the requirement.
-    For example, {'functools32': 'CPython>3'}.
+    an interpreter constraint. If a package name is in the blacklist and its interpreter
+    constraint matches the target interpreter, skip the requirement. This is needed to ensure
+    that universal requirement resolves for a target interpreter version do not error out on
+    interpreter specific requirements such as backport libs like `functools32`.
+    For example, a valid blacklist is {'functools32': 'CPython>3'}.
   :returns: List of :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -436,9 +437,11 @@ def resolve_multi(requirements,
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
     unspecified only stable versions will be resolved, unless explicitly included.
   :keyword pkg_blacklist: (optional) A blacklist dict (str->str) that maps package name to
-    an interpreter constraint. If a package name is in the blacklist and the interpreter
-    constraint matches the target interpreter, skip the requirement.
-    For example, {'functools32': 'CPython>3'}.
+    an interpreter constraint. If a package name is in the blacklist and its interpreter
+    constraint matches the target interpreter, skip the requirement. This is needed to ensure
+    that universal requirement resolves for a target interpreter version do not error out on
+    interpreter specific requirements such as backport libs like `functools32`.
+    For example, a valid blacklist is {'functools32': 'CPython>3'}.
   :yields: All :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
