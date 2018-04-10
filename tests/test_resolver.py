@@ -353,31 +353,25 @@ def test_resolvable_set_built():
   assert updated_rs.get('foo') == set([binary_pkg])
   assert updated_rs.packages() == [(rq, set([binary_pkg]), None, False)]
 
+
 def test_resolver_blacklist():
-  project = make_sdist(name='project', version='1.0.0')
-  other_project = make_sdist(name='other_project', version='1.1.0')
+  if PY2:
+    blacklist = {'project2': '<3'}
+    required_project = "project2;python_version>'3'"
+  else:
+    blacklist = {'project2': '>3'}
+    required_project = "project2;python_version<'3'"
+
+  project1 = make_sdist(name='project1', version='1.0.0', install_reqs=["project2;python_version<'3'"])
+  project2 = make_sdist(name='project2', version='1.1.0')
 
   with temporary_dir() as td:
-    safe_copy(project, os.path.join(td, os.path.basename(project)))
-    safe_copy(other_project, os.path.join(td, os.path.basename(other_project)))
+    safe_copy(project1, os.path.join(td, os.path.basename(project1)))
+    safe_copy(project2, os.path.join(td, os.path.basename(project2)))
     fetchers = [Fetcher([td])]
 
-    if PY2:
-      blacklist = {'project': '<3'}
-    else:
-      blacklist = {'project': '>3'}
+    dists = resolve(['project1'], fetchers=fetchers)
+    assert len(dists) == 2
 
-    dists = resolve(['project'], fetchers=fetchers, pkg_blacklist=blacklist)
-    assert len(dists) == 0
-
-    dists = resolve(['other_project'], fetchers=fetchers, pkg_blacklist=blacklist)
+    dists = resolve(['project1'], fetchers=fetchers, pkg_blacklist=blacklist)
     assert len(dists) == 1
-    assert '1.1.0' == dists[0].version
-
-    dists = list(resolve_multi(['project'], fetchers=fetchers, pkg_blacklist=blacklist))
-    assert len(dists) == 0
-
-    dists = list(resolve_multi(['project', 'other_project'], fetchers=fetchers,
-                                                             pkg_blacklist=blacklist))
-    assert len(dists) == 1
-    assert '1.1.0' == dists[0].version

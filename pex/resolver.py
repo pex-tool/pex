@@ -181,7 +181,7 @@ class Resolver(object):
         'Could not get distribution for %s on platform %s.' % (package, self._platform))
     return dist
 
-  def resolvable_is_blacklisted(self, resolvable_name):
+  def _resolvable_is_blacklisted(self, resolvable_name):
     return (
       resolvable_name in self._blacklist and
       self._interpreter.identity.matches(self._blacklist[resolvable_name])
@@ -203,7 +203,7 @@ class Resolver(object):
 
         # TODO: Remove blacklist strategy in favor of smart requirement handling
         # https://github.com/pantsbuild/pex/issues/456
-        if not self.resolvable_is_blacklisted(resolvable.name):
+        if not self._resolvable_is_blacklisted(resolvable.name):
           resolvable_set.merge(resolvable, packages, parent)
         processed_resolvables.add(resolvable)
 
@@ -347,6 +347,8 @@ def resolve(requirements,
     that universal requirement resolves for a target interpreter version do not error out on
     interpreter specific requirements such as backport libs like `functools32`.
     For example, a valid blacklist is {'functools32': 'CPython>3'}.
+    NOTE: this keyword is a temporary fix and will be reverted in favor of a long term solution
+    tracked by: https://github.com/pantsbuild/pex/issues/456
   :returns: List of :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -442,6 +444,8 @@ def resolve_multi(requirements,
     that universal requirement resolves for a target interpreter version do not error out on
     interpreter specific requirements such as backport libs like `functools32`.
     For example, a valid blacklist is {'functools32': 'CPython>3'}.
+    NOTE: this keyword is a temporary fix and will be reverted in favor of a long term solution
+    tracked by: https://github.com/pantsbuild/pex/issues/456
   :yields: All :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
