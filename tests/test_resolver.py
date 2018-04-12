@@ -362,7 +362,7 @@ def test_resolver_blacklist():
     blacklist = {'project2': '>3'}
     required_project = "project2;python_version<'3'"
 
-  project1 = make_sdist(name='project1', version='1.0.0', install_reqs=["project2;python_version<'3'"])
+  project1 = make_sdist(name='project1', version='1.0.0', install_reqs=[required_project])
   project2 = make_sdist(name='project2', version='1.1.0')
 
   with temporary_dir() as td:
