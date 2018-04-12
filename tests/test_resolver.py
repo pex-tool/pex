@@ -2,17 +2,20 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import sys
 import time
 
 import pytest
 from twitter.common.contextutil import temporary_dir
 
 from pex.common import safe_copy
+from pex.compatibility import PY2
 from pex.crawler import Crawler
 from pex.fetcher import Fetcher
+from pex.interpreter import PythonInterpreter
 from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
-from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve_multi
+from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.testing import make_sdist
 
@@ -349,3 +352,26 @@ def test_resolvable_set_built():
   updated_rs.merge(rq, [binary_pkg])
   assert updated_rs.get('foo') == set([binary_pkg])
   assert updated_rs.packages() == [(rq, set([binary_pkg]), None, False)]
+
+
+def test_resolver_blacklist():
+  if PY2:
+    blacklist = {'project2': '<3'}
+    required_project = "project2;python_version>'3'"
+  else:
+    blacklist = {'project2': '>3'}
+    required_project = "project2;python_version<'3'"
+
+  project1 = make_sdist(name='project1', version='1.0.0', install_reqs=[required_project])
+  project2 = make_sdist(name='project2', version='1.1.0')
+
+  with temporary_dir() as td:
+    safe_copy(project1, os.path.join(td, os.path.basename(project1)))
+    safe_copy(project2, os.path.join(td, os.path.basename(project2)))
+    fetchers = [Fetcher([td])]
+
+    dists = resolve(['project1'], fetchers=fetchers)
+    assert len(dists) == 2
+
+    dists = resolve(['project1'], fetchers=fetchers, pkg_blacklist=blacklist)
+    assert len(dists) == 1
