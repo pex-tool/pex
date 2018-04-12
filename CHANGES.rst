@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+1.3.2
+-----
+
+* Add blacklist handling for skipping requirements in pex resolver #457
+  `#457 <https://github.com/pantsbuild/pex/pull/457>`_
+
 1.3.1
 -----
 
