@@ -376,11 +376,11 @@ in certain situations when particular extensions may not be necessary to run a p
 The platform to build the pex for. Right now it defaults to the current system, but you can specify
 something like ``linux-x86_64`` or ``macosx-10.6-x86_64``. This will look for bdists for the particular platform.
 
-To build manylinux wheels for specific tags, you can add them to the platform with hyphens like
-``PLATFORM-PYVER-IMPL-ABI``, where ``PLATFORM`` is either ``manylinux1-x86_64`` or ``manylinux1-i686``, ``PYVER``
-is a two-digit string representing the python version (e.g., ``36``), ``IMPL`` is the python implementation
-abbreviation (e.g., ``cp``, ``pp``, ``jp``), and ``ABI`` is the ABI tag (e.g., ``cp36m``, ``cp27mu``, ``abi3``,
-``none``). A complete example: ``manylinux1_x86_64-36-cp-cp36m``.
+To resolve wheels for specific interpreter/platform tags, you can append them to the platform name with hyphens
+like ``PLATFORM-IMPL-PYVER-ABI``, where ``PLATFORM`` is the platform (e.g. ``linux-x86_64``,
+``macosx-10.4-x86_64``), ``IMPL`` is the python implementation abbreviation (e.g. ``cp``, ``pp``, ``jp``), ``PYVER``
+is a two-digit string representing the python version (e.g., ``36``) and ``ABI`` is the ABI tag (e.g., ``cp36m``,
+``cp27mu``, ``abi3``, ``none``). A complete example: ``linux_x86_64-cp-36-cp36m``.
 
 Tailoring PEX execution at runtime
 ----------------------------------

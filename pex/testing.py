@@ -21,12 +21,13 @@ from .pex_builder import PEXBuilder
 from .util import DistributionHelper, named_temporary_file
 from .version import SETUPTOOLS_REQUIREMENT
 
-NOT_CPYTHON_36 = (
-  "hasattr(sys, 'pypy_version_info') or "
-  "(sys.version_info[0], sys.version_info[1]) != (3, 6)"
-)
-
-PYPY = "hasattr(sys, 'pypy_version_info')"
+IS_PYPY = "hasattr(sys, 'pypy_version_info')"
+NOT_CPYTHON27 = ("%s or (sys.version_info[0], sys.version_info[1]) != (2, 7)" % (IS_PYPY))
+NOT_CPYTHON36 = ("%s or (sys.version_info[0], sys.version_info[1]) != (3, 6)" % (IS_PYPY))
+IS_LINUX = "platform.system() == 'Linux'"
+IS_NOT_LINUX = "platform.system() != 'Linux'"
+NOT_CPYTHON27_OR_OSX = "%s or %s" % (NOT_CPYTHON27, IS_NOT_LINUX)
+NOT_CPYTHON36_OR_LINUX = "%s or %s" % (NOT_CPYTHON36, IS_LINUX)
 
 
 @contextlib.contextmanager
@@ -217,10 +218,12 @@ class IntegResults(namedtuple('results', 'output return_code exception traceback
   """Convenience object to return integration run results."""
 
   def assert_success(self):
-    if not (self.exception is None and self.return_code is None):
-      raise AssertionError('integration test failed: return_code=%s, exception=%r, traceback=%s' % (
-        self.return_code, self.exception, self.traceback
-      ))
+    if not (self.exception is None and self.return_code in [None, 0]):
+      raise AssertionError(
+        'integration test failed: return_code=%s, exception=%r, output=%s, traceback=%s' % (
+          self.return_code, self.exception, self.output, self.traceback
+        )
+      )
 
   def assert_failure(self):
     assert self.exception or self.return_code

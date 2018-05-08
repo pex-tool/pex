@@ -36,6 +36,13 @@ pex.finders module
     :members:
     :show-inheritance:
 
+pex.glibc module
+----------------
+
+.. automodule:: pex.glibc
+    :members:
+    :show-inheritance:
+
 pex.http module
 --------------------
 
@@ -103,6 +110,13 @@ pex.pex_info module
 -------------------
 
 .. automodule:: pex.pex_info
+    :members:
+    :show-inheritance:
+
+pex.platforms module
+--------------------
+
+.. automodule:: pex.platforms
     :members:
     :show-inheritance:
 

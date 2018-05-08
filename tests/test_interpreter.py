@@ -6,6 +6,7 @@ import os
 import pytest
 
 from pex import interpreter
+from pex.testing import IS_PYPY, ensure_python_interpreter
 
 try:
   from mock import patch
@@ -21,3 +22,11 @@ class TestPythonInterpreter(object):
     with patch.dict(os.environ, clear=True):
       reload(interpreter)
       interpreter.PythonInterpreter.all()
+
+  @pytest.mark.skipif(IS_PYPY)
+  def test_interpreter_versioning(self):
+    test_version_tuple = (2, 7, 10)
+    test_version = '.'.join(str(x) for x in test_version_tuple)
+    test_interpreter = ensure_python_interpreter(test_version)
+    py_interpreter = interpreter.PythonInterpreter.from_binary(test_interpreter)
+    assert py_interpreter.identity.version == test_version_tuple

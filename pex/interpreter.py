@@ -31,22 +31,25 @@ try:
 except ImportError:
   Integral = (int, long)
 
-# Determine in the most platform-compatible way possible the identity of the interpreter
-# and its known packages.
-ID_PY = (b"""
+
+ID_PY_TMPL = b"""\
 import sys
 import sysconfig
 import warnings
 
-""" +
-b'\n'.join(getsource(func).encode('utf-8')
-           for func in (get_flag, get_config_var, get_abbr_impl,
-                        get_abi_tag, get_impl_version_info, get_impl_ver)) +
-b"""
-print("%s %s %s" % (
-  get_abbr_impl(),
-  get_abi_tag(),
-  get_impl_ver()))
+__CODE__
+
+
+print(
+  "%s %s %s %s %s %s" % (
+    get_abbr_impl(),
+    get_abi_tag(),
+    get_impl_ver(),
+    sys.version_info[0],
+    sys.version_info[1],
+    sys.version_info[2]
+  )
+)
 
 setuptools_path = None
 try:
@@ -63,7 +66,25 @@ for requirement_str, location in requirements.items():
   rs = requirement_str.split('==', 2)
   if len(rs) == 2:
     print('%s %s %s' % (rs[0], rs[1], location))
-""")
+"""
+
+
+def _generate_identity_source():
+  # Determine in the most platform-compatible way possible the identity of the interpreter
+  # and its known packages.
+  encodables = (
+    get_flag,
+    get_config_var,
+    get_abbr_impl,
+    get_abi_tag,
+    get_impl_version_info,
+    get_impl_ver
+  )
+
+  return ID_PY_TMPL.replace(
+    b'__CODE__',
+    b'\n\n'.join(getsource(func).encode('utf-8') for func in encodables)
+  )
 
 
 class PythonIdentity(object):
@@ -88,22 +109,31 @@ class PythonIdentity(object):
 
   @classmethod
   def get(cls):
-    return cls(get_abbr_impl(), get_abi_tag(), get_impl_ver())
+    return cls(
+      get_abbr_impl(),
+      get_abi_tag(),
+      get_impl_ver(),
+      str(sys.version_info[0]),
+      str(sys.version_info[1]),
+      str(sys.version_info[2])
+    )
 
   @classmethod
   def from_id_string(cls, id_string):
+    TRACER.log('creating PythonIdentity from id string: %s' % id_string, V=3)
     values = str(id_string).split()
-    if len(values) != 3:
+    if len(values) != 6:
       raise cls.InvalidError("Invalid id string: %s" % id_string)
     return cls(*values)
 
-  def __init__(self, abbr, abi, version):
-    self._interpreter = self.ABBR_TO_INTERPRETER[abbr]
-    self._abbr = abbr
-    self._version = tuple(int(x) for x in version)
-    if len(self._version) == 2:
-      self._version += (0,)
-    self._impl_ver = version
+  def __init__(self, impl, abi, impl_version, major, minor, patch):
+    assert impl in self.ABBR_TO_INTERPRETER, (
+      'unknown interpreter: {}'.format(impl)
+    )
+    self._interpreter = self.ABBR_TO_INTERPRETER[impl]
+    self._abbr = impl
+    self._version = tuple(int(v) for v in (major, minor, patch))
+    self._impl_ver = impl_version
     self._abi = abi
 
   @property
@@ -177,13 +207,14 @@ class PythonIdentity(object):
     return '%d.%d' % (self.version[0:2])
 
   def pkg_resources_env(self, platform_str):
-    """A dict that can be used in place of packaging.default_environment"""
+    """Returns a dict that can be used in place of packaging.default_environment."""
     os_name = ''
     platform_machine = ''
     platform_release = ''
     platform_system = ''
     platform_version = ''
     sys_platform = ''
+
     if 'win' in platform_str:
       os_name = 'nt'
       platform_machine = 'AMD64' if '64' in platform_str else 'x86'
@@ -203,27 +234,36 @@ class PythonIdentity(object):
       platform_system = 'Darwin'
       platform_version = 'Darwin Kernel Version {}'.format(platform_release)
       sys_platform = 'darwin'
+
     return {
-      "implementation_name": self.interpreter.lower(),
-      "implementation_version": self.version_str,
-      "os_name": os_name,
-      "platform_machine": platform_machine,
-      "platform_release": platform_release,
-      "platform_system": platform_system,
-      "platform_version": platform_version,
-      "python_full_version": self.version_str,
-      "platform_python_implementation": self.interpreter,
-      "python_version": self.version_str[:3],
-      "sys_platform": sys_platform,
+      'implementation_name': self.interpreter.lower(),
+      'implementation_version': self.version_str,
+      'os_name': os_name,
+      'platform_machine': platform_machine,
+      'platform_release': platform_release,
+      'platform_system': platform_system,
+      'platform_version': platform_version,
+      'python_full_version': self.version_str,
+      'platform_python_implementation': self.interpreter,
+      'python_version': self.version_str[:3],
+      'sys_platform': sys_platform,
     }
 
   def __str__(self):
-    return '%s-%s.%s.%s' % (self._interpreter,
-      self._version[0], self._version[1], self._version[2])
+    return '%s-%s.%s.%s' % (
+      self._interpreter,
+      self._version[0],
+      self._version[1],
+      self._version[2]
+    )
 
   def __repr__(self):
     return 'PythonIdentity(%r, %s, %s, %s)' % (
-        self._interpreter, self._version[0], self._version[1], self._version[2])
+      self._interpreter,
+      self._version[0],
+      self._version[1],
+      self._version[2]
+    )
 
   def __eq__(self, other):
     return all([isinstance(other, PythonIdentity),
@@ -294,7 +334,7 @@ class PythonInterpreter(object):
   def _from_binary_external(cls, binary, path_extras):
     environ = cls.sanitized_environment()
     environ['PYTHONPATH'] = ':'.join(path_extras)
-    stdout, _ = Executor.execute([binary], env=environ, stdin_payload=ID_PY)
+    stdout, _ = Executor.execute([binary], env=environ, stdin_payload=_generate_identity_source())
     output = stdout.splitlines()
     if len(output) == 0:
       raise cls.IdentificationError('Could not establish identity of %s' % binary)

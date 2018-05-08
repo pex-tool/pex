@@ -1,8 +1,7 @@
-# This file was copied from the pip project master branch on 2016/12/05
-# It was modified slightly to change a few import paths, remove the
-# OrderedDict dependency, remove unneeded globals, and change get_supported to
-# expect a single version.
+# This file was forked from the pip project master branch on 2016/12/05
+
 """Generate and work with PEP 425 Compatibility Tags."""
+
 from __future__ import absolute_import
 
 import distutils.util
@@ -125,26 +124,26 @@ def get_platform():
     release, _, machine = platform.mac_ver()
     split_ver = release.split('.')
 
-    if machine == "x86_64" and _is_running_32bit():
-      machine = "i386"
-    elif machine == "ppc64" and _is_running_32bit():
-      machine = "ppc"
+    if machine == 'x86_64' and _is_running_32bit():
+      machine = 'i386'
+    elif machine == 'ppc64' and _is_running_32bit():
+      machine = 'ppc'
 
     return 'macosx_{0}_{1}_{2}'.format(split_ver[0], split_ver[1], machine)
 
   # XXX remove distutils dependency
   result = distutils.util.get_platform().replace('.', '_').replace('-', '_')
-  if result == "linux_x86_64" and _is_running_32bit():
+  if result == 'linux_x86_64' and _is_running_32bit():
     # 32 bit Python program (running on a 64 bit Linux): pip should only
     # install and run 32 bit compiled extensions in that case.
-    result = "linux_i686"
+    result = 'linux_i686'
 
   return result
 
 
 def is_manylinux1_compatible():
   # Only Linux, and only x86-64 / i686
-  if get_platform() not in ("linux_x86_64", "linux_i686"):
+  if get_platform() not in ('linux_x86_64', 'linux_i686'):
     return False
 
   # Check for presence of _manylinux module
@@ -178,11 +177,6 @@ def get_darwin_arches(major, minor, machine):
     # 10.6 - Drops support for ppc64
     # 10.7 - Drops support for ppc
     #
-    # Given that we do not know if we're installing a CLI or a GUI
-    # application, we must be conservative and assume it might be a GUI
-    # application and behave as if ppc64 and x86_64 support did not occur
-    # until 10.5.
-    #
     # Note: The above information is taken from the "Application support"
     #     column in the chart not the "Processor support" since I believe
     #     that we care about what instruction sets an application can use
@@ -194,7 +188,7 @@ def get_darwin_arches(major, minor, machine):
     if arch == 'i386':
       return (major, minor) >= (10, 4)
     if arch == 'x86_64':
-      return (major, minor) >= (10, 5)
+      return (major, minor) >= (10, 4)
     if arch in groups:
       for garch in groups_dict[arch]:
         if _supports_arch(major, minor, garch):
@@ -202,10 +196,10 @@ def get_darwin_arches(major, minor, machine):
     return False
 
   groups = ('fat', 'intel', 'fat64', 'fat32')
-  groups_dict = {"fat": ("i386", "ppc"),
-                 "intel": ("x86_64", "i386"),
-                 "fat64": ("x86_64", "ppc64"),
-                 "fat32": ("x86_64", "i386", "ppc")}
+  groups_dict = {'fat': ('i386', 'ppc'),
+                 'intel': ('x86_64', 'i386'),
+                 'fat64': ('x86_64', 'ppc64'),
+                 'fat32': ('x86_64', 'i386', 'ppc')}
 
   if _supports_arch(major, minor, machine):
     arches.append(machine)
@@ -219,10 +213,10 @@ def get_darwin_arches(major, minor, machine):
   return arches
 
 
-def get_supported(version=None, noarch=False, platform=None,
-                  impl=None, abi=None):
+def get_supported(version=None, noarch=False, platform=None, impl=None, abi=None,
+                  force_manylinux=False):
   """Return a list of supported tags for each version specified in
-  `versions`.
+  `version`.
 
   :param version: string version (e.g., "33", "32") or None.
     If None, use local system Python version.
@@ -232,6 +226,8 @@ def get_supported(version=None, noarch=False, platform=None,
     tags for, or None. If None, use the local interpreter impl.
   :param abi: specify the exact abi you want valid
     tags for, or None. If None, use the local interpreter abi.
+  :param force_manylinux: Whether or not to force manylinux support. This is useful
+                          when resolving for different target platform than current.
   """
   supported = []
 
@@ -279,7 +275,12 @@ def get_supported(version=None, noarch=False, platform=None,
       else:
         # arch pattern didn't match (?!)
         arches = [arch]
-    elif platform is None and is_manylinux1_compatible():
+    elif (
+      (platform is None and is_manylinux1_compatible()) or
+      # N.B. Here we work around the fact that `is_manylinux1_compatible()` expects
+      # to be running on the target platform being built for with a feature flag approach.
+      (arch.startswith('linux') and force_manylinux)
+    ):
       arches = [arch.replace('linux', 'manylinux1'), arch]
     else:
       arches = [arch]
@@ -296,7 +297,7 @@ def get_supported(version=None, noarch=False, platform=None,
         break
       for abi in abi3s:   # empty set if not Python 3
         for arch in arches:
-          supported.append(("%s%s" % (impl, version), abi, arch))
+          supported.append(('%s%s' % (impl, version), abi, arch))
 
     # Has binaries, does not use the Python API:
     for arch in arches:

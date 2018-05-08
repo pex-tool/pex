@@ -1,8 +1,12 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import functools
 import os
+import platform
+import subprocess
 import sys
+from contextlib import contextmanager
 from textwrap import dedent
 
 import pytest
@@ -12,8 +16,10 @@ from pex.compatibility import WINDOWS
 from pex.installer import EggInstaller
 from pex.pex_bootstrapper import get_pex_info
 from pex.testing import (
-    NOT_CPYTHON_36,
-    PYPY,
+    IS_PYPY,
+    NOT_CPYTHON27_OR_OSX,
+    NOT_CPYTHON36,
+    NOT_CPYTHON36_OR_LINUX,
     ensure_python_interpreter,
     get_dep_dist_names_from_pex,
     run_pex_command,
@@ -167,7 +173,9 @@ def test_entry_point_exit_code():
     assert rc == 1
 
 
-@pytest.mark.skipif(NOT_CPYTHON_36)
+# TODO: https://github.com/pantsbuild/pex/issues/479
+@pytest.mark.skipif(NOT_CPYTHON36_OR_LINUX,
+                    reason='inherits linux abi on linux w/ no backing packages')
 def test_pex_multi_resolve():
   """Tests multi-interpreter + multi-platform resolution."""
   with temporary_dir() as output_dir:
@@ -175,7 +183,7 @@ def test_pex_multi_resolve():
     results = run_pex_command(['--disable-cache',
                                'lxml==3.8.0',
                                '--no-build',
-                               '--platform=manylinux1-x86_64',
+                               '--platform=linux-x86_64',
                                '--platform=macosx-10.6-x86_64',
                                '--python=python2.7',
                                '--python=python3.6',
@@ -341,7 +349,7 @@ def test_interpreter_constraints_to_pex_info_py2():
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
 
-@pytest.mark.skipif(PYPY)
+@pytest.mark.skipif(IS_PYPY)
 def test_interpreter_constraints_to_pex_info_py3():
   py3_interpreter = ensure_python_interpreter('3.6.3')
   with environment_as(PATH=os.path.dirname(py3_interpreter)):
@@ -369,7 +377,7 @@ def test_interpreter_resolution_with_constraint_option():
     assert pex_info.build_properties['version'][0] < 3
 
 
-@pytest.mark.skipif(PYPY)
+@pytest.mark.skipif(IS_PYPY)
 def test_interpreter_resolution_with_pex_python_path():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -404,7 +412,7 @@ def test_interpreter_resolution_with_pex_python_path():
       assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(NOT_CPYTHON_36)
+@pytest.mark.skipif(NOT_CPYTHON36)
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -446,7 +454,7 @@ def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
     assert str(sys.executable).encode() in stdout
 
 
-@pytest.mark.skipif(PYPY)
+@pytest.mark.skipif(IS_PYPY)
 def test_pex_exec_with_pex_python_path_only():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -472,7 +480,7 @@ def test_pex_exec_with_pex_python_path_only():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(PYPY)
+@pytest.mark.skipif(IS_PYPY)
 def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -500,7 +508,7 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(PYPY)
+@pytest.mark.skipif(IS_PYPY)
 def test_pex_python():
   py2_path_interpreter = ensure_python_interpreter('2.7.10')
   py3_path_interpreter = ensure_python_interpreter('3.6.3')
@@ -561,7 +569,7 @@ def test_pex_python():
       assert correct_interpreter_path in stdout
 
 
-@pytest.mark.skipif(PYPY)
+@pytest.mark.skipif(IS_PYPY)
 def test_entry_point_targeting():
   """Test bugfix for https://github.com/pantsbuild/pex/issues/434"""
   with temporary_dir() as td:
@@ -582,7 +590,7 @@ def test_entry_point_targeting():
     assert 'usage: autopep8'.encode() in stdout
 
 
-@pytest.mark.skipif(PYPY)
+@pytest.mark.skipif(IS_PYPY)
 def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
   """
   This is a test for verifying the proper function of the
@@ -698,6 +706,7 @@ def inherit_path(inherit_path):
       '-o',
       pex_path,
     ])
+
     results.assert_success()
 
     env = os.environ.copy()
@@ -719,3 +728,105 @@ def inherit_path(inherit_path):
       assert requests_paths[0] < sys_paths[0]
     else:
       assert requests_paths[0] > sys_paths[0]
+
+
+def test_pex_multi_resolve_2():
+  """Tests multi-interpreter + multi-platform resolution using extended platform notation."""
+  with temporary_dir() as output_dir:
+    pex_path = os.path.join(output_dir, 'pex.pex')
+    results = run_pex_command(['--disable-cache',
+                               'lxml==3.8.0',
+                               '--no-build',
+                               '--platform=linux-x86_64-cp-36-m',
+                               '--platform=linux-x86_64-cp-27-m',
+                               '--platform=macosx-10.6-x86_64-cp-36-m',
+                               '--platform=macosx-10.6-x86_64-cp-27-m',
+                               '-o', pex_path])
+    results.assert_success()
+
+    included_dists = get_dep_dist_names_from_pex(pex_path, 'lxml')
+    assert len(included_dists) == 4
+    for dist_substr in ('-cp27-', '-cp36-', '-manylinux1_x86_64', '-macosx_'):
+      assert any(dist_substr in f for f in included_dists), (
+        '{} was not found in wheel'.format(dist_substr)
+      )
+
+
+@contextmanager
+def pex_manylinux_and_tag_selection_context():
+  with temporary_dir() as output_dir:
+    def do_resolve(req_name, req_version, platform, extra_flags=None):
+      extra_flags = extra_flags or ''
+      pex_path = os.path.join(output_dir, 'test.pex')
+      results = run_pex_command(['--disable-cache',
+                                 '--no-build',
+                                 '%s==%s' % (req_name, req_version),
+                                 '--platform=%s' % (platform),
+                                 '-o', pex_path] + extra_flags.split())
+      return pex_path, results
+
+    def test_resolve(req_name, req_version, platform, substr, extra_flags=None):
+      pex_path, results = do_resolve(req_name, req_version, platform, extra_flags)
+      results.assert_success()
+      included_dists = get_dep_dist_names_from_pex(pex_path, req_name.replace('-', '_'))
+      assert any(
+        substr in d for d in included_dists
+      ), 'couldnt find {} in {}'.format(substr, included_dists)
+
+    def ensure_failure(req_name, req_version, platform, extra_flags):
+      pex_path, results = do_resolve(req_name, req_version, platform, extra_flags)
+      results.assert_failure()
+
+    yield test_resolve, ensure_failure
+
+
+@pytest.mark.skipif(IS_PYPY)
+def test_pex_manylinux_and_tag_selection_linux_msgpack():
+  """Tests resolver manylinux support and tag targeting."""
+  with pex_manylinux_and_tag_selection_context() as (test_resolve, ensure_failure):
+    msgpack, msgpack_ver = 'msgpack-python', '0.4.7'
+    test_msgpack = functools.partial(test_resolve, msgpack, msgpack_ver)
+
+    # Exclude 3.3 and 3.6 because no 33/36 wheel exists on pypi.
+    if (sys.version_info[0], sys.version_info[1]) not in [(3, 3), (3, 6)]:
+      test_msgpack('linux-x86_64', 'manylinux1_x86_64.whl')
+
+    test_msgpack('linux-x86_64-cp-27-m', 'msgpack_python-0.4.7-cp27-cp27m-manylinux1_x86_64.whl')
+    test_msgpack('linux-x86_64-cp-27-mu', 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_x86_64.whl')
+    test_msgpack('linux-i686-cp-27-m', 'msgpack_python-0.4.7-cp27-cp27m-manylinux1_i686.whl')
+    test_msgpack('linux-i686-cp-27-mu', 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_i686.whl')
+    test_msgpack('linux-x86_64-cp-27-mu', 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_x86_64.whl')
+    test_msgpack('linux-x86_64-cp-34-m', 'msgpack_python-0.4.7-cp34-cp34m-manylinux1_x86_64.whl')
+    test_msgpack('linux-x86_64-cp-35-m', 'msgpack_python-0.4.7-cp35-cp35m-manylinux1_x86_64.whl')
+
+    ensure_failure(msgpack, msgpack_ver, 'linux-x86_64', '--no-manylinux')
+
+
+def test_pex_manylinux_and_tag_selection_lxml_osx():
+  with pex_manylinux_and_tag_selection_context() as (test_resolve, ensure_failure):
+    test_resolve('lxml', '3.8.0', 'macosx-10.6-x86_64-cp-27-m', 'lxml-3.8.0-cp27-cp27m-macosx')
+    test_resolve('lxml', '3.8.0', 'macosx-10.6-x86_64-cp-36-m', 'lxml-3.8.0-cp36-cp36m-macosx')
+
+
+@pytest.mark.skipif(NOT_CPYTHON27_OR_OSX)
+def test_pex_manylinux_runtime():
+  """Tests resolver manylinux support and runtime resolution (and --platform=current)."""
+  test_stub = dedent(
+    """
+    import msgpack
+    print(msgpack.unpackb(msgpack.packb([1, 2, 3])))
+    """
+  )
+
+  with temporary_content({'tester.py': test_stub}) as output_dir:
+    pex_path = os.path.join(output_dir, 'test.pex')
+    tester_path = os.path.join(output_dir, 'tester.py')
+    results = run_pex_command(['--disable-cache',
+                               '--no-build',
+                               'msgpack-python==0.4.7',
+                               '--platform=current'.format(platform),
+                               '-o', pex_path])
+    results.assert_success()
+
+    out = subprocess.check_output([pex_path, tester_path])
+    assert out.strip() == '[1, 2, 3]'

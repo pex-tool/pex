@@ -26,10 +26,10 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import validate_constraints
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
-from pex.pep425tags import get_platform
 from pex.pex import PEX
 from pex.pex_bootstrapper import find_compatible_interpreters
 from pex.pex_builder import PEXBuilder
+from pex.platforms import Platform
 from pex.requirements import requirements_from_file
 from pex.resolvable import Resolvable
 from pex.resolver import Unsatisfiable, resolve_multi
@@ -124,6 +124,12 @@ def process_precedence(option, option_str, option_value, parser, builder):
   elif option_str in ('--no-wheel', '--no-use-wheel'):
     setattr(parser.values, option.dest, False)
     builder.no_use_wheel()
+  elif option_str == '--manylinux':
+    setattr(parser.values, option.dest, True)
+    builder.use_manylinux()
+  elif option_str in ('--no-manylinux', '--no-use-manylinux'):
+    setattr(parser.values, option.dest, False)
+    builder.no_use_manylinux()
   else:
     raise OptionValueError
 
@@ -225,6 +231,16 @@ def configure_clp_pex_resolution(parser, builder):
       callback_args=(builder,),
       help='Whether to allow building of distributions from source; Default: allow builds')
 
+  group.add_option(
+      '--manylinux', '--no-manylinux', '--no-use-manylinux',
+      dest='use_manylinux',
+      default=True,
+      action='callback',
+      callback=process_precedence,
+      callback_args=(builder,),
+      help=('Whether to allow resolution of manylinux dists for linux target '
+            'platforms; Default: allow manylinux'))
+
   # Set the pex tool to fetch from PyPI by default if nothing is specified.
   parser.set_default('repos', [PyPIFetcher()])
   parser.add_option_group(group)
@@ -324,18 +340,18 @@ def configure_clp_pex_environment(parser):
 
   group.add_option(
       '--platform',
-      dest='platform',
+      dest='platforms',
       default=[],
       type=str,
       action='append',
       help='The platform for which to build the PEX. This option can be passed multiple times '
-           'to create a multi-platform compatible pex. To build manylinux wheels for specific '
-           'tags, you can add them to the platform with hyphens like PLATFORM-PYVER-IMPL-ABI, '
-           'where PLATFORM is either "manylinux1-x86_64" or "manylinux1-i686", PYVER is a two-'
-           'digit string representing the python version (e.g., 36), IMPL is the python '
-           'implementation abbreviation (e.g., cp, pp, jp), and ABI is the ABI tag (e.g., '
-           'cp36m, cp27mu, abi3, none). For example: manylinux1_x86_64-36-cp-cp36m. '
-           'Default: current platform.')
+           'to create a multi-platform pex. To use wheels for specific interpreter/platform tags'
+           'platform tags, you can append them to the platform with hyphens like: '
+           'PLATFORM-IMPL-PYVER-ABI (e.g. "linux_x86_64-cp-27-cp27mu", "macosx_10.12_x86_64-cp-36'
+           '-cp36m") PLATFORM is the host platform e.g. "linux-x86_64", "macosx-10.12-x86_64", etc'
+           '". IMPL is the python implementation abbreviation (e.g. "cp", "pp", "jp"). PYVER is '
+           'a two-digit string representing the python version (e.g. "27", "36"). ABI is the ABI '
+           'tag (e.g. "cp36m", "cp27mu", "abi3", "none"). Default: current platform.')
 
   group.add_option(
       '--interpreter-cache-dir',
@@ -599,10 +615,11 @@ def build_pex(args, options, resolver_option_builder):
     try:
       resolveds = resolve_multi(resolvables,
                                 interpreters=interpreters,
-                                platforms=options.platform,
+                                platforms=options.platforms,
                                 cache=options.cache_dir,
                                 cache_ttl=options.cache_ttl,
-                                allow_prereleases=resolver_option_builder.prereleases_allowed)
+                                allow_prereleases=resolver_option_builder.prereleases_allowed,
+                                use_manylinux=options.use_manylinux)
 
       for dist in resolveds:
         log('  %s' % dist, v=options.verbosity)
@@ -637,6 +654,14 @@ def transform_legacy_arg(arg):
   if arg == '--inherit-path':
     return '--inherit-path=prefer'
   return arg
+
+
+def _compatible_with_current_platform(platforms):
+  return (
+    not platforms or
+    'current' in platforms or
+    str(Platform.current()) in platforms
+  )
 
 
 def main(args=None):
@@ -676,8 +701,8 @@ def main(args=None):
       os.rename(tmp_name, options.pex_name)
       return 0
 
-    if options.platform and get_platform() not in options.platform:
-      log('WARNING: attempting to run PEX with incompatible platforms!')
+    if not _compatible_with_current_platform(options.platforms):
+      log('WARNING: attempting to run PEX with incompatible platforms!', v=1)
 
     pex_builder.freeze()
 

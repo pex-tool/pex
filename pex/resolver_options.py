@@ -17,19 +17,19 @@ from .translator import ChainedTranslator, EggTranslator, SourceTranslator, Whee
 
 class ResolverOptionsInterface(object):
   def get_context(self):
-    raise NotImplemented
+    raise NotImplementedError
 
   def get_crawler(self):
-    raise NotImplemented
+    raise NotImplementedError
 
   def get_sorter(self):
-    raise NotImplemented
+    raise NotImplementedError
 
   def get_translator(self, interpreter, supported_tags):
-    raise NotImplemented
+    raise NotImplementedError
 
   def get_iterator(self):
-    raise NotImplemented
+    raise NotImplementedError
 
 
 class ResolverOptionsBuilder(object):
@@ -44,6 +44,7 @@ class ResolverOptionsBuilder(object):
                allow_external=None,
                allow_unverified=None,
                allow_prereleases=None,
+               use_manylinux=None,
                precedence=None,
                context=None):
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
@@ -53,6 +54,7 @@ class ResolverOptionsBuilder(object):
     self._allow_prereleases = allow_prereleases
     self._precedence = precedence if precedence is not None else Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = context or Context.get()
+    self._use_manylinux = use_manylinux
 
   def clone(self):
     return ResolverOptionsBuilder(
@@ -61,6 +63,7 @@ class ResolverOptionsBuilder(object):
         allow_external=self._allow_external.copy(),
         allow_unverified=self._allow_unverified.copy(),
         allow_prereleases=self._allow_prereleases,
+        use_manylinux=self._use_manylinux,
         precedence=self._precedence[:],
         context=self._context,
     )
@@ -105,6 +108,14 @@ class ResolverOptionsBuilder(object):
   def no_use_wheel(self):
     self._precedence = tuple(
         [precedent for precedent in self._precedence if precedent is not WheelPackage])
+    return self
+
+  def use_manylinux(self):
+    self._use_manylinux = True
+    return self
+
+  def no_use_manylinux(self):
+    self._use_manylinux = False
     return self
 
   def allow_builds(self):
@@ -152,6 +163,7 @@ class ResolverOptionsBuilder(object):
         allow_external=self._allow_all_external or key in self._allow_external,
         allow_unverified=key in self._allow_unverified,
         allow_prereleases=self._allow_prereleases,
+        use_manylinux=self._use_manylinux,
         precedence=self._precedence,
         context=self._context,
     )
@@ -163,12 +175,14 @@ class ResolverOptions(ResolverOptionsInterface):
                allow_external=False,
                allow_unverified=False,
                allow_prereleases=None,
+               use_manylinux=None,
                precedence=None,
                context=None):
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
     self._allow_external = allow_external
     self._allow_unverified = allow_unverified
     self._allow_prereleases = allow_prereleases
+    self._use_manylinux = use_manylinux
     self._precedence = precedence if precedence is not None else Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = context or Context.get()
 

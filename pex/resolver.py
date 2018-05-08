@@ -15,11 +15,11 @@ from pkg_resources import safe_name
 
 from .common import safe_mkdir
 from .fetcher import Fetcher
-from .interpreter import PythonIdentity, PythonInterpreter
+from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
 from .package import Package, distribution_compatible
-from .pep425tags import get_platform, get_supported
+from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
 from .tracer import TRACER
@@ -117,8 +117,12 @@ class _ResolvableSet(object):
     # Check whether or not the resolvables in this set are satisfiable, raise an exception if not.
     for name, resolved_packages in self._collapse().items():
       if not resolved_packages.packages:
-        raise Unsatisfiable('Could not satisfy all requirements for %s:\n    %s' % (
-            resolved_packages.resolvable, self._synthesize_parents(name)))
+        raise Unsatisfiable(
+          'Could not satisfy all requirements for %s:\n    %s' % (
+            resolved_packages.resolvable,
+            self._synthesize_parents(name)
+          )
+        )
 
   def merge(self, resolvable, packages, parent=None):
     """Add a resolvable and its resolved packages."""
@@ -160,23 +164,26 @@ class Resolver(object):
 
   class Error(Exception): pass
 
-  def filter_packages_by_interpreter(self, packages):
-    return [package for package in packages
-            if package.compatible(self._supported_tags)]
-
   def __init__(self, allow_prereleases=None, interpreter=None, platform=None,
-               pkg_blacklist=None):
+               pkg_blacklist=None, use_manylinux=None):
     self._interpreter = interpreter or PythonInterpreter.get()
-    self._platform = platform or get_platform()
-    # Turn a platform string into something we can actually use
-    platform_tag, version, impl, abi = platform_to_tags(self._platform, self._interpreter)
-    self._identity = PythonIdentity(impl, abi, version)
+    self._platform = Platform.create(platform) if platform else Platform.current()
     self._allow_prereleases = allow_prereleases
     self._blacklist = pkg_blacklist.copy() if pkg_blacklist else {}
-    self._supported_tags = get_supported(version=version,
-                                         platform=platform_tag,
-                                         impl=impl,
-                                         abi=abi)
+    self._supported_tags = self._platform.supported_tags(
+      self._interpreter,
+      use_manylinux
+    )
+    TRACER.log(
+      'R: tags for %r x %r -> %s' % (self._platform, self._interpreter, self._supported_tags),
+      V=9
+    )
+
+  def filter_packages_by_supported_tags(self, packages, supported_tags=None):
+    return [
+      package for package in packages
+      if package.compatible(supported_tags or self._supported_tags)
+    ]
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
@@ -184,7 +191,7 @@ class Resolver(object):
         StaticIterator(existing, allow_prereleases=self._allow_prereleases))
     else:
       existing = resolvable.packages()
-    return self.filter_packages_by_interpreter(existing)
+    return self.filter_packages_by_supported_tags(existing)
 
   def build(self, package, options):
     context = options.get_context()
@@ -249,10 +256,11 @@ class Resolver(object):
         new_parent = '%s->%s' % (parent, resolvable) if parent else str(resolvable)
         # We patch packaging.markers.default_environment here so we find optional reqs for the
         # platform we're building the PEX for, rather than the one we're on.
-        with patched_packing_env(self._identity.pkg_resources_env(self._platform)):
+        with patched_packing_env(self._interpreter.identity.pkg_resources_env(self._platform)):
           resolvables.extend(
             (ResolvableRequirement(req, resolvable.options), new_parent) for req in
-            distribution.requires(extras=resolvable_set.extras(resolvable.name)))
+            distribution.requires(extras=resolvable_set.extras(resolvable.name))
+          )
       resolvable_set = resolvable_set.replace_built(built_packages)
 
     # We may have built multiple distributions depending upon if we found transitive dependencies
@@ -292,7 +300,7 @@ class CachingResolver(Resolver):
   def package_iterator(self, resolvable, existing=None):
     iterator = Iterator(fetchers=[Fetcher([self.__cache])],
                         allow_prereleases=self._allow_prereleases)
-    packages = self.filter_packages_by_interpreter(resolvable.compatible(iterator))
+    packages = self.filter_packages_by_supported_tags(resolvable.compatible(iterator))
 
     if packages and self.__cache_ttl:
       packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
@@ -346,7 +354,8 @@ def resolve(requirements,
             cache=None,
             cache_ttl=None,
             allow_prereleases=None,
-            pkg_blacklist=None):
+            pkg_blacklist=None,
+            use_manylinux=None):
   """Produce all distributions needed to (recursively) meet `requirements`
 
   :param requirements: An iterator of Requirement-like things, either
@@ -389,6 +398,7 @@ def resolve(requirements,
     For example, a valid blacklist is {'functools32': 'CPython>3'}.
     NOTE: this keyword is a temporary fix and will be reverted in favor of a long term solution
     tracked by: https://github.com/pantsbuild/pex/issues/456
+  :keyword use_manylinux: (optional) Whether or not to use manylinux for linux resolves.
   :returns: List of :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -419,6 +429,7 @@ def resolve(requirements,
 
   builder = ResolverOptionsBuilder(fetchers=fetchers,
                                    allow_prereleases=allow_prereleases,
+                                   use_manylinux=use_manylinux,
                                    precedence=precedence,
                                    context=context)
 
@@ -426,11 +437,13 @@ def resolve(requirements,
     resolver = CachingResolver(cache,
                                cache_ttl,
                                allow_prereleases=allow_prereleases,
+                               use_manylinux=use_manylinux,
                                interpreter=interpreter,
                                platform=platform,
                                pkg_blacklist=pkg_blacklist)
   else:
     resolver = Resolver(allow_prereleases=allow_prereleases,
+                        use_manylinux=use_manylinux,
                         interpreter=interpreter,
                         platform=platform,
                         pkg_blacklist=pkg_blacklist)
@@ -447,7 +460,8 @@ def resolve_multi(requirements,
                   cache=None,
                   cache_ttl=None,
                   allow_prereleases=None,
-                  pkg_blacklist=None):
+                  pkg_blacklist=None,
+                  use_manylinux=None):
   """A generator function that produces all distributions needed to meet `requirements`
   for multiple interpreters and/or platforms.
 
@@ -493,7 +507,7 @@ def resolve_multi(requirements,
   """
 
   interpreters = interpreters or [PythonInterpreter.get()]
-  platforms = platforms or [get_platform()]
+  platforms = platforms or [Platform.current()]
 
   seen = set()
   for interpreter in interpreters:
@@ -507,7 +521,8 @@ def resolve_multi(requirements,
                                 cache,
                                 cache_ttl,
                                 allow_prereleases,
-                                pkg_blacklist=pkg_blacklist):
+                                pkg_blacklist=pkg_blacklist,
+                                use_manylinux=use_manylinux):
         if resolvable not in seen:
           seen.add(resolvable)
           yield resolvable
