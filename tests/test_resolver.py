@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import sys
 import time
 
 import pytest
@@ -12,7 +11,6 @@ from pex.common import safe_copy
 from pex.compatibility import PY2
 from pex.crawler import Crawler
 from pex.fetcher import Fetcher
-from pex.interpreter import PythonInterpreter
 from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
 from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve, resolve_multi
