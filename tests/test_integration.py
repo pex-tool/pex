@@ -656,14 +656,18 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
     correct_interpreter_path = correct_interpreter_path.encode()  # Py 2/3 compatibility 
     assert correct_interpreter_path in stdout
 
+
 def test_inherit_path_fallback():
   inherit_path("=fallback")
+
 
 def test_inherit_path_backwards_compatibility():
   inherit_path("")
 
+
 def test_inherit_path_prefer():
   inherit_path("=prefer")
+
 
 def inherit_path(inherit_path):
   with temporary_dir() as output_dir:
