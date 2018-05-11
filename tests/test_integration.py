@@ -679,7 +679,7 @@ def inherit_path(inherit_path):
     pex_path = os.path.join(output_dir, 'pex.pex')
     results = run_pex_command([
       '--disable-cache',
-      'requests',
+      'pycountry',
       '--inherit-path{}'.format(inherit_path),
       '-o',
       pex_path,
@@ -695,8 +695,8 @@ def inherit_path(inherit_path):
     )
     assert rc == 0
 
-    stdout_lines = stdout.split('\n')
-    requests_paths = tuple(i for i, l in enumerate(stdout_lines) if 'requests' in l)
+    stdout_lines = stdout.decode().split('\n')
+    requests_paths = tuple(i for i, l in enumerate(stdout_lines) if 'pycountry' in l)
     sys_paths = tuple(i for i, l in enumerate(stdout_lines) if 'doesnotexist' in l)
     assert len(requests_paths) == 1
     assert len(sys_paths) == 1
