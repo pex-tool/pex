@@ -5,9 +5,10 @@ import zipimport
 
 import pkg_resources
 
+from pex.finders import ChainedFinder
 from pex.finders import _add_finder as add_finder
 from pex.finders import _remove_finder as remove_finder
-from pex.finders import ChainedFinder, find_eggs_in_zip, get_script_from_egg
+from pex.finders import find_eggs_in_zip, get_script_from_egg
 
 try:
   import mock

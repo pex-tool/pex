@@ -9,8 +9,8 @@ import warnings
 from collections import namedtuple
 
 from .common import open_zip
-from .compatibility import string as compatibility_string
 from .compatibility import PY2
+from .compatibility import string as compatibility_string
 from .orderedset import OrderedSet
 from .util import merge_split
 from .variables import ENV

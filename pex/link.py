@@ -7,8 +7,9 @@ import os
 import posixpath
 from collections import Iterable
 
+from .compatibility import PY3, WINDOWS, pathname2url
 from .compatibility import string as compatible_string
-from .compatibility import PY3, WINDOWS, pathname2url, url2pathname
+from .compatibility import url2pathname
 from .util import Memoizer
 
 if PY3:

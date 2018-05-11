@@ -7,7 +7,6 @@ from .compatibility import to_bytes
 from .executor import Executor
 from .util import named_temporary_file
 
-
 _COMPILER_MAIN = """
 from __future__ import print_function
 
