@@ -7,6 +7,7 @@ import random
 import subprocess
 import sys
 import tempfile
+import traceback
 from collections import namedtuple
 from textwrap import dedent
 
@@ -203,11 +204,15 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False)
   return pb
 
 
-class IntegResults(namedtuple('results', 'output return_code exception')):
+class IntegResults(namedtuple('results', 'output return_code exception traceback')):
   """Convenience object to return integration run results."""
 
   def assert_success(self):
-    assert self.exception is None and self.return_code is None
+    if not (self.exception is None and self.return_code is None):
+      print(self.traceback)
+      raise AssertionError('integration test failed: return_code=%s, exception=%r, traceback=%s' % (
+        self.return_code, self.exception, self.traceback
+      ))
 
   def assert_failure(self):
     assert self.exception or self.return_code
@@ -227,16 +232,20 @@ def run_pex_command(args, env=None):
     return mock_logger
 
   exception = None
+  tb = None
   error_code = None
   output = []
   log.set_logger(logger_callback(output))
+
   try:
     main(args=args)
   except SystemExit as e:
     error_code = e.code
   except Exception as e:
     exception = e
-  return IntegResults(output, error_code, exception)
+    tb = traceback.format_exc()
+
+  return IntegResults(output, error_code, exception, tb)
 
 
 # TODO(wickman) Why not PEX.run?
