@@ -282,12 +282,11 @@ def combine_pex_coverage(coverage_file_iter):
 
 def bootstrap_python_installer():
   install_location = os.path.join(os.getcwd(), '.pyenv_test')
-  if not os.path.exists(install_location) or not os.path.exists(
-    os.path.join(os.getcwd(), '.pyenv_test')):
-    for _ in range(3):
+  if not os.path.exists(install_location):
+    for _ in range(5):
       try:
         subprocess.call(['git', 'clone', 'https://github.com/pyenv/pyenv.git', install_location])
-      except StandardError:
+      except Exception:
         continue
       else:
         break
