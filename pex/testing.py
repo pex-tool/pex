@@ -282,7 +282,7 @@ def combine_pex_coverage(coverage_file_iter):
 
 def bootstrap_python_installer():
   install_location = os.path.join(os.getcwd(), '.pyenv_test')
-  binary_path = os.path.join(install_location, 'bin', 'pytest')
+  binary_path = os.path.join(install_location, 'bin', 'pyenv')
   if not os.path.exists(binary_path):
     safe_rmtree(install_location)
     for _ in range(3):
