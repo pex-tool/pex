@@ -122,6 +122,8 @@ class PexInfo(object):
       raise ValueError('PexInfo can only be seeded with a dict, got: '
                        '%s of type %s' % (info, type(info)))
     self._pex_info = info or {}
+    if 'inherit_path' in self._pex_info:
+      self.inherit_path = self._pex_info['inherit_path']
     self._distributions = self._pex_info.get('distributions', {})
     # cast as set because pex info from json must store interpreter_constraints as a list
     self._interpreter_constraints = set(self._pex_info.get('interpreter_constraints', set()))
