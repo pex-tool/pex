@@ -333,7 +333,7 @@ def test_pex_path_in_pex_info_and_env():
 def test_interpreter_constraints_to_pex_info():
   with temporary_dir() as output_dir:
     # target python 2
-    pex_out_path = os.path.join(output_dir, 'pex1.pex')
+    pex_out_path = os.path.join(output_dir, 'pex_py2.pex')
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraint=>=2.7',
       '--interpreter-constraint=<3',
@@ -343,7 +343,7 @@ def test_interpreter_constraints_to_pex_info():
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
     # target python 3
-    pex_out_path = os.path.join(output_dir, 'pex1.pex')
+    pex_out_path = os.path.join(output_dir, 'pex_py3.pex')
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraint=>3',
       '-o', pex_out_path])
