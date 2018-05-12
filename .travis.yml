@@ -12,7 +12,7 @@ env:
   global:
     # This is necessary to have consistent testing of methods that rely on falling back to PATH for
     # selecting a python interpreter.
-    - PATH=$PATH:$PWD/.tox/py36/bin:$PWD/.tox/py27/bin
+    - PATH=$PWD/.tox/py36/bin:$PWD/.tox/py27/bin:$PATH
 
 cache:
   directories:
@@ -73,7 +73,7 @@ matrix:
       env: TOXENV=pypy
 
 install:
-  - pip install -U tox
+  - pip install -U tox "setuptools<34"
 
 script:
   - tox -v

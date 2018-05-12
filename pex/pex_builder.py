@@ -403,12 +403,17 @@ class PEXBuilder(object):
     # self-contained.
 
     wrote_setuptools = False
-    setuptools = DistributionHelper.distribution_from_path(
-        self._interpreter.get_location('setuptools'),
-        name='setuptools')
+    setuptools_location = self._interpreter.get_location('setuptools')
+    if setuptools_location is None:
+      raise RuntimeError(
+        'Failed to find setuptools via %s while building pex!' % self._interpreter.binary
+      )
 
+    setuptools = DistributionHelper.distribution_from_path(setuptools_location, name='setuptools')
     if setuptools is None:
-      raise RuntimeError('Failed to find setuptools while building pex!')
+      raise RuntimeError(
+        'Failed to find setuptools via %s while building pex!' % self._interpreter.binary
+      )
 
     for fn, content_stream in DistributionHelper.walk_data(setuptools):
       if fn.startswith('pkg_resources') or fn.startswith('_markerlib'):
