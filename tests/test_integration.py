@@ -330,7 +330,7 @@ def test_pex_path_in_pex_info_and_env():
     assert stdout == b'Success!\n'
 
 
-def test_interpreter_constraints_to_pex_info():
+def test_interpreter_constraints_to_pex_info_py2():
   with temporary_dir() as output_dir:
     # target python 2
     pex_out_path = os.path.join(output_dir, 'pex_py2.pex')
@@ -342,6 +342,10 @@ def test_interpreter_constraints_to_pex_info():
     pex_info = get_pex_info(pex_out_path)
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
+
+@pytest.mark.skip('https://github.com/pantsbuild/pex/issues/470')
+def test_interpreter_constraints_to_pex_info_py3():
+  with temporary_dir() as output_dir:
     # target python 3
     pex_out_path = os.path.join(output_dir, 'pex_py3.pex')
     res = run_pex_command(['--disable-cache',
@@ -493,6 +497,7 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
+@pytest.mark.skip('https://github.com/pantsbuild/pex/issues/470')
 def test_pex_python():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -580,9 +585,9 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
     pexrc_path = os.path.join(td, '.pexrc')
 
     # Select pexrc interpreter versions based on test environemnt.
-    # The parent interpreter is the interpreter we expect the parent pex to 
-    # execute with. The child interpreter is the interpreter we expect the 
-    # child pex to execute with. 
+    # The parent interpreter is the interpreter we expect the parent pex to
+    # execute with. The child interpreter is the interpreter we expect the
+    # child pex to execute with.
     if (sys.version_info[0], sys.version_info[1]) == (3, 6):
       child_pex_interpreter_version = '3.6.3'
     else:
@@ -611,7 +616,7 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
     test_init_path = os.path.join(td, 'testing/__init__.py')
     with open(test_init_path, 'w') as fh:
       fh.write(dedent('''
-        def tester():     
+        def tester():
           from pex.testing import (
             run_pex_command,
             run_simple_pex
@@ -624,7 +629,7 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
           try:
             pexrc_path = os.path.join(td, '.pexrc')
             with open(pexrc_path, 'w') as pexrc:
-              pexrc.write("PEX_PYTHON={}")          
+              pexrc.write("PEX_PYTHON={}")
             test_file_path = os.path.join(td, 'build_and_run_child_pex.py')
             with open(test_file_path, 'w') as fh:
               fh.write(dedent("""
@@ -653,7 +658,7 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
     assert rc == 0
     # Ensure that child pex used the proper interpreter as specified by its pexrc.
     correct_interpreter_path = ensure_python_interpreter(child_pex_interpreter_version)
-    correct_interpreter_path = correct_interpreter_path.encode()  # Py 2/3 compatibility 
+    correct_interpreter_path = correct_interpreter_path.encode()  # Py 2/3 compatibility
     assert correct_interpreter_path in stdout
 
 
@@ -679,7 +684,7 @@ def inherit_path(inherit_path):
     pex_path = os.path.join(output_dir, 'pex.pex')
     results = run_pex_command([
       '--disable-cache',
-      'pycountry',
+      'msgpack_python',
       '--inherit-path{}'.format(inherit_path),
       '-o',
       pex_path,
@@ -696,7 +701,7 @@ def inherit_path(inherit_path):
     assert rc == 0
 
     stdout_lines = stdout.decode().split('\n')
-    requests_paths = tuple(i for i, l in enumerate(stdout_lines) if 'pycountry' in l)
+    requests_paths = tuple(i for i, l in enumerate(stdout_lines) if 'msgpack_python' in l)
     sys_paths = tuple(i for i, l in enumerate(stdout_lines) if 'doesnotexist' in l)
     assert len(requests_paths) == 1
     assert len(sys_paths) == 1
