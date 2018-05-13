@@ -1,6 +1,7 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import mock
 import os
 import sys
 from textwrap import dedent
@@ -343,7 +344,8 @@ def test_interpreter_constraints_to_pex_info_py2():
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
 
-@pytest.mark.skip('https://github.com/pantsbuild/pex/issues/470')
+#@pytest.mark.skip('https://github.com/pantsbuild/pex/issues/470')
+@mock.patch.dict(os.environ, {'PATH':'/home/travis/build/pantsbuild/pex/.tox/py36/bin:/home/travis/build/pantsbuild/pex/.tox/py27/bin'})
 def test_interpreter_constraints_to_pex_info_py3():
   with temporary_dir() as output_dir:
     # target python 3
