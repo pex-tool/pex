@@ -18,6 +18,7 @@ from .executor import Executor
 from .installer import EggInstaller, Packager
 from .pex_builder import PEXBuilder
 from .util import DistributionHelper, named_temporary_file
+from .version import SETUPTOOLS_REQUIREMENT
 
 
 @contextlib.contextmanager
@@ -209,7 +210,6 @@ class IntegResults(namedtuple('results', 'output return_code exception traceback
 
   def assert_success(self):
     if not (self.exception is None and self.return_code is None):
-      print(self.traceback)
       raise AssertionError('integration test failed: return_code=%s, exception=%r, traceback=%s' % (
         self.return_code, self.exception, self.traceback
       ))
@@ -289,12 +289,12 @@ def combine_pex_coverage(coverage_file_iter):
   return combined.filename
 
 
-def bootstrap_python_installer(install_location):
-  safe_rmtree(install_location)
+def bootstrap_python_installer(dest):
+  safe_rmtree(dest)
   for _ in range(3):
     try:
       subprocess.check_call(
-        ['git', 'clone', 'https://github.com/pyenv/pyenv.git', install_location]
+        ['git', 'clone', 'https://github.com/pyenv/pyenv.git', dest]
       )
     except subprocess.CalledProcessError as e:
       print('caught exception: %r' % e)
@@ -307,13 +307,16 @@ def bootstrap_python_installer(install_location):
 
 def ensure_python_interpreter(version):
   pyenv_root = os.path.join(os.getcwd(), '.pyenv_test')
-  installer_path = os.path.join(pyenv_root, 'bin', 'pyenv')
-  if not os.path.exists(installer_path):
+  interpreter_location = os.path.join(pyenv_root, 'versions', version)
+  pyenv = os.path.join(pyenv_root, 'bin', 'pyenv')
+  pip = os.path.join(interpreter_location, 'bin', 'pip')
+
+  if not os.path.exists(pyenv):
     bootstrap_python_installer(pyenv_root)
 
-  install_location = os.path.join(pyenv_root, 'versions', version)
-  if not os.path.exists(install_location):
+  if not os.path.exists(interpreter_location):
     os.environ['PYENV_ROOT'] = pyenv_root
-    subprocess.call([installer_path, 'install', version])
+    subprocess.call([pyenv, 'install', version])
+    subprocess.call([pip, 'install', SETUPTOOLS_REQUIREMENT])
 
-  return os.path.join(install_location, 'bin', 'python' + version[0:3])
+  return os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
