@@ -6,9 +6,9 @@ import sys
 from textwrap import dedent
 
 try:
-  from unittest import mock
-except ImportError:
   import mock
+except ImportError:
+  from unittest import mock
 
 import pytest
 from twitter.common.contextutil import environment_as, temporary_dir
