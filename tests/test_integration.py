@@ -350,6 +350,7 @@ def test_interpreter_constraints_to_pex_info_py2():
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
 
+@pytest.mark.skipif("hasattr(sys, 'pypy_version_info')")
 def test_interpreter_constraints_to_pex_info_py3():
   py3_interpreter = ensure_python_interpreter('3.6.3')
   with mock.patch('os.getenv') as mock_env:
