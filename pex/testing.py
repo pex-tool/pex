@@ -20,6 +20,13 @@ from .pex_builder import PEXBuilder
 from .util import DistributionHelper, named_temporary_file
 from .version import SETUPTOOLS_REQUIREMENT
 
+NOT_CPYTHON_36 = (
+  "hasattr(sys, 'pypy_version_info') or "
+  "(sys.version_info[0], sys.version_info[1]) != (3, 6)"
+)
+
+PYPY = "hasattr(sys, 'pypy_version_info')"
+
 
 @contextlib.contextmanager
 def temporary_dir():
