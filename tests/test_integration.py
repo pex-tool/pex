@@ -344,17 +344,20 @@ def test_interpreter_constraints_to_pex_info_py2():
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
 
-@mock.patch.dict(os.environ, {'PATH':'/home/travis/build/pantsbuild/pex/.tox/py36/bin:/home/travis/build/pantsbuild/pex/.tox/py27/bin'})
+
 def test_interpreter_constraints_to_pex_info_py3():
-  with temporary_dir() as output_dir:
-    # target python 3
-    pex_out_path = os.path.join(output_dir, 'pex_py3.pex')
-    res = run_pex_command(['--disable-cache',
-      '--interpreter-constraint=>3',
-      '-o', pex_out_path])
-    res.assert_success()
-    pex_info = get_pex_info(pex_out_path)
-    assert ['>3'] == pex_info.interpreter_constraints
+  with mock.patch('os.getenv') as mock_env:
+    wd = os.getcwd()
+    mock_env.return_value = ':'.join([os.path.join(wd, '.tox/py36/bin'), os.path.join(wd, '.tox/py27/bin')])
+    with temporary_dir() as output_dir:
+      # target python 3
+      pex_out_path = os.path.join(output_dir, 'pex_py3.pex')
+      res = run_pex_command(['--disable-cache',
+        '--interpreter-constraint=>3',
+        '-o', pex_out_path])
+      res.assert_success()
+      pex_info = get_pex_info(pex_out_path)
+      assert ['>3'] == pex_info.interpreter_constraints
 
 
 def test_interpreter_resolution_with_constraint_option():
