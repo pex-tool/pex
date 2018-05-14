@@ -1,10 +1,14 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import mock
 import os
 import sys
 from textwrap import dedent
+
+try:
+  from unittest import mock
+except ImportError:
+  import mock
 
 import pytest
 from twitter.common.contextutil import environment_as, temporary_dir
