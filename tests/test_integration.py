@@ -367,6 +367,7 @@ def test_interpreter_resolution_with_constraint_option():
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
     assert pex_info.build_properties['version'][0] < 3
 
+
 @pytest.mark.skipif(PYPY)
 def test_interpreter_resolution_with_pex_python_path():
   with temporary_dir() as td:
