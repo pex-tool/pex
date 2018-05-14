@@ -1,14 +1,9 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-from __future__ import print_function
+
 import os
 import sys
 from textwrap import dedent
-
-try:
-  import mock
-except ImportError:
-  from unittest import mock
 
 import pytest
 from twitter.common.contextutil import environment_as, temporary_dir
@@ -25,6 +20,13 @@ from pex.testing import (
     temporary_content
 )
 from pex.util import DistributionHelper, named_temporary_file
+
+try:
+  import mock
+except ImportError:
+  from unittest import mock
+
+
 
 NOT_CPYTHON_36 = (
   "hasattr(sys, 'pypy_version_info') or "
@@ -348,12 +350,9 @@ def test_interpreter_constraints_to_pex_info_py2():
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
 
-
 def test_interpreter_constraints_to_pex_info_py3():
-  print('MOCK:{}'.format(mock), file=sys.stderr)
   with mock.patch('os.getenv') as mock_env:
-    py3_interpereter = os.path.dirname(ensure_python_interpreter('3.6.3'))
-    mock_env.return_value = py3_interpereter
+    mock_env.return_value = os.path.dirname(ensure_python_interpreter('3.6.3'))
     with temporary_dir() as output_dir:
       # target python 3
       pex_out_path = os.path.join(output_dir, 'pex_py3.pex')
