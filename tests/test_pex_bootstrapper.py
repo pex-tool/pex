@@ -3,12 +3,13 @@
 
 import os
 
+import pytest
 from twitter.common.contextutil import temporary_dir
 
 from pex.common import open_zip
 from pex.interpreter import PythonInterpreter
 from pex.pex_bootstrapper import find_compatible_interpreters, get_pex_info
-from pex.testing import ensure_python_interpreter, write_simple_pex
+from pex.testing import PYPY, ensure_python_interpreter, write_simple_pex
 
 
 def test_get_pex_info():
@@ -31,6 +32,7 @@ def test_get_pex_info():
       assert pex_info.dump() == pex_info_2.dump()
 
 
+@pytest.mark.skipif(PYPY)
 def test_find_compatible_interpreters():
   pex_python_path = ':'.join([
     ensure_python_interpreter('2.7.9'),
