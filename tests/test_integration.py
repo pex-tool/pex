@@ -1,6 +1,6 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+from __future__ import print_function
 import os
 import sys
 from textwrap import dedent
@@ -350,6 +350,7 @@ def test_interpreter_constraints_to_pex_info_py2():
 
 
 def test_interpreter_constraints_to_pex_info_py3():
+  print('MOCK:{}'.format(mock), file=sys.stderr)
   with mock.patch('os.getenv') as mock_env:
     wd = os.getcwd()
     mock_env.return_value = ':'.join([os.path.join(wd, '.tox/py36/bin'), os.path.join(wd, '.tox/py27/bin')])
