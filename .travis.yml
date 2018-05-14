@@ -67,7 +67,7 @@ matrix:
       env: TOXENV=pypy
 
 install:
-  - pip install -U tox "setuptools<34"
+  - pip install -U tox "setuptools<34" mock
 
 script:
   - tox -v
