@@ -21,12 +21,6 @@ from pex.testing import (
 )
 from pex.util import DistributionHelper, named_temporary_file
 
-try:
-  import mock
-except ImportError:
-  from unittest import mock
-
-
 NOT_CPYTHON_36 = (
   "hasattr(sys, 'pypy_version_info') or "
   "(sys.version_info[0], sys.version_info[1]) != (3, 6)"
@@ -351,8 +345,7 @@ def test_interpreter_constraints_to_pex_info_py2():
 
 def test_interpreter_constraints_to_pex_info_py3():
   py3_interpreter = ensure_python_interpreter('3.6.3')
-  with mock.patch('os.getenv') as mock_env:
-    mock_env.return_value = os.path.dirname(py3_interpreter)
+  with environment_as(PATH=os.path.dirname(py3_interpreter)):
     with temporary_dir() as output_dir:
       # target python 3
       pex_out_path = os.path.join(output_dir, 'pex_py3.pex')
@@ -505,61 +498,64 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skip('https://github.com/pantsbuild/pex/issues/470')
 def test_pex_python():
-  with temporary_dir() as td:
-    pexrc_path = os.path.join(td, '.pexrc')
-    with open(pexrc_path, 'w') as pexrc:
-      pex_python = ensure_python_interpreter('3.6.3')
-      pexrc.write("PEX_PYTHON=%s" % pex_python)
+  py2_path_interpreter = ensure_python_interpreter('2.7.10')
+  py3_path_interpreter = ensure_python_interpreter('3.6.3')
+  path = ':'.join([os.path.dirname(py2_path_interpreter), os.path.dirname(py3_path_interpreter)])
+  with environment_as(PATH=path):
+    with temporary_dir() as td:
+      pexrc_path = os.path.join(td, '.pexrc')
+      with open(pexrc_path, 'w') as pexrc:
+        pex_python = ensure_python_interpreter('3.6.3')
+        pexrc.write("PEX_PYTHON=%s" % pex_python)
 
-    # test PEX_PYTHON with valid constraints
-    pex_out_path = os.path.join(td, 'pex.pex')
-    res = run_pex_command(['--disable-cache',
-      '--rcfile=%s' % pexrc_path,
-      '--interpreter-constraint=>3',
-      '--interpreter-constraint=<3.8',
-      '-o', pex_out_path])
-    res.assert_success()
+      # test PEX_PYTHON with valid constraints
+      pex_out_path = os.path.join(td, 'pex.pex')
+      res = run_pex_command(['--disable-cache',
+        '--rcfile=%s' % pexrc_path,
+        '--interpreter-constraint=>3',
+        '--interpreter-constraint=<3.8',
+        '-o', pex_out_path])
+      res.assert_success()
 
-    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
-    assert rc == 0
-    correct_interpreter_path = pex_python.encode()
-    assert correct_interpreter_path in stdout
+      stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+      stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+      assert rc == 0
+      correct_interpreter_path = pex_python.encode()
+      assert correct_interpreter_path in stdout
 
-    # test PEX_PYTHON with incompatible constraints
-    pexrc_path = os.path.join(td, '.pexrc')
-    with open(pexrc_path, 'w') as pexrc:
-      pex_python = ensure_python_interpreter('2.7.10')
-      pexrc.write("PEX_PYTHON=%s" % pex_python)
+      # test PEX_PYTHON with incompatible constraints
+      pexrc_path = os.path.join(td, '.pexrc')
+      with open(pexrc_path, 'w') as pexrc:
+        pex_python = ensure_python_interpreter('2.7.10')
+        pexrc.write("PEX_PYTHON=%s" % pex_python)
 
-    pex_out_path = os.path.join(td, 'pex2.pex')
-    res = run_pex_command(['--disable-cache',
-      '--rcfile=%s' % pexrc_path,
-      '--interpreter-constraint=>3',
-      '--interpreter-constraint=<3.8',
-      '-o', pex_out_path])
-    res.assert_success()
+      pex_out_path = os.path.join(td, 'pex2.pex')
+      res = run_pex_command(['--disable-cache',
+        '--rcfile=%s' % pexrc_path,
+        '--interpreter-constraint=>3',
+        '--interpreter-constraint=<3.8',
+        '-o', pex_out_path])
+      res.assert_success()
 
-    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
-    assert rc == 1
-    fail_str = 'not compatible with specified interpreter constraints'.encode()
-    assert fail_str in stdout
+      stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+      stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+      assert rc == 1
+      fail_str = 'not compatible with specified interpreter constraints'.encode()
+      assert fail_str in stdout
 
-    # test PEX_PYTHON with no constraints
-    pex_out_path = os.path.join(td, 'pex3.pex')
-    res = run_pex_command(['--disable-cache',
-      '--rcfile=%s' % pexrc_path,
-      '-o', pex_out_path])
-    res.assert_success()
+      # test PEX_PYTHON with no constraints
+      pex_out_path = os.path.join(td, 'pex3.pex')
+      res = run_pex_command(['--disable-cache',
+        '--rcfile=%s' % pexrc_path,
+        '-o', pex_out_path])
+      res.assert_success()
 
-    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
-    assert rc == 0
-    correct_interpreter_path = pex_python.encode()
-    assert correct_interpreter_path in stdout
+      stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+      stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+      assert rc == 0
+      correct_interpreter_path = pex_python.encode()
+      assert correct_interpreter_path in stdout
 
 
 def test_entry_point_targeting():
