@@ -351,8 +351,9 @@ def test_interpreter_constraints_to_pex_info_py2():
 
 
 def test_interpreter_constraints_to_pex_info_py3():
+  py3_interpreter = ensure_python_interpreter('3.6.3')
   with mock.patch('os.getenv') as mock_env:
-    mock_env.return_value = os.path.dirname(ensure_python_interpreter('3.6.3'))
+    mock_env.return_value = os.path.dirname(py3_interpreter)
     with temporary_dir() as output_dir:
       # target python 3
       pex_out_path = os.path.join(output_dir, 'pex_py3.pex')
