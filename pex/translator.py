@@ -13,7 +13,7 @@ from .compatibility import AbstractClass
 from .installer import WheelInstaller
 from .interpreter import PythonInterpreter
 from .package import EggPackage, Package, SourcePackage, WheelPackage
-from .platforms import Platform
+from .pep425tags import get_supported
 from .tracer import TRACER
 from .util import DistributionHelper
 
@@ -71,13 +71,13 @@ class SourceTranslator(TranslatorBase):
 
   def __init__(self,
                interpreter=PythonInterpreter.get(),
-               platform=Platform.current(),
+               supported_tags=None,
                use_2to3=False,
                installer_impl=WheelInstaller):
+    self._supported_tags = supported_tags or get_supported()
     self._interpreter = interpreter
     self._installer_impl = installer_impl
     self._use_2to3 = use_2to3
-    self._platform = platform
 
   def translate(self, package, into=None):
     """From a SourcePackage, translate to a binary distribution."""
@@ -111,9 +111,9 @@ class SourceTranslator(TranslatorBase):
         if not target_package:
           TRACER.log('Target path %s does not look like a Package.' % target_path)
           return None
-        if not target_package.compatible(self._interpreter.identity, platform=self._platform):
-          TRACER.log('Target package %s is not compatible with %s / %s' % (
-              target_package, self._interpreter.identity, self._platform))
+        if not target_package.compatible(self._supported_tags):
+          TRACER.log('Target package %s is not compatible with %s' % (
+              target_package, self._supported_tags))
           return None
         return DistributionHelper.distribution_from_path(target_path)
     except Exception as e:
@@ -129,11 +129,9 @@ class SourceTranslator(TranslatorBase):
 class BinaryTranslator(TranslatorBase):
   def __init__(self,
                package_type,
-               interpreter=PythonInterpreter.get(),
-               platform=Platform.current()):
+               supported_tags=None):
     self._package_type = package_type
-    self._platform = platform
-    self._identity = interpreter.identity
+    self._supported_tags = supported_tags or get_supported()
 
   def translate(self, package, into=None):
     """From a binary package, translate to a local binary distribution."""
@@ -141,9 +139,9 @@ class BinaryTranslator(TranslatorBase):
       raise ValueError('BinaryTranslator cannot translate remote packages.')
     if not isinstance(package, self._package_type):
       return None
-    if not package.compatible(identity=self._identity, platform=self._platform):
-      TRACER.log('Target package %s is not compatible with %s / %s' % (
-          package, self._identity, self._platform))
+    if not package.compatible(self._supported_tags):
+      TRACER.log('Target package %s is not compatible with %s' % (
+          package, self._supported_tags))
       return None
     into = into or safe_mkdtemp()
     target_path = os.path.join(into, package.filename)
@@ -163,13 +161,10 @@ class WheelTranslator(BinaryTranslator):
 
 class Translator(object):
   @staticmethod
-  def default(platform=Platform.current(), interpreter=None):
-    # TODO(wickman) Consider interpreter=None to indicate "universal" packages
-    # since the .whl format can support this.
-    # Also consider platform=None to require platform-inspecific packages.
-    # Issue #95.
+  def default(interpreter=None, supported_tags=None):
     interpreter = interpreter or PythonInterpreter.get()
-    whl_translator = WheelTranslator(platform=platform, interpreter=interpreter)
-    egg_translator = EggTranslator(platform=platform, interpreter=interpreter)
-    source_translator = SourceTranslator(platform=platform, interpreter=interpreter)
+    supported_tags = supported_tags or get_supported()
+    whl_translator = WheelTranslator(supported_tags=supported_tags)
+    egg_translator = EggTranslator(supported_tags=supported_tags)
+    source_translator = SourceTranslator(interpreter=interpreter)
     return ChainedTranslator(whl_translator, egg_translator, source_translator)

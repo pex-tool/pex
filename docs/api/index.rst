@@ -78,10 +78,10 @@ pex.package module
     :members:
     :show-inheritance:
 
-pex.pep425 module
------------------
+pex.pep425tags module
+---------------------
 
-.. automodule:: pex.pep425
+.. automodule:: pex.pep425tags
     :members:
     :show-inheritance:
 
@@ -103,13 +103,6 @@ pex.pex_info module
 -------------------
 
 .. automodule:: pex.pex_info
-    :members:
-    :show-inheritance:
-
-pex.platforms module
---------------------
-
-.. automodule:: pex.platforms
     :members:
     :show-inheritance:
 

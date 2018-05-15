@@ -8,20 +8,34 @@ import os
 import shutil
 import time
 from collections import namedtuple
+from contextlib import contextmanager
 
+import pkg_resources
 from pkg_resources import safe_name
 
 from .common import safe_mkdir
 from .fetcher import Fetcher
-from .interpreter import PythonInterpreter
+from .interpreter import PythonIdentity, PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
 from .package import Package, distribution_compatible
-from .platforms import Platform
+from .pep425tags import get_platform, get_supported
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
 from .tracer import TRACER
 from .util import DistributionHelper
+
+
+@contextmanager
+def patched_packing_env(env):
+  """Monkey patch packaging.markers.default_environment"""
+  old_env = pkg_resources.packaging.markers.default_environment
+  new_env = lambda: env
+  pkg_resources._vendor.packaging.markers.default_environment = new_env
+  try:
+    yield
+  finally:
+    pkg_resources._vendor.packaging.markers.default_environment = old_env
 
 
 class Untranslateable(Exception):
@@ -146,16 +160,23 @@ class Resolver(object):
 
   class Error(Exception): pass
 
-  @classmethod
-  def filter_packages_by_interpreter(cls, packages, interpreter, platform):
+  def filter_packages_by_interpreter(self, packages):
     return [package for package in packages
-        if package.compatible(interpreter.identity, platform)]
+            if package.compatible(self._supported_tags)]
 
-  def __init__(self, allow_prereleases=None, interpreter=None, platform=None, pkg_blacklist=None):
+  def __init__(self, allow_prereleases=None, interpreter=None, platform=None,
+               pkg_blacklist=None):
     self._interpreter = interpreter or PythonInterpreter.get()
-    self._platform = platform or Platform.current()
+    self._platform = platform or get_platform()
+    # Turn a platform string into something we can actually use
+    platform_tag, version, impl, abi = platform_to_tags(self._platform, self._interpreter)
+    self._identity = PythonIdentity(impl, abi, version)
     self._allow_prereleases = allow_prereleases
     self._blacklist = pkg_blacklist.copy() if pkg_blacklist else {}
+    self._supported_tags = get_supported(version=version,
+                                         platform=platform_tag,
+                                         impl=impl,
+                                         abi=abi)
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
@@ -163,11 +184,11 @@ class Resolver(object):
         StaticIterator(existing, allow_prereleases=self._allow_prereleases))
     else:
       existing = resolvable.packages()
-    return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
+    return self.filter_packages_by_interpreter(existing)
 
   def build(self, package, options):
     context = options.get_context()
-    translator = options.get_translator(self._interpreter, self._platform)
+    translator = options.get_translator(self._interpreter, self._supported_tags)
     with TRACER.timed('Fetching %s' % package.url, V=2):
       local_package = Package.from_href(context.fetch(package))
     if local_package is None:
@@ -176,7 +197,7 @@ class Resolver(object):
       dist = translator.translate(local_package)
     if dist is None:
       raise Untranslateable('Package %s is not translateable by %s' % (package, translator))
-    if not distribution_compatible(dist, self._interpreter, self._platform):
+    if not distribution_compatible(dist, self._supported_tags):
       raise Untranslateable(
         'Could not get distribution for %s on platform %s.' % (package, self._platform))
     return dist
@@ -226,7 +247,10 @@ class Resolver(object):
         distribution = distributions[package]
         processed_packages[resolvable.name] = package
         new_parent = '%s->%s' % (parent, resolvable) if parent else str(resolvable)
-        resolvables.extend(
+        # We patch packaging.markers.default_environment here so we find optional reqs for the
+        # platform we're building the PEX for, rather than the one we're on.
+        with patched_packing_env(self._identity.pkg_resources_env(self._platform)):
+          resolvables.extend(
             (ResolvableRequirement(req, resolvable.options), new_parent) for req in
             distribution.requires(extras=resolvable_set.extras(resolvable.name)))
       resolvable_set = resolvable_set.replace_built(built_packages)
@@ -268,11 +292,7 @@ class CachingResolver(Resolver):
   def package_iterator(self, resolvable, existing=None):
     iterator = Iterator(fetchers=[Fetcher([self.__cache])],
                         allow_prereleases=self._allow_prereleases)
-    packages = self.filter_packages_by_interpreter(
-      resolvable.compatible(iterator),
-      self._interpreter,
-      self._platform
-    )
+    packages = self.filter_packages_by_interpreter(resolvable.compatible(iterator))
 
     if packages and self.__cache_ttl:
       packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
@@ -302,6 +322,21 @@ class CachingResolver(Resolver):
     return DistributionHelper.distribution_from_path(target)
 
 
+def platform_to_tags(platform, interpreter):
+  """Splits a "platform" like linux_x86_64-36-cp-cp36m into its components.
+
+  If a simple platform without hyphens is specified, we will fall back to using
+  the current interpreter's tags.
+  """
+  if platform.count('-') >= 3:
+    tags = platform.rsplit('-', 3)
+  else:
+    tags = [platform, interpreter.identity.impl_ver,
+            interpreter.identity.abbr_impl, interpreter.identity.abi_tag]
+  tags[0] = tags[0].replace('.', '_').replace('-', '_')
+  return tags
+
+
 def resolve(requirements,
             fetchers=None,
             interpreter=None,
@@ -320,9 +355,14 @@ def resolve(requirements,
     unspecified, the default is to look for packages on PyPI.
   :keyword interpreter: (optional) A :class:`PythonInterpreter` object to use for building
     distributions and for testing distribution compatibility.
-  :keyword platform: (optional) A PEP425-compatible platform string to use for filtering
-    compatible distributions.  If unspecified, the current platform is used, as determined by
-    `Platform.current()`.
+  :keyword versions: (optional) a list of string versions, of the form ["33", "32"],
+    or None. The first version will be assumed to support our ABI.
+  :keyword platform: (optional) specify the exact platform you want valid
+    tags for, or None. If None, use the local system platform.
+  :keyword impl: (optional) specify the exact implementation you want valid
+    tags for, or None. If None, use the local interpreter impl.
+  :keyword abi: (optional) specify the exact abi you want valid
+    tags for, or None. If None, use the local interpreter abi.
   :keyword context: (optional) A :class:`Context` object to use for network access.  If
     unspecified, the resolver will attempt to use the best available network context.
   :keyword precedence: (optional) An ordered list of allowable :class:`Package` classes
@@ -453,7 +493,7 @@ def resolve_multi(requirements,
   """
 
   interpreters = interpreters or [PythonInterpreter.get()]
-  platforms = platforms or [Platform.current()]
+  platforms = platforms or [get_platform()]
 
   seen = set()
   for interpreter in interpreters:

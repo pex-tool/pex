@@ -174,6 +174,7 @@ def test_pex_multi_resolve():
     pex_path = os.path.join(output_dir, 'pex.pex')
     results = run_pex_command(['--disable-cache',
                                'lxml==3.8.0',
+                               '--no-build',
                                '--platform=manylinux1-x86_64',
                                '--platform=macosx-10.6-x86_64',
                                '--python=python2.7',

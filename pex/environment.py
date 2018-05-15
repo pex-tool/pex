@@ -20,8 +20,10 @@ from pkg_resources import (
 from .common import die, open_zip, safe_mkdir, safe_rmtree
 from .interpreter import PythonInterpreter
 from .package import distribution_compatible
+from .pep425tags import get_platform, get_supported
 from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
+from .resolver import platform_to_tags
 from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
 
@@ -110,14 +112,14 @@ class PEXEnvironment(Environment):
         for dist in itertools.chain(*cls.write_zipped_internal_cache(pex, pex_info)):
           yield dist
 
-  def __init__(self, pex, pex_info, interpreter=None, **kw):
+  def __init__(self, pex, pex_info, supported_tags=None, **kw):
     self._internal_cache = os.path.join(pex, pex_info.internal_cache)
     self._pex = pex
     self._pex_info = pex_info
     self._activated = False
     self._working_set = None
-    self._interpreter = interpreter or PythonInterpreter.get()
     self._inherit_path = pex_info.inherit_path
+    self._supported_tags = supported_tags or get_supported()
     super(PEXEnvironment, self).__init__(
         search_path=[] if pex_info.inherit_path == 'false' else sys.path, **kw)
 
@@ -128,7 +130,7 @@ class PEXEnvironment(Environment):
           self.add(dist)
 
   def can_add(self, dist):
-    return distribution_compatible(dist, self._interpreter, self.platform)
+    return distribution_compatible(dist, self._supported_tags)
 
   def activate(self):
     if not self._activated:
@@ -161,6 +163,7 @@ class PEXEnvironment(Environment):
     unresolved_reqs = set([req.lower() for req in unresolved_reqs])
 
     if unresolved_reqs:
+      platform_str = '-'.join(platform_to_tags(get_platform(), PythonInterpreter.get()))
       TRACER.log('Unresolved requirements:')
       for req in unresolved_reqs:
         TRACER.log('  - %s' % req)
@@ -171,8 +174,8 @@ class PEXEnvironment(Environment):
         for dist in self._pex_info.distributions:
           TRACER.log('  - %s' % dist)
       if not self._pex_info.ignore_errors:
-        die('Failed to execute PEX file, missing compatible dependencies for:\n%s' % (
-            '\n'.join(map(str, unresolved_reqs))))
+        die('Failed to execute PEX file, missing %s compatible dependencies for:\n%s' % (
+             platform_str, '\n'.join(map(str, unresolved_reqs))))
 
     return resolveds
 

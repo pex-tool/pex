@@ -26,10 +26,10 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import validate_constraints
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
+from pex.pep425tags import get_platform
 from pex.pex import PEX
 from pex.pex_bootstrapper import find_compatible_interpreters
 from pex.pex_builder import PEXBuilder
-from pex.platforms import Platform
 from pex.requirements import requirements_from_file
 from pex.resolvable import Resolvable
 from pex.resolver import Unsatisfiable, resolve_multi
@@ -329,7 +329,13 @@ def configure_clp_pex_environment(parser):
       type=str,
       action='append',
       help='The platform for which to build the PEX. This option can be passed multiple times '
-           'to create a multi-platform compatible pex. Default: current platform.')
+           'to create a multi-platform compatible pex. To build manylinux wheels for specific '
+           'tags, you can add them to the platform with hyphens like PLATFORM-PYVER-IMPL-ABI, '
+           'where PLATFORM is either "manylinux1-x86_64" or "manylinux1-i686", PYVER is a two-'
+           'digit string representing the python version (e.g., 36), IMPL is the python '
+           'implementation abbreviation (e.g., cp, pp, jp), and ABI is the ABI tag (e.g., '
+           'cp36m, cp27mu, abi3, none). For example: manylinux1_x86_64-36-cp-cp36m. '
+           'Default: current platform.')
 
   group.add_option(
       '--interpreter-cache-dir',
@@ -670,7 +676,7 @@ def main(args=None):
       os.rename(tmp_name, options.pex_name)
       return 0
 
-    if options.platform and Platform.current() not in options.platform:
+    if options.platform and get_platform() not in options.platform:
       log('WARNING: attempting to run PEX with incompatible platforms!')
 
     pex_builder.freeze()

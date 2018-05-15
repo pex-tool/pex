@@ -9,12 +9,21 @@ import os
 import re
 import sys
 from collections import defaultdict
+from inspect import getsource
 
 from pkg_resources import Distribution, Requirement, find_distributions
 
 from .base import maybe_requirement
 from .compatibility import string
 from .executor import Executor
+from .pep425tags import (
+    get_abbr_impl,
+    get_abi_tag,
+    get_config_var,
+    get_flag,
+    get_impl_ver,
+    get_impl_version_info
+)
 from .tracer import TRACER
 
 try:
@@ -22,24 +31,22 @@ try:
 except ImportError:
   Integral = (int, long)
 
-
 # Determine in the most platform-compatible way possible the identity of the interpreter
 # and its known packages.
-ID_PY = b"""
+ID_PY = (b"""
 import sys
+import sysconfig
+import warnings
 
-if hasattr(sys, 'pypy_version_info'):
-  subversion = 'PyPy'
-elif sys.platform.startswith('java'):
-  subversion = 'Jython'
-else:
-  subversion = 'CPython'
-
-print("%s %s %s %s" % (
-  subversion,
-  sys.version_info[0],
-  sys.version_info[1],
-  sys.version_info[2]))
+""" +
+b'\n'.join(getsource(func).encode('utf-8')
+           for func in (get_flag, get_config_var, get_abbr_impl,
+                        get_abi_tag, get_impl_version_info, get_impl_ver)) +
+b"""
+print("%s %s %s" % (
+  get_abbr_impl(),
+  get_abi_tag(),
+  get_impl_ver()))
 
 setuptools_path = None
 try:
@@ -56,7 +63,7 @@ for requirement_str, location in requirements.items():
   rs = requirement_str.split('==', 2)
   if len(rs) == 2:
     print('%s %s %s' % (rs[0], rs[1], location))
-"""
+""")
 
 
 class PythonIdentity(object):
@@ -69,40 +76,47 @@ class PythonIdentity(object):
     'CPython': 'python%(major)d.%(minor)d',
     'Jython': 'jython',
     'PyPy': 'pypy',
+    'IronPython': 'ipy',
+  }
+
+  ABBR_TO_INTERPRETER = {
+    'pp': 'PyPy',
+    'jy': 'Jython',
+    'ip': 'IronPython',
+    'cp': 'CPython',
   }
 
   @classmethod
-  def get_subversion(cls):
-    if hasattr(sys, 'pypy_version_info'):
-      subversion = 'PyPy'
-    elif sys.platform.startswith('java'):
-      subversion = 'Jython'
-    else:
-      subversion = 'CPython'
-    return subversion
-
-  @classmethod
   def get(cls):
-    return cls(cls.get_subversion(), sys.version_info[0], sys.version_info[1], sys.version_info[2])
+    return cls(get_abbr_impl(), get_abi_tag(), get_impl_ver())
 
   @classmethod
   def from_id_string(cls, id_string):
-    values = id_string.split()
-    if len(values) != 4:
+    values = str(id_string).split()
+    if len(values) != 3:
       raise cls.InvalidError("Invalid id string: %s" % id_string)
-    return cls(str(values[0]), int(values[1]), int(values[2]), int(values[3]))
+    return cls(*values)
 
-  @classmethod
-  def from_path(cls, dirname):
-    interp, version = dirname.split('-')
-    major, minor, patch = version.split('.')
-    return cls(str(interp), int(major), int(minor), int(patch))
+  def __init__(self, abbr, abi, version):
+    self._interpreter = self.ABBR_TO_INTERPRETER[abbr]
+    self._abbr = abbr
+    self._version = tuple(int(x) for x in version)
+    if len(self._version) == 2:
+      self._version += (0,)
+    self._impl_ver = version
+    self._abi = abi
 
-  def __init__(self, interpreter, major, minor, patch):
-    for var in (major, minor, patch):
-      assert isinstance(var, Integral)
-    self._interpreter = interpreter
-    self._version = (major, minor, patch)
+  @property
+  def abi_tag(self):
+    return self._abi
+
+  @property
+  def abbr_impl(self):
+    return self._abbr
+
+  @property
+  def impl_ver(self):
+    return self._impl_ver
 
   @property
   def interpreter(self):
@@ -113,12 +127,16 @@ class PythonIdentity(object):
     return self._version
 
   @property
+  def version_str(self):
+    return '.'.join(map(str, self.version))
+
+  @property
   def requirement(self):
     return self.distribution.as_requirement()
 
   @property
   def distribution(self):
-    return Distribution(project_name=self._interpreter, version='.'.join(map(str, self._version)))
+    return Distribution(project_name=self.interpreter, version=self.version_str)
 
   @classmethod
   def parse_requirement(cls, requirement, default_interpreter='CPython'):
@@ -157,6 +175,47 @@ class PythonIdentity(object):
     # return the python version in the format of the 'python' key for distributions
     # specifically, '2.7', '3.2', etc.
     return '%d.%d' % (self.version[0:2])
+
+  def pkg_resources_env(self, platform_str):
+    """A dict that can be used in place of packaging.default_environment"""
+    os_name = ''
+    platform_machine = ''
+    platform_release = ''
+    platform_system = ''
+    platform_version = ''
+    sys_platform = ''
+    if 'win' in platform_str:
+      os_name = 'nt'
+      platform_machine = 'AMD64' if '64' in platform_str else 'x86'
+      platform_system = 'Windows'
+      sys_platform = 'win32'
+    elif 'linux' in platform_str:
+      os_name = 'posix'
+      platform_machine = 'x86_64' if '64' in platform_str else 'i686'
+      platform_system = 'Linux'
+      sys_platform = 'linux2' if self._version[0] == 2 else 'linux'
+    elif 'macosx' in platform_str:
+      os_name = 'posix'
+      platform_str = platform_str.replace('.', '_')
+      platform_machine = platform_str.split('_', 3)[-1]
+      # Darwin version are macOS version + 4
+      platform_release = '{}.0.0'.format(int(platform_str.split('_')[2]) + 4)
+      platform_system = 'Darwin'
+      platform_version = 'Darwin Kernel Version {}'.format(platform_release)
+      sys_platform = 'darwin'
+    return {
+      "implementation_name": self.interpreter.lower(),
+      "implementation_version": self.version_str,
+      "os_name": os_name,
+      "platform_machine": platform_machine,
+      "platform_release": platform_release,
+      "platform_system": platform_system,
+      "platform_version": platform_version,
+      "python_full_version": self.version_str,
+      "platform_python_implementation": self.interpreter,
+      "python_version": self.version_str[:3],
+      "sys_platform": sys_platform,
+    }
 
   def __str__(self):
     return '%s-%s.%s.%s' % (self._interpreter,
