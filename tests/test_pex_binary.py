@@ -160,6 +160,7 @@ def test_clp_prereleases_resolver():
                    allow_external=None,
                    allow_unverified=None,
                    allow_prereleases=None,
+                   use_manylinux=None,
                    precedence=None,
                    context=None
                    ):
@@ -168,6 +169,7 @@ def test_clp_prereleases_resolver():
                                                  allow_external=allow_external,
                                                  allow_unverified=allow_unverified,
                                                  allow_prereleases=allow_prereleases,
+                                                 use_manylinux=None,
                                                  precedence=precedence,
                                                  context=context)
         self._fetchers.insert(0, fetcher)
