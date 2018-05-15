@@ -170,6 +170,8 @@ class EggPackage(Package):
     elif self.py_version == '3.2':
       self._supported_tags.add(('pp321', abi_tag, tag_platform))
     elif self.py_version == '3.3':
+      # N.B. PyPy 3.3 maps to `pp352` because of PyPy versioning.
+      # see e.g. http://doc.pypy.org/en/latest/release-pypy3.3-v5.2-alpha1.html
       self._supported_tags.add(('pp352', abi_tag, tag_platform))
     elif self.py_version == '3.5':
       self._supported_tags.add(('pp357', abi_tag, tag_platform))

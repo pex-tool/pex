@@ -102,6 +102,7 @@ class WheelMetadata(pkg_resources.EggMetadata):
   @classmethod
   def _split_wheelname(cls, wheelname):
     split_wheelname = wheelname.rsplit('-', 4)
+    assert len(split_wheelname) == 5, 'invalid wheel name: %s' % (wheelname)
     split_wheelname[0] = split_wheelname[0].replace('-', '_')
     return '-'.join(split_wheelname[:-3])
 

@@ -346,12 +346,12 @@ def configure_clp_pex_environment(parser):
       action='append',
       help='The platform for which to build the PEX. This option can be passed multiple times '
            'to create a multi-platform pex. To use wheels for specific interpreter/platform tags'
-           'platform tags, you can append them to the platform with hyphens like: '
-           'PLATFORM-IMPL-PYVER-ABI (e.g. "linux_x86_64-cp-27-cp27mu", "macosx_10.12_x86_64-cp-36'
-           '-cp36m") PLATFORM is the host platform e.g. "linux-x86_64", "macosx-10.12-x86_64", etc'
-           '". IMPL is the python implementation abbreviation (e.g. "cp", "pp", "jp"). PYVER is '
-           'a two-digit string representing the python version (e.g. "27", "36"). ABI is the ABI '
-           'tag (e.g. "cp36m", "cp27mu", "abi3", "none"). Default: current platform.')
+           ', you can append them to the platform with hyphens like: PLATFORM-IMPL-PYVER-ABI '
+           '(e.g. "linux_x86_64-cp-27-cp27mu", "macosx_10.12_x86_64-cp-36-cp36m") PLATFORM is '
+           'the host platform e.g. "linux-x86_64", "macosx-10.12-x86_64", etc". IMPL is the '
+           'python implementation abbreviation (e.g. "cp", "pp", "jp"). PYVER is a two-digit '
+           'string representing the python version (e.g. "27", "36"). ABI is the ABI tag '
+           '(e.g. "cp36m", "cp27mu", "abi3", "none"). Default: current platform.')
 
   group.add_option(
       '--interpreter-cache-dir',
@@ -702,7 +702,7 @@ def main(args=None):
       return 0
 
     if not _compatible_with_current_platform(options.platforms):
-      log('WARNING: attempting to run PEX with incompatible platforms!', v=1)
+      log('WARNING: attempting to run PEX with incompatible platforms!')
 
     pex_builder.freeze()
 
