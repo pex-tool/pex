@@ -57,7 +57,6 @@ def test_platform_supported_tags_manylinux():
   )
 
 
-@pytest.mark.skipif("(sys.version_info[0], sys.version_info[1]) == (2, 6)")
 def test_platform_supported_tags_osx_minimal():
   assert_tags(
     'macosx-10.4-x86_64',
@@ -82,5 +81,14 @@ def test_platform_supported_tags_osx_full():
       ('cp27', 'cp27m', 'macosx_10_10_x86_64'),
       ('cp27', 'cp27m', 'macosx_10_11_x86_64'),
       ('cp27', 'cp27m', 'macosx_10_12_x86_64'),
+    ]
+  )
+
+
+def test_pypy_abi_prefix():
+  assert_tags(
+    'linux-x86_64-pp-260-pypy_41',
+    [
+      ('pp260', 'pypy_41', 'linux_x86_64'),
     ]
   )
