@@ -49,8 +49,10 @@ class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
 
   @staticmethod
   def _maybe_prefix_abi(impl, version, abi):
-    # N.B. This permits users to pass in simpler extended platform strings like
-    # `linux-x86_64-cp-27-mu` vs e.g. `linux-x86_64-cp-27-cp27mu`.
+    if impl != 'cp':
+      return abi
+    # N.B. This permits CPython users to pass in simpler extended platform
+    # strings like `linux-x86_64-cp-27-mu` vs e.g. `linux-x86_64-cp-27-cp27mu`.
     impl_ver = ''.join((impl, version))
     return abi if abi.startswith(impl_ver) else ''.join((impl_ver, abi))
 
