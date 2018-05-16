@@ -3,8 +3,6 @@
 
 import sys
 
-import pytest
-
 from pex.pep425tags import get_abi_tag, get_impl_tag
 from pex.platforms import Platform
 
