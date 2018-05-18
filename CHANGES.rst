@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+1.4.1
+-----
+
+A bugfix release for 1.4.x.
+
+* Repair abi prefixing for PyPy. (#483)
+  `#483 <https://github.com/pantsbuild/pex/pull/483>`_
+
+* Repair .egg resolution for platform specific eggs. (#486)
+  `#486 <https://github.com/pantsbuild/pex/pull/486>`_
+
+* Eliminate the python3.3 shard. (#488)
+  `#488 <https://github.com/pantsbuild/pex/pull/488>`_
+
 1.4.0
 -----
 
@@ -9,40 +23,40 @@ This release includes full Manylinux support, improvements to wheel resolution (
 Special thanks to Dan Blanchard (@dan-blanchard) for seeding the initial PR for Manylinux support and wheel resolution improvements.
 
 * Complete manylinux support in pex. (#480)
-  `#480 < https://github.com/pantsbuild/pex/pull/480>`_
+  `#480 <https://github.com/pantsbuild/pex/pull/480>`_
 
 * Add manylinux wheel support and fix a few bugs along the way (#316)
-  `#316 < https://github.com/pantsbuild/pex/pull/316>`_
+  `#316 <https://github.com/pantsbuild/pex/pull/316>`_
 
 * Skip failing tests on pypy shard. (#478)
-  `#478 < https://github.com/pantsbuild/pex/pull/478>`_
+  `#478 <https://github.com/pantsbuild/pex/pull/478>`_
 
 * Bump travis image to Trusty. (#476)
-  `#476 < https://github.com/pantsbuild/pex/pull/476>`_
+  `#476 <https://github.com/pantsbuild/pex/pull/476>`_
 
 * Mock PATH for problematic interpreter selection test in CI (#474)
-  `#474 < https://github.com/pantsbuild/pex/pull/474>`_
+  `#474 <https://github.com/pantsbuild/pex/pull/474>`_
 
 * Skip two failing integration tests. (#472)
-  `#472 < https://github.com/pantsbuild/pex/pull/472>`_
+  `#472 <https://github.com/pantsbuild/pex/pull/472>`_
 
 * Better error handling for missing setuptools. (#471)
-  `#471 < https://github.com/pantsbuild/pex/pull/471>`_
+  `#471 <https://github.com/pantsbuild/pex/pull/471>`_
 
 * Add tracebacks to IntegResults. (#469)
-  `#469 < https://github.com/pantsbuild/pex/pull/469>`_
+  `#469 <https://github.com/pantsbuild/pex/pull/469>`_
 
 * Fix failing tests in master (#466)
-  `#466 < https://github.com/pantsbuild/pex/pull/466>`_
+  `#466 <https://github.com/pantsbuild/pex/pull/466>`_
 
 * Repair isort-check failure in master. (#465)
-  `#465 < https://github.com/pantsbuild/pex/pull/465>`_
+  `#465 <https://github.com/pantsbuild/pex/pull/465>`_
 
 * Repair style issues in master. (#464)
-  `#464 < https://github.com/pantsbuild/pex/pull/464>`_
+  `#464 <https://github.com/pantsbuild/pex/pull/464>`_
 
 * Fixup PATH handling in travis.yml. (#462)
-  `#462 < https://github.com/pantsbuild/pex/pull/462>`_
+  `#462 <https://github.com/pantsbuild/pex/pull/462>`_
 
 1.3.2
 -----
