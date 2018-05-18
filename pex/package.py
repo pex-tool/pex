@@ -155,15 +155,20 @@ class EggPackage(Package):
       raise self.InvalidPackage('Could not match egg: %s' % filename)
 
     self._name, self._raw_version, self._py_version, self._platform = matcher.group(
-        'name', 'ver', 'pyver', 'plat')
+        'name', 'ver', 'pyver', 'plat'
+    )
 
     if self._raw_version is None or self._py_version is None:
       raise self.InvalidPackage('url with .egg extension but bad name: %s' % url)
 
+    impl = 'py' + self._py_version.replace('.', '')
     abi_tag = 'none'
-    tag_platform = self._platform or 'any'
-    self._supported_tags = set()
-    self._supported_tags.add(('py' + self._py_version.replace('.', ''), abi_tag, tag_platform))
+    tag_platform = (self._platform or 'any').replace('-', '_')
+
+    self._supported_tags = set([(impl, abi_tag, tag_platform)])
+    if tag_platform != 'any':
+      self._supported_tags.add((impl, abi_tag, 'any'))
+
     # Work around PyPy versions being weird in pep425tags.get_supported
     if self.py_version == '2.7':
       self._supported_tags.add(('pp2', abi_tag, tag_platform))
