@@ -17,6 +17,7 @@ from pex.installer import EggInstaller
 from pex.pex_bootstrapper import get_pex_info
 from pex.testing import (
     IS_PYPY,
+    NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
     NOT_CPYTHON36,
     NOT_CPYTHON36_OR_LINUX,
@@ -830,3 +831,14 @@ def test_pex_manylinux_runtime():
 
     out = subprocess.check_output([pex_path, tester_path])
     assert out.strip() == '[1, 2, 3]'
+
+
+@pytest.mark.skipif(NOT_CPYTHON27)
+def test_platform_specific_egg_resolution():
+  with temporary_dir() as td:
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+                           '--no-wheel',
+                           'MarkupSafe==1.0',
+                           '-o', pex_out_path])
+    res.assert_success()
