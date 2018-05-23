@@ -51,7 +51,7 @@ Dogfood
 
 ::
 
-    $ pip install --upgrade pex
+    $ pip install --no-cache-dir --upgrade pex
     ...
     $ pex --version
     pex 1.1.1
