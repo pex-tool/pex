@@ -62,10 +62,7 @@ matrix:
       env: TOXENV=pypy
 
     - language: python
-      python:
-        - "pypy"
-        - "2.7"
-        - "3.6"
+      python: "pypy"
       env: TOXENV=integration-tests
 
 install:
