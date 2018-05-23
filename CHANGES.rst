@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+1.4.2
+-----
+
+This release repairs a tag matching regression for .egg dists that inadvertently went out in 1.4.1.
+
+* Improve tag generation for EggPackage. (#493)
+  `#493 <https://github.com/pantsbuild/pex/pull/493>`_
+
 1.4.1
 -----
 
