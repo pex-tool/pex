@@ -19,7 +19,7 @@ def assert_entry_points(entry_points):
         name='my_app',
         version='0.0.0',
         zip_safe=True,
-        packages=[],
+        packages=[''],
         entry_points=%(entry_points)r,
       )
     """ % dict(entry_points=entry_points))
@@ -48,7 +48,7 @@ def assert_pex_args_shebang(shebang):
         name='my_app',
         version='0.0.0',
         zip_safe=True,
-        packages=[],
+        packages=[''],
       )
     """)
 
