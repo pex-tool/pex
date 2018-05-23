@@ -834,7 +834,7 @@ def test_pex_manylinux_runtime():
 
 
 @pytest.mark.skipif(NOT_CPYTHON27)
-def test_platform_specific_egg_resolution():
+def test_platform_specific_inline_egg_resolution():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
@@ -842,3 +842,30 @@ def test_platform_specific_egg_resolution():
                            'MarkupSafe==1.0',
                            '-o', pex_out_path])
     res.assert_success()
+
+
+@pytest.mark.skipif(NOT_CPYTHON27)
+def test_platform_specific_egg_resolution():
+  with temporary_dir() as td:
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+                           '--no-wheel',
+                           '--no-build',
+                           '--no-pypi',
+                           '--platform=linux-x86_64',
+                           '--find-links=tests/example_packages/',
+                           'M2Crypto==0.22.3',
+                           '-o', pex_out_path])
+    res.assert_success()
+
+
+@pytest.mark.skipif(NOT_CPYTHON27)
+def test_platform_specific_egg_resolution_matching():
+  with temporary_dir() as td:
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+                           '--no-wheel',
+                           '--no-build',
+                           'netifaces==0.10.6',  # Only provides win32 eggs.
+                           '-o', pex_out_path])
+    res.assert_failure()
