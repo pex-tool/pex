@@ -61,6 +61,13 @@ matrix:
       python: "pypy"
       env: TOXENV=pypy
 
+    - language: python
+      python:
+        - "pypy"
+        - "2.7"
+        - "3.6"
+      env: TOXENV=integration-tests
+
 install:
   - pip install -U tox "setuptools<34"
 
