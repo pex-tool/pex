@@ -256,7 +256,9 @@ class Resolver(object):
         new_parent = '%s->%s' % (parent, resolvable) if parent else str(resolvable)
         # We patch packaging.markers.default_environment here so we find optional reqs for the
         # platform we're building the PEX for, rather than the one we're on.
-        with patched_packing_env(self._interpreter.identity.pkg_resources_env(self._platform)):
+        with patched_packing_env(
+          self._interpreter.identity.pkg_resources_env(self._platform.platform)
+        ):
           resolvables.extend(
             (ResolvableRequirement(req, resolvable.options), new_parent) for req in
             distribution.requires(extras=resolvable_set.extras(resolvable.name))
