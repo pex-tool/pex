@@ -869,3 +869,14 @@ def test_platform_specific_egg_resolution_matching():
                            'netifaces==0.10.6',  # Only provides win32 eggs.
                            '-o', pex_out_path])
     res.assert_failure()
+
+
+@pytest.mark.skipif(NOT_CPYTHON27)
+def test_jupyter_appnope_env_markers():
+  res = run_pex_command(['--disable-cache',
+                         'jupyter==1.0.0',
+                         '-c', 'jupyter',
+                         '--',
+                         '--version'])
+  res.assert_success()
+  assert len(res.output) > 4
