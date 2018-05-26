@@ -213,6 +213,33 @@ def get_darwin_arches(major, minor, machine):
   return arches
 
 
+def _gen_all_abis(impl, version):
+  def tmpl_abi(impl, version, suffix):
+    return ''.join((impl, version, suffix))
+  yield tmpl_abi(impl, version, 'd')
+  yield tmpl_abi(impl, version, 'dm')
+  yield tmpl_abi(impl, version, 'dmu')
+  yield tmpl_abi(impl, version, 'm')
+  yield tmpl_abi(impl, version, 'mu')
+  yield tmpl_abi(impl, version, 'u')
+
+
+def get_supported_for_any_abi(version=None, noarch=False, platform=None, impl=None,
+                              force_manylinux=False):
+  """Generates supported tags for unspecified ABI types to support more intuitive cross-platform
+     resolution."""
+  unique_tags = {
+    tag for abi in _gen_all_abis(impl, version)
+    for tag in get_supported(version=version,
+                             noarch=noarch,
+                             platform=platform,
+                             impl=impl,
+                             abi=abi,
+                             force_manylinux=force_manylinux)
+  }
+  return list(unique_tags)
+
+
 def get_supported(version=None, noarch=False, platform=None, impl=None, abi=None,
                   force_manylinux=False):
   """Return a list of supported tags for each version specified in

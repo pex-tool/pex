@@ -5,7 +5,14 @@ from __future__ import absolute_import
 
 from collections import namedtuple
 
-from .pep425tags import get_abbr_impl, get_abi_tag, get_impl_ver, get_platform, get_supported
+from .pep425tags import (
+    get_abbr_impl,
+    get_abi_tag,
+    get_impl_ver,
+    get_platform,
+    get_supported,
+    get_supported_for_any_abi
+)
 
 
 class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
@@ -63,11 +70,13 @@ class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
   def supported_tags(self, interpreter=None, force_manylinux=True):
     """Returns a list of supported PEP425 tags for the current platform."""
     if interpreter and not self.is_extended:
-      tags = get_supported(
+      # N.B. If we don't get an extended platform specifier, we generate
+      # all possible ABI permutations to mimic earlier pex version
+      # behavior and make cross-platform resolution more intuitive.
+      tags = get_supported_for_any_abi(
         platform=self.platform,
         impl=interpreter.identity.abbr_impl,
         version=interpreter.identity.impl_ver,
-        abi=interpreter.identity.abi_tag,
         force_manylinux=force_manylinux
       )
     else:
