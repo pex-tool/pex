@@ -18,6 +18,7 @@ from pex.pex_bootstrapper import get_pex_info
 from pex.testing import (
     IS_PYPY,
     NOT_CPYTHON27,
+    NOT_CPYTHON27_OR_LINUX,
     NOT_CPYTHON27_OR_OSX,
     NOT_CPYTHON36,
     NOT_CPYTHON36_OR_LINUX,
@@ -880,3 +881,31 @@ def test_jupyter_appnope_env_markers():
                          '--version'])
   res.assert_success()
   assert len(res.output) > 4
+
+
+# TODO: https://github.com/pantsbuild/pex/issues/479
+@pytest.mark.skipif(NOT_CPYTHON27_OR_LINUX,
+  reason='this needs to run on an interpreter with ABI type m (OSX) vs mu (linux)')
+def test_cross_platform_abi_targeting_behavior():
+  with temporary_dir() as td:
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+                           '--no-pypi',
+                           '--platform=linux-x86_64',
+                           '--find-links=tests/example_packages/',
+                           'MarkupSafe==1.0',
+                           '-o', pex_out_path])
+    res.assert_success()
+
+
+@pytest.mark.skipif(NOT_CPYTHON27)
+def test_cross_platform_abi_targeting_behavior_exact():
+  with temporary_dir() as td:
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+                           '--no-pypi',
+                           '--platform=linux-x86_64-cp-27-mu',
+                           '--find-links=tests/example_packages/',
+                           'MarkupSafe==1.0',
+                           '-o', pex_out_path])
+    res.assert_success()
