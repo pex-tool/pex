@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+1.4.3
+-----
+
+Another bugfix release for the 1.4.x series.
+
+* Repair environmental marker platform setting. (#500)
+  `#500 <https://github.com/pantsbuild/pex/pull/500>`_
+
+* Broaden abi selection for non-specified abi types. (#503)
+  `#503 <https://github.com/pantsbuild/pex/pull/503>`_
+
 1.4.2
 -----
 
