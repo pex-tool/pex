@@ -76,5 +76,8 @@ matrix:
 install:
   - pip install -U tox "setuptools<34"
 
+before_script:
+  - ulimit -n 16384
+
 script:
   - tox -v
