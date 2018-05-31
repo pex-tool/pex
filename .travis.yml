@@ -77,7 +77,8 @@ install:
   - pip install -U tox "setuptools<34"
 
 before_script:
-  - ulimit -n 32768
+  - ulimit -Hn 10000
+  - ulimit -Sn 10000
 
 script:
   - tox -v
