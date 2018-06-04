@@ -418,6 +418,26 @@ def configure_clp():
       help='The name of a file to be included as the preamble for the generated .pex file')
 
   parser.add_option(
+      '-D', '--sources-directory',
+      dest='sources_directory',
+      metavar='DIR',
+      default=[],
+      type=str,
+      action='append',
+      help='Add sources directory to be packaged into the generated .pex file.'
+           '  This option can be used multiple times.')
+
+  parser.add_option(
+      '-R', '--resources-directory',
+      dest='resources_directory',
+      metavar='DIR',
+      default=[],
+      type=str,
+      action='append',
+      help='Add resources directory to be packaged into the generated .pex file.'
+           '  This option can be used multiple times.')
+
+  parser.add_option(
       '-r', '--requirement',
       dest='requirement_files',
       metavar='FILE',
@@ -586,6 +606,20 @@ def build_pex(args, options, resolver_option_builder):
   interpreter = min(interpreters)
 
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
+
+  def walk_and_do(fn, src_dir):
+    src_dir = os.path.normpath(src_dir)
+    for root, dirs, files in os.walk(src_dir):
+      for f in files:
+        src_file_path = os.path.join(root, f)
+        dst_path = os.path.relpath(src_file_path, src_dir)
+        fn(src_file_path, dst_path)
+
+  for directory in options.sources_directory:
+    walk_and_do(pex_builder.add_source, directory)
+
+  for directory in options.resources_directory:
+    walk_and_do(pex_builder.add_resource, directory)
 
   pex_info = pex_builder.info
   pex_info.zip_safe = options.zip_safe

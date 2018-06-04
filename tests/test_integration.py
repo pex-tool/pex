@@ -909,3 +909,57 @@ def test_cross_platform_abi_targeting_behavior_exact():
                            'MarkupSafe==1.0',
                            '-o', pex_out_path])
     res.assert_success()
+
+
+def test_pex_source_bundling():
+  with temporary_dir() as output_dir:
+    with temporary_dir() as input_dir:
+      test_file_path = os.path.join(input_dir, 'exe.py')
+      with open(test_file_path, 'w') as fh:
+        fh.write(dedent('''
+          print('hello')
+          '''
+          ))
+
+      pex1_path = os.path.join(output_dir, 'pex1.pex')
+      res1 = run_pex_command([
+        '-o', pex1_path,
+        '-D', input_dir,
+        '-e', 'exe',])
+      res1.assert_success()
+
+      stdout, rc = run_simple_pex(pex1_path)
+
+      assert rc == 0
+      assert stdout == b'hello\n'
+
+def test_pex_resource_bundling():
+  with temporary_dir() as output_dir:
+    with temporary_dir() as input_dir, temporary_dir() as resources_input_dir:
+      resource_file_path = os.path.join(resources_input_dir, 'greetings', 'greeting')
+
+      with open(os.path.join(resources_input_dir, 'greeting'), 'w') as fh:
+        fh.write('hello')
+      pex1_path = os.path.join(output_dir, 'pex1.pex')
+
+      test_file_path = os.path.join(input_dir, 'exe.py')
+      with open(test_file_path, 'w') as fh:
+        fh.write(dedent('''
+          import pkg_resources
+          with pkg_resources.resource_stream('__main__', 'greeting') as f:
+            print(f.read())
+          '''
+          .format(pex_location=pex1_path)
+          ))
+
+      res1 = run_pex_command([
+        '-o', pex1_path,
+        '-D', input_dir,
+        '-R', resources_input_dir,
+        '-e', 'exe',])
+      res1.assert_success()
+
+      stdout, rc = run_simple_pex(pex1_path)
+
+      assert rc == 0
+      assert stdout == b'hello\n'
