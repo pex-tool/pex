@@ -944,8 +944,7 @@ def test_pex_resource_bundling():
       with open(os.path.join(input_dir, 'exe.py'), 'w') as fh:
         fh.write(dedent('''
           import pkg_resources
-          with pkg_resources.resource_stream('__main__', 'greeting') as f:
-            print(f.read())
+          print(pkg_resources.resource_string('__main__', 'greeting'))
           '''))
 
       res = run_pex_command([
