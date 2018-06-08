@@ -909,3 +909,53 @@ def test_cross_platform_abi_targeting_behavior_exact():
                            'MarkupSafe==1.0',
                            '-o', pex_out_path])
     res.assert_success()
+
+
+def test_pex_source_bundling():
+  with temporary_dir() as output_dir:
+    with temporary_dir() as input_dir:
+      with open(os.path.join(input_dir, 'exe.py'), 'w') as fh:
+        fh.write(dedent('''
+          print('hello')
+          '''
+          ))
+
+      pex_path = os.path.join(output_dir, 'pex1.pex')
+      res = run_pex_command([
+        '-o', pex_path,
+        '-D', input_dir,
+        '-e', 'exe',
+      ])
+      res.assert_success()
+
+      stdout, rc = run_simple_pex(pex_path)
+
+      assert rc == 0
+      assert stdout == b'hello\n'
+
+
+def test_pex_resource_bundling():
+  with temporary_dir() as output_dir:
+    with temporary_dir() as input_dir, temporary_dir() as resources_input_dir:
+      with open(os.path.join(resources_input_dir, 'greeting'), 'w') as fh:
+        fh.write('hello')
+      pex_path = os.path.join(output_dir, 'pex1.pex')
+
+      with open(os.path.join(input_dir, 'exe.py'), 'w') as fh:
+        fh.write(dedent('''
+          import pkg_resources
+          print(pkg_resources.resource_string('__main__', 'greeting').decode('utf-8'))
+          '''))
+
+      res = run_pex_command([
+        '-o', pex_path,
+        '-D', input_dir,
+        '-R', resources_input_dir,
+        '-e', 'exe',
+      ])
+      res.assert_success()
+
+      stdout, rc = run_simple_pex(pex_path)
+
+      assert rc == 0
+      assert stdout == b'hello\n'
