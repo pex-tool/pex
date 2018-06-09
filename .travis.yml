@@ -77,4 +77,4 @@ install:
   - pip install -U tox "setuptools<34"
 
 script:
-  - tox -v
+  - ./scripts/ci.sh
