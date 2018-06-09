@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+1.4.4
+-----
+
+This release adds support for including sources and resources directly in a produced pex - without the need to use pants.
+
+* Add resource / source bundling to pex cli (#507)
+  `#507 <https://github.com/pantsbuild/pex/pull/507>`_
+
 1.4.3
 -----
 
