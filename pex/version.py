@@ -8,4 +8,4 @@ __version__ = '1.4.4'
 # `packaging.specifiers.SpecifierSet` - indirectly - through `pkg_resources.Requirement.specifier`.
 SETUPTOOLS_REQUIREMENT = 'setuptools>=20.3,<34.0'
 
-WHEEL_REQUIREMENT = 'wheel>=0.26.0,<0.30.0'
+WHEEL_REQUIREMENT = 'wheel>=0.26.0,<0.32.0'
