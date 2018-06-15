@@ -38,6 +38,7 @@ if [[ -z "$(docker images -q -f label=user_hash=${user_hash} pantsbuild/pex:user
 fi
 
 exec docker run \
+  --interactive \
   --tty \
   --rm \
   --volume $(pwd):/dev/pex \

@@ -1,7 +1,6 @@
 # An image with the necessary binaries and libraries to develop pex.
 FROM ubuntu:18.04
 
-# Base dependencies for pex development.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
   # Make sure we can build platform-specific packages as needed (subprocess32 for example).
   build-essential \
