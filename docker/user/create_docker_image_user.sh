@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if (( $# != 4 )); then
-  echo >2 "Usage $0 <user> <uid> <group> <gid> [PATH...]"
+  echo >2 "Usage $0 <user> <uid> <group> <gid>"
   exit 1
 fi
 
