@@ -11,6 +11,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
   # We use tox to run tests and more.
   tox \
   # We use pyenv to bootstrap interpreters in tests and pyenv needs these.
+  git \
   curl \
   zlib1g-dev \
   libssl1.0-dev
