@@ -319,7 +319,7 @@ def bootstrap_python_installer(dest):
     raise RuntimeError("Helper method could not clone pyenv from git after 3 tries")
 
 
-def ensure_python_interpreter(version):
+def ensure_python_distribution(version):
   pyenv_root = os.path.join(os.getcwd(), '.pyenv_test')
   interpreter_location = os.path.join(pyenv_root, 'versions', version)
   pyenv = os.path.join(pyenv_root, 'bin', 'pyenv')
@@ -330,7 +330,13 @@ def ensure_python_interpreter(version):
 
   if not os.path.exists(interpreter_location):
     os.environ['PYENV_ROOT'] = pyenv_root
-    subprocess.call([pyenv, 'install', version])
-    subprocess.call([pip, 'install', SETUPTOOLS_REQUIREMENT])
+    subprocess.check_call([pyenv, 'install', '--keep', version])
+    subprocess.check_call([pip, 'install', SETUPTOOLS_REQUIREMENT])
 
-  return os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
+  python = os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
+  return python, pip
+
+
+def ensure_python_interpreter(version):
+  python, _ = ensure_python_distribution(version)
+  return python

@@ -51,7 +51,9 @@ print(
   )
 )
 
-setuptools_path = None
+"""
+
+EXTRAS_PY = b"""\
 try:
   import pkg_resources
 except ImportError:
@@ -69,7 +71,7 @@ for requirement_str, location in requirements.items():
 """
 
 
-def _generate_identity_source():
+def _generate_identity_source(include_site_extras):
   # Determine in the most platform-compatible way possible the identity of the interpreter
   # and its known packages.
   encodables = (
@@ -81,10 +83,11 @@ def _generate_identity_source():
     get_impl_ver
   )
 
-  return ID_PY_TMPL.replace(
-    b'__CODE__',
-    b'\n\n'.join(getsource(func).encode('utf-8') for func in encodables)
-  )
+  source = ID_PY_TMPL.replace(b'__CODE__',
+                              b'\n\n'.join(getsource(func).encode('utf-8') for func in encodables))
+  if include_site_extras:
+    source += EXTRAS_PY
+  return source
 
 
 class PythonIdentity(object):
@@ -321,25 +324,31 @@ class PythonInterpreter(object):
         yield ((dist_name, dist_version), location)
     return dict(iter_lines())
 
-  @classmethod
-  def _from_binary_internal(cls, path_extras):
-    def iter_extras():
-      for item in sys.path + list(path_extras):
-        for dist in find_distributions(item):
-          if dist.version:
-            yield ((dist.key, dist.version), dist.location)
-    return cls(sys.executable, PythonIdentity.get(), dict(iter_extras()))
+  @staticmethod
+  def _iter_extras(path_extras):
+    for item in path_extras:
+      for dist in find_distributions(item):
+        if dist.version:
+          yield ((dist.key, dist.version), dist.location)
 
   @classmethod
-  def _from_binary_external(cls, binary, path_extras):
+  def _from_binary_internal(cls, path_extras, include_site_extras):
+    extras = sys.path + list(path_extras) if include_site_extras else list(path_extras)
+    return cls(sys.executable, PythonIdentity.get(), dict(cls._iter_extras(extras)))
+
+  @classmethod
+  def _from_binary_external(cls, binary, path_extras, include_site_extras):
     environ = cls.sanitized_environment()
-    environ['PYTHONPATH'] = ':'.join(path_extras)
-    stdout, _ = Executor.execute([binary], env=environ, stdin_payload=_generate_identity_source())
+    stdout, _ = Executor.execute([binary],
+                                 env=environ,
+                                 stdin_payload=_generate_identity_source(include_site_extras))
     output = stdout.splitlines()
     if len(output) == 0:
       raise cls.IdentificationError('Could not establish identity of %s' % binary)
-    identity, extras = output[0], output[1:]
-    return cls(binary, PythonIdentity.from_id_string(identity), extras=cls._parse_extras(extras))
+    identity, raw_extras = output[0], output[1:]
+    extras = cls._parse_extras(raw_extras)
+    extras.update(cls._iter_extras(path_extras))
+    return cls(binary, PythonIdentity.from_id_string(identity), extras=extras)
 
   @classmethod
   def expand_path(cls, path):
@@ -366,14 +375,26 @@ class PythonInterpreter(object):
             TRACER.log('Could not identify %s: %s' % (fn, e))
 
   @classmethod
-  def from_binary(cls, binary, path_extras=None):
+  def from_binary(cls, binary, path_extras=None, include_site_extras=True):
+    """Create an interpreter from the given `binary`.
+
+    :param str binary: The path to the python interpreter binary.
+    :param path_extras: Extra PYTHONPATH entries to add to the interpreter's `sys.path`.
+    :type path_extras: list of str
+    :param bool include_site_extras: `True` to include the `site-packages` associated
+                                     with `binary` in the interpreter's `sys.path`.
+    :return: an interpreter created from the given `binary` with only the specified
+             extras.
+    :rtype: :class:`PythonInterpreter`
+    """
     path_extras = path_extras or ()
-    if binary not in cls.CACHE:
+    key = (binary, tuple(path_extras), include_site_extras)
+    if key not in cls.CACHE:
       if binary == sys.executable:
-        cls.CACHE[binary] = cls._from_binary_internal(path_extras)
+        cls.CACHE[key] = cls._from_binary_internal(path_extras, include_site_extras)
       else:
-        cls.CACHE[binary] = cls._from_binary_external(binary, path_extras)
-    return cls.CACHE[binary]
+        cls.CACHE[key] = cls._from_binary_external(binary, path_extras, include_site_extras)
+    return cls.CACHE[key]
 
   @classmethod
   def find(cls, paths):
