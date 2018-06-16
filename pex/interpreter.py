@@ -376,12 +376,16 @@ class PythonInterpreter(object):
 
   @classmethod
   def from_binary(cls, binary, path_extras=None, include_site_extras=True):
-    """
+    """Create an interpreter from the given `binary`.
 
-    :param binary:
-    :param path_extras:
-    :param include_site_extras:
-    :return:
+    :param str binary: The path to the python interpreter binary.
+    :param path_extras: Extra PYTHONPATH entries to add to the interpreter's `sys.path`.
+    :type path_extras: list of str
+    :param bool include_site_extras: `True` to include the `site-packages` associated
+                                     with `binary` in the interpreter's `sys.path`.
+    :return: an interpreter created from the given `binary` with only the specified
+             extras.
+    :rtype: :class:`PythonInterpreter`
     """
     path_extras = path_extras or ()
     key = (binary, tuple(path_extras), include_site_extras)
