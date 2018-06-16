@@ -330,10 +330,10 @@ def ensure_python_distribution(version):
 
   if not os.path.exists(interpreter_location):
     os.environ['PYENV_ROOT'] = pyenv_root
-    subprocess.call([pyenv, 'install', '--keep', version])
-    subprocess.call([pip, 'install', SETUPTOOLS_REQUIREMENT])
+    subprocess.check_call([pyenv, 'install', '--keep', version])
+    subprocess.check_call([pip, 'install', SETUPTOOLS_REQUIREMENT])
 
-  python = os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
+  python = os.path.join(interpreter_location, 'bin', 'python')
   return python, pip
 
 

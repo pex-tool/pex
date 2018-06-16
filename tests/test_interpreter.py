@@ -7,8 +7,12 @@ import subprocess
 import pytest
 
 from pex import interpreter
-from pex.testing import IS_PYPY, ensure_python_interpreter, temporary_dir, \
-  ensure_python_distribution
+from pex.testing import (
+    IS_PYPY,
+    ensure_python_distribution,
+    ensure_python_interpreter,
+    temporary_dir
+)
 
 try:
   from mock import patch
