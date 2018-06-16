@@ -333,7 +333,7 @@ def ensure_python_distribution(version):
     subprocess.check_call([pyenv, 'install', '--keep', version])
     subprocess.check_call([pip, 'install', SETUPTOOLS_REQUIREMENT])
 
-  python = os.path.join(interpreter_location, 'bin', 'python')
+  python = os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
   return python, pip
 
 
