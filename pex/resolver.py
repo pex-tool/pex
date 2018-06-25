@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 import pkg_resources
 
-from .common import safe_mkdir
+from .common import open_zip, safe_mkdir
 from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
@@ -22,7 +22,7 @@ from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
 from .tracer import TRACER
-from .util import DistributionHelper
+from .util import CacheHelper, DistributionHelper
 
 
 @contextmanager
@@ -308,7 +308,8 @@ class CachingResolver(Resolver):
 
   @classmethod
   def get_cache_key(cls, dist_location):
-    return os.stat(dist_location).st_size
+    with open_zip(dist_location, 'r') as zf:
+      return CacheHelper.zip_hash(zf)
 
   def __init__(self, cache, cache_ttl, *args, **kw):
     self.__cache = cache
