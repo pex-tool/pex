@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import os
 import re
 import warnings
 from abc import abstractmethod

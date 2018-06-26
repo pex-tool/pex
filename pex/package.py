@@ -271,9 +271,14 @@ class WheelPackage(BinaryPackage):
             self.url == other.url)
 
   def __hash__(self):
-    return hash(
-      (self._name, self._raw_version, self._py_tag, self._abi_tag, self._arch_tag, self.url)
-    )
+    return hash((
+      self._name,
+      self._raw_version,
+      self._py_tag,
+      self._abi_tag,
+      self._arch_tag,
+      self.url,
+    ))
 
 
 Package.register(SourcePackage)
