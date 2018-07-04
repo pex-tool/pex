@@ -495,6 +495,7 @@ def resolve(requirements,
                         interpreter=interpreter,
                         platform=platform,
                         pkg_blacklist=pkg_blacklist)
+
   return resolver.resolve(resolvables_from_iterable(requirements, builder))
 
 
