@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import ast
 import logging
 import os
 
@@ -50,6 +51,7 @@ class PEXBuilder(object):
   class ImmutablePEX(Error): pass
   class InvalidDistribution(Error): pass
   class InvalidDependency(Error): pass
+  class InvalidEntryPoint(Error): pass
   class InvalidExecutableSpecification(Error): pass
 
   BOOTSTRAP_DIR = ".bootstrap"
@@ -224,6 +226,43 @@ class PEXBuilder(object):
         'Could not find script %r in any distribution %s within PEX!' % (
             script, ', '.join(str(d) for d in self._distributions)))
 
+  def _verify_entry_point(self, entry_point):
+    """
+    Verify
+    1. entry point exists
+    2. entry point is a function
+
+    :param entry_point:
+    :return:
+    """
+
+    # a.b.c:m ->
+    # entry_point_elements = ['a','b','c.py']
+    # method = 'm'
+    file_path, method = entry_point.split(':')
+    entry_point_elements = file_path.split(os.sep)
+    entry_point_elements[-1] = entry_point_elements[-1] + '.py'
+
+    candidates = []
+    for rel_path in self._chroot.files():
+      # .deps/xxx.whl/a/b/c.py
+      # .deps/yyy.whl/e/f/g.py
+      # make them into
+      elems_from_chroot = os.path.normpath(rel_path).split(os.path.sep)
+      if elems_from_chroot[0] == PexInfo.INTERNAL_CACHE and elems_from_chroot[2:] == entry_point_elements:
+        candidates.append(rel_path)
+      elif elems_from_chroot == entry_point_elements:
+        candidates.append(rel_path)
+
+    if not candidates:
+      raise self.InvalidEntryPoint("{} does not exist for entry point `{}`."
+                                   .format(os.path.sep.join(entry_point_elements), entry_point))
+
+    for c in candidates:
+      tree = ast.parse(open(os.path.join(self._chroot.path(), c), 'r').read())
+
+    x = 5
+
   def set_entry_point(self, entry_point):
     """Set the entry point of this PEX environment.
 
@@ -238,6 +277,7 @@ class PEXBuilder(object):
     The entry point may also be specified via ``PEXBuilder.set_executable``.
     """
     self._ensure_unfrozen('Setting an entry point')
+    self._verify_entry_point(entry_point)
     self._pex_info.entry_point = entry_point
 
   def set_shebang(self, shebang):
