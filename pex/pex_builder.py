@@ -228,9 +228,9 @@ class PEXBuilder(object):
 
   def _verify_entry_point(self, entry_point):
     """
-    Verify
-    1. entry point exists
-    2. entry point is a function
+    Given entry_point `a.b.c:m`, make sure
+    1. a/b/c.py exists
+    2. `m` method is defined in a/b/c.py
 
     :param entry_point:
     :return:
@@ -239,29 +239,41 @@ class PEXBuilder(object):
     # a.b.c:m ->
     # entry_point_elements = ['a','b','c.py']
     # method = 'm'
-    file_path, method = entry_point.split(':')
-    entry_point_elements = file_path.split(os.sep)
+    entry_point_module, entry_point_method_name = entry_point.split(':')
+    entry_point_elements = entry_point_module.split(os.sep)
     entry_point_elements[-1] = entry_point_elements[-1] + '.py'
 
-    candidates = []
+    # 1. Find the files matching a.b.c:m, which is a/b/c.py
+    file_candidates = []
     for rel_path in self._chroot.files():
-      # .deps/xxx.whl/a/b/c.py
-      # .deps/yyy.whl/e/f/g.py
-      # make them into
       elems_from_chroot = os.path.normpath(rel_path).split(os.path.sep)
+      # If path starts with `PexInfo.INTERNAL_CACHE`, i.e. `.deps/`, that means it's a third party dependency.
+      # Therefore, the search path for it is two levels down.
+      # For example, the search path for `.deps/xxx.whl/a/b/c.py` is `.dep/xxx.whl/`
       if elems_from_chroot[0] == PexInfo.INTERNAL_CACHE and elems_from_chroot[2:] == entry_point_elements:
-        candidates.append(rel_path)
+        file_candidates.append(rel_path)
       elif elems_from_chroot == entry_point_elements:
-        candidates.append(rel_path)
+        file_candidates.append(rel_path)
 
-    if not candidates:
+    if not file_candidates:
       raise self.InvalidEntryPoint("{} does not exist for entry point `{}`."
                                    .format(os.path.sep.join(entry_point_elements), entry_point))
 
-    for c in candidates:
-      tree = ast.parse(open(os.path.join(self._chroot.path(), c), 'r').read())
+    if len(file_candidates) > 1:
+      self._logger.warn("More than one file found for {}".format(entry_point_module))
 
-    x = 5
+    # 2. Given files matching `a.b.c:m`, verify method `m` exists.
+    final_candidates = []
+    for c in file_candidates:
+      with open(os.path.join(self._chroot.path(), c), 'r') as f:
+        tree = ast.parse(f.read())
+        methods = filter(lambda x: isinstance(x, ast.FunctionDef) and x.name == entry_point_method_name, tree.body)
+        if methods:
+          final_candidates.append(c)
+
+    if not final_candidates:
+      raise self.InvalidEntryPoint("No method name {} has been found in {}."
+                                   .format(entry_point_method_name, file_candidates))
 
   def set_entry_point(self, entry_point):
     """Set the entry point of this PEX environment.
