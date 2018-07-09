@@ -235,14 +235,47 @@ class PEXBuilder(object):
     :param entry_point:
     :return:
     """
+    ep_split = entry_point.split(':')
+    # Only module is specified
+    if len(ep_split) == 1:
+      ep_module = ep_split[0]
+      ep_method = None
+    elif len(ep_split) == 2:
+      ep_module = ep_split[0]
+      ep_method = ep_split[1]
+    else:
+      raise self.InvalidEntryPoint("Fail to parse: `{}`".format(entry_point))
 
     # a.b.c:m ->
     # entry_point_elements = ['a','b','c.py']
     # method = 'm'
-    entry_point_module, entry_point_method_name = entry_point.split(':')
-    entry_point_elements = entry_point_module.split(os.sep)
-    entry_point_elements[-1] = entry_point_elements[-1] + '.py'
+    ep_module_elements = ep_module.split(os.sep)
+    ep_module_elements[-1] = ep_module_elements[-1] + '.py'
 
+    file_candidates = self._gather_file_candidates(ep_module_elements)
+    if not file_candidates:
+      raise self.InvalidEntryPoint("{} does not exist for entry point `{}`."
+                                   .format(os.path.sep.join(ep_module_elements), entry_point))
+
+    if len(file_candidates) > 1:
+      self._logger.warn("More than one file found for {}".format(ep_module))
+
+    if not ep_method:
+      return
+    # 2. Given files matching `a.b.c:m`, verify method `m` exists.
+    final_candidates = []
+    for c in file_candidates:
+      with open(os.path.join(self._chroot.path(), c), 'r') as f:
+        tree = ast.parse(f.read())
+        methods = filter(lambda x: isinstance(x, ast.FunctionDef) and x.name == ep_method, tree.body)
+        if methods:
+          final_candidates.append(c)
+
+    if not final_candidates:
+      raise self.InvalidEntryPoint("No method name {} has been found in {}."
+                                   .format(ep_method, file_candidates))
+
+  def _gather_file_candidates(self, entry_point_elements):
     # 1. Find the files matching a.b.c:m, which is a/b/c.py
     file_candidates = []
     for rel_path in self._chroot.files():
@@ -255,25 +288,7 @@ class PEXBuilder(object):
       elif elems_from_chroot == entry_point_elements:
         file_candidates.append(rel_path)
 
-    if not file_candidates:
-      raise self.InvalidEntryPoint("{} does not exist for entry point `{}`."
-                                   .format(os.path.sep.join(entry_point_elements), entry_point))
-
-    if len(file_candidates) > 1:
-      self._logger.warn("More than one file found for {}".format(entry_point_module))
-
-    # 2. Given files matching `a.b.c:m`, verify method `m` exists.
-    final_candidates = []
-    for c in file_candidates:
-      with open(os.path.join(self._chroot.path(), c), 'r') as f:
-        tree = ast.parse(f.read())
-        methods = filter(lambda x: isinstance(x, ast.FunctionDef) and x.name == entry_point_method_name, tree.body)
-        if methods:
-          final_candidates.append(c)
-
-    if not final_candidates:
-      raise self.InvalidEntryPoint("No method name {} has been found in {}."
-                                   .format(entry_point_method_name, file_candidates))
+    return file_candidates
 
   def set_entry_point(self, entry_point):
     """Set the entry point of this PEX environment.
