@@ -271,7 +271,7 @@ class PEXBuilder(object):
           final_candidates.append(c)
 
     if not final_candidates:
-      raise self.InvalidEntryPoint("No method name {} has been found in {}."
+      raise self.InvalidEntryPoint("No method name `{}` has been found in {}."
                                    .format(ep_method, file_candidates))
 
   def _gather_file_candidates(self, entry_point_elements):
