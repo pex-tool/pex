@@ -247,8 +247,7 @@ class PEXBuilder(object):
       raise self.InvalidEntryPoint("Fail to parse: `{}`".format(entry_point))
 
     # a.b.c:m ->
-    # entry_point_elements = ['a','b','c.py']
-    # method = 'm'
+    # ep_module_elements = ['a','b','c.py']
     ep_module_elements = ep_module.split(os.sep)
     ep_module_elements[-1] = ep_module_elements[-1] + '.py'
 
