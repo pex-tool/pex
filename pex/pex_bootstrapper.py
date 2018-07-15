@@ -6,7 +6,6 @@ import os
 import sys
 
 from .common import die, open_zip
-from .executor import Executor
 from .interpreter import PythonInterpreter
 from .interpreter_constraints import matched_interpreters
 from .tracer import TRACER
@@ -67,22 +66,11 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
      PEX_PYTHON_PATH if it is set. If not, fall back to interpreters on $PATH.
   """
   if pex_python_path:
-    interpreters = []
-    for binary in pex_python_path.split(os.pathsep):
-      try:
-        interpreters.append(PythonInterpreter.from_binary(binary))
-      except Executor.ExecutionError:
-        print("Python interpreter %s in PEX_PYTHON_PATH failed to load properly." % binary,
-          file=sys.stderr)
-    if not interpreters:
-      die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
+    interpreters = PythonInterpreter.all(paths=pex_python_path, probe=False)
   else:
-    if not os.getenv('PATH', ''):
-      # no $PATH, use sys.executable
-      interpreters = [PythonInterpreter.get()]
-    else:
-      # get all qualifying interpreters found in $PATH
-      interpreters = PythonInterpreter.all()
+    # Get all qualifying interpreters found in $PATH falling back to the current interpreter if
+    # need be.
+    interpreters = PythonInterpreter.all() or [PythonInterpreter.get()]
 
   return list(matched_interpreters(
     interpreters, compatibility_constraints, meet_all_constraints=True))

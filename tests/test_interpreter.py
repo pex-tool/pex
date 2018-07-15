@@ -7,12 +7,7 @@ import subprocess
 import pytest
 
 from pex import interpreter
-from pex.testing import (
-    IS_PYPY,
-    ensure_python_distribution,
-    ensure_python_interpreter,
-    temporary_dir
-)
+from pex.testing import ensure_python_distribution, ensure_python_interpreter, temporary_dir
 
 try:
   from mock import patch
@@ -36,7 +31,7 @@ class TestPythonInterpreter(object):
   TEST_INTERPRETER1_VERSION_TUPLE = (2, 7, 10)
   TEST_INTERPRETER1_VERSION = version_from_tuple(TEST_INTERPRETER1_VERSION_TUPLE)
 
-  TEST_INTERPRETER2_VERSION_TUPLE = (2, 7, 9)
+  TEST_INTERPRETER2_VERSION_TUPLE = (3, 6, 3)
   TEST_INTERPRETER2_VERSION = version_from_tuple(TEST_INTERPRETER2_VERSION_TUPLE)
 
   @pytest.fixture
@@ -47,12 +42,39 @@ class TestPythonInterpreter(object):
   def test_interpreter2(self):
     return ensure_python_interpreter(self.TEST_INTERPRETER2_VERSION)
 
-  @pytest.mark.skipif(IS_PYPY)
   def test_interpreter_versioning(self, test_interpreter1):
     py_interpreter = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     assert py_interpreter.identity.version == self.TEST_INTERPRETER1_VERSION_TUPLE
 
-  @pytest.mark.skipif(IS_PYPY)
+  def test_all_ordering_respects_path_precedence(self, test_interpreter1, test_interpreter2):
+    interpreters = interpreter.PythonInterpreter.all(paths=[test_interpreter1, test_interpreter2])
+    assert [interpreter.PythonInterpreter.from_binary(test_interpreter1),
+            interpreter.PythonInterpreter.from_binary(test_interpreter2)] == interpreters
+
+    interpreters = interpreter.PythonInterpreter.all(paths=[test_interpreter2, test_interpreter1])
+    assert [interpreter.PythonInterpreter.from_binary(test_interpreter2),
+            interpreter.PythonInterpreter.from_binary(test_interpreter1)] == interpreters
+
+  def test_all_probe(self, test_interpreter1, test_interpreter2):
+    interpreters = interpreter.PythonInterpreter.all(paths=[test_interpreter1, test_interpreter2])
+    assert [interpreter.PythonInterpreter.from_binary(test_interpreter1),
+            interpreter.PythonInterpreter.from_binary(test_interpreter2)] == interpreters
+
+    interpreters = interpreter.PythonInterpreter.all(paths=[test_interpreter1,
+                                                             os.path.dirname(test_interpreter2)])
+    assert [interpreter.PythonInterpreter.from_binary(test_interpreter1),
+            interpreter.PythonInterpreter.from_binary(test_interpreter2)] == interpreters
+
+    interpreters = interpreter.PythonInterpreter.all(paths=[test_interpreter1,
+                                                             os.path.dirname(test_interpreter2)],
+                                                     probe=False)
+    assert [interpreter.PythonInterpreter.from_binary(test_interpreter1)] == interpreters
+
+    interpreters = interpreter.PythonInterpreter.all(paths=[os.path.dirname(test_interpreter1),
+                                                            os.path.dirname(test_interpreter2)],
+                                                     probe=False)
+    assert not interpreters
+
   def test_interpreter_caching_basic(self, test_interpreter1, test_interpreter2):
     py_interpreter1 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     py_interpreter2 = interpreter.PythonInterpreter.from_binary(test_interpreter2)
@@ -62,7 +84,6 @@ class TestPythonInterpreter(object):
     py_interpreter3 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     assert py_interpreter1 is py_interpreter3
 
-  @pytest.mark.skipif(IS_PYPY)
   def test_interpreter_caching_include_site_extras(self, test_interpreter1):
     py_interpreter1 = interpreter.PythonInterpreter.from_binary(test_interpreter1,
                                                                 include_site_extras=False)
@@ -73,7 +94,6 @@ class TestPythonInterpreter(object):
     assert py_interpreter1.identity.version == py_interpreter2.identity.version
     assert py_interpreter2 is py_interpreter3
 
-  @pytest.mark.skipif(IS_PYPY)
   def test_interpreter_caching_path_extras(self):
     python, pip = ensure_python_distribution(self.TEST_INTERPRETER1_VERSION)
     with temporary_dir() as path_extra:

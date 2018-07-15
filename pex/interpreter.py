@@ -14,8 +14,9 @@ from inspect import getsource
 from pkg_resources import Distribution, Requirement, find_distributions
 
 from .base import maybe_requirement
-from .compatibility import string
+from .compatibility import string as compatibility_string
 from .executor import Executor
+from .orderedset import OrderedSet
 from .pep425tags import (
     get_abbr_impl,
     get_abi_tag,
@@ -175,7 +176,7 @@ class PythonIdentity(object):
   def parse_requirement(cls, requirement, default_interpreter='CPython'):
     if isinstance(requirement, Requirement):
       return requirement
-    elif isinstance(requirement, string):
+    elif isinstance(requirement, compatibility_string):
       try:
         requirement = Requirement.parse(requirement)
       except ValueError:
@@ -308,10 +309,24 @@ class PythonInterpreter(object):
     return cls.from_binary(sys.executable)
 
   @classmethod
-  def all(cls, paths=None):
+  def all(cls, paths=None, probe=True):
+    """Probes for all python interpreters discoverable via `paths`.
+
+    The `paths` can either be a list of paths to search, or else a `PATH`-style string representing
+    the same. If no `paths` is supplied, defaults to the `PATH` environment variable. Unlike
+    typical `PATH` search, each path element can be either the full path of a python binary or else
+    a directory, in which case python binaries will be probed for in that directory by default.
+
+    :param paths: Optional paths to probe for interpreters.
+    :type paths: text or list of text
+    :param bool probe: Whether to probe paths that are directories.
+    :rtype: list of :class:`PythonInterpreter`
+    """
     if paths is None:
-      paths = os.getenv('PATH', '').split(':')
-    return cls.filter(cls.find(paths))
+      paths = os.getenv('PATH', '')
+    if isinstance(paths, compatibility_string):
+      paths = paths.split(os.pathsep)
+    return cls.filter(cls.find(paths, probe=probe))
 
   @classmethod
   def _parse_extras(cls, output_lines):
@@ -351,10 +366,10 @@ class PythonInterpreter(object):
     return cls(binary, PythonIdentity.from_id_string(identity), extras=extras)
 
   @classmethod
-  def expand_path(cls, path):
+  def expand_path(cls, path, probe=True):
     if os.path.isfile(path):
       return [path]
-    elif os.path.isdir(path):
+    elif probe and os.path.isdir(path):
       return [os.path.join(path, fn) for fn in os.listdir(path)]
     return []
 
@@ -397,14 +412,18 @@ class PythonInterpreter(object):
     return cls.CACHE[key]
 
   @classmethod
-  def find(cls, paths):
+  def find(cls, paths, probe=True):
     """
       Given a list of files or directories, try to detect python interpreters amongst them.
+
+      Passing `probe=False` turns off directory probing in which case paths must point directly to
+      python interpreter binaries or else they be skipped in the search.
+
       Returns a list of PythonInterpreter objects.
     """
     pythons = []
     for path in paths:
-      for fn in cls.expand_path(path):
+      for fn in cls.expand_path(path, probe=probe):
         basefile = os.path.basename(fn)
         if any(matcher.match(basefile) is not None for matcher in cls.REGEXEN):
           try:
@@ -417,10 +436,10 @@ class PythonInterpreter(object):
   @classmethod
   def filter(cls, pythons):
     """
-      Given a map of python interpreters in the format provided by PythonInterpreter.find(),
-      filter out duplicate versions and versions we would prefer not to use.
+      Given a list of PythonInterpreter objects, filter out duplicate versions and versions we would
+      prefer not to use.
 
-      Returns a map in the same format as find.
+      Returns a list of PythonInterpreter objects.
     """
     good = []
 
@@ -429,7 +448,7 @@ class PythonInterpreter(object):
       return (version[MAJOR] == 2 and version[MINOR] >= 6 or
               version[MAJOR] == 3 and version[MINOR] >= 2)
 
-    all_versions = set(interpreter.identity.version for interpreter in pythons)
+    all_versions = OrderedSet(interpreter.identity.version for interpreter in pythons)
     good_versions = filter(version_filter, all_versions)
 
     for version in good_versions:

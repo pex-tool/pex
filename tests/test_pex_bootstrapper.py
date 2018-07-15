@@ -3,13 +3,12 @@
 
 import os
 
-import pytest
 from twitter.common.contextutil import temporary_dir
 
 from pex.common import open_zip
 from pex.interpreter import PythonInterpreter
 from pex.pex_bootstrapper import find_compatible_interpreters, get_pex_info
-from pex.testing import IS_PYPY, ensure_python_interpreter, write_simple_pex
+from pex.testing import ensure_python_interpreter, write_simple_pex
 
 
 def test_get_pex_info():
@@ -32,32 +31,46 @@ def test_get_pex_info():
       assert pex_info.dump() == pex_info_2.dump()
 
 
-@pytest.mark.skipif(IS_PYPY)
+def assert_interpreters(interpreters, *expected):
+  assert list(expected) == [pi.binary for pi in interpreters]
+
+
 def test_find_compatible_interpreters():
+  pi_2_7_10 = ensure_python_interpreter('2.7.10')
+  pi_3_6_2 = ensure_python_interpreter('3.6.2')
+  pi_3_6_3 = ensure_python_interpreter('3.6.3')
   pex_python_path = ':'.join([
-    ensure_python_interpreter('2.7.9'),
-    ensure_python_interpreter('2.7.10'),
-    ensure_python_interpreter('2.7.11'),
-    ensure_python_interpreter('3.4.2'),
-    ensure_python_interpreter('3.5.4'),
-    ensure_python_interpreter('3.6.2'),
-    ensure_python_interpreter('3.6.3')
+    pi_2_7_10,
+    pi_3_6_2,
+    pi_3_6_3
   ])
 
+  interpreters = find_compatible_interpreters(pex_python_path, [])
+  assert_interpreters(interpreters, pi_2_7_10, pi_3_6_2, pi_3_6_3)
+
   interpreters = find_compatible_interpreters(pex_python_path, ['>3'])
-  assert interpreters[0].binary == pex_python_path.split(':')[3]  # 3.4.2
+  assert_interpreters(interpreters, pi_3_6_2, pi_3_6_3)
 
   interpreters = find_compatible_interpreters(pex_python_path, ['<3'])
-  assert interpreters[0].binary == pex_python_path.split(':')[0]  # 2.7.9
+  assert_interpreters(interpreters, pi_2_7_10)
 
-  interpreters = find_compatible_interpreters(pex_python_path, ['>3.5.4'])
-  assert interpreters[0].binary == pex_python_path.split(':')[5]  # 3.6.2
+  interpreters = find_compatible_interpreters(pex_python_path, ['<=2.7.10'])
+  assert_interpreters(interpreters, pi_2_7_10)
 
-  interpreters = find_compatible_interpreters(pex_python_path, ['>3.4.2, <3.6'])
-  assert interpreters[0].binary == pex_python_path.split(':')[4]  # 3.5.4
+  interpreters = find_compatible_interpreters(pex_python_path, ['>=3.6.2'])
+  assert_interpreters(interpreters, pi_3_6_2, pi_3_6_3)
+
+  interpreters = find_compatible_interpreters(pex_python_path, ['>2.7.10, <3.6.3'])
+  assert_interpreters(interpreters, pi_3_6_2)
+
+  interpreters = find_compatible_interpreters(pex_python_path, ['>2, <=3'])
+  assert_interpreters(interpreters, pi_2_7_10)
+
+  interpreters = find_compatible_interpreters(pex_python_path, ['>=2.7, <3'])
+  assert_interpreters(interpreters, pi_2_7_10)
 
   interpreters = find_compatible_interpreters(pex_python_path, ['>3.6.2'])
-  assert interpreters[0].binary == pex_python_path.split(':')[6]  # 3.6.3
+  assert_interpreters(interpreters, pi_3_6_3)
 
   interpreters = find_compatible_interpreters(pex_python_path, ['<2'])
   assert not interpreters
@@ -65,8 +78,23 @@ def test_find_compatible_interpreters():
   interpreters = find_compatible_interpreters(pex_python_path, ['>4'])
   assert not interpreters
 
-  interpreters = find_compatible_interpreters(pex_python_path, ['<2.7.11, >2.7.9'])
-  assert interpreters[0].binary == pex_python_path.split(':')[1]  # 2.7.10
-
   interpreters = find_compatible_interpreters('', ['<3'])
-  assert interpreters[0] in PythonInterpreter.all()  # All interpreters on PATH
+  assert set(interpreters).issubset(set(PythonInterpreter.all()))  # All interpreters on PATH
+
+
+def test_find_compatible_interpreters_directories_ignored():
+  pi_2_7_10 = ensure_python_interpreter('2.7.10')
+  pi_3_6_3 = ensure_python_interpreter('3.6.3')
+  pex_python_path = ':'.join([
+    os.path.dirname(pi_2_7_10),
+    pi_3_6_3
+  ])
+
+  interpreters = find_compatible_interpreters(pex_python_path, ['>2'])
+  assert_interpreters(interpreters, pi_3_6_3)
+
+  interpreters = find_compatible_interpreters(pex_python_path, [])
+  assert_interpreters(interpreters, pi_3_6_3)
+
+  interpreters = find_compatible_interpreters(pex_python_path, ['<2'])
+  assert not interpreters

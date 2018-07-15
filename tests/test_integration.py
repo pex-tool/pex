@@ -20,7 +20,6 @@ from pex.testing import (
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_LINUX,
     NOT_CPYTHON27_OR_OSX,
-    NOT_CPYTHON36,
     NOT_CPYTHON36_OR_LINUX,
     ensure_python_interpreter,
     get_dep_dist_names_from_pex,
@@ -351,7 +350,6 @@ def test_interpreter_constraints_to_pex_info_py2():
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_interpreter_constraints_to_pex_info_py3():
   py3_interpreter = ensure_python_interpreter('3.6.3')
   with environment_as(PATH=os.path.dirname(py3_interpreter)):
@@ -379,7 +377,6 @@ def test_interpreter_resolution_with_constraint_option():
     assert pex_info.build_properties['version'][0] < 3
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_interpreter_resolution_with_pex_python_path():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -414,7 +411,6 @@ def test_interpreter_resolution_with_pex_python_path():
       assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(NOT_CPYTHON36)
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -456,7 +452,6 @@ def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
     assert str(sys.executable).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_pex_exec_with_pex_python_path_only():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -482,7 +477,6 @@ def test_pex_exec_with_pex_python_path_only():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -510,7 +504,6 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_pex_python():
   py2_path_interpreter = ensure_python_interpreter('2.7.10')
   py3_path_interpreter = ensure_python_interpreter('3.6.3')
@@ -571,7 +564,6 @@ def test_pex_python():
       assert correct_interpreter_path in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_entry_point_targeting():
   """Test bugfix for https://github.com/pantsbuild/pex/issues/434"""
   with temporary_dir() as td:
@@ -592,7 +584,6 @@ def test_entry_point_targeting():
     assert 'usage: autopep8'.encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
   """
   This is a test for verifying the proper function of the

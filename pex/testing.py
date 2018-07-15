@@ -6,17 +6,18 @@ import contextlib
 import os
 import random
 import subprocess
-import sys
 import tempfile
 import traceback
 from collections import namedtuple
 from textwrap import dedent
 
+from twitter.common.contextutil import environment_as
+
 from .bin.pex import log, main
 from .common import open_zip, safe_mkdir, safe_rmtree
 from .compatibility import PY3, nested
-from .executor import Executor
 from .installer import EggInstaller, Packager
+from .pex import PEX
 from .pex_builder import PEXBuilder
 from .util import DistributionHelper, named_temporary_file
 from .version import SETUPTOOLS_REQUIREMENT
@@ -251,7 +252,8 @@ def run_pex_command(args, env=None):
   log.set_logger(logger_callback(output))
 
   try:
-    main(args=args)
+    with environment_as(**(env or {})):
+      main(args=args)
   except SystemExit as e:
     error_code = e.code
   except Exception as e:
@@ -261,9 +263,13 @@ def run_pex_command(args, env=None):
   return IntegResults(output, error_code, exception, tb)
 
 
-# TODO(wickman) Why not PEX.run?
 def run_simple_pex(pex, args=(), env=None, stdin=None):
-  process = Executor.open_process([sys.executable, pex] + list(args), env=env, combined=True)
+  process = PEX(pex).run(list(args),
+                         env=env,
+                         blocking=False,
+                         stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT)
   stdout, _ = process.communicate(input=stdin)
   print(stdout.decode('utf-8') if PY3 else stdout)
   return stdout.replace(b'\r', b''), process.returncode

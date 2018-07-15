@@ -548,19 +548,14 @@ def resolve_interpreter(cache, fetchers, interpreter, requirement):
     return interpreter.with_extra(egg.name, egg.raw_version, egg.path)
 
 
-def get_interpreter(python_interpreter, interpreter_cache_dir, repos, use_wheel):
-  interpreter = None
-
-  if python_interpreter:
-    if os.path.exists(python_interpreter):
-      interpreter = PythonInterpreter.from_binary(python_interpreter)
-    else:
-      interpreter = PythonInterpreter.from_env(python_interpreter)
-    if interpreter is None:
-      die('Failed to find interpreter: %s' % python_interpreter)
+def get_interpreter(python_interpreter):
+  if os.path.exists(python_interpreter):
+    return PythonInterpreter.from_binary(python_interpreter)
   else:
-    interpreter = PythonInterpreter.get()
+    return PythonInterpreter.from_env(python_interpreter)
 
+
+def setup_interpreter(interpreter, interpreter_cache_dir, repos, use_wheel):
   with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
     resolve = functools.partial(resolve_interpreter, interpreter_cache_dir, repos)
 
@@ -576,25 +571,33 @@ def get_interpreter(python_interpreter, interpreter_cache_dir, repos, use_wheel)
 
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreters', V=2):
-    interpreters = [
-      get_interpreter(interpreter,
-                      options.interpreter_cache_dir,
-                      options.repos,
-                      options.use_wheel)
-      for interpreter in options.python or [None]
-    ]
+    failure_context = ''
+    if options.interpreter_constraint:
+      rc_variables = Variables.from_rc(rc=options.rc_file)
+      pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
+      if pex_python_path:
+        failure_context = ('PEX_PYTHON_PATH was defined, but no valid interpreters could be '
+                           'identified:\n  %s' % '\n  '.join(pex_python_path.split(os.pathsep)))
 
-  if options.interpreter_constraint:
-    # NB: options.python and interpreter constraints cannot be used together, so this will not
-    # affect usages of the interpreter(s) specified by the "--python" command line flag.
-    constraints = options.interpreter_constraint
-    validate_constraints(constraints)
-    rc_variables = Variables.from_rc(rc=options.rc_file)
-    pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
-    interpreters = find_compatible_interpreters(pex_python_path, constraints)
+      # NB: options.python and interpreter constraints cannot be used together, so this will not
+      # affect usages of the interpreter(s) specified by the "--python" command line flag.
+      constraints = options.interpreter_constraint
+      validate_constraints(constraints)
+
+      interpreters = find_compatible_interpreters(pex_python_path, constraints)
+    elif options.python:
+      failure_context = 'Failed to find interpreter for any of:\n  %s' % '\n  '.join(options.python)
+      interpreters = [get_interpreter(interpreter) for interpreter in options.python]
+    else:
+      interpreters = [PythonInterpreter.get()]
 
   if not interpreters:
-    die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
+    die('Could not find compatible interpreter.%s' % (failure_context), CANNOT_SETUP_INTERPRETER)
+
+  interpreter = setup_interpreter(min(interpreters),
+                                  options.interpreter_cache_dir,
+                                  options.repos,
+                                  options.use_wheel)
 
   try:
     with open(options.preamble_file) as preamble_fd:
@@ -602,8 +605,6 @@ def build_pex(args, options, resolver_option_builder):
   except TypeError:
     # options.preamble_file is None
     preamble = None
-
-  interpreter = min(interpreters)
 
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
