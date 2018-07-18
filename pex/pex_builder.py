@@ -242,10 +242,11 @@ class PEXBuilder(object):
     # Only module is specified
     if len(ep_split) == 1:
       ep_module = ep_split[0]
-      ep_method = None
+      import_statement = 'import {}'.format(ep_module)
     elif len(ep_split) == 2:
       ep_module = ep_split[0]
       ep_method = ep_split[1]
+      import_statement = 'from {} import {}'.format(ep_module, ep_method)
     else:
       raise self.InvalidEntryPoint("Fail to parse: `{}`".format(entry_point))
 
@@ -254,11 +255,12 @@ class PEXBuilder(object):
     # ep_method = 'm'
     python_paths = self._gather_tmp_pythonpath()
 
-    args = [self._interpreter.binary, '-c', 'from {} import {}'.format(ep_module, ep_method)]
+
+    args = [self._interpreter.binary, '-c', import_statement]
     try:
       subprocess.check_output(args, env={'PYTHONPATH': ':'.join(python_paths)})
     except subprocess.CalledProcessError:
-      self._logger.error('Failed to do:\n`{}`'.format(args))
+      raise self.InvalidEntryPoint('Failed to:`{}`'.format(import_statement))
 
   def _gather_tmp_pythonpath(self):
     """
