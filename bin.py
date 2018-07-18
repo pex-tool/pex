@@ -740,7 +740,7 @@ def main(args=None):
       log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)
       tmp_name = options.pex_name + '~'
       safe_delete(tmp_name)
-      pex_builder.build(tmp_name, verify_entry_point=options.validate_ep)
+      pex_builder.build(tmp_name)
       if options.validate_ep:
         PEX(tmp_name).do_entry_point_verification()
 
@@ -750,12 +750,10 @@ def main(args=None):
     if not _compatible_with_current_platform(options.platforms):
       log('WARNING: attempting to run PEX with incompatible platforms!')
 
-    pex_builder.freeze(verify_entry_point=options.validate_ep)
+    pex_builder.freeze()
 
     log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline), v=options.verbosity)
     pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter, verify_entry_point=options.validate_ep)
-    # if options.validate_ep:
-    #   pex.verify_entry_point()
     sys.exit(pex.run(args=list(cmdline)))
 
 
