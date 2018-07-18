@@ -132,7 +132,7 @@ def test_pex_builder_verify_entry_point_module_should_pass():
       pex_builder.add_source(tf.name, 'test.py')
       pex_builder.set_entry_point('test')
 
-      # Nothing should happen here because `test:hello` is correct
+      # Nothing should happen here because `test` is correct
       pex_builder.build(target, verify_entry_point=True)
 
       assert os.path.exists(target)
@@ -153,7 +153,7 @@ def test_pex_builder_verify_entry_point_method_should_fail():
       pex_builder.add_source(tf.name, 'test.py')
       pex_builder.set_entry_point('test:invalid_entry_point')
 
-      # Expect InvalidEntryPoint due to invalid entry point
+      # Expect InvalidEntryPoint due to invalid entry point method
       with pytest.raises(PEXBuilder.InvalidEntryPoint):
         pex_builder.build(target, verify_entry_point=True)
 
@@ -173,7 +173,7 @@ def test_pex_builder_verify_entry_point_module_should_fail():
       pex_builder.add_source(tf.name, 'test.py')
       pex_builder.set_entry_point('invalid.module')
 
-      # Expect InvalidEntryPoint due to invalid entry point
+      # Expect InvalidEntryPoint due to invalid entry point module
       with pytest.raises(PEXBuilder.InvalidEntryPoint):
         pex_builder.build(target, verify_entry_point=True)
 
