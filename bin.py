@@ -740,14 +740,14 @@ def main(args=None):
       log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)
       tmp_name = options.pex_name + '~'
       safe_delete(tmp_name)
-      pex_builder.build(tmp_name)
+      pex_builder.build(tmp_name, verify_entry_point=options.validate_ep)
       os.rename(tmp_name, options.pex_name)
       return 0
 
     if not _compatible_with_current_platform(options.platforms):
       log('WARNING: attempting to run PEX with incompatible platforms!')
 
-    pex_builder.freeze()
+    pex_builder.freeze(verify_entry_point=options.validate_ep)
 
     log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline), v=options.verbosity)
     pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)

@@ -226,7 +226,7 @@ class PEXBuilder(object):
         'Could not find script %r in any distribution %s within PEX!' % (
             script, ', '.join(str(d) for d in self._distributions)))
 
-  def _verify_entry_point(self, entry_point):
+  def _verify_entry_point(self):
     """
     Given entry_point `a.b.c:m`, make sure
     1. a/b/c.py exists
@@ -236,6 +236,7 @@ class PEXBuilder(object):
     :return:
     """
 
+    entry_point = self._pex_info.entry_point
     ep_split = entry_point.split(':')
 
     # Only module is specified
@@ -290,7 +291,6 @@ class PEXBuilder(object):
     The entry point may also be specified via ``PEXBuilder.set_executable``.
     """
     self._ensure_unfrozen('Setting an entry point')
-    self._verify_entry_point(entry_point)
     self._pex_info.entry_point = entry_point
 
   def set_shebang(self, shebang):
@@ -494,7 +494,7 @@ class PEXBuilder(object):
           self._chroot.write(provider.get_resource_string(source_name, fn),
             os.path.join(self.BOOTSTRAP_DIR, target_location, fn), 'bootstrap')
 
-  def freeze(self, bytecode_compile=True):
+  def freeze(self, verify_entry_point, bytecode_compile=True):
     """Freeze the PEX.
 
     :param bytecode_compile: If True, precompile .py files into .pyc files when freezing code.
@@ -508,11 +508,13 @@ class PEXBuilder(object):
     self._prepare_manifest()
     self._prepare_bootstrap()
     self._prepare_main()
+    if verify_entry_point:
+      self._verify_entry_point()
     if bytecode_compile:
       self._precompile_source()
     self._frozen = True
 
-  def build(self, filename, bytecode_compile=True):
+  def build(self, filename, bytecode_compile=True, verify_entry_point=False):
     """Package the PEX into a zipfile.
 
     :param filename: The filename where the PEX should be stored.
@@ -522,7 +524,7 @@ class PEXBuilder(object):
     PEXBuilder immutable.
     """
     if not self._frozen:
-      self.freeze(bytecode_compile=bytecode_compile)
+      self.freeze(verify_entry_point=verify_entry_point, bytecode_compile=bytecode_compile)
     try:
       os.unlink(filename + '~')
       self._logger.warn('Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
