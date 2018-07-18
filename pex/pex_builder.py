@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import, print_function
 
-import ast
 import logging
 import os
 import subprocess
@@ -257,7 +256,6 @@ class PEXBuilder(object):
     args = [self._interpreter.binary, '-c', 'from {} import {}'.format(ep_module, ep_method)]
     try:
       subprocess.check_output(args, env={'PYTHONPATH': ':'.join(python_paths)})
-      # self(output)
     except subprocess.CalledProcessError:
       self._logger.error('Failed to do:\n`{}`'.format(args))
 
