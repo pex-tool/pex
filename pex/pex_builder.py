@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 import ast
 import logging
 import os
+import subprocess
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
 
@@ -235,7 +236,9 @@ class PEXBuilder(object):
     :param entry_point:
     :return:
     """
+
     ep_split = entry_point.split(':')
+
     # Only module is specified
     if len(ep_split) == 1:
       ep_module = ep_split[0]
@@ -247,47 +250,33 @@ class PEXBuilder(object):
       raise self.InvalidEntryPoint("Fail to parse: `{}`".format(entry_point))
 
     # a.b.c:m ->
-    # ep_module_elements = ['a','b','c.py']
-    ep_module_elements = ep_module.split(os.sep)
-    ep_module_elements[-1] = ep_module_elements[-1] + '.py'
+    # ep_module = 'a.b.c'
+    # ep_method = 'm'
+    python_paths = self._gather_tmp_pythonpath()
 
-    file_candidates = self._gather_file_candidates(ep_module_elements)
-    if not file_candidates:
-      raise self.InvalidEntryPoint("{} does not exist for entry point `{}`."
-                                   .format(os.path.sep.join(ep_module_elements), entry_point))
+    args = [self._interpreter.binary, '-c', 'from {} import {}'.format(ep_module, ep_method)]
+    try:
+      subprocess.check_output(args, env={'PYTHONPATH': ':'.join(python_paths)})
+      # self(output)
+    except subprocess.CalledProcessError:
+      self._logger.error('Failed to do:\n`{}`'.format(args))
 
-    if len(file_candidates) > 1:
-      self._logger.warn("More than one file found for {}".format(ep_module))
+  def _gather_tmp_pythonpath(self):
+    """
+    Gather the python path needed to run the content for this pex.
 
-    if not ep_method:
-      return
-    # 2. Given files matching `a.b.c:m`, verify method `m` exists.
-    final_candidates = []
-    for c in file_candidates:
-      with open(os.path.join(self._chroot.path(), c), 'r') as f:
-        tree = ast.parse(f.read())
-        methods = filter(lambda x: isinstance(x, ast.FunctionDef) and x.name == ep_method, tree.body)
-        if methods:
-          final_candidates.append(c)
-
-    if not final_candidates:
-      raise self.InvalidEntryPoint("No method name `{}` has been found in {}."
-                                   .format(ep_method, file_candidates))
-
-  def _gather_file_candidates(self, entry_point_elements):
-    # 1. Find the files matching a.b.c:m, which is a/b/c.py
-    file_candidates = []
+    :return: list of absolute paths
+    """
+    pp = [self._chroot.path()]
     for rel_path in self._chroot.files():
       elems_from_chroot = os.path.normpath(rel_path).split(os.path.sep)
       # If path starts with `PexInfo.INTERNAL_CACHE`, i.e. `.deps/`, that means it's a third party dependency.
       # Therefore, the search path for it is two levels down.
       # For example, the search path for `.deps/xxx.whl/a/b/c.py` is `.dep/xxx.whl/`
-      if elems_from_chroot[0] == PexInfo.INTERNAL_CACHE and elems_from_chroot[2:] == entry_point_elements:
-        file_candidates.append(rel_path)
-      elif elems_from_chroot == entry_point_elements:
-        file_candidates.append(rel_path)
+      if elems_from_chroot[0] == PexInfo.INTERNAL_CACHE:
+        pp.append(os.path.join(self._chroot.path(), *elems_from_chroot[:2]))
 
-    return file_candidates
+    return pp
 
   def set_entry_point(self, entry_point):
     """Set the entry point of this PEX environment.
