@@ -741,6 +741,9 @@ def main(args=None):
       tmp_name = options.pex_name + '~'
       safe_delete(tmp_name)
       pex_builder.build(tmp_name, verify_entry_point=options.validate_ep)
+      if options.validate_ep:
+        PEX(tmp_name).do_entry_point_verification()
+
       os.rename(tmp_name, options.pex_name)
       return 0
 
@@ -750,7 +753,9 @@ def main(args=None):
     pex_builder.freeze(verify_entry_point=options.validate_ep)
 
     log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline), v=options.verbosity)
-    pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)
+    pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter, verify_entry_point=options.validate_ep)
+    # if options.validate_ep:
+    #   pex.verify_entry_point()
     sys.exit(pex.run(args=list(cmdline)))
 
 

@@ -21,7 +21,7 @@ from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
 from .tracer import TRACER
-from .util import iter_pth_paths, merge_split
+from .util import iter_pth_paths, merge_split, named_temporary_file
 from .variables import ENV
 
 
@@ -53,7 +53,7 @@ class PEX(object):  # noqa: T000
     for key in filter_keys:
       del os.environ[key]
 
-  def __init__(self, pex=sys.argv[0], interpreter=None, env=ENV):
+  def __init__(self, pex=sys.argv[0], interpreter=None, env=ENV, verify_entry_point=False):
     self._pex = pex
     self._interpreter = interpreter or PythonInterpreter.get()
     self._pex_info = PexInfo.from_pex(self._pex)
@@ -61,6 +61,8 @@ class PEX(object):  # noqa: T000
     self._vars = env
     self._envs = []
     self._working_set = None
+    if verify_entry_point:
+      self.do_entry_point_verification()
 
   def _activate(self):
     if not self._working_set:
@@ -520,3 +522,31 @@ class PEX(object):  # noqa: T000
                                     stderr=kwargs.pop('stderr', None),
                                     **kwargs)
     return process.wait() if blocking else process
+
+  def do_entry_point_verification(self):
+
+    class InvalidEntryPoint(Exception):
+      pass
+
+    entry_point = self._pex_info.entry_point
+    ep_split = entry_point.split(':')
+
+    # a.b.c:m ->
+    # ep_module = 'a.b.c'
+    # ep_method = 'm'
+
+    # Only module is specified
+    if len(ep_split) == 1:
+      ep_module = ep_split[0]
+      import_statement = 'import {}'.format(ep_module)
+    elif len(ep_split) == 2:
+      ep_module = ep_split[0]
+      ep_method = ep_split[1]
+      import_statement = 'from {} import {}'.format(ep_module, ep_method)
+    else:
+      raise InvalidEntryPoint("Fail to parse: `{}`".format(entry_point))
+
+    retcode = self.run(['-c', import_statement], env={'PEX_INTERPRETER': '1'})
+    if retcode != 0:
+      raise InvalidEntryPoint('Invalid entry point: `{}`\n'
+                              'Entry point verification failed: `{}`'.format(entry_point, import_statement))

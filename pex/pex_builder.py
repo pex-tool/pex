@@ -5,7 +5,6 @@ from __future__ import absolute_import, print_function
 
 import logging
 import os
-import subprocess
 
 from pkg_resources import DefaultProvider, ZipProvider, get_provider
 
@@ -51,7 +50,6 @@ class PEXBuilder(object):
   class ImmutablePEX(Error): pass
   class InvalidDistribution(Error): pass
   class InvalidDependency(Error): pass
-  class InvalidEntryPoint(Error): pass
   class InvalidExecutableSpecification(Error): pass
 
   BOOTSTRAP_DIR = ".bootstrap"
@@ -225,59 +223,6 @@ class PEXBuilder(object):
     raise self.InvalidExecutableSpecification(
         'Could not find script %r in any distribution %s within PEX!' % (
             script, ', '.join(str(d) for d in self._distributions)))
-
-  def _verify_entry_point(self):
-    """
-    Given entry_point `a.b.c:m`, make sure
-    1. a/b/c.py exists
-    2. `m` method is defined in a/b/c.py
-
-    :param entry_point:
-    :return:
-    """
-
-    entry_point = self._pex_info.entry_point
-    ep_split = entry_point.split(':')
-
-    # a.b.c:m ->
-    # ep_module = 'a.b.c'
-    # ep_method = 'm'
-
-    # Only module is specified
-    if len(ep_split) == 1:
-      ep_module = ep_split[0]
-      import_statement = 'import {}'.format(ep_module)
-    elif len(ep_split) == 2:
-      ep_module = ep_split[0]
-      ep_method = ep_split[1]
-      import_statement = 'from {} import {}'.format(ep_module, ep_method)
-    else:
-      raise self.InvalidEntryPoint("Fail to parse: `{}`".format(entry_point))
-
-    args = [self._interpreter.binary, '-c', import_statement]
-    python_paths = self._gather_tmp_pythonpath()
-    try:
-      subprocess.check_output(args, env={'PYTHONPATH': ':'.join(python_paths)})
-    except subprocess.CalledProcessError:
-      raise self.InvalidEntryPoint('Failed to:`{}`'.format(import_statement))
-
-  def _gather_tmp_pythonpath(self):
-    """
-    Gather the python path needed to run the content for this pex.
-
-    :return: list of absolute paths
-    """
-    pp = [self._chroot.path()]
-    for rel_path in self._chroot.files():
-      elems_from_chroot = os.path.normpath(rel_path).split(os.path.sep)
-      # If path starts with `PexInfo.INTERNAL_CACHE`, i.e. `.deps/`,
-      # that means it's a third party dependency.
-      # Therefore, the search path for it is two levels down.
-      # For example, the search path for `.deps/xxx.whl/a/b/c.py` is `.dep/xxx.whl/`
-      if elems_from_chroot[0] == PexInfo.INTERNAL_CACHE:
-        pp.append(os.path.join(self._chroot.path(), *elems_from_chroot[:2]))
-
-    return pp
 
   def set_entry_point(self, entry_point):
     """Set the entry point of this PEX environment.
@@ -496,7 +441,7 @@ class PEXBuilder(object):
           self._chroot.write(provider.get_resource_string(source_name, fn),
             os.path.join(self.BOOTSTRAP_DIR, target_location, fn), 'bootstrap')
 
-  def freeze(self, bytecode_compile=True, verify_entry_point=False):
+  def freeze(self, bytecode_compile=True):
     """Freeze the PEX.
 
     :param bytecode_compile: If True, precompile .py files into .pyc files when freezing code.
@@ -510,13 +455,11 @@ class PEXBuilder(object):
     self._prepare_manifest()
     self._prepare_bootstrap()
     self._prepare_main()
-    if verify_entry_point:
-      self._verify_entry_point()
     if bytecode_compile:
       self._precompile_source()
     self._frozen = True
 
-  def build(self, filename, bytecode_compile=True, verify_entry_point=False):
+  def build(self, filename, bytecode_compile=True):
     """Package the PEX into a zipfile.
 
     :param filename: The filename where the PEX should be stored.
@@ -526,7 +469,7 @@ class PEXBuilder(object):
     PEXBuilder immutable.
     """
     if not self._frozen:
-      self.freeze(bytecode_compile=bytecode_compile, verify_entry_point=verify_entry_point)
+      self.freeze(bytecode_compile=bytecode_compile)
     try:
       os.unlink(filename + '~')
       self._logger.warn('Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
