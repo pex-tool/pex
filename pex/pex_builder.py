@@ -270,7 +270,8 @@ class PEXBuilder(object):
     pp = [self._chroot.path()]
     for rel_path in self._chroot.files():
       elems_from_chroot = os.path.normpath(rel_path).split(os.path.sep)
-      # If path starts with `PexInfo.INTERNAL_CACHE`, i.e. `.deps/`, that means it's a third party dependency.
+      # If path starts with `PexInfo.INTERNAL_CACHE`, i.e. `.deps/`,
+      # that means it's a third party dependency.
       # Therefore, the search path for it is two levels down.
       # For example, the search path for `.deps/xxx.whl/a/b/c.py` is `.dep/xxx.whl/`
       if elems_from_chroot[0] == PexInfo.INTERNAL_CACHE:
