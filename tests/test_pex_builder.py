@@ -5,7 +5,7 @@ import os
 import stat
 
 import pytest
-from twitter.common.contextutil import temporary_dir
+from twitter.common.contextutil import temporary_dir, temporary_file
 from twitter.common.dirutil import safe_mkdir
 
 from pex.common import open_zip
@@ -94,6 +94,88 @@ def test_pex_builder_shebang():
         expected_preamble = b'#!foobar\n'
         with open(target, 'rb') as fp:
           assert fp.read(len(expected_preamble)) == expected_preamble
+
+
+def test_pex_builder_verify_entry_point_method_should_pass():
+  with temporary_dir() as td:
+    target = os.path.join(td, 'foo.pex')
+    hello_file = "\n".join([
+      "def hello():",
+      "  print('hello')",
+    ])
+    with temporary_file(root_dir=td) as tf:
+      with open(tf.name, 'w') as handle:
+        handle.write(hello_file)
+
+      pex_builder = PEXBuilder()
+      pex_builder.add_source(tf.name, 'test.py')
+      pex_builder.set_entry_point('test:hello')
+
+      # Nothing should happen here because `test:hello` is correct
+      pex_builder.build(target, verify_entry_point=True)
+
+      assert os.path.exists(target)
+
+
+def test_pex_builder_verify_entry_point_module_should_pass():
+  with temporary_dir() as td:
+    target = os.path.join(td, 'foo.pex')
+    hello_file = "\n".join([
+      "def hello():",
+      "  print('hello')",
+    ])
+    with temporary_file(root_dir=td) as tf:
+      with open(tf.name, 'w') as handle:
+        handle.write(hello_file)
+
+      pex_builder = PEXBuilder()
+      pex_builder.add_source(tf.name, 'test.py')
+      pex_builder.set_entry_point('test')
+
+      # Nothing should happen here because `test:hello` is correct
+      pex_builder.build(target, verify_entry_point=True)
+
+      assert os.path.exists(target)
+
+
+def test_pex_builder_verify_entry_point_method_should_fail():
+  with temporary_dir() as td:
+    target = os.path.join(td, 'foo.pex')
+    hello_file = "\n".join([
+      "def hello():",
+      "  print('hello')",
+    ])
+    with temporary_file(root_dir=td) as tf:
+      with open(tf.name, 'w') as handle:
+        handle.write(hello_file)
+
+      pex_builder = PEXBuilder()
+      pex_builder.add_source(tf.name, 'test.py')
+      pex_builder.set_entry_point('test:invalid_entry_point')
+
+      # Expect InvalidEntryPoint due to invalid entry point
+      with pytest.raises(PEXBuilder.InvalidEntryPoint):
+        pex_builder.build(target, verify_entry_point=True)
+
+
+def test_pex_builder_verify_entry_point_module_should_fail():
+  with temporary_dir() as td:
+    target = os.path.join(td, 'foo.pex')
+    hello_file = "\n".join([
+      "def hello():",
+      "  print('hello')",
+    ])
+    with temporary_file(root_dir=td) as tf:
+      with open(tf.name, 'w') as handle:
+        handle.write(hello_file)
+
+      pex_builder = PEXBuilder()
+      pex_builder.add_source(tf.name, 'test.py')
+      pex_builder.set_entry_point('invalid.module')
+
+      # Expect InvalidEntryPoint due to invalid entry point
+      with pytest.raises(PEXBuilder.InvalidEntryPoint):
+        pex_builder.build(target, verify_entry_point=True)
 
 
 def test_pex_builder_preamble():
