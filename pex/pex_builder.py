@@ -494,7 +494,7 @@ class PEXBuilder(object):
           self._chroot.write(provider.get_resource_string(source_name, fn),
             os.path.join(self.BOOTSTRAP_DIR, target_location, fn), 'bootstrap')
 
-  def freeze(self, verify_entry_point, bytecode_compile=True):
+  def freeze(self, bytecode_compile=True, verify_entry_point=False):
     """Freeze the PEX.
 
     :param bytecode_compile: If True, precompile .py files into .pyc files when freezing code.
@@ -524,7 +524,7 @@ class PEXBuilder(object):
     PEXBuilder immutable.
     """
     if not self._frozen:
-      self.freeze(verify_entry_point=verify_entry_point, bytecode_compile=bytecode_compile)
+      self.freeze(bytecode_compile=bytecode_compile, verify_entry_point=verify_entry_point)
     try:
       os.unlink(filename + '~')
       self._logger.warn('Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
