@@ -124,7 +124,6 @@ def test_pex_builder_verify_entry_point_method_should_pass():
 
 def test_pex_builder_verify_entry_point_module_should_pass():
   with _add_test_hello_to_pex() as (target, pex_builder):
-    pex_builder.set_entry_point('test:hello')
     pex_builder.set_entry_point('test')
 
     # Nothing should happen here because `test` is correct
@@ -135,7 +134,6 @@ def test_pex_builder_verify_entry_point_module_should_pass():
 
 def test_pex_builder_verify_entry_point_method_should_fail():
   with _add_test_hello_to_pex() as (target, pex_builder):
-    pex_builder.set_entry_point('test:hello')
     pex_builder.set_entry_point('test:invalid_entry_point')
 
     # Expect InvalidEntryPoint due to invalid entry point method
@@ -145,7 +143,6 @@ def test_pex_builder_verify_entry_point_method_should_fail():
 
 def test_pex_builder_verify_entry_point_module_should_fail():
   with _add_test_hello_to_pex() as (target, pex_builder):
-    pex_builder.set_entry_point('test:hello')
     pex_builder.set_entry_point('invalid.module')
 
     # Expect InvalidEntryPoint due to invalid entry point module
