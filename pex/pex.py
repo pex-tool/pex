@@ -62,7 +62,7 @@ class PEX(object):  # noqa: T000
     self._envs = []
     self._working_set = None
     if verify_entry_point:
-      self.do_entry_point_verification()
+      self._do_entry_point_verification()
 
   def _activate(self):
     if not self._working_set:
@@ -523,7 +523,7 @@ class PEX(object):  # noqa: T000
                                     **kwargs)
     return process.wait() if blocking else process
 
-  def do_entry_point_verification(self):
+  def _do_entry_point_verification(self):
 
     class InvalidEntryPoint(Exception):
       pass
