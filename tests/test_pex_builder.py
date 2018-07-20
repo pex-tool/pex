@@ -182,7 +182,6 @@ def test_pex_builder_copy_or_link():
     build_and_check(td3, True)
 
 
-
 @contextmanager
 def _add_test_hello_to_pex():
   with temporary_dir() as td:

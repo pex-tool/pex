@@ -392,7 +392,7 @@ def configure_clp_pex_entry_points(parser):
       default=False,
       action='store_true',
       help='Validate the entry point by importing it in separate process. Warning: this could have '
-           'side effect. For example, entry point `a.b.c:m` will translate to '
+           'side effects. For example, entry point `a.b.c:m` will translate to '
            '`from a.b.c import m` during validation. [Default: %default]')
 
   parser.add_option_group(group)

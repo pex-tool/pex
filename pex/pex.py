@@ -21,7 +21,7 @@ from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
 from .tracer import TRACER
-from .util import iter_pth_paths, merge_split, named_temporary_file
+from .util import iter_pth_paths, merge_split
 from .variables import ENV
 
 
@@ -544,7 +544,7 @@ class PEX(object):  # noqa: T000
       ep_method = ep_split[1]
       import_statement = 'from {} import {}'.format(ep_module, ep_method)
     else:
-      raise InvalidEntryPoint("Fail to parse: `{}`".format(entry_point))
+      raise InvalidEntryPoint("Failed to parse: `{}`".format(entry_point))
 
     retcode = self.run(['-c', import_statement], env={'PEX_INTERPRETER': '1'})
     if retcode != 0:
