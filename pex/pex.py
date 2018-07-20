@@ -549,4 +549,5 @@ class PEX(object):  # noqa: T000
     retcode = self.run(['-c', import_statement], env={'PEX_INTERPRETER': '1'})
     if retcode != 0:
       raise InvalidEntryPoint('Invalid entry point: `{}`\n'
-                              'Entry point verification failed: `{}`'.format(entry_point, import_statement))
+                              'Entry point verification failed: `{}`'
+                              .format(entry_point, import_statement))
