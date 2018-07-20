@@ -737,7 +737,9 @@ def main(args=None):
       pex_builder = build_pex(reqs, options, resolver_options_builder)
 
     pex_builder.freeze()
-    pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter, verify_entry_point=options.validate_ep)
+    pex = PEX(pex_builder.path(),
+              interpreter=pex_builder.interpreter,
+              verify_entry_point=options.validate_ep)
 
     if options.pex_name is not None:
       log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)
