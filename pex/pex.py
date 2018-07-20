@@ -3,8 +3,10 @@
 
 from __future__ import absolute_import, print_function
 
+import contextlib
 import os
 import sys
+import tempfile
 from contextlib import contextmanager
 from distutils import sysconfig
 from site import USER_SITE
@@ -12,7 +14,7 @@ from site import USER_SITE
 import pkg_resources
 from pkg_resources import EntryPoint, WorkingSet, find_distributions
 
-from .common import die
+from .common import die, safe_delete
 from .compatibility import exec_function
 from .environment import PEXEnvironment
 from .executor import Executor
@@ -523,6 +525,22 @@ class PEX(object):  # noqa: T000
                                     **kwargs)
     return process.wait() if blocking else process
 
+  @staticmethod
+  @contextlib.contextmanager
+  def named_temporary_file(*args, **kwargs):
+    """
+    Due to a bug in python (https://bugs.python.org/issue14243), we need
+    this to be able to use the temporary file without deleting it.
+    """
+    assert 'delete' not in kwargs
+    kwargs['delete'] = False
+    fp = tempfile.NamedTemporaryFile(*args, **kwargs)
+    try:
+      with fp:
+        yield fp
+    finally:
+      os.remove(fp.name)
+
   def do_entry_point_verification(self):
 
     class InvalidEntryPoint(Exception):
@@ -546,8 +564,11 @@ class PEX(object):  # noqa: T000
     else:
       raise InvalidEntryPoint("Failed to parse: `{}`".format(entry_point))
 
-    retcode = self.run(['-c', import_statement], env={'PEX_INTERPRETER': '1'})
-    if retcode != 0:
-      raise InvalidEntryPoint('Invalid entry point: `{}`\n'
-                              'Entry point verification failed: `{}`'
-                              .format(entry_point, import_statement))
+    with self.named_temporary_file() as fp:
+      fp.write(import_statement)
+      fp.close()
+      retcode = self.run([fp.name], env={'PEX_INTERPRETER': '1'})
+      if retcode != 0:
+        raise InvalidEntryPoint('Invalid entry point: `{}`\n'
+                                'Entry point verification failed: `{}`'
+                                .format(entry_point, import_statement))
