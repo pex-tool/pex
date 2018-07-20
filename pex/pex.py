@@ -3,10 +3,8 @@
 
 from __future__ import absolute_import, print_function
 
-import contextlib
 import os
 import sys
-import tempfile
 from contextlib import contextmanager
 from distutils import sysconfig
 from site import USER_SITE
@@ -14,7 +12,7 @@ from site import USER_SITE
 import pkg_resources
 from pkg_resources import EntryPoint, WorkingSet, find_distributions
 
-from .common import die, safe_delete
+from .common import die
 from .compatibility import exec_function
 from .environment import PEXEnvironment
 from .executor import Executor
@@ -23,7 +21,7 @@ from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
 from .tracer import TRACER
-from .util import iter_pth_paths, merge_split
+from .util import iter_pth_paths, merge_split, named_temporary_file
 from .variables import ENV
 
 
@@ -525,22 +523,6 @@ class PEX(object):  # noqa: T000
                                     **kwargs)
     return process.wait() if blocking else process
 
-  @staticmethod
-  @contextlib.contextmanager
-  def named_temporary_file(*args, **kwargs):
-    """
-    Due to a bug in python (https://bugs.python.org/issue14243), we need
-    this to be able to use the temporary file without deleting it.
-    """
-    assert 'delete' not in kwargs
-    kwargs['delete'] = False
-    fp = tempfile.NamedTemporaryFile(*args, **kwargs)
-    try:
-      with fp:
-        yield fp
-    finally:
-      os.remove(fp.name)
-
   def do_entry_point_verification(self):
 
     class InvalidEntryPoint(Exception):
@@ -564,7 +546,7 @@ class PEX(object):  # noqa: T000
     else:
       raise InvalidEntryPoint("Failed to parse: `{}`".format(entry_point))
 
-    with self.named_temporary_file() as fp:
+    with named_temporary_file() as fp:
       fp.write(import_statement)
       fp.close()
       retcode = self.run([fp.name], env={'PEX_INTERPRETER': '1'})
