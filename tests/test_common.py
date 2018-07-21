@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from pex.common import rename_if_empty, PermPreservingZipFile, touch, chmod_plus_x
+from pex.common import PermPreservingZipFile, chmod_plus_x, rename_if_empty, touch
 from pex.testing import temporary_dir
 
 try:
