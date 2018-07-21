@@ -545,7 +545,7 @@ class PEX(object):  # noqa: T000
       raise self.InvalidEntryPoint("Failed to parse: `{}`".format(entry_point))
 
     with named_temporary_file() as fp:
-      fp.write(import_statement)
+      fp.write(bytes(import_statement, 'utf-8'))
       fp.close()
       retcode = self.run([fp.name], env={'PEX_INTERPRETER': '1'})
       if retcode != 0:
