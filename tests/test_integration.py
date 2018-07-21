@@ -961,6 +961,7 @@ def test_pex_resource_bundling():
       assert stdout == b'hello\n'
 
 
+@pytest.mark.skipif(IS_PYPY)
 def test_entry_point_verification_3rdparty():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
@@ -971,6 +972,7 @@ def test_entry_point_verification_3rdparty():
     res.assert_success()
 
 
+@pytest.mark.skipif(IS_PYPY)
 def test_invalid_entry_point_verification_3rdparty():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
