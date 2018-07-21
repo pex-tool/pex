@@ -41,6 +41,7 @@ class PEX(object):  # noqa: T000
 
   class Error(Exception): pass
   class NotFound(Error): pass
+  class InvalidEntryPoint(Error): pass
 
   @classmethod
   def clean_environment(cls):
@@ -525,9 +526,6 @@ class PEX(object):  # noqa: T000
 
   def _do_entry_point_verification(self):
 
-    class InvalidEntryPoint(Exception):
-      pass
-
     entry_point = self._pex_info.entry_point
     ep_split = entry_point.split(':')
 
@@ -544,13 +542,13 @@ class PEX(object):  # noqa: T000
       ep_method = ep_split[1]
       import_statement = 'from {} import {}'.format(ep_module, ep_method)
     else:
-      raise InvalidEntryPoint("Failed to parse: `{}`".format(entry_point))
+      raise self.InvalidEntryPoint("Failed to parse: `{}`".format(entry_point))
 
     with named_temporary_file() as fp:
       fp.write(import_statement)
       fp.close()
       retcode = self.run([fp.name], env={'PEX_INTERPRETER': '1'})
       if retcode != 0:
-        raise InvalidEntryPoint('Invalid entry point: `{}`\n'
+        raise self.InvalidEntryPoint('Invalid entry point: `{}`\n'
                                 'Entry point verification failed: `{}`'
                                 .format(entry_point, import_statement))

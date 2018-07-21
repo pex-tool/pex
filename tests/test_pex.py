@@ -262,7 +262,6 @@ def test_pex_paths():
 @contextmanager
 def _add_test_hello_to_pex(ep):
   with temporary_dir() as td:
-    target = os.path.join(td, 'foo.pex')
     hello_file = "\n".join([
       "def hello():",
       "  print('hello')",
@@ -275,11 +274,11 @@ def _add_test_hello_to_pex(ep):
       pex_builder.add_source(tf.name, 'test.py')
       pex_builder.set_entry_point(ep)
       pex_builder.freeze()
-      yield (target, pex_builder)
+      yield pex_builder
 
 
 def test_pex_verify_entry_point_method_should_pass():
-  with _add_test_hello_to_pex('test:hello') as (target, pex_builder):
+  with _add_test_hello_to_pex('test:hello') as pex_builder:
     # No error should happen here because `test:hello` is correct
     PEX(pex_builder.path(),
         interpreter=pex_builder.interpreter,
@@ -287,27 +286,26 @@ def test_pex_verify_entry_point_method_should_pass():
 
 
 def test_pex_verify_entry_point_module_should_pass():
-  with _add_test_hello_to_pex('test') as (target, pex_builder):
+  with _add_test_hello_to_pex('test') as pex_builder:
     # No error should happen here because `test` is correct
     PEX(pex_builder.path(),
         interpreter=pex_builder.interpreter,
         verify_entry_point=True)
 
-#
-#
-# def test_pex_builder_verify_entry_point_method_should_fail():
-#   with _add_test_hello_to_pex() as (target, pex_builder):
-#     pex_builder.set_entry_point('test:invalid_entry_point')
-#
-#     # Expect InvalidEntryPoint due to invalid entry point method
-#     with pytest.raises(PEXBuilder.InvalidEntryPoint):
-#       pex_builder.build(target, verify_entry_point=True)
-#
-#
-# def test_pex_builder_verify_entry_point_module_should_fail():
-#   with _add_test_hello_to_pex() as (target, pex_builder):
-#     pex_builder.set_entry_point('invalid.module')
-#
-#     # Expect InvalidEntryPoint due to invalid entry point module
-#     with pytest.raises(PEXBuilder.InvalidEntryPoint):
-#       pex_builder.build(target, verify_entry_point=True)
+
+def test_pex_verify_entry_point_method_should_fail():
+  with _add_test_hello_to_pex('test:invalid_entry_point') as pex_builder:
+    # Expect InvalidEntryPoint due to invalid entry point method
+    with pytest.raises(PEX.InvalidEntryPoint):
+      PEX(pex_builder.path(),
+          interpreter=pex_builder.interpreter,
+          verify_entry_point=True)
+
+
+def test_pex_verify_entry_point_module_should_fail():
+  with _add_test_hello_to_pex('invalid.module') as pex_builder:
+    # Expect InvalidEntryPoint due to invalid entry point module
+    with pytest.raises(PEX.InvalidEntryPoint):
+      PEX(pex_builder.path(),
+          interpreter=pex_builder.interpreter,
+          verify_entry_point=True)
