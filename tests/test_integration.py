@@ -959,3 +959,23 @@ def test_pex_resource_bundling():
 
       assert rc == 0
       assert stdout == b'hello\n'
+
+
+def test_entry_point_verification_3rdparty():
+  with temporary_dir() as td:
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['Pillow==5.2.0',
+                           '-e', 'PIL:Image',
+                           '-o', pex_out_path,
+                           '--validate-entry-point'])
+    res.assert_success()
+
+
+def test_invalid_entry_point_verification_3rdparty():
+  with temporary_dir() as td:
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['Pillow==5.2.0',
+                           '-e', 'PIL:invalid',
+                           '-o', pex_out_path,
+                           '--validate-entry-point'])
+    res.assert_failure()
