@@ -751,7 +751,8 @@ def main(args=None):
       if not _compatible_with_current_platform(options.platforms):
         log('WARNING: attempting to run PEX with incompatible platforms!')
 
-      log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline), v=options.verbosity)
+      log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline),
+          v=options.verbosity)
       sys.exit(pex.run(args=list(cmdline)))
 
 
