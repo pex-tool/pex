@@ -6,7 +6,7 @@ import os
 import tarfile
 import zipfile
 
-from .common import safe_mkdtemp
+from .common import PermPreservingZipFile, safe_mkdtemp
 
 
 class Archiver(object):
@@ -19,7 +19,7 @@ class Archiver(object):
     '.tar.gz': (tarfile.TarFile.open, tarfile.ReadError),
     '.tar.bz2': (tarfile.TarFile.open, tarfile.ReadError),
     '.tgz': (tarfile.TarFile.open, tarfile.ReadError),
-    '.zip': (zipfile.ZipFile, zipfile.BadZipfile)
+    '.zip': (PermPreservingZipFile, zipfile.BadZipfile)
   }
 
   @classmethod

@@ -78,10 +78,27 @@ class MktempTeardownRegistry(object):
 _MKDTEMP_SINGLETON = MktempTeardownRegistry()
 
 
+class PermPreservingZipFile(zipfile.ZipFile):
+  """A ZipFile that works around https://bugs.python.org/issue15795"""
+
+  def _extract_member(self, member, targetpath, pwd):
+    result = super(PermPreservingZipFile, self)._extract_member(member, targetpath, pwd)
+    info = member if isinstance(member, zipfile.ZipInfo) else self.getinfo(member)
+    self._chmod(info, result)
+    return result
+
+  def _chmod(self, info, path):
+    # This magic works to extract perm bits from the 32 bit external file attributes field for
+    # unix-created zip files, for the layout, see:
+    #   https://www.forensicswiki.org/wiki/ZIP#External_file_attributes
+    attr = info.external_attr >> 16
+    os.chmod(path, attr)
+
+
 @contextlib.contextmanager
 def open_zip(path, *args, **kwargs):
   """A contextmanager for zip files.  Passes through positional and kwargs to zipfile.ZipFile."""
-  with contextlib.closing(zipfile.ZipFile(path, *args, **kwargs)) as zip:
+  with contextlib.closing(PermPreservingZipFile(path, *args, **kwargs)) as zip:
     yield zip
 
 
