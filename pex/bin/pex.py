@@ -386,6 +386,15 @@ def configure_clp_pex_entry_points(parser):
       help='Set the entry point as to the script or console_script as defined by a any of the '
            'distributions in the pex.  For example: "pex -c fab fabric" or "pex -c mturk boto".')
 
+  group.add_option(
+      '--validate-entry-point',
+      dest='validate_ep',
+      default=False,
+      action='store_true',
+      help='Validate the entry point by importing it in separate process. Warning: this could have '
+           'side effects. For example, entry point `a.b.c:m` will translate to '
+           '`from a.b.c import m` during validation. [Default: %default]')
+
   parser.add_option_group(group)
 
 
@@ -727,22 +736,24 @@ def main(args=None):
     with TRACER.timed('Building pex'):
       pex_builder = build_pex(reqs, options, resolver_options_builder)
 
+    pex_builder.freeze()
+    pex = PEX(pex_builder.path(),
+              interpreter=pex_builder.interpreter,
+              verify_entry_point=options.validate_ep)
+
     if options.pex_name is not None:
       log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)
       tmp_name = options.pex_name + '~'
       safe_delete(tmp_name)
       pex_builder.build(tmp_name)
       os.rename(tmp_name, options.pex_name)
-      return 0
+    else:
+      if not _compatible_with_current_platform(options.platforms):
+        log('WARNING: attempting to run PEX with incompatible platforms!')
 
-    if not _compatible_with_current_platform(options.platforms):
-      log('WARNING: attempting to run PEX with incompatible platforms!')
-
-    pex_builder.freeze()
-
-    log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline), v=options.verbosity)
-    pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)
-    sys.exit(pex.run(args=list(cmdline)))
+      log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline),
+          v=options.verbosity)
+      sys.exit(pex.run(args=list(cmdline)))
 
 
 if __name__ == '__main__':
