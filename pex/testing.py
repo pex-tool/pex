@@ -153,11 +153,12 @@ def make_sdist(name='my_project', version='0.0.0', zip_safe=True, install_reqs=N
 
 @contextlib.contextmanager
 def make_bdist(name='my_project', version='0.0.0', installer_impl=EggInstaller, zipped=False,
-               zip_safe=True):
+               zip_safe=True, **kwargs):
   with make_installer(name=name,
                       version=version,
                       installer_impl=installer_impl,
-                      zip_safe=zip_safe) as installer:
+                      zip_safe=zip_safe,
+                      **kwargs) as installer:
     dist_location = installer.bdist()
     if zipped:
       yield DistributionHelper.distribution_from_path(dist_location)
