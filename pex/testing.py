@@ -126,13 +126,13 @@ PROJECT_CONTENT = {
 
 @contextlib.contextmanager
 def make_installer(name='my_project', version='0.0.0', installer_impl=EggInstaller, zip_safe=True,
-                   install_reqs=None):
+                   install_reqs=None, **kwargs):
   interp = {'project_name': name,
             'version': version,
             'zip_safe': zip_safe,
             'install_requires': install_reqs or []}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
-    yield installer_impl(td)
+    yield installer_impl(td, **kwargs)
 
 
 @contextlib.contextmanager
