@@ -33,7 +33,8 @@ def after_installation(function):
 
 class InstallerBase(object):
   SETUP_BOOTSTRAP_HEADER = "import sys"
-  SETUP_BOOTSTRAP_MODULE = "sys.path.insert(0, %(path)r); import %(module)s"
+  SETUP_BOOTSTRAP_PYPATH = "sys.path.insert(0, %(path)r)"
+  SETUP_BOOTSTRAP_MODULE = "import %(module)s"
   SETUP_BOOTSTRAP_FOOTER = """
 __file__ = 'setup.py'
 sys.argv[0] = 'setup.py'
@@ -85,15 +86,21 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
 
   @property
   def bootstrap_script(self):
+    bootstrap_sys_paths = []
     bootstrap_modules = []
     for module, requirement in self.mixins().items():
       path = self._interpreter.get_location(requirement)
       if not path:
         assert not self._strict  # This should be caught by validation
         continue
-      bootstrap_modules.append(self.SETUP_BOOTSTRAP_MODULE % {'path': path, 'module': module})
+      bootstrap_sys_paths.append(self.SETUP_BOOTSTRAP_PYPATH % {'path': path})
+      bootstrap_modules.append(self.SETUP_BOOTSTRAP_MODULE % {'module': module})
     return '\n'.join(
-        [self.SETUP_BOOTSTRAP_HEADER] + bootstrap_modules + [self.SETUP_BOOTSTRAP_FOOTER])
+      [self.SETUP_BOOTSTRAP_HEADER] +
+      bootstrap_sys_paths +
+      bootstrap_modules +
+      [self.SETUP_BOOTSTRAP_FOOTER]
+    )
 
   def run(self):
     if self._installed is not None:
