@@ -73,7 +73,7 @@ class PEX(object):  # noqa: T000
       pex_info = self._pex_info.copy()
       pex_info.update(self._pex_info_overrides)
       pex_info.merge_pex_path(self._vars.PEX_PATH)
-      self._envs.append(PEXEnvironment(self._pex, pex_info))
+      self._envs.append(PEXEnvironment(self._pex, pex_info, interpreter=self._interpreter))
       # N.B. by this point, `pex_info.pex_path` will contain a single pex path
       # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
       # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
@@ -83,7 +83,7 @@ class PEX(object):  # noqa: T000
         for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
           pex_info = PexInfo.from_pex(pex_path)
           pex_info.update(self._pex_info_overrides)
-          self._envs.append(PEXEnvironment(pex_path, pex_info))
+          self._envs.append(PEXEnvironment(pex_path, pex_info, interpreter=self._interpreter))
 
       # activate all of them
       for env in self._envs:

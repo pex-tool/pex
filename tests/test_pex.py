@@ -10,11 +10,16 @@ from types import ModuleType
 import pytest
 from twitter.common.contextutil import temporary_file
 
-from pex.compatibility import WINDOWS, nested, to_bytes
+from pex.bin.pex import get_interpreter
+from pex.compatibility import PY2, WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
+from pex.pex_info import PexInfo
 from pex.testing import (
+    IS_PYPY,
+    ensure_python_interpreter,
+    make_bdist,
     make_installer,
     named_temporary_file,
     run_simple_pex_test,
@@ -309,3 +314,31 @@ def test_pex_verify_entry_point_module_should_fail():
       PEX(pex_builder.path(),
           interpreter=pex_builder.interpreter,
           verify_entry_point=True)
+
+
+@pytest.mark.skipif(IS_PYPY)
+def test_activate_interpreter_different_from_current():
+  with temporary_dir() as pex_root:
+    interp_version = '3.6.3' if PY2 else '2.7.10'
+    custom_interpreter = get_interpreter(
+      python_interpreter=ensure_python_interpreter(interp_version),
+      interpreter_cache_dir=os.path.join(pex_root, 'interpreters'),
+      repos=None,  # Default to PyPI.
+      use_wheel=True
+    )
+    pex_info = PexInfo.default(custom_interpreter)
+    pex_info.pex_root = pex_root
+    with temporary_dir() as pex_chroot:
+      pex_builder = PEXBuilder(path=pex_chroot,
+                               interpreter=custom_interpreter,
+                               pex_info=pex_info)
+      with make_bdist(installer_impl=WheelInstaller, interpreter=custom_interpreter) as bdist:
+        pex_builder.add_distribution(bdist)
+        pex_builder.set_entry_point('sys:exit')
+        pex_builder.freeze()
+
+        pex = PEX(pex_builder.path(), interpreter=custom_interpreter)
+        try:
+          pex._activate()
+        except SystemExit as e:
+          pytest.fail('PEX activation of %s failed with %s' % (pex, e))
