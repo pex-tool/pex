@@ -2,6 +2,14 @@ PEX
 ===
 .. image:: https://travis-ci.org/pantsbuild/pex.svg?branch=master
     :target: https://travis-ci.org/pantsbuild/pex
+.. image:: https://img.shields.io/pypi/l/pex.svg
+    :target: https://pypi.org/project/pex/
+.. image:: https://img.shields.io/pypi/v/pex.svg
+    :target: https://pypi.org/project/pex/
+.. image:: https://img.shields.io/pypi/pyversions/pex.svg
+    :target: https://pypi.org/project/pex/
+.. image:: https://img.shields.io/pypi/wheel/pex.svg
+    :target: https://pypi.org/project/pex/#files
 
 pex is a library for generating .pex (Python EXecutable) files which are
 executable Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_.
