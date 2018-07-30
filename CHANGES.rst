@@ -7,34 +7,34 @@ Release Notes
 This release adds support for validating pex entrypoints at build time in addition to several bugfixes.
 
 * Fix PEX environment setup. (#531)
-  `#531 <https://github.com/pantsbuild/pants/pull/531>`_
+  `#531 <https://github.com/pantsbuild/pex/pull/531>`_
 
 * Fix installers to be insensitive to extras iteration order. (#532)
-  `#532 <https://github.com/pantsbuild/pants/pull/532>`_
+  `#532 <https://github.com/pantsbuild/pex/pull/532>`_
 
 * Validate entry point at build time (#521)
-  `#521 <https://github.com/pantsbuild/pants/pull/521>`_
+  `#521 <https://github.com/pantsbuild/pex/pull/521>`_
 
 * Fix pex extraction perms. (#528)
-  `#528 <https://github.com/pantsbuild/pants/pull/528>`_
+  `#528 <https://github.com/pantsbuild/pex/pull/528>`_
 
 * Simplify `.travis.yml`. (#524)
-  `#524 <https://github.com/pantsbuild/pants/pull/524>`_
+  `#524 <https://github.com/pantsbuild/pex/pull/524>`_
 
 * Fix `PythonInterpreter` caching and ergonomics. (#518)
-  `#518 <https://github.com/pantsbuild/pants/pull/518>`_
+  `#518 <https://github.com/pantsbuild/pex/pull/518>`_
 
 * Add missing git dep. (#519)
-  `#519 <https://github.com/pantsbuild/pants/pull/519>`_
+  `#519 <https://github.com/pantsbuild/pex/pull/519>`_
 
 * Introduce a controlled env for pex testing. (#517)
-  `#517 <https://github.com/pantsbuild/pants/pull/517>`_
+  `#517 <https://github.com/pantsbuild/pex/pull/517>`_
 
 * Bump wheel version to latest. (#515)
-  `#515 <https://github.com/pantsbuild/pants/pull/515>`_
+  `#515 <https://github.com/pantsbuild/pex/pull/515>`_
 
 * Invoke test runner at a more granular level for pypy shard. (#513)
-  `#513 <https://github.com/pantsbuild/pants/pull/513>`_
+  `#513 <https://github.com/pantsbuild/pex/pull/513>`_
 
 1.4.4
 -----
