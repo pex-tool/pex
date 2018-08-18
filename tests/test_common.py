@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from pex.common import PermPreservingZipFile, chmod_plus_x, rename_if_empty, touch
+from pex.common import Chroot, PermPreservingZipFile, chmod_plus_x, rename_if_empty, touch
 from pex.testing import temporary_dir
 
 try:
@@ -86,3 +86,45 @@ def test_perm_preserving_zipfile_extract():
 
       assert extract_perms(one) == extract_perms(os.path.join(extract_dir, 'one'))
       assert extract_perms(two) == extract_perms(os.path.join(extract_dir, 'two'))
+
+
+def assert_chroot_perms(copyfn):
+  with temporary_dir() as src:
+    one = os.path.join(src, 'one')
+    touch(one)
+
+    two = os.path.join(src, 'two')
+    touch(two)
+    chmod_plus_x(two)
+
+    with temporary_dir() as dst:
+      chroot = Chroot(dst)
+      copyfn(chroot, one, 'one')
+      copyfn(chroot, two, 'two')
+      assert extract_perms(one) == extract_perms(os.path.join(chroot.path(), 'one'))
+      assert extract_perms(two) == extract_perms(os.path.join(chroot.path(), 'two'))
+
+      zip_path = os.path.join(src, 'chroot.zip')
+      chroot.zip(zip_path)
+      with temporary_dir() as extract_dir:
+        with contextlib.closing(PermPreservingZipFile(zip_path)) as zf:
+          zf.extractall(extract_dir)
+
+          assert extract_perms(one) == extract_perms(os.path.join(extract_dir, 'one'))
+          assert extract_perms(two) == extract_perms(os.path.join(extract_dir, 'two'))
+
+
+def test_chroot_perms_copy():
+  assert_chroot_perms(Chroot.copy)
+
+
+def test_chroot_perms_link_same_device():
+  assert_chroot_perms(Chroot.link)
+
+
+def test_chroot_perms_link_cross_device():
+  with mock.patch('os.link', spec_set=True, autospec=True) as mock_link:
+    expected_errno = errno.EXDEV
+    mock_link.side_effect = OSError(expected_errno, os.strerror(expected_errno))
+
+    assert_chroot_perms(Chroot.link)

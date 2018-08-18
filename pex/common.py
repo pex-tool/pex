@@ -25,7 +25,7 @@ def die(msg, exit_code=1):
 def safe_copy(source, dest, overwrite=False):
   def do_copy():
     temp_dest = dest + uuid4().hex
-    shutil.copyfile(source, temp_dest)
+    shutil.copy(source, temp_dest)
     os.rename(temp_dest, dest)
 
   # If the platform supports hard-linking, use that and fall back to copying.
@@ -279,7 +279,7 @@ class Chroot(object):
   def copy(self, src, dst, label=None):
     """Copy file ``src`` to ``chroot/dst`` with optional label.
 
-    May raise anything shutil.copyfile can raise, e.g.
+    May raise anything shutil.copy can raise, e.g.
       IOError(Errno 21 'EISDIR')
 
     May raise ChrootTaggingException if dst is already in a fileset
@@ -288,7 +288,7 @@ class Chroot(object):
     dst = self._normalize(dst)
     self._tag(dst, label)
     self._ensure_parent(dst)
-    shutil.copyfile(src, os.path.join(self.chroot, dst))
+    shutil.copy(src, os.path.join(self.chroot, dst))
 
   def link(self, src, dst, label=None):
     """Hard link file from ``src`` to ``chroot/dst`` with optional label.
@@ -348,7 +348,7 @@ class Chroot(object):
   def delete(self):
     shutil.rmtree(self.chroot)
 
-  def zip(self, filename, mode='wb'):
+  def zip(self, filename, mode='w'):
     with open_zip(filename, mode) as zf:
       for f in sorted(self.files()):
         zf.write(os.path.join(self.chroot, f), arcname=f, compress_type=zipfile.ZIP_DEFLATED)
