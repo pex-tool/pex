@@ -3,9 +3,10 @@
 
 __version__ = '1.4.5'
 
-# NB: If we upgrade to setuptools>=34 pex's bootstrap code in `PEXBuilder` will need an update to
-# include the `packaging` package in the `.bootstrap/` code since we use
-# `packaging.specifiers.SpecifierSet` - indirectly - through `pkg_resources.Requirement.specifier`.
-SETUPTOOLS_REQUIREMENT = 'setuptools>=20.3,<34.0'
+# Versions 34.0.0 through 35.0.2 (last pre-36.0.0) de-vendored dependencies which causes problems
+# for pex code so we exclude that range.
+__exclusions = '!=34.*,!=35.*'
+SETUPTOOLS_REQUIREMENT = 'setuptools>=20.3,<41,{exclusions}'.format(exclusions=__exclusions)
+del __exclusions
 
-WHEEL_REQUIREMENT = 'wheel>=0.26.0,<0.32.0'
+WHEEL_REQUIREMENT = 'wheel>=0.26.0,<0.32'
