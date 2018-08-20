@@ -458,8 +458,8 @@ class PEX(object):  # noqa: T000
       sys.argv = sys.argv[1:]
       self.execute_content(program, content)
     else:
-      import code
       with self.demoted_bootstrap():
+        import code
         code.interact()
 
   def execute_script(self, script_name):
@@ -507,22 +507,22 @@ class PEX(object):  # noqa: T000
 
   @classmethod
   def execute_module(cls, module_name):
-    import runpy
     with cls.demoted_bootstrap():
+      import runpy
       runpy.run_module(module_name, run_name='__main__')
 
   @classmethod
   def execute_pkg_resources(cls, spec):
-    entry = EntryPoint.parse("run = {0}".format(spec))
-
-    # See https://pythonhosted.org/setuptools/history.html#id25 for rationale here.
-    if hasattr(entry, 'resolve'):
-      # setuptools >= 11.3
-      runner = entry.resolve()
-    else:
-      # setuptools < 11.3
-      runner = entry.load(require=False)
     with cls.demoted_bootstrap():
+      entry = EntryPoint.parse("run = {0}".format(spec))
+
+      # See https://pythonhosted.org/setuptools/history.html#id25 for rationale here.
+      if hasattr(entry, 'resolve'):
+        # setuptools >= 11.3
+        runner = entry.resolve()
+      else:
+        # setuptools < 11.3
+        runner = entry.load(require=False)
       return runner()
 
   def cmdline(self, args=()):
