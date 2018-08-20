@@ -201,7 +201,7 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False)
   pb = PEXBuilder(path=td, preamble=COVERAGE_PREAMBLE if coverage else None)
 
   for dist in dists:
-    pb.add_egg(dist.location)
+    pb.add_dist_location(dist.location)
 
   for env_filename, contents in sources:
     src_path = os.path.join(td, env_filename)

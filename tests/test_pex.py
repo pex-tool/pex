@@ -17,6 +17,7 @@ from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
+from pex.resolver import resolve
 from pex.testing import (
     IS_PYPY,
     ensure_python_interpreter,
@@ -359,3 +360,16 @@ def test_execute_interpreter_stdin_program():
     assert 0 == process.returncode
     assert b'one two\n' == stdout
     assert b'' == stderr
+
+
+def test_pex_run_custom_setuptools_useable():
+  with temporary_dir() as resolve_cache:
+    dists = resolve(['setuptools==36.2.7'], cache=resolve_cache)
+    with temporary_dir() as temp_dir:
+      pex = write_simple_pex(
+        temp_dir,
+        'from setuptools.sandbox import run_setup',
+        dists=dists,
+      )
+      rc = PEX(pex.path()).run()
+      assert rc == 0

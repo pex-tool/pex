@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import os
+import pkgutil
 import sys
 from contextlib import contextmanager
 from distutils import sysconfig
@@ -282,8 +283,6 @@ class PEX(object):  # noqa: T000
       patch_dict(sys.path_importer_cache, path_importer_cache)
       patch_dict(sys.modules, modules)
 
-    old_sys_path, old_sys_path_importer_cache, old_sys_modules = (
-        sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
     new_sys_path.extend(merge_split(self._pex_info.pex_path, self._vars.PEX_PATH))
@@ -362,10 +361,6 @@ class PEX(object):  # noqa: T000
         pex_inherit_path = self._pex_info.inherit_path
       with self.patch_sys(pex_inherit_path):
         working_set = self._activate()
-        TRACER.log('PYTHONPATH contains:')
-        for element in sys.path:
-          TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
-        TRACER.log('  * - paths that do not exist or will be imported via zipimport')
         with self.patch_pkg_resources(working_set):
           self._wrap_coverage(self._wrap_profiling, self._execute)
     except Exception:
@@ -415,6 +410,40 @@ class PEX(object):  # noqa: T000
       TRACER.log('No entry point specified, dropping into interpreter')
       return self.execute_interpreter()
 
+  @classmethod
+  @contextmanager
+  def demoted_bootstrap(cls):
+    TRACER.log('Bootstrap complete, performing final sys.path modifications...')
+
+    bootstrap_path = __file__
+    module_import_path = __name__.split('.')
+    root_package = module_import_path[0]
+
+    # For example, our __file__ might be requests.pex/.bootstrap/_pex/pex.pyc and our import path
+    # _pex.pex; so we walk back through all the module components of our import path to find the
+    # base sys.path entry where we were found (requests.pex/.bootstrap in this example).
+    for _ in module_import_path:
+      bootstrap_path = os.path.dirname(bootstrap_path)
+    bootstrap_path_index = sys.path.index(bootstrap_path)
+
+    # Move the third party resources pex uses to the end of sys.path for the duration of the run to
+    # allow conflicting versions supplied by user dependencies to win during the course of the
+    # execution of user code.
+    for _, mod, _ in pkgutil.iter_modules([bootstrap_path]):
+      if mod != root_package:  # We let _pex stay imported
+        TRACER.log('Un-importing third party bootstrap dependency %s from %s'
+                   % (mod, bootstrap_path))
+        sys.modules.pop(mod)
+    sys.path.pop(bootstrap_path_index)
+    sys.path.append(bootstrap_path)
+
+    TRACER.log('PYTHONPATH contains:')
+    for element in sys.path:
+      TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
+    TRACER.log('  * - paths that do not exist or will be imported via zipimport')
+
+    yield
+
   def execute_interpreter(self):
     if sys.argv[1:]:
       program = sys.argv[1]
@@ -430,7 +459,8 @@ class PEX(object):  # noqa: T000
       self.execute_content(program, content)
     else:
       import code
-      code.interact()
+      with self.demoted_bootstrap():
+        code.interact()
 
   def execute_script(self, script_name):
     dists = list(self._activate())
@@ -447,40 +477,42 @@ class PEX(object):  # noqa: T000
 
   @classmethod
   def execute_content(cls, name, content, argv0=None):
-    argv0 = argv0 or name
-    try:
-      ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
-    except SyntaxError:
-      die('Unable to parse %s.  PEX script support only supports Python scripts.' % name)
-    old_name, old_file = globals().get('__name__'), globals().get('__file__')
-    try:
-      old_argv0, sys.argv[0] = sys.argv[0], argv0
-      globals()['__name__'] = '__main__'
-      globals()['__file__'] = name
-      exec_function(ast, globals())
-    finally:
-      if old_name:
-        globals()['__name__'] = old_name
-      else:
-        globals().pop('__name__')
-      if old_file:
-        globals()['__file__'] = old_file
-      else:
-        globals().pop('__file__')
-      sys.argv[0] = old_argv0
+    with cls.demoted_bootstrap():
+      argv0 = argv0 or name
+      try:
+        ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
+      except SyntaxError:
+        die('Unable to parse %s.  PEX script support only supports Python scripts.' % name)
+      old_name, old_file = globals().get('__name__'), globals().get('__file__')
+      try:
+        old_argv0, sys.argv[0] = sys.argv[0], argv0
+        globals()['__name__'] = '__main__'
+        globals()['__file__'] = name
+        exec_function(ast, globals())
+      finally:
+        if old_name:
+          globals()['__name__'] = old_name
+        else:
+          globals().pop('__name__')
+        if old_file:
+          globals()['__file__'] = old_file
+        else:
+          globals().pop('__file__')
+        sys.argv[0] = old_argv0
 
   @classmethod
   def execute_entry(cls, entry_point):
     runner = cls.execute_pkg_resources if ':' in entry_point else cls.execute_module
     return runner(entry_point)
 
-  @staticmethod
-  def execute_module(module_name):
+  @classmethod
+  def execute_module(cls, module_name):
     import runpy
-    runpy.run_module(module_name, run_name='__main__')
+    with cls.demoted_bootstrap():
+      runpy.run_module(module_name, run_name='__main__')
 
-  @staticmethod
-  def execute_pkg_resources(spec):
+  @classmethod
+  def execute_pkg_resources(cls, spec):
     entry = EntryPoint.parse("run = {0}".format(spec))
 
     # See https://pythonhosted.org/setuptools/history.html#id25 for rationale here.
@@ -490,7 +522,8 @@ class PEX(object):  # noqa: T000
     else:
       # setuptools < 11.3
       runner = entry.load(require=False)
-    return runner()
+    with cls.demoted_bootstrap():
+      return runner()
 
   def cmdline(self, args=()):
     """The commandline to run this environment.
