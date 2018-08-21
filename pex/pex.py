@@ -6,7 +6,6 @@ from __future__ import absolute_import, print_function
 import os
 import pkgutil
 import sys
-from contextlib import contextmanager
 from distutils import sysconfig
 from site import USER_SITE
 
@@ -250,28 +249,16 @@ class PEX(object):  # noqa: T000
     return sys_path, sys_path_importer_cache, sys_modules
 
   @classmethod
-  @contextmanager
   def patch_pkg_resources(cls, working_set):
     """Patch pkg_resources given a new working set."""
-    def patch(working_set):
-      pkg_resources.working_set = working_set
-      pkg_resources.require = working_set.require
-      pkg_resources.iter_entry_points = working_set.iter_entry_points
-      pkg_resources.run_script = pkg_resources.run_main = working_set.run_script
-      pkg_resources.add_activation_listener = working_set.subscribe
+    pkg_resources.working_set = working_set
+    pkg_resources.require = working_set.require
+    pkg_resources.iter_entry_points = working_set.iter_entry_points
+    pkg_resources.run_script = pkg_resources.run_main = working_set.run_script
+    pkg_resources.add_activation_listener = working_set.subscribe
 
-    old_working_set = pkg_resources.working_set
-    patch(working_set)
-    try:
-      yield
-    finally:
-      patch(old_working_set)
-
-  # Thar be dragons -- when this contextmanager exits, the interpreter is
-  # potentially in a wonky state since the patches here (minimum_sys_modules
-  # for example) actually mutate global state.  This should not be
-  # considered a reversible operation despite being a contextmanager.
-  @contextmanager
+  # Thar be dragons -- when this function exits, the interpreter is potentially in a wonky state
+  # since the patches here (minimum_sys_modules for example) actually mutate global state.
   def patch_sys(self, inherit_path):
     """Patch sys with all site scrubbed."""
     def patch_dict(old_value, new_value):
@@ -288,7 +275,6 @@ class PEX(object):  # noqa: T000
     new_sys_path.extend(merge_split(self._pex_info.pex_path, self._vars.PEX_PATH))
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
-    yield
 
   def _wrap_coverage(self, runner, *args):
     if not self._vars.PEX_COVERAGE and self._vars.PEX_COVERAGE_FILENAME is None:
@@ -359,10 +345,10 @@ class PEX(object):  # noqa: T000
       pex_inherit_path = self._vars.PEX_INHERIT_PATH
       if pex_inherit_path == "false":
         pex_inherit_path = self._pex_info.inherit_path
-      with self.patch_sys(pex_inherit_path):
-        working_set = self._activate()
-        with self.patch_pkg_resources(working_set):
-          self._wrap_coverage(self._wrap_profiling, self._execute)
+      self.patch_sys(pex_inherit_path)
+      working_set = self._activate()
+      self.patch_pkg_resources(working_set)
+      self._wrap_coverage(self._wrap_profiling, self._execute)
     except Exception:
       # Allow the current sys.excepthook to handle this app exception before we tear things down in
       # finally, then reraise so that the exit status is reflected correctly.
@@ -411,8 +397,7 @@ class PEX(object):  # noqa: T000
       return self.execute_interpreter()
 
   @classmethod
-  @contextmanager
-  def demoted_bootstrap(cls):
+  def demote_bootstrap(cls):
     TRACER.log('Bootstrap complete, performing final sys.path modifications...')
 
     bootstrap_path = __file__
@@ -442,8 +427,6 @@ class PEX(object):  # noqa: T000
       TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
     TRACER.log('  * - paths that do not exist or will be imported via zipimport')
 
-    yield
-
   def execute_interpreter(self):
     if sys.argv[1:]:
       program = sys.argv[1]
@@ -458,9 +441,10 @@ class PEX(object):  # noqa: T000
       sys.argv = sys.argv[1:]
       self.execute_content(program, content)
     else:
-      with self.demoted_bootstrap():
-        import code
-        code.interact()
+      self.demote_bootstrap()
+
+      import code
+      code.interact()
 
   def execute_script(self, script_name):
     dists = list(self._activate())
@@ -477,28 +461,29 @@ class PEX(object):  # noqa: T000
 
   @classmethod
   def execute_content(cls, name, content, argv0=None):
-    with cls.demoted_bootstrap():
-      argv0 = argv0 or name
-      try:
-        ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
-      except SyntaxError:
-        die('Unable to parse %s.  PEX script support only supports Python scripts.' % name)
-      old_name, old_file = globals().get('__name__'), globals().get('__file__')
-      try:
-        old_argv0, sys.argv[0] = sys.argv[0], argv0
-        globals()['__name__'] = '__main__'
-        globals()['__file__'] = name
-        exec_function(ast, globals())
-      finally:
-        if old_name:
-          globals()['__name__'] = old_name
-        else:
-          globals().pop('__name__')
-        if old_file:
-          globals()['__file__'] = old_file
-        else:
-          globals().pop('__file__')
-        sys.argv[0] = old_argv0
+    cls.demote_bootstrap()
+
+    argv0 = argv0 or name
+    try:
+      ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
+    except SyntaxError:
+      die('Unable to parse %s.  PEX script support only supports Python scripts.' % name)
+    old_name, old_file = globals().get('__name__'), globals().get('__file__')
+    try:
+      old_argv0, sys.argv[0] = sys.argv[0], argv0
+      globals()['__name__'] = '__main__'
+      globals()['__file__'] = name
+      exec_function(ast, globals())
+    finally:
+      if old_name:
+        globals()['__name__'] = old_name
+      else:
+        globals().pop('__name__')
+      if old_file:
+        globals()['__file__'] = old_file
+      else:
+        globals().pop('__file__')
+      sys.argv[0] = old_argv0
 
   @classmethod
   def execute_entry(cls, entry_point):
@@ -507,23 +492,25 @@ class PEX(object):  # noqa: T000
 
   @classmethod
   def execute_module(cls, module_name):
-    with cls.demoted_bootstrap():
-      import runpy
-      runpy.run_module(module_name, run_name='__main__')
+    cls.demote_bootstrap()
+
+    import runpy
+    runpy.run_module(module_name, run_name='__main__')
 
   @classmethod
   def execute_pkg_resources(cls, spec):
-    with cls.demoted_bootstrap():
-      entry = EntryPoint.parse("run = {0}".format(spec))
+    cls.demote_bootstrap()
 
-      # See https://pythonhosted.org/setuptools/history.html#id25 for rationale here.
-      if hasattr(entry, 'resolve'):
-        # setuptools >= 11.3
-        runner = entry.resolve()
-      else:
-        # setuptools < 11.3
-        runner = entry.load(require=False)
-      return runner()
+    entry = EntryPoint.parse("run = {0}".format(spec))
+
+    # See https://pythonhosted.org/setuptools/history.html#id25 for rationale here.
+    if hasattr(entry, 'resolve'):
+      # setuptools >= 11.3
+      runner = entry.resolve()
+    else:
+      # setuptools < 11.3
+      runner = entry.load(require=False)
+    return runner()
 
   def cmdline(self, args=()):
     """The commandline to run this environment.
