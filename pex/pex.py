@@ -417,13 +417,17 @@ class PEX(object):  # noqa: T000
 
   def execute_interpreter(self):
     if sys.argv[1:]:
+      program = sys.argv[1]
       try:
-        with open(sys.argv[1]) as fp:
-          name, content = sys.argv[1], fp.read()
+        if program == '-':
+          content = sys.stdin.read()
+        else:
+          with open(program) as fp:
+            content = fp.read()
       except IOError as e:
-        die("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
+        die("Could not open %s in the environment [%s]: %s" % (program, sys.argv[0], e))
       sys.argv = sys.argv[1:]
-      self.execute_content(name, content)
+      self.execute_content(program, content)
     else:
       import code
       code.interact()
