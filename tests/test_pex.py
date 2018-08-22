@@ -354,8 +354,8 @@ def test_execute_interpreter_stdin_program():
                                   stderr=subprocess.PIPE,
                                   stdin=subprocess.PIPE,
                                   blocking=False)
-    stdout, stderr = process.communicate(input='import sys; print(" ".join(sys.argv[1:]))')
+    stdout, stderr = process.communicate(input=b'import sys; print(" ".join(sys.argv[1:]))')
 
     assert 0 == process.returncode
-    assert 'one two' == stdout.strip()
-    assert '' == stderr.strip()
+    assert b'one two\n' == stdout
+    assert b'' == stderr
