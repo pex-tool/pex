@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import subprocess
 import sys
 import textwrap
 from contextlib import contextmanager
@@ -342,3 +343,19 @@ def test_activate_interpreter_different_from_current():
           pex._activate()
         except SystemExit as e:
           pytest.fail('PEX activation of %s failed with %s' % (pex, e))
+
+
+def test_execute_interpreter_stdin_program():
+  with temporary_dir() as pex_chroot:
+    pex_builder = PEXBuilder(path=pex_chroot)
+    pex_builder.freeze()
+    process = PEX(pex_chroot).run(args=['-', 'one', 'two'],
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  stdin=subprocess.PIPE,
+                                  blocking=False)
+    stdout, stderr = process.communicate(input=b'import sys; print(" ".join(sys.argv[1:]))')
+
+    assert 0 == process.returncode
+    assert b'one two\n' == stdout
+    assert b'' == stderr
