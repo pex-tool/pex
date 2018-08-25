@@ -981,3 +981,23 @@ def test_invalid_entry_point_verification_3rdparty():
                            '-o', pex_out_path,
                            '--validate-entry-point'])
     res.assert_failure()
+
+
+@pytest.mark.skipif(IS_PYPY)
+def test_multiplatform_entrypoint():
+  with temporary_dir() as td:
+    pex_out_path = os.path.join(td, 'p537.pex')
+    interpreter = ensure_python_interpreter('3.6.3')
+    res = run_pex_command(['p537==1.0.3',
+                           '--no-build',
+                           '--python={}'.format(interpreter),
+                           '--python-shebang=#!{}'.format(interpreter),
+                           '--platform=linux-x86_64',
+                           '--platform=macosx-10.13-x86_64',
+                           '-c', 'p537',
+                           '-o', pex_out_path,
+                           '--validate-entry-point'])
+    res.assert_success()
+
+    greeting = subprocess.check_output([pex_out_path])
+    assert b'Hello World!' == greeting.strip()

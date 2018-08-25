@@ -330,8 +330,9 @@ def ensure_python_distribution(version):
     bootstrap_python_installer(pyenv_root)
 
   if not os.path.exists(interpreter_location):
-    os.environ['PYENV_ROOT'] = pyenv_root
-    subprocess.check_call([pyenv, 'install', '--keep', version])
+    env = {'PYENV_ROOT': pyenv_root,
+           'CONFIGURE_OPTS': '--enable-shared'}
+    subprocess.check_call([pyenv, 'install', '--keep', version], env=env)
     subprocess.check_call([pip, 'install', '-U', 'pip'])
     subprocess.check_call([pip, 'install', SETUPTOOLS_REQUIREMENT])
 

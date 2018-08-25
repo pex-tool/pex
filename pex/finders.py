@@ -293,17 +293,22 @@ def get_script_from_distributions(name, dists):
 
 
 def get_entry_point_from_console_script(script, dists):
-  # check all distributions for the console_script "script"
-  entries = frozenset(filter(None, (
-      dist.get_entry_map().get('console_scripts', {}).get(script) for dist in dists)))
+  # Check all distributions for the console_script "script". De-dup by dist key to allow for a
+  # duplicate console script IFF the distribution is platform-specific and this is a multi-platform
+  # pex.
+  def get_entrypoint(dist):
+    script_entry = dist.get_entry_map().get('console_scripts', {}).get(script)
+    if script_entry is not None:
+      # Entry points are of the form 'foo = bar', we just want the 'bar' part.
+      return dist.key, str(script_entry).split('=')[1].strip()
 
-  # if multiple matches, freak out
+  entries = frozenset(filter(None, (get_entrypoint(dist) for dist in dists)))
+
   if len(entries) > 1:
     raise RuntimeError(
-        'Ambiguous script specification %s matches multiple entry points:%s' % (
-            script, ' '.join(map(str, entries))))
+        'Ambiguous script specification %s matches multiple entry points:\n\t%s' % (
+            script, '\n\t'.join('%s from %s' % (entry_point, key) for key, entry_point in entries)))
 
   if entries:
-    entry_point = next(iter(entries))
-    # entry points are of the form 'foo = bar', we just want the 'bar' part:
-    return str(entry_point).split('=')[1].strip()
+    _, entry_point = next(iter(entries))
+    return entry_point

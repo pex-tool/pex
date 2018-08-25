@@ -4,11 +4,12 @@
 import zipimport
 
 import pkg_resources
+import pytest
 
 from pex.finders import ChainedFinder
 from pex.finders import _add_finder as add_finder
 from pex.finders import _remove_finder as remove_finder
-from pex.finders import find_eggs_in_zip, get_script_from_egg
+from pex.finders import find_eggs_in_zip, get_entry_point_from_console_script, get_script_from_egg
 
 try:
   import mock
@@ -118,3 +119,32 @@ def test_get_script_from_egg():
 
   assert location is None
   assert content is None
+
+
+class FakeDist(object):
+  def __init__(self, key, console_script_entry):
+    self.key = key
+    script = console_script_entry.split('=')[0].strip()
+    self._entry_map = {'console_scripts': {script: console_script_entry}}
+
+  def get_entry_map(self):
+    return self._entry_map
+
+
+def test_get_entry_point_from_console_script():
+  dists = [FakeDist(key='fake', console_script_entry='bob= bob.main:run'),
+           FakeDist(key='fake', console_script_entry='bob =bob.main:run')]
+  assert 'bob.main:run' == get_entry_point_from_console_script('bob', dists)
+
+
+def test_get_entry_point_from_console_script_conflict():
+  dists = [FakeDist(key='bob', console_script_entry='bob= bob.main:run'),
+           FakeDist(key='fake', console_script_entry='bob =bob.main:run')]
+  with pytest.raises(RuntimeError):
+    get_entry_point_from_console_script('bob', dists)
+
+
+def test_get_entry_point_from_console_script_dne():
+  dists = [FakeDist(key='bob', console_script_entry='bob= bob.main:run'),
+           FakeDist(key='fake', console_script_entry='bob =bob.main:run')]
+  assert None is get_entry_point_from_console_script('jane', dists)
