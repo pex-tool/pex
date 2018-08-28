@@ -1074,4 +1074,3 @@ def test_pex_interpreter_interact_custom_setuptools_useable():
                                 env={'PEX_VERBOSE': '1'},
                                 stdin=test_script)
     assert rc == 0, stdout
-
