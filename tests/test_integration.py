@@ -1001,3 +1001,76 @@ def test_multiplatform_entrypoint():
 
     greeting = subprocess.check_output([pex_out_path])
     assert b'Hello World!' == greeting.strip()
+
+
+@contextmanager
+def pex_with_entrypoints(entry_point):
+  setup_py = dedent("""
+    from setuptools import setup
+
+    setup(
+      name='my_app',
+      version='0.0.0',
+      zip_safe=True,
+      packages=[''],
+      install_requires=['setuptools==36.2.7'],
+      entry_points={'console_scripts': ['my_app_function = my_app:do_something',
+                                        'my_app_module = my_app']},
+    )
+  """)
+
+  my_app = dedent("""
+    from setuptools.sandbox import run_setup
+
+    def do_something():
+      return run_setup
+
+    if __name__ == '__main__':
+      do_something()
+  """)
+
+  with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
+    with temporary_dir() as out:
+      pex = os.path.join(out, 'pex.pex')
+      pex_command = ['--validate-entry-point', '-c', entry_point, project_dir, '-o', pex]
+      results = run_pex_command(pex_command)
+      results.assert_success()
+      yield pex
+
+
+def test_pex_script_module_custom_setuptools_useable():
+  with pex_with_entrypoints('my_app_module') as pex:
+    stdout, rc = run_simple_pex(pex, env={'PEX_VERBOSE': '1'})
+    assert rc == 0, stdout
+
+
+def test_pex_script_function_custom_setuptools_useable():
+  with pex_with_entrypoints('my_app_function') as pex:
+    stdout, rc = run_simple_pex(pex, env={'PEX_VERBOSE': '1'})
+    assert rc == 0, stdout
+
+
+@contextmanager
+def pex_with_no_entrypoints():
+  with temporary_dir() as out:
+    pex = os.path.join(out, 'pex.pex')
+    run_pex_command(['setuptools==36.2.7', '-o', pex])
+    test_script = b'from setuptools.sandbox import run_setup; print(str(run_setup))'
+    yield pex, test_script, out
+
+
+def test_pex_interpreter_execute_custom_setuptools_useable():
+  with pex_with_no_entrypoints() as (pex, test_script, out):
+    script = os.path.join(out, 'script.py')
+    with open(script, 'wb') as fp:
+      fp.write(test_script)
+    stdout, rc = run_simple_pex(pex, args=(script,), env={'PEX_VERBOSE': '1'})
+    assert rc == 0, stdout
+
+
+def test_pex_interpreter_interact_custom_setuptools_useable():
+  with pex_with_no_entrypoints() as (pex, test_script, _):
+    stdout, rc = run_simple_pex(pex,
+                                env={'PEX_VERBOSE': '1'},
+                                stdin=test_script)
+    assert rc == 0, stdout

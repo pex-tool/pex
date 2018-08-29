@@ -4,8 +4,8 @@
 from __future__ import absolute_import, print_function
 
 import os
+import pkgutil
 import sys
-from contextlib import contextmanager
 from distutils import sysconfig
 from site import USER_SITE
 
@@ -249,28 +249,16 @@ class PEX(object):  # noqa: T000
     return sys_path, sys_path_importer_cache, sys_modules
 
   @classmethod
-  @contextmanager
   def patch_pkg_resources(cls, working_set):
     """Patch pkg_resources given a new working set."""
-    def patch(working_set):
-      pkg_resources.working_set = working_set
-      pkg_resources.require = working_set.require
-      pkg_resources.iter_entry_points = working_set.iter_entry_points
-      pkg_resources.run_script = pkg_resources.run_main = working_set.run_script
-      pkg_resources.add_activation_listener = working_set.subscribe
+    pkg_resources.working_set = working_set
+    pkg_resources.require = working_set.require
+    pkg_resources.iter_entry_points = working_set.iter_entry_points
+    pkg_resources.run_script = pkg_resources.run_main = working_set.run_script
+    pkg_resources.add_activation_listener = working_set.subscribe
 
-    old_working_set = pkg_resources.working_set
-    patch(working_set)
-    try:
-      yield
-    finally:
-      patch(old_working_set)
-
-  # Thar be dragons -- when this contextmanager exits, the interpreter is
-  # potentially in a wonky state since the patches here (minimum_sys_modules
-  # for example) actually mutate global state.  This should not be
-  # considered a reversible operation despite being a contextmanager.
-  @contextmanager
+  # Thar be dragons -- when this function exits, the interpreter is potentially in a wonky state
+  # since the patches here (minimum_sys_modules for example) actually mutate global state.
   def patch_sys(self, inherit_path):
     """Patch sys with all site scrubbed."""
     def patch_dict(old_value, new_value):
@@ -282,14 +270,11 @@ class PEX(object):  # noqa: T000
       patch_dict(sys.path_importer_cache, path_importer_cache)
       patch_dict(sys.modules, modules)
 
-    old_sys_path, old_sys_path_importer_cache, old_sys_modules = (
-        sys.path[:], sys.path_importer_cache.copy(), sys.modules.copy())
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
     new_sys_path.extend(merge_split(self._pex_info.pex_path, self._vars.PEX_PATH))
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
-    yield
 
   def _wrap_coverage(self, runner, *args):
     if not self._vars.PEX_COVERAGE and self._vars.PEX_COVERAGE_FILENAME is None:
@@ -360,14 +345,10 @@ class PEX(object):  # noqa: T000
       pex_inherit_path = self._vars.PEX_INHERIT_PATH
       if pex_inherit_path == "false":
         pex_inherit_path = self._pex_info.inherit_path
-      with self.patch_sys(pex_inherit_path):
-        working_set = self._activate()
-        TRACER.log('PYTHONPATH contains:')
-        for element in sys.path:
-          TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
-        TRACER.log('  * - paths that do not exist or will be imported via zipimport')
-        with self.patch_pkg_resources(working_set):
-          self._wrap_coverage(self._wrap_profiling, self._execute)
+      self.patch_sys(pex_inherit_path)
+      working_set = self._activate()
+      self.patch_pkg_resources(working_set)
+      self._wrap_coverage(self._wrap_profiling, self._execute)
     except Exception:
       # Allow the current sys.excepthook to handle this app exception before we tear things down in
       # finally, then reraise so that the exit status is reflected correctly.
@@ -415,6 +396,37 @@ class PEX(object):  # noqa: T000
       TRACER.log('No entry point specified, dropping into interpreter')
       return self.execute_interpreter()
 
+  @classmethod
+  def demote_bootstrap(cls):
+    TRACER.log('Bootstrap complete, performing final sys.path modifications...')
+
+    bootstrap_path = __file__
+    module_import_path = __name__.split('.')
+    root_package = module_import_path[0]
+
+    # For example, our __file__ might be requests.pex/.bootstrap/_pex/pex.pyc and our import path
+    # _pex.pex; so we walk back through all the module components of our import path to find the
+    # base sys.path entry where we were found (requests.pex/.bootstrap in this example).
+    for _ in module_import_path:
+      bootstrap_path = os.path.dirname(bootstrap_path)
+    bootstrap_path_index = sys.path.index(bootstrap_path)
+
+    # Move the third party resources pex uses to the end of sys.path for the duration of the run to
+    # allow conflicting versions supplied by user dependencies to win during the course of the
+    # execution of user code.
+    for _, mod, _ in pkgutil.iter_modules([bootstrap_path]):
+      if mod != root_package:  # We let _pex stay imported
+        TRACER.log('Un-importing third party bootstrap dependency %s from %s'
+                   % (mod, bootstrap_path))
+        sys.modules.pop(mod)
+    sys.path.pop(bootstrap_path_index)
+    sys.path.append(bootstrap_path)
+
+    TRACER.log('PYTHONPATH contains:')
+    for element in sys.path:
+      TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
+    TRACER.log('  * - paths that do not exist or will be imported via zipimport')
+
   def execute_interpreter(self):
     if sys.argv[1:]:
       program = sys.argv[1]
@@ -429,6 +441,8 @@ class PEX(object):  # noqa: T000
       sys.argv = sys.argv[1:]
       self.execute_content(program, content)
     else:
+      self.demote_bootstrap()
+
       import code
       code.interact()
 
@@ -447,6 +461,8 @@ class PEX(object):  # noqa: T000
 
   @classmethod
   def execute_content(cls, name, content, argv0=None):
+    cls.demote_bootstrap()
+
     argv0 = argv0 or name
     try:
       ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
@@ -474,13 +490,17 @@ class PEX(object):  # noqa: T000
     runner = cls.execute_pkg_resources if ':' in entry_point else cls.execute_module
     return runner(entry_point)
 
-  @staticmethod
-  def execute_module(module_name):
+  @classmethod
+  def execute_module(cls, module_name):
+    cls.demote_bootstrap()
+
     import runpy
     runpy.run_module(module_name, run_name='__main__')
 
-  @staticmethod
-  def execute_pkg_resources(spec):
+  @classmethod
+  def execute_pkg_resources(cls, spec):
+    cls.demote_bootstrap()
+
     entry = EntryPoint.parse("run = {0}".format(spec))
 
     # See https://pythonhosted.org/setuptools/history.html#id25 for rationale here.
