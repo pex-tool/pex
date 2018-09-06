@@ -78,7 +78,7 @@ class MktempTeardownRegistry(object):
 _MKDTEMP_SINGLETON = MktempTeardownRegistry()
 
 
-class PermPreservingZipFile(zipfile.ZipFile):
+class PermPreservingZipFile(zipfile.ZipFile, object):
   """A ZipFile that works around https://bugs.python.org/issue15795"""
 
   def _extract_member(self, member, targetpath, pwd):
