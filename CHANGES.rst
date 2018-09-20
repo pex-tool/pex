@@ -1,6 +1,36 @@
 Release Notes
 =============
 
+1.4.6
+-----
+
+This release opens up setuptools support for more modern versions that support breaking changes in
+`setup` used in the wild.
+
+* Fix for super() usage on "old style class" ZipFile (#546)
+  `PR #546 <https://github.com/pantsbuild/pex/pull/546>`_
+
+* Cleanup bootstrap dependencies before handoff. (#542)
+  `PR #542 <https://github.com/pantsbuild/pex/pull/542>`_
+
+* Support -c for plat spec dists in multiplat pexes. (#545)
+  `PR #545 <https://github.com/pantsbuild/pex/pull/545>`_
+
+* Support `-` when running as an interpreter. (#543)
+  `PR #543 <https://github.com/pantsbuild/pex/pull/543>`_
+>`_ttps://github.com/pantsbuild/pex/pull/6275.
+
+* Expand the range of supported setuptools. (#541)
+  `PR #541 <https://github.com/pantsbuild/pex/pull/541>`_
+
+* Preserve perms of files copied to pex chroots. (#540)
+  `PR #540 <https://github.com/pantsbuild/pex/pull/540>`_
+
+* Add more badges to README. (#535)
+  `PR #535 <https://github.com/pantsbuild/pex/pull/535>`_
+
+* Fixup CHANGES PR links for 1.4.5.
+
 1.4.5
 -----
 
