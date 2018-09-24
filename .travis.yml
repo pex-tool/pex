@@ -17,9 +17,7 @@ osx: &osx
   os: osx
   language: generic
   before_install:
-    - brew install readline xz
-    - xcode-select --install
-    - brew install openssl pyenv
+    - brew install openssl
 
 matrix:
   include:
