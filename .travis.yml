@@ -5,8 +5,6 @@
 sudo: false
 dist: trusty
 
-# TRAVIS_PYTHON_VERSION
-
 cache:
   directories:
     - .pyenv_test
@@ -15,6 +13,22 @@ language: python
 
 matrix:
   include:
+    - os: osx
+      python: "2.7"
+      env: TOXENV=py27
+
+    - os: osx
+      python: "3.6"
+      env: TOXENV=py36
+
+    - os: osx
+      python: "2.7"
+      env: TOXENV=py27-integration
+
+    - os: osx
+      python: "3.6"
+      env: TOXENV=py36-integration
+
     - python: "2.7"
       env: TOXENV=style
 
