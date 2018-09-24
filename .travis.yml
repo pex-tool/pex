@@ -16,8 +16,6 @@ linux: &linux
 osx: &osx
   os: osx
   language: generic
-  before_install:
-    - brew install openssl
 
 matrix:
   include:

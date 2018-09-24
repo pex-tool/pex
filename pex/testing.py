@@ -330,8 +330,10 @@ def ensure_python_distribution(version):
     bootstrap_python_installer(pyenv_root)
 
   if not os.path.exists(interpreter_location):
-    env = {'PYENV_ROOT': pyenv_root,
-           'CONFIGURE_OPTS': '--enable-shared'}
+    env = {'PYENV_ROOT': pyenv_root}
+    # TODO(John Sirois): XXX: This should really be a GCC vs clang test.
+    if 'darwin' != sys.platform.lower():
+      env['CONFIGURE_OPTS'] = '--enable-shared'
     subprocess.check_call([pyenv, 'install', '--keep', version], env=env)
     subprocess.check_call([pip, 'install', '-U', 'pip'])
     subprocess.check_call([pip, 'install', SETUPTOOLS_REQUIREMENT])
