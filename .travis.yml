@@ -14,19 +14,19 @@ language: python
 matrix:
   include:
     - os: osx
-      python: "2.7"
+      language: generic
       env: TOXENV=py27
 
     - os: osx
-      python: "3.6"
+      language: generic
       env: TOXENV=py36
 
     - os: osx
-      python: "2.7"
+      language: generic
       env: TOXENV=py27-integration
 
     - os: osx
-      python: "3.6"
+      language: generic
       env: TOXENV=py36-integration
 
     - python: "2.7"
