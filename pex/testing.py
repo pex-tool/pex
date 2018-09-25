@@ -180,7 +180,7 @@ except ImportError:
 """
 
 
-def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False):
+def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False, interpreter=None):
   """Write a pex file that contains an executable entry point
 
   :param td: temporary directory path
@@ -189,6 +189,7 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False)
   :param dists: distributions to include, typically sdists or bdists
   :param sources: sources to include, as a list of pairs (env_filename, contents)
   :param coverage: include coverage header
+  :param interpreter: a custom interpreter to use to build the pex
   """
   dists = dists or []
   sources = sources or []
@@ -198,7 +199,9 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False)
   with open(os.path.join(td, 'exe.py'), 'w') as fp:
     fp.write(exe_contents)
 
-  pb = PEXBuilder(path=td, preamble=COVERAGE_PREAMBLE if coverage else None)
+  pb = PEXBuilder(path=td,
+                  preamble=COVERAGE_PREAMBLE if coverage else None,
+                  interpreter=interpreter)
 
   for dist in dists:
     pb.add_dist_location(dist.location)

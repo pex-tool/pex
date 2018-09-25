@@ -14,6 +14,7 @@ from twitter.common.contextutil import temporary_file
 from pex.bin.pex import get_interpreter
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
+from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
@@ -370,6 +371,32 @@ def test_pex_run_custom_setuptools_useable():
         temp_dir,
         'from setuptools.sandbox import run_setup',
         dists=dists,
+      )
+      rc = PEX(pex.path()).run()
+      assert rc == 0
+
+
+def test_pex_run_conflicting_custom_setuptools_useable():
+  # Here we use an older setuptools to build the pex which has a newer setuptools requirement.
+  # These setuptools dists have different pkg_resources APIs:
+  # $ diff \
+  #   <(zipinfo -1 setuptools-20.3.1-py2.py3-none-any.whl | grep pkg_resources/ | sort) \
+  #   <(zipinfo -1 setuptools-40.4.3-py2.py3-none-any.whl | grep pkg_resources/ | sort)
+  # 2a3,4
+  # > pkg_resources/py31compat.py
+  # > pkg_resources/_vendor/appdirs.py
+  with temporary_dir() as resolve_cache:
+    dists = resolve(['setuptools==20.3.1'], cache=resolve_cache)
+    interpreter = PythonInterpreter.from_binary(sys.executable,
+                                                path_extras=[dist.location for dist in dists],
+                                                include_site_extras=False)
+    dists = resolve(['setuptools==40.4.3'], cache=resolve_cache)
+    with temporary_dir() as temp_dir:
+      pex = write_simple_pex(
+        temp_dir,
+        'from pkg_resources import appdirs, py31compat',
+        dists=dists,
+        interpreter=interpreter
       )
       rc = PEX(pex.path()).run()
       assert rc == 0

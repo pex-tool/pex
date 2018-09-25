@@ -419,6 +419,9 @@ class PEX(object):  # noqa: T000
         TRACER.log('Un-importing third party bootstrap dependency %s from %s'
                    % (mod, bootstrap_path))
         sys.modules.pop(mod)
+        submod_prefix = mod + '.'
+        for submod in [m for m in sys.modules.keys() if m.startswith(submod_prefix)]:
+          sys.modules.pop(submod)
     sys.path.pop(bootstrap_path_index)
     sys.path.append(bootstrap_path)
 
