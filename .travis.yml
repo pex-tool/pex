@@ -1,67 +1,14 @@
-# Enables support for a docker container-based build
-# which should provide faster startup times and beefier
-# "machines".
-# See: http://docs.travis-ci.com/user/workers/container-based-infrastructure/
-sudo: false
-dist: trusty
-
-# TRAVIS_PYTHON_VERSION
-
-cache:
-  directories:
-    - .pyenv_test
-
-language: python
-
-matrix:
-  include:
-    - python: "2.7"
-      env: TOXENV=style
-
-    - python: "2.7"
-      env: TOXENV=isort-check
-
-    - python: "2.7"
-      env: TOXENV=py27
-
-    - python: "2.7"
-      env: TOXENV=py27-subprocess
-
-    - python: "2.7"
-      env: TOXENV=py27-requests
-
-    - python: "2.7"
-      env: TOXENV=py27-requests-cachecontrol
-
-    - python: "3.4"
-      env: TOXENV=py34
-
-    - python: "3.5"
-      env: TOXENV=py35
-
-    - python: "3.6"
-      env: TOXENV=py36
-
-    - python: "3.6"
-      env: TOXENV=py36-requests
-
-    - python: "3.6"
-      env: TOXENV=py36-requests-cachecontrol
-
-    - python: "pypy"
-      env: TOXENV=pypy
-
-    - python: "2.7"
-      env: TOXENV=py27-integration
-
-    - python: "3.6"
-      env: TOXENV=py36-integration
-
-    - python: "pypy"
-      env: TOXENV=pypy-integration
-
-install:
-  - pip install -U tox "setuptools>=36"
-
+os: osx
+language: generic
+env:
+  - PEX_VERBOSE=9
 script:
-  - ./scripts/ci.sh
+  - python --version
+  - pip install -U tox
+  - tox -e py27-package
+  - unzip -l ./dist/pex27
+  - ./dist/pex27 -vvvvvvvvv responses -o responses.pex
+  - echo "import pkg_resources; print(pkg_resources.__path__)" | ./responses.pex -
+  - unzip -l ./responses.pex
+  - echo "import responses; print(repr(dir(responses)))" | ./responses.pex -
+
