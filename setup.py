@@ -29,6 +29,7 @@ setup(
   version = __version__,
   description = "The PEX packaging toolchain.",
   long_description = LONG_DESCRIPTION,
+  long_description_content_type="text/x-rst",
   url = 'https://github.com/pantsbuild/pex',
   license = 'Apache License, Version 2.0',
   zip_safe = True,
