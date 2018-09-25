@@ -6,7 +6,6 @@ import subprocess
 import sys
 import textwrap
 from contextlib import contextmanager
-from pex.interpreter import PythonInterpreter
 from types import ModuleType
 
 import pytest
@@ -15,6 +14,7 @@ from twitter.common.contextutil import temporary_file
 from pex.bin.pex import get_interpreter
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
+from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
