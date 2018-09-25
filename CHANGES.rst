@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+1.4.7
+-----
+
+This is a hotfix release for a regression in setuptools compatibility introduced by #542.
+
+* Fixup `PEX.demote_bootstrap`: fully unimport. (#554)
+  `PR #554 <https://github.com/pantsbuild/pex/pull/554>`_
+
 1.4.6
 -----
 
