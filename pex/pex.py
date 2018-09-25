@@ -418,7 +418,10 @@ class PEX(object):  # noqa: T000
       if mod != root_package:  # We let _pex stay imported
         TRACER.log('Un-importing third party bootstrap dependency %s from %s'
                    % (mod, bootstrap_path))
-        sys.modules.pop(mod)
+        submod = mod + '.'
+        for sys_mod in list(sys.modules.keys()):
+          if sys_mod == mod or sys_mod.startswith(submod):
+            sys.modules.pop(sys_mod)
     sys.path.pop(bootstrap_path_index)
     sys.path.append(bootstrap_path)
 

@@ -45,21 +45,15 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
   class InstallFailure(Error): pass
   class IncapableInterpreter(Error): pass
 
-  def __init__(self, source_dir, strict=True, interpreter=None, install_dir=None):
-    """
-      Create an installer from an unpacked source distribution in source_dir.
-
-      If strict=True, fail if any installation dependencies (e.g. distribute)
-      are missing.
-    """
+  def __init__(self, source_dir, interpreter=None, install_dir=None):
+    """Create an installer from an unpacked source distribution in source_dir."""
+    self._interpreter = interpreter or PythonInterpreter.get()
+    if not self._interpreter.satisfies(self.capability):
+      raise self.IncapableInterpreter('Interpreter %s not capable of running %s' % (
+          self._interpreter.binary, self.__class__.__name__))
     self._source_dir = source_dir
     self._install_tmp = install_dir or safe_mkdtemp()
     self._installed = None
-    self._strict = strict
-    self._interpreter = interpreter or PythonInterpreter.get()
-    if not self._interpreter.satisfies(self.capability) and strict:
-      raise self.IncapableInterpreter('Interpreter %s not capable of running %s' % (
-          self._interpreter.binary, self.__class__.__name__))
 
   def mixins(self):
     """Return a map from import name to requirement to load into setup script prior to invocation.
@@ -91,8 +85,8 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
     for module, requirement in self.mixins().items():
       path = self._interpreter.get_location(requirement)
       if not path:
-        assert not self._strict  # This should be caught by validation
-        continue
+        raise self.IncapableInterpreter('Installation pre-requisite %s could not be found by '
+                                        'interpreter %s' % (requirement, self._interpreter))
       bootstrap_sys_paths.append(self.SETUP_BOOTSTRAP_PYPATH % {'path': path})
       bootstrap_modules.append(self.SETUP_BOOTSTRAP_MODULE % {'module': module})
     return '\n'.join(
@@ -131,14 +125,9 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
 class Installer(InstallerBase):
   """Install an unpacked distribution with a setup.py."""
 
-  def __init__(self, source_dir, strict=True, interpreter=None):
-    """
-      Create an installer from an unpacked source distribution in source_dir.
-
-      If strict=True, fail if any installation dependencies (e.g. setuptools)
-      are missing.
-    """
-    super(Installer, self).__init__(source_dir, strict=strict, interpreter=interpreter)
+  def __init__(self, *args, **kwargs):
+    """Create an installer from an unpacked source distribution in source_dir."""
+    super(Installer, self).__init__(*args, **kwargs)
     self._egg_info = None
     fd, self._install_record = tempfile.mkstemp()
     os.close(fd)
@@ -151,7 +140,6 @@ class Installer(InstallerBase):
            '--record', self._install_record]
 
   def _postprocess(self):
-    installed_files = []
     egg_info = None
     with open(self._install_record) as fp:
       installed_files = fp.read().splitlines()

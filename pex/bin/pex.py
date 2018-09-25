@@ -539,10 +539,7 @@ def resolve_interpreter(cache, fetchers, interpreter, requirement):
     return interpreter
 
   def installer_provider(sdist):
-    return EggInstaller(
-        Archiver.unpack(sdist),
-        strict=requirement.key != 'setuptools',
-        interpreter=interpreter)
+    return EggInstaller(Archiver.unpack(sdist), interpreter=interpreter)
 
   interpreter_dir = os.path.join(cache, str(interpreter.identity))
   safe_mkdir(interpreter_dir)
@@ -558,8 +555,6 @@ def resolve_interpreter(cache, fetchers, interpreter, requirement):
 
 
 def get_interpreter(python_interpreter, interpreter_cache_dir, repos, use_wheel):
-  interpreter = None
-
   if python_interpreter:
     if os.path.exists(python_interpreter):
       interpreter = PythonInterpreter.from_binary(python_interpreter)

@@ -291,14 +291,6 @@ class PythonInterpreter(object):
 
   CACHE = {}  # memoize executable => PythonInterpreter
 
-  try:
-    # Versions of distribute prior to the setuptools merge would automatically replace
-    # 'setuptools' requirements with 'distribute'.  It provided the 'replacement' kwarg
-    # to toggle this, but it was removed post-merge.
-    COMPATIBLE_SETUPTOOLS = Requirement.parse('setuptools>=1.0', replacement=False)
-  except TypeError:
-    COMPATIBLE_SETUPTOOLS = Requirement.parse('setuptools>=1.0')
-
   class Error(Exception): pass
   class IdentificationError(Error): pass
   class InterpreterNotFound(Error): pass

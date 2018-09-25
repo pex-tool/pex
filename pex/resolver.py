@@ -31,11 +31,11 @@ def patched_packing_env(env):
   """Monkey patch packaging.markers.default_environment"""
   old_env = pkg_resources.packaging.markers.default_environment
   new_env = lambda: env
-  pkg_resources._vendor.packaging.markers.default_environment = new_env
+  pkg_resources.packaging.markers.default_environment = new_env
   try:
     yield
   finally:
-    pkg_resources._vendor.packaging.markers.default_environment = old_env
+    pkg_resources.packaging.markers.default_environment = old_env
 
 
 class Untranslateable(Exception):

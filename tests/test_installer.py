@@ -12,9 +12,9 @@ from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
 
 
 class OrderableInstaller(WheelInstaller):
-  def __init__(self, source_dir, strict=True, interpreter=None, install_dir=None, mixins=None):
+  def __init__(self, source_dir, mixins=None, **kwargs):
     self._mixins = mixins
-    super(OrderableInstaller, self).__init__(source_dir, strict, interpreter, install_dir)
+    super(OrderableInstaller, self).__init__(source_dir, **kwargs)
 
   def mixins(self):
     return self._mixins
