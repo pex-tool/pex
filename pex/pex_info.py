@@ -301,7 +301,7 @@ class PexInfo(object):
 
   def dump(self, **kwargs):
     pex_info_copy = self._pex_info.copy()
-    pex_info_copy['requirements'] = list(self._requirements)
+    pex_info_copy['requirements'] = list(sorted(self._requirements))
     pex_info_copy['interpreter_constraints'] = list(self._interpreter_constraints)
     pex_info_copy['distributions'] = self._distributions.copy()
     return json.dumps(pex_info_copy, **kwargs)
