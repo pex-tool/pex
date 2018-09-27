@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import errno
 import itertools
 import os
 import site
@@ -49,7 +50,11 @@ class PEXEnvironment(Environment):
           safe_rmtree(explode_tmp)
           raise
       TRACER.log('Renaming %s to %s' % (explode_tmp, explode_dir))
-      os.rename(explode_tmp, explode_dir)
+      try:
+        os.rename(explode_tmp, explode_dir)
+      except IOError as e:
+        if e.errno != errno.EEXIST:
+          raise
     return explode_dir
 
   @classmethod
