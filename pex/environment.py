@@ -17,7 +17,7 @@ from pkg_resources import (
     find_distributions
 )
 
-from .common import die, open_zip, safe_mkdir, safe_rmtree
+from .common import die, open_zip, rename_if_empty, safe_mkdir, safe_rmtree
 from .interpreter import PythonInterpreter
 from .package import distribution_compatible
 from .pex_builder import PEXBuilder
@@ -49,7 +49,7 @@ class PEXEnvironment(Environment):
           safe_rmtree(explode_tmp)
           raise
       TRACER.log('Renaming %s to %s' % (explode_tmp, explode_dir))
-      os.rename(explode_tmp, explode_dir)
+      rename_if_empty(explode_tmp, explode_dir)
     return explode_dir
 
   @classmethod
