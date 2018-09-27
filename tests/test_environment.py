@@ -1,7 +1,6 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import errno
 import os
 from contextlib import contextmanager
 
@@ -12,11 +11,6 @@ from pex.environment import PEXEnvironment
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.testing import make_bdist, temporary_filename
-
-try:
-  from unittest import mock
-except ImportError:
-  import mock
 
 
 @contextmanager
@@ -41,19 +35,6 @@ def test_force_local():
 
     # idempotence
     assert PEXEnvironment.force_local(pex_file, pb.info) == code_cache
-
-
-def test_force_local_concurrent():
-  with nested(yield_pex_builder(), temporary_dir(), temporary_filename()) as (
-          pb, pex_root, pex_file):
-    pb.info.pex_root = pex_root
-    pb.build(pex_file)
-
-    # Validate that if the final rename fails due to an existing destination (as it would
-    # in the presence of concurrency), we succeed.
-    with mock.patch('os.rename', spec_set=True, autospec=True) as mock_rename:
-      mock_rename.side_effect = IOError(errno.EEXIST, 'That happened.')
-      assert PEXEnvironment.force_local(pex_file, pb.info) is not None
 
 
 def normalize(path):
