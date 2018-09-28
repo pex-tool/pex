@@ -11,53 +11,86 @@ cache:
   directories:
     - .pyenv_test
 
-language: python
+x-linux-shard: &x-linux-shard
+  os: linux
+  language: python
+
+x-osx-shard: &x-osx-shard
+  os: osx
+  osx_image: xcode8.3
 
 matrix:
   include:
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=style
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=isort-check
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27-subprocess
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27-requests
 
-    - python: "2.7"
+    - <<: *x-osx-shard
+      env: TOXENV=py27-requests
+
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27-requests-cachecontrol
 
-    - python: "3.4"
+    - <<: *x-linux-shard
+      python: "3.4"
       env: TOXENV=py34
 
-    - python: "3.5"
+    - <<: *x-linux-shard
+      python: "3.5"
       env: TOXENV=py35
 
-    - python: "3.6"
+    - <<: *x-linux-shard
+      python: "3.6"
       env: TOXENV=py36
 
-    - python: "3.6"
+    - <<: *x-linux-shard
+      python: "3.6"
       env: TOXENV=py36-requests
 
-    - python: "3.6"
+    - <<: *x-osx-shard
+      env: TOXENV=py36-requests
+
+    - <<: *x-linux-shard
+      python: "3.6"
       env: TOXENV=py36-requests-cachecontrol
 
-    - python: "pypy"
+    - <<: *x-linux-shard
+      python: "pypy"
       env: TOXENV=pypy
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27-integration
 
-    - python: "3.6"
+    - <<: *x-osx-shard
+      env: TOXENV=py27-integration
+
+    - <<: *x-linux-shard
+      python: "3.6"
       env: TOXENV=py36-integration
 
-    - python: "pypy"
+    - <<: *x-osx-shard
+      env: TOXENV=py36-integration
+
+    - <<: *x-linux-shard
+      python: "pypy"
       env: TOXENV=pypy-integration
 
 install:
