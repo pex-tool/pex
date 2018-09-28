@@ -431,18 +431,29 @@ class PEX(object):  # noqa: T000
     TRACER.log('  * - paths that do not exist or will be imported via zipimport')
 
   def execute_interpreter(self):
-    if sys.argv[1:]:
-      program = sys.argv[1]
-      try:
-        if program == '-':
-          content = sys.stdin.read()
-        else:
-          with open(program) as fp:
-            content = fp.read()
-      except IOError as e:
-        die("Could not open %s in the environment [%s]: %s" % (program, sys.argv[0], e))
-      sys.argv = sys.argv[1:]
-      self.execute_content(program, content)
+    args = sys.argv[1:]
+    if args:
+      # NB: We take care here to setup sys.argv to match how CPython does it for each case.
+      arg = args[0]
+      if arg == '-c':
+        content = args[1]
+        sys.argv = ['-c'] + args[2:]
+        self.execute_content('-c <cmd>', content, argv0='-c')
+      elif arg == '-m':
+        module = args[1]
+        sys.argv = args[1:]
+        self.execute_module(module)
+      else:
+        try:
+          if arg == '-':
+            content = sys.stdin.read()
+          else:
+            with open(arg) as fp:
+              content = fp.read()
+        except IOError as e:
+          die("Could not open %s in the environment [%s]: %s" % (arg, sys.argv[0], e))
+        sys.argv = args
+        self.execute_content(arg, content)
     else:
       self.demote_bootstrap()
 

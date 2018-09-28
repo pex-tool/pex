@@ -347,6 +347,40 @@ def test_activate_interpreter_different_from_current():
           pytest.fail('PEX activation of %s failed with %s' % (pex, e))
 
 
+def test_execute_interpreter_dashc_program():
+  with temporary_dir() as pex_chroot:
+    pex_builder = PEXBuilder(path=pex_chroot)
+    pex_builder.freeze()
+    process = PEX(pex_chroot).run(args=['-c', 'import sys; print(" ".join(sys.argv))', 'one'],
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  blocking=False)
+    stdout, stderr = process.communicate()
+
+    assert 0 == process.returncode
+    assert b'-c one\n' == stdout
+    assert b'' == stderr
+
+
+def test_execute_interpreter_dashm_module():
+  with temporary_dir() as pex_chroot:
+    pex_builder = PEXBuilder(path=pex_chroot)
+    with temporary_file(root_dir=pex_chroot) as fp:
+      fp.write(b'import sys; print(" ".join(sys.argv))')
+      fp.close()
+      pex_builder.add_source(fp.name, 'foo/bar.py')
+    pex_builder.freeze()
+    process = PEX(pex_chroot).run(args=['-m', 'foo.bar', 'one', 'two'],
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  blocking=False)
+    stdout, stderr = process.communicate()
+
+    assert 0 == process.returncode
+    assert b'foo.bar one two\n' == stdout
+    assert b'' == stderr
+
+
 def test_execute_interpreter_stdin_program():
   with temporary_dir() as pex_chroot:
     pex_builder = PEXBuilder(path=pex_chroot)
@@ -356,11 +390,29 @@ def test_execute_interpreter_stdin_program():
                                   stderr=subprocess.PIPE,
                                   stdin=subprocess.PIPE,
                                   blocking=False)
-    stdout, stderr = process.communicate(input=b'import sys; print(" ".join(sys.argv[1:]))')
+    stdout, stderr = process.communicate(input=b'import sys; print(" ".join(sys.argv))')
 
     assert 0 == process.returncode
-    assert b'one two\n' == stdout
+    assert b'- one two\n' == stdout
     assert b'' == stderr
+
+
+def test_execute_interpreter_file_program():
+  with temporary_dir() as pex_chroot:
+    pex_builder = PEXBuilder(path=pex_chroot)
+    pex_builder.freeze()
+    with temporary_file(root_dir=pex_chroot) as fp:
+      fp.write(b'import sys; print(" ".join(sys.argv))')
+      fp.close()
+      process = PEX(pex_chroot).run(args=[fp.name, 'one', 'two'],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    blocking=False)
+      stdout, stderr = process.communicate()
+
+      assert 0 == process.returncode
+      assert '{} one two\n'.format(fp.name).encode('utf-8') == stdout
+      assert b'' == stderr
 
 
 def test_pex_run_custom_setuptools_useable():
