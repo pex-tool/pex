@@ -14,6 +14,7 @@ cache:
 x-osx-shard: &x-osx-shard
   os: osx
   osx_image: xcode8.3
+  language: generic
 
 matrix:
   include:
