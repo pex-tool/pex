@@ -26,6 +26,7 @@ x-osx-shard: &x-osx-shard
     echo 'export PATH="${PYENV_ROOT}/bin:${PATH}"' >> ~/.bashrc
     source ~/.bashrc
     pyenv install --keep --skip-existing ${PYENV_VERSION}
+    pyenv global ${PYENV_VERSION}
     echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 
 matrix:
