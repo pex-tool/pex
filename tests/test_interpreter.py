@@ -76,7 +76,8 @@ class TestPythonInterpreter(object):
   @pytest.mark.skipif(IS_PYPY)
   def test_interpreter_caching_path_extras(self):
     python, pip = ensure_python_distribution(self.TEST_INTERPRETER1_VERSION)
-    with temporary_dir() as path_extra:
+    with temporary_dir() as td:
+      path_extra = os.path.realpath(td)
       subprocess.check_call([pip,
                              'install',
                              '--target={}'.format(path_extra),

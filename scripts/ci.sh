@@ -1,6 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
+
+if (( $# == 1 )); then
+  export TOXENV=$1
+fi
 
 if [[ "$TOXENV" == "pypy" ]]; then
   echo "pypy shard detected. invoking workaround for https://github.com/travis-ci/travis-ci/issues/9706"
