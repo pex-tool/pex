@@ -30,24 +30,28 @@ x-osx-shard: &x-osx-shard
 matrix:
   include:
     - <<: *x-osx-shard
+      name: TOXENV=py27-requests
       env:
         - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
         - PYENV_VERSION=2.7.15
         - TOXENV=py27-requests
 
     - <<: *x-osx-shard
+      name: TOXENV=py36-requests
       env:
         - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
         - PYENV_VERSION=3.6.6
         - TOXENV=py36-requests
 
     - <<: *x-osx-shard
+      name: TOXENV=py27-integration
       env:
         - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
         - PYENV_VERSION=2.7.15
         - TOXENV=py27-integration
 
     - <<: *x-osx-shard
+      name: TOXENV=py36-integration
       env:
         - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
         - PYENV_VERSION=3.6.6
