@@ -15,20 +15,35 @@ x-osx-shard: &x-osx-shard
   os: osx
   osx_image: xcode8.3
   language: generic
+  cache:
+    directories:
+      - ${PYENV_ROOT}
+  before_install:
+    - brew install pyenv
+    - pyenv install --keep --skip-existing ${PYENV_VERSION}
+    - echo 'eval "$(pyenv init -)"' >> ~/.bash_profile
 
 matrix:
   include:
     - <<: *x-osx-shard
-      env: TOXENV=py27-requests
+      env:
+        - PYENV_VERSION=2.7
+        - TOXENV=py27-requests
 
     - <<: *x-osx-shard
-      env: TOXENV=py36-requests
+      env:
+        - PYENV_VERSION=3.6
+        - TOXENV=py36-requests
 
     - <<: *x-osx-shard
-      env: TOXENV=py27-integration
+      env:
+        - PYENV_VERSION=2.7
+        - TOXENV=py27-integration
 
     - <<: *x-osx-shard
-      env: TOXENV=py36-integration
+      env:
+        - PYENV_VERSION=3.6
+        - TOXENV=py36-integration
 
 install:
   - pip install -U tox "setuptools>=36"
