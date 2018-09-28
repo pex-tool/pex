@@ -32,25 +32,25 @@ matrix:
     - <<: *x-osx-shard
       env:
         - PYENV_ROOT="${HOME}/.pyenv" PATH="${PYENV_ROOT}/shims:${PATH}"
-        - PYENV_VERSION=2.7
+        - PYENV_VERSION=2.7.15
         - TOXENV=py27-requests
 
     - <<: *x-osx-shard
       env:
         - PYENV_ROOT="${HOME}/.pyenv" PATH="${PYENV_ROOT}/shims:${PATH}"
-        - PYENV_VERSION=3.6
+        - PYENV_VERSION=3.6.6
         - TOXENV=py36-requests
 
     - <<: *x-osx-shard
       env:
         - PYENV_ROOT="${HOME}/.pyenv" PATH="${PYENV_ROOT}/shims:${PATH}"
-        - PYENV_VERSION=2.7
+        - PYENV_VERSION=2.7.15
         - TOXENV=py27-integration
 
     - <<: *x-osx-shard
       env:
         - PYENV_ROOT="${HOME}/.pyenv" PATH="${PYENV_ROOT}/shims:${PATH}"
-        - PYENV_VERSION=3.6
+        - PYENV_VERSION=3.6.6
         - TOXENV=py36-integration
 
 install:
