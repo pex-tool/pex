@@ -1,64 +1,118 @@
-# Enables support for a docker container-based build
-# which should provide faster startup times and beefier
-# "machines".
-# See: http://docs.travis-ci.com/user/workers/container-based-infrastructure/
-sudo: false
-dist: trusty
+x-linux-shard: &x-linux-shard
+  os: linux
+  sudo: false
+  dist: trusty
+  language: python
+  cache:
+    directories:
+      - .pyenv_test
 
-# TRAVIS_PYTHON_VERSION
-
-cache:
-  directories:
-    - .pyenv_test
-
-language: python
+x-osx-shard: &x-osx-shard
+  os: osx
+  language: generic
+  cache:
+    directories:
+      - .pyenv_test
+      - ${HOME}/.pyenvpex
+  before_install: |
+    export PYENV_ROOT="${HOME}/.pyenvpex"
+    if [ ! -d "${PYENV_ROOT}" ]; then
+      git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
+    fi
+    export PATH="${PYENV_ROOT}/bin:${PATH}"
+    hash -r
+    pyenv install --keep --skip-existing ${PYENV_VERSION}
+    pyenv global ${PYENV_VERSION}
 
 matrix:
   include:
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=style
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=isort-check
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27-subprocess
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27-requests
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27-requests-cachecontrol
 
-    - python: "3.4"
+    - <<: *x-linux-shard
+      python: "3.4"
       env: TOXENV=py34
 
-    - python: "3.5"
+    - <<: *x-linux-shard
+      python: "3.5"
       env: TOXENV=py35
 
-    - python: "3.6"
+    - <<: *x-linux-shard
+      python: "3.6"
       env: TOXENV=py36
 
-    - python: "3.6"
+    - <<: *x-linux-shard
+      python: "3.6"
       env: TOXENV=py36-requests
 
-    - python: "3.6"
+    - <<: *x-linux-shard
+      python: "3.6"
       env: TOXENV=py36-requests-cachecontrol
 
-    - python: "pypy"
+    - <<: *x-linux-shard
+      python: "pypy"
       env: TOXENV=pypy
 
-    - python: "2.7"
+    - <<: *x-linux-shard
+      python: "2.7"
       env: TOXENV=py27-integration
 
-    - python: "3.6"
+    - <<: *x-linux-shard
+      python: "3.6"
       env: TOXENV=py36-integration
 
-    - python: "pypy"
+    - <<: *x-linux-shard
+      python: "pypy"
       env: TOXENV=pypy-integration
+
+    - <<: *x-osx-shard
+      name: TOXENV=py27-requests
+      env:
+        - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
+        - PYENV_VERSION=2.7.15
+        - TOXENV=py27-requests
+
+    - <<: *x-osx-shard
+      name: TOXENV=py36-requests
+      env:
+        - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
+        - PYENV_VERSION=3.6.5
+        - TOXENV=py36-requests
+
+    - <<: *x-osx-shard
+      name: TOXENV=py27-integration
+      env:
+        - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
+        - PYENV_VERSION=2.7.15
+        - TOXENV=py27-integration
+
+    - <<: *x-osx-shard
+      name: TOXENV=py36-integration
+      env:
+        - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
+        - PYENV_VERSION=3.6.5
+        - TOXENV=py36-integration
 
 install:
   - pip install -U tox "setuptools>=36"
