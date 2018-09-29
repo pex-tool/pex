@@ -1,19 +1,9 @@
-# Enables support for a docker container-based build
-# which should provide faster startup times and beefier
-# "machines".
-# See: http://docs.travis-ci.com/user/workers/container-based-infrastructure/
-sudo: false
-dist: trusty
-
-# TRAVIS_PYTHON_VERSION
-
 cache:
   directories:
     - .pyenv_test
 
 x-osx-shard: &x-osx-shard
   os: osx
-  osx_image: xcode8.3
   language: generic
   cache:
     directories:
