@@ -2,6 +2,7 @@ x-linux-shard: &x-linux-shard
   os: linux
   sudo: false
   dist: trusty
+  language: python
   cache:
     directories:
       - .pyenv_test
