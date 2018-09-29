@@ -4,6 +4,7 @@
 import contextlib
 import marshal
 import os
+import sys
 
 import pytest
 from twitter.common.contextutil import temporary_dir
@@ -45,6 +46,9 @@ def test_compile_success():
       compiled_abspath = os.path.join(root, compiled)
       with open(compiled_abspath, 'rb') as fp:
         fp.read(4)  # Skip the magic header.
+        if sys.version_info[:2] >= (3, 7):
+          # We're in PEP-552 mode: https://www.python.org/dev/peps/pep-0552
+          fp.read(4)  # Skip the invalidation mode bitfield.
         fp.read(4)  # Skip the timestamp.
         if compatibility.PY3:
           fp.read(4)  # Skip the size.

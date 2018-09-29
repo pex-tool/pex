@@ -1,133 +1,183 @@
+x-pyenv-shard: &x-pyenv-shard
+  language: generic
+  env: &env >
+    PYENV_ROOT="${HOME}/.pyenv_pex"
+    PATH="${PYENV_ROOT}/shims:${PATH}"
+  cache: &cache
+    # The default is 3 minutes (180).
+    timeout: 300
+    directories:
+      - .pyenv_test
+      - "${PYENV_ROOT}"
+  install: |
+    PYENV="${PYENV_ROOT}/bin/pyenv"
+    if [ ! -x "${PYENV}" ]; then
+      rm -rf ${PYENV_ROOT}
+      git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
+    fi
+    "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
+    "${PYENV}" global ${PYENV_VERSION}
+    pip install -U tox "setuptools>=36"
+
 x-linux-shard: &x-linux-shard
+  <<: *x-pyenv-shard
   os: linux
   sudo: false
   dist: trusty
-  language: python
+
+x-linux-37-shard: &x-linux-37-shard
+  <<: *x-linux-shard
+  addons:
+    apt:
+      packages:
+        # Even though we install our own, it does not ship with a root CA store, so we ensure one
+        # here at /usr/lib/ssl/certs.
+        - openssl
+  env:
+    - *env
+    - OPENSSL_VERSION=1.0.2p
+    - OPENSSL_DIR="${HOME}/.pyenv_pex_openssl"
+    - LD_LIBRARY_PATH="${OPENSSL_DIR}/lib"
+    - SSL_CERT_DIR=/usr/lib/ssl/certs
+    - PYTHON_CONFIGURE_OPTS="--with-openssl=${OPENSSL_DIR}"
+    - PYENV_VERSION=3.7.0
+    - TOX_TESTENV_PASSENV=SSL_CERT_DIR
   cache:
+    <<: *cache
     directories:
       - .pyenv_test
+      - "${PYENV_ROOT}"
+      - "${OPENSSL_DIR}"
+  before_install: |
+    if [ ! -f "${OPENSSL_DIR}/installed-${OPENSSL_VERSION}" ]; then
+      rm -rf "${OPENSSL_DIR}"
+      curl https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | tar -xz
+      (
+        cd openssl-${OPENSSL_VERSION}
+        ./config shared --prefix="${OPENSSL_DIR}"
+        make
+        make install
+      )
+      touch "${OPENSSL_DIR}/installed-${OPENSSL_VERSION}"
+    fi
 
 x-osx-shard: &x-osx-shard
+  <<: *x-pyenv-shard
   os: osx
-  language: generic
-  cache:
-    directories:
-      - .pyenv_test
-      - ${HOME}/.pyenvpex
-  before_install: |
-    export PYENV_ROOT="${HOME}/.pyenvpex"
-    if [ ! -d "${PYENV_ROOT}" ]; then
-      git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
-    fi
-    export PATH="${PYENV_ROOT}/bin:${PATH}"
-    hash -r
-    pyenv install --keep --skip-existing ${PYENV_VERSION}
-    pyenv global ${PYENV_VERSION}
+  osx_image: xcode9.4
 
-install:
-  - pip install -U tox "setuptools>=36"
+x-py27: &x-py27
+  - *env
+  - PYENV_VERSION=2.7.15
+
+x-py37: &x-py37
+  - *env
+  - PYENV_VERSION=3.7.0
+
+x-pypy: &x-pypy
+  - *env
+  - PYENV_VERSION=pypy2.7-6.0.0
 
 matrix:
   include:
     - <<: *x-linux-shard
-      python: "2.7"
       name: TOXENV=style
-      script: ./scripts/ci.sh style
+      env: *x-py27
+      script: tox -ve style
 
     - <<: *x-linux-shard
-      python: "2.7"
       name: TOXENV=isort-check
-      script: ./scripts/ci.sh isort-check
+      env: *x-py27
+      script: tox -ve isort-check
 
     - <<: *x-linux-shard
-      python: "2.7"
       name: TOXENV=py27
-      script: ./scripts/ci.sh py27
+      env: *x-py27
+      script: tox -ve py27
 
     - <<: *x-linux-shard
-      python: "2.7"
       name: TOXENV=py27-subprocess
-      script: ./scripts/ci.sh py27-subprocess
+      env: *x-py27
+      script: tox -ve py27-subprocess
 
     - <<: *x-linux-shard
-      python: "2.7"
       name: TOXENV=py27-requests
-      script: ./scripts/ci.sh py27-requests
+      env: *x-py27
+      script: tox -ve py27-requests
 
     - <<: *x-linux-shard
-      python: "2.7"
       name: TOXENV=py27-requests-cachecontrol
-      script: ./scripts/ci.sh py27-requests-cachecontrol
+      env: *x-py27
+      script: tox -ve py27-requests-cachecontrol
 
     - <<: *x-linux-shard
-      python: "3.4"
       name: TOXENV=py34
-      script: ./scripts/ci.sh py34
+      env:
+        - *env
+        - PYENV_VERSION=3.4.9
+      script: tox -ve py34
 
     - <<: *x-linux-shard
-      python: "3.5"
       name: TOXENV=py35
-      script: ./scripts/ci.sh py35
+      env:
+        - *env
+        - PYENV_VERSION=3.5.6
+      script: tox -ve py35
 
     - <<: *x-linux-shard
-      python: "3.6"
       name: TOXENV=py36
-      script: ./scripts/ci.sh py36
+      env:
+        - *env
+        - PYENV_VERSION=3.6.6
+      script: tox -ve py36
+
+    - <<: *x-linux-37-shard
+      name: TOXENV=py37
+      script: tox -ve py37
+
+    - <<: *x-linux-37-shard
+      name: TOXENV=py37-requests
+      script: tox -ve py37-requests
+
+    - <<: *x-linux-37-shard
+      name: TOXENV=py37-requests-cachecontrol
+      script: tox -ve py37-requests-cachecontrol
 
     - <<: *x-linux-shard
-      python: "3.6"
-      name: TOXENV=py36-requests
-      script: ./scripts/ci.sh py36-requests
-
-    - <<: *x-linux-shard
-      python: "3.6"
-      name: TOXENV=p36-requests-cachecontrol
-      script: ./scripts/ci.sh py36-requests-cachecontrol
-
-    - <<: *x-linux-shard
-      python: "pypy"
       name: TOXENV=pypy
-      script: ./scripts/ci.sh pypy
+      env: *x-pypy
+      script: tox -ve pypy
 
     - <<: *x-linux-shard
-      python: "2.7"
       name: TOXENV=py27-integration
-      script: ./scripts/ci.sh py27-integration
+      env: *x-py27
+      script: tox -ve py27-integration
+
+    - <<: *x-linux-37-shard
+      name: TOXENV=py37-integration
+      script: tox -ve py37-integration
 
     - <<: *x-linux-shard
-      python: "3.6"
-      name: TOXENV=py36-integration
-      script: ./scripts/ci.sh py36-integration
-
-    - <<: *x-linux-shard
-      python: "pypy"
       name: TOXENV=pypy-integration
-      script: ./scripts/ci.sh pypy-integration
+      env: *x-pypy
+      script: tox -ve pypy-integration
 
     - <<: *x-osx-shard
       name: TOXENV=py27-requests
-      env:
-        - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
-        - PYENV_VERSION=2.7.15
-      script: ./scripts/ci.sh py27-requests
+      env: *x-py27
+      script: tox -ve py27-requests
 
     - <<: *x-osx-shard
-      name: TOXENV=py36-requests
-      env:
-        - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
-        - PYENV_VERSION=3.6.5
-      script: ./scripts/ci.sh py36-requests
+      name: TOXENV=py37-requests
+      env: *x-py37
+      script: tox -ve py37-requests
 
     - <<: *x-osx-shard
       name: TOXENV=py27-integration
-      env:
-        - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
-        - PYENV_VERSION=2.7.15
-      script: ./scripts/ci.sh py27-integration
+      env: *x-py27
+      script: tox -ve py27-integration
 
     - <<: *x-osx-shard
-      name: TOXENV=py36-integration
-      env:
-        - PYENV_ROOT="${HOME}/.pyenvpex" PATH="${PYENV_ROOT}/shims:${PATH}"
-        - PYENV_VERSION=3.6.5
-      script: ./scripts/ci.sh py36-integration
+      name: TOXENV=py37-integration
+      env: *x-py37
+      script: tox -ve py37-integration
