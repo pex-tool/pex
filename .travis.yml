@@ -21,6 +21,7 @@ x-osx-shard: &x-osx-shard
     fi
     export PATH="${PYENV_ROOT}/bin:${PATH}"
     hash -r
+    pyenv install --list
     pyenv install --keep --skip-existing ${PYENV_VERSION}
     pyenv global ${PYENV_VERSION}
 
