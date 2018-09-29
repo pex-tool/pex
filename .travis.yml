@@ -1,13 +1,18 @@
-cache:
-  directories:
-    - .pyenv_test
+x-linux-shard: &x-linux-shard
+  os: linux
+  sudo: false
+  dist: trusty
+  cache:
+    directories:
+      - .pyenv_test
 
 x-osx-shard: &x-osx-shard
   os: osx
   language: generic
   cache:
     directories:
-      - ${HOME}/.pyenv
+      - .pyenv_test
+      - ${HOME}/.pyenvpex
   before_install: |
     export PYENV_ROOT="${HOME}/.pyenvpex"
     if [ ! -d "${PYENV_ROOT}" ]; then
@@ -19,6 +24,66 @@ x-osx-shard: &x-osx-shard
 
 matrix:
   include:
+    - <<: *x-linux-shard
+      python: "2.7"
+      env: TOXENV=style
+
+    - <<: *x-linux-shard
+      python: "2.7"
+      env: TOXENV=isort-check
+
+    - <<: *x-linux-shard
+      python: "2.7"
+      env: TOXENV=py27
+
+    - <<: *x-linux-shard
+      python: "2.7"
+      env: TOXENV=py27-subprocess
+
+    - <<: *x-linux-shard
+      python: "2.7"
+      env: TOXENV=py27-requests
+
+    - <<: *x-linux-shard
+      python: "2.7"
+      env: TOXENV=py27-requests-cachecontrol
+
+    - <<: *x-linux-shard
+      python: "3.4"
+      env: TOXENV=py34
+
+    - <<: *x-linux-shard
+      python: "3.5"
+      env: TOXENV=py35
+
+    - <<: *x-linux-shard
+      python: "3.6"
+      env: TOXENV=py36
+
+    - <<: *x-linux-shard
+      python: "3.6"
+      env: TOXENV=py36-requests
+
+    - <<: *x-linux-shard
+      python: "3.6"
+      env: TOXENV=py36-requests-cachecontrol
+
+    - <<: *x-linux-shard
+      python: "pypy"
+      env: TOXENV=pypy
+
+    - <<: *x-linux-shard
+      python: "2.7"
+      env: TOXENV=py27-integration
+
+    - <<: *x-linux-shard
+      python: "3.6"
+      env: TOXENV=py36-integration
+
+    - <<: *x-linux-shard
+      python: "pypy"
+      env: TOXENV=pypy-integration
+
     - <<: *x-osx-shard
       name: TOXENV=py27-requests
       env:
