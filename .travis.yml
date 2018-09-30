@@ -25,13 +25,19 @@ x-linux-shard: &x-linux-shard
   sudo: false
   dist: trusty
 
+# Python 3.7 requires at least OpenSSL 1.0.2:
+#   https://docs.python.org/3/whatsnew/3.7.html#platform-support-removals.
+# Travis' `trusty` image does not get us there and, at the time of writing, the beta `xenial`
+# distribution is not generally available. As such, we install and activate a custom OpenSSL
+# here - the latest 1.0.2 version at the time of writing.
 x-linux-37-shard: &x-linux-37-shard
   <<: *x-linux-shard
   addons:
     apt:
       packages:
         # Even though we install our own, it does not ship with a root CA store, so we ensure one
-        # here at /usr/lib/ssl/certs.
+        # here at /usr/lib/ssl/certs and activate it by exporting SSL_CERT_DIR which OpenSSL knows
+        # how to read.
         - openssl
   env:
     - *env
@@ -78,6 +84,9 @@ x-pypy: &x-pypy
   - *env
   - PYENV_VERSION=pypy2.7-6.0.0
 
+# NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
+# use TOXENV and instead pass the toxenv via -e on the command line. This helps ensure we share
+# caches as much as possible (eg: all linux python 2.7.15 shards share a cache).
 matrix:
   include:
     - <<: *x-linux-shard
