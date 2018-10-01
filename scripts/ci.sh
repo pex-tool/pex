@@ -2,13 +2,19 @@
 
 set -euo pipefail
 
-if (( $# == 1 )); then
-  export TOXENV=$1
-fi
+# We run tox with verbosity (-v) and an explicit envlist (-e). The latter is chosen over tox's
+# support for TOXENV to allow more CI shards to share the same cache (Travis cache keys are a
+# combination of os version, language version and env vars).
 
-if [[ "$TOXENV" == "pypy" ]]; then
+if (( $# != 1 )); then
+  echo >&2 "Usage: $0 <TOXENV>"
+  exit 1
+fi
+readonly toxenv=$1
+
+if [[ "${toxenv}" == "pypy" ]]; then
   echo "pypy shard detected. invoking workaround for https://github.com/travis-ci/travis-ci/issues/9706"
-  tox -e list-tests | grep ^"RUNNABLE" | grep -v "tests/test_integration.py" | awk -F'\t' '{print $NF}' | xargs -L1 tox -v
+  tox -e list-tests | grep ^"RUNNABLE" | grep -v "tests/test_integration.py" | awk -F'\t' '{print $NF}' | xargs -L1 tox -v -e ${toxenv}
 else
-  tox -v
+  tox -v -e ${toxenv}
 fi

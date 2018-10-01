@@ -32,6 +32,12 @@ from pex.testing import (
 from pex.util import DistributionHelper, named_temporary_file
 
 
+def make_env(**kwargs):
+  env = os.environ.copy()
+  env.update((k, str(v)) for k, v in kwargs.items())
+  return env
+
+
 def test_pex_execute():
   body = "print('Hello')"
   _, rc = run_simple_pex_test(body, coverage=True)
@@ -48,8 +54,7 @@ def test_pex_root():
     with environment_as(HOME=tmp_home):
       with temporary_dir() as td:
         with temporary_dir() as output_dir:
-          env = os.environ.copy()
-          env['PEX_INTERPRETER'] = '1'
+          env = make_env(PEX_INTERPRETER=1)
 
           output_path = os.path.join(output_dir, 'pex.pex')
           args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={0}'.format(td)]
@@ -65,8 +70,7 @@ def test_cache_disable():
     with environment_as(HOME=tmp_home):
       with temporary_dir() as td:
         with temporary_dir() as output_dir:
-          env = os.environ.copy()
-          env['PEX_INTERPRETER'] = '1'
+          env = make_env(PEX_INTERPRETER=1)
 
           output_path = os.path.join(output_dir, 'pex.pex')
           args = [
@@ -87,8 +91,7 @@ def test_pex_interpreter():
     fp.write(b"print('Hello world')")
     fp.flush()
 
-    env = os.environ.copy()
-    env['PEX_INTERPRETER'] = '1'
+    env = make_env(PEX_INTERPRETER=1)
 
     so, rc = run_simple_pex_test("", args=(fp.name,), coverage=True, env=env)
     assert so == b'Hello world\n'
@@ -170,7 +173,7 @@ def test_entry_point_exit_code():
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
     installer = EggInstaller(project_dir)
     dist = DistributionHelper.distribution_from_path(installer.bdist())
-    so, rc = run_simple_pex_test('', env={'PEX_SCRIPT': 'my_app'}, dists=[dist])
+    so, rc = run_simple_pex_test('', env=make_env(PEX_SCRIPT='my_app'), dists=[dist])
     assert so.decode('utf-8').strip() == error_msg
     assert rc == 1
 
@@ -230,8 +233,7 @@ def test_pex_re_exec_failure():
         '''))
 
     # set up env for pex build with PEX_PATH in the environment
-    env = os.environ.copy()
-    env['PEX_PATH'] = pex_path
+    env = make_env(PEX_PATH=pex_path)
 
     # build composite pex of pex1/pex1
     pex_out_path = os.path.join(output_dir, 'out.pex')
@@ -329,8 +331,7 @@ def test_pex_path_in_pex_info_and_env():
       '-o', pex_out_path])
 
     # load secondary PEX_PATH
-    env = os.environ.copy()
-    env['PEX_PATH'] = env_pex_path
+    env = make_env(PEX_PATH=env_pex_path)
 
     # run test.py with composite env
     stdout, rc = run_simple_pex(pex_out_path, [test_file_path], env=env)
@@ -711,8 +712,7 @@ def inherit_path(inherit_path):
 
     results.assert_success()
 
-    env = os.environ.copy()
-    env["PYTHONPATH"] = "/doesnotexist"
+    env = make_env(PYTHONPATH='/doesnotexist')
     stdout, rc = run_simple_pex(
       pex_path,
       args=(exe,),
@@ -789,8 +789,9 @@ def test_pex_manylinux_and_tag_selection_linux_msgpack():
     msgpack, msgpack_ver = 'msgpack-python', '0.4.7'
     test_msgpack = functools.partial(test_resolve, msgpack, msgpack_ver)
 
-    # Exclude 3.3 and 3.6 because no 33/36 wheel exists on pypi.
-    if (sys.version_info[0], sys.version_info[1]) not in [(3, 3), (3, 6)]:
+    # Exclude 3.3, >=3.6 because no wheels exist for these versions on pypi.
+    current_version = sys.version_info[:2]
+    if current_version != (3, 3) and current_version < (3, 6):
       test_msgpack('linux-x86_64', 'manylinux1_x86_64.whl')
 
     test_msgpack('linux-x86_64-cp-27-m', 'msgpack_python-0.4.7-cp27-cp27m-manylinux1_x86_64.whl')
@@ -1045,13 +1046,13 @@ def pex_with_entrypoints(entry_point):
 
 def test_pex_script_module_custom_setuptools_useable():
   with pex_with_entrypoints('my_app_module') as pex:
-    stdout, rc = run_simple_pex(pex, env={'PEX_VERBOSE': '1'})
+    stdout, rc = run_simple_pex(pex, env=make_env(PEX_VERBOSE=1))
     assert rc == 0, stdout
 
 
 def test_pex_script_function_custom_setuptools_useable():
   with pex_with_entrypoints('my_app_function') as pex:
-    stdout, rc = run_simple_pex(pex, env={'PEX_VERBOSE': '1'})
+    stdout, rc = run_simple_pex(pex, env=make_env(PEX_VERBOSE=1))
     assert rc == 0, stdout
 
 
@@ -1069,13 +1070,13 @@ def test_pex_interpreter_execute_custom_setuptools_useable():
     script = os.path.join(out, 'script.py')
     with open(script, 'wb') as fp:
       fp.write(test_script)
-    stdout, rc = run_simple_pex(pex, args=(script,), env={'PEX_VERBOSE': '1'})
+    stdout, rc = run_simple_pex(pex, args=(script,), env=make_env(PEX_VERBOSE=1))
     assert rc == 0, stdout
 
 
 def test_pex_interpreter_interact_custom_setuptools_useable():
   with pex_with_no_entrypoints() as (pex, test_script, _):
     stdout, rc = run_simple_pex(pex,
-                                env={'PEX_VERBOSE': '1'},
+                                env=make_env(PEX_VERBOSE=1),
                                 stdin=test_script)
     assert rc == 0, stdout
