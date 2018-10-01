@@ -1,8 +1,13 @@
 x-pyenv-shard: &x-pyenv-shard
   language: generic
+  # We use the TOX env var to roll up our tox execution strategy since it's more direct than an
+  # external CI script. We run tox with verbosity (-v) and an explicit envlist (-e). The latter
+  # is chosen over tox's support for TOXENV to allow more CI shards to share the same cache (Travis
+  # cache keys are a combination of os version, language version and env vars).
   env: &env >
     PYENV_ROOT="${HOME}/.pyenv_pex"
     PATH="${PYENV_ROOT}/shims:${PATH}"
+    TOX="tox -v -e"
   cache: &cache
     # The default is 3 minutes (180).
     timeout: 300
@@ -92,101 +97,101 @@ matrix:
     - <<: *x-linux-shard
       name: TOXENV=style
       env: *x-py27
-      script: tox -ve style
+      script: ${TOX} style
 
     - <<: *x-linux-shard
       name: TOXENV=isort-check
       env: *x-py27
-      script: tox -ve isort-check
+      script: ${TOX} isort-check
 
     - <<: *x-linux-shard
       name: TOXENV=py27
       env: *x-py27
-      script: tox -ve py27
+      script: ${TOX} py27
 
     - <<: *x-linux-shard
       name: TOXENV=py27-subprocess
       env: *x-py27
-      script: tox -ve py27-subprocess
+      script: ${TOX} py27-subprocess
 
     - <<: *x-linux-shard
       name: TOXENV=py27-requests
       env: *x-py27
-      script: tox -ve py27-requests
+      script: ${TOX} py27-requests
 
     - <<: *x-linux-shard
       name: TOXENV=py27-requests-cachecontrol
       env: *x-py27
-      script: tox -ve py27-requests-cachecontrol
+      script: ${TOX} py27-requests-cachecontrol
 
     - <<: *x-linux-shard
       name: TOXENV=py34
       env:
         - *env
         - PYENV_VERSION=3.4.9
-      script: tox -ve py34
+      script: ${TOX} py34
 
     - <<: *x-linux-shard
       name: TOXENV=py35
       env:
         - *env
         - PYENV_VERSION=3.5.6
-      script: tox -ve py35
+      script: ${TOX} py35
 
     - <<: *x-linux-shard
       name: TOXENV=py36
       env:
         - *env
         - PYENV_VERSION=3.6.6
-      script: tox -ve py36
+      script: ${TOX} py36
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37
-      script: tox -ve py37
+      script: ${TOX} py37
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37-requests
-      script: tox -ve py37-requests
+      script: ${TOX} py37-requests
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37-requests-cachecontrol
-      script: tox -ve py37-requests-cachecontrol
+      script: ${TOX} py37-requests-cachecontrol
 
     - <<: *x-linux-shard
       name: TOXENV=pypy
       env: *x-pypy
-      script: tox -ve pypy
+      script: ${TOX} pypy
 
     - <<: *x-linux-shard
       name: TOXENV=py27-integration
       env: *x-py27
-      script: tox -ve py27-integration
+      script: ${TOX} py27-integration
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37-integration
-      script: tox -ve py37-integration
+      script: ${TOX} py37-integration
 
     - <<: *x-linux-shard
       name: TOXENV=pypy-integration
       env: *x-pypy
-      script: tox -ve pypy-integration
+      script: ${TOX} pypy-integration
 
     - <<: *x-osx-shard
       name: TOXENV=py27-requests
       env: *x-py27
-      script: tox -ve py27-requests
+      script: ${TOX} py27-requests
 
     - <<: *x-osx-shard
       name: TOXENV=py37-requests
       env: *x-py37
-      script: tox -ve py37-requests
+      script: ${TOX} py37-requests
 
     - <<: *x-osx-shard
       name: TOXENV=py27-integration
       env: *x-py27
-      script: tox -ve py27-integration
+      script: ${TOX} py27-integration
 
     - <<: *x-osx-shard
       name: TOXENV=py37-integration
       env: *x-py37
-      script: tox -ve py37-integration
+      script: ${TOX} py37-integration
