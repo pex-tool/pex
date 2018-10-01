@@ -1,13 +1,8 @@
 x-pyenv-shard: &x-pyenv-shard
   language: generic
-  # We use the TOX env var to roll up our tox execution strategy since it's more direct than an
-  # external CI script. We run tox with verbosity (-v) and an explicit envlist (-e). The latter
-  # is chosen over tox's support for TOXENV to allow more CI shards to share the same cache (Travis
-  # cache keys are a combination of os version, language version and env vars).
   env: &env >
     PYENV_ROOT="${HOME}/.pyenv_pex"
     PATH="${PYENV_ROOT}/shims:${PATH}"
-    TOX="tox -v -e"
   cache: &cache
     # The default is 3 minutes (180).
     timeout: 300
@@ -97,109 +92,101 @@ matrix:
     - <<: *x-linux-shard
       name: TOXENV=style
       env: *x-py27
-      script: ${TOX} style
+      script: ./scripts/ci.sh style
 
     - <<: *x-linux-shard
       name: TOXENV=isort-check
       env: *x-py27
-      script: ${TOX} isort-check
+      script: ./scripts/ci.sh isort-check
 
     - <<: *x-linux-shard
       name: TOXENV=py27
       env: *x-py27
-      script: ${TOX} py27
+      script: ./scripts/ci.sh py27
 
     - <<: *x-linux-shard
       name: TOXENV=py27-subprocess
       env: *x-py27
-      script: ${TOX} py27-subprocess
+      script: ./scripts/ci.sh py27-subprocess
 
     - <<: *x-linux-shard
       name: TOXENV=py27-requests
       env: *x-py27
-      script: ${TOX} py27-requests
+      script: ./scripts/ci.sh py27-requests
 
     - <<: *x-linux-shard
       name: TOXENV=py27-requests-cachecontrol
       env: *x-py27
-      script: ${TOX} py27-requests-cachecontrol
+      script: ./scripts/ci.sh py27-requests-cachecontrol
 
     - <<: *x-linux-shard
       name: TOXENV=py34
       env:
         - *env
         - PYENV_VERSION=3.4.9
-      script: ${TOX} py34
+      script: ./scripts/ci.sh py34
 
     - <<: *x-linux-shard
       name: TOXENV=py35
       env:
         - *env
         - PYENV_VERSION=3.5.6
-      script: ${TOX} py35
+      script: ./scripts/ci.sh py35
 
     - <<: *x-linux-shard
       name: TOXENV=py36
       env:
         - *env
         - PYENV_VERSION=3.6.6
-      script: ${TOX} py36
+      script: ./scripts/ci.sh py36
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37
-      script: ${TOX} py37
+      script: ./scripts/ci.sh py37
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37-requests
-      script: ${TOX} py37-requests
+      script: ./scripts/ci.sh py37-requests
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37-requests-cachecontrol
-      script: ${TOX} py37-requests-cachecontrol
+      script: ./scripts/ci.sh py37-requests-cachecontrol
 
     - <<: *x-linux-shard
       name: TOXENV=pypy
       env: *x-pypy
-      # We need to bump the ulimit for open files to get pypy consistently completing CI runs.
-      sudo: required
-      script: |
-        ulimit -n
-        export TOX="$(which tox) -v -e"
-        sudo bash -c "
-          ulimit -n 65536
-          su ${USER} bash -c 'ulimit -n && ${TOX} pypy'
-        "
+      script: ./scripts/ci.sh pypy
 
     - <<: *x-linux-shard
       name: TOXENV=py27-integration
       env: *x-py27
-      script: ${TOX} py27-integration
+      script: ./scripts/ci.sh py27-integration
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37-integration
-      script: ${TOX} py37-integration
+      script: ./scripts/ci.sh py37-integration
 
     - <<: *x-linux-shard
       name: TOXENV=pypy-integration
       env: *x-pypy
-      script: ${TOX} pypy-integration
+      script: ./scripts/ci.sh pypy-integration
 
     - <<: *x-osx-shard
       name: TOXENV=py27-requests
       env: *x-py27
-      script: ${TOX} py27-requests
+      script: ./scripts/ci.sh py27-requests
 
     - <<: *x-osx-shard
       name: TOXENV=py37-requests
       env: *x-py37
-      script: ${TOX} py37-requests
+      script: ./scripts/ci.sh py37-requests
 
     - <<: *x-osx-shard
       name: TOXENV=py27-integration
       env: *x-py27
-      script: ${TOX} py27-integration
+      script: ./scripts/ci.sh py27-integration
 
     - <<: *x-osx-shard
       name: TOXENV=py37-integration
       env: *x-py37
-      script: ${TOX} py37-integration
+      script: ./scripts/ci.sh py37-integration
