@@ -165,10 +165,9 @@ matrix:
       script: |
         ulimit -n
         export TOX="$(which tox) -v -e"
-        set > ~/.env
         sudo bash -c "
           ulimit -n 65536
-          su ${USER} bash -c 'ulimit -n && source ~/.env && ${TOX} pypy'
+          su ${USER} bash -c 'ulimit -n && ${TOX} pypy'
         "
 
     - <<: *x-linux-shard
