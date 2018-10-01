@@ -1,23 +1,36 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
 import os
+import platform
+import subprocess
 from contextlib import contextmanager
 
+import pytest
 from twitter.common.contextutil import temporary_dir
 
+from pex import resolver
 from pex.compatibility import nested
 from pex.environment import PEXEnvironment
+from pex.installer import EggInstaller, WheelInstaller
+from pex.interpreter import PythonInterpreter
+from pex.package import EggPackage, SourcePackage, WheelPackage
+from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.testing import make_bdist, temporary_filename
+from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
 
 
 @contextmanager
-def yield_pex_builder(zip_safe=True):
-  with nested(temporary_dir(), make_bdist('p1', zipped=True, zip_safe=zip_safe)) as (td, p1):
-    pb = PEXBuilder(path=td)
-    pb.add_egg(p1.location)
+def yield_pex_builder(zip_safe=True, installer_impl=EggInstaller, interpreter=None):
+  with nested(temporary_dir(),
+              make_bdist('p1',
+                         zipped=True,
+                         zip_safe=zip_safe,
+                         installer_impl=installer_impl,
+                         interpreter=interpreter)) as (td, p1):
+    pb = PEXBuilder(path=td, interpreter=interpreter)
+    pb.add_dist_location(p1.location)
     yield pb
 
 
@@ -95,3 +108,57 @@ def test_load_internal_cache_unzipped():
     assert len(dists) == 1
     assert normalize(dists[0].location).startswith(
         normalize(os.path.join(pb.path(), pb.info.internal_cache)))
+
+
+_KNOWN_BAD_APPLE_INTERPRETER = ('/System/Library/Frameworks/Python.framework/Versions/'
+                                '2.7/Resources/Python.app/Contents/MacOS/Python')
+
+
+@pytest.mark.skipif(not os.path.exists(_KNOWN_BAD_APPLE_INTERPRETER),
+                    reason='Test requires known bad Apple interpreter {}'
+                           .format(_KNOWN_BAD_APPLE_INTERPRETER))
+def test_osx_platform_intel_issue_523():
+  def bad_interpreter(include_site_extras=True):
+    return PythonInterpreter.from_binary(_KNOWN_BAD_APPLE_INTERPRETER,
+                                         include_site_extras=include_site_extras)
+
+  interpreter = bad_interpreter(include_site_extras=False)
+  with temporary_dir() as cache:
+    # We need to run the bad interpreter with a modern, non-Apple-Extras setuptools in order to
+    # successfully install psutil.
+    for requirement in (SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT):
+      for dist in resolver.resolve([requirement],
+                                   cache=cache,
+                                   # We can't use wheels since we're bootstrapping them.
+                                   precedence=(SourcePackage, EggPackage),
+                                   interpreter=interpreter):
+        interpreter = interpreter.with_extra(dist.key, dist.version, dist.location)
+
+    with nested(yield_pex_builder(installer_impl=WheelInstaller, interpreter=interpreter),
+                temporary_filename()) as (pb, pex_file):
+      for dist in resolver.resolve(['psutil==5.4.3'],
+                                   cache=cache,
+                                   precedence=(SourcePackage, WheelPackage),
+                                   interpreter=interpreter):
+        pb.add_dist_location(dist.location)
+      pb.build(pex_file)
+
+      # NB: We want PEX to find the bare bad interpreter at runtime.
+      pex = PEX(pex_file, interpreter=bad_interpreter())
+      args = ['-c', 'import pkg_resources; print(pkg_resources.get_supported_platform())']
+      env = os.environ.copy()
+      env['PEX_VERBOSE'] = '1'
+      process = pex.run(args=args,
+                        env=env,
+                        blocking=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+      stdout, stderr = process.communicate()
+      assert 0 == process.returncode, (
+        'Process failed with exit code {} and stderr:\n{}'.format(process.returncode, stderr)
+      )
+
+      # Verify this all worked under the previously problematic pkg_resources-reported platform.
+      release, _, _ = platform.mac_ver()
+      major_minor = '.'.join(release.split('.')[:2])
+      assert 'macosx-{}-intel'.format(major_minor) == stdout.strip()

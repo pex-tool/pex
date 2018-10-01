@@ -120,13 +120,14 @@ class PEXEnvironment(Environment):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._inherit_path = pex_info.inherit_path
     self._supported_tags = []
+
+    platform = Platform.current()
     super(PEXEnvironment, self).__init__(
       search_path=[] if pex_info.inherit_path == 'false' else sys.path,
+      platform=platform.platform,
       **kw
     )
-    self._supported_tags.extend(
-      Platform.create(self.platform).supported_tags(self._interpreter)
-    )
+    self._supported_tags.extend(platform.supported_tags(self._interpreter))
     TRACER.log(
       'E: tags for %r x %r -> %s' % (self.platform, self._interpreter, self._supported_tags),
       V=9

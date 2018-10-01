@@ -164,10 +164,52 @@ class Resolver(object):
 
   class Error(Exception): pass
 
+  @staticmethod
+  def _expand_and_maybe_adjust_platform(interpreter, platform=None):
+    # Adjusts `platform` if it is 'current' and does not match the given `interpreter` platform.
+    cur_plat = Platform.current()
+
+    given_platform = Platform.create(platform or 'current')
+    if cur_plat.platform != given_platform.platform:
+      # IE: Say we're on OSX and platform was 'linux-x86_64' or 'linux_x86_64-cp-27-cp27mu'.
+      return given_platform
+
+    ii = interpreter.identity
+    if (ii.abbr_impl, ii.impl_ver, ii.abi_tag) == (cur_plat.impl, cur_plat.version, cur_plat.abi):
+      # IE: Say we're on Linux and platform was 'current' or 'linux-x86_64' or
+      # 'linux_x86_64-cp-27-cp27mu'and the current extended platform info matches the given
+      # interpreter exactly.
+      return cur_plat
+
+    # Otherwise we need to adjust the platform to match a local interpreter different from the
+    # currently executing interpreter.
+    adjusted_platform = Platform(platform=cur_plat.platform,
+                                 impl=ii.abbr_impl,
+                                 version=ii.impl_ver,
+                                 abi=ii.abi_tag)
+
+    TRACER.log("""
+  Modifying given platform of {given_platform!r}:
+  Using the current platform of {current_platform!r}
+  Under current interpreter {current_interpreter!r}
+
+  To match given interpreter {given_interpreter!r}.
+
+  Calculated platform: {calculated_platform!r}""".format(
+      given_platform=given_platform,
+      current_platform=cur_plat,
+      current_interpreter=PythonInterpreter.get(),
+      given_interpreter=interpreter,
+      calculated_platform=adjusted_platform),
+      V=9
+    )
+
+    return adjusted_platform
+
   def __init__(self, allow_prereleases=None, interpreter=None, platform=None,
                pkg_blacklist=None, use_manylinux=None):
     self._interpreter = interpreter or PythonInterpreter.get()
-    self._platform = Platform.create(platform) if platform else Platform.current()
+    self._platform = self._expand_and_maybe_adjust_platform(self._interpreter, platform)
     self._allow_prereleases = allow_prereleases
     self._blacklist = pkg_blacklist.copy() if pkg_blacklist else {}
     self._supported_tags = self._platform.supported_tags(
