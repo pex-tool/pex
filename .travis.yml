@@ -162,7 +162,14 @@ matrix:
       env: *x-pypy
       # We need to bump the ulimit for open files to get pypy consistently completing CI runs.
       sudo: required
-      script: sudo bash -c "ulimit -n 65536 && su ${USER} bash -c \"ulimit -n && ${TOX} pypy\""
+      script: |
+        ulimit -n
+        export TOX="$(which tox) -v -e"
+        set > ~/.env
+        sudo bash -c "
+          ulimit -n 65536
+          su ${USER} bash -c 'ulimit -n && source ~/.env && ${TOX} pypy'
+        "
 
     - <<: *x-linux-shard
       name: TOXENV=py27-integration
