@@ -12,7 +12,7 @@ if (( $# != 1 )); then
 fi
 readonly toxenv=$1
 
-if [[ "$TOXENV" == "pypy" ]]; then
+if [[ "${toxenv}" == "pypy" ]]; then
   echo "pypy shard detected. invoking workaround for https://github.com/travis-ci/travis-ci/issues/9706"
   tox -e list-tests | grep ^"RUNNABLE" | grep -v "tests/test_integration.py" | awk -F'\t' '{print $NF}' | xargs -L1 tox -v -e ${toxenv}
 else
