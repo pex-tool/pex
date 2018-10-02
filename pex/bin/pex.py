@@ -557,19 +557,7 @@ def resolve_interpreter(cache, fetchers, interpreter, requirement):
     return interpreter.with_extra(egg.name, egg.raw_version, egg.path)
 
 
-def get_interpreter(python_interpreter, interpreter_cache_dir, repos, use_wheel):
-  interpreter = None
-
-  if python_interpreter:
-    if os.path.exists(python_interpreter):
-      interpreter = PythonInterpreter.from_binary(python_interpreter)
-    else:
-      interpreter = PythonInterpreter.from_env(python_interpreter)
-    if interpreter is None:
-      die('Failed to find interpreter: %s' % python_interpreter)
-  else:
-    interpreter = PythonInterpreter.get()
-
+def setup_interpreter(interpreter, interpreter_cache_dir, repos, use_wheel):
   with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
     resolve = functools.partial(resolve_interpreter, interpreter_cache_dir, repos)
 
@@ -585,13 +573,16 @@ def get_interpreter(python_interpreter, interpreter_cache_dir, repos, use_wheel)
 
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreters', V=2):
-    interpreters = [
-      get_interpreter(interpreter,
-                      options.interpreter_cache_dir,
-                      options.repos,
-                      options.use_wheel)
-      for interpreter in options.python or [None]
-    ]
+    def to_python_interpreter(full_path_or_basename):
+      if os.path.exists(full_path_or_basename):
+        return PythonInterpreter.from_binary(full_path_or_basename)
+      else:
+        interpreter = PythonInterpreter.from_env(full_path_or_basename)
+        if interpreter is None:
+          die('Failed to find interpreter: %s' % full_path_or_basename)
+        return interpreter
+
+    interpreters = [to_python_interpreter(interp) for interp in options.python or [sys.executable]]
 
   if options.interpreter_constraint:
     # NB: options.python and interpreter constraints cannot be used together, so this will not
@@ -602,7 +593,13 @@ def build_pex(args, options, resolver_option_builder):
     pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
     interpreters = find_compatible_interpreters(pex_python_path, constraints)
 
-  if not interpreters:
+  setup_interpreters = [setup_interpreter(interp,
+                                          options.interpreter_cache_dir,
+                                          options.repos,
+                                          options.use_wheel)
+                        for interp in interpreters]
+
+  if not setup_interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
   try:
@@ -612,7 +609,7 @@ def build_pex(args, options, resolver_option_builder):
     # options.preamble_file is None
     preamble = None
 
-  interpreter = min(interpreters)
+  interpreter = min(setup_interpreters)
 
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 

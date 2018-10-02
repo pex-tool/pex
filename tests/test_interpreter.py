@@ -7,8 +7,11 @@ import subprocess
 import pytest
 
 from pex import interpreter
+from pex.compatibility import PY3
 from pex.testing import (
     IS_PYPY,
+    PY27,
+    PY35,
     ensure_python_distribution,
     ensure_python_interpreter,
     temporary_dir
@@ -20,24 +23,26 @@ except ImportError:
   from unittest.mock import patch
 
 
-def version_from_tuple(version_tuple):
-  return '.'.join(str(x) for x in version_tuple)
+def tuple_from_version(version_string):
+  return tuple(int(component) for component in version_string.split('.'))
 
 
 class TestPythonInterpreter(object):
 
-  @pytest.mark.skipif('sys.version_info >= (3,0)')
+  @pytest.mark.skipif(PY3,
+                      reason='This test relies on the `reload` builtin which is not available in '
+                             'python 3 as a builtin.')
   def test_all_does_not_raise_with_empty_path_envvar(self):
     """ additionally, tests that the module does not raise at import """
     with patch.dict(os.environ, clear=True):
       reload(interpreter)
       interpreter.PythonInterpreter.all()
 
-  TEST_INTERPRETER1_VERSION_TUPLE = (2, 7, 10)
-  TEST_INTERPRETER1_VERSION = version_from_tuple(TEST_INTERPRETER1_VERSION_TUPLE)
+  TEST_INTERPRETER1_VERSION = PY27
+  TEST_INTERPRETER1_VERSION_TUPLE = tuple_from_version(TEST_INTERPRETER1_VERSION)
 
-  TEST_INTERPRETER2_VERSION_TUPLE = (2, 7, 9)
-  TEST_INTERPRETER2_VERSION = version_from_tuple(TEST_INTERPRETER2_VERSION_TUPLE)
+  TEST_INTERPRETER2_VERSION = PY35
+  TEST_INTERPRETER2_VERSION_TUPLE = tuple_from_version(TEST_INTERPRETER2_VERSION)
 
   @pytest.fixture
   def test_interpreter1(self):

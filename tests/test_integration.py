@@ -22,6 +22,8 @@ from pex.testing import (
     NOT_CPYTHON27_OR_OSX,
     NOT_CPYTHON36,
     NOT_CPYTHON36_OR_LINUX,
+    PY27,
+    PY36,
     ensure_python_interpreter,
     get_dep_dist_names_from_pex,
     run_pex_command,
@@ -354,7 +356,7 @@ def test_interpreter_constraints_to_pex_info_py2():
 
 @pytest.mark.skipif(IS_PYPY)
 def test_interpreter_constraints_to_pex_info_py3():
-  py3_interpreter = ensure_python_interpreter('3.6.3')
+  py3_interpreter = ensure_python_interpreter(PY36)
   with environment_as(PATH=os.path.dirname(py3_interpreter)):
     with temporary_dir() as output_dir:
       # target python 3
@@ -387,8 +389,8 @@ def test_interpreter_resolution_with_pex_python_path():
     with open(pexrc_path, 'w') as pexrc:
       # set pex python path
       pex_python_path = ':'.join([
-        ensure_python_interpreter('2.7.10'),
-        ensure_python_interpreter('3.6.3')
+        ensure_python_interpreter(PY27),
+        ensure_python_interpreter(PY36)
       ])
       pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
 
@@ -422,8 +424,8 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
     with open(pexrc_path, 'w') as pexrc:
       # set both PPP and PP
       pex_python_path = ':'.join([
-        ensure_python_interpreter('2.7.10'),
-        ensure_python_interpreter('3.6.3')
+        ensure_python_interpreter(PY27),
+        ensure_python_interpreter(PY36)
       ])
       pexrc.write("PEX_PYTHON_PATH=%s\n" % pex_python_path)
       pex_python = '/path/to/some/python'
@@ -464,8 +466,8 @@ def test_pex_exec_with_pex_python_path_only():
     with open(pexrc_path, 'w') as pexrc:
       # set pex python path
       pex_python_path = ':'.join([
-        ensure_python_interpreter('2.7.10'),
-        ensure_python_interpreter('3.6.3')
+        ensure_python_interpreter(PY27),
+        ensure_python_interpreter(PY36)
       ])
       pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
 
@@ -490,8 +492,8 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
     with open(pexrc_path, 'w') as pexrc:
       # set both PPP and PP
       pex_python_path = ':'.join([
-        ensure_python_interpreter('2.7.10'),
-        ensure_python_interpreter('3.6.3')
+        ensure_python_interpreter(PY27),
+        ensure_python_interpreter(PY36)
       ])
       pexrc.write("PEX_PYTHON_PATH=%s\n" % pex_python_path)
       pex_python = '/path/to/some/python'
@@ -513,14 +515,14 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
 
 @pytest.mark.skipif(IS_PYPY)
 def test_pex_python():
-  py2_path_interpreter = ensure_python_interpreter('2.7.10')
-  py3_path_interpreter = ensure_python_interpreter('3.6.3')
+  py2_path_interpreter = ensure_python_interpreter(PY27)
+  py3_path_interpreter = ensure_python_interpreter(PY36)
   path = ':'.join([os.path.dirname(py2_path_interpreter), os.path.dirname(py3_path_interpreter)])
   with environment_as(PATH=path):
     with temporary_dir() as td:
       pexrc_path = os.path.join(td, '.pexrc')
       with open(pexrc_path, 'w') as pexrc:
-        pex_python = ensure_python_interpreter('3.6.3')
+        pex_python = ensure_python_interpreter(PY36)
         pexrc.write("PEX_PYTHON=%s" % pex_python)
 
       # test PEX_PYTHON with valid constraints
@@ -541,7 +543,7 @@ def test_pex_python():
       # test PEX_PYTHON with incompatible constraints
       pexrc_path = os.path.join(td, '.pexrc')
       with open(pexrc_path, 'w') as pexrc:
-        pex_python = ensure_python_interpreter('2.7.10')
+        pex_python = ensure_python_interpreter(PY27)
         pexrc.write("PEX_PYTHON=%s" % pex_python)
 
       pex_out_path = os.path.join(td, 'pex2.pex')
@@ -578,7 +580,7 @@ def test_entry_point_targeting():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
     with open(pexrc_path, 'w') as pexrc:
-      pex_python = ensure_python_interpreter('3.6.3')
+      pex_python = ensure_python_interpreter(PY36)
       pexrc.write("PEX_PYTHON=%s" % pex_python)
 
     # test pex with entry point
@@ -609,9 +611,9 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
     # execute with. The child interpreter is the interpreter we expect the
     # child pex to execute with.
     if (sys.version_info[0], sys.version_info[1]) == (3, 6):
-      child_pex_interpreter_version = '3.6.3'
+      child_pex_interpreter_version = PY36
     else:
-      child_pex_interpreter_version = '2.7.10'
+      child_pex_interpreter_version = PY27
 
     # Write parent pex's pexrc.
     with open(pexrc_path, 'w') as pexrc:
@@ -993,7 +995,7 @@ def test_invalid_entry_point_verification_3rdparty():
 def test_multiplatform_entrypoint():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'p537.pex')
-    interpreter = ensure_python_interpreter('3.6.3')
+    interpreter = ensure_python_interpreter(PY36)
     res = run_pex_command(['p537==1.0.3',
                            '--no-build',
                            '--python={}'.format(interpreter),
