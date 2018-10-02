@@ -32,7 +32,6 @@ from pex.testing import (
     temporary_content
 )
 from pex.util import DistributionHelper, named_temporary_file
-from pex.variables import ENV
 
 
 def make_env(**kwargs):
