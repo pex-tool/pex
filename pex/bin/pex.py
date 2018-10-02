@@ -573,14 +573,14 @@ def setup_interpreter(interpreter, interpreter_cache_dir, repos, use_wheel):
 
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreters', V=2):
-    def to_python_interpreter(interpreter):
-      if os.path.exists(interpreter):
-        return PythonInterpreter.from_binary(interpreter)
+    def to_python_interpreter(full_path_or_basename):
+      if os.path.exists(full_path_or_basename):
+        return PythonInterpreter.from_binary(full_path_or_basename)
       else:
-        pi = PythonInterpreter.from_env(interpreter)
-        if pi is None:
-          die('Failed to find interpreter: %s' % interpreter)
-        return pi
+        interpreter = PythonInterpreter.from_env(full_path_or_basename)
+        if interpreter is None:
+          die('Failed to find interpreter: %s' % full_path_or_basename)
+        return interpreter
 
     interpreters = [to_python_interpreter(interp) for interp in options.python or [sys.executable]]
 
