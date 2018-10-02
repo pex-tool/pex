@@ -323,7 +323,21 @@ def bootstrap_python_installer(dest):
     raise RuntimeError("Helper method could not clone pyenv from git after 3 tries")
 
 
+# NB: We keep the pool of bootstrapped interpreters as small as possible to avoid timeouts in CI
+# otherwise encountered when fetching and building too many on a cache miss. In the past we had
+# issues with the combination of 7 total unique interpreter versions and a Travis-CI timeout of 50
+# minutes for a shard.
+PY27 = '2.7.15'
+PY35 = '3.5.6'
+PY36 = '3.6.6'
+
+_VERSIONS = (PY27, PY35, PY36)
+
+
 def ensure_python_distribution(version):
+  if version not in _VERSIONS:
+    raise ValueError('Please constrain version to one of {}'.format(_VERSIONS))
+
   pyenv_root = os.path.join(os.getcwd(), '.pyenv_test')
   interpreter_location = os.path.join(pyenv_root, 'versions', version)
   pyenv = os.path.join(pyenv_root, 'bin', 'pyenv')

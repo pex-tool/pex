@@ -11,7 +11,7 @@ from types import ModuleType
 import pytest
 from twitter.common.contextutil import temporary_file
 
-from pex.bin.pex import get_interpreter
+from pex.bin.pex import setup_interpreter
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
@@ -21,6 +21,8 @@ from pex.pex_info import PexInfo
 from pex.resolver import resolve
 from pex.testing import (
     IS_PYPY,
+    PY27,
+    PY36,
     ensure_python_interpreter,
     make_bdist,
     make_installer,
@@ -322,9 +324,9 @@ def test_pex_verify_entry_point_module_should_fail():
 @pytest.mark.skipif(IS_PYPY)
 def test_activate_interpreter_different_from_current():
   with temporary_dir() as pex_root:
-    interp_version = '3.6.3' if PY2 else '2.7.10'
-    custom_interpreter = get_interpreter(
-      python_interpreter=ensure_python_interpreter(interp_version),
+    interp_version = PY36 if PY2 else PY27
+    custom_interpreter = setup_interpreter(
+      interpreter=PythonInterpreter.from_binary(ensure_python_interpreter(interp_version)),
       interpreter_cache_dir=os.path.join(pex_root, 'interpreters'),
       repos=None,  # Default to PyPI.
       use_wheel=True

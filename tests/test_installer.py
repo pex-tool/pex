@@ -5,9 +5,10 @@ from collections import OrderedDict
 
 import pytest
 
-from pex.bin.pex import get_interpreter
+from pex.bin.pex import setup_interpreter
 from pex.installer import WheelInstaller
-from pex.testing import ensure_python_interpreter, make_installer, temporary_dir
+from pex.interpreter import PythonInterpreter
+from pex.testing import PY36, ensure_python_interpreter, make_installer, temporary_dir
 from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
 
 
@@ -23,8 +24,8 @@ class OrderableInstaller(WheelInstaller):
 @contextlib.contextmanager
 def bare_interpreter():
   with temporary_dir() as interpreter_cache:
-    yield get_interpreter(
-      python_interpreter=ensure_python_interpreter('3.6.3'),
+    yield setup_interpreter(
+      interpreter=PythonInterpreter.from_binary(ensure_python_interpreter(PY36)),
       interpreter_cache_dir=interpreter_cache,
       repos=None,
       use_wheel=True
