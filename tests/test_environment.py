@@ -9,7 +9,7 @@ import pytest
 from twitter.common.contextutil import temporary_dir
 
 from pex import resolver
-from pex.compatibility import nested
+from pex.compatibility import nested, to_bytes
 from pex.environment import PEXEnvironment
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
@@ -161,4 +161,4 @@ def test_osx_platform_intel_issue_523():
       # Verify this all worked under the previously problematic pkg_resources-reported platform.
       release, _, _ = platform.mac_ver()
       major_minor = '.'.join(release.split('.')[:2])
-      assert b'macosx-{}-intel'.format(major_minor) == stdout.strip()
+      assert to_bytes('macosx-{}-intel'.format(major_minor)) == stdout.strip()
