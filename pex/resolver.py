@@ -174,8 +174,9 @@ class Resolver(object):
       # IE: Say we're on OSX and platform was 'linux-x86_64' or 'linux_x86_64-cp-27-cp27mu'.
       return given_platform
 
-    ii = interpreter.identity
-    if (ii.abbr_impl, ii.impl_ver, ii.abi_tag) == (cur_plat.impl, cur_plat.version, cur_plat.abi):
+    if (interpreter.identity.abbr_impl,
+        interpreter.identity.impl_ver,
+        interpreter.identity.abi_tag) == (cur_plat.impl, cur_plat.version, cur_plat.abi):
       # IE: Say we're on Linux and platform was 'current' or 'linux-x86_64' or
       # 'linux_x86_64-cp-27-cp27mu'and the current extended platform info matches the given
       # interpreter exactly.
@@ -184,9 +185,9 @@ class Resolver(object):
     # Otherwise we need to adjust the platform to match a local interpreter different from the
     # currently executing interpreter.
     adjusted_platform = Platform(platform=cur_plat.platform,
-                                 impl=ii.abbr_impl,
-                                 version=ii.impl_ver,
-                                 abi=ii.abi_tag)
+                                 impl=interpreter.identity.abbr_impl,
+                                 version=interpreter.identity.impl_ver,
+                                 abi=interpreter.identity.abi_tag)
 
     TRACER.log("""
   Modifying given platform of {given_platform!r}:

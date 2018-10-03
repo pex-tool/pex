@@ -122,9 +122,12 @@ class PEXEnvironment(Environment):
     self._supported_tags = []
 
     platform = Platform.current()
+    platform_name = platform.platform
     super(PEXEnvironment, self).__init__(
       search_path=[] if pex_info.inherit_path == 'false' else sys.path,
-      platform=platform.platform,
+      # NB: Our pkg_resources.Environment base-class wants the platform name string and not the
+      # pex.platform.Platform object.
+      platform=platform_name,
       **kw
     )
     self._supported_tags.extend(platform.supported_tags(self._interpreter))
