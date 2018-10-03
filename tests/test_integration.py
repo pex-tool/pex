@@ -879,9 +879,11 @@ def test_platform_specific_egg_resolution_matching():
 def test_jupyter_appnope_env_markers():
   # NB: jupyter 1.0.0 does not properly pin its dep graph and both ipykernel and ipython support
   # python 3 only post 5 and 6 respectively; so we add those deps explictly only to constrain them
-  # low such that they support python 2.7 for this test.
+  # low such that they support python 2.7 for this test. We also pin jupyter's unconstrained dep on
+  # jupyter_console low to avoid a conflict with ipython on prompt-toolkit.
   res = run_pex_command(['--disable-cache',
                          'jupyter==1.0.0',
+                         'jupyter_console<5.4',
                          'ipykernel<5',
                          'ipython<6',
                          '-c', 'jupyter',
