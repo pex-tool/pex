@@ -161,4 +161,4 @@ def test_osx_platform_intel_issue_523():
       # Verify this all worked under the previously problematic pkg_resources-reported platform.
       release, _, _ = platform.mac_ver()
       major_minor = '.'.join(release.split('.')[:2])
-      assert 'macosx-{}-intel'.format(major_minor) == stdout.strip()
+      assert b'macosx-{}-intel'.format(major_minor) == stdout.strip()
