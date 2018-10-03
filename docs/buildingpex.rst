@@ -231,6 +231,11 @@ Even scripts defined by the "scripts" section of a distribution can be used, e.g
                  {bal,hit,hits,new,extend,expire,rm,as,approve,reject,unreject,bonus,notify,give-qual,revoke-qual}
                  ...
     mturk: error: too few arguments
+    
+Note: If you run ``pex -c`` and come across an error similar to 
+``pex.pex_builder.InvalidExecutableSpecification: Could not find script 'mainscript.py' in any distribution within PEX!``, 
+double-check your setup.py and ensure that ``mainscript.py`` is included 
+in your setup's ``scripts`` array.
 
 
 Saving .pex files
