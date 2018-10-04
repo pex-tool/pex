@@ -102,7 +102,7 @@ def test_unwriteable_contents():
   UNWRITEABLE_PERMS = 0o400
   with temporary_content({'setup.py': my_app_setup_py,
                           'my_app/__init__.py': '',
-                          'my_app/unwriteable.so': 42},
+                          'my_app/unwriteable.so': ''},
                          perms=UNWRITEABLE_PERMS) as my_app_project_dir:
     with pushd(my_app_project_dir):
       subprocess.check_call([sys.executable, 'setup.py', 'bdist_wheel'])
