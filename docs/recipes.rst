@@ -20,7 +20,7 @@ similar:
 
 .. code-block:: bash
 
-    $ pex flask gunicorn myapp -e gunicorn.app.wsgiapp -o ~/service.pex
+    $ pex flask gunicorn myapp -c gunicorn -o ~/service.pex
 
 Once your pex file is created, you need to make sure to pass your wsgi app
 instance name to the CLI at runtime for Gunicorn to know how to hook into it,
