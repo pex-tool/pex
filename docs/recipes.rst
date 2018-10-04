@@ -3,8 +3,6 @@
 PEX Recipes and Notes
 =====================
 
-This is a space for info beyond the purpose or building of PEX files.
-
 Gunicorn and PEX
 ----------------
 
@@ -16,29 +14,13 @@ can't enter a PEX file to retrieve the wsgi instance, but that doesn't prevent
 the PEX from invoking Gunicorn.
 
 This retains the benefit of zero `pip install`'s to run your service, but it
-requires a bit more setup. First, ensure Gunicorn is packaged as a depenency, 
-the following assumes Flask as the wsgi framework, Django setup should be 
+requires a bit more setup as you must ensure Gunicorn is packaged as a dependency. 
+The following snippets assume Flask as the wsgi framework, Django setup should be 
 similar:
 
 .. code-block:: bash
 
     $ pex flask gunicorn myapp -e gunicorn.app.wsgiapp -o ~/service.pex
-    
-The dependency on Gunicorn can live in your setup.py as well:
-    
-.. code-block:: python
-
-    setup(
-        ...
-        modules=[
-          myapp
-        ],
-        install_requires=[
-          ...other deps...,
-          flask,
-          gunicorn
-        ]
-    )
 
 Once your pex file is created, you need to make sure to pass your wsgi app
 instance name to the CLI at runtime for Gunicorn to know how to hook into it,
