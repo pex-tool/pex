@@ -2,12 +2,14 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import stat
 import subprocess
 import sys
 from textwrap import dedent
 
 from twitter.common.contextutil import pushd
 
+from pex.common import open_zip
 from pex.testing import temporary_content
 
 
@@ -81,3 +83,52 @@ def test_pex_args_shebang_with_spaces():
 
 def test_pex_args_shebang_without_spaces():
   assert_pex_args_shebang('#!/usr/bin/python')
+
+
+def test_unwriteable_contents():
+  my_app_setup_py = dedent("""
+      from setuptools import setup
+
+      setup(
+        name='my_app',
+        version='0.0.0',
+        zip_safe=True,
+        packages=['my_app'],
+        include_package_data=True,
+        package_data={'my_app': ['unwriteable.so']},
+      )
+    """)
+
+  UNWRITEABLE_PERMS = 0o400
+  with temporary_content({'setup.py': my_app_setup_py,
+                          'my_app/__init__.py': '',
+                          'my_app/unwriteable.so': ''},
+                         perms=UNWRITEABLE_PERMS) as my_app_project_dir:
+    with pushd(my_app_project_dir):
+      subprocess.check_call([sys.executable, 'setup.py', 'bdist_wheel'])
+
+    uses_my_app_setup_py = dedent("""
+      from setuptools import setup
+
+      setup(
+        name='uses_my_app',
+        version='0.0.0',
+        zip_safe=True,
+        install_requires=['my_app'],
+      )
+    """)
+    with temporary_content({'setup.py': uses_my_app_setup_py}) as uses_my_app_project_dir:
+      with pushd(uses_my_app_project_dir):
+        subprocess.check_call([sys.executable,
+                               'setup.py',
+                               'bdist_pex',
+                               '--pex-args=--disable-cache --no-pypi -f {}'
+                              .format(os.path.join(my_app_project_dir, 'dist'))])
+
+        with open_zip('dist/uses_my_app-0.0.0.pex') as zf:
+          unwriteable_sos = [path for path in zf.namelist()
+                             if path.endswith('my_app/unwriteable.so')]
+          assert 1 == len(unwriteable_sos)
+          unwriteable_so = unwriteable_sos.pop()
+          zf.extract(unwriteable_so)
+          assert UNWRITEABLE_PERMS == stat.S_IMODE(os.stat(unwriteable_so).st_mode)
