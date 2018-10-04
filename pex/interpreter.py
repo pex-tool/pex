@@ -261,8 +261,10 @@ class PythonIdentity(object):
     )
 
   def __repr__(self):
-    return 'PythonIdentity(%r, %s, %s, %s)' % (
-      self._interpreter,
+    return 'PythonIdentity(%r, %r, %r, %r, %r, %r)' % (
+      self.abbr_impl,
+      self.abi_tag,
+      self.impl_ver,
       self._version[0],
       self._version[1],
       self._version[2]
