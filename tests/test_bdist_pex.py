@@ -124,7 +124,7 @@ def test_unwriteable_contents():
                                'bdist_pex',
                                '--pex-args=--disable-cache --no-pypi -f {}'
                               .format(os.path.join(my_app_project_dir, 'dist'))])
-        subprocess.check_call(['zipinfo', 'dist/uses_my_app-0.0.0.pex'])
+
         with open_zip('dist/uses_my_app-0.0.0.pex') as zf:
           unwriteable_sos = [path for path in zf.namelist()
                              if path.endswith('my_app/unwriteable.so')]
