@@ -1,6 +1,40 @@
 Release Notes
 =============
 
+1.4.8
+-----
+
+This release adds support for `-c` and `-m` pexfile runtime options that emulate the behavior of the
+same arguments to `python` as well a fix for handling the non-standard platform reported by
+setuptools for Apple system interpreters in addition to several other bug fixes.
+
+* Fix PEXBuilder.clone. (#575)
+  `PR #575 <https://github.com/pantsbuild/pex/pull/575>`_
+
+* Fix PEXEnvironment platform determination. (#568)
+  `PR #568 <https://github.com/pantsbuild/pex/pull/568>`_
+
+* Apply more pinning to jupyter in IT. (#573)
+  `PR #573 <https://github.com/pantsbuild/pex/pull/573>`_
+
+* Minimize interpreter bootstrapping in tests. (#571)
+  `PR #571 <https://github.com/pantsbuild/pex/pull/571>`_
+
+* Introduce 3.7 to CI and release. (#567)
+  `PR #567 <https://github.com/pantsbuild/pex/pull/567>`_
+
+* Add OSX shards. (#565)
+  `PR #565 <https://github.com/pantsbuild/pex/pull/565>`_
+
+* Add support for `-m` and `-c` in interpreter mode. (#563)
+  `PR #563 <https://github.com/pantsbuild/pex/pull/563>`_
+
+* Ignore concurrent-rename failures. (#558)
+  `PR #558 <https://github.com/pantsbuild/pex/pull/558>`_
+
+* Fixup test_jupyter_appnope_env_markers. (#562)
+  `PR #562 <https://github.com/pantsbuild/pex/pull/562>`_
+
 1.4.7
 -----
 
