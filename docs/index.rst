@@ -31,4 +31,5 @@ Guide:
 
    whatispex
    buildingpex
+   recipes
    api/index
