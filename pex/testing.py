@@ -66,7 +66,7 @@ def get_dep_dist_names_from_pex(pex_path, match_prefix=''):
 
 
 @contextlib.contextmanager
-def temporary_content(content_map, interp=None, seed=31337):
+def temporary_content(content_map, interp=None, seed=31337, perms=0o644):
   """Write content to disk where content is map from string => (int, string).
 
      If target is int, write int random bytes.  Otherwise write contents of string."""
@@ -74,12 +74,14 @@ def temporary_content(content_map, interp=None, seed=31337):
   interp = interp or {}
   with temporary_dir() as td:
     for filename, size_or_content in content_map.items():
-      safe_mkdir(os.path.dirname(os.path.join(td, filename)))
-      with open(os.path.join(td, filename), 'wb') as fp:
+      dest = os.path.join(td, filename)
+      safe_mkdir(os.path.dirname(dest))
+      with open(dest, 'wb') as fp:
         if isinstance(size_or_content, int):
           fp.write(random_bytes(size_or_content))
         else:
           fp.write((size_or_content % interp).encode('utf-8'))
+      os.chmod(dest, perms)
     yield td
 
 

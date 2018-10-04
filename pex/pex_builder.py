@@ -74,15 +74,16 @@ class PEXBuilder(object):
       The temporary directory created when ``path`` is not specified is now garbage collected on
       interpreter exit.
     """
-    self._chroot = chroot or Chroot(path or safe_mkdtemp())
-    self._frozen = False
     self._interpreter = interpreter or PythonInterpreter.get()
-    self._shebang = self._interpreter.identity.hashbang()
-    self._logger = logging.getLogger(__name__)
+    self._chroot = chroot or Chroot(path or safe_mkdtemp())
+    self._pex_info = pex_info or PexInfo.default(self._interpreter)
     self._preamble = to_bytes(preamble or '')
     self._copy = copy
+
+    self._shebang = self._interpreter.identity.hashbang()
+    self._logger = logging.getLogger(__name__)
+    self._frozen = False
     self._distributions = set()
-    self._pex_info = pex_info or PexInfo.default(interpreter)
 
   def _ensure_unfrozen(self, name='Operation'):
     if self._frozen:
@@ -110,14 +111,13 @@ class PEXBuilder(object):
     """
     chroot_clone = self._chroot.clone(into=into)
     clone = self.__class__(
-        chroot=chroot_clone,
-        interpreter=self._interpreter,
-        pex_info=self._pex_info.copy(),
-        preamble=self._preamble,
-        copy=self._copy)
+      chroot=chroot_clone,
+      interpreter=self._interpreter,
+      pex_info=self._pex_info.copy(),
+      preamble=self._preamble,
+      copy=self._copy)
     clone.set_shebang(self._shebang)
-    for dist in self._distributions:
-      clone.add_distribution(dist)
+    clone._distributions = self._distributions.copy()
     return clone
 
   def path(self):
@@ -286,14 +286,12 @@ class PEXBuilder(object):
       os.mkdir(whltmp)
       wf = WheelFile(path)
       wf.install(overrides=self._get_installer_paths(whltmp), force=True)
-      for (root, _, files) in os.walk(whltmp):
+      for root, _, files in os.walk(whltmp):
         pruned_dir = os.path.relpath(root, tmp)
         for f in files:
           fullpath = os.path.join(root, f)
-          if os.path.isdir(fullpath):
-            continue
           target = os.path.join(self._pex_info.internal_cache, pruned_dir, f)
-          self._chroot.copy(fullpath, target)
+          self._copy_or_link(fullpath, target)
       return CacheHelper.dir_hash(whltmp)
 
     with open_zip(path) as zf:
