@@ -7,4 +7,4 @@ __version__ = '1.4.7'
 # for pex code so we exclude that range.
 SETUPTOOLS_REQUIREMENT = 'setuptools>=20.3,<41,!=34.*,!=35.*'
 
-WHEEL_REQUIREMENT = 'wheel>=0.26.0,<0.32'
+WHEEL_REQUIREMENT = 'wheel>=0.26.0,<0.33'
