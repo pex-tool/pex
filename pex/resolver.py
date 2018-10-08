@@ -467,7 +467,7 @@ def resolve(requirements,
     classes.
 
   .. versionchanged:: 1.5.0
-    The ``pkg_blacklist``  has been removed and the return type change to a list of
+    The ``pkg_blacklist``  has been removed and the return type changed to a list of
     :class:`ResolvedDistribution`.
   """
 

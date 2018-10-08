@@ -1,11 +1,15 @@
 Release Notes
 =============
 
-1.4.9
+1.5.0
 -----
 
-This is a hotfix release for 1.4.8 that fixes a regression in interpreter setup that could lead to
-resolved distributions failing to build or install.
+This release fixes pexes such that they fully support environment markers, the canonical use case
+being a python 2/3 pex that needs to conditionally load one or more python 2 backport libs when
+running under a python 2 interpreter only.
+
+A fix for a regression introduced in 1.4.8 in interpreter setup that could lead to resolved
+distributions failing to build or install is also included.
 
 * Support environment markers during pex activation. (#582)
   `PR #582 <https://github.com/pantsbuild/pex/pull/582>`_
