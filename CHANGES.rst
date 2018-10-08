@@ -1,6 +1,24 @@
 Release Notes
 =============
 
+1.4.9
+-----
+
+This is a hotfix release for 1.4.8 that fixes a regression in interpreter setup that could lead to
+resolved distributions failing to build or install.
+
+* Cleanup `PexInfo` and `PythonInterpreter`. (#581)
+  `PR #581 <https://github.com/pantsbuild/pex/pull/581>`_
+
+* Fix resolve regressions introduced by the 1.4.8. (#580)
+  `PR #580 <https://github.com/pantsbuild/pex/pull/580>`_
+
+* Narrow the env marker test. (#578)
+  `PR #578 <https://github.com/pantsbuild/pex/pull/578>`_
+
+* Documentation for #569 (#574)
+  `PR #574 <https://github.com/pantsbuild/pex/pull/574>`_
+
 1.4.8
 -----
 
