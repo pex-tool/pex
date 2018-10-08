@@ -1078,6 +1078,9 @@ def test_pex_interpreter_interact_custom_setuptools_useable():
     assert rc == 0, stdout
 
 
+@pytest.mark.skipif(IS_PYPY,
+                    reason='Our pyenv interpreter setup fails under pypy: '
+                           'https://github.com/pantsbuild/pex/issues/477')
 def test_setup_python():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
@@ -1090,6 +1093,9 @@ def test_setup_python():
     subprocess.check_call([pex, '-c', 'import jsonschema'])
 
 
+@pytest.mark.skipif(IS_PYPY,
+                    reason='Our pyenv interpreter setup fails under pypy: '
+                           'https://github.com/pantsbuild/pex/issues/477')
 def test_setup_interpreter_constraint():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
