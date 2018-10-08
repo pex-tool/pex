@@ -654,7 +654,7 @@ def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving distributions'):
     try:
       resolveds = resolve_multi(resolvables,
-                                interpreters=interpreters,
+                                interpreters=setup_interpreters,
                                 platforms=options.platforms,
                                 cache=options.cache_dir,
                                 cache_ttl=options.cache_ttl,
