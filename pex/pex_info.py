@@ -6,7 +6,6 @@ from __future__ import absolute_import, print_function
 import json
 import os
 import warnings
-from collections import namedtuple
 
 from .common import open_zip
 from .compatibility import PY2
@@ -14,8 +13,6 @@ from .compatibility import string as compatibility_string
 from .orderedset import OrderedSet
 from .util import merge_split
 from .variables import ENV
-
-PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
 
 
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.
@@ -53,13 +50,15 @@ class PexInfo(object):
   @classmethod
   def make_build_properties(cls, interpreter=None):
     from .interpreter import PythonInterpreter
-    from pkg_resources import get_platform
+    from .platforms import Platform
 
     pi = interpreter or PythonInterpreter.get()
+    plat = Platform.current()
+    platform_name = plat.platform
     return {
       'class': pi.identity.interpreter,
       'version': pi.identity.version,
-      'platform': get_platform(),
+      'platform': platform_name,
     }
 
   @classmethod
