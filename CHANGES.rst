@@ -1,6 +1,31 @@
 Release Notes
 =============
 
+1.5.0
+-----
+
+This release fixes pexes such that they fully support environment markers, the canonical use case
+being a python 2/3 pex that needs to conditionally load one or more python 2 backport libs when
+running under a python 2 interpreter only.
+
+A fix for a regression introduced in 1.4.8 in interpreter setup that could lead to resolved
+distributions failing to build or install is also included.
+
+* Support environment markers during pex activation. (#582)
+  `PR #582 <https://github.com/pantsbuild/pex/pull/582>`_
+
+* Cleanup `PexInfo` and `PythonInterpreter`. (#581)
+  `PR #581 <https://github.com/pantsbuild/pex/pull/581>`_
+
+* Fix resolve regressions introduced by the 1.4.8. (#580)
+  `PR #580 <https://github.com/pantsbuild/pex/pull/580>`_
+
+* Narrow the env marker test. (#578)
+  `PR #578 <https://github.com/pantsbuild/pex/pull/578>`_
+
+* Documentation for #569 (#574)
+  `PR #574 <https://github.com/pantsbuild/pex/pull/574>`_
+
 1.4.8
 -----
 
