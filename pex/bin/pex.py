@@ -661,10 +661,11 @@ def build_pex(args, options, resolver_option_builder):
                                 allow_prereleases=resolver_option_builder.prereleases_allowed,
                                 use_manylinux=options.use_manylinux)
 
-      for dist in resolveds:
-        log('  %s' % dist, v=options.verbosity)
-        pex_builder.add_distribution(dist)
-        pex_builder.add_requirement(dist.as_requirement())
+      for resolved_dist in resolveds:
+        log('  %s -> %s' % (resolved_dist.requirement, resolved_dist.distribution),
+            v=options.verbosity)
+        pex_builder.add_distribution(resolved_dist.distribution)
+        pex_builder.add_requirement(resolved_dist.requirement)
     except Unsatisfiable as e:
       die(e)
 
