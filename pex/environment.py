@@ -161,9 +161,6 @@ class PEXEnvironment(Environment):
     # Resolve them one at a time so that we can figure out which ones we need to elide should
     # there be an interpreter incompatibility.
     for req in reqs:
-      if req.marker and not req.marker.evaluate():
-        TRACER.log('Skipping activation of `%s` due to environment marker de-selection' % req)
-        continue
       with TRACER.timed('Resolving %s' % req, V=2):
         try:
           resolveds.update(working_set.resolve([req], env=self))

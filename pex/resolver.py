@@ -159,10 +159,6 @@ class _ResolvableSet(object):
     return _ResolvableSet([map_packages(rp) for rp in self.__tuples])
 
 
-class ResolvedDistribution(namedtuple('ResolvedDistribution', 'requirement distribution')):
-  """A requirement and the resolved distribution that satisfies it."""
-
-
 class Resolver(object):
   """Interface for resolving resolvable entities into python packages."""
 
@@ -216,10 +212,12 @@ Calculated platform: {calculated_platform!r}""".format(
         # platform.
         return expand_platform()
 
-  def __init__(self, allow_prereleases=None, interpreter=None, platform=None, use_manylinux=None):
+  def __init__(self, allow_prereleases=None, interpreter=None, platform=None,
+               pkg_blacklist=None, use_manylinux=None):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = self._maybe_expand_platform(self._interpreter, platform)
     self._allow_prereleases = allow_prereleases
+    self._blacklist = pkg_blacklist.copy() if pkg_blacklist else {}
     self._supported_tags = self._platform.supported_tags(
       self._interpreter,
       use_manylinux
@@ -259,6 +257,12 @@ Calculated platform: {calculated_platform!r}""".format(
         'Could not get distribution for %s on platform %s.' % (package, self._platform))
     return dist
 
+  def _resolvable_is_blacklisted(self, resolvable_name):
+    return (
+      resolvable_name in self._blacklist and
+      self._interpreter.identity.matches(self._blacklist[resolvable_name])
+    )
+
   def resolve(self, resolvables, resolvable_set=None):
     resolvables = [(resolvable, None) for resolvable in resolvables]
     resolvable_set = resolvable_set or _ResolvableSet()
@@ -273,7 +277,10 @@ Calculated platform: {calculated_platform!r}""".format(
           continue
         packages = self.package_iterator(resolvable, existing=resolvable_set.get(resolvable.name))
 
-        resolvable_set.merge(resolvable, packages, parent)
+        # TODO: Remove blacklist strategy in favor of smart requirement handling
+        # https://github.com/pantsbuild/pex/issues/456
+        if not self._resolvable_is_blacklisted(resolvable.name):
+          resolvable_set.merge(resolvable, packages, parent)
         processed_resolvables.add(resolvable)
 
       built_packages = {}
@@ -320,13 +327,7 @@ Calculated platform: {calculated_platform!r}""".format(
         continue
       assert len(packages) > 0, 'ResolvableSet.packages(%s) should not be empty' % resolvable
       package = next(iter(packages))
-      distribution = distributions[package]
-      if isinstance(resolvable, ResolvableRequirement):
-        requirement = resolvable.requirement
-      else:
-        requirement = distribution.as_requirement()
-      dists.append(ResolvedDistribution(requirement=requirement,
-                                        distribution=distribution))
+      dists.append(distributions[package])
     return dists
 
 
@@ -403,6 +404,7 @@ def resolve(requirements,
             cache=None,
             cache_ttl=None,
             allow_prereleases=None,
+            pkg_blacklist=None,
             use_manylinux=None):
   """Produce all distributions needed to (recursively) meet `requirements`
 
@@ -438,8 +440,16 @@ def resolve(requirements,
     ``context``.
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
     unspecified only stable versions will be resolved, unless explicitly included.
+  :keyword pkg_blacklist: (optional) A blacklist dict (str->str) that maps package name to
+    an interpreter constraint. If a package name is in the blacklist and its interpreter
+    constraint matches the target interpreter, skip the requirement. This is needed to ensure
+    that universal requirement resolves for a target interpreter version do not error out on
+    interpreter specific requirements such as backport libs like `functools32`.
+    For example, a valid blacklist is {'functools32': 'CPython>3'}.
+    NOTE: this keyword is a temporary fix and will be reverted in favor of a long term solution
+    tracked by: https://github.com/pantsbuild/pex/issues/456
   :keyword use_manylinux: (optional) Whether or not to use manylinux for linux resolves.
-  :returns: List of :class:`ResolvedDistribution` instances meeting ``requirements``.
+  :returns: List of :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
     a particular requirement.
@@ -465,10 +475,6 @@ def resolve(requirements,
   .. versionchanged:: 1.0
     ``resolver`` is now just a wrapper around the :class:`Resolver` and :class:`CachingResolver`
     classes.
-
-  .. versionchanged:: 1.5.0
-    The ``pkg_blacklist``  has been removed and the return type change to a list of
-    :class:`ResolvedDistribution`.
   """
 
   builder = ResolverOptionsBuilder(fetchers=fetchers,
@@ -483,12 +489,14 @@ def resolve(requirements,
                                allow_prereleases=allow_prereleases,
                                use_manylinux=use_manylinux,
                                interpreter=interpreter,
-                               platform=platform)
+                               platform=platform,
+                               pkg_blacklist=pkg_blacklist)
   else:
     resolver = Resolver(allow_prereleases=allow_prereleases,
                         use_manylinux=use_manylinux,
                         interpreter=interpreter,
-                        platform=platform)
+                        platform=platform,
+                        pkg_blacklist=pkg_blacklist)
 
   return resolver.resolve(resolvables_from_iterable(requirements, builder))
 
@@ -502,6 +510,7 @@ def resolve_multi(requirements,
                   cache=None,
                   cache_ttl=None,
                   allow_prereleases=None,
+                  pkg_blacklist=None,
                   use_manylinux=None):
   """A generator function that produces all distributions needed to meet `requirements`
   for multiple interpreters and/or platforms.
@@ -533,7 +542,15 @@ def resolve_multi(requirements,
     ``context``.
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
     unspecified only stable versions will be resolved, unless explicitly included.
-  :yields: All :class:`ResolvedDistribution` instances meeting ``requirements``.
+  :keyword pkg_blacklist: (optional) A blacklist dict (str->str) that maps package name to
+    an interpreter constraint. If a package name is in the blacklist and its interpreter
+    constraint matches the target interpreter, skip the requirement. This is needed to ensure
+    that universal requirement resolves for a target interpreter version do not error out on
+    interpreter specific requirements such as backport libs like `functools32`.
+    For example, a valid blacklist is {'functools32': 'CPython>3'}.
+    NOTE: this keyword is a temporary fix and will be reverted in favor of a long term solution
+    tracked by: https://github.com/pantsbuild/pex/issues/456
+  :yields: All :class:`pkg_resources.Distribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
     a particular requirement.
@@ -554,6 +571,7 @@ def resolve_multi(requirements,
                                 cache,
                                 cache_ttl,
                                 allow_prereleases,
+                                pkg_blacklist=pkg_blacklist,
                                 use_manylinux=use_manylinux):
         if resolvable not in seen:
           seen.add(resolvable)

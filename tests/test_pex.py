@@ -419,8 +419,7 @@ def test_execute_interpreter_file_program():
 
 def test_pex_run_custom_setuptools_useable():
   with temporary_dir() as resolve_cache:
-    dists = [resolved_dist.distribution
-             for resolved_dist in resolve(['setuptools==36.2.7'], cache=resolve_cache)]
+    dists = resolve(['setuptools==36.2.7'], cache=resolve_cache)
     with temporary_dir() as temp_dir:
       pex = write_simple_pex(
         temp_dir,
@@ -441,13 +440,11 @@ def test_pex_run_conflicting_custom_setuptools_useable():
   # > pkg_resources/py31compat.py
   # > pkg_resources/_vendor/appdirs.py
   with temporary_dir() as resolve_cache:
-    dists = [resolved_dist.distribution
-             for resolved_dist in resolve(['setuptools==20.3.1'], cache=resolve_cache)]
+    dists = resolve(['setuptools==20.3.1'], cache=resolve_cache)
     interpreter = PythonInterpreter.from_binary(sys.executable,
                                                 path_extras=[dist.location for dist in dists],
                                                 include_site_extras=False)
-    dists = [resolved_dist.distribution
-             for resolved_dist in resolve(['setuptools==40.4.3'], cache=resolve_cache)]
+    dists = resolve(['setuptools==40.4.3'], cache=resolve_cache)
     with temporary_dir() as temp_dir:
       pex = write_simple_pex(
         temp_dir,
