@@ -347,6 +347,28 @@ def ensure_python_distribution(version):
 
   if not os.path.exists(pyenv):
     bootstrap_python_installer(pyenv_root)
+  else:
+    # Update pyenv if necessary.
+    old_wd = os.getcwd()
+    os.chdir(pyenv_root)
+    try:
+      n_commits = subprocess.check_call([
+        'git',
+        'rev-list',
+        'HEAD...origin/master',
+        '--count'
+      ])
+    except subprocess.CalledProcessError as e:
+      print('caught exception while checking pyenv version: %r' % e)
+    else:
+      if int(n_commits) > 0:
+        print('\n\nPyenv update required. Updating...\n\n')
+        try:
+          subprocess.check_call(['git', 'pull'])
+        except subprocess.CalledProcessError as e:
+          print('caught exception while updating pyenv: %r' % e)
+    finally:
+      os.chdir(old_wd)
 
   if not os.path.exists(interpreter_location):
     env = os.environ.copy()
