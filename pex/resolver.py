@@ -557,7 +557,7 @@ def resolve_multi(requirements,
   """
 
   interpreters = interpreters or [PythonInterpreter.get()]
-  platforms = platforms or [Platform.current()]
+  platforms = platforms or ['current']
 
   seen = set()
   for interpreter in interpreters:
