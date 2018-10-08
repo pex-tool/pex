@@ -32,7 +32,6 @@ def test_get_pex_info():
       assert pex_info.dump() == pex_info_2.dump()
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_find_compatible_interpreters():
   py27 = ensure_python_interpreter(PY27)
   py35 = ensure_python_interpreter(PY35)

@@ -52,12 +52,10 @@ class TestPythonInterpreter(object):
   def test_interpreter2(self):
     return ensure_python_interpreter(self.TEST_INTERPRETER2_VERSION)
 
-  @pytest.mark.skipif(IS_PYPY)
   def test_interpreter_versioning(self, test_interpreter1):
     py_interpreter = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     assert py_interpreter.identity.version == self.TEST_INTERPRETER1_VERSION_TUPLE
 
-  @pytest.mark.skipif(IS_PYPY)
   def test_interpreter_caching_basic(self, test_interpreter1, test_interpreter2):
     py_interpreter1 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     py_interpreter2 = interpreter.PythonInterpreter.from_binary(test_interpreter2)
@@ -67,7 +65,6 @@ class TestPythonInterpreter(object):
     py_interpreter3 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     assert py_interpreter1 is py_interpreter3
 
-  @pytest.mark.skipif(IS_PYPY)
   def test_interpreter_caching_include_site_extras(self, test_interpreter1):
     py_interpreter1 = interpreter.PythonInterpreter.from_binary(test_interpreter1,
                                                                 include_site_extras=False)
@@ -78,7 +75,6 @@ class TestPythonInterpreter(object):
     assert py_interpreter1.identity.version == py_interpreter2.identity.version
     assert py_interpreter2 is py_interpreter3
 
-  @pytest.mark.skipif(IS_PYPY)
   def test_interpreter_caching_path_extras(self):
     python, pip = ensure_python_distribution(self.TEST_INTERPRETER1_VERSION)
     with temporary_dir() as td:

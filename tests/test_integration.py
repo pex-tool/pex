@@ -354,7 +354,6 @@ def test_interpreter_constraints_to_pex_info_py2():
     assert set(['>=2.7', '<3']) == set(pex_info.interpreter_constraints)
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_interpreter_constraints_to_pex_info_py3():
   py3_interpreter = ensure_python_interpreter(PY36)
   with environment_as(PATH=os.path.dirname(py3_interpreter)):
@@ -382,7 +381,6 @@ def test_interpreter_resolution_with_constraint_option():
     assert pex_info.build_properties['version'][0] < 3
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_interpreter_resolution_with_pex_python_path():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -459,7 +457,6 @@ def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
     assert str(sys.executable).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_pex_exec_with_pex_python_path_only():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -485,7 +482,6 @@ def test_pex_exec_with_pex_python_path_only():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -513,7 +509,6 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_pex_python():
   py2_path_interpreter = ensure_python_interpreter(PY27)
   py3_path_interpreter = ensure_python_interpreter(PY36)
@@ -574,7 +569,6 @@ def test_pex_python():
       assert correct_interpreter_path in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_entry_point_targeting():
   """Test bugfix for https://github.com/pantsbuild/pex/issues/434"""
   with temporary_dir() as td:
@@ -595,7 +589,6 @@ def test_entry_point_targeting():
     assert 'usage: autopep8'.encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
   """
   This is a test for verifying the proper function of the
@@ -784,7 +777,6 @@ def pex_manylinux_and_tag_selection_context():
     yield test_resolve, ensure_failure
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_pex_manylinux_and_tag_selection_linux_msgpack():
   """Tests resolver manylinux support and tag targeting."""
   with pex_manylinux_and_tag_selection_context() as (test_resolve, ensure_failure):
@@ -963,7 +955,6 @@ def test_pex_resource_bundling():
       assert stdout == b'hello\n'
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_entry_point_verification_3rdparty():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
@@ -974,7 +965,6 @@ def test_entry_point_verification_3rdparty():
     res.assert_success()
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_invalid_entry_point_verification_3rdparty():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
@@ -985,7 +975,6 @@ def test_invalid_entry_point_verification_3rdparty():
     res.assert_failure()
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_multiplatform_entrypoint():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'p537.pex')
@@ -1078,9 +1067,6 @@ def test_pex_interpreter_interact_custom_setuptools_useable():
     assert rc == 0, stdout
 
 
-@pytest.mark.skipif(IS_PYPY,
-                    reason='Our pyenv interpreter setup fails under pypy: '
-                           'https://github.com/pantsbuild/pex/issues/477')
 def test_setup_python():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
@@ -1093,9 +1079,6 @@ def test_setup_python():
     subprocess.check_call([pex, '-c', 'import jsonschema'])
 
 
-@pytest.mark.skipif(IS_PYPY,
-                    reason='Our pyenv interpreter setup fails under pypy: '
-                           'https://github.com/pantsbuild/pex/issues/477')
 def test_setup_interpreter_constraint():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:

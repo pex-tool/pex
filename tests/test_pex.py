@@ -321,7 +321,6 @@ def test_pex_verify_entry_point_module_should_fail():
           verify_entry_point=True)
 
 
-@pytest.mark.skipif(IS_PYPY)
 def test_activate_interpreter_different_from_current():
   with temporary_dir() as pex_root:
     interp_version = PY36 if PY2 else PY27
