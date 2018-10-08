@@ -12,7 +12,7 @@ from textwrap import dedent
 import pytest
 from twitter.common.contextutil import environment_as, temporary_dir
 
-from pex.compatibility import WINDOWS
+from pex.compatibility import WINDOWS, to_bytes
 from pex.installer import EggInstaller
 from pex.pex_bootstrapper import get_pex_info
 from pex.testing import (
@@ -1107,3 +1107,39 @@ def test_setup_interpreter_constraint():
                                  '-o', pex])
       results.assert_success()
       subprocess.check_call([pex, '-c', 'import jsonschema'])
+
+
+@pytest.mark.skipif(IS_PYPY,
+                    reason='Our pyenv interpreter setup fails under pypy: '
+                           'https://github.com/pantsbuild/pex/issues/477')
+def test_setup_python_multiple():
+  py27_interpreter = ensure_python_interpreter(PY27)
+  py36_interpreter = ensure_python_interpreter(PY36)
+  with temporary_dir() as out:
+    pex = os.path.join(out, 'pex.pex')
+    results = run_pex_command(['jsonschema==2.6.0',
+                               '--disable-cache',
+                               '--python-shebang=#!/usr/bin/env python',
+                               '--python={}'.format(py27_interpreter),
+                               '--python={}'.format(py36_interpreter),
+                               '-o', pex])
+    results.assert_success()
+
+    pex_program = [pex, '-c']
+    py2_only_program = pex_program + ['import functools32']
+    both_program = pex_program + [
+      'import jsonschema, os, sys; print(os.path.realpath(sys.executable))'
+    ]
+
+    with environment_as(PATH=os.path.dirname(py27_interpreter)):
+      subprocess.check_call(py2_only_program)
+
+      stdout = subprocess.check_output(both_program)
+      assert to_bytes(os.path.realpath(py27_interpreter)) == stdout.strip()
+
+    with environment_as(PATH=os.path.dirname(py36_interpreter)):
+      with pytest.raises(subprocess.CalledProcessError):
+        subprocess.check_call(py2_only_program)
+
+      stdout = subprocess.check_output(both_program)
+      assert to_bytes(os.path.realpath(py36_interpreter)) == stdout.strip()
