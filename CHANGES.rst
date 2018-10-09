@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+1.5.0
+-----
+
+This release fixes pexes such that they fully support environment markers, the canonical use case
+being a python 2/3 pex that needs to conditionally load one or more python 2 backport libs when
+running under a python 2 interpreter only.
+
+* Revert "Revert "Support environment markers during pex activation. (#582)""
+  `PR #582 <https://github.com/pantsbuild/pex/pull/582>`_
+
 1.4.9
 -----
 
