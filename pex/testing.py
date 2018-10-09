@@ -242,7 +242,7 @@ def run_pex_command(args, env=None):
   than running a generated pex.  This is useful for testing end to end runs
   with specific command line arguments or env options.
   """
-  args.insert(0, '-vvvvv')
+  # args.insert(0, '-vvvvv')
   def logger_callback(_output):
     def mock_logger(msg, v=None):
       _output.append(msg)
@@ -310,7 +310,7 @@ def combine_pex_coverage(coverage_file_iter):
 
 def bootstrap_python_installer(dest):
   safe_rmtree(dest)
-  Executor.execute(['git', 'clone', 'https://github.com/pyenv/pyenv.git', dest])
+  Executor.execute(['git', 'clone', '--quiet', 'https://github.com/pyenv/pyenv.git', dest])
 
 
 # NB: We keep the pool of bootstrapped interpreters as small as possible to avoid timeouts in CI
@@ -341,9 +341,13 @@ def ensure_python_distribution(version):
     env['PYENV_ROOT'] = pyenv_root
     if sys.platform.lower() == 'linux':
       env['CONFIGURE_OPTS'] = '--enable-shared'
-    Executor.execute([pyenv, 'install', '--keep', version], env=env)
-    Executor.execute([pip, 'install', '-U', 'pip'])
-    Executor.execute([pip, 'install', SETUPTOOLS_REQUIREMENT])
+    with open(os.devnull) as devnull:
+      Executor.execute([pyenv, 'install', '--keep', version],
+                       stdout=devnull,
+                       stderr=devnull,
+                       env=env)
+    Executor.execute([pip, '--quiet', 'install', '-U', 'pip'])
+    Executor.execute([pip, '--quiet', 'install', SETUPTOOLS_REQUIREMENT])
 
   python = os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
   return python, pip
