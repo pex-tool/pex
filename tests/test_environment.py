@@ -127,20 +127,21 @@ def test_osx_platform_intel_issue_523():
     # We need to run the bad interpreter with a modern, non-Apple-Extras setuptools in order to
     # successfully install psutil.
     for requirement in (SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT):
-      for dist in resolver.resolve([requirement],
-                                   cache=cache,
-                                   # We can't use wheels since we're bootstrapping them.
-                                   precedence=(SourcePackage, EggPackage),
-                                   interpreter=interpreter):
+      for resolved_dist in resolver.resolve([requirement],
+                                            cache=cache,
+                                            # We can't use wheels since we're bootstrapping them.
+                                            precedence=(SourcePackage, EggPackage),
+                                            interpreter=interpreter):
+        dist = resolved_dist.distribution
         interpreter = interpreter.with_extra(dist.key, dist.version, dist.location)
 
     with nested(yield_pex_builder(installer_impl=WheelInstaller, interpreter=interpreter),
                 temporary_filename()) as (pb, pex_file):
-      for dist in resolver.resolve(['psutil==5.4.3'],
-                                   cache=cache,
-                                   precedence=(SourcePackage, WheelPackage),
-                                   interpreter=interpreter):
-        pb.add_dist_location(dist.location)
+      for resolved_dist in resolver.resolve(['psutil==5.4.3'],
+                                            cache=cache,
+                                            precedence=(SourcePackage, WheelPackage),
+                                            interpreter=interpreter):
+        pb.add_dist_location(resolved_dist.distribution.location)
       pb.build(pex_file)
 
       # NB: We want PEX to find the bare bad interpreter at runtime.
