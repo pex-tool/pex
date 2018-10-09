@@ -1,7 +1,18 @@
 # This file was copied from the pip project master branch on 2016/12/05
 from __future__ import absolute_import
 
-import ctypes
+try:
+  import ctypes
+except ImportError:
+  # If this is being pulled in from the bootstrapper, let it decide whether this
+  # is an error. `ctypes` isn't needed if we aren't using manylinux, this
+  # allows PEX files to be run in environments where ctypes isn't available.
+  from traceback import extract_stack
+  if any(trace for trace in extract_stack()
+         if any('pex_bootstrapper.py' in str(field) for field in trace)):
+    CTYPES_UNDEF = True
+  else:
+    raise
 import platform
 import re
 import warnings
@@ -9,6 +20,11 @@ import warnings
 
 def glibc_version_string():
   "Returns glibc version string, or None if not using glibc."
+  try:
+    CTYPES_UNDEF
+    return None
+  except NameError:
+    pass
 
   # ctypes.CDLL(None) internally calls dlopen(NULL), and as the dlopen
   # manpage says, "If filename is NULL, then the returned handle is for the

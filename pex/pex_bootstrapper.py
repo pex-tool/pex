@@ -166,6 +166,16 @@ def bootstrap_pex(entry_point):
   pex_info = get_pex_info(entry_point)
   maybe_reexec_pex(pex_info.interpreter_constraints)
 
+  # If use_manylinux is set and ctypes is unavailable, fail
+  if pex_info.use_manylinux:
+    try:
+      from . import glibc
+      glibc.CTYPES_UNDEF
+      raise ImportError(
+          "use_manylinux set in PEX-INFO, but ctypes could not be imported.")
+    except NameError:
+      pass
+
   from . import pex
   pex.PEX(entry_point).execute()
 
