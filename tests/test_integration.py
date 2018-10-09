@@ -1112,7 +1112,7 @@ def test_setup_interpreter_constraint():
 @pytest.mark.skipif(IS_PYPY,
                     reason='Our pyenv interpreter setup fails under pypy: '
                            'https://github.com/pantsbuild/pex/issues/477')
-def test_setup_python_multiple():
+def test_setup_python_multiple_transitive_markers():
   py27_interpreter = ensure_python_interpreter(PY27)
   py36_interpreter = ensure_python_interpreter(PY36)
   with temporary_dir() as out:
@@ -1143,3 +1143,50 @@ def test_setup_python_multiple():
 
       stdout = subprocess.check_output(both_program)
       assert to_bytes(os.path.realpath(py36_interpreter)) == stdout.strip()
+
+
+@pytest.mark.skipif(IS_PYPY,
+                    reason='Our pyenv interpreter setup fails under pypy: '
+                           'https://github.com/pantsbuild/pex/issues/477')
+def test_setup_python_direct_markers():
+  py36_interpreter = ensure_python_interpreter(PY36)
+  with temporary_dir() as out:
+    pex = os.path.join(out, 'pex.pex')
+    results = run_pex_command(['subprocess32==3.2.7; python_version<"3"',
+                               '--disable-cache',
+                               '--python-shebang=#!/usr/bin/env python',
+                               '--python={}'.format(py36_interpreter),
+                               '-o', pex])
+    results.assert_success()
+
+    py2_only_program = [pex, '-c', 'import subprocess32']
+
+    with environment_as(PATH=os.path.dirname(py36_interpreter)):
+      with pytest.raises(subprocess.CalledProcessError):
+        subprocess.check_call(py2_only_program)
+
+
+@pytest.mark.skipif(IS_PYPY,
+                    reason='Our pyenv interpreter setup fails under pypy: '
+                           'https://github.com/pantsbuild/pex/issues/477')
+def test_setup_python_multiple_direct_markers():
+  py36_interpreter = ensure_python_interpreter(PY36)
+  py27_interpreter = ensure_python_interpreter(PY27)
+  with temporary_dir() as out:
+    pex = os.path.join(out, 'pex.pex')
+    results = run_pex_command(['subprocess32==3.2.7; python_version<"3"',
+                               '--disable-cache',
+                               '--python-shebang=#!/usr/bin/env python',
+                               '--python={}'.format(py36_interpreter),
+                               '--python={}'.format(py27_interpreter),
+                               '-o', pex])
+    results.assert_success()
+
+    py2_only_program = [pex, '-c', 'import subprocess32']
+
+    with environment_as(PATH=os.path.dirname(py36_interpreter)):
+      with pytest.raises(subprocess.CalledProcessError):
+        subprocess.check_call(py2_only_program)
+
+    with environment_as(PATH=os.path.dirname(py27_interpreter)):
+      subprocess.check_call(py2_only_program)
