@@ -777,6 +777,7 @@ def pex_manylinux_and_tag_selection_context():
     yield test_resolve, ensure_failure
 
 
+@pytest.mark.skipif(IS_PYPY, reason='There are no msgpack-python wheels published for pypy.')
 def test_pex_manylinux_and_tag_selection_linux_msgpack():
   """Tests resolver manylinux support and tag targeting."""
   with pex_manylinux_and_tag_selection_context() as (test_resolve, ensure_failure):
