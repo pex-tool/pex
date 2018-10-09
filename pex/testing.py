@@ -5,7 +5,6 @@ from __future__ import print_function
 import contextlib
 import os
 import random
-import subprocess
 import sys
 import tempfile
 import traceback
@@ -243,7 +242,7 @@ def run_pex_command(args, env=None):
   than running a generated pex.  This is useful for testing end to end runs
   with specific command line arguments or env options.
   """
-  args.insert(0, '-vvvvv')
+  # args.insert(0, '-vvvvv')
   def logger_callback(_output):
     def mock_logger(msg, v=None):
       _output.append(msg)
@@ -311,18 +310,7 @@ def combine_pex_coverage(coverage_file_iter):
 
 def bootstrap_python_installer(dest):
   safe_rmtree(dest)
-  for _ in range(3):
-    try:
-      subprocess.check_call(
-        ['git', 'clone', 'https://github.com/pyenv/pyenv.git', dest]
-      )
-    except subprocess.CalledProcessError as e:
-      print('caught exception: %r' % e)
-      continue
-    else:
-      break
-  else:
-    raise RuntimeError("Helper method could not clone pyenv from git after 3 tries")
+  Executor.execute(['git', 'clone', '--quiet', 'https://github.com/pyenv/pyenv.git', dest])
 
 
 # NB: We keep the pool of bootstrapped interpreters as small as possible to avoid timeouts in CI
@@ -353,9 +341,13 @@ def ensure_python_distribution(version):
     env['PYENV_ROOT'] = pyenv_root
     if sys.platform.lower() == 'linux':
       env['CONFIGURE_OPTS'] = '--enable-shared'
-    subprocess.check_call([pyenv, 'install', '--keep', version], env=env)
-    subprocess.check_call([pip, 'install', '-U', 'pip'])
-    subprocess.check_call([pip, 'install', SETUPTOOLS_REQUIREMENT])
+    with open(os.devnull) as devnull:
+      Executor.execute([pyenv, 'install', '--keep', version],
+                       stdout=devnull,
+                       stderr=devnull,
+                       env=env)
+    Executor.execute([pip, '--quiet', 'install', '-U', 'pip'])
+    Executor.execute([pip, '--quiet', 'install', SETUPTOOLS_REQUIREMENT])
 
   python = os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
   return python, pip
