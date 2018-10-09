@@ -2,14 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 
 import pytest
 
 from pex import interpreter
 from pex.compatibility import PY3
+from pex.executor import Executor
 from pex.testing import (
-    IS_PYPY,
     PY27,
     PY35,
     ensure_python_distribution,
@@ -79,10 +78,7 @@ class TestPythonInterpreter(object):
     python, pip = ensure_python_distribution(self.TEST_INTERPRETER1_VERSION)
     with temporary_dir() as td:
       path_extra = os.path.realpath(td)
-      subprocess.check_call([pip,
-                             'install',
-                             '--target={}'.format(path_extra),
-                             'ansicolors==1.1.8'])
+      Executor.execute([pip, 'install', '--target={}'.format(path_extra), 'ansicolors==1.1.8'])
       py_interpreter1 = interpreter.PythonInterpreter.from_binary(python,
                                                                   path_extras=[path_extra],
                                                                   include_site_extras=False)

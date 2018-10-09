@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import os
 import platform
-import subprocess
 from contextlib import contextmanager
 
 import pytest
@@ -11,6 +10,7 @@ from twitter.common.contextutil import temporary_dir
 from pex import resolver
 from pex.compatibility import nested, to_bytes
 from pex.environment import PEXEnvironment
+from pex.executor import subprocess
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
 from pex.package import EggPackage, SourcePackage, WheelPackage

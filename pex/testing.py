@@ -5,7 +5,6 @@ from __future__ import print_function
 import contextlib
 import os
 import random
-import subprocess
 import sys
 import tempfile
 import traceback
@@ -311,8 +310,7 @@ def combine_pex_coverage(coverage_file_iter):
 
 def bootstrap_python_installer(dest):
   safe_rmtree(dest)
-  # NB: It's important to use `--quiet` under pypy.
-  subprocess.check_call(['git', 'clone', '--quiet', 'https://github.com/pyenv/pyenv.git', dest])
+  Executor.execute(['git', 'clone', 'https://github.com/pyenv/pyenv.git', dest])
 
 
 # NB: We keep the pool of bootstrapped interpreters as small as possible to avoid timeouts in CI
@@ -343,9 +341,9 @@ def ensure_python_distribution(version):
     env['PYENV_ROOT'] = pyenv_root
     if sys.platform.lower() == 'linux':
       env['CONFIGURE_OPTS'] = '--enable-shared'
-    subprocess.check_call([pyenv, 'install', '--keep', version], env=env)
-    subprocess.check_call([pip, 'install', '-U', 'pip'])
-    subprocess.check_call([pip, 'install', SETUPTOOLS_REQUIREMENT])
+    Executor.execute([pyenv, 'install', '--keep', version], env=env)
+    Executor.execute([pip, 'install', '-U', 'pip'])
+    Executor.execute([pip, 'install', SETUPTOOLS_REQUIREMENT])
 
   python = os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
   return python, pip

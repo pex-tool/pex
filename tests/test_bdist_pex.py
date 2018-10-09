@@ -3,13 +3,13 @@
 
 import os
 import stat
-import subprocess
 import sys
 from textwrap import dedent
 
 from twitter.common.contextutil import pushd
 
 from pex.common import open_zip
+from pex.executor import Executor
 from pex.testing import temporary_content
 
 
@@ -33,13 +33,10 @@ def assert_entry_points(entry_points):
 
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
     with pushd(project_dir):
-      subprocess.check_call([sys.executable, 'setup.py', 'bdist_pex'])
-      process = subprocess.Popen([os.path.join(project_dir, 'dist', 'my_app-0.0.0.pex')],
-                                 stdout=subprocess.PIPE)
-      stdout, _ = process.communicate()
+      Executor.execute([sys.executable, 'setup.py', 'bdist_pex'])
+      stdout, _ = Executor.execute([os.path.join(project_dir, 'dist', 'my_app-0.0.0.pex')])
       assert '{pex_root}' not in os.listdir(project_dir)
-      assert 0 == process.returncode
-      assert stdout == b'hello world!\n'
+      assert stdout == 'hello world!\n'
 
 
 def assert_pex_args_shebang(shebang):
@@ -56,10 +53,10 @@ def assert_pex_args_shebang(shebang):
 
   with temporary_content({'setup.py': setup_py}) as project_dir:
     with pushd(project_dir):
-      assert subprocess.check_call(
-        [sys.executable, 'setup.py', 'bdist_pex',
-         '--pex-args=--python-shebang="%(shebang)s"' %
-         dict(shebang=shebang)]) == 0
+      Executor.execute([sys.executable,
+                        'setup.py',
+                        'bdist_pex',
+                        '--pex-args=--python-shebang="%(shebang)s"' % dict(shebang=shebang)])
 
       with open(os.path.join(project_dir, 'dist',
                              'my_app-0.0.0.pex'), 'rb') as fp:
@@ -105,7 +102,7 @@ def test_unwriteable_contents():
                           'my_app/unwriteable.so': ''},
                          perms=UNWRITEABLE_PERMS) as my_app_project_dir:
     with pushd(my_app_project_dir):
-      subprocess.check_call([sys.executable, 'setup.py', 'bdist_wheel'])
+      Executor.execute([sys.executable, 'setup.py', 'bdist_wheel'])
 
     uses_my_app_setup_py = dedent("""
       from setuptools import setup
@@ -119,11 +116,11 @@ def test_unwriteable_contents():
     """)
     with temporary_content({'setup.py': uses_my_app_setup_py}) as uses_my_app_project_dir:
       with pushd(uses_my_app_project_dir):
-        subprocess.check_call([sys.executable,
-                               'setup.py',
-                               'bdist_pex',
-                               '--pex-args=--disable-cache --no-pypi -f {}'
-                              .format(os.path.join(my_app_project_dir, 'dist'))])
+        Executor.execute([sys.executable,
+                          'setup.py',
+                          'bdist_pex',
+                          '--pex-args=--disable-cache --no-pypi -f {}'
+                          .format(os.path.join(my_app_project_dir, 'dist'))])
 
         with open_zip('dist/uses_my_app-0.0.0.pex') as zf:
           unwriteable_sos = [path for path in zf.namelist()

@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import subprocess
 import sys
 import textwrap
 from contextlib import contextmanager
@@ -13,6 +12,7 @@ from twitter.common.contextutil import temporary_file
 
 from pex.bin.pex import setup_interpreter
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
+from pex.executor import subprocess
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
@@ -20,7 +20,6 @@ from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolver import resolve
 from pex.testing import (
-    IS_PYPY,
     PY27,
     PY36,
     ensure_python_interpreter,

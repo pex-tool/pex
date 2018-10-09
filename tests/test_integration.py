@@ -4,7 +4,6 @@
 import functools
 import os
 import platform
-import subprocess
 import sys
 from contextlib import contextmanager
 from textwrap import dedent
@@ -12,7 +11,8 @@ from textwrap import dedent
 import pytest
 from twitter.common.contextutil import environment_as, temporary_dir
 
-from pex.compatibility import WINDOWS, to_bytes
+from pex.compatibility import WINDOWS
+from pex.executor import Executor
 from pex.installer import EggInstaller
 from pex.pex_bootstrapper import get_pex_info
 from pex.testing import (
@@ -825,7 +825,7 @@ def test_pex_manylinux_runtime():
                                '-o', pex_path])
     results.assert_success()
 
-    out = subprocess.check_output([pex_path, tester_path])
+    out, _ = Executor.execute([pex_path, tester_path])
     assert out.strip() == '[1, 2, 3]'
 
 
@@ -990,7 +990,7 @@ def test_multiplatform_entrypoint():
                            '--validate-entry-point'])
     res.assert_success()
 
-    greeting = subprocess.check_output([pex_out_path])
+    greeting, _ = Executor.execute([pex_out_path])
     assert b'Hello World!' == greeting.strip()
 
 
@@ -1076,7 +1076,7 @@ def test_setup_python():
                                '--python={}'.format(interpreter),
                                '-o', pex])
     results.assert_success()
-    subprocess.check_call([pex, '-c', 'import jsonschema'])
+    Executor.execute([pex, '-c', 'import jsonschema'])
 
 
 def test_setup_interpreter_constraint():
@@ -1089,7 +1089,7 @@ def test_setup_interpreter_constraint():
                                  '--interpreter-constraint=CPython=={}'.format(PY27),
                                  '-o', pex])
       results.assert_success()
-      subprocess.check_call([pex, '-c', 'import jsonschema'])
+      Executor.execute([pex, '-c', 'import jsonschema'])
 
 
 @pytest.mark.skipif(IS_PYPY,
@@ -1115,14 +1115,14 @@ def test_setup_python_multiple():
     ]
 
     with environment_as(PATH=os.path.dirname(py27_interpreter)):
-      subprocess.check_call(py2_only_program)
+      Executor.execute(py2_only_program)
 
-      stdout = subprocess.check_output(both_program)
-      assert to_bytes(os.path.realpath(py27_interpreter)) == stdout.strip()
+      stdout, _ = Executor.execute(both_program)
+      assert os.path.realpath(py27_interpreter) == stdout.strip()
 
     with environment_as(PATH=os.path.dirname(py36_interpreter)):
-      with pytest.raises(subprocess.CalledProcessError):
-        subprocess.check_call(py2_only_program)
+      with pytest.raises(Executor.NonZeroExit):
+        Executor.execute(py2_only_program)
 
-      stdout = subprocess.check_output(both_program)
-      assert to_bytes(os.path.realpath(py36_interpreter)) == stdout.strip()
+      stdout, _ = Executor.execute(both_program)
+      assert os.path.realpath(py36_interpreter) == stdout.strip()
