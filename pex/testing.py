@@ -13,7 +13,7 @@ from collections import namedtuple
 from textwrap import dedent
 
 from .bin.pex import log, main
-from .common import open_zip, safe_mkdir, safe_rmtree
+from .common import open_zip, safe_mkdir, safe_rmtree, touch
 from .compatibility import PY3, nested
 from .executor import Executor
 from .installer import EggInstaller, Packager
@@ -324,7 +324,7 @@ def bootstrap_python_installer(dest):
   else:
     raise RuntimeError("Helper method could not clone pyenv from git after 3 tries")
   # Create an empty file indicating the fingerprint of the correct set of test interpreters.
-  open(os.path.join(dest, INTERPRETER_SET_FINGERPRINT), 'w').close()
+  touch(os.path.join(dest, _INTERPRETER_SET_FINGERPRINT))
 
 
 # NB: We keep the pool of bootstrapped interpreters as small as possible to avoid timeouts in CI
@@ -340,7 +340,7 @@ _VERSIONS = (PY27, PY35, PY36)
 # Its purpose is to indicate whether pyenv has the correct interpreters installed
 # and will be useful for indicating whether we should trigger a reclone to update
 # pyenv.
-INTERPRETER_SET_FINGERPRINT = '_'.join(_VERSIONS) + '_pex_fingerprint'
+_INTERPRETER_SET_FINGERPRINT = '_'.join(_VERSIONS) + '_pex_fingerprint'
 
 
 def pyenv_has_test_interpreters(pyenv_root):
@@ -349,7 +349,7 @@ def pyenv_has_test_interpreters(pyenv_root):
   set of interpreters as specified by the presence of a fingerprint file with a filename based on
   `_VERSIONS`.
   """
-  if not os.path.exists(os.path.join(pyenv_root, INTERPRETER_SET_FINGERPRINT)):
+  if not os.path.exists(os.path.join(pyenv_root, _INTERPRETER_SET_FINGERPRINT)):
     return False
   return True
 
@@ -363,7 +363,7 @@ def ensure_python_distribution(version):
   pyenv = os.path.join(pyenv_root, 'bin', 'pyenv')
   pip = os.path.join(interpreter_location, 'bin', 'pip')
 
-  if not (os.path.exists(pyenv) and pyenv_has_test_interpreters(pyenv_root)):
+  if not os.path.exists(os.path.join(pyenv_root, _INTERPRETER_SET_FINGERPRINT)):
     bootstrap_python_installer(pyenv_root)
 
   if not os.path.exists(interpreter_location):
