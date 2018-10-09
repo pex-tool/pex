@@ -323,6 +323,8 @@ def bootstrap_python_installer(dest):
       break
   else:
     raise RuntimeError("Helper method could not clone pyenv from git after 3 tries")
+  # Create an empty file indicating the fingerprint of the correct set of test interpreters.
+  open(os.path.join(dest, INTERPRETER_SET_FINGERPRINT), 'w').close()
 
 
 # NB: We keep the pool of bootstrapped interpreters as small as possible to avoid timeouts in CI
@@ -334,6 +336,22 @@ PY35 = '3.5.6'
 PY36 = '3.6.6'
 
 _VERSIONS = (PY27, PY35, PY36)
+# This is the filename of a sentinel file that sits in the pyenv root directory.
+# Its purpose is to indicate whether pyenv has the correct interpreters installed
+# and will be useful for indicating whether we should trigger a reclone to update
+# pyenv.
+INTERPRETER_SET_FINGERPRINT = '_'.join(_VERSIONS) + '_pex_fingerprint'
+
+
+def pyenv_has_test_interpreters(pyenv_root):
+  """
+  Return a boolean indicating whether the current pyenv installation can support the current
+  set of interpreters as specified by the presence of a fingerprint file with a filename based on
+  `_VERSIONS`.
+  """
+  if not os.path.exists(os.path.join(pyenv_root, INTERPRETER_SET_FINGERPRINT)):
+    return False
+  return True
 
 
 def ensure_python_distribution(version):
@@ -345,30 +363,8 @@ def ensure_python_distribution(version):
   pyenv = os.path.join(pyenv_root, 'bin', 'pyenv')
   pip = os.path.join(interpreter_location, 'bin', 'pip')
 
-  if not os.path.exists(pyenv):
+  if not (os.path.exists(pyenv) and pyenv_has_test_interpreters(pyenv_root)):
     bootstrap_python_installer(pyenv_root)
-  else:
-    # Update pyenv if necessary.
-    old_wd = os.getcwd()
-    os.chdir(pyenv_root)
-    try:
-      n_commits = subprocess.check_call([
-        'git',
-        'rev-list',
-        'HEAD...origin/master',
-        '--count'
-      ])
-    except subprocess.CalledProcessError as e:
-      print('caught exception while checking pyenv version: %r' % e)
-    else:
-      if int(n_commits) > 0:
-        print('\n\nPyenv update required. Updating...\n\n')
-        try:
-          subprocess.check_call(['git', 'pull'])
-        except subprocess.CalledProcessError as e:
-          print('caught exception while updating pyenv: %r' % e)
-    finally:
-      os.chdir(old_wd)
 
   if not os.path.exists(interpreter_location):
     env = os.environ.copy()
