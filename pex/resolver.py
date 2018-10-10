@@ -261,7 +261,7 @@ Calculated platform: {calculated_platform!r}""".format(
         'Could not get distribution for %s on platform %s.' % (package, self._platform))
     return dist
 
-  def resolvable_in_target_interpreter_env(self, resolvable):
+  def is_resolvable_in_target_interpreter_env(self, resolvable):
     if not isinstance(resolvable, ResolvableRequirement):
       return True
     elif resolvable.requirement.marker is None:
@@ -271,7 +271,7 @@ Calculated platform: {calculated_platform!r}""".format(
 
   def resolve(self, resolvables, resolvable_set=None):
     resolvables = [(resolvable, None) for resolvable in resolvables
-                   if self.resolvable_in_target_interpreter_env(resolvable)]
+                   if self.is_resolvable_in_target_interpreter_env(resolvable)]
     resolvable_set = resolvable_set or _ResolvableSet()
     processed_resolvables = set()
     processed_packages = {}
