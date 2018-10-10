@@ -130,6 +130,7 @@ class PEXEnvironment(Environment):
       platform=platform_name,
       **kw
     )
+    self._target_interpreter_env = self._interpreter.identity.pkg_resources_env(platform_name)
     self._supported_tags.extend(platform.supported_tags(self._interpreter))
     TRACER.log(
       'E: tags for %r x %r -> %s' % (self.platform, self._interpreter, self._supported_tags),
@@ -161,7 +162,7 @@ class PEXEnvironment(Environment):
     # Resolve them one at a time so that we can figure out which ones we need to elide should
     # there be an interpreter incompatibility.
     for req in reqs:
-      if req.marker and not req.marker.evaluate():
+      if req.marker and not req.marker.evaluate(environment=self._target_interpreter_env):
         TRACER.log('Skipping activation of `%s` due to environment marker de-selection' % req)
         continue
       with TRACER.timed('Resolving %s' % req, V=2):

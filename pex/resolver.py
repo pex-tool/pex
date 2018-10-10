@@ -220,6 +220,8 @@ Calculated platform: {calculated_platform!r}""".format(
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = self._maybe_expand_platform(self._interpreter, platform)
     self._allow_prereleases = allow_prereleases
+    platform_name = self._platform.platform
+    self._target_interpreter_env = self._interpreter.identity.pkg_resources_env(platform_name)
     self._supported_tags = self._platform.supported_tags(
       self._interpreter,
       use_manylinux
@@ -259,8 +261,17 @@ Calculated platform: {calculated_platform!r}""".format(
         'Could not get distribution for %s on platform %s.' % (package, self._platform))
     return dist
 
+  def is_resolvable_in_target_interpreter_env(self, resolvable):
+    if not isinstance(resolvable, ResolvableRequirement):
+      return True
+    elif resolvable.requirement.marker is None:
+      return True
+    else:
+      return resolvable.requirement.marker.evaluate(environment=self._target_interpreter_env)
+
   def resolve(self, resolvables, resolvable_set=None):
-    resolvables = [(resolvable, None) for resolvable in resolvables]
+    resolvables = [(resolvable, None) for resolvable in resolvables
+                   if self.is_resolvable_in_target_interpreter_env(resolvable)]
     resolvable_set = resolvable_set or _ResolvableSet()
     processed_resolvables = set()
     processed_packages = {}
@@ -297,9 +308,7 @@ Calculated platform: {calculated_platform!r}""".format(
         new_parent = '%s->%s' % (parent, resolvable) if parent else str(resolvable)
         # We patch packaging.markers.default_environment here so we find optional reqs for the
         # platform we're building the PEX for, rather than the one we're on.
-        with patched_packing_env(
-          self._interpreter.identity.pkg_resources_env(self._platform.platform)
-        ):
+        with patched_packing_env(self._target_interpreter_env):
           resolvables.extend(
             (ResolvableRequirement(req, resolvable.options), new_parent) for req in
             distribution.requires(extras=resolvable_set.extras(resolvable.name))
