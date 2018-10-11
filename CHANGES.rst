@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.5.1
+-----
+
+This release brings a fix to handle top-level requirements with environment markers, fully
+completing environment marker support.
+
+* Filter top-level requirements against env markers. (#592)
+  `PR #592 <https://github.com/pantsbuild/pex/pull/592>`_
+
 1.5.0
 -----
 
