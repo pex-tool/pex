@@ -171,7 +171,7 @@ def safe_path(path):
   if os.name == "nt":
     extended_path_prefix = u"\\\\?\\"
     if not path.startswith(extended_path_prefix):
-      return extended_path_prefix + path
+      return os.path.abspath(extended_path_prefix + path)
   return path
 
 
