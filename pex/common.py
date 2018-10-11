@@ -120,8 +120,7 @@ def safe_mkdir(directory, clean=False):
   """Safely create a directory.
 
   Ensures a directory is present.  If it's not there, it is created.  If it
-  is, it's a no-op. If clean is True, ensures the directory is
-  empty.
+  is, it's a no-op. If clean is True, ensures the directory is empty.
   """
   if clean:
     safe_rmtree(directory)
