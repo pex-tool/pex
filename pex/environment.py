@@ -64,6 +64,8 @@ class PEXEnvironment(Environment):
         try:
           module.__path__.insert(0, module_dir)
         except AttributeError:
+          # TODO: This is a temporary bandaid for an unhandled AttributeError which results
+          # in a startup crash. See https://github.com/pantsbuild/pex/issues/598 for more info.
           TRACER.log(
             'Failed to insert %s: %s.__path__ of type %s does not support insertion!' % (
               module_dir,
