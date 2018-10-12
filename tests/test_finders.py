@@ -1,15 +1,23 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import os
 import zipimport
 
 import pkg_resources
 import pytest
 
+from pex.compatibility import to_bytes
 from pex.finders import ChainedFinder
 from pex.finders import _add_finder as add_finder
 from pex.finders import _remove_finder as remove_finder
-from pex.finders import find_eggs_in_zip, get_entry_point_from_console_script, get_script_from_egg
+from pex.finders import (
+    find_eggs_in_zip,
+    find_wheels_in_zip,
+    get_entry_point_from_console_script,
+    get_script_from_egg,
+    get_script_from_whl
+)
 
 try:
   import mock
@@ -105,20 +113,46 @@ def test_remove_finder():
       mock_register_finder.assert_called_with('foo', pkg_resources.find_nothing)
 
 
-def test_get_script_from_egg():
-  # Make sure eggs without scripts don't cause errors
-  dists = list(
-    find_eggs_in_zip(
-      zipimport.zipimporter('./tests/example_packages/Flask_Cache-0.13.1-py2.7.egg'),
-      './tests/example_packages/Flask_Cache-0.13.1-py2.7.egg',
-      only=True))
-
+def test_get_script_from_egg_with_no_scripts():
+  # Make sure eggs without scripts don't cause errors.
+  egg_path = './tests/example_packages/Flask_Cache-0.13.1-py2.7.egg'
+  dists = list(find_eggs_in_zip(zipimport.zipimporter(egg_path), egg_path, only=True))
   assert len(dists) == 1
 
-  (location, content) = get_script_from_egg('non_existent_script', dists[0])
+  dist = dists[0]
+  assert (None, None) == get_script_from_egg('non_existent_script', dist)
 
-  assert location is None
-  assert content is None
+
+def test_get_script_from_egg():
+  egg_path = './tests/example_packages/eno-0.0.17-py2.7.egg'
+  dists = list(find_eggs_in_zip(zipimport.zipimporter(egg_path), egg_path, only=True))
+  assert len(dists) == 1
+
+  dist = dists[0]
+
+  location, content = get_script_from_egg('run_eno_server', dist)
+  assert os.path.join(egg_path, 'EGG-INFO/scripts/run_eno_server') == location
+  assert content.startswith('#!'), 'Expected a `scripts` style script with shebang.'
+
+  assert (None, None) == get_script_from_egg('non_existent_script', dist)
+
+
+# In-part, tests a bug where the wheel distribution name has dashes as reported in:
+#   https://github.com/pantsbuild/pex/issues/443
+#   https://github.com/pantsbuild/pex/issues/551
+def test_get_script_from_whl():
+  whl_path = './tests/example_packages/aws_cfn_bootstrap-1.4-py2-none-any.whl'
+  dists = list(find_wheels_in_zip(zipimport.zipimporter(whl_path), whl_path))
+  assert len(dists) == 1
+
+  dist = dists[0]
+  assert 'aws-cfn-bootstrap' == dist.project_name
+
+  script_path, script_content = get_script_from_whl('cfn-signal', dist)
+  assert os.path.join(whl_path, 'aws_cfn_bootstrap-1.4.data/scripts/cfn-signal') == script_path
+  assert script_content.startswith(to_bytes('#!')), 'Expected a `scripts`-style script w/shebang.'
+
+  assert (None, None) == get_script_from_whl('non_existent_script', dist)
 
 
 class FakeDist(object):
@@ -134,7 +168,10 @@ class FakeDist(object):
 def test_get_entry_point_from_console_script():
   dists = [FakeDist(key='fake', console_script_entry='bob= bob.main:run'),
            FakeDist(key='fake', console_script_entry='bob =bob.main:run')]
-  assert 'bob.main:run' == get_entry_point_from_console_script('bob', dists)
+
+  dist, entrypoint = get_entry_point_from_console_script('bob', dists)
+  assert 'bob.main:run' == entrypoint
+  assert dist in dists
 
 
 def test_get_entry_point_from_console_script_conflict():
@@ -147,4 +184,4 @@ def test_get_entry_point_from_console_script_conflict():
 def test_get_entry_point_from_console_script_dne():
   dists = [FakeDist(key='bob', console_script_entry='bob= bob.main:run'),
            FakeDist(key='fake', console_script_entry='bob =bob.main:run')]
-  assert None is get_entry_point_from_console_script('jane', dists)
+  assert (None, None) == get_entry_point_from_console_script('jane', dists)
