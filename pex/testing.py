@@ -343,17 +343,6 @@ _VERSIONS = (PY27, PY35, PY36)
 _INTERPRETER_SET_FINGERPRINT = '_'.join(_VERSIONS) + '_pex_fingerprint'
 
 
-def pyenv_has_test_interpreters(pyenv_root):
-  """
-  Return a boolean indicating whether the current pyenv installation can support the current
-  set of interpreters as specified by the presence of a fingerprint file with a filename based on
-  `_VERSIONS`.
-  """
-  if not os.path.exists(os.path.join(pyenv_root, _INTERPRETER_SET_FINGERPRINT)):
-    return False
-  return True
-
-
 def ensure_python_distribution(version):
   if version not in _VERSIONS:
     raise ValueError('Please constrain version to one of {}'.format(_VERSIONS))
