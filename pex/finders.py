@@ -16,6 +16,7 @@ To use:
 
 import os
 import pkgutil
+import re
 import sys
 import zipimport
 
@@ -100,11 +101,38 @@ class WheelMetadata(pkg_resources.EggMetadata):
   """Metadata provider for zipped wheels."""
 
   @classmethod
+  def _escape(cls, filename_component):
+    # See: https://www.python.org/dev/peps/pep-0427/#escaping-and-unicode
+    return re.sub("[^\w\d.]+", "_", filename_component, re.UNICODE)
+
+  @classmethod
   def _split_wheelname(cls, wheelname):
-    split_wheelname = wheelname.rsplit('-', 4)
-    assert len(split_wheelname) == 5, 'invalid wheel name: %s' % (wheelname)
-    split_wheelname[0] = split_wheelname[0].replace('-', '_')
-    return '-'.join(split_wheelname[:-3])
+    # See: https://www.python.org/dev/peps/pep-0427/#file-name-convention
+    assert wheelname.endswith('.whl'), 'invalid wheel name: %s' % wheelname
+    split_wheelname = wheelname.rsplit('-', 5)
+    assert len(split_wheelname) in (5, 6), 'invalid wheel name: %s' % wheelname
+    distribution, version = split_wheelname[:2]
+    return '%s-%s' % (distribution, version)
+
+  @classmethod
+  def data_dir(cls, wheel_path):
+    """Returns the internal path of the data dir for the given wheel.
+
+    As defined https://www.python.org/dev/peps/pep-0427/#the-data-directory
+
+    :rtype: str
+    """
+    return '%s.data' % cls._split_wheelname(os.path.basename(wheel_path))
+
+  @classmethod
+  def dist_info_dir(cls, wheel_path):
+    """Returns the internal path of the dist-info dir for the given wheel.
+
+    As defined here: https://www.python.org/dev/peps/pep-0427/#the-dist-info-directory
+
+    :rtype: str
+    """
+    return '%s.dist-info' % cls._split_wheelname(os.path.basename(wheel_path))
 
   def _setup_prefix(self):
     path = self.module_path
@@ -114,7 +142,7 @@ class WheelMetadata(pkg_resources.EggMetadata):
         self.egg_name = os.path.basename(path)
         # TODO(wickman) Test the regression where we have both upper and lower cased package
         # names.
-        self.egg_info = os.path.join(path, '%s.dist-info' % self._split_wheelname(self.egg_name))
+        self.egg_info = os.path.join(path, self.dist_info_dir(self.egg_name))
         self.egg_root = path
         break
       old = path
@@ -251,7 +279,7 @@ def get_script_from_whl(name, dist):
   # This can get called in different contexts; in some, it looks for files in the
   # wheel archives being used to produce a pex; in others, it looks for files in the
   # install wheel directory included in the pex. So we need to look at both locations.
-  datadir_name = "%s-%s.data" % (dist.project_name, dist.version)
+  datadir_name = WheelMetadata.data_dir(dist.location)
   wheel_scripts_dirs = ['bin', 'scripts',
                          os.path.join(datadir_name, "bin"),
                          os.path.join(datadir_name, "scripts")]
@@ -261,7 +289,7 @@ def get_script_from_whl(name, dist):
       # We always install wheel scripts into bin
       script_path = os.path.join(wheel_scripts_dir, name)
       return (
-          os.path.join(dist.egg_info, script_path),
+          os.path.join(dist.location, script_path),
           dist.get_resource_string('', script_path).replace(b'\r\n', b'\n').replace(b'\r', b'\n'))
   return None, None
 
@@ -300,15 +328,22 @@ def get_entry_point_from_console_script(script, dists):
     script_entry = dist.get_entry_map().get('console_scripts', {}).get(script)
     if script_entry is not None:
       # Entry points are of the form 'foo = bar', we just want the 'bar' part.
-      return dist.key, str(script_entry).split('=')[1].strip()
+      return str(script_entry).split('=')[1].strip()
 
-  entries = frozenset(filter(None, (get_entrypoint(dist) for dist in dists)))
+  entries = {}
+  for dist in dists:
+    entry_point = get_entrypoint(dist)
+    if entry_point is not None:
+      entries[dist.key] = (dist, entry_point)
 
   if len(entries) > 1:
     raise RuntimeError(
         'Ambiguous script specification %s matches multiple entry points:\n\t%s' % (
-            script, '\n\t'.join('%s from %s' % (entry_point, key) for key, entry_point in entries)))
+            script,
+            '\n\t'.join('%r from %r' % (entry_point, dist)
+                        for dist, entry_point in entries.values())))
 
+  dist, entry_point = None, None
   if entries:
-    _, entry_point = next(iter(entries))
-    return entry_point
+    dist, entry_point = next(iter(entries.values()))
+  return dist, entry_point

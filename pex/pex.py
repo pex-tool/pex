@@ -463,14 +463,15 @@ class PEX(object):  # noqa: T000
   def execute_script(self, script_name):
     dists = list(self._activate())
 
-    entry_point = get_entry_point_from_console_script(script_name, dists)
+    dist, entry_point = get_entry_point_from_console_script(script_name, dists)
     if entry_point:
+      TRACER.log('Found console_script %r in %r' % (entry_point, dist))
       sys.exit(self.execute_entry(entry_point))
 
     dist, script_path, script_content = get_script_from_distributions(script_name, dists)
     if not dist:
-      raise self.NotFound('Could not find script %s in pex!' % script_name)
-    TRACER.log('Found script %s in %s' % (script_name, dist))
+      raise self.NotFound('Could not find script %r in pex!' % script_name)
+    TRACER.log('Found script %r in %r' % (script_name, dist))
     return self.execute_content(script_path, script_content, argv0=script_name)
 
   @classmethod

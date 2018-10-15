@@ -211,7 +211,7 @@ def test_pex_script(installer_impl, project_name, zip_safe):
     env_copy['PEX_SCRIPT'] = 'hello_world'
     so, rc = run_simple_pex_test('', env=env_copy)
     assert rc == 1, so.decode('utf-8')
-    assert b'Could not find script hello_world' in so
+    assert b"Could not find script 'hello_world'" in so
 
     so, rc = run_simple_pex_test('', env=env_copy, dists=[bdist])
     assert rc == 0, so.decode('utf-8')
