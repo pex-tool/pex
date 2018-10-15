@@ -13,7 +13,7 @@ from collections import namedtuple
 from textwrap import dedent
 
 from .bin.pex import log, main
-from .common import open_zip, safe_mkdir, safe_rmtree
+from .common import open_zip, safe_mkdir, safe_rmtree, touch
 from .compatibility import PY3, nested
 from .executor import Executor
 from .installer import EggInstaller, Packager
@@ -323,6 +323,8 @@ def bootstrap_python_installer(dest):
       break
   else:
     raise RuntimeError("Helper method could not clone pyenv from git after 3 tries")
+  # Create an empty file indicating the fingerprint of the correct set of test interpreters.
+  touch(os.path.join(dest, _INTERPRETER_SET_FINGERPRINT))
 
 
 # NB: We keep the pool of bootstrapped interpreters as small as possible to avoid timeouts in CI
@@ -334,6 +336,11 @@ PY35 = '3.5.6'
 PY36 = '3.6.6'
 
 _VERSIONS = (PY27, PY35, PY36)
+# This is the filename of a sentinel file that sits in the pyenv root directory.
+# Its purpose is to indicate whether pyenv has the correct interpreters installed
+# and will be useful for indicating whether we should trigger a reclone to update
+# pyenv.
+_INTERPRETER_SET_FINGERPRINT = '_'.join(_VERSIONS) + '_pex_fingerprint'
 
 
 def ensure_python_distribution(version):
@@ -345,7 +352,7 @@ def ensure_python_distribution(version):
   pyenv = os.path.join(pyenv_root, 'bin', 'pyenv')
   pip = os.path.join(interpreter_location, 'bin', 'pip')
 
-  if not os.path.exists(pyenv):
+  if not os.path.exists(os.path.join(pyenv_root, _INTERPRETER_SET_FINGERPRINT)):
     bootstrap_python_installer(pyenv_root)
 
   if not os.path.exists(interpreter_location):
