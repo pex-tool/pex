@@ -837,6 +837,27 @@ def test_pex_manylinux_runtime():
     assert out.strip() == '[1, 2, 3]'
 
 
+def test_pex_exit_code_propagation():
+  """Tests exit code propagation."""
+  test_stub = dedent(
+    """
+    def test_fail():
+      assert False
+    """
+  )
+
+  with temporary_content({'tester.py': test_stub}) as output_dir:
+    pex_path = os.path.join(output_dir, 'test.pex')
+    tester_path = os.path.join(output_dir, 'tester.py')
+    results = run_pex_command(['pytest==3.9.1',
+                               '-e', 'pytest:main',
+                               '-D', output_dir,
+                               '-o', pex_path])
+    results.assert_success()
+
+    assert subprocess.call([pex_path]) == 1
+
+
 @pytest.mark.skipif(NOT_CPYTHON27)
 def test_platform_specific_inline_egg_resolution():
   with temporary_dir() as td:
