@@ -854,7 +854,7 @@ def test_pex_exit_code_propagation():
                                '-o', pex_path])
     results.assert_success()
 
-    assert subprocess.call([pex_path, tester_path]) == 1
+    assert subprocess.call([pex_path, os.path.realpath(tester_path)]) == 1
 
 
 @pytest.mark.skipif(NOT_CPYTHON27)
