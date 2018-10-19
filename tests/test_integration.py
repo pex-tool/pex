@@ -1022,13 +1022,17 @@ def pex_with_entrypoints(entry_point):
   """)
 
   my_app = dedent("""
-    from setuptools.sandbox import run_setup
+    import sys
 
     def do_something():
-      return run_setup
+      try:
+        from setuptools.sandbox import run_setup
+        return 0
+      except:
+        return 1
 
     if __name__ == '__main__':
-      do_something()
+      sys.exit(do_something())
   """)
 
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
