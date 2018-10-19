@@ -851,11 +851,10 @@ def test_pex_exit_code_propagation():
     tester_path = os.path.join(output_dir, 'tester.py')
     results = run_pex_command(['pytest==3.9.1',
                                '-e', 'pytest:main',
-                               '-D', output_dir,
                                '-o', pex_path])
     results.assert_success()
 
-    assert subprocess.call([pex_path]) == 1
+    assert subprocess.call([pex_path, tester_path]) == 1
 
 
 @pytest.mark.skipif(NOT_CPYTHON27)
