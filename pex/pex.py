@@ -278,8 +278,7 @@ class PEX(object):  # noqa: T000
 
   def _wrap_coverage(self, runner, *args):
     if not self._vars.PEX_COVERAGE and self._vars.PEX_COVERAGE_FILENAME is None:
-      runner(*args)
-      return
+      return runner(*args)
 
     try:
       import coverage
@@ -296,7 +295,7 @@ class PEX(object):  # noqa: T000
     cov.start()
 
     try:
-      runner(*args)
+      return runner(*args)
     finally:
       TRACER.log('Stopping coverage')
       cov.stop()
@@ -310,8 +309,7 @@ class PEX(object):  # noqa: T000
 
   def _wrap_profiling(self, runner, *args):
     if not self._vars.PEX_PROFILE and self._vars.PEX_PROFILE_FILENAME is None:
-      runner(*args)
-      return
+      return runner(*args)
 
     pex_profile_filename = self._vars.PEX_PROFILE_FILENAME
     pex_profile_sort = self._vars.PEX_PROFILE_SORT
@@ -348,7 +346,9 @@ class PEX(object):  # noqa: T000
       self.patch_sys(pex_inherit_path)
       working_set = self._activate()
       self.patch_pkg_resources(working_set)
-      self._wrap_coverage(self._wrap_profiling, self._execute)
+      exit_code = self._wrap_coverage(self._wrap_profiling, self._execute)
+      if exit_code:
+        sys.exit(exit_code)
     except Exception:
       # Allow the current sys.excepthook to handle this app exception before we tear things down in
       # finally, then reraise so that the exit status is reflected correctly.
