@@ -54,7 +54,7 @@ def patch_requests():
 
 @contextmanager
 def make_url(blob, md5_fragment=None):
-  url = 'http://pypi.python.org/foo.tar.gz'
+  url = 'http://pypi.org/foo.tar.gz'
   if md5_fragment:
     url += '#md5=%s' % md5_fragment
 
@@ -148,7 +148,7 @@ def test_requests_context_retries_from_environment():
 
 def timeout_side_effect(timeout_error=None, num_timeouts=1):
   timeout_error = timeout_error or requests.packages.urllib3.exceptions.ConnectTimeoutError
-  url = 'http://pypi.python.org/foo.tar.gz'
+  url = 'http://pypi.org/foo.tar.gz'
 
   num_requests = [0]  # hack, because python closures?
   def timeout(*args, **kwargs):
