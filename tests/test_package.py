@@ -91,7 +91,7 @@ def test_invalid_wheel_package_name(package_name):
 
 def test_different_wheel_packages_should_be_equal():
   pypi_package = WheelPackage(
-    'https://pypi.python.org/packages/9b/31/'
+    'https://pypi.org/packages/9b/31/'
     'e9925a2b9a06f97c3450bac6107928d3533bfe64ca5615442504104321e8/'
     'requests-2.12.1-py2.py3-none-any.whl'
   )

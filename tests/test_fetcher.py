@@ -5,13 +5,13 @@ from pex.fetcher import PyPIFetcher
 
 
 def test_pypifetcher():
-  fetcher = PyPIFetcher('https://pypi.python.org/simple')
-  assert fetcher._pypi_base == 'https://pypi.python.org/simple/'
-  assert fetcher.urls('setuptools') == ['https://pypi.python.org/simple/setuptools/']
+  fetcher = PyPIFetcher('https://pypi.org/simple')
+  assert fetcher._pypi_base == 'https://pypi.org/simple/'
+  assert fetcher.urls('setuptools') == ['https://pypi.org/simple/setuptools/']
 
   fetcher = PyPIFetcher()
-  assert fetcher._pypi_base == 'https://pypi.python.org/simple/'
-  assert fetcher.urls('setuptools') == ['https://pypi.python.org/simple/setuptools/']
+  assert fetcher._pypi_base == 'https://pypi.org/simple/'
+  assert fetcher.urls('setuptools') == ['https://pypi.org/simple/setuptools/']
 
   fetcher = PyPIFetcher('file:///srv/simple')
   assert fetcher._pypi_base == 'file:///srv/simple/'

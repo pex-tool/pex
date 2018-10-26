@@ -47,7 +47,7 @@ class Fetcher(FetcherBase):
 
 
 class PyPIFetcher(FetcherBase):
-  PYPI_BASE = 'https://pypi.python.org/simple/'
+  PYPI_BASE = 'https://pypi.org/simple/'
 
   def __init__(self, pypi_base=PYPI_BASE, use_mirrors=False):
     if use_mirrors:

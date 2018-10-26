@@ -28,7 +28,7 @@ def test_empty_iteration():
 
 def assert_iteration(all_versions, *expected_versions, **iterator_kwargs):
   def package_url(version):
-    return 'https://pypi.python.org/packages/source/p/pex/pex-%s.tar.gz' % version
+    return 'https://pypi.org/packages/source/p/pex/pex-%s.tar.gz' % version
 
   urls = [package_url(v) for v in all_versions]
   crawler_mock = mock.create_autospec(Crawler, spec_set=True)
