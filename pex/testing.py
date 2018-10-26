@@ -12,14 +12,14 @@ import traceback
 from collections import namedtuple
 from textwrap import dedent
 
+from . import vendor
 from .bin.pex import log, main
 from .common import open_zip, safe_mkdir, safe_rmtree, touch
 from .compatibility import PY3, nested
-from .executor import Executor
 from .installer import EggInstaller, Packager
+from .pex import PEX
 from .pex_builder import PEXBuilder
 from .util import DistributionHelper, named_temporary_file
-from .version import SETUPTOOLS_REQUIREMENT
 
 IS_PYPY = "hasattr(sys, 'pypy_version_info')"
 NOT_CPYTHON27 = ("%s or (sys.version_info[0], sys.version_info[1]) != (2, 7)" % (IS_PYPY))
@@ -127,14 +127,21 @@ PROJECT_CONTENT = {
 
 
 @contextlib.contextmanager
-def make_installer(name='my_project', version='0.0.0', installer_impl=EggInstaller, zip_safe=True,
-                   install_reqs=None, **kwargs):
+def make_installer(name='my_project',
+                   version='0.0.0',
+                   installer_impl=EggInstaller,
+                   zip_safe=True,
+                   install_reqs=None,
+                   interpreter=None,
+                   **kwargs):
   interp = {'project_name': name,
             'version': version,
             'zip_safe': zip_safe,
             'install_requires': install_reqs or []}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
-    yield installer_impl(td, **kwargs)
+    yield installer_impl(td,
+                         interpreter=vendor.setup_interpreter(interpreter=interpreter),
+                         **kwargs)
 
 
 @contextlib.contextmanager
@@ -201,22 +208,23 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False,
   with open(os.path.join(td, 'exe.py'), 'w') as fp:
     fp.write(exe_contents)
 
-  pb = PEXBuilder(path=td,
-                  preamble=COVERAGE_PREAMBLE if coverage else None,
-                  interpreter=interpreter)
+  with vendor.adjusted_sys_path():
+    pb = PEXBuilder(path=td,
+                    preamble=COVERAGE_PREAMBLE if coverage else None,
+                    interpreter=vendor.setup_interpreter(interpreter=interpreter))
 
-  for dist in dists:
-    pb.add_dist_location(dist.location)
+    for dist in dists:
+      pb.add_dist_location(dist.location)
 
-  for env_filename, contents in sources:
-    src_path = os.path.join(td, env_filename)
-    safe_mkdir(os.path.dirname(src_path))
-    with open(src_path, 'w') as fp:
-      fp.write(contents)
-    pb.add_source(src_path, env_filename)
+    for env_filename, contents in sources:
+      src_path = os.path.join(td, env_filename)
+      safe_mkdir(os.path.dirname(src_path))
+      with open(src_path, 'w') as fp:
+        fp.write(contents)
+      pb.add_source(src_path, env_filename)
 
-  pb.set_executable(os.path.join(td, 'exe.py'))
-  pb.freeze()
+    pb.set_executable(os.path.join(td, 'exe.py'))
+    pb.freeze()
 
   return pb
 
@@ -236,7 +244,7 @@ class IntegResults(namedtuple('results', 'output return_code exception traceback
     assert self.exception or self.return_code
 
 
-def run_pex_command(args, env=None):
+def run_pex_command(args):
   """Simulate running pex command for integration testing.
 
   This is different from run_simple_pex in that it calls the pex command rather
@@ -245,7 +253,7 @@ def run_pex_command(args, env=None):
   """
   args.insert(0, '-vvvvv')
   def logger_callback(_output):
-    def mock_logger(msg, v=None):
+    def mock_logger(msg, V=None):
       _output.append(msg)
 
     return mock_logger
@@ -267,46 +275,26 @@ def run_pex_command(args, env=None):
   return IntegResults(output, error_code, exception, tb)
 
 
-# TODO(wickman) Why not PEX.run?
-def run_simple_pex(pex, args=(), env=None, stdin=None):
-  process = Executor.open_process([sys.executable, pex] + list(args), env=env, combined=True)
+def run_simple_pex(pex, args=(), interpreter=None, stdin=None, **kwargs):
+  p = PEX(pex, interpreter=vendor.setup_interpreter(interpreter))
+  process = p.run(args=args,
+                  blocking=False,
+                  stdin=subprocess.PIPE,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.STDOUT,
+                  **kwargs)
   stdout, _ = process.communicate(input=stdin)
   print(stdout.decode('utf-8') if PY3 else stdout)
   return stdout.replace(b'\r', b''), process.returncode
 
 
-def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False):
+def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False, interpreter=None):
   with nested(temporary_dir(), temporary_dir()) as (td1, td2):
-    pb = write_simple_pex(td1, body, dists=dists, coverage=coverage)
+    interpreter = vendor.setup_interpreter(interpreter)
+    pb = write_simple_pex(td1, body, dists=dists, coverage=coverage, interpreter=interpreter)
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
-    return run_simple_pex(pex, args=args, env=env)
-
-
-def _iter_filter(data_dict):
-  fragment = '/%s/_pex/' % PEXBuilder.BOOTSTRAP_DIR
-  for filename, records in data_dict.items():
-    try:
-      bi = filename.index(fragment)
-    except ValueError:
-      continue
-    # rewrite to look like root source
-    yield ('pex/' + filename[bi + len():], records)
-
-
-def combine_pex_coverage(coverage_file_iter):
-  from coverage.data import CoverageData
-
-  combined = CoverageData(basename='.coverage_combined')
-
-  for filename in coverage_file_iter:
-    cov = CoverageData(basename=filename)
-    cov.read()
-    combined.add_line_data(dict(_iter_filter(cov.line_data())))
-    combined.add_arc_data(dict(_iter_filter(cov.arc_data())))
-
-  combined.write()
-  return combined.filename
+    return run_simple_pex(pex, args=args, env=env, interpreter=interpreter)
 
 
 def bootstrap_python_installer(dest):
@@ -362,7 +350,6 @@ def ensure_python_distribution(version):
       env['CONFIGURE_OPTS'] = '--enable-shared'
     subprocess.check_call([pyenv, 'install', '--keep', version], env=env)
     subprocess.check_call([pip, 'install', '-U', 'pip'])
-    subprocess.check_call([pip, 'install', SETUPTOOLS_REQUIREMENT])
 
   python = os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
   return python, pip

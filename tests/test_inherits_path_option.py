@@ -4,10 +4,9 @@
 import os
 from contextlib import contextmanager
 
-from twitter.common.contextutil import environment_as, temporary_dir
-
+from pex import vendor
 from pex.pex_builder import PEXBuilder
-from pex.testing import run_simple_pex
+from pex.testing import run_simple_pex, temporary_dir
 
 
 @contextmanager
@@ -22,13 +21,12 @@ def write_and_run_simple_pex(inheriting=False):
     with open(os.path.join(td, 'exe.py'), 'w') as fp:
       fp.write('')  # No contents, we just want the startup messages
 
-    pb = PEXBuilder(path=td, preamble=None)
-    pb.info.inherit_path = inheriting
-    pb.set_executable(os.path.join(td, 'exe.py'))
-    pb.freeze()
-    pb.build(pex_path)
-    with environment_as(PEX_VERBOSE='1'):
-      yield run_simple_pex(pex_path)[0]
+    with vendor.adjusted_sys_path():
+      pb = PEXBuilder(path=td, preamble=None, interpreter=vendor.setup_interpreter())
+      pb.info.inherit_path = inheriting
+      pb.set_executable(os.path.join(td, 'exe.py'))
+      pb.build(pex_path)
+      yield run_simple_pex(pex_path, env={'PEX_VERBOSE': '1'})[0]
 
 
 def test_inherits_path_fallback_option():

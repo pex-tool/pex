@@ -5,40 +5,34 @@ from collections import OrderedDict
 
 import pytest
 
-from pex.bin.pex import setup_interpreter
 from pex.installer import WheelInstaller
 from pex.interpreter import PythonInterpreter
-from pex.testing import PY36, ensure_python_interpreter, make_installer, temporary_dir
+from pex.testing import PY36, ensure_python_interpreter, make_installer
+from pex.vendor import setup_interpreter
 from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
 
 
 class OrderableInstaller(WheelInstaller):
-  def __init__(self, source_dir, strict=True, interpreter=None, install_dir=None, mixins=None):
+  def __init__(self, source_dir, interpreter=None, install_dir=None, mixins=None):
     self._mixins = mixins
-    super(OrderableInstaller, self).__init__(source_dir, strict, interpreter, install_dir)
+    super(OrderableInstaller, self).__init__(source_dir, interpreter, install_dir)
 
   def mixins(self):
     return self._mixins
 
 
-@contextlib.contextmanager
-def bare_interpreter():
-  with temporary_dir() as interpreter_cache:
-    yield setup_interpreter(
-      interpreter=PythonInterpreter.from_binary(ensure_python_interpreter(PY36)),
-      interpreter_cache_dir=interpreter_cache,
-      repos=None,
-      use_wheel=True
-    )
+def bare_interpreter(use_wheel):
+  interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY36))
+  return setup_interpreter(interpreter=interpreter, include_wheel=use_wheel)
 
 
 @contextlib.contextmanager
 def wheel_installer(*mixins):
-  with bare_interpreter() as interpreter:
-    with make_installer(installer_impl=OrderableInstaller,
-                        interpreter=interpreter,
-                        mixins=OrderedDict(mixins)) as installer:
-      yield installer
+  interpreter = bare_interpreter(use_wheel=WHEEL_EXTRA in mixins)
+  with make_installer(installer_impl=OrderableInstaller,
+                      interpreter=interpreter,
+                      mixins=OrderedDict(mixins)) as installer:
+    yield installer
 
 
 WHEEL_EXTRA = ('wheel', WHEEL_REQUIREMENT)

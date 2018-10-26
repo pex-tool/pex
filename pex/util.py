@@ -12,11 +12,10 @@ from hashlib import sha1
 from site import makepath
 from threading import Lock
 
-from pkg_resources import find_distributions, resource_isdir, resource_listdir, resource_string
-
 from .common import rename_if_empty, safe_mkdir, safe_mkdtemp, safe_open
 from .compatibility import exec_function
 from .finders import register_finders
+from .third_party import pkg_resources
 
 
 class DistributionHelper(object):
@@ -58,17 +57,17 @@ class DistributionHelper(object):
     # asset_path is initially a module name that's the same as the static_path, but will be
     # changed to walk the directory tree
     def walk_zipped_assets(static_module_name, static_path, asset_path, temp_dir):
-      for asset in resource_listdir(static_module_name, asset_path):
+      for asset in pkg_resources.resource_listdir(static_module_name, asset_path):
         asset_target = os.path.normpath(
             os.path.join(os.path.relpath(asset_path, static_path), asset))
-        if resource_isdir(static_module_name, os.path.join(asset_path, asset)):
+        if pkg_resources.resource_isdir(static_module_name, os.path.join(asset_path, asset)):
           safe_mkdir(os.path.join(temp_dir, asset_target))
           walk_zipped_assets(static_module_name, static_path, os.path.join(asset_path, asset),
             temp_dir)
         else:
           with open(os.path.join(temp_dir, asset_target), 'wb') as fp:
             path = os.path.join(static_path, asset_target)
-            file_data = resource_string(static_module_name, path)
+            file_data = pkg_resources.resource_string(static_module_name, path)
             fp.write(file_data)
 
     if dir_location is None:
@@ -91,11 +90,11 @@ class DistributionHelper(object):
     # Monkeypatch pkg_resources finders should it not already be so.
     register_finders()
     if name is None:
-      distributions = set(find_distributions(path))
+      distributions = set(pkg_resources.find_distributions(path))
       if len(distributions) == 1:
         return distributions.pop()
     else:
-      for dist in find_distributions(path):
+      for dist in pkg_resources.find_distributions(path):
         if dist.project_name == name:
           return dist
 

@@ -95,10 +95,7 @@ class SourceTranslator(TranslatorBase):
       if self._use_2to3 and version >= (3,):
         with TRACER.timed('Translating 2->3 %s' % package.name):
           self.run_2to3(unpack_path)
-      installer = self._installer_impl(
-          unpack_path,
-          interpreter=self._interpreter,
-          strict=(package.name not in ('distribute', 'setuptools')))
+      installer = self._installer_impl(unpack_path, interpreter=self._interpreter)
       with TRACER.timed('Packaging %s' % package.name):
         try:
           dist_path = installer.bdist()

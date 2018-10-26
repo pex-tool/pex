@@ -6,32 +6,31 @@ import subprocess
 from contextlib import contextmanager
 
 import pytest
-from twitter.common.contextutil import temporary_dir
 
-from pex import resolver
+from pex import resolver, vendor
 from pex.compatibility import nested, to_bytes
 from pex.environment import PEXEnvironment
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
-from pex.package import EggPackage, SourcePackage, WheelPackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.testing import make_bdist, temporary_filename
-from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
+from pex.testing import make_bdist, temporary_dir, temporary_filename
 
 
 @contextmanager
 def yield_pex_builder(zip_safe=True, installer_impl=EggInstaller, interpreter=None):
+  interpreter = vendor.setup_interpreter(interpreter=interpreter)
   with nested(temporary_dir(),
               make_bdist('p1',
                          zipped=True,
                          zip_safe=zip_safe,
                          installer_impl=installer_impl,
                          interpreter=interpreter)) as (td, p1):
-    pb = PEXBuilder(path=td, interpreter=interpreter)
-    pb.add_dist_location(p1.location)
-    yield pb
+    with vendor.adjusted_sys_path():
+      pb = PEXBuilder(path=td, interpreter=interpreter)
+      pb.add_dist_location(p1.location)
+      yield pb
 
 
 def test_force_local():
@@ -118,29 +117,18 @@ _KNOWN_BAD_APPLE_INTERPRETER = ('/System/Library/Frameworks/Python.framework/Ver
                     reason='Test requires known bad Apple interpreter {}'
                            .format(_KNOWN_BAD_APPLE_INTERPRETER))
 def test_osx_platform_intel_issue_523():
-  def bad_interpreter(include_site_extras=True):
-    return PythonInterpreter.from_binary(_KNOWN_BAD_APPLE_INTERPRETER,
-                                         include_site_extras=include_site_extras)
+  def bad_interpreter():
+    return PythonInterpreter.from_binary(_KNOWN_BAD_APPLE_INTERPRETER)
 
-  interpreter = bad_interpreter(include_site_extras=False)
   with temporary_dir() as cache:
     # We need to run the bad interpreter with a modern, non-Apple-Extras setuptools in order to
-    # successfully install psutil.
-    for requirement in (SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT):
-      for resolved_dist in resolver.resolve([requirement],
-                                            cache=cache,
-                                            # We can't use wheels since we're bootstrapping them.
-                                            precedence=(SourcePackage, EggPackage),
-                                            interpreter=interpreter):
-        dist = resolved_dist.distribution
-        interpreter = interpreter.with_extra(dist.key, dist.version, dist.location)
-
-    with nested(yield_pex_builder(installer_impl=WheelInstaller, interpreter=interpreter),
+    # successfully install psutil; yield_pex_builder sets up the bad interpreter with our vendored
+    # setuptools and wheel extras.
+    with nested(yield_pex_builder(installer_impl=WheelInstaller, interpreter=bad_interpreter()),
                 temporary_filename()) as (pb, pex_file):
       for resolved_dist in resolver.resolve(['psutil==5.4.3'],
                                             cache=cache,
-                                            precedence=(SourcePackage, WheelPackage),
-                                            interpreter=interpreter):
+                                            interpreter=pb.interpreter):
         pb.add_dist_location(resolved_dist.distribution.location)
       pb.build(pex_file)
 

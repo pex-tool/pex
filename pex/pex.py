@@ -9,9 +9,6 @@ import sys
 from distutils import sysconfig
 from site import USER_SITE
 
-import pkg_resources
-from pkg_resources import EntryPoint, WorkingSet, find_distributions
-
 from .common import die
 from .compatibility import exec_function
 from .environment import PEXEnvironment
@@ -20,6 +17,7 @@ from .finders import get_entry_point_from_console_script, get_script_from_distri
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
+from .third_party import pkg_resources
 from .tracer import TRACER
 from .util import iter_pth_paths, merge_split, named_temporary_file
 from .variables import ENV
@@ -67,7 +65,7 @@ class PEX(object):  # noqa: T000
 
   def _activate(self):
     if not self._working_set:
-      working_set = WorkingSet([])
+      working_set = pkg_resources.WorkingSet([])
 
       # set up the local .pex environment
       pex_info = self._pex_info.copy()
@@ -197,7 +195,7 @@ class PEX(object):  # noqa: T000
     user_site_distributions = OrderedSet()
 
     def all_distribution_paths(path):
-      locations = set(dist.location for dist in find_distributions(path))
+      locations = set(dist.location for dist in pkg_resources.find_distributions(path))
       return set([path]) | locations | set(os.path.realpath(path) for path in locations)
 
     for path_element in sys.path:
@@ -516,15 +514,8 @@ class PEX(object):  # noqa: T000
   def execute_pkg_resources(cls, spec):
     cls.demote_bootstrap()
 
-    entry = EntryPoint.parse("run = {0}".format(spec))
-
-    # See https://pythonhosted.org/setuptools/history.html#id25 for rationale here.
-    if hasattr(entry, 'resolve'):
-      # setuptools >= 11.3
-      runner = entry.resolve()
-    else:
-      # setuptools < 11.3
-      runner = entry.load(require=False)
+    entry = pkg_resources.EntryPoint.parse("run = {0}".format(spec))
+    runner = entry.resolve()
     return runner()
 
   def cmdline(self, args=()):
@@ -557,9 +548,6 @@ class PEX(object):  # noqa: T000
     process = Executor.open_process(cmdline,
                                     cwd=self._pex if with_chroot else os.getcwd(),
                                     preexec_fn=os.setsid if setsid else None,
-                                    stdin=kwargs.pop('stdin', None),
-                                    stdout=kwargs.pop('stdout', None),
-                                    stderr=kwargs.pop('stderr', None),
                                     **kwargs)
     return process.wait() if blocking else process
 
@@ -589,5 +577,5 @@ class PEX(object):  # noqa: T000
       retcode = self.run([fp.name], env={'PEX_INTERPRETER': '1'})
       if retcode != 0:
         raise self.InvalidEntryPoint('Invalid entry point: `{}`\n'
-                                'Entry point verification failed: `{}`'
-                                .format(entry_point, import_statement))
+                                     'Entry point verification failed: `{}`'
+                                     .format(entry_point, import_statement))

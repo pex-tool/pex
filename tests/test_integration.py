@@ -10,9 +10,10 @@ from contextlib import contextmanager
 from textwrap import dedent
 
 import pytest
-from twitter.common.contextutil import environment_as, temporary_dir
+from twitter.common.contextutil import environment_as
 
-from pex.compatibility import WINDOWS, to_bytes
+from pex import vendor
+from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller
 from pex.pex_bootstrapper import get_pex_info
 from pex.testing import (
@@ -29,7 +30,8 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
-    temporary_content
+    temporary_content,
+    temporary_dir
 )
 from pex.util import DistributionHelper, named_temporary_file
 
@@ -52,40 +54,32 @@ def test_pex_raise():
 
 
 def test_pex_root():
-  with temporary_dir() as tmp_home:
-    with environment_as(HOME=tmp_home):
-      with temporary_dir() as td:
-        with temporary_dir() as output_dir:
-          env = make_env(PEX_INTERPRETER=1)
-
-          output_path = os.path.join(output_dir, 'pex.pex')
-          args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={0}'.format(td)]
-          results = run_pex_command(args=args, env=env)
-          results.assert_success()
-          assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
-          assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
-          assert 'build' in os.listdir(td), 'Expected build directory in tmp pex root.'
+  with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td, output_dir, tmp_home):
+    with environment_as(HOME=tmp_home, PEX_INTERPRETER='1'):
+      output_path = os.path.join(output_dir, 'pex.pex')
+      args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={0}'.format(td)]
+      results = run_pex_command(args=args)
+      results.assert_success()
+      assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
+      assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
+      assert 'build' in os.listdir(td), 'Expected build directory in tmp pex root.'
 
 
 def test_cache_disable():
-  with temporary_dir() as tmp_home:
-    with environment_as(HOME=tmp_home):
-      with temporary_dir() as td:
-        with temporary_dir() as output_dir:
-          env = make_env(PEX_INTERPRETER=1)
-
-          output_path = os.path.join(output_dir, 'pex.pex')
-          args = [
-            'pex',
-            '-o', output_path,
-            '--not-zip-safe',
-            '--disable-cache',
-            '--pex-root={0}'.format(td),
-          ]
-          results = run_pex_command(args=args, env=env)
-          results.assert_success()
-          assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
-          assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
+  with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td, output_dir, tmp_home):
+    with environment_as(HOME=tmp_home, PEX_INTERPRETER='1'):
+      output_path = os.path.join(output_dir, 'pex.pex')
+      args = [
+        'pex',
+        '-o', output_path,
+        '--not-zip-safe',
+        '--disable-cache',
+        '--pex-root={0}'.format(td),
+      ]
+      results = run_pex_command(args=args)
+      results.assert_success()
+      assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
+      assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
 
 
 def test_pex_interpreter():
@@ -108,7 +102,6 @@ def test_pex_repl_cli():
     # Create a temporary pex containing just `requests` with no entrypoint.
     pex_path = os.path.join(output_dir, 'pex.pex')
     results = run_pex_command(['--disable-cache',
-                               'wheel',
                                'requests',
                                './',
                                '-e', 'pex.bin.pex:main',
@@ -173,7 +166,7 @@ def test_entry_point_exit_code():
   """ % error_msg)
 
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
-    installer = EggInstaller(project_dir)
+    installer = EggInstaller(project_dir, interpreter=vendor.setup_interpreter())
     dist = DistributionHelper.distribution_from_path(installer.bdist())
     so, rc = run_simple_pex_test('', env=make_env(PEX_SCRIPT='my_app'), dists=[dist])
     assert so.decode('utf-8').strip() == error_msg
@@ -453,10 +446,10 @@ def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
       '-o', pex_out_path])
     res.assert_success()
 
-    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdin_payload = b'import os, sys; print(os.path.realpath(sys.executable)); sys.exit(0)'
     stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
     assert rc == 0
-    assert str(sys.executable).encode() in stdout
+    assert os.path.realpath(sys.executable).encode() in stdout
 
 
 @pytest.mark.skipif(IS_PYPY)

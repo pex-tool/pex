@@ -3,16 +3,16 @@
 
 import os
 import stat
+from contextlib import contextmanager
 
 import pytest
-from twitter.common.contextutil import temporary_dir
-from twitter.common.dirutil import safe_mkdir
 
+from pex import vendor
 from pex.common import open_zip
 from pex.compatibility import WINDOWS, nested
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.testing import make_bdist
+from pex.testing import make_bdist, safe_mkdir, temporary_dir
 from pex.testing import write_simple_pex as write_pex
 from pex.util import DistributionHelper
 
@@ -80,20 +80,28 @@ def test_pex_builder_wheeldep():
       assert fp.read() == 'success'
 
 
-def test_pex_builder_shebang():
-  def builder(shebang):
-    pb = PEXBuilder()
-    pb.set_shebang(shebang)
-    return pb
+@contextmanager
+def pex_builder(interpreter=None, **kwargs):
+  with vendor.adjusted_sys_path():
+    yield PEXBuilder(interpreter=vendor.setup_interpreter(interpreter), **kwargs)
 
-  for pb in builder('foobar'), builder('#!foobar'):
-    for b in pb, pb.clone():
-      with temporary_dir() as td:
-        target = os.path.join(td, 'foo.pex')
-        b.build(target)
-        expected_preamble = b'#!foobar\n'
-        with open(target, 'rb') as fp:
-          assert fp.read(len(expected_preamble)) == expected_preamble
+
+def test_pex_builder_shebang():
+  @contextmanager
+  def builder(shebang):
+    with pex_builder() as pb:
+      pb.set_shebang(shebang)
+      yield pb
+
+  with nested(builder('foobar'), builder('#!foobar')) as (pb1, pb2):
+    for pb in pb1, pb2:
+      for b in pb, pb.clone():
+        with temporary_dir() as td:
+          target = os.path.join(td, 'foo.pex')
+          b.build(target)
+          expected_preamble = b'#!foobar\n'
+          with open(target, 'rb') as fp:
+            assert fp.read(len(expected_preamble)) == expected_preamble
 
 
 def test_pex_builder_preamble():
@@ -107,8 +115,8 @@ def test_pex_builder_preamble():
       "sys.exit(3)"
     ])
 
-    pex_builder = PEXBuilder(preamble=tempfile_preamble)
-    pex_builder.build(target)
+    with pex_builder(preamble=tempfile_preamble) as pb:
+      pb.build(target)
 
     assert not os.path.exists(should_create)
 
@@ -131,10 +139,10 @@ def test_pex_builder_compilation():
       fp.write(exe_main)
 
     def build_and_check(path, precompile):
-      pb = PEXBuilder(path)
-      pb.add_source(src, 'lib/src.py')
-      pb.set_executable(exe, 'exe.py')
-      pb.freeze(bytecode_compile=precompile)
+      with pex_builder(path=path) as pb:
+        pb.add_source(src, 'lib/src.py')
+        pb.set_executable(exe, 'exe.py')
+        pb.freeze(bytecode_compile=precompile)
       for pyc_file in ('exe.pyc', 'lib/src.pyc', '__main__.pyc'):
         pyc_exists = os.path.exists(os.path.join(path, pyc_file))
         if precompile:

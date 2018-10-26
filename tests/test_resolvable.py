@@ -4,6 +4,7 @@
 import pkg_resources
 import pytest
 
+from pex import vendor
 from pex.iterator import Iterator
 from pex.package import Package, SourcePackage
 from pex.resolvable import (
@@ -37,10 +38,10 @@ def test_resolvable_package():
   assert mock_iterator.iter.mock_calls == []
   assert resolvable.name == 'foo'
   assert resolvable.exact is True
-  assert resolvable.extras() == []
+  assert resolvable.extras == []
 
   resolvable = ResolvablePackage.from_string(source_name + '[extra1,extra2]', builder)
-  assert resolvable.extras() == ['extra1', 'extra2']
+  assert resolvable.extras == ['extra1', 'extra2']
 
   assert Resolvable.get('foo-2.3.4.tar.gz') == ResolvablePackage.from_string(
       'foo-2.3.4.tar.gz', builder)
@@ -62,7 +63,7 @@ def test_resolvable_requirement():
   assert resolvable.requirement == pkg_resources.Requirement.parse('foo[bar]==2.3.4')
   assert resolvable.name == 'foo'
   assert resolvable.exact is True
-  assert resolvable.extras() == ['bar']
+  assert resolvable.extras == ['bar']
   assert resolvable.options._fetchers == []
   assert resolvable.packages() == []
 
@@ -84,15 +85,16 @@ def test_resolvable_requirement():
 
 def test_resolvable_directory():
   builder = ResolverOptionsBuilder()
+  interpreter = vendor.setup_interpreter()
 
   with make_source_dir(name='my_project') as td:
-    rdir = ResolvableDirectory.from_string(td, builder)
+    rdir = ResolvableDirectory.from_string(td, builder, interpreter=interpreter)
     assert rdir.name == pkg_resources.safe_name('my_project')
-    assert rdir.extras() == []
+    assert rdir.extras == []
 
-    rdir = ResolvableDirectory.from_string(td + '[extra1,extra2]', builder)
+    rdir = ResolvableDirectory.from_string(td + '[extra1,extra2]', builder, interpreter=interpreter)
     assert rdir.name == pkg_resources.safe_name('my_project')
-    assert rdir.extras() == ['extra1', 'extra2']
+    assert rdir.extras == ['extra1', 'extra2']
 
 
 def test_resolvables_from_iterable():

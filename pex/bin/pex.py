@@ -2,41 +2,42 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 """
-The pex.pex utility builds PEX environments and .pex files specified by
+The pex.bin.pex utility builds PEX environments and .pex files specified by
 sources, requirements and their dependencies.
 """
 
 from __future__ import absolute_import, print_function
 
-import functools
 import os
-import shutil
 import sys
 from optparse import OptionGroup, OptionParser, OptionValueError
 from textwrap import TextWrapper
 
-from pex.archiver import Archiver
-from pex.base import maybe_requirement
-from pex.common import die, safe_delete, safe_mkdir, safe_mkdtemp
-from pex.crawler import Crawler
+# isort:imports-thirdparty
+
+# We hack isort with the comment above and a few below to maintain the pex vendoring sys.path
+# adjustment before any other pex imports to ensure we have the expected vendored dependencies
+# available.
+from pex import vendor  # isort:skip We need to alter the sys.path early.
+vendor.adjust_sys_path(include_wheel=False)  # isort:skip We need to alter the sys.path early.
+
+# isort:imports-firstparty
+from pex.common import die, safe_delete, safe_mkdtemp
 from pex.fetcher import Fetcher, PyPIFetcher
-from pex.http import Context
-from pex.installer import EggInstaller
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import validate_constraints
-from pex.iterator import Iterator
-from pex.package import EggPackage, SourcePackage
 from pex.pex import PEX
 from pex.pex_bootstrapper import find_compatible_interpreters
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
-from pex.resolvable import Resolvable
+from pex.resolvable import resolvables_from_iterable
 from pex.resolver import Unsatisfiable, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER
 from pex.variables import ENV, Variables
-from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT, __version__
+from pex.version import __version__
+
 
 CANNOT_DISTILL = 101
 CANNOT_SETUP_INTERPRETER = 102
@@ -45,14 +46,14 @@ INVALID_ENTRY_POINT = 104
 
 
 class Logger(object):
-  def _default_logger(self, msg, v):
-    if v:
+  def _default_logger(self, msg, V):
+    if V:
       print(msg, file=sys.stderr)
 
   _LOGGER = _default_logger
 
-  def __call__(self, msg, v):
-    self._LOGGER(msg, v)
+  def __call__(self, msg, V):
+    self._LOGGER(msg, V)
 
   def set_logger(self, logger_callback):
     self._LOGGER = logger_callback
@@ -140,6 +141,14 @@ def print_variable_help(option, option_str, option_value, parser):
     for line in TextWrapper(initial_indent=' ' * 4, subsequent_indent=' ' * 4).wrap(variable_help):
       print(line)
   sys.exit(0)
+
+
+def warn_deprecated_option(removal_version, removal_hint):
+  def emit_warning_callback(_unused_option, option_str, _unused_option_value, _unused_parser):
+    log('{flag} is deprecated and will be removed in {removal_version}:\n\t{removal_hint}'
+        .format(flag=option_str, removal_version=removal_version, removal_hint=removal_hint),
+        V=-1)
+  return emit_warning_callback
 
 
 def configure_clp_pex_resolution(parser, builder):
@@ -355,10 +364,13 @@ def configure_clp_pex_environment(parser):
 
   group.add_option(
       '--interpreter-cache-dir',
-      dest='interpreter_cache_dir',
-      default='{pex_root}/interpreters',
-      help='The interpreter cache to use for keeping track of interpreter dependencies '
-           'for the pex tool. Default: `~/.pex/interpreters`.')
+      type=str,
+      action='callback',
+      callback=warn_deprecated_option(
+        removal_version='1.6.0',
+        removal_hint='Unused - you can discontinue passing the option.'
+      ),
+      help='DEPRECATED: Unused - will be removed in pex 1.6.0.')
 
   parser.add_option_group(group)
 
@@ -499,78 +511,6 @@ def _safe_link(src, dst):
   os.symlink(src, dst)
 
 
-def _resolve_and_link_interpreter(requirement, fetchers, target_link, installer_provider):
-  # Short-circuit if there is a local copy
-  if os.path.exists(target_link) and os.path.exists(os.path.realpath(target_link)):
-    egg = EggPackage(os.path.realpath(target_link))
-    if egg.satisfies(requirement):
-      return egg
-
-  context = Context.get()
-  iterator = Iterator(fetchers=fetchers, crawler=Crawler(context))
-  links = [link for link in iterator.iter(requirement) if isinstance(link, SourcePackage)]
-
-  with TRACER.timed('Interpreter cache resolving %s' % requirement, V=2):
-    for link in links:
-      with TRACER.timed('Fetching %s' % link, V=3):
-        sdist = context.fetch(link)
-
-      with TRACER.timed('Installing %s' % link, V=3):
-        installer = installer_provider(sdist)
-        dist_location = installer.bdist()
-        target_location = os.path.join(
-            os.path.dirname(target_link), os.path.basename(dist_location))
-        shutil.move(dist_location, target_location)
-        _safe_link(target_location, target_link)
-
-      return EggPackage(target_location)
-
-
-def resolve_interpreter(cache, fetchers, interpreter, requirement):
-  """Resolve an interpreter with a specific requirement.
-
-     Given a :class:`PythonInterpreter` and a requirement, return an
-     interpreter with the capability of resolving that requirement or
-     ``None`` if it's not possible to install a suitable requirement."""
-  requirement = maybe_requirement(requirement)
-
-  # short circuit
-  if interpreter.satisfies([requirement]):
-    return interpreter
-
-  def installer_provider(sdist):
-    return EggInstaller(
-        Archiver.unpack(sdist),
-        strict=requirement.key != 'setuptools',
-        interpreter=interpreter)
-
-  interpreter_dir = os.path.join(cache, str(interpreter.identity))
-  safe_mkdir(interpreter_dir)
-
-  egg = _resolve_and_link_interpreter(
-      requirement,
-      fetchers,
-      os.path.join(interpreter_dir, requirement.key),
-      installer_provider)
-
-  if egg:
-    return interpreter.with_extra(egg.name, egg.raw_version, egg.path)
-
-
-def setup_interpreter(interpreter, interpreter_cache_dir, repos, use_wheel):
-  with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
-    resolve = functools.partial(resolve_interpreter, interpreter_cache_dir, repos)
-
-    # resolve setuptools
-    interpreter = resolve(interpreter, SETUPTOOLS_REQUIREMENT)
-
-    # possibly resolve wheel
-    if interpreter and use_wheel:
-      interpreter = resolve(interpreter, WHEEL_REQUIREMENT)
-
-    return interpreter
-
-
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreters', V=2):
     def to_python_interpreter(full_path_or_basename):
@@ -593,10 +533,8 @@ def build_pex(args, options, resolver_option_builder):
     pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
     interpreters = find_compatible_interpreters(pex_python_path, constraints)
 
-  setup_interpreters = [setup_interpreter(interp,
-                                          options.interpreter_cache_dir,
-                                          options.repos,
-                                          options.use_wheel)
+  setup_interpreters = [vendor.setup_interpreter(interpreter=interp,
+                                                 include_wheel=options.use_wheel)
                         for interp in interpreters]
 
   if not setup_interpreters:
@@ -637,16 +575,20 @@ def build_pex(args, options, resolver_option_builder):
     for ic in options.interpreter_constraint:
       pex_builder.add_interpreter_constraint(ic)
 
-  resolvables = [Resolvable.get(arg, resolver_option_builder) for arg in args]
+  resolvables = resolvables_from_iterable(args, resolver_option_builder, interpreter=interpreter)
 
   for requirements_txt in options.requirement_files:
-    resolvables.extend(requirements_from_file(requirements_txt, resolver_option_builder))
+    resolvables.extend(requirements_from_file(requirements_txt,
+                                              builder=resolver_option_builder,
+                                              interpreter=interpreter))
 
   # pip states the constraints format is identical tor requirements
   # https://pip.pypa.io/en/stable/user_guide/#constraints-files
   for constraints_txt in options.constraint_files:
     constraints = []
-    for r in requirements_from_file(constraints_txt, resolver_option_builder):
+    for r in requirements_from_file(constraints_txt,
+                                    builder=resolver_option_builder,
+                                    interpreter=interpreter):
       r.is_constraint = True
       constraints.append(r)
     resolvables.extend(constraints)
@@ -663,7 +605,7 @@ def build_pex(args, options, resolver_option_builder):
 
       for resolved_dist in resolveds:
         log('  %s -> %s' % (resolved_dist.requirement, resolved_dist.distribution),
-            v=options.verbosity)
+            V=options.verbosity)
         pex_builder.add_distribution(resolved_dist.distribution)
         pex_builder.add_requirement(resolved_dist.requirement)
     except Unsatisfiable as e:
@@ -720,6 +662,10 @@ def main(args=None):
   if options.python and options.interpreter_constraint:
     die('The "--python" and "--interpreter-constraint" options cannot be used together.')
 
+  # We already adjusted the sys.path at the top of this file, but potentially re-adjust path to
+  # include wheel.
+  vendor.adjust_sys_path(include_wheel=options.use_wheel)
+
   if options.pex_root:
     ENV.set('PEX_ROOT', options.pex_root)
   else:
@@ -728,7 +674,6 @@ def main(args=None):
   # Don't alter cache if it is disabled.
   if options.cache_dir:
     options.cache_dir = make_relative_to_root(options.cache_dir)
-  options.interpreter_cache_dir = make_relative_to_root(options.interpreter_cache_dir)
 
   with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
     with TRACER.timed('Building pex'):
@@ -740,7 +685,7 @@ def main(args=None):
               verify_entry_point=options.validate_ep)
 
     if options.pex_name is not None:
-      log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)
+      log('Saving PEX file to %s' % options.pex_name, V=options.verbosity)
       tmp_name = options.pex_name + '~'
       safe_delete(tmp_name)
       pex_builder.build(tmp_name)
@@ -750,7 +695,7 @@ def main(args=None):
         log('WARNING: attempting to run PEX with incompatible platforms!')
 
       log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline),
-          v=options.verbosity)
+          V=options.verbosity)
       sys.exit(pex.run(args=list(cmdline)))
 
 

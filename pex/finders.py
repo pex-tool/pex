@@ -20,7 +20,7 @@ import re
 import sys
 import zipimport
 
-import pkg_resources
+from .third_party import pkg_resources
 
 if sys.version_info >= (3, 3) and sys.implementation.name == "cpython":
   import importlib.machinery as importlib_machinery
@@ -60,8 +60,6 @@ class ChainedFinder(object):
 # finders together.  This is probably possible using importlib but that does us no good as the
 # importlib machinery supporting this is only available in Python >= 3.1.
 def _get_finder(importer):
-  if not hasattr(pkg_resources, '_distribution_finders'):
-    return None
   return pkg_resources._distribution_finders.get(importer)
 
 
@@ -248,22 +246,6 @@ def register_finders():
     _add_finder(importlib_machinery.FileFinder, find_wheels_on_path)
 
   __PREVIOUS_FINDER = previous_finder
-
-
-def unregister_finders():
-  """Unregister finders necessary for PEX to function properly."""
-
-  global __PREVIOUS_FINDER
-  if not __PREVIOUS_FINDER:
-    return
-
-  pkg_resources.register_finder(zipimport.zipimporter, __PREVIOUS_FINDER)
-  _remove_finder(pkgutil.ImpImporter, find_wheels_on_path)
-
-  if importlib_machinery is not None:
-    _remove_finder(importlib_machinery.FileFinder, find_wheels_on_path)
-
-  __PREVIOUS_FINDER = None
 
 
 def get_script_from_egg(name, dist):

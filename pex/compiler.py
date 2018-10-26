@@ -82,7 +82,7 @@ class Compiler(object):
       fp.flush()
 
       try:
-        out, _ = Executor.execute([self._interpreter.binary, fp.name])
+        out, _ = Executor.execute([self._interpreter.binary, '-sE', fp.name])
       except Executor.NonZeroExit as e:
         raise self.CompilationFailure(
           'encountered %r during bytecode compilation.\nstderr was:\n%s\n' % (e, e.stderr)

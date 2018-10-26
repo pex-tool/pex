@@ -56,28 +56,17 @@ class Executor(object):
       self.exc = exc
 
   @classmethod
-  def open_process(cls, cmd, env=None, cwd=None, combined=False, **kwargs):
+  def open_process(cls, cmd, **kwargs):
     """Opens a process object via subprocess.Popen().
 
     :param string|list cmd: A list or string representing the command to run.
-    :param dict env: An environment dict for the execution.
-    :param string cwd: The target cwd for command execution.
-    :param bool combined: Whether or not to combine stdin and stdout streams.
     :return: A `subprocess.Popen` object.
     :raises: `Executor.ExecutableNotFound` when the executable requested to run does not exist.
     """
     assert len(cmd) > 0, 'cannot execute an empty command!'
 
     try:
-      return subprocess.Popen(
-        cmd,
-        stdin=kwargs.pop('stdin', subprocess.PIPE),
-        stdout=kwargs.pop('stdout', subprocess.PIPE),
-        stderr=kwargs.pop('stderr', subprocess.STDOUT if combined else subprocess.PIPE),
-        cwd=cwd,
-        env=env,
-        **kwargs
-      )
+      return subprocess.Popen(cmd, **kwargs)
     except (IOError, OSError) as e:
       if e.errno == errno.ENOENT:
         raise cls.ExecutableNotFound(cmd, e)
@@ -85,18 +74,19 @@ class Executor(object):
         raise cls.ExecutionError(repr(e), cmd, e)
 
   @classmethod
-  def execute(cls, cmd, env=None, cwd=None, stdin_payload=None, **kwargs):
+  def execute(cls, cmd, stdin_payload=None, **kwargs):
     """Execute a command via subprocess.Popen and returns the stdio.
 
     :param string|list cmd: A list or string representing the command to run.
-    :param dict env: An environment dict for the execution.
-    :param string cwd: The target cwd for command execution.
     :param string stdin_payload: A string representing the stdin payload, if any, to send.
     :return: A tuple of strings representing (stdout, stderr), pre-decoded for utf-8.
     :raises: `Executor.ExecutableNotFound` when the executable requested to run does not exist.
              `Executor.NonZeroExit` when the execution fails with a non-zero exit code.
     """
-    process = cls.open_process(cmd=cmd, env=env, cwd=cwd, **kwargs)
+    process = cls.open_process(cmd=cmd,
+                               stdin=subprocess.PIPE,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, **kwargs)
     stdout_raw, stderr_raw = process.communicate(input=stdin_payload)
     # N.B. In cases where `stdout` or `stderr` is passed as parameters, these can be None.
     stdout = stdout_raw.decode('utf-8') if stdout_raw is not None else stdout_raw

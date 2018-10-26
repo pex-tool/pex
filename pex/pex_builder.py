@@ -6,14 +6,14 @@ from __future__ import absolute_import, print_function
 import logging
 import os
 
-from pkg_resources import DefaultProvider, ZipProvider, get_provider
-
+from . import third_party
 from .common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
 from .compatibility import to_bytes
 from .compiler import Compiler
 from .finders import get_entry_point_from_console_script, get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .pex_info import PexInfo
+from .third_party import pkg_resources, wheel_install
 from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
 
@@ -283,11 +283,10 @@ class PEXBuilder(object):
     # into an importable shape. We can do that by installing it into its own
     # wheel dir.
     if dist_name.endswith("whl"):
-      from wheel.install import WheelFile
       tmp = safe_mkdtemp()
       whltmp = os.path.join(tmp, dist_name)
       os.mkdir(whltmp)
-      wf = WheelFile(path)
+      wf = wheel_install.WheelFile(path)
       wf.install(overrides=self._get_installer_paths(whltmp), force=True)
       for root, _, files in os.walk(whltmp):
         pruned_dir = os.path.relpath(root, tmp)
@@ -393,50 +392,22 @@ class PEXBuilder(object):
     else:
       self._chroot.link(src, dst, label)
 
-  # TODO(wickman) Ideally we unqualify our setuptools dependency and inherit whatever is
-  # bundled into the environment so long as it is compatible (and error out if not.)
-  #
-  # As it stands, we're picking and choosing the pieces we think we need, which means
-  # if there are bits of setuptools imported from elsewhere they may be incompatible with
-  # this.
   def _prepare_bootstrap(self):
-    # Writes enough of setuptools into the .pex .bootstrap directory so that we can be fully
-    # self-contained.
-
-    wrote_setuptools = False
-    setuptools_location = self._interpreter.get_location('setuptools')
-    if setuptools_location is None:
-      raise RuntimeError(
-        'Failed to find setuptools via %s while building pex!' % self._interpreter.binary
-      )
-
-    setuptools = DistributionHelper.distribution_from_path(setuptools_location, name='setuptools')
-    if setuptools is None:
-      raise RuntimeError(
-        'Failed to find setuptools via %s while building pex!' % self._interpreter.binary
-      )
-
-    for fn, content_stream in DistributionHelper.walk_data(setuptools):
-      if fn.startswith('pkg_resources') or fn.startswith('_markerlib'):
-        if not fn.endswith('.pyc'):  # We'll compile our own .pyc's later.
-          dst = os.path.join(self.BOOTSTRAP_DIR, fn)
-          self._chroot.write(content_stream.read(), dst, 'bootstrap')
-          wrote_setuptools = True
-
-    if not wrote_setuptools:
-      raise RuntimeError(
-          'Failed to extract pkg_resources from setuptools.  Perhaps pants was linked with an '
-          'incompatible setuptools.')
+    # Writes our runtime vendored requirements into the .pex .bootstrap directory so that we can be
+    # fully self-contained.
+    third_party.vendor_runtime(chroot=self._chroot,
+                               dest_basedir=self.BOOTSTRAP_DIR,
+                               label='bootstrap')
 
     libraries = {
       'pex': '_pex',
     }
 
     for source_name, target_location in libraries.items():
-      provider = get_provider(source_name)
-      if not isinstance(provider, DefaultProvider):
+      provider = pkg_resources.get_provider(source_name)
+      if not isinstance(provider, pkg_resources.DefaultProvider):
         mod = __import__(source_name, fromlist=['ignore'])
-        provider = ZipProvider(mod)
+        provider = pkg_resources.ZipProvider(mod)
       for fn in provider.resource_listdir(''):
         if fn.endswith('.py'):
           self._chroot.write(provider.get_resource_string(source_name, fn),

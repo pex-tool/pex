@@ -6,13 +6,12 @@ import os
 from hashlib import sha1
 from textwrap import dedent
 
-from twitter.common.contextutil import temporary_dir
-
+from pex import vendor
 from pex.common import open_zip, safe_mkdir
 from pex.compatibility import nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.pex_builder import PEXBuilder
-from pex.testing import make_bdist, run_simple_pex, temporary_content, write_zipfile
+from pex.testing import make_bdist, run_simple_pex, temporary_content, temporary_dir, write_zipfile
 from pex.util import (
     CacheHelper,
     DistributionHelper,
@@ -98,9 +97,9 @@ except ImportError:
 
 @mock.patch('pex.util.safe_mkdtemp', autospec=True, spec_set=True)
 @mock.patch('pex.util.safe_mkdir', autospec=True, spec_set=True)
-@mock.patch('pex.util.resource_listdir', autospec=True, spec_set=True)
-@mock.patch('pex.util.resource_isdir', autospec=True, spec_set=True)
-@mock.patch('pex.util.resource_string', autospec=True, spec_set=True)
+@mock.patch('pex.util.pkg_resources.resource_listdir', autospec=True, spec_set=True)
+@mock.patch('pex.util.pkg_resources.resource_isdir', autospec=True, spec_set=True)
+@mock.patch('pex.util.pkg_resources.resource_string', autospec=True, spec_set=True)
 def test_access_zipped_assets(
     mock_resource_string,
     mock_resource_isdir,
@@ -135,20 +134,21 @@ def test_access_zipped_assets_integration():
           print(line)
   ''')
   with nested(temporary_dir(), temporary_dir()) as (td1, td2):
-    pb = PEXBuilder(path=td1)
-    with open(os.path.join(td1, 'exe.py'), 'w') as fp:
-      fp.write(test_executable)
-      pb.set_executable(fp.name)
+    with vendor.adjusted_sys_path():
+      pb = PEXBuilder(path=td1, interpreter=vendor.setup_interpreter())
+      with open(os.path.join(td1, 'exe.py'), 'w') as fp:
+        fp.write(test_executable)
+        pb.set_executable(fp.name)
 
-    submodule = os.path.join(td1, 'my_package', 'submodule')
-    safe_mkdir(submodule)
-    mod_path = os.path.join(submodule, 'mod.py')
-    with open(mod_path, 'w') as fp:
-      fp.write('accessed')
-      pb.add_source(fp.name, 'my_package/submodule/mod.py')
+      submodule = os.path.join(td1, 'my_package', 'submodule')
+      safe_mkdir(submodule)
+      mod_path = os.path.join(submodule, 'mod.py')
+      with open(mod_path, 'w') as fp:
+        fp.write('accessed')
+        pb.add_source(fp.name, 'my_package/submodule/mod.py')
 
-    pex = os.path.join(td2, 'app.pex')
-    pb.build(pex)
+      pex = os.path.join(td2, 'app.pex')
+      pb.build(pex)
 
     output, returncode = run_simple_pex(pex)
     try:

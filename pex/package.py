@@ -3,12 +3,11 @@
 
 import os
 
-from pkg_resources import EGG_NAME, parse_version, safe_name, safe_version
-
 from .archiver import Archiver
 from .base import maybe_requirement
 from .link import Link
 from .pep425tags import get_supported
+from .third_party import pkg_resources
 from .util import Memoizer
 
 
@@ -63,7 +62,7 @@ class Package(Link):
 
   @property
   def version(self):
-    return parse_version(self.raw_version)
+    return pkg_resources.parse_version(self.raw_version)
 
   def satisfies(self, requirement, allow_prereleases=None):
     """Determine whether this package matches the requirement.
@@ -75,13 +74,9 @@ class Package(Link):
     :returns: True if the package matches the requirement, otherwise False
     """
     requirement = maybe_requirement(requirement)
-    link_name = safe_name(self.name).lower()
+    link_name = pkg_resources.safe_name(self.name).lower()
     if link_name != requirement.key:
       return False
-
-    # NB: If we upgrade to setuptools>=34 the SpecifierSet used here (requirement.specifier) will
-    # come from a non-vendored `packaging` package and pex's bootstrap code in `PEXBuilder` will
-    # need an update.
     return requirement.specifier.contains(self.raw_version, prereleases=allow_prereleases)
 
   def compatible(self, supported_tags):
@@ -131,11 +126,11 @@ class SourcePackage(Package):
 
   @property
   def name(self):
-    return safe_name(self._name)
+    return pkg_resources.safe_name(self._name)
 
   @property
   def raw_version(self):
-    return safe_version(self._raw_version)
+    return pkg_resources.safe_version(self._raw_version)
 
   # SourcePackages are always compatible as they can be translated to a distribution.
   def compatible(self, supported_tags):
@@ -177,7 +172,7 @@ class EggPackage(BinaryPackage):
     filename, ext = os.path.splitext(self.filename)
     if ext.lower() != '.egg':
       raise self.InvalidPackage('Not an egg: %s' % filename)
-    matcher = EGG_NAME(filename)
+    matcher = pkg_resources.EGG_NAME(filename)
     if not matcher:
       raise self.InvalidPackage('Could not match egg: %s' % filename)
 
@@ -193,11 +188,11 @@ class EggPackage(BinaryPackage):
 
   @property
   def name(self):
-    return safe_name(self._name)
+    return pkg_resources.safe_name(self._name)
 
   @property
   def raw_version(self):
-    return safe_version(self._raw_version)
+    return pkg_resources.safe_version(self._raw_version)
 
   @property
   def py_version(self):

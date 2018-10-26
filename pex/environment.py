@@ -9,25 +9,18 @@ import site
 import sys
 import uuid
 
-from pkg_resources import (
-    DistributionNotFound,
-    Environment,
-    Requirement,
-    WorkingSet,
-    find_distributions
-)
-
 from .common import die, open_zip, rename_if_empty, safe_mkdir, safe_rmtree
 from .interpreter import PythonInterpreter
 from .package import distribution_compatible
 from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
 from .platforms import Platform
+from .third_party import pkg_resources
 from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
 
 
-class PEXEnvironment(Environment):
+class PEXEnvironment(object):
   @classmethod
   def force_local(cls, pex, pex_info):
     if pex_info.code_hash is None:
@@ -105,7 +98,7 @@ class PEXEnvironment(Environment):
     internal_cache = os.path.join(pex, pex_info.internal_cache)
     with TRACER.timed('Searching dependency cache: %s' % internal_cache, V=2):
       if os.path.isdir(pex):
-        for dist in find_distributions(internal_cache):
+        for dist in pkg_resources.find_distributions(internal_cache):
           yield dist
       else:
         for dist in itertools.chain(*cls.write_zipped_internal_cache(pex, pex_info)):
@@ -123,7 +116,7 @@ class PEXEnvironment(Environment):
 
     platform = Platform.current()
     platform_name = platform.platform
-    super(PEXEnvironment, self).__init__(
+    self._environment = pkg_resources.Environment(
       search_path=[] if pex_info.inherit_path == 'false' else sys.path,
       # NB: Our pkg_resources.Environment base-class wants the platform name string and not the
       # pex.platform.Platform object.
@@ -133,7 +126,7 @@ class PEXEnvironment(Environment):
     self._target_interpreter_env = self._interpreter.identity.pkg_resources_env(platform_name)
     self._supported_tags.extend(platform.supported_tags(self._interpreter))
     TRACER.log(
-      'E: tags for %r x %r -> %s' % (self.platform, self._interpreter, self._supported_tags),
+      'E: tags for %r x %r -> %s' % (platform_name, self._interpreter, self._supported_tags),
       V=9
     )
 
@@ -141,7 +134,7 @@ class PEXEnvironment(Environment):
     for dist in distribution_iter:
       if self.can_add(dist):
         with TRACER.timed('Adding %s' % dist, V=2):
-          self.add(dist)
+          self._environment.add(dist)
 
   def can_add(self, dist):
     return distribution_compatible(dist, self._supported_tags)
@@ -167,15 +160,11 @@ class PEXEnvironment(Environment):
         continue
       with TRACER.timed('Resolving %s' % req, V=2):
         try:
-          resolveds.update(working_set.resolve([req], env=self))
-        except DistributionNotFound as e:
+          resolveds.update(working_set.resolve([req], env=self._environment))
+        except pkg_resources.DistributionNotFound as e:
           TRACER.log('Failed to resolve a requirement: %s' % e)
-          unresolved_reqs.add(e.args[0].project_name)
-          # Older versions of pkg_resources just call `DistributionNotFound(req)` instead of the
-          # modern `DistributionNotFound(req, requirers)` and so we may not have the 2nd requirers
-          # slot at all.
-          if len(e.args) >= 2 and e.args[1]:
-            unresolved_reqs.update(e.args[1])
+          unresolved_reqs.add(e.req.project_name)
+          unresolved_reqs.update(e.requirers_str)
 
     unresolved_reqs = set([req.lower() for req in unresolved_reqs])
 
@@ -205,9 +194,9 @@ class PEXEnvironment(Environment):
     if not self._pex_info.zip_safe and os.path.isfile(self._pex):
       self.update_module_paths(self.force_local(self._pex, self._pex_info))
 
-    all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
+    all_reqs = [pkg_resources.Requirement.parse(req) for req in self._pex_info.requirements]
 
-    working_set = WorkingSet([])
+    working_set = pkg_resources.WorkingSet([])
     resolved = self._resolve(working_set, all_reqs)
 
     for dist in resolved:

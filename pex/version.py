@@ -3,8 +3,8 @@
 
 __version__ = '1.5.1'
 
-# Versions 34.0.0 through 35.0.2 (last pre-36.0.0) de-vendored dependencies which causes problems
-# for pex code so we exclude that range.
-SETUPTOOLS_REQUIREMENT = 'setuptools>=20.3,<41,!=34.*,!=35.*'
+SETUPTOOLS_REQUIREMENT = 'setuptools==40.4.3'
 
-WHEEL_REQUIREMENT = 'wheel>=0.26.0,<0.32'
+# We're currently stuck here due to removal of an API we depend on.
+# See: https://github.com/pantsbuild/pex/issues/603
+WHEEL_REQUIREMENT = 'wheel==0.31.1'

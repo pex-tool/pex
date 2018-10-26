@@ -10,9 +10,6 @@ import time
 from collections import namedtuple
 from contextlib import contextmanager
 
-import pkg_resources
-from pkg_resources import safe_name
-
 from .common import safe_mkdir
 from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
@@ -22,6 +19,7 @@ from .package import Package, distribution_compatible
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
+from .third_party import pkg_resources
 from .tracer import TRACER
 from .util import DistributionHelper
 
@@ -31,11 +29,11 @@ def patched_packing_env(env):
   """Monkey patch packaging.markers.default_environment"""
   old_env = pkg_resources.packaging.markers.default_environment
   new_env = lambda: env
-  pkg_resources._vendor.packaging.markers.default_environment = new_env
+  pkg_resources.packaging.markers.default_environment = new_env
   try:
     yield
   finally:
-    pkg_resources._vendor.packaging.markers.default_environment = old_env
+    pkg_resources.packaging.markers.default_environment = old_env
 
 
 class Untranslateable(Exception):
@@ -79,7 +77,7 @@ class _ResolvedPackages(namedtuple('_ResolvedPackages',
 class _ResolvableSet(object):
   @classmethod
   def normalize(cls, name):
-    return safe_name(name).lower()
+    return pkg_resources.safe_name(name).lower()
 
   def __init__(self, tuples=None):
     # A list of _ResolvedPackages
@@ -142,7 +140,7 @@ class _ResolvableSet(object):
 
   def extras(self, name):
     return set.union(
-        *[set(tup.resolvable.extras()) for tup in self.__tuples
+        *[set(tup.resolvable.extras) for tup in self.__tuples
           if self.normalize(tup.resolvable.name) == self.normalize(name)])
 
   def replace_built(self, built_packages):
@@ -499,7 +497,7 @@ def resolve(requirements,
                         interpreter=interpreter,
                         platform=platform)
 
-  return resolver.resolve(resolvables_from_iterable(requirements, builder))
+  return resolver.resolve(resolvables_from_iterable(requirements, builder, interpreter=interpreter))
 
 
 def resolve_multi(requirements,

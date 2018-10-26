@@ -5,9 +5,6 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
-import tempfile
-
-from pkg_resources import Distribution, PathMetadata
 
 from .common import safe_mkdtemp, safe_rmtree
 from .compatibility import WINDOWS
@@ -17,7 +14,6 @@ from .tracer import TRACER
 from .version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
 
 __all__ = (
-  'Installer',
   'Packager'
 )
 
@@ -26,7 +22,7 @@ def after_installation(function):
   def function_wrapper(self, *args, **kw):
     self._installed = self.run()
     if not self._installed:
-      raise Installer.InstallFailure('Failed to install %s' % self._source_dir)
+      raise InstallerBase.InstallFailure('Failed to install %s' % self._source_dir)
     return function(self, *args, **kw)
   return function_wrapper
 
@@ -45,19 +41,13 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
   class InstallFailure(Error): pass
   class IncapableInterpreter(Error): pass
 
-  def __init__(self, source_dir, strict=True, interpreter=None, install_dir=None):
-    """
-      Create an installer from an unpacked source distribution in source_dir.
-
-      If strict=True, fail if any installation dependencies (e.g. distribute)
-      are missing.
-    """
+  def __init__(self, source_dir, interpreter=None, install_dir=None):
+    """Create an installer from an unpacked source distribution in source_dir."""
     self._source_dir = source_dir
     self._install_tmp = install_dir or safe_mkdtemp()
     self._installed = None
-    self._strict = strict
     self._interpreter = interpreter or PythonInterpreter.get()
-    if not self._interpreter.satisfies(self.capability) and strict:
+    if not self._interpreter.satisfies(self.capability):
       raise self.IncapableInterpreter('Interpreter %s not capable of running %s' % (
           self._interpreter.binary, self.__class__.__name__))
 
@@ -90,9 +80,6 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
     bootstrap_modules = []
     for module, requirement in self.mixins().items():
       path = self._interpreter.get_location(requirement)
-      if not path:
-        assert not self._strict  # This should be caught by validation
-        continue
       bootstrap_sys_paths.append(self.SETUP_BOOTSTRAP_PYPATH % {'path': path})
       bootstrap_modules.append(self.SETUP_BOOTSTRAP_MODULE % {'module': module})
     return '\n'.join(
@@ -107,7 +94,7 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
       return self._installed
 
     with TRACER.timed('Installing %s' % self._install_tmp, V=2):
-      command = [self._interpreter.binary, '-'] + self._setup_command()
+      command = [self._interpreter.binary, '-sE', '-'] + self._setup_command()
       try:
         Executor.execute(command,
                          env=self._interpreter.sanitized_environment(),
@@ -126,70 +113,6 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
 
   def cleanup(self):
     safe_rmtree(self._install_tmp)
-
-
-class Installer(InstallerBase):
-  """Install an unpacked distribution with a setup.py."""
-
-  def __init__(self, source_dir, strict=True, interpreter=None):
-    """
-      Create an installer from an unpacked source distribution in source_dir.
-
-      If strict=True, fail if any installation dependencies (e.g. setuptools)
-      are missing.
-    """
-    super(Installer, self).__init__(source_dir, strict=strict, interpreter=interpreter)
-    self._egg_info = None
-    fd, self._install_record = tempfile.mkstemp()
-    os.close(fd)
-
-  def _setup_command(self):
-    return ['install',
-           '--root=%s' % self._install_tmp,
-           '--prefix=',
-           '--single-version-externally-managed',
-           '--record', self._install_record]
-
-  def _postprocess(self):
-    installed_files = []
-    egg_info = None
-    with open(self._install_record) as fp:
-      installed_files = fp.read().splitlines()
-      for line in installed_files:
-        if line.endswith('.egg-info'):
-          assert line.startswith('/'), 'Expect .egg-info to be within install_tmp!'
-          egg_info = line
-          break
-
-    if not egg_info:
-      self._installed = False
-      return self._installed
-
-    installed_files = [os.path.relpath(fn, egg_info) for fn in installed_files if fn != egg_info]
-
-    self._egg_info = os.path.join(self._install_tmp, egg_info[1:])
-    with open(os.path.join(self._egg_info, 'installed-files.txt'), 'w') as fp:
-      fp.write('\n'.join(installed_files))
-      fp.write('\n')
-
-    return self._installed
-
-  @after_installation
-  def egg_info(self):
-    return self._egg_info
-
-  @after_installation
-  def root(self):
-    egg_info = self.egg_info()
-    assert egg_info
-    return os.path.realpath(os.path.dirname(egg_info))
-
-  @after_installation
-  def distribution(self):
-    base_dir = self.root()
-    egg_info = self.egg_info()
-    metadata = PathMetadata(base_dir, egg_info)
-    return Distribution.from_location(base_dir, os.path.basename(egg_info), metadata=metadata)
 
 
 class DistributionPackager(InstallerBase):

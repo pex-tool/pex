@@ -5,9 +5,8 @@ from __future__ import absolute_import
 
 from collections import Iterable
 
-from pkg_resources import Requirement
-
 from .compatibility import string as compatibility_string
+from .third_party import pkg_resources
 
 REQUIRED_ATTRIBUTES = (
     'extras',
@@ -22,15 +21,15 @@ def quacks_like_req(req):
 
 
 def maybe_requirement(req):
-  if isinstance(req, Requirement) or quacks_like_req(req):
+  if isinstance(req, pkg_resources.Requirement) or quacks_like_req(req):
     return req
   elif isinstance(req, compatibility_string):
-    return Requirement.parse(req)
+    return pkg_resources.Requirement.parse(req)
   raise ValueError('Unknown requirement %r' % (req,))
 
 
 def maybe_requirement_list(reqs):
-  if isinstance(reqs, (compatibility_string, Requirement)) or quacks_like_req(reqs):
+  if isinstance(reqs, (compatibility_string, pkg_resources.Requirement)) or quacks_like_req(reqs):
     return [maybe_requirement(reqs)]
   elif isinstance(reqs, Iterable):
     return [maybe_requirement(req) for req in reqs]

@@ -6,8 +6,7 @@ from contextlib import contextmanager
 from optparse import OptionParser
 from tempfile import NamedTemporaryFile
 
-from twitter.common.contextutil import temporary_dir
-
+from pex import vendor
 from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution
 from pex.common import safe_copy
 from pex.compatibility import to_bytes
@@ -15,7 +14,7 @@ from pex.fetcher import Fetcher, PyPIFetcher
 from pex.package import SourcePackage, WheelPackage
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.sorter import Sorter
-from pex.testing import make_sdist
+from pex.testing import make_sdist, temporary_dir
 
 try:
   from unittest import mock
@@ -169,7 +168,7 @@ def test_clp_prereleases_resolver():
                                                  allow_external=allow_external,
                                                  allow_unverified=allow_unverified,
                                                  allow_prereleases=allow_prereleases,
-                                                 use_manylinux=None,
+                                                 use_manylinux=use_manylinux,
                                                  precedence=precedence,
                                                  context=context)
         self._fetchers.insert(0, fetcher)
@@ -185,5 +184,6 @@ def test_clp_prereleases_resolver():
     #
     # With a correct behavior the assert line is reached and pex_builder object created.
     with mock.patch.object(pex.resolver, 'ResolverOptionsBuilder', BuilderWithFetcher):
-      pex_builder = build_pex(reqs, options, resolver_options_builder)
-      assert pex_builder is not None
+      with vendor.adjusted_sys_path():
+        pex_builder = build_pex(reqs, options, resolver_options_builder)
+        assert pex_builder is not None

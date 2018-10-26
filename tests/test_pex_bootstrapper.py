@@ -4,12 +4,20 @@
 import os
 
 import pytest
-from twitter.common.contextutil import temporary_dir
 
+from pex import vendor
 from pex.common import open_zip
 from pex.interpreter import PythonInterpreter
 from pex.pex_bootstrapper import find_compatible_interpreters, get_pex_info
-from pex.testing import IS_PYPY, PY27, PY35, PY36, ensure_python_interpreter, write_simple_pex
+from pex.testing import (
+    IS_PYPY,
+    PY27,
+    PY35,
+    PY36,
+    ensure_python_interpreter,
+    temporary_dir,
+    write_simple_pex
+)
 
 
 def test_get_pex_info():
@@ -40,7 +48,9 @@ def test_find_compatible_interpreters():
   pex_python_path = ':'.join([py27, py35, py36])
 
   def find_interpreters(*constraints):
-    return [interp.binary for interp in find_compatible_interpreters(pex_python_path, constraints)]
+    with vendor.adjusted_sys_path():
+      return [interp.binary
+              for interp in find_compatible_interpreters(pex_python_path, constraints)]
 
   assert [py35, py36] == find_interpreters('>3')
   assert [py27] == find_interpreters('<3')
@@ -54,5 +64,7 @@ def test_find_compatible_interpreters():
   assert [] == find_interpreters('>{}, <{}'.format(PY27, PY35))
 
   # All interpreters on PATH.
-  interpreters = find_compatible_interpreters(pex_python_path='', compatibility_constraints=['<3'])
+  with vendor.adjusted_sys_path():
+    interpreters = find_compatible_interpreters(pex_python_path='',
+                                                compatibility_constraints=['<3'])
   assert set(interpreters).issubset(set(PythonInterpreter.all()))

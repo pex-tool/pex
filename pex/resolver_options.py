@@ -3,8 +3,6 @@
 
 from __future__ import print_function
 
-from pkg_resources import safe_name
-
 from .crawler import Crawler
 from .fetcher import Fetcher, PyPIFetcher
 from .http import Context
@@ -12,6 +10,7 @@ from .installer import EggInstaller, WheelInstaller
 from .iterator import Iterator
 from .package import EggPackage, SourcePackage, WheelPackage
 from .sorter import Sorter
+from .third_party import pkg_resources
 from .translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 
 
@@ -93,11 +92,11 @@ class ResolverOptionsBuilder(object):
     return self
 
   def allow_external(self, key):
-    self._allow_external.add(safe_name(key).lower())
+    self._allow_external.add(pkg_resources.safe_name(key).lower())
     return self
 
   def allow_unverified(self, key):
-    self._allow_unverified.add(safe_name(key).lower())
+    self._allow_unverified.add(pkg_resources.safe_name(key).lower())
     return self
 
   def use_wheel(self):
