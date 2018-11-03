@@ -159,10 +159,13 @@ class PEXEnvironment(Environment):
     unresolved_reqs = set()
     resolveds = set()
 
+    environment = self._target_interpreter_env.copy()
+    environment['extra'] = list(set(itertools.chain(*(req.extras for req in reqs))))
+
     # Resolve them one at a time so that we can figure out which ones we need to elide should
     # there be an interpreter incompatibility.
     for req in reqs:
-      if req.marker and not req.marker.evaluate(environment=self._target_interpreter_env):
+      if req.marker and not req.marker.evaluate(environment=environment):
         TRACER.log('Skipping activation of `%s` due to environment marker de-selection' % req)
         continue
       with TRACER.timed('Resolving %s' % req, V=2):
