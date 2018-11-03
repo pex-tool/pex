@@ -1,6 +1,30 @@
 Release Notes
 =============
 
+1.5.2
+-----
+
+This release brings an exit code fix for pexes run via entrypoint as well as a fix for finding
+scripts when building pexes from wheels with dashes in their distribution name.
+
+* Update PyPI default URL to pypi.org (#610)
+  `PR #610 <https://github.com/pantsbuild/pex/pull/610>`_
+
+* Pex exits with correct code when using entrypoint (#605)
+  `PR #605 <https://github.com/pantsbuild/pex/pull/605>`_
+
+* Fix \*_custom_setuptools_useable ITs. (#606)
+  `PR #606 <https://github.com/pantsbuild/pex/pull/606>`_
+
+* Update pyenv if neccesary (#586)
+  `PR #586 <https://github.com/pantsbuild/pex/pull/586>`_
+
+* Fix script search in wheels. (#600)
+  `PR #600 <https://github.com/pantsbuild/pex/pull/600>`_
+
+* Small Docstring Fix (#595)
+  `PR #595 <https://github.com/pantsbuild/pex/pull/595>`_
+
 1.5.1
 -----
 
