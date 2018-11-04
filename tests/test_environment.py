@@ -163,3 +163,24 @@ def test_osx_platform_intel_issue_523():
       release, _, _ = platform.mac_ver()
       major_minor = '.'.join(release.split('.')[:2])
       assert to_bytes('macosx-{}-intel'.format(major_minor)) == stdout.strip()
+
+
+def test_activate_extras_issue_615():
+  with yield_pex_builder() as pb:
+    for resolved_dist in resolver.resolve(['pex[requests]==1.5.1']):
+      pb.add_requirement(resolved_dist.requirement)
+      pb.add_dist_location(resolved_dist.distribution.location)
+    pb.set_script('pex')
+    pb.freeze()
+    env = os.environ.copy()
+    env['PEX_VERBOSE'] = '9'
+    process = PEX(pb.path()).run(args=['--version'],
+                                 env=env,
+                                 blocking=False,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    assert 0 == process.returncode, (
+      'Process failed with exit code {} and stderr:\n{}'.format(process.returncode, stderr)
+    )
+    assert to_bytes('{} 1.5.1'.format(os.path.basename(pb.path()))) == stdout.strip()
