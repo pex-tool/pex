@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.5.3
+-----
+
+* Fixup PEXEnvironment extras resolution. (#617)
+  `PR #617 <https://github.com/pantsbuild/pex/pull/617>`_
+
+* Repair unhandled AttributeError during pex bootstrapping. (#599)
+  `PR #599 <https://github.com/pantsbuild/pex/pull/599>`_
+
 1.5.2
 -----
 
