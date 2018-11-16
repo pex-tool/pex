@@ -4,15 +4,14 @@
 import os
 import zipimport
 
-import pkg_resources
 import pytest
 
+import pex.third_party.pkg_resources as pkg_resources
 from pex.compatibility import to_bytes
 from pex.finders import ChainedFinder
 from pex.finders import _add_finder as add_finder
 from pex.finders import _remove_finder as remove_finder
 from pex.finders import (
-    find_eggs_in_zip,
     find_wheels_in_zip,
     get_entry_point_from_console_script,
     get_script_from_egg,
@@ -113,10 +112,14 @@ def test_remove_finder():
       mock_register_finder.assert_called_with('foo', pkg_resources.find_nothing)
 
 
+# Ensure our vendored setuptools carries a pkg_resources.find_eggs_in_zip that works as expected.
+# In the past we could not rely on a modern setuptools with a fully working zipped egg finder; so we
+# rolled our own and these tests confirmed our implementation worked. We retain the tests to make
+# sure setuptools doesn't backslide.
 def test_get_script_from_egg_with_no_scripts():
   # Make sure eggs without scripts don't cause errors.
   egg_path = './tests/example_packages/Flask_Cache-0.13.1-py2.7.egg'
-  dists = list(find_eggs_in_zip(zipimport.zipimporter(egg_path), egg_path, only=True))
+  dists = list(pkg_resources.find_eggs_in_zip(zipimport.zipimporter(egg_path), egg_path, only=True))
   assert len(dists) == 1
 
   dist = dists[0]
@@ -125,7 +128,7 @@ def test_get_script_from_egg_with_no_scripts():
 
 def test_get_script_from_egg():
   egg_path = './tests/example_packages/eno-0.0.17-py2.7.egg'
-  dists = list(find_eggs_in_zip(zipimport.zipimporter(egg_path), egg_path, only=True))
+  dists = list(pkg_resources.find_eggs_in_zip(zipimport.zipimporter(egg_path), egg_path, only=True))
   assert len(dists) == 1
 
   dist = dists[0]

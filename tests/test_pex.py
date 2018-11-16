@@ -4,14 +4,14 @@
 import os
 import subprocess
 import sys
+import tempfile
 import textwrap
 from contextlib import contextmanager
 from types import ModuleType
 
 import pytest
-from twitter.common.contextutil import temporary_file
 
-from pex.bin.pex import setup_interpreter
+from pex import vendor
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
@@ -257,6 +257,7 @@ def test_pex_paths():
         'import sys; from bar_pkg.bar_module import bar_func; '
         'sys.stdout.write(bar_func()); sys.exit(0)',
         sources=[
+          ('bar_pkg/__init__.py', ''),
           ('bar_pkg/bar_module.py',
            'from foo_pkg.foo_module import foo_func\ndef bar_func():\n  return foo_func()')
         ]
@@ -271,20 +272,15 @@ def test_pex_paths():
 
 @contextmanager
 def _add_test_hello_to_pex(ep):
-  with temporary_dir() as td:
-    hello_file = "\n".join([
-      "def hello():",
-      "  print('hello')",
-    ])
-    with temporary_file(root_dir=td) as tf:
-      with open(tf.name, 'w') as handle:
-        handle.write(hello_file)
+  with tempfile.NamedTemporaryFile() as tf:
+    tf.write(b'def hello(): print("hello")')
+    tf.flush()
 
-      pex_builder = PEXBuilder()
-      pex_builder.add_source(tf.name, 'test.py')
-      pex_builder.set_entry_point(ep)
-      pex_builder.freeze()
-      yield pex_builder
+    pex_builder = PEXBuilder()
+    pex_builder.add_source(tf.name, 'test.py')
+    pex_builder.set_entry_point(ep)
+    pex_builder.freeze()
+    yield pex_builder
 
 
 def test_pex_verify_entry_point_method_should_pass():
@@ -325,11 +321,8 @@ def test_pex_verify_entry_point_module_should_fail():
 def test_activate_interpreter_different_from_current():
   with temporary_dir() as pex_root:
     interp_version = PY36 if PY2 else PY27
-    custom_interpreter = setup_interpreter(
+    custom_interpreter = vendor.setup_interpreter(
       interpreter=PythonInterpreter.from_binary(ensure_python_interpreter(interp_version)),
-      interpreter_cache_dir=os.path.join(pex_root, 'interpreters'),
-      repos=None,  # Default to PyPI.
-      use_wheel=True
     )
     pex_info = PexInfo.default(custom_interpreter)
     pex_info.pex_root = pex_root
@@ -366,16 +359,19 @@ def test_execute_interpreter_dashc_program():
 
 def test_execute_interpreter_dashm_module():
   with temporary_dir() as pex_chroot:
-    pex_builder = PEXBuilder(path=pex_chroot)
-    with temporary_file(root_dir=pex_chroot) as fp:
+    interpreter = vendor.setup_interpreter()
+    pex_builder = PEXBuilder(path=pex_chroot, interpreter=interpreter)
+    pex_builder.add_source(None, 'foo/__init__.py')
+    with tempfile.NamedTemporaryFile() as fp:
       fp.write(b'import sys; print(" ".join(sys.argv))')
-      fp.close()
+      fp.flush()
       pex_builder.add_source(fp.name, 'foo/bar.py')
     pex_builder.freeze()
-    process = PEX(pex_chroot).run(args=['-m', 'foo.bar', 'one', 'two'],
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE,
-                                  blocking=False)
+    pex = PEX(pex_chroot, interpreter=vendor.setup_interpreter())
+    process = pex.run(args=['-m', 'foo.bar', 'one', 'two'],
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.PIPE,
+                      blocking=False)
     stdout, stderr = process.communicate()
 
     assert 0 == process.returncode
@@ -403,9 +399,9 @@ def test_execute_interpreter_file_program():
   with temporary_dir() as pex_chroot:
     pex_builder = PEXBuilder(path=pex_chroot)
     pex_builder.freeze()
-    with temporary_file(root_dir=pex_chroot) as fp:
+    with tempfile.NamedTemporaryFile() as fp:
       fp.write(b'import sys; print(" ".join(sys.argv))')
-      fp.close()
+      fp.flush()
       process = PEX(pex_chroot).run(args=[fp.name, 'one', 'two'],
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
@@ -432,28 +428,37 @@ def test_pex_run_custom_setuptools_useable():
 
 
 def test_pex_run_conflicting_custom_setuptools_useable():
-  # Here we use an older setuptools to build the pex which has a newer setuptools requirement.
-  # These setuptools dists have different pkg_resources APIs:
+  # Here we use our vendored, newer setuptools to build the pex which has an older setuptools
+  # requirement. These setuptools dists have different pkg_resources APIs:
   # $ diff \
   #   <(zipinfo -1 setuptools-20.3.1-py2.py3-none-any.whl | grep pkg_resources/ | sort) \
-  #   <(zipinfo -1 setuptools-40.4.3-py2.py3-none-any.whl | grep pkg_resources/ | sort)
+  #   <(zipinfo -1 setuptools-40.6.2-py2.py3-none-any.whl | grep pkg_resources/ | sort)
   # 2a3,4
   # > pkg_resources/py31compat.py
   # > pkg_resources/_vendor/appdirs.py
   with temporary_dir() as resolve_cache:
     dists = [resolved_dist.distribution
              for resolved_dist in resolve(['setuptools==20.3.1'], cache=resolve_cache)]
-    interpreter = PythonInterpreter.from_binary(sys.executable,
-                                                path_extras=[dist.location for dist in dists],
-                                                include_site_extras=False)
-    dists = [resolved_dist.distribution
-             for resolved_dist in resolve(['setuptools==40.4.3'], cache=resolve_cache)]
     with temporary_dir() as temp_dir:
       pex = write_simple_pex(
         temp_dir,
-        'from pkg_resources import appdirs, py31compat',
+        exe_contents=textwrap.dedent("""
+          import sys
+          import pkg_resources
+          
+          try:
+            from pkg_resources import appdirs
+            sys.exit(1)
+          except ImportError:
+            pass
+  
+          try:
+            from pkg_resources import py31compat
+            sys.exit(2)
+          except ImportError:
+            pass
+        """),
         dists=dists,
-        interpreter=interpreter
       )
-      rc = PEX(pex.path()).run()
+      rc = PEX(pex.path()).run(env={'PEX_VERBOSE': '9'})
       assert rc == 0

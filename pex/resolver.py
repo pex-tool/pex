@@ -1,7 +1,7 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import print_function
+from __future__ import absolute_import
 
 import itertools
 import os
@@ -10,20 +10,19 @@ import time
 from collections import namedtuple
 from contextlib import contextmanager
 
-import pkg_resources
-from pkg_resources import safe_name
-
-from .common import safe_mkdir
-from .fetcher import Fetcher
-from .interpreter import PythonInterpreter
-from .iterator import Iterator, IteratorInterface
-from .orderedset import OrderedSet
-from .package import Package, distribution_compatible
-from .platforms import Platform
-from .resolvable import ResolvableRequirement, resolvables_from_iterable
-from .resolver_options import ResolverOptionsBuilder
-from .tracer import TRACER
-from .util import DistributionHelper
+import pex.third_party.pkg_resources as pkg_resources
+from pex.common import safe_mkdir
+from pex.fetcher import Fetcher
+from pex.interpreter import PythonInterpreter
+from pex.iterator import Iterator, IteratorInterface
+from pex.orderedset import OrderedSet
+from pex.package import Package, distribution_compatible
+from pex.platforms import Platform
+from pex.resolvable import ResolvableRequirement, resolvables_from_iterable
+from pex.resolver_options import ResolverOptionsBuilder
+from pex.third_party.pkg_resources import safe_name
+from pex.tracer import TRACER
+from pex.util import DistributionHelper
 
 
 @contextmanager
@@ -499,7 +498,7 @@ def resolve(requirements,
                         interpreter=interpreter,
                         platform=platform)
 
-  return resolver.resolve(resolvables_from_iterable(requirements, builder))
+  return resolver.resolve(resolvables_from_iterable(requirements, builder, interpreter=interpreter))
 
 
 def resolve_multi(requirements,

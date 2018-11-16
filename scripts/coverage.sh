@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 coverage run -p -m py.test tests
 coverage run -p -m pex.bin.pex -v --help >&/dev/null

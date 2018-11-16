@@ -10,9 +10,9 @@ from contextlib import contextmanager
 from textwrap import dedent
 
 import pytest
-from twitter.common.contextutil import environment_as, temporary_dir
 
-from pex.compatibility import WINDOWS, to_bytes
+from pex import vendor
+from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller
 from pex.pex_bootstrapper import get_pex_info
 from pex.testing import (
@@ -29,7 +29,8 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
-    temporary_content
+    temporary_content,
+    temporary_dir
 )
 from pex.util import DistributionHelper, named_temporary_file
 
@@ -52,40 +53,30 @@ def test_pex_raise():
 
 
 def test_pex_root():
-  with temporary_dir() as tmp_home:
-    with environment_as(HOME=tmp_home):
-      with temporary_dir() as td:
-        with temporary_dir() as output_dir:
-          env = make_env(PEX_INTERPRETER=1)
-
-          output_path = os.path.join(output_dir, 'pex.pex')
-          args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={0}'.format(td)]
-          results = run_pex_command(args=args, env=env)
-          results.assert_success()
-          assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
-          assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
-          assert 'build' in os.listdir(td), 'Expected build directory in tmp pex root.'
+  with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td, output_dir, tmp_home):
+    output_path = os.path.join(output_dir, 'pex.pex')
+    args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={0}'.format(td)]
+    results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1'))
+    results.assert_success()
+    assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
+    assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
+    assert 'build' in os.listdir(td), 'Expected build directory in tmp pex root.'
 
 
 def test_cache_disable():
-  with temporary_dir() as tmp_home:
-    with environment_as(HOME=tmp_home):
-      with temporary_dir() as td:
-        with temporary_dir() as output_dir:
-          env = make_env(PEX_INTERPRETER=1)
-
-          output_path = os.path.join(output_dir, 'pex.pex')
-          args = [
-            'pex',
-            '-o', output_path,
-            '--not-zip-safe',
-            '--disable-cache',
-            '--pex-root={0}'.format(td),
-          ]
-          results = run_pex_command(args=args, env=env)
-          results.assert_success()
-          assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
-          assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
+  with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td, output_dir, tmp_home):
+    output_path = os.path.join(output_dir, 'pex.pex')
+    args = [
+      'pex',
+      '-o', output_path,
+      '--not-zip-safe',
+      '--disable-cache',
+      '--pex-root={0}'.format(td),
+    ]
+    results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1'))
+    results.assert_success()
+    assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
+    assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
 
 
 def test_pex_interpreter():
@@ -108,7 +99,6 @@ def test_pex_repl_cli():
     # Create a temporary pex containing just `requests` with no entrypoint.
     pex_path = os.path.join(output_dir, 'pex.pex')
     results = run_pex_command(['--disable-cache',
-                               'wheel',
                                'requests',
                                './',
                                '-e', 'pex.bin.pex:main',
@@ -140,16 +130,15 @@ def test_pex_repl_built():
 @pytest.mark.skipif(WINDOWS, reason='No symlinks on windows')
 def test_pex_python_symlink():
   with temporary_dir() as td:
-    with environment_as(HOME=td):
-      symlink_path = os.path.join(td, 'python-symlink')
-      os.symlink(sys.executable, symlink_path)
-      pexrc_path = os.path.join(td, '.pexrc')
-      with open(pexrc_path, 'w') as pexrc:
-        pexrc.write("PEX_PYTHON=%s" % symlink_path)
+    symlink_path = os.path.join(td, 'python-symlink')
+    os.symlink(sys.executable, symlink_path)
+    pexrc_path = os.path.join(td, '.pexrc')
+    with open(pexrc_path, 'w') as pexrc:
+      pexrc.write("PEX_PYTHON=%s" % symlink_path)
 
-      body = "print('Hello')"
-      _, rc = run_simple_pex_test(body, coverage=True)
-      assert rc == 0
+    body = "print('Hello')"
+    _, rc = run_simple_pex_test(body, coverage=True, env=make_env(HOME=td))
+    assert rc == 0
 
 
 def test_entry_point_exit_code():
@@ -173,7 +162,7 @@ def test_entry_point_exit_code():
   """ % error_msg)
 
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
-    installer = EggInstaller(project_dir)
+    installer = EggInstaller(project_dir, interpreter=vendor.setup_interpreter())
     dist = DistributionHelper.distribution_from_path(installer.bdist())
     so, rc = run_simple_pex_test('', env=make_env(PEX_SCRIPT='my_app'), dists=[dist])
     assert so.decode('utf-8').strip() == error_msg
@@ -357,16 +346,14 @@ def test_interpreter_constraints_to_pex_info_py2():
 @pytest.mark.skipif(IS_PYPY)
 def test_interpreter_constraints_to_pex_info_py3():
   py3_interpreter = ensure_python_interpreter(PY36)
-  with environment_as(PATH=os.path.dirname(py3_interpreter)):
-    with temporary_dir() as output_dir:
-      # target python 3
-      pex_out_path = os.path.join(output_dir, 'pex_py3.pex')
-      res = run_pex_command(['--disable-cache',
-        '--interpreter-constraint=>3',
-        '-o', pex_out_path])
-      res.assert_success()
-      pex_info = get_pex_info(pex_out_path)
-      assert ['>3'] == pex_info.interpreter_constraints
+  with temporary_dir() as output_dir:
+    # target python 3
+    pex_out_path = os.path.join(output_dir, 'pex_py3.pex')
+    res = run_pex_command(['--disable-cache', '--interpreter-constraint=>3', '-o', pex_out_path],
+                          env=make_env(PATH=os.path.dirname(py3_interpreter)))
+    res.assert_success()
+    pex_info = get_pex_info(pex_out_path)
+    assert ['>3'] == pex_info.interpreter_constraints
 
 
 def test_interpreter_resolution_with_constraint_option():
@@ -453,10 +440,10 @@ def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
       '-o', pex_out_path])
     res.assert_success()
 
-    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdin_payload = b'import os, sys; print(os.path.realpath(sys.executable)); sys.exit(0)'
     stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
     assert rc == 0
-    assert str(sys.executable).encode() in stdout
+    assert os.path.realpath(sys.executable).encode() in stdout
 
 
 @pytest.mark.skipif(IS_PYPY)
@@ -518,60 +505,61 @@ def test_pex_python():
   py2_path_interpreter = ensure_python_interpreter(PY27)
   py3_path_interpreter = ensure_python_interpreter(PY36)
   path = ':'.join([os.path.dirname(py2_path_interpreter), os.path.dirname(py3_path_interpreter)])
-  with environment_as(PATH=path):
-    with temporary_dir() as td:
-      pexrc_path = os.path.join(td, '.pexrc')
-      with open(pexrc_path, 'w') as pexrc:
-        pex_python = ensure_python_interpreter(PY36)
-        pexrc.write("PEX_PYTHON=%s" % pex_python)
+  env = make_env(PATH=path)
+  with temporary_dir() as td:
+    pexrc_path = os.path.join(td, '.pexrc')
+    with open(pexrc_path, 'w') as pexrc:
+      pex_python = ensure_python_interpreter(PY36)
+      pexrc.write("PEX_PYTHON=%s" % pex_python)
 
-      # test PEX_PYTHON with valid constraints
-      pex_out_path = os.path.join(td, 'pex.pex')
-      res = run_pex_command(['--disable-cache',
-        '--rcfile=%s' % pexrc_path,
-        '--interpreter-constraint=>3',
-        '--interpreter-constraint=<3.8',
-        '-o', pex_out_path])
-      res.assert_success()
+    # test PEX_PYTHON with valid constraints
+    pex_out_path = os.path.join(td, 'pex.pex')
+    res = run_pex_command(['--disable-cache',
+                           '--rcfile=%s' % pexrc_path,
+                           '--interpreter-constraint=>3',
+                           '--interpreter-constraint=<3.8',
+                           '-o', pex_out_path],
+                          env=env)
+    res.assert_success()
 
-      stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-      stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
-      assert rc == 0
-      correct_interpreter_path = pex_python.encode()
-      assert correct_interpreter_path in stdout
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+    assert rc == 0
+    correct_interpreter_path = pex_python.encode()
+    assert correct_interpreter_path in stdout
 
-      # test PEX_PYTHON with incompatible constraints
-      pexrc_path = os.path.join(td, '.pexrc')
-      with open(pexrc_path, 'w') as pexrc:
-        pex_python = ensure_python_interpreter(PY27)
-        pexrc.write("PEX_PYTHON=%s" % pex_python)
+    # test PEX_PYTHON with incompatible constraints
+    pexrc_path = os.path.join(td, '.pexrc')
+    with open(pexrc_path, 'w') as pexrc:
+      pex_python = ensure_python_interpreter(PY27)
+      pexrc.write("PEX_PYTHON=%s" % pex_python)
 
-      pex_out_path = os.path.join(td, 'pex2.pex')
-      res = run_pex_command(['--disable-cache',
-        '--rcfile=%s' % pexrc_path,
-        '--interpreter-constraint=>3',
-        '--interpreter-constraint=<3.8',
-        '-o', pex_out_path])
-      res.assert_success()
+    pex_out_path = os.path.join(td, 'pex2.pex')
+    res = run_pex_command(['--disable-cache',
+                           '--rcfile=%s' % pexrc_path,
+                           '--interpreter-constraint=>3',
+                           '--interpreter-constraint=<3.8',
+                           '-o', pex_out_path],
+                          env=env)
+    res.assert_success()
 
-      stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-      stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
-      assert rc == 1
-      fail_str = 'not compatible with specified interpreter constraints'.encode()
-      assert fail_str in stdout
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+    assert rc == 1
+    fail_str = 'not compatible with specified interpreter constraints'.encode()
+    assert fail_str in stdout
 
-      # test PEX_PYTHON with no constraints
-      pex_out_path = os.path.join(td, 'pex3.pex')
-      res = run_pex_command(['--disable-cache',
-        '--rcfile=%s' % pexrc_path,
-        '-o', pex_out_path])
-      res.assert_success()
+    # test PEX_PYTHON with no constraints
+    pex_out_path = os.path.join(td, 'pex3.pex')
+    res = run_pex_command(['--disable-cache', '--rcfile=%s' % pexrc_path, '-o', pex_out_path],
+                          env=env)
+    res.assert_success()
 
-      stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-      stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
-      assert rc == 0
-      correct_interpreter_path = pex_python.encode()
-      assert correct_interpreter_path in stdout
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+    assert rc == 0
+    correct_interpreter_path = pex_python.encode()
+    assert correct_interpreter_path in stdout
 
 
 @pytest.mark.skipif(IS_PYPY)
@@ -606,7 +594,7 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
 
-    # Select pexrc interpreter versions based on test environemnt.
+    # Select pexrc interpreter versions based on test environment.
     # The parent interpreter is the interpreter we expect the parent pex to
     # execute with. The child interpreter is the interpreter we expect the
     # child pex to execute with.
@@ -641,14 +629,12 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
         def tester():
           from pex.testing import (
             run_pex_command,
-            run_simple_pex
+            run_simple_pex,
+            temporary_dir
           )
           import os
-          import tempfile
-          import shutil
           from textwrap import dedent
-          td = tempfile.mkdtemp()
-          try:
+          with temporary_dir() as td:
             pexrc_path = os.path.join(td, '.pexrc')
             with open(pexrc_path, 'w') as pexrc:
               pexrc.write("PEX_PYTHON={}")
@@ -664,8 +650,6 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
             stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
             stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
             print(stdout)
-          finally:
-            shutil.rmtree(td)
         '''.format(ensure_python_interpreter(child_pex_interpreter_version))))
 
     pex_out_path = os.path.join(td, 'parent.pex')
@@ -974,6 +958,7 @@ def test_pex_resource_bundling():
         '-D', input_dir,
         '-R', resources_input_dir,
         '-e', 'exe',
+        'setuptools==17.0'
       ])
       res.assert_success()
 
@@ -1124,13 +1109,13 @@ def test_setup_interpreter_constraint():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
     pex = os.path.join(out, 'pex.pex')
-    with environment_as(PATH=os.path.dirname(interpreter)):
-      results = run_pex_command(['jsonschema==2.6.0',
-                                 '--disable-cache',
-                                 '--interpreter-constraint=CPython=={}'.format(PY27),
-                                 '-o', pex])
-      results.assert_success()
-      subprocess.check_call([pex, '-c', 'import jsonschema'])
+    results = run_pex_command(['jsonschema==2.6.0',
+                               '--disable-cache',
+                               '--interpreter-constraint=CPython=={}'.format(PY27),
+                               '-o', pex],
+                              env=make_env(PATH=os.path.dirname(interpreter)))
+    results.assert_success()
+    subprocess.check_call([pex, '-c', 'import jsonschema'])
 
 
 @pytest.mark.skipif(IS_PYPY,
@@ -1155,18 +1140,18 @@ def test_setup_python_multiple_transitive_markers():
       'import jsonschema, os, sys; print(os.path.realpath(sys.executable))'
     ]
 
-    with environment_as(PATH=os.path.dirname(py27_interpreter)):
-      subprocess.check_call(py2_only_program)
+    py27_env = make_env(PATH=os.path.dirname(py27_interpreter))
+    subprocess.check_call(py2_only_program, env=py27_env)
 
-      stdout = subprocess.check_output(both_program)
-      assert to_bytes(os.path.realpath(py27_interpreter)) == stdout.strip()
+    stdout = subprocess.check_output(both_program, env=py27_env)
+    assert to_bytes(os.path.realpath(py27_interpreter)) == stdout.strip()
 
-    with environment_as(PATH=os.path.dirname(py36_interpreter)):
-      with pytest.raises(subprocess.CalledProcessError):
-        subprocess.check_call(py2_only_program)
+    py36_env = make_env(PATH=os.path.dirname(py36_interpreter))
+    with pytest.raises(subprocess.CalledProcessError):
+      subprocess.check_call(py2_only_program, env=py36_env)
 
-      stdout = subprocess.check_output(both_program)
-      assert to_bytes(os.path.realpath(py36_interpreter)) == stdout.strip()
+    stdout = subprocess.check_output(both_program, env=py36_env)
+    assert to_bytes(os.path.realpath(py36_interpreter)) == stdout.strip()
 
 
 @pytest.mark.skipif(IS_PYPY,
@@ -1185,9 +1170,8 @@ def test_setup_python_direct_markers():
 
     py2_only_program = [pex, '-c', 'import subprocess32']
 
-    with environment_as(PATH=os.path.dirname(py36_interpreter)):
-      with pytest.raises(subprocess.CalledProcessError):
-        subprocess.check_call(py2_only_program)
+    with pytest.raises(subprocess.CalledProcessError):
+      subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py36_interpreter)))
 
 
 @pytest.mark.skipif(IS_PYPY,
@@ -1208,9 +1192,7 @@ def test_setup_python_multiple_direct_markers():
 
     py2_only_program = [pex, '-c', 'import subprocess32']
 
-    with environment_as(PATH=os.path.dirname(py36_interpreter)):
-      with pytest.raises(subprocess.CalledProcessError):
-        subprocess.check_call(py2_only_program)
+    with pytest.raises(subprocess.CalledProcessError):
+      subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py36_interpreter)))
 
-    with environment_as(PATH=os.path.dirname(py27_interpreter)):
-      subprocess.check_call(py2_only_program)
+    subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py27_interpreter)))

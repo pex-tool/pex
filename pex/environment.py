@@ -1,7 +1,7 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import itertools
 import os
@@ -9,22 +9,21 @@ import site
 import sys
 import uuid
 
-from pkg_resources import (
+from pex import pex_builder
+from pex.common import die, open_zip, rename_if_empty, safe_mkdir, safe_rmtree
+from pex.interpreter import PythonInterpreter
+from pex.package import distribution_compatible
+from pex.pex_info import PexInfo
+from pex.platforms import Platform
+from pex.third_party.pkg_resources import (
     DistributionNotFound,
     Environment,
     Requirement,
     WorkingSet,
     find_distributions
 )
-
-from .common import die, open_zip, rename_if_empty, safe_mkdir, safe_rmtree
-from .interpreter import PythonInterpreter
-from .package import distribution_compatible
-from .pex_builder import PEXBuilder
-from .pex_info import PexInfo
-from .platforms import Platform
-from .tracer import TRACER
-from .util import CacheHelper, DistributionHelper
+from pex.tracer import TRACER
+from pex.util import CacheHelper, DistributionHelper
 
 
 class PEXEnvironment(Environment):
@@ -42,7 +41,7 @@ class PEXEnvironment(Environment):
           safe_mkdir(explode_tmp)
           with open_zip(pex) as pex_zip:
             pex_files = (x for x in pex_zip.namelist()
-                         if not x.startswith(PEXBuilder.BOOTSTRAP_DIR) and
+                         if not x.startswith(pex_builder.BOOTSTRAP_DIR) and
                             not x.startswith(PexInfo.INTERNAL_CACHE))
             pex_zip.extractall(explode_tmp, pex_files)
         except:  # noqa: T803
@@ -184,12 +183,9 @@ class PEXEnvironment(Environment):
           resolveds.update(working_set.resolve([req], env=self))
         except DistributionNotFound as e:
           TRACER.log('Failed to resolve a requirement: %s' % e)
-          unresolved_reqs.add(e.args[0].project_name)
-          # Older versions of pkg_resources just call `DistributionNotFound(req)` instead of the
-          # modern `DistributionNotFound(req, requirers)` and so we may not have the 2nd requirers
-          # slot at all.
-          if len(e.args) >= 2 and e.args[1]:
-            unresolved_reqs.update(e.args[1])
+          unresolved_reqs.add(e.req.project_name)
+          if e.requirers:
+            unresolved_reqs.update(e.requirers)
 
     unresolved_reqs = set([req.lower() for req in unresolved_reqs])
 

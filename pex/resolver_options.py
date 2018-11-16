@@ -1,18 +1,17 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import print_function
+from __future__ import absolute_import
 
-from pkg_resources import safe_name
-
-from .crawler import Crawler
-from .fetcher import Fetcher, PyPIFetcher
-from .http import Context
-from .installer import EggInstaller, WheelInstaller
-from .iterator import Iterator
-from .package import EggPackage, SourcePackage, WheelPackage
-from .sorter import Sorter
-from .translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
+from pex.crawler import Crawler
+from pex.fetcher import Fetcher, PyPIFetcher
+from pex.http import Context
+from pex.installer import EggInstaller, WheelInstaller
+from pex.iterator import Iterator
+from pex.package import EggPackage, SourcePackage, WheelPackage
+from pex.sorter import Sorter
+from pex.third_party.pkg_resources import safe_name
+from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 
 
 class ResolverOptionsInterface(object):

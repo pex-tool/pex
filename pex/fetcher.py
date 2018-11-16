@@ -7,8 +7,8 @@ import re
 import warnings
 from abc import abstractmethod
 
-from .base import maybe_requirement
-from .compatibility import PY3, AbstractClass
+from pex.base import maybe_requirement
+from pex.compatibility import PY3, AbstractClass
 
 if PY3:
   import urllib.parse as urlparse

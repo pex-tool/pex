@@ -1,6 +1,8 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import contextlib
 import hashlib
 import os
@@ -9,11 +11,11 @@ import uuid
 from abc import abstractmethod
 from email import message_from_string
 
-from .common import safe_mkdtemp, safe_open
-from .compatibility import PY3, AbstractClass
-from .tracer import TRACER
-from .variables import ENV
-from .version import __version__ as PEX_VERSION
+from pex.common import safe_mkdtemp, safe_open
+from pex.compatibility import PY3, AbstractClass
+from pex.tracer import TRACER
+from pex.variables import ENV
+from pex.version import __version__ as PEX_VERSION
 
 try:
   import requests

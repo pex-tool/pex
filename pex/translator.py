@@ -7,15 +7,15 @@ import os
 import traceback
 from abc import abstractmethod
 
-from .archiver import Archiver
-from .common import chmod_plus_w, safe_copy, safe_mkdtemp, safe_rmtree
-from .compatibility import AbstractClass
-from .installer import WheelInstaller
-from .interpreter import PythonInterpreter
-from .package import EggPackage, Package, SourcePackage, WheelPackage
-from .pep425tags import get_supported
-from .tracer import TRACER
-from .util import DistributionHelper
+from pex.archiver import Archiver
+from pex.common import chmod_plus_w, safe_copy, safe_mkdtemp, safe_rmtree
+from pex.compatibility import AbstractClass
+from pex.installer import WheelInstaller
+from pex.interpreter import PythonInterpreter
+from pex.package import EggPackage, Package, SourcePackage, WheelPackage
+from pex.pep425tags import get_supported
+from pex.tracer import TRACER
+from pex.util import DistributionHelper
 
 
 class TranslatorBase(AbstractClass):
@@ -95,10 +95,7 @@ class SourceTranslator(TranslatorBase):
       if self._use_2to3 and version >= (3,):
         with TRACER.timed('Translating 2->3 %s' % package.name):
           self.run_2to3(unpack_path)
-      installer = self._installer_impl(
-          unpack_path,
-          interpreter=self._interpreter,
-          strict=(package.name not in ('distribute', 'setuptools')))
+      installer = self._installer_impl(unpack_path, interpreter=self._interpreter)
       with TRACER.timed('Packaging %s' % package.name):
         try:
           dist_path = installer.bdist()

@@ -1,10 +1,12 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import os
 
-from .resolvable import Resolvable
-from .resolver_options import ResolverOptionsBuilder
+from pex.resolvable import Resolvable
+from pex.resolver_options import ResolverOptionsBuilder
 
 
 class UnsupportedLine(Exception):
@@ -31,7 +33,7 @@ class RequirementsTxtSentinel(object):
 
 # Process lines in the requirements.txt format as defined here:
 # https://pip.pypa.io/en/latest/reference/pip_install.html#requirements-file-format
-def requirements_from_lines(lines, builder=None, relpath=None):
+def requirements_from_lines(lines, builder=None, relpath=None, interpreter=None):
   relpath = relpath or os.getcwd()
   builder = builder.clone() if builder else ResolverOptionsBuilder()
   to_resolve = []
@@ -74,17 +76,21 @@ def requirements_from_lines(lines, builder=None, relpath=None):
 
   for resolvable in to_resolve:
     if isinstance(resolvable, RequirementsTxtSentinel):
-      resolvables.extend(requirements_from_file(resolvable.filename, builder=builder))
+      resolvables.extend(requirements_from_file(resolvable.filename,
+                                                builder=builder,
+                                                interpreter=interpreter))
     else:
       try:
-        resolvables.append(Resolvable.get(resolvable, builder))
+        resolvables.append(Resolvable.get(resolvable,
+                                          options_builder=builder,
+                                          interpreter=interpreter))
       except Resolvable.Error as e:
         raise UnsupportedLine('Could not resolve line: %s (%s)' % (resolvable, e))
 
   return resolvables
 
 
-def requirements_from_file(filename, builder=None):
+def requirements_from_file(filename, builder=None, interpreter=None):
   """Return a list of :class:`Resolvable` objects from a requirements.txt file.
 
   :param filename: The filename of the requirements.txt
@@ -95,4 +101,7 @@ def requirements_from_file(filename, builder=None):
 
   relpath = os.path.dirname(filename)
   with open(filename, 'r') as fp:
-    return requirements_from_lines(fp.readlines(), builder=builder, relpath=relpath)
+    return requirements_from_lines(fp.readlines(),
+                                   builder=builder,
+                                   relpath=relpath,
+                                   interpreter=interpreter)

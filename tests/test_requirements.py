@@ -5,12 +5,12 @@ import os
 from textwrap import dedent
 
 import pytest
-from pkg_resources import Requirement
-from twitter.common.contextutil import temporary_dir
 
 from pex.requirements import requirements_from_file, requirements_from_lines
 from pex.resolvable import ResolvableRequirement
 from pex.resolver_options import ResolverOptionsBuilder
+from pex.testing import temporary_dir
+from pex.third_party.pkg_resources import Requirement
 
 
 def test_from_empty_lines():

@@ -1,12 +1,11 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from pkg_resources import Requirement
-
 from pex.crawler import Crawler
 from pex.fetcher import PyPIFetcher
 from pex.iterator import Iterator
 from pex.package import SourcePackage
+from pex.third_party.pkg_resources import Requirement
 
 try:
   from unittest import mock

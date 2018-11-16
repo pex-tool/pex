@@ -1,6 +1,7 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-from __future__ import print_function
+
+from __future__ import absolute_import, print_function
 
 import contextlib
 import os
@@ -12,14 +13,14 @@ import traceback
 from collections import namedtuple
 from textwrap import dedent
 
-from .bin.pex import log, main
-from .common import open_zip, safe_mkdir, safe_rmtree, touch
-from .compatibility import PY3, nested
-from .executor import Executor
-from .installer import EggInstaller, Packager
-from .pex_builder import PEXBuilder
-from .util import DistributionHelper, named_temporary_file
-from .version import SETUPTOOLS_REQUIREMENT
+from pex import vendor
+from pex.bin import pex as pex_bin_pex
+from pex.common import open_zip, safe_mkdir, safe_rmtree, touch
+from pex.compatibility import PY3, nested
+from pex.installer import EggInstaller, Packager
+from pex.pex import PEX
+from pex.pex_builder import PEXBuilder
+from pex.util import DistributionHelper, named_temporary_file
 
 IS_PYPY = "hasattr(sys, 'pypy_version_info')"
 NOT_CPYTHON27 = ("%s or (sys.version_info[0], sys.version_info[1]) != (2, 7)" % (IS_PYPY))
@@ -127,14 +128,20 @@ PROJECT_CONTENT = {
 
 
 @contextlib.contextmanager
-def make_installer(name='my_project', version='0.0.0', installer_impl=EggInstaller, zip_safe=True,
-                   install_reqs=None, **kwargs):
+def make_installer(name='my_project',
+                   version='0.0.0',
+                   installer_impl=EggInstaller,
+                   zip_safe=True,
+                   install_reqs=None,
+                   interpreter=None,
+                   **kwargs):
   interp = {'project_name': name,
             'version': version,
             'zip_safe': zip_safe,
             'install_requires': install_reqs or []}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
-    yield installer_impl(td, **kwargs)
+    interpreter = vendor.setup_interpreter(interpreter=interpreter)
+    yield installer_impl(td, interpreter=interpreter, **kwargs)
 
 
 @contextlib.contextmanager
@@ -203,7 +210,7 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False,
 
   pb = PEXBuilder(path=td,
                   preamble=COVERAGE_PREAMBLE if coverage else None,
-                  interpreter=interpreter)
+                  interpreter=vendor.setup_interpreter(interpreter=interpreter))
 
   for dist in dists:
     pb.add_dist_location(dist.location)
@@ -245,7 +252,7 @@ def run_pex_command(args, env=None):
   """
   args.insert(0, '-vvvvv')
   def logger_callback(_output):
-    def mock_logger(msg, v=None):
+    def mock_logger(msg, V=None):
       _output.append(msg)
 
     return mock_logger
@@ -254,59 +261,49 @@ def run_pex_command(args, env=None):
   tb = None
   error_code = None
   output = []
-  log.set_logger(logger_callback(output))
+  pex_bin_pex.log.set_logger(logger_callback(output))
 
+  def update_env(target_env):
+    if target_env:
+      orig = os.environ.copy()
+      os.environ.clear()
+      os.environ.update(target_env)
+      return orig
+
+  restore_env = update_env(env)
   try:
-    main(args=args)
+    pex_bin_pex.main(args=args)
   except SystemExit as e:
     error_code = e.code
   except Exception as e:
     exception = e
     tb = traceback.format_exc()
+  finally:
+    update_env(restore_env)
 
   return IntegResults(output, error_code, exception, tb)
 
 
-# TODO(wickman) Why not PEX.run?
-def run_simple_pex(pex, args=(), env=None, stdin=None):
-  process = Executor.open_process([sys.executable, pex] + list(args), env=env, combined=True)
+def run_simple_pex(pex, args=(), interpreter=None, stdin=None, **kwargs):
+  p = PEX(pex, interpreter=vendor.setup_interpreter(interpreter))
+  process = p.run(args=args,
+                  blocking=False,
+                  stdin=subprocess.PIPE,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.STDOUT,
+                  **kwargs)
   stdout, _ = process.communicate(input=stdin)
   print(stdout.decode('utf-8') if PY3 else stdout)
   return stdout.replace(b'\r', b''), process.returncode
 
 
-def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False):
+def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False, interpreter=None):
   with nested(temporary_dir(), temporary_dir()) as (td1, td2):
-    pb = write_simple_pex(td1, body, dists=dists, coverage=coverage)
+    interpreter = vendor.setup_interpreter(interpreter=interpreter)
+    pb = write_simple_pex(td1, body, dists=dists, coverage=coverage, interpreter=interpreter)
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
-    return run_simple_pex(pex, args=args, env=env)
-
-
-def _iter_filter(data_dict):
-  fragment = '/%s/_pex/' % PEXBuilder.BOOTSTRAP_DIR
-  for filename, records in data_dict.items():
-    try:
-      bi = filename.index(fragment)
-    except ValueError:
-      continue
-    # rewrite to look like root source
-    yield ('pex/' + filename[bi + len():], records)
-
-
-def combine_pex_coverage(coverage_file_iter):
-  from coverage.data import CoverageData
-
-  combined = CoverageData(basename='.coverage_combined')
-
-  for filename in coverage_file_iter:
-    cov = CoverageData(basename=filename)
-    cov.read()
-    combined.add_line_data(dict(_iter_filter(cov.line_data())))
-    combined.add_arc_data(dict(_iter_filter(cov.arc_data())))
-
-  combined.write()
-  return combined.filename
+    return run_simple_pex(pex, args=args, env=env, interpreter=interpreter)
 
 
 def bootstrap_python_installer(dest):
@@ -362,7 +359,6 @@ def ensure_python_distribution(version):
       env['CONFIGURE_OPTS'] = '--enable-shared'
     subprocess.check_call([pyenv, 'install', '--keep', version], env=env)
     subprocess.check_call([pip, 'install', '-U', 'pip'])
-    subprocess.check_call([pip, 'install', SETUPTOOLS_REQUIREMENT])
 
   python = os.path.join(interpreter_location, 'bin', 'python' + version[0:3])
   return python, pip

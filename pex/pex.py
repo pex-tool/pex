@@ -9,20 +9,23 @@ import sys
 from distutils import sysconfig
 from site import USER_SITE
 
-import pkg_resources
-from pkg_resources import EntryPoint, WorkingSet, find_distributions
-
-from .common import die
-from .compatibility import exec_function
-from .environment import PEXEnvironment
-from .executor import Executor
-from .finders import get_entry_point_from_console_script, get_script_from_distributions
-from .interpreter import PythonInterpreter
-from .orderedset import OrderedSet
-from .pex_info import PexInfo
-from .tracer import TRACER
-from .util import iter_pth_paths, merge_split, named_temporary_file
-from .variables import ENV
+import pex.third_party.pkg_resources as pkg_resources
+from pex import third_party
+from pex.common import die
+from pex.environment import PEXEnvironment
+from pex.executor import Executor
+from pex.finders import (
+    get_entry_point_from_console_script,
+    get_script_from_distributions,
+    unregister_finders
+)
+from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
+from pex.pex_info import PexInfo
+from pex.third_party.pkg_resources import EntryPoint, WorkingSet, find_distributions
+from pex.tracer import TRACER
+from pex.util import iter_pth_paths, merge_split, named_temporary_file
+from pex.variables import ENV
 
 
 class DevNull(object):
@@ -402,33 +405,46 @@ class PEX(object):  # noqa: T000
 
     bootstrap_path = __file__
     module_import_path = __name__.split('.')
-    root_package = module_import_path[0]
 
-    # For example, our __file__ might be requests.pex/.bootstrap/_pex/pex.pyc and our import path
-    # _pex.pex; so we walk back through all the module components of our import path to find the
+    # For example, our __file__ might be requests.pex/.bootstrap/pex/pex.pyc and our import path
+    # pex.pex; so we walk back through all the module components of our import path to find the
     # base sys.path entry where we were found (requests.pex/.bootstrap in this example).
     for _ in module_import_path:
       bootstrap_path = os.path.dirname(bootstrap_path)
     bootstrap_path_index = sys.path.index(bootstrap_path)
 
+    should_log = {level: TRACER.should_log(V=level) for level in range(1, 10)}
+
+    def log(msg, V=1):
+      if should_log.get(V, False):
+        print('pex: {}'.format(msg), file=sys.stderr)
+
     # Move the third party resources pex uses to the end of sys.path for the duration of the run to
     # allow conflicting versions supplied by user dependencies to win during the course of the
     # execution of user code.
+    unregister_finders()
+    third_party.uninstall()
     for _, mod, _ in pkgutil.iter_modules([bootstrap_path]):
-      if mod != root_package:  # We let _pex stay imported
-        TRACER.log('Un-importing third party bootstrap dependency %s from %s'
-                   % (mod, bootstrap_path))
+      if mod in sys.modules:
+        log('Un-importing bootstrap dependency %s from %s' % (mod, bootstrap_path), V=2)
         sys.modules.pop(mod)
+        log('un-imported {}'.format(mod), V=9)
+
         submod_prefix = mod + '.'
-        for submod in [m for m in sys.modules.keys() if m.startswith(submod_prefix)]:
+        for submod in sorted(m for m in sys.modules.keys() if m.startswith(submod_prefix)):
           sys.modules.pop(submod)
+          log('un-imported {}'.format(submod), V=9)
+
     sys.path.pop(bootstrap_path_index)
     sys.path.append(bootstrap_path)
 
-    TRACER.log('PYTHONPATH contains:')
+    import pex
+    log('Re-imported pex from {}'.format(pex.__path__), V=3)
+
+    log('PYTHONPATH contains:')
     for element in sys.path:
-      TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
-    TRACER.log('  * - paths that do not exist or will be imported via zipimport')
+      log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
+    log('  * - paths that do not exist or will be imported via zipimport')
 
   def execute_interpreter(self):
     args = sys.argv[1:]
@@ -476,29 +492,20 @@ class PEX(object):  # noqa: T000
 
   @classmethod
   def execute_content(cls, name, content, argv0=None):
-    cls.demote_bootstrap()
-
     argv0 = argv0 or name
     try:
       ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
     except SyntaxError:
-      die('Unable to parse %s.  PEX script support only supports Python scripts.' % name)
-    old_name, old_file = globals().get('__name__'), globals().get('__file__')
-    try:
-      old_argv0, sys.argv[0] = sys.argv[0], argv0
-      globals()['__name__'] = '__main__'
-      globals()['__file__'] = name
-      exec_function(ast, globals())
-    finally:
-      if old_name:
-        globals()['__name__'] = old_name
-      else:
-        globals().pop('__name__')
-      if old_file:
-        globals()['__file__'] = old_file
-      else:
-        globals().pop('__file__')
-      sys.argv[0] = old_argv0
+      die('Unable to parse %s. PEX script support only supports Python scripts.' % name)
+
+    cls.demote_bootstrap()
+
+    from pex.compatibility import exec_function
+    sys.argv[0] = argv0
+    globals_map = globals()
+    globals_map['__name__'] = '__main__'
+    globals_map['__file__'] = name
+    exec_function(ast, globals_map)
 
   @classmethod
   def execute_entry(cls, entry_point):
@@ -514,17 +521,10 @@ class PEX(object):  # noqa: T000
 
   @classmethod
   def execute_pkg_resources(cls, spec):
+    entry = EntryPoint.parse("run = {}".format(spec))
     cls.demote_bootstrap()
 
-    entry = EntryPoint.parse("run = {0}".format(spec))
-
-    # See https://pythonhosted.org/setuptools/history.html#id25 for rationale here.
-    if hasattr(entry, 'resolve'):
-      # setuptools >= 11.3
-      runner = entry.resolve()
-    else:
-      # setuptools < 11.3
-      runner = entry.load(require=False)
+    runner = entry.resolve()
     return runner()
 
   def cmdline(self, args=()):
@@ -589,5 +589,5 @@ class PEX(object):  # noqa: T000
       retcode = self.run([fp.name], env={'PEX_INTERPRETER': '1'})
       if retcode != 0:
         raise self.InvalidEntryPoint('Invalid entry point: `{}`\n'
-                                'Entry point verification failed: `{}`'
-                                .format(entry_point, import_statement))
+                                     'Entry point verification failed: `{}`'
+                                     .format(entry_point, import_statement))

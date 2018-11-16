@@ -3,9 +3,9 @@
 
 from __future__ import absolute_import
 
-from .compatibility import to_bytes
-from .executor import Executor
-from .util import named_temporary_file
+from pex.compatibility import to_bytes
+from pex.executor import Executor
+from pex.util import named_temporary_file
 
 _COMPILER_MAIN = """
 from __future__ import print_function
@@ -82,7 +82,7 @@ class Compiler(object):
       fp.flush()
 
       try:
-        out, _ = Executor.execute([self._interpreter.binary, fp.name])
+        out, _ = Executor.execute([self._interpreter.binary, '-sE', fp.name])
       except Executor.NonZeroExit as e:
         raise self.CompilationFailure(
           'encountered %r during bytecode compilation.\nstderr was:\n%s\n' % (e, e.stderr)

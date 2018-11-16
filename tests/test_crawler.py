@@ -3,11 +3,10 @@
 
 import os
 
-from twitter.common.contextutil import temporary_dir
-
 from pex.crawler import Crawler, PageParser
 from pex.http import Context
 from pex.link import Link
+from pex.testing import temporary_dir
 
 try:
   from unittest import mock

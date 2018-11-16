@@ -3,13 +3,15 @@
 
 """The glue between fetchers, crawlers and requirements."""
 
+from __future__ import absolute_import
+
 import itertools
 from abc import abstractmethod
 
-from .compatibility import AbstractClass
-from .crawler import Crawler
-from .fetcher import PyPIFetcher
-from .package import Package
+from pex.compatibility import AbstractClass
+from pex.crawler import Crawler
+from pex.fetcher import PyPIFetcher
+from pex.package import Package
 
 
 class IteratorInterface(AbstractClass):

@@ -1,16 +1,17 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-from __future__ import print_function
+
+from __future__ import absolute_import, print_function
 
 import os
 import sys
 
-from .common import die, open_zip
-from .executor import Executor
-from .interpreter import PythonInterpreter
-from .interpreter_constraints import matched_interpreters
-from .tracer import TRACER
-from .variables import ENV
+from pex.common import die, open_zip
+from pex.executor import Executor
+from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import matched_interpreters
+from pex.tracer import TRACER
+from pex.variables import ENV
 
 __all__ = ('bootstrap_pex',)
 
