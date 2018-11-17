@@ -25,6 +25,7 @@ def _tracer():
 
 
 class _Loader(namedtuple('_Loader', ['module_name', 'vendor_module_name'])):
+
   # The PEP-302 loader API.
   # See: https://www.python.org/dev/peps/pep-0302/#specification-part-1-the-importer-protocol
   def load_module(self, fullname):
@@ -360,7 +361,7 @@ def install(root=None, expose=None):
   >>> third_party.install(expose=['setuptools'])
   >>> import sys
   >>> sys.modules.pop('pkg_resources')
-  <module 'pkg_resources' from '/home/jsirois/dev/pantsbuild/jsirois-pex/.tox/py27-repl/lib/python2.7/site-packages/pkg_resources/__init__.pyc'>
+  <module 'pkg_resources' from '/home/jsirois/dev/pantsbuild/jsirois-pex/.tox/py27-repl/lib/python2.7/site-packages/pkg_resources/__init__.pyc'>  # noqa
   >>> from pkg_resources import Requirement
   >>> new_req = Requirement.parse('wheel==0.31.1')
   >>> new_req == orig_req
@@ -375,9 +376,9 @@ def install(root=None, expose=None):
   >>> new_req == PrefixedRequirement.parse('wheel==0.31.1')
   True
   >>> sys.modules.pop('pkg_resources')
-  <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>
+  <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>  # noqa
   >>> sys.modules.pop('pex.third_party.pkg_resources')
-  <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>
+  <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>  # noqa
   >>>
 
 
