@@ -262,12 +262,12 @@ def get_script_from_distribution(name, dist):
       return get_script_from_whl(name, dist)
     else:
       return None, None
-  # EggMetadata: Zipped egg
-  elif isinstance(dist._provider, pkg_resources.EggMetadata):
-    return get_script_from_egg(name, dist)
   # WheelMetadata: Zipped whl (in theory should not experience this at runtime.)
   elif isinstance(dist._provider, WheelMetadata):
     return get_script_from_whl(name, dist)
+  # EggMetadata: Zipped egg
+  elif isinstance(dist._provider, pkg_resources.EggMetadata):
+    return get_script_from_egg(name, dist)
   return None, None
 
 
