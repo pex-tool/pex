@@ -23,7 +23,7 @@ def _root():
 class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version'])):
   """Represents a vendored distribution.
 
-  NB: Vendored distributions should comply with the host distribution splatform constraints. In the
+  NB: Vendored distributions should comply with the host distribution platform constraints. In the
   case of pex, which is a py2.py3 platform agnostic wheel, vendored libraries should be as well.
   """
 

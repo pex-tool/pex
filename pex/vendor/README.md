@@ -5,8 +5,11 @@ PEX vendors distributions of critical third party code it uses at build-time and
 to ensure predictable behavior and provide a zero-dependency library and cli tool to build upon
 without fear of dependency conflict by higher software layers.
 
-Vendored code is stored in the `_vendored/` directory with re-written self-referential imports. To
-update versions of vendored code or add new vendored code:
+Vendored code is stored in the `_vendored/` directory with re-written self-referential imports but
+no other modifications whatsoever. If vendored code needs a fix, please submit patches upstream and
+re-vendor when the fix is released.
+
+To update versions of vendored code or add new vendored code:
 
 1. Modify `pex.vendor.iter_vendor_specs` with updated versions or new distributions.
    Today that function looks like:

@@ -5,7 +5,6 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
-from contextlib import contextmanager
 
 from pex import third_party
 from pex.common import safe_mkdtemp, safe_rmtree
@@ -56,10 +55,9 @@ class InstallerBase(object):
     """the setup command-line to run, to be implemented by subclasses."""
     raise NotImplementedError
 
-  @contextmanager
+  @property
   def bootstrap_script(self):
-    with third_party.isolated() as root:
-      yield """
+    return """
 import sys
 sys.path.insert(0, {root!r})
 
@@ -67,13 +65,13 @@ sys.path.insert(0, {root!r})
 from pex import third_party
 third_party.install(root={root!r}, expose={mixins!r})
 
+# Now execute the package's setup.py such that it sees itself as a setup.py executed via
+# `python setup.py ...`
 __file__ = 'setup.py'
-with open(__file__, 'rb') as fp:
-  ast = compile(fp.read(), __file__, 'exec')
-
 sys.argv[0] = __file__
-exec(ast)
-""".format(root=root, mixins=self.mixins)
+with open(__file__, 'rb') as fp:
+  exec(fp.read())
+""".format(root=third_party.isolated(), mixins=self.mixins)
 
   def run(self):
     if self._installed is not None:
@@ -82,11 +80,10 @@ exec(ast)
     with TRACER.timed('Installing %s' % self._install_tmp, V=2):
       command = [self._interpreter.binary, '-sE', '-'] + self._setup_command()
       try:
-        with self.bootstrap_script() as code:
-          Executor.execute(command,
-                           env=self._interpreter.sanitized_environment(),
-                           cwd=self._source_dir,
-                           stdin_payload=code.encode('ascii'))
+        Executor.execute(command,
+                         env=self._interpreter.sanitized_environment(),
+                         cwd=self._source_dir,
+                         stdin_payload=self.bootstrap_script.encode('ascii'))
         self._installed = True
       except Executor.NonZeroExit as e:
         self._installed = False

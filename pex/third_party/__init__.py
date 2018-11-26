@@ -11,8 +11,7 @@ import sys
 
 import warnings
 import zipfile
-from collections import namedtuple
-from contextlib import contextmanager
+from collections import namedtuple, OrderedDict
 
 
 # NB: All pex imports are performed lazily to play well with the un-imports performed by both the
@@ -58,8 +57,9 @@ class _Importable(namedtuple('_Importable', ['module', 'is_pkg', 'path', 'prefix
     _tracer().log('Exposed {}'.format(self), V=3)
 
   def loader_for(self, fullname):
-    _, _, target = fullname.partition(self.prefix + '.')
-    if not target:
+    if fullname.startswith(self.prefix + '.'):
+      target = fullname[len(self.prefix + '.'):]
+    else:
       if not self._exposed:
         return None
       target = fullname
@@ -134,9 +134,9 @@ class VendorImporter(object):
   vendored code by its un-prefixed module name as well.
 
   For example, if the ``requests`` distribution was vendored, it could be imported using this
-  importer via ``import pex.third_party.requests`` as longs as:
+  importer via ``import pex.third_party.requests`` as long as:
 
-    * The requests distribution was housed under some importable path prefix inside the this
+    * The requests distribution was housed under some importable path prefix inside this
       distribution.
     * The requests distribution had its self-referential absolute imports re-written to use the
       vendored import prefix.
@@ -185,6 +185,7 @@ class VendorImporter(object):
                      at ``pex/vendor/_vendored``.
     :param expose: Optional names of distributions to expose for direct, un-prefixed import.
     :type expose: list of str
+    :raise: :class:`ValueError` if any distributions to expose cannot be found.
     """
     from pex import vendor
 
@@ -207,8 +208,16 @@ class VendorImporter(object):
 
     if expose:
       # But only expose the bits needed.
-      exposed_paths = tuple(spec.relpath for spec in vendor.iter_vendor_specs()
-                            if spec.key in expose)
+      path_by_key = OrderedDict((spec.key, spec.relpath) for spec in vendor.iter_vendor_specs()
+                                if spec.key in expose)
+      path_by_key['pex'] = root  # The pex distribution itself is trivially available to expose.
+
+      unexposed = set(expose) - set(path_by_key.keys())
+      if unexposed:
+        raise ValueError('The following vendored dists are not available to expose: {}'
+                         .format(', '.join(sorted(unexposed))))
+
+      exposed_paths = path_by_key.values()
       for exposed_path in exposed_paths:
         sys.path.insert(0, os.path.join(root, exposed_path))
       vendor_importer._expose(exposed_paths)
@@ -243,7 +252,7 @@ class VendorImporter(object):
 
   @classmethod
   def uninstall_all(cls):
-    """Uninstall all uninstallable VendorImporters and uninmport the modules they loaded."""
+    """Uninstall all uninstallable VendorImporters and unimport the modules they loaded."""
     for vendor_importer in cls._iter_all_installed_vendor_importers():
       vendor_importer.uninstall()
 
@@ -299,7 +308,6 @@ class VendorImporter(object):
 _ISOLATED = None
 
 
-@contextmanager
 def isolated():
   """Returns a chroot for third_party isolated from the ``sys.path``.
 
@@ -327,7 +335,7 @@ def isolated():
             chroot.copy(abs_file_path, os.path.join('pex', relpath), label='pex')
 
     _ISOLATED = chroot
-  yield _ISOLATED.path()
+  return _ISOLATED.path()
 
 
 def uninstall():
@@ -335,7 +343,7 @@ def uninstall():
   VendorImporter.uninstall_all()
 
 
-def prefix():
+def import_prefix():
   """Returns the vendoring import prefix; eg: `pex.third_party`.
 
   :rtype: str
@@ -384,8 +392,9 @@ def install(root=None, expose=None):
 
   :param expose: A list of vendored distribution names to expose directly on the ``sys.path``.
   :type expose: list of str
+  :raise: :class:`ValueError` if any distributions to expose cannot be found.
   """
-  VendorImporter.install_vendored(prefix=prefix(), root=root, expose=expose)
+  VendorImporter.install_vendored(prefix=import_prefix(), root=root, expose=expose)
 
 
 # Implicitly install an importer for vendored code on the first import of pex.third_party.

@@ -17,6 +17,14 @@ from pex.executor import Executor
 
 # Suppress checkstyle violations due to distutils command requirements.
 class bdist_pex(Command):  # noqa
+  @staticmethod
+  def get_log_level():
+    # A hack to get the existing distutils logging level.
+    existing_level = log.set_threshold(log.INFO)
+    log.set_threshold(existing_level)
+
+    return existing_level
+
   description = "create a PEX file from a source distribution"  # noqa
 
   user_options = [  # noqa
@@ -70,7 +78,7 @@ class bdist_pex(Command):  # noqa
 
   def run(self):
     parser, options_builder = configure_clp()
-    options, _ = parser.parse_args(self.pex_args)
+    options, reqs = parser.parse_args(self.pex_args)
 
     if options.entry_point or options.script or options.pex_name:
       die('Must not specify entry point, script or output file to --pex-args, given: {}'
@@ -100,19 +108,15 @@ class bdist_pex(Command):  # noqa
     env = os.environ.copy()
     env['PYTHONPATH'] = os.pathsep.join(sys.path)
 
-    args = [sys.executable, '-s', '-m', 'pex.bin.pex', package_dir] + self.pex_args
-
-    # A hack to get the existing distutils logging level.
-    existing_level = log.set_threshold(log.INFO)
-    log.set_threshold(existing_level)
-    if existing_level < log.INFO and options.verbosity == 0:
+    args = [sys.executable, '-s', '-m', 'pex.bin.pex', package_dir] + reqs + self.pex_args
+    if self.get_log_level() < log.INFO and options.verbosity == 0:
       args.append('-v')
 
     for script_name, target in pex_specs:
-      cmd = args + ['-o', target]
+      cmd = args + ['--output-file', target]
       if script_name:
         log.info('Writing %s to %s' % (script_name, target))
-        cmd += ['-c', script_name]
+        cmd += ['--script', script_name]
       else:
         # The package has no namesake entry point, so build an environment pex.
         log.info('Writing environment pex into %s' % target)

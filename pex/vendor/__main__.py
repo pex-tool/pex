@@ -189,10 +189,10 @@ if __name__ == '__main__':
     print('Usage: {}'.format(sys.argv[0]), file=sys.stderr)
     sys.exit(1)
 
-  root_dir = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..'))
-  prefix = third_party.prefix()
+  root_directory = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..'))
+  import_prefix = third_party.import_prefix()
   try:
-    vendorize(root_dir, list(iter_vendor_specs()), prefix)
+    vendorize(root_directory, list(iter_vendor_specs()), import_prefix)
     sys.exit(0)
   except VendorizeError as e:
     print('Problem encountered vendorizing: {}'.format(e), file=sys.stderr)
