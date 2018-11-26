@@ -389,7 +389,6 @@ def install(root=None, expose=None):
   <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>  # noqa
   >>>
 
-
   :param expose: A list of vendored distribution names to expose directly on the ``sys.path``.
   :type expose: list of str
   :raise: :class:`ValueError` if any distributions to expose cannot be found.
