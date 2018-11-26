@@ -12,7 +12,7 @@ import sys
 import sysconfig
 import warnings
 
-from .glibc import have_compatible_glibc
+from pex.glibc import have_compatible_glibc
 
 logger = logging.getLogger(__name__)
 

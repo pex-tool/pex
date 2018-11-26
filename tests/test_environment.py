@@ -6,23 +6,22 @@ import subprocess
 from contextlib import contextmanager
 
 import pytest
-from twitter.common.contextutil import temporary_dir
 
-from pex import resolver
+from pex import resolver, vendor
 from pex.compatibility import nested, to_bytes
 from pex.environment import PEXEnvironment
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
-from pex.package import EggPackage, SourcePackage, WheelPackage
+from pex.package import SourcePackage, WheelPackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.testing import make_bdist, temporary_filename
-from pex.version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
+from pex.testing import make_bdist, temporary_dir, temporary_filename
 
 
 @contextmanager
 def yield_pex_builder(zip_safe=True, installer_impl=EggInstaller, interpreter=None):
+  interpreter = vendor.setup_interpreter(interpreter=interpreter)
   with nested(temporary_dir(),
               make_bdist('p1',
                          zipped=True,
@@ -118,48 +117,62 @@ _KNOWN_BAD_APPLE_INTERPRETER = ('/System/Library/Frameworks/Python.framework/Ver
                     reason='Test requires known bad Apple interpreter {}'
                            .format(_KNOWN_BAD_APPLE_INTERPRETER))
 def test_osx_platform_intel_issue_523():
-  def bad_interpreter(include_site_extras=True):
-    return PythonInterpreter.from_binary(_KNOWN_BAD_APPLE_INTERPRETER,
-                                         include_site_extras=include_site_extras)
+  def bad_interpreter():
+    return PythonInterpreter.from_binary(_KNOWN_BAD_APPLE_INTERPRETER)
 
-  interpreter = bad_interpreter(include_site_extras=False)
   with temporary_dir() as cache:
     # We need to run the bad interpreter with a modern, non-Apple-Extras setuptools in order to
-    # successfully install psutil.
-    for requirement in (SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT):
-      for resolved_dist in resolver.resolve([requirement],
-                                            cache=cache,
-                                            # We can't use wheels since we're bootstrapping them.
-                                            precedence=(SourcePackage, EggPackage),
-                                            interpreter=interpreter):
-        dist = resolved_dist.distribution
-        interpreter = interpreter.with_extra(dist.key, dist.version, dist.location)
-
-    with nested(yield_pex_builder(installer_impl=WheelInstaller, interpreter=interpreter),
+    # successfully install psutil; yield_pex_builder sets up the bad interpreter with our vendored
+    # setuptools and wheel extras.
+    with nested(yield_pex_builder(installer_impl=WheelInstaller, interpreter=bad_interpreter()),
                 temporary_filename()) as (pb, pex_file):
       for resolved_dist in resolver.resolve(['psutil==5.4.3'],
                                             cache=cache,
                                             precedence=(SourcePackage, WheelPackage),
-                                            interpreter=interpreter):
+                                            interpreter=pb.interpreter):
         pb.add_dist_location(resolved_dist.distribution.location)
       pb.build(pex_file)
 
       # NB: We want PEX to find the bare bad interpreter at runtime.
       pex = PEX(pex_file, interpreter=bad_interpreter())
-      args = ['-c', 'import pkg_resources; print(pkg_resources.get_supported_platform())']
-      env = os.environ.copy()
-      env['PEX_VERBOSE'] = '1'
-      process = pex.run(args=args,
-                        env=env,
-                        blocking=False,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE)
-      stdout, stderr = process.communicate()
-      assert 0 == process.returncode, (
-        'Process failed with exit code {} and stderr:\n{}'.format(process.returncode, stderr)
+
+      def run(args, **env):
+        pex_env = os.environ.copy()
+        pex_env['PEX_VERBOSE'] = '1'
+        pex_env.update(**env)
+        process = pex.run(args=args,
+                          env=pex_env,
+                          blocking=False,
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        return process.returncode, stdout, stderr
+
+      returncode, _, stderr = run(['-c', 'import psutil'])
+      assert 0 == returncode, (
+        'Process failed with exit code {} and stderr:\n{}'.format(returncode, stderr)
       )
 
-      # Verify this all worked under the previously problematic pkg_resources-reported platform.
+      returncode, stdout, stderr = run(['-c', 'import pkg_resources'])
+      assert 0 != returncode, (
+        'Isolated pex process succeeded but should not have found pkg-resources:\n'
+        'STDOUT:\n'
+        '{}\n'
+        'STDERR:\n'
+        '{}'
+        .format(stdout, stdout, stderr)
+      )
+
+      returncode, stdout, stderr = run(
+        ['-c', 'import pkg_resources; print(pkg_resources.get_supported_platform())'],
+        # Let the bad interpreter site-packages setuptools leak in.
+        PEX_INHERIT_PATH='1'
+      )
+      assert 0 == returncode, (
+        'Process failed with exit code {} and stderr:\n{}'.format(returncode, stderr)
+      )
+
+      # Verify this worked along side the previously problematic pkg_resources-reported platform.
       release, _, _ = platform.mac_ver()
       major_minor = '.'.join(release.split('.')[:2])
       assert to_bytes('macosx-{}-intel'.format(major_minor)) == stdout.strip()
@@ -167,20 +180,18 @@ def test_osx_platform_intel_issue_523():
 
 def test_activate_extras_issue_615():
   with yield_pex_builder() as pb:
-    for resolved_dist in resolver.resolve(['pex[requests]==1.5.1']):
+    for resolved_dist in resolver.resolve(['pex[requests]==1.5.1'], interpreter=pb.interpreter):
       pb.add_requirement(resolved_dist.requirement)
       pb.add_dist_location(resolved_dist.distribution.location)
     pb.set_script('pex')
     pb.freeze()
-    env = os.environ.copy()
-    env['PEX_VERBOSE'] = '9'
-    process = PEX(pb.path()).run(args=['--version'],
-                                 env=env,
-                                 blocking=False,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+    process = PEX(pb.path(), interpreter=pb.interpreter).run(args=['--version'],
+                                                             env={'PEX_VERBOSE': '9'},
+                                                             blocking=False,
+                                                             stdout=subprocess.PIPE,
+                                                             stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     assert 0 == process.returncode, (
-      'Process failed with exit code {} and stderr:\n{}'.format(process.returncode, stderr)
+      'Process failed with exit code {} and output:\n{}'.format(process.returncode, stderr)
     )
     assert to_bytes('{} 1.5.1'.format(os.path.basename(pb.path()))) == stdout.strip()

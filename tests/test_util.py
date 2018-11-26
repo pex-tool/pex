@@ -3,16 +3,17 @@
 
 import functools
 import os
+import subprocess
 from hashlib import sha1
 from textwrap import dedent
 
-from twitter.common.contextutil import temporary_dir
-
+from pex import vendor
 from pex.common import open_zip, safe_mkdir
 from pex.compatibility import nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
+from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.testing import make_bdist, run_simple_pex, temporary_content, write_zipfile
+from pex.testing import make_bdist, temporary_content, temporary_dir, write_zipfile
 from pex.util import (
     CacheHelper,
     DistributionHelper,
@@ -125,17 +126,17 @@ def test_access_zipped_assets(
     assert mock_safe_mkdir.mock_calls == [mock.call(os.path.join('tmpJIMMEH', 'directory'))]
 
 
-def test_access_zipped_assets_integration():
-  test_executable = dedent('''
+def assert_access_zipped_assets(distribution_helper_import):
+  test_executable = dedent("""
       import os
-      from _pex.util import DistributionHelper
+      {distribution_helper_import}
       temp_dir = DistributionHelper.access_zipped_assets('my_package', 'submodule')
       with open(os.path.join(temp_dir, 'mod.py'), 'r') as fp:
         for line in fp:
           print(line)
-  ''')
+  """.format(distribution_helper_import=distribution_helper_import))
   with nested(temporary_dir(), temporary_dir()) as (td1, td2):
-    pb = PEXBuilder(path=td1)
+    pb = PEXBuilder(path=td1, interpreter=vendor.setup_interpreter())
     with open(os.path.join(td1, 'exe.py'), 'w') as fp:
       fp.write(test_executable)
       pb.set_executable(fp.name)
@@ -146,17 +147,28 @@ def test_access_zipped_assets_integration():
     with open(mod_path, 'w') as fp:
       fp.write('accessed')
       pb.add_source(fp.name, 'my_package/submodule/mod.py')
-
+    pb.add_source(None, 'my_package/__init__.py')
+    pb.add_source(None, 'my_package/submodule/__init__.py')
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
 
-    output, returncode = run_simple_pex(pex)
-    try:
-      output = output.decode('UTF-8')
-    except ValueError:
-      pass
-    assert output == 'accessed\n'
-    assert returncode == 0
+    process = PEX(pex, interpreter=pb.interpreter).run(blocking=False,
+                                                       stdout=subprocess.PIPE,
+                                                       stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    assert process.returncode == 0
+    assert b'accessed\n' == stdout
+    return stderr
+
+
+def test_access_zipped_assets_integration():
+  stderr = assert_access_zipped_assets('from pex.util import DistributionHelper')
+  assert b'' == stderr.strip()
+
+
+def test_access_zipped_assets_integration_deprecated():
+  stderr = assert_access_zipped_assets('from _pex.util import DistributionHelper')
+  assert b'`import _pex.util`' in stderr
 
 
 def test_named_temporary_file():
@@ -200,6 +212,7 @@ def test_iter_pth_paths(mock_exists):
       ],
       'duplicate_path\nduplicate_path': [in_tmp('duplicate_path')],
       'randompath\nimport nosuchmodule\n': [in_tmp('randompath')],
+      'import sys\nfoo\n/bar/baz': [in_tmp('foo'), '/bar/baz'],
       'import nosuchmodule\nfoo': [],
       'import nosuchmodule\n': [],
       'import bad)syntax\n': [],

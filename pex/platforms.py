@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 from collections import namedtuple
 
-from .pep425tags import (
+from pex.pep425tags import (
     get_abbr_impl,
     get_abi_tag,
     get_impl_ver,

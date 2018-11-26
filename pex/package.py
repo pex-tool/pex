@@ -1,15 +1,16 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import os
 
-from pkg_resources import EGG_NAME, parse_version, safe_name, safe_version
-
-from .archiver import Archiver
-from .base import maybe_requirement
-from .link import Link
-from .pep425tags import get_supported
-from .util import Memoizer
+from pex.archiver import Archiver
+from pex.base import maybe_requirement
+from pex.link import Link
+from pex.pep425tags import get_supported
+from pex.third_party.pkg_resources import EGG_NAME, parse_version, safe_name, safe_version
+from pex.util import Memoizer
 
 
 class Package(Link):

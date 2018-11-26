@@ -3,16 +3,18 @@
 
 """Support for webpage parsing and crawling."""
 
+from __future__ import absolute_import
+
 import os
 import re
 import threading
 import traceback
 
-from .compatibility import PY3
-from .http import Context
-from .link import Link
-from .tracer import TRACER
-from .util import Memoizer
+from pex.compatibility import PY3
+from pex.http import Context
+from pex.link import Link
+from pex.tracer import TRACER
+from pex.util import Memoizer
 
 if PY3:
   from queue import Empty, Queue

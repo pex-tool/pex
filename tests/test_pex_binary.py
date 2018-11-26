@@ -6,16 +6,14 @@ from contextlib import contextmanager
 from optparse import OptionParser
 from tempfile import NamedTemporaryFile
 
-from twitter.common.contextutil import temporary_dir
-
 from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution
 from pex.common import safe_copy
-from pex.compatibility import to_bytes
+from pex.compatibility import nested, to_bytes
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.package import SourcePackage, WheelPackage
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.sorter import Sorter
-from pex.testing import make_sdist
+from pex.testing import make_sdist, temporary_dir
 
 try:
   from unittest import mock
@@ -110,7 +108,7 @@ def test_clp_preamble_file():
     assert options.preamble_file == tmpfile.name
 
     pex_builder = build_pex(reqs, options, resolver_options_builder)
-    assert pex_builder._preamble == to_bytes('print "foo!"')
+    assert pex_builder._preamble == 'print "foo!"'
 
 
 def test_clp_prereleases():
@@ -129,16 +127,17 @@ def test_clp_prereleases():
 
 def test_clp_prereleases_resolver():
   prerelease_dep = make_sdist(name='dep', version='1.2.3b1')
-  with temporary_dir() as td:
-    safe_copy(prerelease_dep, os.path.join(td, os.path.basename(prerelease_dep)))
-    fetcher = Fetcher([td])
+  with nested(temporary_dir(), temporary_dir()) as (dist_dir, cache_dir):
+    safe_copy(prerelease_dep, os.path.join(dist_dir, os.path.basename(prerelease_dep)))
+    fetcher = Fetcher([dist_dir])
 
     # When no specific options are specified, allow_prereleases is None
     parser, resolver_options_builder = configure_clp()
     assert resolver_options_builder._allow_prereleases is None
 
     # When we specify `--pre`, allow_prereleases is True
-    options, reqs = parser.parse_args(args=['--pre', 'dep==1.2.3b1', 'dep'])
+    options, reqs = parser.parse_args(args=['--cache-dir', cache_dir,  # Avoid dangling {pex_root}.
+                                            '--pre', 'dep==1.2.3b1', 'dep'])
     assert resolver_options_builder._allow_prereleases
     # We need to use our own fetcher instead of PyPI
     resolver_options_builder._fetchers.insert(0, fetcher)
@@ -169,7 +168,7 @@ def test_clp_prereleases_resolver():
                                                  allow_external=allow_external,
                                                  allow_unverified=allow_unverified,
                                                  allow_prereleases=allow_prereleases,
-                                                 use_manylinux=None,
+                                                 use_manylinux=use_manylinux,
                                                  precedence=precedence,
                                                  context=context)
         self._fetchers.insert(0, fetcher)

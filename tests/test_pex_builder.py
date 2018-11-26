@@ -5,14 +5,13 @@ import os
 import stat
 
 import pytest
-from twitter.common.contextutil import temporary_dir
-from twitter.common.dirutil import safe_mkdir
 
+from pex import vendor
 from pex.common import open_zip
 from pex.compatibility import WINDOWS, nested
 from pex.pex import PEX
-from pex.pex_builder import PEXBuilder
-from pex.testing import make_bdist
+from pex.pex_builder import BOOTSTRAP_DIR, PEXBuilder
+from pex.testing import make_bdist, safe_mkdir, temporary_dir
 from pex.testing import write_simple_pex as write_pex
 from pex.util import DistributionHelper
 
@@ -39,10 +38,10 @@ with open(sys.argv[1], 'w') as fp:
 def test_pex_builder():
   # test w/ and w/o zipfile dists
   with nested(temporary_dir(), make_bdist('p1', zipped=True)) as (td, p1):
-    write_pex(td, exe_main, dists=[p1])
+    pb = write_pex(td, exe_main, dists=[p1])
 
     success_txt = os.path.join(td, 'success.txt')
-    PEX(td).run(args=[success_txt])
+    PEX(td, interpreter=pb.interpreter).run(args=[success_txt])
     assert os.path.exists(success_txt)
     with open(success_txt) as fp:
       assert fp.read() == 'success'
@@ -56,10 +55,10 @@ def test_pex_builder():
       zf.extractall(target_egg_dir)
     p1 = DistributionHelper.distribution_from_path(target_egg_dir)
 
-    write_pex(td1, exe_main, dists=[p1])
+    pb = write_pex(td1, exe_main, dists=[p1])
 
     success_txt = os.path.join(td1, 'success.txt')
-    PEX(td1).run(args=[success_txt])
+    PEX(td1, interpreter=pb.interpreter).run(args=[success_txt])
     assert os.path.exists(success_txt)
     with open(success_txt) as fp:
       assert fp.read() == 'success'
@@ -72,17 +71,21 @@ def test_pex_builder_wheeldep():
   with nested(temporary_dir(), make_bdist('p1', zipped=True)) as (td, p1):
     pyparsing_path = "./tests/example_packages/pyparsing-2.1.10-py2.py3-none-any.whl"
     dist = DistributionHelper.distribution_from_path(pyparsing_path)
-    write_pex(td, wheeldeps_exe_main, dists=[p1, dist])
+    pb = write_pex(td, wheeldeps_exe_main, dists=[p1, dist])
     success_txt = os.path.join(td, 'success.txt')
-    PEX(td).run(args=[success_txt])
+    PEX(td, interpreter=pb.interpreter).run(args=[success_txt])
     assert os.path.exists(success_txt)
     with open(success_txt) as fp:
       assert fp.read() == 'success'
 
 
+def pex_builder(interpreter=None, **kwargs):
+  return PEXBuilder(interpreter=vendor.setup_interpreter(interpreter), **kwargs)
+
+
 def test_pex_builder_shebang():
   def builder(shebang):
-    pb = PEXBuilder()
+    pb = pex_builder()
     pb.set_shebang(shebang)
     return pb
 
@@ -107,12 +110,12 @@ def test_pex_builder_preamble():
       "sys.exit(3)"
     ])
 
-    pex_builder = PEXBuilder(preamble=tempfile_preamble)
-    pex_builder.build(target)
+    pb = pex_builder(preamble=tempfile_preamble)
+    pb.build(target)
 
     assert not os.path.exists(should_create)
 
-    pex = PEX(target)
+    pex = PEX(target, interpreter=pb.interpreter)
     process = pex.run(blocking=False)
     process.wait()
 
@@ -131,7 +134,7 @@ def test_pex_builder_compilation():
       fp.write(exe_main)
 
     def build_and_check(path, precompile):
-      pb = PEXBuilder(path)
+      pb = pex_builder(path=path)
       pb.add_source(src, 'lib/src.py')
       pb.set_executable(exe, 'exe.py')
       pb.freeze(bytecode_compile=precompile)
@@ -141,7 +144,7 @@ def test_pex_builder_compilation():
           assert pyc_exists
         else:
           assert not pyc_exists
-      bootstrap_dir = os.path.join(path, PEXBuilder.BOOTSTRAP_DIR)
+      bootstrap_dir = os.path.join(path, BOOTSTRAP_DIR)
       bootstrap_pycs = []
       for _, _, files in os.walk(bootstrap_dir):
         bootstrap_pycs.extend(f for f in files if f.endswith('.pyc'))
@@ -162,7 +165,7 @@ def test_pex_builder_copy_or_link():
       fp.write(exe_main)
 
     def build_and_check(path, copy):
-      pb = PEXBuilder(path, copy=copy)
+      pb = pex_builder(path=path, copy=copy)
       pb.add_source(src, 'exe.py')
 
       path_clone = os.path.join(path, '__clone')

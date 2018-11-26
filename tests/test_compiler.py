@@ -7,13 +7,13 @@ import os
 import sys
 
 import pytest
-from twitter.common.contextutil import temporary_dir
 
 from pex import compatibility
 from pex.common import safe_open
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
 from pex.interpreter import PythonInterpreter
+from pex.testing import temporary_dir
 
 
 def write_source(path, valid=True):

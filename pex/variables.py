@@ -4,11 +4,13 @@
 # Due to the PEX_ properties, disable checkstyle.
 # checkstyle: noqa
 
+from __future__ import absolute_import
+
 import os
 import sys
 from contextlib import contextmanager
 
-from .common import die
+from pex.common import die
 
 __all__ = ('ENV', 'Variables')
 

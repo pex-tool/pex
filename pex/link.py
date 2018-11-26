@@ -5,17 +5,11 @@ from __future__ import absolute_import
 
 import os
 import posixpath
-from collections import Iterable
 
-from .compatibility import PY3, WINDOWS, pathname2url
-from .compatibility import string as compatible_string
-from .compatibility import url2pathname
-from .util import Memoizer
-
-if PY3:
-  import urllib.parse as urlparse
-else:
-  import urlparse
+from pex.compatibility import WINDOWS, Iterable, pathname2url
+from pex.compatibility import string as compatible_string
+from pex.compatibility import url2pathname, urlparse
+from pex.util import Memoizer
 
 
 class Link(object):

@@ -14,13 +14,15 @@ To use:
    >>> register_finders()
 """
 
+from __future__ import absolute_import
+
 import os
 import pkgutil
 import re
 import sys
 import zipimport
 
-import pkg_resources
+import pex.third_party.pkg_resources as pkg_resources
 
 if sys.version_info >= (3, 3) and sys.implementation.name == "cpython":
   import importlib.machinery as importlib_machinery
@@ -60,8 +62,6 @@ class ChainedFinder(object):
 # finders together.  This is probably possible using importlib but that does us no good as the
 # importlib machinery supporting this is only available in Python >= 3.1.
 def _get_finder(importer):
-  if not hasattr(pkg_resources, '_distribution_finders'):
-    return None
   return pkg_resources._distribution_finders.get(importer)
 
 
@@ -149,30 +149,6 @@ class WheelMetadata(pkg_resources.EggMetadata):
       path, base = os.path.split(path)
 
 
-# See https://bitbucket.org/tarek/distribute/issue/274
-class FixedEggMetadata(pkg_resources.EggMetadata):
-  """An EggMetadata provider that has functional parity with the disk-based provider."""
-
-  @classmethod
-  def normalized_elements(cls, path):
-    path_split = path.split('/')
-    while path_split[-1] in ('', '.'):
-      path_split.pop(-1)
-    return path_split
-
-  def _fn(self, base, resource_name):
-    # super() does not work here as EggMetadata is an old-style class.
-    original_fn = pkg_resources.EggMetadata._fn(self, base, resource_name)
-    return '/'.join(self.normalized_elements(original_fn))
-
-  def _zipinfo_name(self, fspath):
-    fspath = self.normalized_elements(fspath)
-    zip_pre = self.normalized_elements(self.zip_pre)
-    if fspath[:len(zip_pre)] == zip_pre:
-      return '/'.join(fspath[len(zip_pre):])
-    assert "%s is not a subpath of %s" % (fspath, self.zip_pre)
-
-
 def wheel_from_metadata(location, metadata):
   if not metadata.has_metadata(pkg_resources.DistInfoDistribution.PKG_INFO):
     return None
@@ -198,22 +174,6 @@ def find_wheels_on_path(importer, path_item, only=False):
           yield dist
 
 
-def find_eggs_in_zip(importer, path_item, only=False):
-  if importer.archive.endswith('.whl'):
-    # Defer to wheel importer
-    return
-  metadata = FixedEggMetadata(importer)
-  if metadata.has_metadata('PKG-INFO'):
-    yield pkg_resources.Distribution.from_filename(path_item, metadata=metadata)
-  if only:
-    return  # don't yield nested distros
-  for subitem in metadata.resource_listdir('/'):
-    if subitem.endswith('.egg'):
-      subpath = os.path.join(path_item, subitem)
-      for dist in find_eggs_in_zip(zipimport.zipimporter(subpath), subpath):
-        yield dist
-
-
 def find_wheels_in_zip(importer, path_item, only=False):
   metadata = WheelMetadata(importer)
   dist = wheel_from_metadata(path_item, metadata)
@@ -236,10 +196,9 @@ def register_finders():
   previous_finder = _get_finder(zipimport.zipimporter)
   assert previous_finder, 'This appears to be using an incompatible setuptools.'
 
-  # replace the zip finder with our own implementation of find_eggs_in_zip which uses the correct
-  # metadata handler, in addition to find_wheels_in_zip
+  # Enable finding zipped wheels.
   pkg_resources.register_finder(
-      zipimport.zipimporter, ChainedFinder.of(find_eggs_in_zip, find_wheels_in_zip))
+      zipimport.zipimporter, ChainedFinder.of(pkg_resources.find_eggs_in_zip, find_wheels_in_zip))
 
   # append the wheel finder
   _add_finder(pkgutil.ImpImporter, find_wheels_on_path)
@@ -303,12 +262,12 @@ def get_script_from_distribution(name, dist):
       return get_script_from_whl(name, dist)
     else:
       return None, None
-  # FixedEggMetadata: Zipped egg
-  elif isinstance(dist._provider, FixedEggMetadata):
-    return get_script_from_egg(name, dist)
   # WheelMetadata: Zipped whl (in theory should not experience this at runtime.)
   elif isinstance(dist._provider, WheelMetadata):
     return get_script_from_whl(name, dist)
+  # EggMetadata: Zipped egg
+  elif isinstance(dist._provider, pkg_resources.EggMetadata):
+    return get_script_from_egg(name, dist)
   return None, None
 
 

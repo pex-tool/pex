@@ -2,9 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import pytest
-from pkg_resources import Requirement, parse_version
 
 from pex.package import EggPackage, SourcePackage, WheelPackage
+from pex.third_party.pkg_resources import Requirement, parse_version
 
 
 def test_source_packages():

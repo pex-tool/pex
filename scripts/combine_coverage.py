@@ -1,14 +1,13 @@
 import os
-import pprint
 import sys
 
 from coverage.data import CoverageData
-from pex.pex_builder import PEXBuilder
+from pex.pex_builder import BOOTSTRAP_DIR
 
 
 def _iter_filter(root_dir, data_dict):
   root_fragment = os.path.join(root_dir, 'pex/')
-  pex_fragment = '/%s/_pex/' % PEXBuilder.BOOTSTRAP_DIR
+  pex_fragment = '/%s/pex/' % BOOTSTRAP_DIR
 
   for filename, records in data_dict.items():
     # already acceptable coverage

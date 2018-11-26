@@ -11,12 +11,10 @@ import sys
 from collections import defaultdict
 from inspect import getsource
 
-from pkg_resources import Distribution, Requirement, find_distributions
-
-from .base import maybe_requirement
-from .compatibility import string
-from .executor import Executor
-from .pep425tags import (
+from pex.base import maybe_requirement
+from pex.compatibility import string
+from pex.executor import Executor
+from pex.pep425tags import (
     get_abbr_impl,
     get_abi_tag,
     get_config_var,
@@ -24,7 +22,8 @@ from .pep425tags import (
     get_impl_ver,
     get_impl_version_info
 )
-from .tracer import TRACER
+from pex.third_party.pkg_resources import Distribution, Requirement
+from pex.tracer import TRACER
 
 try:
   from numbers import Integral
@@ -53,25 +52,8 @@ print(
 
 """
 
-EXTRAS_PY = b"""\
-try:
-  import pkg_resources
-except ImportError:
-  sys.exit(0)
 
-requirements = {}
-for item in sys.path:
-  for dist in pkg_resources.find_distributions(item):
-    requirements[str(dist.as_requirement())] = dist.location
-
-for requirement_str, location in requirements.items():
-  rs = requirement_str.split('==', 2)
-  if len(rs) == 2:
-    print('%s %s %s' % (rs[0], rs[1], location))
-"""
-
-
-def _generate_identity_source(include_site_extras):
+def _generate_identity_source():
   # Determine in the most platform-compatible way possible the identity of the interpreter
   # and its known packages.
   encodables = (
@@ -83,11 +65,8 @@ def _generate_identity_source(include_site_extras):
     get_impl_ver
   )
 
-  source = ID_PY_TMPL.replace(b'__CODE__',
-                              b'\n\n'.join(getsource(func).encode('utf-8') for func in encodables))
-  if include_site_extras:
-    source += EXTRAS_PY
-  return source
+  return ID_PY_TMPL.replace(b'__CODE__',
+                            b'\n\n'.join(getsource(func).encode('utf-8') for func in encodables))
 
 
 class PythonIdentity(object):
@@ -308,41 +287,19 @@ class PythonInterpreter(object):
     return cls.filter(cls.find(paths))
 
   @classmethod
-  def _parse_extras(cls, output_lines):
-    def iter_lines():
-      for line in output_lines:
-        try:
-          dist_name, dist_version, location = line.split()
-        except ValueError:
-          raise cls.IdentificationError('Could not identify requirement: %s' % line)
-        yield ((dist_name, dist_version), location)
-    return dict(iter_lines())
-
-  @staticmethod
-  def _iter_extras(path_extras):
-    for item in path_extras:
-      for dist in find_distributions(item):
-        if dist.version:
-          yield ((dist.key, dist.version), dist.location)
+  def _from_binary_internal(cls):
+    return cls(sys.executable, PythonIdentity.get())
 
   @classmethod
-  def _from_binary_internal(cls, path_extras, include_site_extras):
-    extras = sys.path + list(path_extras) if include_site_extras else list(path_extras)
-    return cls(sys.executable, PythonIdentity.get(), dict(cls._iter_extras(extras)))
-
-  @classmethod
-  def _from_binary_external(cls, binary, path_extras, include_site_extras):
+  def _from_binary_external(cls, binary):
     environ = cls.sanitized_environment()
-    stdout, _ = Executor.execute([binary],
+    stdout, _ = Executor.execute([binary, '-sE'],
                                  env=environ,
-                                 stdin_payload=_generate_identity_source(include_site_extras))
-    output = stdout.splitlines()
-    if len(output) == 0:
+                                 stdin_payload=_generate_identity_source())
+    identity = stdout.strip()
+    if not identity:
       raise cls.IdentificationError('Could not establish identity of %s' % binary)
-    identity, raw_extras = output[0], output[1:]
-    extras = cls._parse_extras(raw_extras)
-    extras.update(cls._iter_extras(path_extras))
-    return cls(binary, PythonIdentity.from_id_string(identity), extras=extras)
+    return cls(binary, PythonIdentity.from_id_string(identity))
 
   @classmethod
   def expand_path(cls, path):
@@ -369,26 +326,20 @@ class PythonInterpreter(object):
             TRACER.log('Could not identify %s: %s' % (fn, e))
 
   @classmethod
-  def from_binary(cls, binary, path_extras=None, include_site_extras=True):
+  def from_binary(cls, binary):
     """Create an interpreter from the given `binary`.
 
     :param str binary: The path to the python interpreter binary.
-    :param path_extras: Extra PYTHONPATH entries to add to the interpreter's `sys.path`.
-    :type path_extras: list of str
-    :param bool include_site_extras: `True` to include the `site-packages` associated
-                                     with `binary` in the interpreter's `sys.path`.
     :return: an interpreter created from the given `binary` with only the specified
              extras.
     :rtype: :class:`PythonInterpreter`
     """
-    path_extras = path_extras or ()
-    key = (binary, tuple(path_extras), include_site_extras)
-    if key not in cls.CACHE:
+    if binary not in cls.CACHE:
       if binary == sys.executable:
-        cls.CACHE[key] = cls._from_binary_internal(path_extras, include_site_extras)
+        cls.CACHE[binary] = cls._from_binary_internal()
       else:
-        cls.CACHE[key] = cls._from_binary_external(binary, path_extras, include_site_extras)
-    return cls.CACHE[key]
+        cls.CACHE[binary] = cls._from_binary_external(binary)
+    return cls.CACHE[binary]
 
   @classmethod
   def find(cls, paths):
@@ -474,7 +425,7 @@ class PythonInterpreter(object):
     self._identity = identity
 
   def with_extra(self, key, version, location):
-    extras = self._extras.copy()
+    extras = {(k, v): loc for (k, v), loc in self._extras.items() if k != key}
     extras[(key, version)] = location
     return self.__class__(self._binary, self._identity, extras)
 

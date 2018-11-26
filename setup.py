@@ -3,37 +3,41 @@
 
 import os
 
-from setuptools import setup
 
-with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as fp:
+# We may be executed from outside the project dir: `python pex/setup.py ...`, so ensure the
+# `setup.py` dir is on the path and we're working from here so that dist/ and build/ dirs get
+# created here and all files indicated by MANIFEST.in are found.
+__HERE = os.path.realpath(os.path.dirname(__file__))
+os.chdir(__HERE)
+
+
+with open(os.path.join(__HERE, 'README.rst')) as fp:
   LONG_DESCRIPTION = fp.read() + '\n'
 
-with open(os.path.join(os.path.dirname(__file__), 'CHANGES.rst')) as fp:
+
+with open(os.path.join(__HERE, 'CHANGES.rst')) as fp:
   LONG_DESCRIPTION += fp.read()
 
 
-# This seems to be a fairly standard version file pattern.
-#
-# Populates the following variables:
-#   __version__
-#   __setuptools_requirement
-#   __wheel_requirement
-__version__ = ''
-version_py_file = os.path.join(os.path.dirname(__file__), 'pex', 'version.py')
-with open(version_py_file) as version_py:
-  exec(compile(version_py.read(), version_py_file, 'exec'))
+from pex import third_party
+third_party.install(expose=['setuptools', 'wheel'])
+
+
+from pex.third_party.setuptools import find_packages, setup
+from pex.commands.bdist_pex import bdist_pex
+from pex.version import __version__
 
 
 setup(
-  name = 'pex',
-  version = __version__,
-  description = "The PEX packaging toolchain.",
-  long_description = LONG_DESCRIPTION,
+  name='pex',
+  version=__version__,
+  description="The PEX packaging toolchain.",
+  long_description=LONG_DESCRIPTION,
   long_description_content_type="text/x-rst",
-  url = 'https://github.com/pantsbuild/pex',
-  license = 'Apache License, Version 2.0',
-  zip_safe = True,
-  classifiers = [
+  url='https://github.com/pantsbuild/pex',
+  license='Apache License, Version 2.0',
+  zip_safe=False,
+  classifiers=[
     'Intended Audience :: Developers',
     'License :: OSI Approved :: Apache Software License',
     'Operating System :: Unix',
@@ -48,15 +52,8 @@ setup(
     'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: 3.7',
   ],
-  packages = [
-    'pex',
-    'pex.bin',
-    'pex.commands',
-  ],
-  install_requires = [
-    SETUPTOOLS_REQUIREMENT,
-    WHEEL_REQUIREMENT,
-  ],
+  packages=find_packages(),
+  include_package_data=True,
   extras_require={
     # For improved subprocess robustness under python2.7.
     'subprocess': ['subprocess32>=3.2.7'],
@@ -65,16 +62,10 @@ setup(
     # For improved requirement resolution and fetching performance.
     'cachecontrol': ['CacheControl>=0.12.3'],
   },
-  tests_require = [
-    'mock',
-    'twitter.common.contextutil>=0.3.1,<0.4.0',
-    'twitter.common.lang>=0.3.1,<0.4.0',
-    'twitter.common.testing>=0.3.1,<0.4.0',
-    'twitter.common.dirutil>=0.3.1,<0.4.0',
-    'pytest',
-  ],
-  entry_points = {
+  cmdclass={'bdist_pex': bdist_pex},  # Make bdist_pex available for _this_ setup.py.
+  entry_points={
     'distutils.commands': [
+      # Make bdist_pex available for folks who install the pex distribution.
       'bdist_pex = pex.commands.bdist_pex:bdist_pex',
     ],
     'console_scripts': [

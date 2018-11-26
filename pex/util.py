@@ -12,11 +12,15 @@ from hashlib import sha1
 from site import makepath
 from threading import Lock
 
-from pkg_resources import find_distributions, resource_isdir, resource_listdir, resource_string
-
-from .common import rename_if_empty, safe_mkdir, safe_mkdtemp, safe_open
-from .compatibility import exec_function
-from .finders import register_finders
+from pex.common import rename_if_empty, safe_mkdir, safe_mkdtemp, safe_open
+from pex.compatibility import exec_function
+from pex.finders import register_finders
+from pex.third_party.pkg_resources import (
+    find_distributions,
+    resource_isdir,
+    resource_listdir,
+    resource_string
+)
 
 
 class DistributionHelper(object):
@@ -235,9 +239,13 @@ def iter_pth_paths(filename):
         continue
       elif line.startswith(('import ', 'import\t')):
         try:
-          exec_function(line)
+          exec_function(line, globals_map={})
           continue
         except Exception:
+          # NB: import lines are routinely abused with extra code appended using `;` so the class of
+          # exceptions that might be raised in broader than ImportError. As such we cacth broadly
+          # here.
+
           # Defer error handling to the higher level site.py logic invoked at startup.
           return
       else:

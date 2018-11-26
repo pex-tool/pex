@@ -3,9 +3,11 @@
 
 # A library of functions for filtering Python interpreters based on compatibility constraints
 
-from .common import die
-from .interpreter import PythonIdentity
-from .tracer import TRACER
+from __future__ import absolute_import
+
+from pex.common import die
+from pex.interpreter import PythonIdentity
+from pex.tracer import TRACER
 
 
 def validate_constraints(constraints):

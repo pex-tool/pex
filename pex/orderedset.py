@@ -8,10 +8,12 @@
 # modifications
 #
 
-import collections
+from __future__ import absolute_import
+
+from pex.compatibility import MutableSet
 
 
-class OrderedSet(collections.MutableSet):
+class OrderedSet(MutableSet):
   KEY, PREV, NEXT = range(3)
 
   def __init__(self, iterable=None):

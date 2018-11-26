@@ -4,6 +4,8 @@
 # This file contains several 2.x/3.x compatibility checkstyle violations for a reason
 # checkstyle: noqa
 
+from __future__ import absolute_import
+
 import os
 from abc import ABCMeta
 from io import BytesIO, StringIO
@@ -27,6 +29,11 @@ numeric = integer + real
 string = (str,) if PY3 else (str, unicode)
 unicode_string = (str,) if PY3 else (unicode,)
 bytes = (bytes,)
+
+if PY2:
+  from collections import Iterable, MutableSet
+else:
+  from collections.abc import Iterable, MutableSet
 
 if PY2:
   def to_bytes(st, encoding='utf-8'):
@@ -92,8 +99,10 @@ else:
 
 
 if PY3:
+  import urllib.parse as urlparse
   from urllib.request import pathname2url, url2pathname
 else:
+  import urlparse
   from urllib import pathname2url, url2pathname
 
 

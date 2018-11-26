@@ -1,18 +1,18 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import json
 import os
 import warnings
 
-from .common import open_zip
-from .compatibility import PY2
-from .compatibility import string as compatibility_string
-from .orderedset import OrderedSet
-from .util import merge_split
-from .variables import ENV
+from pex.common import open_zip
+from pex.compatibility import PY2
+from pex.compatibility import string as compatibility_string
+from pex.orderedset import OrderedSet
+from pex.util import merge_split
+from pex.variables import ENV
 
 
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.

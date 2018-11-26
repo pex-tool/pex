@@ -3,11 +3,9 @@
 
 from __future__ import absolute_import
 
-from collections import Iterable
-
-from pkg_resources import Requirement
-
-from .compatibility import string as compatibility_string
+from pex.compatibility import Iterable
+from pex.compatibility import string as compatibility_string
+from pex.third_party.pkg_resources import Requirement
 
 REQUIRED_ATTRIBUTES = (
     'extras',

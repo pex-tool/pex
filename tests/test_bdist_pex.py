@@ -4,66 +4,80 @@
 import os
 import stat
 import subprocess
-import sys
 from textwrap import dedent
 
-from twitter.common.contextutil import pushd
-
+import pex.third_party.pkg_resources as pkg_resources
+from pex import vendor
 from pex.common import open_zip
+from pex.installer import DistributionPackager, WheelInstaller, after_installation
 from pex.testing import temporary_content
 
 
+class BdistPexInstaller(DistributionPackager):
+
+  def __init__(self, source_dir, interpreter, bdist_args=None):
+    self._bdist_args = list(bdist_args) if bdist_args else []
+    super(BdistPexInstaller, self).__init__(source_dir=source_dir, interpreter=interpreter)
+
+  @property
+  def mixins(self):
+    return ['setuptools', 'pex']
+
+  def _setup_command(self):
+    return ['bdist_pex', '--bdist-dir={}'.format(self._install_tmp)] + self._bdist_args
+
+  @after_installation
+  def bdist(self):
+    return self.find_distribution()
+
+
+def bdist_pex_installer(source_dir, interpreter=None, bdist_args=None):
+  interpreter = vendor.setup_interpreter(interpreter=interpreter)
+  pex_dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse('pex'))
+  interpreter = interpreter.with_extra(pex_dist.key, pex_dist.version, pex_dist.location)
+  return BdistPexInstaller(source_dir=source_dir, interpreter=interpreter, bdist_args=bdist_args)
+
+
+def bdist_pex_setup_py(**kwargs):
+  return dedent("""
+    from pex.commands.bdist_pex import bdist_pex
+    from setuptools import setup
+
+    setup(cmdclass={{'bdist_pex': bdist_pex}}, **{kwargs!r})
+  """.format(kwargs=kwargs))
+
+
 def assert_entry_points(entry_points):
-  setup_py = dedent("""
-      from setuptools import setup
-
-      setup(
-        name='my_app',
-        version='0.0.0',
-        zip_safe=True,
-        packages=[''],
-        entry_points=%(entry_points)r,
-      )
-    """ % dict(entry_points=entry_points))
-
+  setup_py = bdist_pex_setup_py(name='my_app',
+                                version='0.0.0',
+                                zip_safe=True,
+                                packages=[''],
+                                entry_points=entry_points)
   my_app = dedent("""
       def do_something():
         print("hello world!")
     """)
 
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
-    with pushd(project_dir):
-      subprocess.check_call([sys.executable, 'setup.py', 'bdist_pex'])
-      process = subprocess.Popen([os.path.join(project_dir, 'dist', 'my_app-0.0.0.pex')],
-                                 stdout=subprocess.PIPE)
-      stdout, _ = process.communicate()
-      assert '{pex_root}' not in os.listdir(project_dir)
-      assert 0 == process.returncode
-      assert stdout == b'hello world!\n'
+    my_app_pex = bdist_pex_installer(project_dir).bdist()
+    process = subprocess.Popen([my_app_pex], stdout=subprocess.PIPE)
+    stdout, _ = process.communicate()
+    assert '{pex_root}' not in os.listdir(project_dir)
+    assert 0 == process.returncode
+    assert stdout == b'hello world!\n'
 
 
 def assert_pex_args_shebang(shebang):
-  setup_py = dedent("""
-      from setuptools import setup
-
-      setup(
-        name='my_app',
-        version='0.0.0',
-        zip_safe=True,
-        packages=[''],
-      )
-    """)
+  setup_py = bdist_pex_setup_py(name='my_app',
+                                version='0.0.0',
+                                zip_safe=True,
+                                packages=[''])
 
   with temporary_content({'setup.py': setup_py}) as project_dir:
-    with pushd(project_dir):
-      assert subprocess.check_call(
-        [sys.executable, 'setup.py', 'bdist_pex',
-         '--pex-args=--python-shebang="%(shebang)s"' %
-         dict(shebang=shebang)]) == 0
-
-      with open(os.path.join(project_dir, 'dist',
-                             'my_app-0.0.0.pex'), 'rb') as fp:
-        assert fp.readline().decode().rstrip() == shebang
+    pex_args = '--pex-args=--python-shebang="{}"'.format(shebang)
+    my_app_pex = bdist_pex_installer(project_dir, bdist_args=[pex_args]).bdist()
+    with open(my_app_pex, 'rb') as fp:
+      assert fp.readline().decode().rstrip() == shebang
 
 
 def test_entry_points_dict():
@@ -104,31 +118,21 @@ def test_unwriteable_contents():
                           'my_app/__init__.py': '',
                           'my_app/unwriteable.so': ''},
                          perms=UNWRITEABLE_PERMS) as my_app_project_dir:
-    with pushd(my_app_project_dir):
-      subprocess.check_call([sys.executable, 'setup.py', 'bdist_wheel'])
+    my_app_whl = WheelInstaller(my_app_project_dir, vendor.setup_interpreter()).bdist()
 
-    uses_my_app_setup_py = dedent("""
-      from setuptools import setup
-
-      setup(
-        name='uses_my_app',
-        version='0.0.0',
-        zip_safe=True,
-        install_requires=['my_app'],
-      )
-    """)
+    uses_my_app_setup_py = bdist_pex_setup_py(name='uses_my_app',
+                                              version='0.0.0',
+                                              zip_safe=True,
+                                              install_requires=['my_app'])
     with temporary_content({'setup.py': uses_my_app_setup_py}) as uses_my_app_project_dir:
-      with pushd(uses_my_app_project_dir):
-        subprocess.check_call([sys.executable,
-                               'setup.py',
-                               'bdist_pex',
-                               '--pex-args=--disable-cache --no-pypi -f {}'
-                              .format(os.path.join(my_app_project_dir, 'dist'))])
+      pex_args = '--pex-args=--disable-cache --no-pypi -f {}'.format(os.path.dirname(my_app_whl))
+      uses_my_app_pex = bdist_pex_installer(uses_my_app_project_dir, bdist_args=[pex_args]).bdist()
 
-        with open_zip('dist/uses_my_app-0.0.0.pex') as zf:
-          unwriteable_sos = [path for path in zf.namelist()
-                             if path.endswith('my_app/unwriteable.so')]
-          assert 1 == len(unwriteable_sos)
-          unwriteable_so = unwriteable_sos.pop()
-          zf.extract(unwriteable_so)
-          assert UNWRITEABLE_PERMS == stat.S_IMODE(os.stat(unwriteable_so).st_mode)
+      with open_zip(uses_my_app_pex) as zf:
+        unwriteable_sos = [path for path in zf.namelist()
+                           if path.endswith('my_app/unwriteable.so')]
+        assert 1 == len(unwriteable_sos)
+        unwriteable_so = unwriteable_sos.pop()
+        zf.extract(unwriteable_so, path=uses_my_app_project_dir)
+        extract_dest = os.path.join(uses_my_app_project_dir, unwriteable_so)
+        assert UNWRITEABLE_PERMS == stat.S_IMODE(os.stat(extract_dest).st_mode)

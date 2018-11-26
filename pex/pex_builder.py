@@ -1,23 +1,26 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import logging
 import os
 
-from pkg_resources import DefaultProvider, ZipProvider, get_provider
+from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
+from pex.compatibility import to_bytes
+from pex.compiler import Compiler
+from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
+from pex.interpreter import PythonInterpreter
+from pex.pex_info import PexInfo
+from pex.third_party.pkg_resources import DefaultProvider, ZipProvider, get_provider
+from pex.tracer import TRACER
+from pex.util import CacheHelper, DistributionHelper
 
-from .common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
-from .compatibility import to_bytes
-from .compiler import Compiler
-from .finders import get_entry_point_from_console_script, get_script_from_distributions
-from .interpreter import PythonInterpreter
-from .pex_info import PexInfo
-from .tracer import TRACER
-from .util import CacheHelper, DistributionHelper
+BOOTSTRAP_DIR = '.bootstrap'
 
-BOOTSTRAP_ENVIRONMENT = b"""
+LEGACY_BOOSTRAP_PKG = '_pex'
+
+BOOTSTRAP_ENVIRONMENT = """
 import os
 import sys
 
@@ -25,7 +28,6 @@ __entry_point__ = None
 if '__file__' in locals() and __file__ is not None:
   __entry_point__ = os.path.dirname(__file__)
 elif '__loader__' in locals():
-  from zipimport import zipimporter
   from pkgutil import ImpLoader
   if hasattr(__loader__, 'archive'):
     __entry_point__ = __loader__.archive
@@ -37,11 +39,19 @@ if __entry_point__ is None:
   sys.exit(2)
 
 sys.path[0] = os.path.abspath(sys.path[0])
-sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, '.bootstrap')))
+sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, {bootstrap_dir!r})))
 
-from _pex.pex_bootstrapper import bootstrap_pex
+from pex.third_party import VendorImporter
+VendorImporter.install(uninstallable=False,
+                       prefix={legacy_bootstrap_pkg!r},
+                       path_items=['pex'],
+                       warning='Runtime pex API access through the `{legacy_bootstrap_pkg}` '
+                               'package is deprecated and will be removed in pex 2.0.0. Please '
+                               'switch to the `pex` package for runtime API access.')
+
+from pex.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)
-"""
+""".format(bootstrap_dir=BOOTSTRAP_DIR, legacy_bootstrap_pkg=LEGACY_BOOSTRAP_PKG)
 
 
 class PEXBuilder(object):
@@ -52,8 +62,6 @@ class PEXBuilder(object):
   class InvalidDistribution(Error): pass
   class InvalidDependency(Error): pass
   class InvalidExecutableSpecification(Error): pass
-
-  BOOTSTRAP_DIR = ".bootstrap"
 
   def __init__(self, path=None, interpreter=None, chroot=None, pex_info=None, preamble=None,
                copy=False):
@@ -78,7 +86,7 @@ class PEXBuilder(object):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._chroot = chroot or Chroot(path or safe_mkdtemp())
     self._pex_info = pex_info or PexInfo.default(self._interpreter)
-    self._preamble = to_bytes(preamble or '')
+    self._preamble = preamble or ''
     self._copy = copy
 
     self._shebang = self._interpreter.identity.hashbang()
@@ -138,7 +146,8 @@ class PEXBuilder(object):
   def add_source(self, filename, env_filename):
     """Add a source to the PEX environment.
 
-    :param filename: The source filename to add to the PEX.
+    :param filename: The source filename to add to the PEX; None to create an empty file at
+      `env_filename`.
     :param env_filename: The destination filename in the PEX.  This path
       must be a relative path.
     """
@@ -148,7 +157,8 @@ class PEXBuilder(object):
   def add_resource(self, filename, env_filename):
     """Add a resource to the PEX environment.
 
-    :param filename: The source filename to add to the PEX.
+    :param filename: The source filename to add to the PEX; None to create an empty file at
+      `env_filename`.
     :param env_filename: The destination filename in the PEX.  This path
       must be a relative path.
     """
@@ -283,7 +293,7 @@ class PEXBuilder(object):
     # into an importable shape. We can do that by installing it into its own
     # wheel dir.
     if dist_name.endswith("whl"):
-      from wheel.install import WheelFile
+      from pex.third_party.wheel.install import WheelFile
       tmp = safe_mkdtemp()
       whltmp = os.path.join(tmp, dist_name)
       os.mkdir(whltmp)
@@ -352,24 +362,6 @@ class PEXBuilder(object):
     self._ensure_unfrozen('Adding an egg')
     return self.add_dist_location(egg)
 
-  # TODO(wickman) Consider changing this behavior to put the onus on the consumer
-  # of pex to write the pex sources correctly.
-  def _prepare_inits(self):
-    relative_digest = self._chroot.get("source")
-    init_digest = set()
-    for path in relative_digest:
-      split_path = path.split(os.path.sep)
-      for k in range(1, len(split_path)):
-        sub_path = os.path.sep.join(split_path[0:k] + ['__init__.py'])
-        if sub_path not in relative_digest and sub_path not in init_digest:
-          import_string = "__import__('pkg_resources').declare_namespace(__name__)"
-          try:
-            self._chroot.write(import_string, sub_path)
-          except TypeError:
-            # Python 3
-            self._chroot.write(bytes(import_string, 'UTF-8'), sub_path)
-          init_digest.add(sub_path)
-
   def _precompile_source(self):
     source_relpaths = [path for label in ('source', 'executable', 'main', 'bootstrap')
                        for path in self._chroot.filesets.get(label, ()) if path.endswith('.py')]
@@ -384,63 +376,40 @@ class PEXBuilder(object):
                        PexInfo.PATH, label='manifest')
 
   def _prepare_main(self):
-    self._chroot.write(self._preamble + b'\n' + BOOTSTRAP_ENVIRONMENT,
+    self._chroot.write(to_bytes(self._preamble + '\n' + BOOTSTRAP_ENVIRONMENT),
         '__main__.py', label='main')
 
   def _copy_or_link(self, src, dst, label=None):
-    if self._copy:
+    if src is None:
+      self._chroot.touch(dst, label)
+    elif self._copy:
       self._chroot.copy(src, dst, label)
     else:
       self._chroot.link(src, dst, label)
 
-  # TODO(wickman) Ideally we unqualify our setuptools dependency and inherit whatever is
-  # bundled into the environment so long as it is compatible (and error out if not.)
-  #
-  # As it stands, we're picking and choosing the pieces we think we need, which means
-  # if there are bits of setuptools imported from elsewhere they may be incompatible with
-  # this.
   def _prepare_bootstrap(self):
-    # Writes enough of setuptools into the .pex .bootstrap directory so that we can be fully
-    # self-contained.
+    from . import vendor
+    vendor.vendor_runtime(chroot=self._chroot,
+                          dest_basedir=BOOTSTRAP_DIR,
+                          label='bootstrap',
+                          # NB: We use wheel here in the builder, but that's only at build-time.
+                          root_module_names=['pkg_resources'])
 
-    wrote_setuptools = False
-    setuptools_location = self._interpreter.get_location('setuptools')
-    if setuptools_location is None:
-      raise RuntimeError(
-        'Failed to find setuptools via %s while building pex!' % self._interpreter.binary
-      )
-
-    setuptools = DistributionHelper.distribution_from_path(setuptools_location, name='setuptools')
-    if setuptools is None:
-      raise RuntimeError(
-        'Failed to find setuptools via %s while building pex!' % self._interpreter.binary
-      )
-
-    for fn, content_stream in DistributionHelper.walk_data(setuptools):
-      if fn.startswith('pkg_resources') or fn.startswith('_markerlib'):
-        if not fn.endswith('.pyc'):  # We'll compile our own .pyc's later.
-          dst = os.path.join(self.BOOTSTRAP_DIR, fn)
-          self._chroot.write(content_stream.read(), dst, 'bootstrap')
-          wrote_setuptools = True
-
-    if not wrote_setuptools:
-      raise RuntimeError(
-          'Failed to extract pkg_resources from setuptools.  Perhaps pants was linked with an '
-          'incompatible setuptools.')
-
-    libraries = {
-      'pex': '_pex',
-    }
-
-    for source_name, target_location in libraries.items():
-      provider = get_provider(source_name)
-      if not isinstance(provider, DefaultProvider):
-        mod = __import__(source_name, fromlist=['ignore'])
-        provider = ZipProvider(mod)
-      for fn in provider.resource_listdir(''):
+    source_name = 'pex'
+    provider = get_provider(source_name)
+    if not isinstance(provider, DefaultProvider):
+      mod = __import__(source_name, fromlist=['ignore'])
+      provider = ZipProvider(mod)
+    for package in ('', 'third_party'):
+      for fn in provider.resource_listdir(package):
         if fn.endswith('.py'):
-          self._chroot.write(provider.get_resource_string(source_name, fn),
-            os.path.join(self.BOOTSTRAP_DIR, target_location, fn), 'bootstrap')
+          rel_path = os.path.join(package, fn)
+          self._chroot.write(provider.get_resource_string(source_name, rel_path),
+                             os.path.join(BOOTSTRAP_DIR, source_name, rel_path), 'bootstrap')
+
+    # Setup a re-director package to support the legacy pex runtime `_pex` APIs through a
+    # VendorImporter.
+    self._chroot.touch(os.path.join(BOOTSTRAP_DIR, LEGACY_BOOSTRAP_PKG, '__init__.py'), 'bootstrap')
 
   def freeze(self, bytecode_compile=True):
     """Freeze the PEX.
@@ -451,7 +420,6 @@ class PEXBuilder(object):
     only be called once and renders the PEXBuilder immutable.
     """
     self._ensure_unfrozen('Freezing the environment')
-    self._prepare_inits()
     self._prepare_code_hash()
     self._prepare_manifest()
     self._prepare_bootstrap()

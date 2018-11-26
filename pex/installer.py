@@ -5,19 +5,15 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
-import tempfile
 
-from pkg_resources import Distribution, PathMetadata
-
-from .common import safe_mkdtemp, safe_rmtree
-from .compatibility import WINDOWS
-from .executor import Executor
-from .interpreter import PythonInterpreter
-from .tracer import TRACER
-from .version import SETUPTOOLS_REQUIREMENT, WHEEL_REQUIREMENT
+from pex import third_party
+from pex.common import safe_mkdtemp, safe_rmtree
+from pex.compatibility import WINDOWS
+from pex.executor import Executor
+from pex.interpreter import PythonInterpreter
+from pex.tracer import TRACER
 
 __all__ = (
-  'Installer',
   'Packager'
 )
 
@@ -26,47 +22,30 @@ def after_installation(function):
   def function_wrapper(self, *args, **kw):
     self._installed = self.run()
     if not self._installed:
-      raise Installer.InstallFailure('Failed to install %s' % self._source_dir)
+      raise InstallerBase.InstallFailure('Failed to install %s' % self._source_dir)
     return function(self, *args, **kw)
   return function_wrapper
 
 
 class InstallerBase(object):
-  SETUP_BOOTSTRAP_HEADER = "import sys"
-  SETUP_BOOTSTRAP_PYPATH = "sys.path.insert(0, %(path)r)"
-  SETUP_BOOTSTRAP_MODULE = "import %(module)s"
-  SETUP_BOOTSTRAP_FOOTER = """
-__file__ = 'setup.py'
-sys.argv[0] = 'setup.py'
-exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
-"""
-
   class Error(Exception): pass
   class InstallFailure(Error): pass
   class IncapableInterpreter(Error): pass
 
-  def __init__(self, source_dir, strict=True, interpreter=None, install_dir=None):
-    """
-      Create an installer from an unpacked source distribution in source_dir.
-
-      If strict=True, fail if any installation dependencies (e.g. distribute)
-      are missing.
-    """
+  def __init__(self, source_dir, interpreter=None, install_dir=None):
+    """Create an installer from an unpacked source distribution in source_dir."""
     self._source_dir = source_dir
     self._install_tmp = install_dir or safe_mkdtemp()
     self._installed = None
-    self._strict = strict
     self._interpreter = interpreter or PythonInterpreter.get()
-    if not self._interpreter.satisfies(self.capability) and strict:
+    if not self._interpreter.satisfies(self.mixins):
       raise self.IncapableInterpreter('Interpreter %s not capable of running %s' % (
           self._interpreter.binary, self.__class__.__name__))
 
+  @property
   def mixins(self):
-    """Return a map from import name to requirement to load into setup script prior to invocation.
-
-       May be subclassed.
-    """
-    return {}
+    """Return a list of requirements to load into the setup script prior to invocation."""
+    raise NotImplementedError()
 
   @property
   def install_tmp(self):
@@ -76,38 +55,30 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
     """the setup command-line to run, to be implemented by subclasses."""
     raise NotImplementedError
 
-  def _postprocess(self):
-    """a post-processing function to run following setup.py invocation."""
-
-  @property
-  def capability(self):
-    """returns the list of requirements for the interpreter to run this installer."""
-    return list(self.mixins().values())
-
   @property
   def bootstrap_script(self):
-    bootstrap_sys_paths = []
-    bootstrap_modules = []
-    for module, requirement in self.mixins().items():
-      path = self._interpreter.get_location(requirement)
-      if not path:
-        assert not self._strict  # This should be caught by validation
-        continue
-      bootstrap_sys_paths.append(self.SETUP_BOOTSTRAP_PYPATH % {'path': path})
-      bootstrap_modules.append(self.SETUP_BOOTSTRAP_MODULE % {'module': module})
-    return '\n'.join(
-      [self.SETUP_BOOTSTRAP_HEADER] +
-      bootstrap_sys_paths +
-      bootstrap_modules +
-      [self.SETUP_BOOTSTRAP_FOOTER]
-    )
+    return """
+import sys
+sys.path.insert(0, {root!r})
+
+# Expose vendored mixin path_items (setuptools, wheel, etc.) directly to the package's setup.py.
+from pex import third_party
+third_party.install(root={root!r}, expose={mixins!r})
+
+# Now execute the package's setup.py such that it sees itself as a setup.py executed via
+# `python setup.py ...`
+__file__ = 'setup.py'
+sys.argv[0] = __file__
+with open(__file__, 'rb') as fp:
+  exec(fp.read())
+""".format(root=third_party.isolated(), mixins=self.mixins)
 
   def run(self):
     if self._installed is not None:
       return self._installed
 
     with TRACER.timed('Installing %s' % self._install_tmp, V=2):
-      command = [self._interpreter.binary, '-'] + self._setup_command()
+      command = [self._interpreter.binary, '-sE', '-'] + self._setup_command()
       try:
         Executor.execute(command,
                          env=self._interpreter.sanitized_environment(),
@@ -121,82 +92,16 @@ exec(compile(open(__file__, 'rb').read(), __file__, 'exec'))
         print('stdout:\n%s\nstderr:\n%s\n' % (e.stdout, e.stderr), file=sys.stderr)
         return self._installed
 
-    self._postprocess()
     return self._installed
 
   def cleanup(self):
     safe_rmtree(self._install_tmp)
 
 
-class Installer(InstallerBase):
-  """Install an unpacked distribution with a setup.py."""
-
-  def __init__(self, source_dir, strict=True, interpreter=None):
-    """
-      Create an installer from an unpacked source distribution in source_dir.
-
-      If strict=True, fail if any installation dependencies (e.g. setuptools)
-      are missing.
-    """
-    super(Installer, self).__init__(source_dir, strict=strict, interpreter=interpreter)
-    self._egg_info = None
-    fd, self._install_record = tempfile.mkstemp()
-    os.close(fd)
-
-  def _setup_command(self):
-    return ['install',
-           '--root=%s' % self._install_tmp,
-           '--prefix=',
-           '--single-version-externally-managed',
-           '--record', self._install_record]
-
-  def _postprocess(self):
-    installed_files = []
-    egg_info = None
-    with open(self._install_record) as fp:
-      installed_files = fp.read().splitlines()
-      for line in installed_files:
-        if line.endswith('.egg-info'):
-          assert line.startswith('/'), 'Expect .egg-info to be within install_tmp!'
-          egg_info = line
-          break
-
-    if not egg_info:
-      self._installed = False
-      return self._installed
-
-    installed_files = [os.path.relpath(fn, egg_info) for fn in installed_files if fn != egg_info]
-
-    self._egg_info = os.path.join(self._install_tmp, egg_info[1:])
-    with open(os.path.join(self._egg_info, 'installed-files.txt'), 'w') as fp:
-      fp.write('\n'.join(installed_files))
-      fp.write('\n')
-
-    return self._installed
-
-  @after_installation
-  def egg_info(self):
-    return self._egg_info
-
-  @after_installation
-  def root(self):
-    egg_info = self.egg_info()
-    assert egg_info
-    return os.path.realpath(os.path.dirname(egg_info))
-
-  @after_installation
-  def distribution(self):
-    base_dir = self.root()
-    egg_info = self.egg_info()
-    metadata = PathMetadata(base_dir, egg_info)
-    return Distribution.from_location(base_dir, os.path.basename(egg_info), metadata=metadata)
-
-
 class DistributionPackager(InstallerBase):
+  @property
   def mixins(self):
-    mixins = super(DistributionPackager, self).mixins().copy()
-    mixins.update(setuptools=SETUPTOOLS_REQUIREMENT)
-    return mixins
+    return ['setuptools']
 
   def find_distribution(self):
     dists = os.listdir(self.install_tmp)
@@ -209,9 +114,7 @@ class DistributionPackager(InstallerBase):
 
 
 class Packager(DistributionPackager):
-  """
-    Create a source distribution from an unpacked setup.py-based project.
-  """
+  """Create a source distribution from an unpacked setup.py-based project."""
 
   def _setup_command(self):
     if WINDOWS:
@@ -225,9 +128,7 @@ class Packager(DistributionPackager):
 
 
 class EggInstaller(DistributionPackager):
-  """
-    Create a source distribution from an unpacked setup.py-based project.
-  """
+  """Create an egg distribution from an unpacked setup.py-based project."""
 
   def _setup_command(self):
     return ['bdist_egg', '--dist-dir=%s' % self._install_tmp]
@@ -238,18 +139,11 @@ class EggInstaller(DistributionPackager):
 
 
 class WheelInstaller(DistributionPackager):
-  """
-    Create a source distribution from an unpacked setup.py-based project.
-  """
-  MIXINS = {
-      'setuptools': SETUPTOOLS_REQUIREMENT,
-      'wheel': WHEEL_REQUIREMENT,
-  }
+  """Create a wheel distribution from an unpacked setup.py-based project."""
 
+  @property
   def mixins(self):
-    mixins = super(WheelInstaller, self).mixins().copy()
-    mixins.update(self.MIXINS)
-    return mixins
+    return ['setuptools', 'wheel']
 
   def _setup_command(self):
     return ['bdist_wheel', '--dist-dir=%s' % self._install_tmp]

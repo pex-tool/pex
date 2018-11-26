@@ -5,8 +5,8 @@ import os
 import time
 
 import pytest
-from twitter.common.contextutil import temporary_dir
 
+from pex import vendor
 from pex.common import safe_copy
 from pex.crawler import Crawler
 from pex.fetcher import Fetcher
@@ -14,15 +14,20 @@ from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
 from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
-from pex.testing import make_sdist
+from pex.testing import make_sdist, temporary_dir
+
+
+def do_resolve_multi(*args, **kwargs):
+  kwargs.setdefault('interpreters', [vendor.setup_interpreter()])
+  return list(resolve_multi(*args, **kwargs))
 
 
 def test_empty_resolve():
-  empty_resolve_multi = list(resolve_multi([]))
+  empty_resolve_multi = do_resolve_multi([])
   assert empty_resolve_multi == []
 
   with temporary_dir() as td:
-    empty_resolve_multi = list(resolve_multi([], cache=td))
+    empty_resolve_multi = do_resolve_multi([], cache=td)
     assert empty_resolve_multi == []
 
 
@@ -32,7 +37,7 @@ def test_simple_local_resolve():
   with temporary_dir() as td:
     safe_copy(project_sdist, os.path.join(td, os.path.basename(project_sdist)))
     fetchers = [Fetcher([td])]
-    resolved_dists = list(resolve_multi(['project'], fetchers=fetchers))
+    resolved_dists = do_resolve_multi(['project'], fetchers=fetchers)
     assert len(resolved_dists) == 1
 
 
@@ -46,9 +51,10 @@ def test_diamond_local_resolve_cached():
       safe_copy(sdist, os.path.join(dd, os.path.basename(sdist)))
     fetchers = [Fetcher([dd])]
     with temporary_dir() as cd:
-      resolved_dists = list(
-        resolve_multi(['project1', 'project2'], fetchers=fetchers, cache=cd, cache_ttl=1000)
-      )
+      resolved_dists = do_resolve_multi(['project1', 'project2'],
+                                        fetchers=fetchers,
+                                        cache=cd,
+                                        cache_ttl=1000)
       assert len(resolved_dists) == 2
 
 
@@ -63,24 +69,20 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
     fetchers = [Fetcher([td])]
     with temporary_dir() as cd:
       # First run, pinning 1.0.0 in the cache
-      resolved_dists = list(
-        resolve_multi(['project', 'project==1.0.0'],
-                      fetchers=fetchers,
-                      cache=cd,
-                      cache_ttl=1000)
-      )
+      resolved_dists = do_resolve_multi(['project', 'project==1.0.0'],
+                                        fetchers=fetchers,
+                                        cache=cd,
+                                        cache_ttl=1000)
       assert len(resolved_dists) == 1
       assert resolved_dists[0].distribution.version == '1.0.0'
       # This simulates separate invocations of pex but allows us to keep the same tmp cache dir
       Crawler.reset_cache()
       # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should also
       # return SourcePackages found in td
-      resolved_dists = list(
-        resolve_multi(['project', 'project==1.1.0'],
-                      fetchers=fetchers,
-                      cache=cd,
-                      cache_ttl=1000)
-      )
+      resolved_dists = do_resolve_multi(['project', 'project==1.1.0'],
+                                        fetchers=fetchers,
+                                        cache=cd,
+                                        cache_ttl=1000)
       assert len(resolved_dists) == 1
       assert resolved_dists[0].distribution.version == '1.1.0'
       # Third run, if exact resolvable and inexact resolvable, and cache_ttl is expired, exact
@@ -88,12 +90,10 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
       # resolvable_set.merge() would fail.
       Crawler.reset_cache()
       time.sleep(1)
-      resolved_dists = list(
-        resolve_multi(['project', 'project==1.1.0'],
-                      fetchers=fetchers,
-                      cache=cd,
-                      cache_ttl=1)
-      )
+      resolved_dists = do_resolve_multi(['project', 'project==1.1.0'],
+                                        fetchers=fetchers,
+                                        cache=cd,
+                                        cache_ttl=1)
       assert len(resolved_dists) == 1
       assert resolved_dists[0].distribution.version == '1.1.0'
 
@@ -110,12 +110,10 @@ def test_ambiguous_transitive_resolvable():
       safe_copy(sdist, os.path.join(td, os.path.basename(sdist)))
     fetchers = [Fetcher([td])]
     with temporary_dir() as cd:
-      resolved_dists = list(
-        resolve_multi(['foo', 'bar'],
-                      fetchers=fetchers,
-                      cache=cd,
-                      cache_ttl=1000)
-      )
+      resolved_dists = do_resolve_multi(['foo', 'bar'],
+                                        fetchers=fetchers,
+                                        cache=cd,
+                                        cache_ttl=1000)
       assert len(resolved_dists) == 2
       assert resolved_dists[0].distribution.version == '1.0.0'
 
@@ -130,9 +128,7 @@ def test_resolve_prereleases():
     fetchers = [Fetcher([td])]
 
     def assert_resolve(expected_version, **resolve_kwargs):
-      resolved_dists = list(
-        resolve_multi(['dep>=1,<4'], fetchers=fetchers, **resolve_kwargs)
-      )
+      resolved_dists = do_resolve_multi(['dep>=1,<4'], fetchers=fetchers, **resolve_kwargs)
       assert 1 == len(resolved_dists)
       resolved_dist = resolved_dists[0]
       assert expected_version == resolved_dist.distribution.version
@@ -153,9 +149,7 @@ def test_resolve_prereleases_cached():
 
     with temporary_dir() as cd:
       def assert_resolve(dep, expected_version, **resolve_kwargs):
-        resolved_dists = list(
-          resolve_multi([dep], cache=cd, cache_ttl=1000, **resolve_kwargs)
-        )
+        resolved_dists = do_resolve_multi([dep], cache=cd, cache_ttl=1000, **resolve_kwargs)
         assert 1 == len(resolved_dists)
         resolved_dist = resolved_dists[0]
         assert expected_version == resolved_dist.distribution.version
@@ -185,9 +179,7 @@ def test_resolve_prereleases_and_no_version():
     fetchers = [Fetcher([td])]
 
     def assert_resolve(deps, expected_version, **resolve_kwargs):
-      resolved_dists = list(
-        resolve_multi(deps, fetchers=fetchers, **resolve_kwargs)
-      )
+      resolved_dists = do_resolve_multi(deps, fetchers=fetchers, **resolve_kwargs)
       assert 1 == len(resolved_dists)
       resolved_dist = resolved_dists[0]
       assert expected_version == resolved_dist.distribution.version
@@ -216,11 +208,9 @@ def test_resolve_prereleases_multiple_set():
     fetchers = [Fetcher([td])]
 
     def assert_resolve(expected_version, **resolve_kwargs):
-      resolved_dists = list(
-        resolve_multi(['dep>=3.0.0rc1', 'dep==3.0.0rc4'],
-                      fetchers=fetchers,
-                      **resolve_kwargs)
-      )
+      resolved_dists = do_resolve_multi(['dep>=3.0.0rc1', 'dep==3.0.0rc4'],
+                                        fetchers=fetchers,
+                                        **resolve_kwargs)
       assert 1 == len(resolved_dists)
       resolved_dist = resolved_dists[0]
       assert expected_version == resolved_dist.distribution.version
