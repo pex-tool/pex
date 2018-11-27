@@ -30,6 +30,17 @@ from pex.tracer import TRACER
 from pex.util import CacheHelper, DistributionHelper
 
 
+def _import_pkg_resources():
+  try:
+    import pkg_resources
+    return pkg_resources, False
+  except ImportError:
+    from pex import third_party
+    third_party.install(expose=['setuptools'])
+    import pkg_resources
+    return pkg_resources, True
+
+
 class PEXEnvironment(Environment):
   class _CachingZipImporter(object):
     class _CachingLoader(object):
@@ -52,7 +63,7 @@ class PEXEnvironment(Environment):
     @classmethod
     def _ensure_namespace_handler_registered(cls):
       if not cls._REGISTERED:
-        import pkg_resources
+        pkg_resources, _ = _import_pkg_resources()
         pkg_resources.register_namespace_handler(cls, pkg_resources.file_ns_handler)
         cls._REGISTERED = True
 
@@ -70,11 +81,19 @@ class PEXEnvironment(Environment):
 
   @classmethod
   def _install_pypy_zipimporter_workaround(cls, pex_file):
+    # The pypy zipimporter implementation always freshly loads a module instead of re-importing
+    # when the module already exists in sys.modules. This breaks the PEP-302 importer protocol and
+    # violates pkg_resources assumptions based on that protocol in its handling of namespace
+    # packages. See: https://bitbucket.org/pypy/pypy/issues/1686
+
     def pypy_zipimporter_workaround(path):
       import os
 
       if not path.startswith(pex_file) or '.' in os.path.relpath(path, pex_file):
         # We only need to claim the pex zipfile root modules.
+        #
+        # The protocol is to raise if we don't want to hook the given path.
+        # See: https://www.python.org/dev/peps/pep-0302/#specification-part-2-registering-hooks
         raise ImportError()
 
       return cls._CachingZipImporter(path)
@@ -112,6 +131,7 @@ class PEXEnvironment(Environment):
   @classmethod
   def update_module_paths(cls, pex_file, explode_dir):
     bootstrap = Bootstrap.locate()
+    pex_path = os.path.realpath(pex_file)
 
     # Un-import any modules already loaded from within the .pex file.
     to_reimport = []
@@ -121,12 +141,13 @@ class PEXEnvironment(Environment):
         continue
 
       pkg_path = getattr(module, '__path__', None)
-      if pkg_path and any(path_item.startswith(pex_file) for path_item in pkg_path):
+      if pkg_path and any(os.path.realpath(path_item).startswith(pex_path)
+                          for path_item in pkg_path):
         sys.modules.pop(name)
         to_reimport.append((name, pkg_path, True))
       elif name != '__main__':  # The __main__ module is special in python and is not re-importable.
         mod_file = getattr(module, '__file__', None)
-        if mod_file and mod_file.startswith(pex_file):
+        if mod_file and os.path.realpath(mod_file).startswith(pex_path):
           sys.modules.pop(name)
           to_reimport.append((name, mod_file, False))
 
@@ -204,6 +225,7 @@ class PEXEnvironment(Environment):
     self._supported_tags = []
 
     # For the bug this works around, see: https://bitbucket.org/pypy/pypy/issues/1686
+    # NB: This must be installed early before the underlying pex is loaded in any way.
     if self._interpreter.identity.abbr_impl == 'pp' and zipfile.is_zipfile(self._pex):
       self._install_pypy_zipimporter_workaround(self._pex)
 
@@ -285,8 +307,8 @@ class PEXEnvironment(Environment):
 
     return resolveds
 
-  @classmethod
-  def _declare_namespace_packages(cls, dist):
+  @staticmethod
+  def _declare_namespace_packages(dist):
     if not dist.has_metadata('namespace_packages.txt'):
       return  # Nothing to do here.
 
@@ -301,12 +323,8 @@ class PEXEnvironment(Environment):
     # on, and then fall back to our vendored version only if not present. This is safe, since we'll
     # only introduce our shaded version when no other standard version is present and even then tear
     # it all down when we hand off from the bootstrap to user code.
-    try:
-      import pkg_resources
-    except ImportError:
-      from pex import third_party
-      third_party.install(expose=['setuptools'])
-      import pkg_resources
+    pkg_resources, vendored = _import_pkg_resources()
+    if vendored:
       warnings.warn('The `pkg_resources` package was loaded from a pex vendored version when '
                     'declaring namespace packages defined by {dist}. The {dist} distribution '
                     'should fix its `install_requires` to include `setuptools`'.format(dist=dist))
