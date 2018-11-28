@@ -26,11 +26,12 @@ class Bootstrap(object):
       for _ in module_import_path:
         bootstrap_path = os.path.dirname(bootstrap_path)
 
-      cls._INSTANCE = cls(location=bootstrap_path)
+      cls._INSTANCE = cls(sys_path_entry=bootstrap_path)
     return cls._INSTANCE
 
-  def __init__(self, location):
-    self._location = os.path.realpath(location)
+  def __init__(self, sys_path_entry):
+    self._sys_path_entry = sys_path_entry
+    self._realpath = os.path.realpath(self._sys_path_entry)
 
   def demote(self):
     """Demote the bootstrap code to the end of the `sys.path` so it is found last.
@@ -45,8 +46,8 @@ class Bootstrap(object):
       if self.imported_from_bootstrap(module):
         unimported_modules.append(sys.modules.pop(name))
 
-    sys.path.remove(self._location)
-    sys.path.append(self._location)
+    sys.path.remove(self._sys_path_entry)
+    sys.path.append(self._sys_path_entry)
 
     return unimported_modules
 
@@ -60,15 +61,17 @@ class Bootstrap(object):
 
     # A vendored module.
     path = getattr(module, '__file__', None)
-    if path and os.path.realpath(path).startswith(self._location):
+    if path and os.path.realpath(path).startswith(self._realpath):
       return True
 
     # A vendored package.
     path = getattr(module, '__path__', None)
-    if path and any(os.path.realpath(path_item).startswith(self._location) for path_item in path):
+    if path and any(os.path.realpath(path_item).startswith(self._realpath)
+                    for path_item in path):
       return True
 
     return False
 
   def __repr__(self):
-    return '{cls}(location={location!r})'.format(cls=type(self).__name__, location=self._location)
+    return '{cls}(sys_path_entry={sys_path_entry!r})'.format(cls=type(self).__name__,
+                                                             sys_path_entry=self._sys_path_entry)
