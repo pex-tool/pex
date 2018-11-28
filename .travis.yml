@@ -92,101 +92,101 @@ matrix:
     - <<: *x-linux-shard
       name: TOXENV=style
       env: *x-py27
-      script: ./scripts/ci.sh style
+      script: tox -ve style
 
     - <<: *x-linux-shard
       name: TOXENV=isort-check
       env: *x-py27
-      script: ./scripts/ci.sh isort-check
+      script: tox -ve isort-check
 
     - <<: *x-linux-shard
       name: TOXENV=py27
       env: *x-py27
-      script: ./scripts/ci.sh py27
+      script: tox -ve py27
 
     - <<: *x-linux-shard
       name: TOXENV=py27-subprocess
       env: *x-py27
-      script: ./scripts/ci.sh py27-subprocess
+      script: tox -ve py27-subprocess
 
     - <<: *x-linux-shard
       name: TOXENV=py27-requests
       env: *x-py27
-      script: ./scripts/ci.sh py27-requests
+      script: tox -ve py27-requests
 
     - <<: *x-linux-shard
       name: TOXENV=py27-requests-cachecontrol
       env: *x-py27
-      script: ./scripts/ci.sh py27-requests-cachecontrol
+      script: tox -ve py27-requests-cachecontrol
 
     - <<: *x-linux-shard
       name: TOXENV=py34
       env:
         - *env
         - PYENV_VERSION=3.4.9
-      script: ./scripts/ci.sh py34
+      script: tox -ve py34
 
     - <<: *x-linux-shard
       name: TOXENV=py35
       env:
         - *env
         - PYENV_VERSION=3.5.6
-      script: ./scripts/ci.sh py35
+      script: tox -ve py35
 
     - <<: *x-linux-shard
       name: TOXENV=py36
       env:
         - *env
         - PYENV_VERSION=3.6.6
-      script: ./scripts/ci.sh py36
+      script: tox -ve py36
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37
-      script: ./scripts/ci.sh py37
+      script: tox -ve py37
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37-requests
-      script: ./scripts/ci.sh py37-requests
+      script: tox -ve py37-requests
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37-requests-cachecontrol
-      script: ./scripts/ci.sh py37-requests-cachecontrol
+      script: tox -ve py37-requests-cachecontrol
 
     - <<: *x-linux-shard
       name: TOXENV=pypy
       env: *x-pypy
-      script: ./scripts/ci.sh pypy
+      script: tox -ve pypy
 
     - <<: *x-linux-shard
       name: TOXENV=py27-integration
       env: *x-py27
-      script: ./scripts/ci.sh py27-integration
+      script: tox -ve py27-integration
 
     - <<: *x-linux-37-shard
       name: TOXENV=py37-integration
-      script: ./scripts/ci.sh py37-integration
+      script: tox -ve py37-integration
 
     - <<: *x-linux-shard
       name: TOXENV=pypy-integration
       env: *x-pypy
-      script: ./scripts/ci.sh pypy-integration
+      script: tox -ve pypy-integration
 
     - <<: *x-osx-shard
       name: TOXENV=py27-requests
       env: *x-py27
-      script: ./scripts/ci.sh py27-requests
+      script: tox -ve py27-requests
 
     - <<: *x-osx-shard
       name: TOXENV=py37-requests
       env: *x-py37
-      script: ./scripts/ci.sh py37-requests
+      script: tox -ve py37-requests
 
     - <<: *x-osx-shard
       name: TOXENV=py27-integration
       env: *x-py27
-      script: ./scripts/ci.sh py27-integration
+      script: tox -ve py27-integration
 
     - <<: *x-osx-shard
       name: TOXENV=py37-integration
       env: *x-py37
-      script: ./scripts/ci.sh py37-integration
+      script: tox -ve py37-integration

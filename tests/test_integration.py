@@ -1196,3 +1196,13 @@ def test_setup_python_multiple_direct_markers():
       subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py36_interpreter)))
 
     subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py27_interpreter)))
+
+
+def test_force_local_implicit_ns_packages_issues_598():
+  # This was a minimal repro for the issue documented in #598.
+  with temporary_dir() as out:
+    tcl_pex = os.path.join(out, 'tcl.pex')
+    run_pex_command(['twitter.common.lang==0.3.9', '-o', tcl_pex])
+
+    subprocess.check_call([tcl_pex, '-c', 'from twitter.common.lang import Singleton'],
+                          env=make_env(PEX_FORCE_LOCAL='1', PEX_PATH=tcl_pex))

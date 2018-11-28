@@ -4,13 +4,13 @@
 from __future__ import absolute_import, print_function
 
 import os
-import pkgutil
 import sys
 from distutils import sysconfig
 from site import USER_SITE
 
 import pex.third_party.pkg_resources as pkg_resources
 from pex import third_party
+from pex.bootstrap import Bootstrap
 from pex.common import die
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
@@ -163,7 +163,7 @@ class PEX(object):  # noqa: T000
     metadata such as *.dist-info/namespace_packages.txt.  This can possibly cause namespace
     packages to leak into imports despite being scrubbed from sys.path.
 
-    NOTE: This method mutates modules' __path__ attributes in sys.module, so this is currently an
+    NOTE: This method mutates modules' __path__ attributes in sys.modules, so this is currently an
     irreversible operation.
     """
 
@@ -176,7 +176,7 @@ class PEX(object):  # noqa: T000
         new_modules[module_name] = module
         continue
 
-      # Unexpected objects, e.g. namespace packages, should just be dropped:
+      # Unexpected objects, e.g. PEP 420 namespace packages, should just be dropped.
       if not isinstance(module.__path__, list):
         TRACER.log('Dropping %s' % (module_name,), V=3)
         continue
@@ -403,40 +403,22 @@ class PEX(object):  # noqa: T000
   def demote_bootstrap(cls):
     TRACER.log('Bootstrap complete, performing final sys.path modifications...')
 
-    bootstrap_path = __file__
-    module_import_path = __name__.split('.')
-
-    # For example, our __file__ might be requests.pex/.bootstrap/pex/pex.pyc and our import path
-    # pex.pex; so we walk back through all the module components of our import path to find the
-    # base sys.path entry where we were found (requests.pex/.bootstrap in this example).
-    for _ in module_import_path:
-      bootstrap_path = os.path.dirname(bootstrap_path)
-    bootstrap_path_index = sys.path.index(bootstrap_path)
-
     should_log = {level: TRACER.should_log(V=level) for level in range(1, 10)}
 
     def log(msg, V=1):
       if should_log.get(V, False):
         print('pex: {}'.format(msg), file=sys.stderr)
 
-    # Move the third party resources pex uses to the end of sys.path for the duration of the run to
-    # allow conflicting versions supplied by user dependencies to win during the course of the
-    # execution of user code.
+    # Remove the third party resources pex uses and demote pex bootstrap code to the end of
+    # sys.path for the duration of the run to allow conflicting versions supplied by user
+    # dependencies to win during the course of the execution of user code.
     unregister_finders()
     third_party.uninstall()
-    for _, mod, _ in pkgutil.iter_modules([bootstrap_path]):
-      if mod in sys.modules:
-        log('Un-importing bootstrap dependency %s from %s' % (mod, bootstrap_path), V=2)
-        sys.modules.pop(mod)
-        log('un-imported {}'.format(mod), V=9)
 
-        submod_prefix = mod + '.'
-        for submod in sorted(m for m in sys.modules.keys() if m.startswith(submod_prefix)):
-          sys.modules.pop(submod)
-          log('un-imported {}'.format(submod), V=9)
-
-    sys.path.pop(bootstrap_path_index)
-    sys.path.append(bootstrap_path)
+    bootstrap = Bootstrap.locate()
+    log('Demoting code from %s' % bootstrap, V=2)
+    for module in bootstrap.demote():
+      log('un-imported {}'.format(module), V=9)
 
     import pex
     log('Re-imported pex from {}'.format(pex.__path__), V=3)
