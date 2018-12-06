@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.6.0
+-----
+
+* Fix pex force local to handle PEP 420. (#613)
+  `PR #613 <https://github.com/pantsbuild/pex/pull/613>`_
+
+* Vendor ``setuptools`` and ``wheel``. (#624)
+  `PR #624 <https://github.com/pantsbuild/pex/pull/624>`_
+
 1.5.3
 -----
 
