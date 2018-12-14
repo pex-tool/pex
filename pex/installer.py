@@ -37,7 +37,10 @@ class InstallerBase(object):
     self._source_dir = source_dir
     self._install_tmp = install_dir or safe_mkdtemp()
     self._installed = None
-    self._interpreter = interpreter or PythonInterpreter.get()
+
+    from pex import vendor
+    self._interpreter = vendor.setup_interpreter(distributions=self.mixins,
+                                                 interpreter=interpreter or PythonInterpreter.get())
     if not self._interpreter.satisfies(self.mixins):
       raise self.IncapableInterpreter('Interpreter %s not capable of running %s' % (
           self._interpreter.binary, self.__class__.__name__))

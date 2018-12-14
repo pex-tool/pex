@@ -9,7 +9,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex import resolver, vendor
+from pex import resolver
 from pex.compatibility import PY2, nested, to_bytes
 from pex.environment import PEXEnvironment
 from pex.installer import EggInstaller, WheelInstaller
@@ -31,7 +31,6 @@ from pex.testing import (
 
 @contextmanager
 def yield_pex_builder(zip_safe=True, installer_impl=EggInstaller, interpreter=None):
-  interpreter = vendor.setup_interpreter(interpreter=interpreter)
   with nested(temporary_dir(),
               make_bdist('p1',
                          zipped=True,
@@ -139,7 +138,6 @@ def assert_force_local_implicit_ns_packages_issues_598(interpreter=None,
       for path in content.keys():
         builder.add_source(os.path.join(project, path), path)
 
-  interpreter = vendor.setup_interpreter(interpreter=interpreter)
   with nested(temporary_dir(), temporary_dir()) as (root, cache):
     pex_info1 = PexInfo.default()
     pex_info1.zip_safe = False

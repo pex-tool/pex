@@ -7,9 +7,9 @@ import subprocess
 from textwrap import dedent
 
 import pex.third_party.pkg_resources as pkg_resources
-from pex import vendor
 from pex.common import open_zip
 from pex.installer import DistributionPackager, WheelInstaller, after_installation
+from pex.interpreter import PythonInterpreter
 from pex.testing import temporary_content
 
 
@@ -31,9 +31,9 @@ class BdistPexInstaller(DistributionPackager):
     return self.find_distribution()
 
 
-def bdist_pex_installer(source_dir, interpreter=None, bdist_args=None):
-  interpreter = vendor.setup_interpreter(interpreter=interpreter)
+def bdist_pex_installer(source_dir, bdist_args=None):
   pex_dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse('pex'))
+  interpreter = PythonInterpreter.get()
   interpreter = interpreter.with_extra(pex_dist.key, pex_dist.version, pex_dist.location)
   return BdistPexInstaller(source_dir=source_dir, interpreter=interpreter, bdist_args=bdist_args)
 
@@ -118,7 +118,7 @@ def test_unwriteable_contents():
                           'my_app/__init__.py': '',
                           'my_app/unwriteable.so': ''},
                          perms=UNWRITEABLE_PERMS) as my_app_project_dir:
-    my_app_whl = WheelInstaller(my_app_project_dir, vendor.setup_interpreter()).bdist()
+    my_app_whl = WheelInstaller(my_app_project_dir).bdist()
 
     uses_my_app_setup_py = bdist_pex_setup_py(name='uses_my_app',
                                               version='0.0.0',

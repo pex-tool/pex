@@ -13,7 +13,6 @@ import traceback
 from collections import namedtuple
 from textwrap import dedent
 
-from pex import vendor
 from pex.bin import pex as pex_bin_pex
 from pex.common import open_zip, safe_mkdir, safe_rmtree, touch
 from pex.compatibility import PY3, nested
@@ -140,7 +139,6 @@ def make_installer(name='my_project',
             'zip_safe': zip_safe,
             'install_requires': install_reqs or []}
   with temporary_content(PROJECT_CONTENT, interp=interp) as td:
-    interpreter = vendor.setup_interpreter(interpreter=interpreter)
     yield installer_impl(td, interpreter=interpreter, **kwargs)
 
 
@@ -210,7 +208,7 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False,
 
   pb = PEXBuilder(path=td,
                   preamble=COVERAGE_PREAMBLE if coverage else None,
-                  interpreter=vendor.setup_interpreter(interpreter=interpreter))
+                  interpreter=interpreter)
 
   for dist in dists:
     pb.add_dist_location(dist.location)
@@ -285,7 +283,7 @@ def run_pex_command(args, env=None):
 
 
 def run_simple_pex(pex, args=(), interpreter=None, stdin=None, **kwargs):
-  p = PEX(pex, interpreter=vendor.setup_interpreter(interpreter))
+  p = PEX(pex, interpreter=interpreter)
   process = p.run(args=args,
                   blocking=False,
                   stdin=subprocess.PIPE,
@@ -299,7 +297,6 @@ def run_simple_pex(pex, args=(), interpreter=None, stdin=None, **kwargs):
 
 def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False, interpreter=None):
   with nested(temporary_dir(), temporary_dir()) as (td1, td2):
-    interpreter = vendor.setup_interpreter(interpreter=interpreter)
     pb = write_simple_pex(td1, body, dists=dists, coverage=coverage, interpreter=interpreter)
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)

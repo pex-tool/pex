@@ -7,7 +7,6 @@ import subprocess
 from hashlib import sha1
 from textwrap import dedent
 
-from pex import vendor
 from pex.common import open_zip, safe_mkdir
 from pex.compatibility import nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
@@ -136,7 +135,7 @@ def assert_access_zipped_assets(distribution_helper_import):
           print(line)
   """.format(distribution_helper_import=distribution_helper_import))
   with nested(temporary_dir(), temporary_dir()) as (td1, td2):
-    pb = PEXBuilder(path=td1, interpreter=vendor.setup_interpreter())
+    pb = PEXBuilder(path=td1)
     with open(os.path.join(td1, 'exe.py'), 'w') as fp:
       fp.write(test_executable)
       pb.set_executable(fp.name)
