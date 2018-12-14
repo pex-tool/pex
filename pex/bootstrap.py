@@ -46,7 +46,7 @@ class Bootstrap(object):
       if self.imported_from_bootstrap(module):
         unimported_modules.append(sys.modules.pop(name))
 
-    sys.path.remove(self._sys_path_entry)
+    sys.path[:] = [path for path in sys.path if os.path.realpath(path) != self._realpath]
     sys.path.append(self._sys_path_entry)
 
     return unimported_modules

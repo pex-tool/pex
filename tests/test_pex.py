@@ -414,17 +414,16 @@ def test_execute_interpreter_file_program():
 
 
 def test_pex_run_custom_setuptools_useable():
-  with temporary_dir() as resolve_cache:
-    dists = [resolved_dist.distribution
-             for resolved_dist in resolve(['setuptools==36.2.7'], cache=resolve_cache)]
-    with temporary_dir() as temp_dir:
-      pex = write_simple_pex(
-        temp_dir,
-        'from setuptools.sandbox import run_setup',
-        dists=dists,
-      )
-      rc = PEX(pex.path()).run()
-      assert rc == 0
+  resolved_dists = resolve(['setuptools==36.2.7'], interpreter=vendor.setup_interpreter())
+  dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
+  with temporary_dir() as temp_dir:
+    pex = write_simple_pex(
+      temp_dir,
+      'from setuptools.sandbox import run_setup',
+      dists=dists,
+    )
+    rc = PEX(pex.path()).run()
+    assert rc == 0
 
 
 def test_pex_run_conflicting_custom_setuptools_useable():
@@ -436,29 +435,60 @@ def test_pex_run_conflicting_custom_setuptools_useable():
   # 2a3,4
   # > pkg_resources/py31compat.py
   # > pkg_resources/_vendor/appdirs.py
-  with temporary_dir() as resolve_cache:
-    dists = [resolved_dist.distribution
-             for resolved_dist in resolve(['setuptools==20.3.1'], cache=resolve_cache)]
-    with temporary_dir() as temp_dir:
-      pex = write_simple_pex(
-        temp_dir,
-        exe_contents=textwrap.dedent("""
-          import sys
+
+  resolved_dists = resolve(['setuptools==20.3.1'], interpreter=vendor.setup_interpreter())
+  dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
+  with temporary_dir() as temp_dir:
+    pex = write_simple_pex(
+      temp_dir,
+      exe_contents=textwrap.dedent("""
+        import sys
+        import pkg_resources
+
+        try:
+          from pkg_resources import appdirs
+          sys.exit(1)
+        except ImportError:
+          pass
+
+        try:
+          from pkg_resources import py31compat
+          sys.exit(2)
+        except ImportError:
+          pass
+      """),
+      dists=dists,
+    )
+    rc = PEX(pex.path()).run(env={'PEX_VERBOSE': '9'})
+    assert rc == 0
+
+
+def test_pex_run_custom_pex_useable():
+  old_pex_version = '0.7.0'
+  resolved_dists = resolve(['pex=={}'.format(old_pex_version), 'setuptools==40.6.3'],
+                           interpreter=vendor.setup_interpreter())
+  dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
+  with temporary_dir() as temp_dir:
+    from pex.version import __version__
+    pex = write_simple_pex(
+      temp_dir,
+      exe_contents=textwrap.dedent("""
+        import sys
+
+        try:
+          # The 0.7.0 release embedded the version directly in setup.py so it should only be
+          # available via distribution metadata.
+          from pex.version import __version__
+          sys.exit(1)
+        except ImportError:
           import pkg_resources
-          
-          try:
-            from pkg_resources import appdirs
-            sys.exit(1)
-          except ImportError:
-            pass
-  
-          try:
-            from pkg_resources import py31compat
-            sys.exit(2)
-          except ImportError:
-            pass
-        """),
-        dists=dists,
-      )
-      rc = PEX(pex.path()).run(env={'PEX_VERBOSE': '9'})
-      assert rc == 0
+          dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse('pex'))
+          print(dist.version)
+      """),
+      dists=dists,
+    )
+    process = PEX(pex.path()).run(blocking=False, stdout=subprocess.PIPE)
+    stdout, _ = process.communicate()
+    assert process.returncode == 0
+    assert old_pex_version == stdout.strip().decode('utf-8')
+    assert old_pex_version != __version__
