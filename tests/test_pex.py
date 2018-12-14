@@ -492,4 +492,3 @@ def test_pex_run_custom_pex_useable():
     assert process.returncode == 0
     assert old_pex_version == stdout.strip().decode('utf-8')
     assert old_pex_version != __version__
-
