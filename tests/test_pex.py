@@ -410,7 +410,7 @@ def test_execute_interpreter_file_program():
 
 
 def test_pex_run_custom_setuptools_useable():
-  resolved_dists = resolve(['setuptools==36.2.7'], interpreter=vendor.setup_interpreter())
+  resolved_dists = resolve(['setuptools==36.2.7'])
   dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
   with temporary_dir() as temp_dir:
     pex = write_simple_pex(
@@ -432,7 +432,7 @@ def test_pex_run_conflicting_custom_setuptools_useable():
   # > pkg_resources/py31compat.py
   # > pkg_resources/_vendor/appdirs.py
 
-  resolved_dists = resolve(['setuptools==20.3.1'], interpreter=vendor.setup_interpreter())
+  resolved_dists = resolve(['setuptools==20.3.1'])
   dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
   with temporary_dir() as temp_dir:
     pex = write_simple_pex(
@@ -461,8 +461,7 @@ def test_pex_run_conflicting_custom_setuptools_useable():
 
 def test_pex_run_custom_pex_useable():
   old_pex_version = '0.7.0'
-  resolved_dists = resolve(['pex=={}'.format(old_pex_version), 'setuptools==40.6.3'],
-                           interpreter=vendor.setup_interpreter())
+  resolved_dists = resolve(['pex=={}'.format(old_pex_version), 'setuptools==40.6.3'])
   dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
   with temporary_dir() as temp_dir:
     from pex.version import __version__
