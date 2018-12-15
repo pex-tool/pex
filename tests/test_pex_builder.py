@@ -6,7 +6,6 @@ import stat
 
 import pytest
 
-from pex import vendor
 from pex.common import open_zip
 from pex.compatibility import WINDOWS, nested
 from pex.pex import PEX
@@ -79,13 +78,9 @@ def test_pex_builder_wheeldep():
       assert fp.read() == 'success'
 
 
-def pex_builder(interpreter=None, **kwargs):
-  return PEXBuilder(interpreter=vendor.setup_interpreter(interpreter), **kwargs)
-
-
 def test_pex_builder_shebang():
   def builder(shebang):
-    pb = pex_builder()
+    pb = PEXBuilder()
     pb.set_shebang(shebang)
     return pb
 
@@ -110,7 +105,7 @@ def test_pex_builder_preamble():
       "sys.exit(3)"
     ])
 
-    pb = pex_builder(preamble=tempfile_preamble)
+    pb = PEXBuilder(preamble=tempfile_preamble)
     pb.build(target)
 
     assert not os.path.exists(should_create)
@@ -134,7 +129,7 @@ def test_pex_builder_compilation():
       fp.write(exe_main)
 
     def build_and_check(path, precompile):
-      pb = pex_builder(path=path)
+      pb = PEXBuilder(path=path)
       pb.add_source(src, 'lib/src.py')
       pb.set_executable(exe, 'exe.py')
       pb.freeze(bytecode_compile=precompile)
@@ -165,7 +160,7 @@ def test_pex_builder_copy_or_link():
       fp.write(exe_main)
 
     def build_and_check(path, copy):
-      pb = pex_builder(path=path, copy=copy)
+      pb = PEXBuilder(path=path, copy=copy)
       pb.add_source(src, 'exe.py')
 
       path_clone = os.path.join(path, '__clone')

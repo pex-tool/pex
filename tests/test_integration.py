@@ -11,7 +11,6 @@ from textwrap import dedent
 
 import pytest
 
-from pex import vendor
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller
 from pex.pex_bootstrapper import get_pex_info
@@ -162,7 +161,7 @@ def test_entry_point_exit_code():
   """ % error_msg)
 
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
-    installer = EggInstaller(project_dir, interpreter=vendor.setup_interpreter())
+    installer = EggInstaller(project_dir)
     dist = DistributionHelper.distribution_from_path(installer.bdist())
     so, rc = run_simple_pex_test('', env=make_env(PEX_SCRIPT='my_app'), dists=[dist])
     assert so.decode('utf-8').strip() == error_msg

@@ -13,7 +13,6 @@ import sys
 from optparse import OptionGroup, OptionParser, OptionValueError
 from textwrap import TextWrapper
 
-from pex import vendor
 from pex.common import die, safe_delete, safe_mkdtemp
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.interpreter import PythonInterpreter
@@ -524,11 +523,7 @@ def build_pex(args, options, resolver_option_builder):
     pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
     interpreters = find_compatible_interpreters(pex_python_path, constraints)
 
-  setup_interpreters = [vendor.setup_interpreter(interpreter=interp,
-                                                 include_wheel=options.use_wheel)
-                        for interp in interpreters]
-
-  if not setup_interpreters:
+  if not interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
   try:
@@ -538,7 +533,7 @@ def build_pex(args, options, resolver_option_builder):
     # options.preamble_file is None
     preamble = None
 
-  interpreter = min(setup_interpreters)
+  interpreter = min(interpreters)
 
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
@@ -587,7 +582,7 @@ def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving distributions'):
     try:
       resolveds = resolve_multi(resolvables,
-                                interpreters=setup_interpreters,
+                                interpreters=interpreters,
                                 platforms=options.platforms,
                                 cache=options.cache_dir,
                                 cache_ttl=options.cache_ttl,

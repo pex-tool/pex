@@ -7,6 +7,7 @@ import collections
 import os
 
 from pex.common import touch
+from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 
 
@@ -71,41 +72,43 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version'])):
       touch(os.path.join(self.ROOT, *relpath))
 
 
-def iter_vendor_specs(include_wheel=True):
+def iter_vendor_specs():
   """Iterate specifications for code vendored by pex.
 
-  :param bool include_wheel: If ``True`` include the vendored wheel spec.
-  :return: An iterator over specs of all vendored code optionally including ``wheel``.
+  :return: An iterator over specs of all vendored code.
   :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
   """
   yield VendorSpec.create('setuptools==40.6.2')
-  if include_wheel:
-    # We're currently stuck here due to removal of an API we depend on.
-    # See: https://github.com/pantsbuild/pex/issues/603
-    yield VendorSpec.create('wheel==0.31.1')
+
+  # We're currently stuck here due to removal of an API we depend on.
+  # See: https://github.com/pantsbuild/pex/issues/603
+  yield VendorSpec.create('wheel==0.31.1')
 
 
-def _vendored_dists(include_wheel=True):
-  entries = [spec.target_dir for spec in iter_vendor_specs(include_wheel=include_wheel)]
+def _vendored_dists(distributions):
+  entries = [spec.target_dir for spec in iter_vendor_specs() if spec.key in distributions]
 
   import pex.third_party.pkg_resources as pkg_resources
   return list(pkg_resources.WorkingSet(entries=entries))
 
 
-def setup_interpreter(interpreter=None, include_wheel=True):
+def setup_interpreter(distributions, interpreter=None):
   """Return an interpreter configured with vendored distributions as extras.
 
-  :param interpreter: An option interpreter to configure. If ``None``, the current interpreter is
+  Any distributions that are present in the vendored set will be added to the interpreter as extras.
+
+  :param distributions: The names of distributions to setup the interpreter with.
+  :type distributions: list of str
+  :param interpreter: An optional interpreter to configure. If ``None``, the current interpreter is
                       used.
   :type interpreter: :class:`pex.interpreter.PythonInterpreter`
-  :param bool include_wheel: If ``True`` include the vendored wheel distribution.
   :return: An bare interpreter configured with vendored extras.
   :rtype: :class:`pex.interpreter.PythonInterpreter`
   """
   from pex.interpreter import PythonInterpreter
 
   interpreter = interpreter or PythonInterpreter.get()
-  for dist in _vendored_dists(include_wheel=include_wheel):
+  for dist in _vendored_dists(OrderedSet(distributions)):
     interpreter = interpreter.with_extra(dist.key, dist.version, dist.location)
   return interpreter
 

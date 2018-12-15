@@ -4,7 +4,6 @@
 import os
 from contextlib import contextmanager
 
-from pex import vendor
 from pex.pex_builder import PEXBuilder
 from pex.testing import run_simple_pex, temporary_dir
 
@@ -21,7 +20,7 @@ def write_and_run_simple_pex(inheriting=False):
     with open(os.path.join(td, 'exe.py'), 'w') as fp:
       fp.write('')  # No contents, we just want the startup messages
 
-    pb = PEXBuilder(path=td, preamble=None, interpreter=vendor.setup_interpreter())
+    pb = PEXBuilder(path=td, preamble=None)
     pb.info.inherit_path = inheriting
     pb.set_executable(os.path.join(td, 'exe.py'))
     pb.freeze()

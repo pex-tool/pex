@@ -11,7 +11,6 @@ from types import ModuleType
 
 import pytest
 
-from pex import vendor
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
@@ -321,9 +320,7 @@ def test_pex_verify_entry_point_module_should_fail():
 def test_activate_interpreter_different_from_current():
   with temporary_dir() as pex_root:
     interp_version = PY36 if PY2 else PY27
-    custom_interpreter = vendor.setup_interpreter(
-      interpreter=PythonInterpreter.from_binary(ensure_python_interpreter(interp_version)),
-    )
+    custom_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(interp_version))
     pex_info = PexInfo.default(custom_interpreter)
     pex_info.pex_root = pex_root
     with temporary_dir() as pex_chroot:
@@ -359,15 +356,14 @@ def test_execute_interpreter_dashc_program():
 
 def test_execute_interpreter_dashm_module():
   with temporary_dir() as pex_chroot:
-    interpreter = vendor.setup_interpreter()
-    pex_builder = PEXBuilder(path=pex_chroot, interpreter=interpreter)
+    pex_builder = PEXBuilder(path=pex_chroot)
     pex_builder.add_source(None, 'foo/__init__.py')
     with tempfile.NamedTemporaryFile() as fp:
       fp.write(b'import sys; print(" ".join(sys.argv))')
       fp.flush()
       pex_builder.add_source(fp.name, 'foo/bar.py')
     pex_builder.freeze()
-    pex = PEX(pex_chroot, interpreter=vendor.setup_interpreter())
+    pex = PEX(pex_chroot)
     process = pex.run(args=['-m', 'foo.bar', 'one', 'two'],
                       stdout=subprocess.PIPE,
                       stderr=subprocess.PIPE,

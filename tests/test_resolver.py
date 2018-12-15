@@ -6,7 +6,6 @@ import time
 
 import pytest
 
-from pex import vendor
 from pex.common import safe_copy
 from pex.crawler import Crawler
 from pex.fetcher import Fetcher
@@ -18,7 +17,6 @@ from pex.testing import make_sdist, temporary_dir
 
 
 def do_resolve_multi(*args, **kwargs):
-  kwargs.setdefault('interpreters', [vendor.setup_interpreter()])
   return list(resolve_multi(*args, **kwargs))
 
 
