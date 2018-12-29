@@ -66,6 +66,10 @@ class Package(Link):
   def version(self):
     return parse_version(self.raw_version)
 
+  @property
+  def supported_tags(self):
+    return NotImplementedError
+
   def satisfies(self, requirement, allow_prereleases=None):
     """Determine whether this package matches the requirement.
 
@@ -137,6 +141,10 @@ class SourcePackage(Package):
   @property
   def raw_version(self):
     return safe_version(self._raw_version)
+
+  @property
+  def supported_tags(self):
+    return None
 
   # SourcePackages are always compatible as they can be translated to a distribution.
   def compatible(self, supported_tags):
