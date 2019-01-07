@@ -22,10 +22,21 @@ class Sorter(object):
     return -1
 
   @classmethod
+  def package_platform_tag_precedence(cls, package):
+    # Give all non 'any' tags higher precedence
+    supported_tags = package.supported_tags or []
+    platforms = set([tags[2] for tags in supported_tags])
+    if 'any' in platforms:
+      return -1
+    else:
+      return 0
+
+  @classmethod
   def package_precedence(cls, package, precedence=DEFAULT_PACKAGE_PRECEDENCE):
     return (
         package.version,  # highest version
         cls.package_type_precedence(package, precedence=precedence),  # type preference
+        cls.package_platform_tag_precedence(package),  # platform preference
         package.local)  # prefer not fetching over the wire
 
   def __init__(self, precedence=None):

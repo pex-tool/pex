@@ -7,6 +7,14 @@ from pex.sorter import Sorter
 from pex.third_party.pkg_resources import get_build_platform
 
 
+def test_wheel_precedence():
+  linux_whl = WheelPackage('protobuf-3.6.1-cp27-cp27mu-manylinux1_x86_64.whl')
+  none_whl = WheelPackage('protobuf-3.6.1-py2.py3-none-any.whl')
+
+  assert Sorter().sort([linux_whl, none_whl]) == [linux_whl, none_whl]
+  assert Sorter().sort([none_whl, linux_whl]) == [linux_whl, none_whl]
+
+
 def test_package_precedence():
   source = SourcePackage('psutil-0.6.1.tar.gz')
   egg = EggPackage('psutil-0.6.1-py2.6.egg')
@@ -20,7 +28,7 @@ def test_package_precedence():
   # overridden precedence
   PRECEDENCE = (EggPackage, WheelPackage)
   assert Sorter.package_precedence(source, PRECEDENCE) == (
-      source.version, -1, True)  # unknown rank
+      source.version, -1, 0, True)  # unknown rank
   assert Sorter.package_precedence(whl, PRECEDENCE) > Sorter.package_precedence(
       source, PRECEDENCE)
   assert Sorter.package_precedence(egg, PRECEDENCE) > Sorter.package_precedence(
