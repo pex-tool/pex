@@ -17,6 +17,7 @@ from pex.resolvable import (
 )
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.testing import make_source_dir
+from pex.util import normalized_name
 
 try:
   from unittest import mock
@@ -89,11 +90,11 @@ def test_resolvable_directory():
 
   with make_source_dir(name='my_project') as td:
     rdir = ResolvableDirectory.from_string(td, builder, interpreter)
-    assert rdir.name == pkg_resources.safe_name('my_project')
+    assert rdir.name == normalized_name('my_project')
     assert rdir.extras() == []
 
     rdir = ResolvableDirectory.from_string(td + '[extra1,extra2]', builder, interpreter)
-    assert rdir.name == pkg_resources.safe_name('my_project')
+    assert rdir.name == normalized_name('my_project')
     assert rdir.extras() == ['extra1', 'extra2']
 
 

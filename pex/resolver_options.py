@@ -10,8 +10,8 @@ from pex.installer import EggInstaller, WheelInstaller
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage, WheelPackage
 from pex.sorter import Sorter
-from pex.third_party.pkg_resources import safe_name
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
+from pex.util import normalized_name
 
 
 class ResolverOptionsInterface(object):
@@ -95,11 +95,11 @@ class ResolverOptionsBuilder(object):
     return self
 
   def allow_external(self, key):
-    self._allow_external.add(safe_name(key).lower())
+    self._allow_external.add(normalized_name(key))
     return self
 
   def allow_unverified(self, key):
-    self._allow_unverified.add(safe_name(key).lower())
+    self._allow_unverified.add(normalized_name(key))
     return self
 
   def use_wheel(self):

@@ -9,8 +9,8 @@ from pex.archiver import Archiver
 from pex.base import maybe_requirement
 from pex.link import Link
 from pex.pep425tags import get_supported
-from pex.third_party.pkg_resources import EGG_NAME, parse_version, safe_name, safe_version
-from pex.util import Memoizer
+from pex.third_party.pkg_resources import EGG_NAME, parse_version, safe_version
+from pex.util import Memoizer, normalized_name
 
 
 class Package(Link):
@@ -80,8 +80,8 @@ class Package(Link):
     :returns: True if the package matches the requirement, otherwise False
     """
     requirement = maybe_requirement(requirement)
-    link_name = safe_name(self.name).lower()
-    if link_name != requirement.key:
+    link_name = normalized_name(self.name)
+    if link_name != normalized_name(requirement.key):
       return False
 
     # NB: If we upgrade to setuptools>=34 the SpecifierSet used here (requirement.specifier) will
@@ -136,7 +136,7 @@ class SourcePackage(Package):
 
   @property
   def name(self):
-    return safe_name(self._name)
+    return normalized_name(self._name)
 
   @property
   def raw_version(self):
@@ -202,7 +202,7 @@ class EggPackage(BinaryPackage):
 
   @property
   def name(self):
-    return safe_name(self._name)
+    return normalized_name(self._name)
 
   @property
   def raw_version(self):

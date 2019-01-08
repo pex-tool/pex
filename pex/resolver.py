@@ -20,9 +20,9 @@ from pex.package import Package, distribution_compatible
 from pex.platforms import Platform
 from pex.resolvable import ResolvableRequirement, resolvables_from_iterable
 from pex.resolver_options import ResolverOptionsBuilder
-from pex.third_party.pkg_resources import Distribution, Requirement, safe_name
+from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
-from pex.util import DistributionHelper
+from pex.util import DistributionHelper, normalized_name
 
 
 @contextmanager
@@ -78,7 +78,7 @@ class _ResolvedPackages(namedtuple('_ResolvedPackages',
 class _ResolvableSet(object):
   @classmethod
   def normalize(cls, name):
-    return safe_name(name).lower()
+    return normalized_name(name)
 
   def __init__(self, tuples=None):
     # A list of _ResolvedPackages

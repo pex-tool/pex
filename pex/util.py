@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import contextlib
 import os
+import re
 import tempfile
 import uuid
 from hashlib import sha1
@@ -250,3 +251,14 @@ def iter_pth_paths(filename):
         if extras_dir_case_insensitive not in known_paths and os.path.exists(extras_dir):
           yield extras_dir
           known_paths.add(extras_dir_case_insensitive)
+
+
+def normalized_name(name):
+  """Return a PEP-503 normalized version of the given name.
+
+  See: https://www.python.org/dev/peps/pep-0503/#normalized-names
+
+  :param str name: The distribution name to normalize.
+  :rtype: str
+  """
+  return re.sub(r"[-_.]+", "-", name).lower()

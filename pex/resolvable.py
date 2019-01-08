@@ -14,6 +14,7 @@ from pex.installer import Packager, SetuptoolsInstallerBase
 from pex.package import Package
 from pex.resolver_options import ResolverOptionsBuilder, ResolverOptionsInterface
 from pex.third_party.pkg_resources import Requirement, safe_extra
+from pex.util import normalized_name
 
 # Extract extras as specified per "declaring extras":
 # https://pythonhosted.org/setuptools/setuptools.html
@@ -228,7 +229,7 @@ class ResolvableRequirement(Resolvable):
 
   @property
   def name(self):
-    return self.requirement.key
+    return normalized_name(self.requirement.key)
 
   @property
   def exact(self):
