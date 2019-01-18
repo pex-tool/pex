@@ -103,7 +103,7 @@ class WheelMetadata(pkg_resources.EggMetadata):
   @classmethod
   def _escape(cls, filename_component):
     # See: https://www.python.org/dev/peps/pep-0427/#escaping-and-unicode
-    return re.sub("[^\w\d.]+", "_", filename_component, re.UNICODE)
+    return re.sub(r"[^\w\d.]+", "_", filename_component, re.UNICODE)
 
   @classmethod
   def _split_wheelname(cls, wheelname):
