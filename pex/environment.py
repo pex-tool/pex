@@ -32,12 +32,12 @@ from pex.util import CacheHelper, DistributionHelper
 
 def _import_pkg_resources():
   try:
-    import pkg_resources
+    import pkg_resources  # vendor:skip
     return pkg_resources, False
   except ImportError:
     from pex import third_party
     third_party.install(expose=['setuptools'])
-    import pkg_resources
+    import pkg_resources  # vendor:skip
     return pkg_resources, True
 
 
