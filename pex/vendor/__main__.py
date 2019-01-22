@@ -5,17 +5,15 @@ from __future__ import absolute_import, print_function
 
 import os
 import pkgutil
-import shutil
 import subprocess
 import sys
-import tempfile
 from collections import OrderedDict
 
 from colors import bold, green, yellow
 from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
 from pex import third_party
-from pex.common import safe_delete
+from pex.common import safe_delete, safe_rmtree
 from pex.vendor import iter_vendor_specs
 
 
@@ -172,21 +170,21 @@ class VendorizeError(Exception):
 
 def vendorize(root_dir, vendor_specs, prefix):
   for vendor_spec in vendor_specs:
-    script_dev_null = tempfile.mkdtemp()
-    cmd = ['pip',
-           'install',
-           '--upgrade',
-           '--no-compile',
-           '--target', vendor_spec.target_dir,
-           '--install-option', '--install-scripts={}'.format(script_dev_null),
+    cmd = ['pip', 'install', '--upgrade', '--no-compile', '--target', vendor_spec.target_dir,
            vendor_spec.requirement]
     result = subprocess.call(cmd)
-    shutil.rmtree(script_dev_null)
     if result != 0:
       raise VendorizeError('Failed to vendor {!r}'.format(vendor_spec))
 
-    # We know we can get this as a by-product of a pip install but never need it.
+    # We know we can get these as a by-product of a pip install but never need them.
+    safe_rmtree(os.path.join(vendor_spec.target_dir, 'bin'))
     safe_delete(os.path.join(vendor_spec.target_dir, 'easy_install.py'))
+
+    # The RECORD contains file hashes of all installed files and is unfortunately unstable in the
+    # case of scripts which get a shebang added with a system-specific path to the python
+    # interpreter to execute.
+    safe_delete(os.path.join(vendor_spec.target_dir,
+                             '{}-{}.dist-info/RECORD'.format(vendor_spec.key, vendor_spec.version)))
 
     vendor_spec.create_packages()
 
