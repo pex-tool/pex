@@ -1,6 +1,24 @@
 Release Notes
 =============
 
+1.6.1
+-----
+
+* Make tox -evendor idempotent. (#651)
+  `PR #651 <https://github.com/pantsbuild/pex/pull/651>`_
+
+* Fix invalid regex and escape sequences causing DeprecationWarning (#646)
+  `PR #646 <https://github.com/pantsbuild/pex/pull/646>`_
+
+* Follow PEP 425 suggestions on distribution preference. (#640)
+  `PR #640 <https://github.com/pantsbuild/pex/pull/640>`_
+
+* Setup interpreter extras in InstallerBase. (#635)
+  `PR #635 <https://github.com/pantsbuild/pex/pull/635>`_
+
+* Ensure bootstrap demotion is complete. (#634)
+  `PR #634 <https://github.com/pantsbuild/pex/pull/634>`_
+
 1.6.0
 -----
 
