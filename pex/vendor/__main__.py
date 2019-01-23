@@ -10,7 +10,7 @@ import sys
 from collections import OrderedDict
 
 from colors import bold, green, yellow
-from redbaron import LiteralyEvaluable, NameNode, RedBaron
+from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
 from pex import third_party
 from pex.common import safe_delete, safe_rmtree
@@ -31,6 +31,14 @@ class ImportRewriter(object):
       # NB: RedBaron is used instead of ``ast`` since it can round-trip from source code without
       # losing formatting. See: https://github.com/PyCQA/redbaron
       return RedBaron(fp.read())
+
+  @staticmethod
+  def _skip(node):
+    next_node = node.next_recursive
+    if isinstance(next_node, CommentNode) and next_node.value.strip() == '# vendor:skip':
+      print('Skipping {} as directed by {}'.format(node, next_node))
+      return True
+    return False
 
   @staticmethod
   def _find_literal_node(statement, call_argument):
@@ -78,6 +86,9 @@ class ImportRewriter(object):
   def _modify__import__calls(self, red_baron):  # noqa: We want __import__ as part of the name.
     for call_node in red_baron.find_all('CallNode'):
       if call_node.previous and call_node.previous.value == '__import__':
+        if self._skip(call_node):
+          continue
+
         parent = call_node.parent_find('AtomtrailersNode')
         original = parent.copy()
         first_argument = call_node[0]
@@ -91,6 +102,9 @@ class ImportRewriter(object):
 
   def _modify_import_statements(self, red_baron):
     for import_node in red_baron.find_all('ImportNode'):
+      if self._skip(import_node):
+        continue
+
       original = import_node.copy()
       for index, import_module in enumerate(import_node):
         root_package = import_module[0]
@@ -134,6 +148,9 @@ class ImportRewriter(object):
 
   def _modify_from_import_statements(self, red_baron):
     for from_import_node in red_baron.find_all('FromImportNode'):
+      if self._skip(from_import_node):
+        continue
+
       if len(from_import_node) == 0:
         # NB: `from . import ...` has length 0, but we don't care about relative imports which will
         # point back into vendored code if the origin is within vendored code.
@@ -162,6 +179,13 @@ def vendorize(root_dir, vendor_specs, prefix):
     # We know we can get these as a by-product of a pip install but never need them.
     safe_rmtree(os.path.join(vendor_spec.target_dir, 'bin'))
     safe_delete(os.path.join(vendor_spec.target_dir, 'easy_install.py'))
+
+    # The RECORD contains file hashes of all installed files and is unfortunately unstable in the
+    # case of scripts which get a shebang added with a system-specific path to the python
+    # interpreter to execute.
+    safe_delete(os.path.join(vendor_spec.target_dir,
+                             '{}-{}.dist-info/RECORD'.format(vendor_spec.key, vendor_spec.version)))
+
     vendor_spec.create_packages()
 
   vendored_path = [vendor_spec.target_dir for vendor_spec in vendor_specs]
