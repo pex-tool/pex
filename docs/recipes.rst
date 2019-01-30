@@ -35,9 +35,9 @@ And there you have it, a fully portable python web service.
 PEX and Proxy settings
 ----------------
 
-While building pex files, you may need to fetch dependencies thought a proxy. The easiest way, is to use pex cli with request module and  environment variables. Following, the steps to do just that :
+While building pex files, you may need to fetch dependencies thought a proxy. The easiest way is to use pex cli with the requests extra and environment variables. Following are the steps to do just that:
 
-1) Install pex with requests 
+1) Install pex with requests
 
 .. code-block:: bash 
 
@@ -47,13 +47,14 @@ While building pex files, you may need to fetch dependencies thought a proxy. Th
 
 .. code-block:: bash 
 
-    $ export HTTP_PROXY='http://user:pass@address:port'
-    $ export HTTPS_PROXY='http://user:pass@address:port'
+    $ # Hopefully your proxy supports https! If not, you can export HTTP_PROXY:
+    $ # export HTTP_PROXY='http://user:pass@address:port'
+    $ export HTTPS_PROXY='https://user:pass@address:port'
     
 3) Now you can test by running 
  
 .. code-block:: bash 
 
-    $ pex -v pytest
+    $ pex -v pex
     
-For more information on the requests module, here the official documentation: http://docs.python-requests.org/en/master/user/advanced/#proxies.
+For more information on the requests module support for proxies via environment variables, see the official documentation here: http://docs.python-requests.org/en/master/user/advanced/#proxies.
