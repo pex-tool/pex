@@ -266,6 +266,7 @@ class PythonInterpreter(object):
     re.compile(r'[Pp]ython$'),
 
     re.compile(r'python[23].[0-9]$'),
+    re.compile(r'python[23]$'),
     re.compile(r'pypy$'),
     re.compile(r'pypy-1.[0-9]$'),
   )
