@@ -343,6 +343,10 @@ class PythonInterpreter(object):
     return cls.CACHE[binary]
 
   @classmethod
+  def _matches_binary_name(basefile):
+    return any(matcher.match(basefile) is not None for matcher in cls.REGEXEN)
+
+  @classmethod
   def find(cls, paths):
     """
       Given a list of files or directories, try to detect python interpreters amongst them.
@@ -352,7 +356,7 @@ class PythonInterpreter(object):
     for path in paths:
       for fn in cls.expand_path(path):
         basefile = os.path.basename(fn)
-        if any(matcher.match(basefile) is not None for matcher in cls.REGEXEN):
+        if self._matches_binary_name(basefile):
           try:
             pythons.append(cls.from_binary(fn))
           except Exception as e:

@@ -58,3 +58,19 @@ class TestPythonInterpreter(object):
 
     py_interpreter3 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     assert py_interpreter1 is py_interpreter3
+
+  def test_binary_name_matching(self):
+    valid_binary_names = (
+      'jython',
+      'pypy',
+      'pypy-1.1',
+      'python',
+      'Python',
+      'python2',
+      'python2.7',
+      'python3',
+      'python3.6'
+    )
+
+    for name in valid_binary_names:
+      assert interpreter.PythonIdentity._matches_binary_name(name), 'Expected {} to be valid'.format(name)
