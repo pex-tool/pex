@@ -265,8 +265,8 @@ class PythonInterpreter(object):
     # NB: OSX ships python binaries named Python so we allow for capital-P.
     re.compile(r'[Pp]ython$'),
 
-    re.compile(r'python[23].[0-9]$'),
     re.compile(r'python[23]$'),
+    re.compile(r'python[23].[0-9]$'),
     re.compile(r'pypy$'),
     re.compile(r'pypy-1.[0-9]$'),
   )
@@ -356,7 +356,7 @@ class PythonInterpreter(object):
     for path in paths:
       for fn in cls.expand_path(path):
         basefile = os.path.basename(fn)
-        if self._matches_binary_name(basefile):
+        if cls._matches_binary_name(basefile):
           try:
             pythons.append(cls.from_binary(fn))
           except Exception as e:
