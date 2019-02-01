@@ -72,6 +72,6 @@ class TestPythonInterpreter(object):
       'python3.6'
     )
 
+    matches = interpreter.PythonInterpreter._matches_binary_name
     for name in valid_binary_names:
-      assert interpreter.PythonInterpreter._matches_binary_name(name), \
-        'Expected {} to be valid binary name'.format(name)
+      assert matches(name), 'Expected {} to be valid binary name'.format(name)
