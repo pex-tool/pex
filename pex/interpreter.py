@@ -265,6 +265,7 @@ class PythonInterpreter(object):
     # NB: OSX ships python binaries named Python so we allow for capital-P.
     re.compile(r'[Pp]ython$'),
 
+    re.compile(r'python[23]$'),
     re.compile(r'python[23].[0-9]$'),
     re.compile(r'pypy$'),
     re.compile(r'pypy-1.[0-9]$'),
@@ -342,6 +343,10 @@ class PythonInterpreter(object):
     return cls.CACHE[binary]
 
   @classmethod
+  def _matches_binary_name(cls, basefile):
+    return any(matcher.match(basefile) is not None for matcher in cls.REGEXEN)
+
+  @classmethod
   def find(cls, paths):
     """
       Given a list of files or directories, try to detect python interpreters amongst them.
@@ -351,7 +356,7 @@ class PythonInterpreter(object):
     for path in paths:
       for fn in cls.expand_path(path):
         basefile = os.path.basename(fn)
-        if any(matcher.match(basefile) is not None for matcher in cls.REGEXEN):
+        if cls._matches_binary_name(basefile):
           try:
             pythons.append(cls.from_binary(fn))
           except Exception as e:
