@@ -73,4 +73,4 @@ class TestPythonInterpreter(object):
     )
 
     for name in valid_binary_names:
-      assert interpreter.PythonIdentity._matches_binary_name(name), 'Expected {} to be valid'.format(name)
+      assert interpreter.PythonInterpreter._matches_binary_name(name), 'Expected {} to be valid'.format(name)

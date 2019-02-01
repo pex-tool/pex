@@ -343,7 +343,7 @@ class PythonInterpreter(object):
     return cls.CACHE[binary]
 
   @classmethod
-  def _matches_binary_name(basefile):
+  def _matches_binary_name(cls, basefile):
     return any(matcher.match(basefile) is not None for matcher in cls.REGEXEN)
 
   @classmethod
