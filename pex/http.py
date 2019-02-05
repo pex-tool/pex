@@ -134,6 +134,8 @@ class Context(AbstractClass):
 class UrllibContext(Context):
   """Default Python standard library Context."""
 
+  USER_AGENT = 'pex/%s' % PEX_VERSION
+
   def open(self, link):
     return urllib_request.urlopen(link.url)
 
@@ -146,7 +148,7 @@ class UrllibContext(Context):
       return fp.read().decode(encoding, 'replace')
 
   def resolve(self, link):
-    request = urllib_request.Request(link.url)
+    request = urllib_request.Request(link.url, headers={'User-Agent': self.USER_AGENT})
     request.get_method = lambda: 'HEAD'
     with contextlib.closing(urllib_request.urlopen(request)) as response:
       return link.wrap(response.url)
