@@ -57,6 +57,7 @@ class Context(AbstractClass):
   """
 
   DEFAULT_ENCODING = 'iso-8859-1'
+  USER_AGENT = 'pex/%s' % PEX_VERSION
 
   class Error(Exception):
     """Error base class for Contexts to wrap application-specific exceptions."""
@@ -134,10 +135,9 @@ class Context(AbstractClass):
 class UrllibContext(Context):
   """Default Python standard library Context."""
 
-  USER_AGENT = 'pex/%s' % PEX_VERSION
-
   def open(self, link):
-    return urllib_request.urlopen(link.url)
+    request = urllib_request.Request(link.url, headers={'User-Agent': self.USER_AGENT})
+    return urllib_request.urlopen(request)
 
   def content(self, link):
     if link.local:
@@ -211,7 +211,6 @@ class StreamFilelike(object):
 
 class RequestsContext(Context):
   """A requests-based Context."""
-  USER_AGENT = 'pex/%s' % PEX_VERSION
 
   @staticmethod
   def _create_session(max_retries):
