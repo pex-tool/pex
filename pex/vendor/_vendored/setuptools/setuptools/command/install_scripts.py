@@ -3,7 +3,11 @@ import distutils.command.install_scripts as orig
 import os
 import sys
 
-from pex.third_party.pkg_resources import Distribution, PathMetadata, ensure_directory
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources import Distribution, PathMetadata, ensure_directory  # vendor:skip
+else:
+  from pex.third_party.pkg_resources import Distribution, PathMetadata, ensure_directory
+
 
 
 class install_scripts(orig.install_scripts):
@@ -14,7 +18,11 @@ class install_scripts(orig.install_scripts):
         self.no_ep = False
 
     def run(self):
-        import pex.third_party.setuptools.command.easy_install as ei
+        if "__PEX_UNVENDORED__" in __import__("os").environ:
+          import setuptools.command.easy_install as ei  # vendor:skip
+        else:
+          import pex.third_party.setuptools.command.easy_install as ei
+
 
         self.run_command("egg_info")
         if self.distribution.scripts:
@@ -50,7 +58,11 @@ class install_scripts(orig.install_scripts):
 
     def write_script(self, script_name, contents, mode="t", *ignored):
         """Write an executable file to the scripts directory"""
-        from pex.third_party.setuptools.command.easy_install import chmod, current_umask
+        if "__PEX_UNVENDORED__" in __import__("os").environ:
+          from setuptools.command.easy_install import chmod, current_umask  # vendor:skip
+        else:
+          from pex.third_party.setuptools.command.easy_install import chmod, current_umask
+
 
         log.info("Installing %s script to %s", script_name, self.install_dir)
         target = os.path.join(self.install_dir, script_name)

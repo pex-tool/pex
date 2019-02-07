@@ -8,11 +8,23 @@ import io
 import distutils.errors
 import itertools
 
-from pex.third_party.setuptools.extern import six
-from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
+
 
 try:
-    from pex.third_party.setuptools.lib2to3_ex import Mixin2to3
+    if "__PEX_UNVENDORED__" in __import__("os").environ:
+      from setuptools.lib2to3_ex import Mixin2to3  # vendor:skip
+    else:
+      from pex.third_party.setuptools.lib2to3_ex import Mixin2to3
+
 except ImportError:
 
     class Mixin2to3:

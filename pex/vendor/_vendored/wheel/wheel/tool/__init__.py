@@ -19,7 +19,11 @@ from ..util import urlsafe_b64decode, urlsafe_b64encode, native, binary, matches
 
 def require_pkgresources(name):
     try:
-        import pex.third_party.pkg_resources as pkg_resources  # noqa: F401
+        if "__PEX_UNVENDORED__" in __import__("os").environ:
+          import pkg_resources  # vendor:skip
+        else:
+          import pex.third_party.pkg_resources as pkg_resources
+  # noqa: F401
     except ImportError:
         raise RuntimeError("'{0}' needs pkg_resources (part of setuptools).".format(name))
 
@@ -249,8 +253,16 @@ def install_scripts(distributions):
     Regenerate the entry_points console_scripts for the named distribution.
     """
     try:
-        from pex.third_party.setuptools.command import easy_install
-        import pex.third_party.pkg_resources as pkg_resources
+        if "__PEX_UNVENDORED__" in __import__("os").environ:
+          from setuptools.command import easy_install  # vendor:skip
+        else:
+          from pex.third_party.setuptools.command import easy_install
+
+        if "__PEX_UNVENDORED__" in __import__("os").environ:
+          import pkg_resources  # vendor:skip
+        else:
+          import pex.third_party.pkg_resources as pkg_resources
+
     except ImportError:
         raise RuntimeError("'wheel install_scripts' needs setuptools.")
 

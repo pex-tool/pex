@@ -8,9 +8,21 @@ import os
 import platform
 import sys
 
-from pex.third_party.setuptools.extern.pyparsing import ParseException, ParseResults, stringStart, stringEnd
-from pex.third_party.setuptools.extern.pyparsing import ZeroOrMore, Group, Forward, QuotedString
-from pex.third_party.setuptools.extern.pyparsing import Literal as L  # noqa
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.pyparsing import ParseException, ParseResults, stringStart, stringEnd  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.pyparsing import ParseException, ParseResults, stringStart, stringEnd
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.pyparsing import ZeroOrMore, Group, Forward, QuotedString  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.pyparsing import ZeroOrMore, Group, Forward, QuotedString
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.pyparsing import Literal as L  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.pyparsing import Literal as L
+  # noqa
 
 from ._compat import string_types
 from .specifiers import Specifier, InvalidSpecifier

@@ -11,7 +11,11 @@ from distutils.util import Mixin2to3 as _Mixin2to3
 from distutils import log
 from lib2to3.refactor import RefactoringTool, get_fixers_from_package
 
-import pex.third_party.setuptools as setuptools
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import setuptools  # vendor:skip
+else:
+  import pex.third_party.setuptools as setuptools
+
 
 
 class DistutilsRefactoringTool(RefactoringTool):

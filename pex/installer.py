@@ -11,6 +11,7 @@ from pex.common import safe_mkdtemp, safe_rmtree
 from pex.compatibility import WINDOWS
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 
 __all__ = (
@@ -22,12 +23,12 @@ def after_installation(function):
   def function_wrapper(self, *args, **kw):
     self._installed = self.run()
     if not self._installed:
-      raise InstallerBase.InstallFailure('Failed to install %s' % self._source_dir)
+      raise SetuptoolsInstallerBase.InstallFailure('Failed to install %s' % self._source_dir)
     return function(self, *args, **kw)
   return function_wrapper
 
 
-class InstallerBase(object):
+class SetuptoolsInstallerBase(object):
   class Error(Exception): pass
   class InstallFailure(Error): pass
   class IncapableInterpreter(Error): pass
@@ -36,57 +37,59 @@ class InstallerBase(object):
     """Create an installer from an unpacked source distribution in source_dir."""
     self._source_dir = source_dir
     self._install_tmp = install_dir or safe_mkdtemp()
+    self._interpreter = interpreter or PythonInterpreter.get()
     self._installed = None
-
-    from pex import vendor
-    self._interpreter = vendor.setup_interpreter(distributions=self.mixins,
-                                                 interpreter=interpreter or PythonInterpreter.get())
-    if not self._interpreter.satisfies(self.mixins):
-      raise self.IncapableInterpreter('Interpreter %s not capable of running %s' % (
-          self._interpreter.binary, self.__class__.__name__))
 
   @property
   def mixins(self):
-    """Return a list of requirements to load into the setup script prior to invocation."""
-    raise NotImplementedError()
+    """Return a list of extra distribution names required by the `setup_command`."""
+    return []
 
   @property
   def install_tmp(self):
     return self._install_tmp
 
-  def _setup_command(self):
-    """the setup command-line to run, to be implemented by subclasses."""
+  def setup_command(self):
+    """The setup command-line to run, to be implemented by subclasses."""
     raise NotImplementedError
 
   @property
-  def bootstrap_script(self):
+  def setup_py_wrapper(self):
+    # NB: It would be more direct to just over-write setup.py by pre-pending the setuptools import.
+    # We cannot do this however because we would then run afoul of setup.py files in the wild with
+    # from __future__ imports. This mode of injecting the import works around that issue.
     return """
-import sys
-sys.path.insert(0, {root!r})
-
-# Expose vendored mixin path_items (setuptools, wheel, etc.) directly to the package's setup.py.
-from pex import third_party
-third_party.install(root={root!r}, expose={mixins!r})
+# We need to allow setuptools to monkeypatch distutils in case the underlying setup.py uses
+# distutils; otherwise, we won't have access to distutils commands installed via the
+# `distutils.commands` `entrypoints` setup metadata (which is only supported by setuptools).
+# The prime example here is `bdist_wheel` offered by the wheel dist.
+import setuptools
 
 # Now execute the package's setup.py such that it sees itself as a setup.py executed via
 # `python setup.py ...`
+import sys
 __file__ = 'setup.py'
 sys.argv[0] = __file__
 with open(__file__, 'rb') as fp:
   exec(fp.read())
-""".format(root=third_party.isolated(), mixins=self.mixins)
+"""
 
   def run(self):
     if self._installed is not None:
       return self._installed
 
     with TRACER.timed('Installing %s' % self._install_tmp, V=2):
-      command = [self._interpreter.binary, '-sE', '-'] + self._setup_command()
+      env = self._interpreter.sanitized_environment()
+      mixins = OrderedSet(['setuptools'] + self.mixins)
+      env['PYTHONPATH'] = os.pathsep.join(third_party.expose(mixins))
+      env['__PEX_UNVENDORED__'] = '1'
+
+      command = [self._interpreter.binary, '-s', '-'] + self.setup_command()
       try:
         Executor.execute(command,
-                         env=self._interpreter.sanitized_environment(),
+                         env=env,
                          cwd=self._source_dir,
-                         stdin_payload=self.bootstrap_script.encode('ascii'))
+                         stdin_payload=self.setup_py_wrapper.encode('ascii'))
         self._installed = True
       except Executor.NonZeroExit as e:
         self._installed = False
@@ -101,11 +104,8 @@ with open(__file__, 'rb') as fp:
     safe_rmtree(self._install_tmp)
 
 
-class DistributionPackager(InstallerBase):
-  @property
-  def mixins(self):
-    return ['setuptools']
-
+class DistributionPackager(SetuptoolsInstallerBase):
+  @after_installation
   def find_distribution(self):
     dists = os.listdir(self.install_tmp)
     if len(dists) == 0:
@@ -119,13 +119,12 @@ class DistributionPackager(InstallerBase):
 class Packager(DistributionPackager):
   """Create a source distribution from an unpacked setup.py-based project."""
 
-  def _setup_command(self):
+  def setup_command(self):
     if WINDOWS:
       return ['sdist', '--formats=zip', '--dist-dir=%s' % self._install_tmp]
     else:
       return ['sdist', '--formats=gztar', '--dist-dir=%s' % self._install_tmp]
 
-  @after_installation
   def sdist(self):
     return self.find_distribution()
 
@@ -133,10 +132,9 @@ class Packager(DistributionPackager):
 class EggInstaller(DistributionPackager):
   """Create an egg distribution from an unpacked setup.py-based project."""
 
-  def _setup_command(self):
+  def setup_command(self):
     return ['bdist_egg', '--dist-dir=%s' % self._install_tmp]
 
-  @after_installation
   def bdist(self):
     return self.find_distribution()
 
@@ -146,11 +144,10 @@ class WheelInstaller(DistributionPackager):
 
   @property
   def mixins(self):
-    return ['setuptools', 'wheel']
+    return ['wheel']
 
-  def _setup_command(self):
+  def setup_command(self):
     return ['bdist_wheel', '--dist-dir=%s' % self._install_tmp]
 
-  @after_installation
   def bdist(self):
     return self.find_distribution()

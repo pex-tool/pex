@@ -32,7 +32,11 @@ import tokenize
 import shutil
 import contextlib
 
-import pex.third_party.setuptools as setuptools
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import setuptools  # vendor:skip
+else:
+  import pex.third_party.setuptools as setuptools
+
 import distutils
 
 

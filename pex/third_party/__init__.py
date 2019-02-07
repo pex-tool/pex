@@ -208,19 +208,34 @@ class VendorImporter(object):
 
     if expose:
       # But only expose the bits needed.
-      path_by_key = OrderedDict((spec.key, spec.relpath) for spec in vendor.iter_vendor_specs()
-                                if spec.key in expose)
-      path_by_key['pex'] = root  # The pex distribution itself is trivially available to expose.
+      exposed_paths = []
+      for path in cls.expose(expose, root):
+        sys.path.insert(0, path)
+        exposed_paths.append(os.path.relpath(path, root))
 
-      unexposed = set(expose) - set(path_by_key.keys())
-      if unexposed:
-        raise ValueError('The following vendored dists are not available to expose: {}'
-                         .format(', '.join(sorted(unexposed))))
-
-      exposed_paths = path_by_key.values()
-      for exposed_path in exposed_paths:
-        sys.path.insert(0, os.path.join(root, exposed_path))
       vendor_importer._expose(exposed_paths)
+
+  @classmethod
+  def expose(cls, dists, root=None):
+    from pex import vendor
+
+    root = cls._abs_root(root)
+
+    def iter_available():
+      yield 'pex', root  # The pex distribution itself is trivially available to expose.
+      for spec in vendor.iter_vendor_specs():
+        yield spec.key, spec.relpath
+
+    path_by_key = OrderedDict((key, relpath) for key, relpath in iter_available() if key in dists)
+
+    unexposed = set(dists) - set(path_by_key.keys())
+    if unexposed:
+      raise ValueError('The following vendored dists are not available to expose: {}'
+                       .format(', '.join(sorted(unexposed))))
+
+    exposed_paths = path_by_key.values()
+    for exposed_path in exposed_paths:
+      yield os.path.join(root, exposed_path)
 
   @classmethod
   def install(cls, uninstallable, prefix, path_items, root=None, warning=None):
@@ -394,6 +409,25 @@ def install(root=None, expose=None):
   :raise: :class:`ValueError` if any distributions to expose cannot be found.
   """
   VendorImporter.install_vendored(prefix=import_prefix(), root=root, expose=expose)
+
+
+def expose(dists):
+  """Exposes vendored code in isolated chroots.
+
+  Any vendored distributions listed in ``dists`` will be unpacked to individual chroots for addition
+  to the ``sys.path``; ie: ``expose(['setuptools', 'wheel'])`` will unpack these vendored
+  distributions and yield the two chroot paths they were unpacked to.
+
+  :param dists: A list of vendored distribution names to expose.
+  :type dists: list of str
+  :raise: :class:`ValueError` if any distributions to expose cannot be found.
+  :returns: An iterator of exposed vendored distribution chroot paths.
+  """
+  from pex.common import safe_delete
+
+  for path in VendorImporter.expose(dists, root=isolated()):
+    safe_delete(os.path.join(path, '__init__.py'))
+    yield path
 
 
 # Implicitly install an importer for vendored code on the first import of pex.third_party.

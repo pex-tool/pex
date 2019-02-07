@@ -11,7 +11,6 @@ import sys
 from collections import defaultdict
 from inspect import getsource
 
-from pex.base import maybe_requirement
 from pex.compatibility import string
 from pex.executor import Executor
 from pex.pep425tags import (
@@ -376,8 +375,8 @@ class PythonInterpreter(object):
 
     MAJOR, MINOR, SUBMINOR = range(3)
     def version_filter(version):
-      return (version[MAJOR] == 2 and version[MINOR] >= 6 or
-              version[MAJOR] == 3 and version[MINOR] >= 2)
+      return (version[MAJOR] == 2 and version[MINOR] >= 7 or
+              version[MAJOR] == 3 and version[MINOR] >= 4)
 
     all_versions = set(interpreter.identity.version for interpreter in pythons)
     good_versions = filter(version_filter, all_versions)
@@ -403,40 +402,16 @@ class PythonInterpreter(object):
     env_copy.pop('MACOSX_DEPLOYMENT_TARGET', None)
     return env_copy
 
-  @classmethod
-  def replace(cls, requirement):
-    self = cls.get()
-    if self.identity.matches(requirement):
-      return False
-    for pi in cls.all():
-      if pi.identity.matches(requirement):
-        break
-    else:
-      raise cls.InterpreterNotFound('Could not find interpreter matching filter!')
-    os.execve(pi.binary, [pi.binary] + sys.argv, cls.sanitized_environment())
-
-  def __init__(self, binary, identity, extras=None):
+  def __init__(self, binary, identity):
     """Construct a PythonInterpreter.
 
        You should probably PythonInterpreter.from_binary instead.
 
        :param binary: The full path of the python binary.
        :param identity: The :class:`PythonIdentity` of the PythonInterpreter.
-       :param extras: A mapping from (dist.key, dist.version) to dist.location
-                      of the extras associated with this interpreter.
     """
     self._binary = os.path.realpath(binary)
-    self._extras = extras or {}
     self._identity = identity
-
-  def with_extra(self, key, version, location):
-    extras = {(k, v): loc for (k, v), loc in self._extras.items() if k != key}
-    extras[(key, version)] = location
-    return self.__class__(self._binary, self._identity, extras)
-
-  @property
-  def extras(self):
-    return self._extras.copy()
 
   @property
   def binary(self):
@@ -458,18 +433,6 @@ class PythonInterpreter(object):
   def version_string(self):
     return str(self._identity)
 
-  def satisfies(self, capability):
-    if not isinstance(capability, list):
-      raise TypeError('Capability must be a list, got %s' % type(capability))
-    return not any(self.get_location(req) is None for req in capability)
-
-  def get_location(self, req):
-    req = maybe_requirement(req)
-    for dist, location in self.extras.items():
-      dist_name, dist_version = dist
-      if req.key == dist_name and dist_version in req:
-        return location
-
   def __hash__(self):
     return hash((self._binary, self._identity))
 
@@ -484,4 +447,4 @@ class PythonInterpreter(object):
     return self.version < other.version
 
   def __repr__(self):
-    return '%s(%r, %r, %r)' % (self.__class__.__name__, self._binary, self._identity, self._extras)
+    return '%s(%r, %r)' % (self.__class__.__name__, self._binary, self._identity)

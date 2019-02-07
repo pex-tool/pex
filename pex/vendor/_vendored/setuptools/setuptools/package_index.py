@@ -10,22 +10,58 @@ import itertools
 import warnings
 from functools import wraps
 
-from pex.third_party.setuptools.extern import six
-from pex.third_party.setuptools.extern.six.moves import urllib, http_client, configparser, map
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
 
-import pex.third_party.setuptools as setuptools
-from pex.third_party.pkg_resources import (
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves import urllib, http_client, configparser, map  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves import urllib, http_client, configparser, map
+
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import setuptools  # vendor:skip
+else:
+  import pex.third_party.setuptools as setuptools
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources import (
+    CHECKOUT_DIST, Distribution, BINARY_DIST, normalize_path, SOURCE_DIST,
+    Environment, find_distributions, safe_name, safe_version,
+    to_filename, Requirement, DEVELOP_DIST, EGG_DIST,
+)  # vendor:skip
+else:
+  from pex.third_party.pkg_resources import (
     CHECKOUT_DIST, Distribution, BINARY_DIST, normalize_path, SOURCE_DIST,
     Environment, find_distributions, safe_name, safe_version,
     to_filename, Requirement, DEVELOP_DIST, EGG_DIST,
 )
-from pex.third_party.setuptools import ssl_support
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools import ssl_support  # vendor:skip
+else:
+  from pex.third_party.setuptools import ssl_support
+
 from distutils import log
 from distutils.errors import DistutilsError
 from fnmatch import translate
-from pex.third_party.setuptools.py27compat import get_all_headers
-from pex.third_party.setuptools.py33compat import unescape
-from pex.third_party.setuptools.wheel import Wheel
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.py27compat import get_all_headers  # vendor:skip
+else:
+  from pex.third_party.setuptools.py27compat import get_all_headers
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.py33compat import unescape  # vendor:skip
+else:
+  from pex.third_party.setuptools.py33compat import unescape
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.wheel import Wheel  # vendor:skip
+else:
+  from pex.third_party.setuptools.wheel import Wheel
+
 
 __metaclass__ = type
 
@@ -690,7 +726,11 @@ class PackageIndex(Environment):
             # Make sure the file has been downloaded to the temp dir.
             if os.path.dirname(filename) != tmpdir:
                 dst = os.path.join(tmpdir, basename)
-                from pex.third_party.setuptools.command.easy_install import samefile
+                if "__PEX_UNVENDORED__" in __import__("os").environ:
+                  from setuptools.command.easy_install import samefile  # vendor:skip
+                else:
+                  from pex.third_party.setuptools.command.easy_install import samefile
+
                 if not samefile(filename, dst):
                     shutil.copy2(filename, dst)
                     filename = dst

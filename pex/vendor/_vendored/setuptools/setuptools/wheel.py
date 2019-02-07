@@ -8,12 +8,36 @@ import posixpath
 import re
 import zipfile
 
-from pex.third_party.pkg_resources import Distribution, PathMetadata, parse_version
-from pex.third_party.setuptools.extern.packaging.utils import canonicalize_name
-from pex.third_party.setuptools.extern.six import PY3
-from pex.third_party.setuptools import Distribution as SetuptoolsDistribution
-from pex.third_party.setuptools import pep425tags
-from pex.third_party.setuptools.command.egg_info import write_requirements
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources import Distribution, PathMetadata, parse_version  # vendor:skip
+else:
+  from pex.third_party.pkg_resources import Distribution, PathMetadata, parse_version
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.packaging.utils import canonicalize_name  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.packaging.utils import canonicalize_name
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six import PY3  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six import PY3
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools import Distribution as SetuptoolsDistribution  # vendor:skip
+else:
+  from pex.third_party.setuptools import Distribution as SetuptoolsDistribution
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools import pep425tags  # vendor:skip
+else:
+  from pex.third_party.setuptools import pep425tags
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.command.egg_info import write_requirements  # vendor:skip
+else:
+  from pex.third_party.setuptools.command.egg_info import write_requirements
+
 
 
 __metaclass__ = type

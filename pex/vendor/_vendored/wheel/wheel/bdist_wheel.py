@@ -17,7 +17,11 @@ from distutils.sysconfig import get_python_version
 from distutils import log as logger
 from shutil import rmtree
 
-import pex.third_party.pkg_resources as pkg_resources
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import pkg_resources  # vendor:skip
+else:
+  import pex.third_party.pkg_resources as pkg_resources
+
 
 from .pep425tags import get_abbr_impl, get_impl_ver, get_abi_tag, get_platform
 from .util import native, open_for_csv

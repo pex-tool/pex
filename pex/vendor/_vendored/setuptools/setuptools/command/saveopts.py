@@ -1,4 +1,8 @@
-from pex.third_party.setuptools.command.setopt import edit_config, option_base
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.command.setopt import edit_config, option_base  # vendor:skip
+else:
+  from pex.third_party.setuptools.command.setopt import edit_config, option_base
+
 
 
 class saveopts(option_base):

@@ -12,9 +12,21 @@ from distutils.spawn import spawn
 
 from distutils.errors import DistutilsError
 
-from pex.third_party.setuptools.extern.six.moves.urllib.request import urlopen, Request
-from pex.third_party.setuptools.extern.six.moves.urllib.error import HTTPError
-from pex.third_party.setuptools.extern.six.moves.urllib.parse import urlparse
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves.urllib.request import urlopen, Request  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves.urllib.request import urlopen, Request
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves.urllib.error import HTTPError  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves.urllib.error import HTTPError
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves.urllib.parse import urlparse  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves.urllib.parse import urlparse
+
 
 class upload(orig.upload):
     """

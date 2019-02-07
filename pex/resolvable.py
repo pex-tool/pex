@@ -10,7 +10,7 @@ from abc import abstractmethod, abstractproperty
 from pex.base import maybe_requirement, requirement_is_exact
 from pex.compatibility import AbstractClass
 from pex.compatibility import string as compatibility_string
-from pex.installer import InstallerBase, Packager
+from pex.installer import Packager, SetuptoolsInstallerBase
 from pex.package import Package
 from pex.resolver_options import ResolverOptionsBuilder, ResolverOptionsInterface
 from pex.third_party.pkg_resources import Requirement, safe_extra
@@ -267,7 +267,7 @@ class ResolvableDirectory(ResolvablePackage):
       packager = Packager(requirement_string, interpreter=interpreter)
       try:
         sdist = packager.sdist()
-      except InstallerBase.Error:
+      except SetuptoolsInstallerBase.Error:
         raise cls.InvalidRequirement('Could not create source distribution for %s'
                                      % requirement_string)
       package = Package.from_href(sdist)

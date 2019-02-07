@@ -52,8 +52,16 @@ try:
 except NameError:
     FileExistsError = OSError
 
-from pex.third_party.pkg_resources.extern import six
-from pex.third_party.pkg_resources.extern.six.moves import urllib, map, filter
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources.extern import six  # vendor:skip
+else:
+  from pex.third_party.pkg_resources.extern import six
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources.extern.six.moves import urllib, map, filter  # vendor:skip
+else:
+  from pex.third_party.pkg_resources.extern.six.moves import urllib, map, filter
+
 
 # capture these to bypass sandboxing
 from os import utime
@@ -75,12 +83,36 @@ except ImportError:
     importlib_machinery = None
 
 from . import py31compat
-from pex.third_party.pkg_resources.extern import appdirs
-from pex.third_party.pkg_resources.extern import packaging
-__import__('pex.third_party.pkg_resources.extern.packaging.version')
-__import__('pex.third_party.pkg_resources.extern.packaging.specifiers')
-__import__('pex.third_party.pkg_resources.extern.packaging.requirements')
-__import__('pex.third_party.pkg_resources.extern.packaging.markers')
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources.extern import appdirs  # vendor:skip
+else:
+  from pex.third_party.pkg_resources.extern import appdirs
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources.extern import packaging  # vendor:skip
+else:
+  from pex.third_party.pkg_resources.extern import packaging
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  __import__('pkg_resources.extern.packaging.version')  # vendor:skip
+else:
+  __import__('pex.third_party.pkg_resources.extern.packaging.version')
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  __import__('pkg_resources.extern.packaging.specifiers')  # vendor:skip
+else:
+  __import__('pex.third_party.pkg_resources.extern.packaging.specifiers')
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  __import__('pkg_resources.extern.packaging.requirements')  # vendor:skip
+else:
+  __import__('pex.third_party.pkg_resources.extern.packaging.requirements')
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  __import__('pkg_resources.extern.packaging.markers')  # vendor:skip
+else:
+  __import__('pex.third_party.pkg_resources.extern.packaging.markers')
+
 
 
 __metaclass__ = type

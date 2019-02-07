@@ -1,7 +1,11 @@
 import distutils.command.build_clib as orig
 from distutils.errors import DistutilsSetupError
 from distutils import log
-from pex.third_party.setuptools.dep_util import newer_pairwise_group
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.dep_util import newer_pairwise_group  # vendor:skip
+else:
+  from pex.third_party.setuptools.dep_util import newer_pairwise_group
+
 
 
 class build_clib(orig.build_clib):

@@ -143,7 +143,11 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names):
             pkg_file = os.path.join(pkg_path, '__init__.py')
             src = os.path.join(VendorSpec.ROOT, pkg_file)
             dest = os.path.join(dest_basedir, pkg_file)
-            chroot.copy(src, dest, label)
+            if os.path.exists(src):
+              chroot.copy(src, dest, label)
+            else:
+              # We delete `pex/vendor/_vendored/<dist>/__init__.py` when isolating third_party.
+              chroot.touch(dest, label)
           for name in vendored_names:
             vendor_module_names[name] = True
             TRACER.log('Vendoring {} from {} @ {}'.format(name, spec, spec.target_dir), V=3)

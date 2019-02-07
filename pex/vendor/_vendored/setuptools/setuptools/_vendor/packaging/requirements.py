@@ -6,10 +6,26 @@ from __future__ import absolute_import, division, print_function
 import string
 import re
 
-from pex.third_party.setuptools.extern.pyparsing import stringStart, stringEnd, originalTextFor, ParseException
-from pex.third_party.setuptools.extern.pyparsing import ZeroOrMore, Word, Optional, Regex, Combine
-from pex.third_party.setuptools.extern.pyparsing import Literal as L  # noqa
-from pex.third_party.setuptools.extern.six.moves.urllib import parse as urlparse
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.pyparsing import stringStart, stringEnd, originalTextFor, ParseException  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.pyparsing import stringStart, stringEnd, originalTextFor, ParseException
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.pyparsing import ZeroOrMore, Word, Optional, Regex, Combine  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.pyparsing import ZeroOrMore, Word, Optional, Regex, Combine
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.pyparsing import Literal as L  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.pyparsing import Literal as L
+  # noqa
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves.urllib import parse as urlparse  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves.urllib import parse as urlparse
+
 
 from .markers import MARKER_EXPR, Marker
 from .specifiers import LegacySpecifier, Specifier, SpecifierSet

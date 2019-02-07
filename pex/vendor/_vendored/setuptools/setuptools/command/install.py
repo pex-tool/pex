@@ -5,7 +5,11 @@ import warnings
 import platform
 import distutils.command.install as orig
 
-import pex.third_party.setuptools as setuptools
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import setuptools  # vendor:skip
+else:
+  import pex.third_party.setuptools as setuptools
+
 
 # Prior to numpy 1.9, NumPy relies on the '_install' name, so provide it for
 # now. See https://github.com/pypa/setuptools/issues/199/

@@ -3,7 +3,11 @@ from glob import glob
 from distutils.util import convert_path
 from distutils.command import sdist
 
-from pex.third_party.setuptools.extern.six.moves import filter
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves import filter  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves import filter
+
 
 
 class sdist_add_defaults:

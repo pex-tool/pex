@@ -1,8 +1,16 @@
 from distutils.errors import DistutilsOptionError
 
-from pex.third_party.setuptools.extern.six.moves import map
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves import map  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves import map
 
-from pex.third_party.setuptools.command.setopt import edit_config, option_base, config_file
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.command.setopt import edit_config, option_base, config_file  # vendor:skip
+else:
+  from pex.third_party.setuptools.command.setopt import edit_config, option_base, config_file
+
 
 
 def shquote(arg):

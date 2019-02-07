@@ -21,21 +21,61 @@ from distutils.errors import (
 from distutils.util import rfc822_escape
 from distutils.version import StrictVersion
 
-from pex.third_party.setuptools.extern import six
-from pex.third_party.setuptools.extern import packaging
-from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import packaging  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import packaging
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
+
 
 from . import SetuptoolsDeprecationWarning
 
-from pex.third_party.setuptools.depends import Require
-from pex.third_party.setuptools import windows_support
-from pex.third_party.setuptools.monkey import get_unpatched
-from pex.third_party.setuptools.config import parse_configuration
-import pex.third_party.pkg_resources as pkg_resources
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.depends import Require  # vendor:skip
+else:
+  from pex.third_party.setuptools.depends import Require
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools import windows_support  # vendor:skip
+else:
+  from pex.third_party.setuptools import windows_support
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.monkey import get_unpatched  # vendor:skip
+else:
+  from pex.third_party.setuptools.monkey import get_unpatched
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.config import parse_configuration  # vendor:skip
+else:
+  from pex.third_party.setuptools.config import parse_configuration
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import pkg_resources  # vendor:skip
+else:
+  import pex.third_party.pkg_resources as pkg_resources
+
 from .py36compat import Distribution_parse_config_files
 
-__import__('pex.third_party.setuptools.extern.packaging.specifiers')
-__import__('pex.third_party.setuptools.extern.packaging.version')
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  __import__('setuptools.extern.packaging.specifiers')  # vendor:skip
+else:
+  __import__('pex.third_party.setuptools.extern.packaging.specifiers')
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  __import__('setuptools.extern.packaging.version')  # vendor:skip
+else:
+  __import__('pex.third_party.setuptools.extern.packaging.version')
+
 
 
 def _get_unpatched(cls):
@@ -625,7 +665,11 @@ class Distribution(Distribution_parse_config_files, _Distribution):
 
     def fetch_build_egg(self, req):
         """Fetch an egg needed for building"""
-        from pex.third_party.setuptools.command.easy_install import easy_install
+        if "__PEX_UNVENDORED__" in __import__("os").environ:
+          from setuptools.command.easy_install import easy_install  # vendor:skip
+        else:
+          from pex.third_party.setuptools.command.easy_install import easy_install
+
         dist = self.__class__({'script_args': ['easy_install']})
         opts = dist.get_option_dict('easy_install')
         opts.clear()

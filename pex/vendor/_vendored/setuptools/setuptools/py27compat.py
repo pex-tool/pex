@@ -4,7 +4,11 @@ Compatibility Support for Python 2.7 and earlier
 
 import platform
 
-from pex.third_party.setuptools.extern import six
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
+
 
 
 def get_all_headers(message, key):

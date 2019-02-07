@@ -61,6 +61,16 @@ class ImportRewriter(object):
     elif isinstance(call_argument.value, LiteralyEvaluable):
       return call_argument.value
 
+  @staticmethod
+  def _modify_import(original, modified):
+    indent = ' ' * (modified.absolute_bounding_box.top_left.column - 1)
+    return os.linesep.join(indent + line for line in (
+      'if "__PEX_UNVENDORED__" in __import__("os").environ:',
+      '  {}  # vendor:skip'.format(original),
+      'else:',
+      '  {}'.format(modified),
+    ))
+
   @classmethod
   def for_path_items(cls, prefix, path_items):
     pkg_names = frozenset(pkg_name for _, pkg_name, _ in pkgutil.iter_modules(path=path_items))
@@ -98,10 +108,13 @@ class ImportRewriter(object):
           root_package = value.split('.')[0]
           if root_package in self._packages:
             raw_value.replace('{!r}'.format(self._prefix + '.' + value))
+
+            parent.replace(self._modify_import(original, parent))
             yield original, parent
 
   def _modify_import_statements(self, red_baron):
     for import_node in red_baron.find_all('ImportNode'):
+      modified = False
       if self._skip(import_node):
         continue
 
@@ -129,6 +142,7 @@ class ImportRewriter(object):
         # imported). This ensures the code can traverse from the re-named root - `a` in this
         # example, through middle nodes (`a.b`) all the way to the leaf target (`a.b.c`).
 
+        modified = True
         def prefixed_fullname():
           return '{prefix}.{module}'.format(prefix=self._prefix,
                                             module='.'.join(map(str, import_module)))
@@ -144,6 +158,8 @@ class ImportRewriter(object):
                                                          root=root_package.value)
           import_module.target = root_package.value
 
+      if modified:
+        import_node.replace(self._modify_import(original, import_node))
         yield original, import_node
 
   def _modify_from_import_statements(self, red_baron):
@@ -161,6 +177,8 @@ class ImportRewriter(object):
       if root_package.value in self._packages:
         root_package.replace('{prefix}.{root}'.format(prefix=self._prefix,
                                                       root=root_package.value))
+
+        from_import_node.replace(self._modify_import(original, from_import_node))
         yield original, from_import_node
 
 

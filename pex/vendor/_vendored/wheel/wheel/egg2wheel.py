@@ -10,9 +10,21 @@ from argparse import ArgumentParser
 from distutils.archive_util import make_archive
 from glob import iglob
 
-import pex.third_party.wheel.bdist_wheel, pex.third_party.wheel as wheel
-from pex.third_party.wheel.tool import WheelError
-from pex.third_party.wheel.wininst2wheel import _bdist_wheel_tag
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import wheel.bdist_wheel  # vendor:skip
+else:
+  import pex.third_party.wheel.bdist_wheel, pex.third_party.wheel as wheel
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from wheel.tool import WheelError  # vendor:skip
+else:
+  from pex.third_party.wheel.tool import WheelError
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from wheel.wininst2wheel import _bdist_wheel_tag  # vendor:skip
+else:
+  from pex.third_party.wheel.wininst2wheel import _bdist_wheel_tag
+
 
 egg_info_re = re.compile(r'''
     (?P<name>.+?)-(?P<ver>.+?)
