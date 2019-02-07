@@ -9,10 +9,22 @@ import contextlib
 import pickle
 import textwrap
 
-from pex.third_party.setuptools.extern import six
-from pex.third_party.setuptools.extern.six.moves import builtins, map
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
 
-import pex.third_party.pkg_resources.py31compat, pex.third_party.pkg_resources as pkg_resources
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves import builtins, map  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves import builtins, map
+
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import pkg_resources.py31compat  # vendor:skip
+else:
+  import pex.third_party.pkg_resources.py31compat, pex.third_party.pkg_resources as pkg_resources
+
 
 if sys.platform.startswith('java'):
     import org.python.modules.posix.PosixModule as _os
@@ -24,7 +36,11 @@ except NameError:
     _file = None
 _open = open
 from distutils.errors import DistutilsError
-from pex.third_party.pkg_resources import working_set
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources import working_set  # vendor:skip
+else:
+  from pex.third_party.pkg_resources import working_set
+
 
 
 __all__ = [
@@ -107,7 +123,11 @@ class UnpickleableException(Exception):
             return pickle.dumps(type), pickle.dumps(exc)
         except Exception:
             # get UnpickleableException inside the sandbox
-            from pex.third_party.setuptools.sandbox import UnpickleableException as cls
+            if "__PEX_UNVENDORED__" in __import__("os").environ:
+              from setuptools.sandbox import UnpickleableException as cls  # vendor:skip
+            else:
+              from pex.third_party.setuptools.sandbox import UnpickleableException as cls
+
             return cls.dump(cls, cls(repr(exc)))
 
 
@@ -191,7 +211,11 @@ def setup_context(setup_dir):
                     with override_temp(temp_dir):
                         with pushd(setup_dir):
                             # ensure setuptools commands are available
-                            __import__('pex.third_party.setuptools')
+                            if "__PEX_UNVENDORED__" in __import__("os").environ:
+                              __import__('setuptools')  # vendor:skip
+                            else:
+                              __import__('pex.third_party.setuptools')
+
                             yield
 
 
@@ -403,7 +427,11 @@ class DirectorySandbox(AbstractSandbox):
         AbstractSandbox.__init__(self)
 
     def _violation(self, operation, *args, **kw):
-        from pex.third_party.setuptools.sandbox import SandboxViolation
+        if "__PEX_UNVENDORED__" in __import__("os").environ:
+          from setuptools.sandbox import SandboxViolation  # vendor:skip
+        else:
+          from pex.third_party.setuptools.sandbox import SandboxViolation
+
         raise SandboxViolation(operation, args, kw)
 
     if _file:

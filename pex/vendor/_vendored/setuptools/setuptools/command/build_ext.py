@@ -9,8 +9,16 @@ from distutils.sysconfig import customize_compiler, get_config_var
 from distutils.errors import DistutilsError
 from distutils import log
 
-from pex.third_party.setuptools.extension import Library
-from pex.third_party.setuptools.extern import six
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extension import Library  # vendor:skip
+else:
+  from pex.third_party.setuptools.extension import Library
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
+
 
 try:
     # Attempt to use Cython for building extensions, if available

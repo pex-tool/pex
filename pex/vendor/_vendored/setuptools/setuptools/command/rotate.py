@@ -4,9 +4,17 @@ from distutils.errors import DistutilsOptionError
 import os
 import shutil
 
-from pex.third_party.setuptools.extern import six
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
 
-from pex.third_party.setuptools import Command
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools import Command  # vendor:skip
+else:
+  from pex.third_party.setuptools import Command
+
 
 
 class rotate(Command):

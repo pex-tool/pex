@@ -16,22 +16,72 @@ import warnings
 import time
 import collections
 
-from pex.third_party.setuptools.extern import six
-from pex.third_party.setuptools.extern.six.moves import map
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
 
-from pex.third_party.setuptools import Command
-from pex.third_party.setuptools.command.sdist import sdist
-from pex.third_party.setuptools.command.sdist import walk_revctrl
-from pex.third_party.setuptools.command.setopt import edit_config
-from pex.third_party.setuptools.command import bdist_egg
-from pex.third_party.pkg_resources import (
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves import map  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves import map
+
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools import Command  # vendor:skip
+else:
+  from pex.third_party.setuptools import Command
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.command.sdist import sdist  # vendor:skip
+else:
+  from pex.third_party.setuptools.command.sdist import sdist
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.command.sdist import walk_revctrl  # vendor:skip
+else:
+  from pex.third_party.setuptools.command.sdist import walk_revctrl
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.command.setopt import edit_config  # vendor:skip
+else:
+  from pex.third_party.setuptools.command.setopt import edit_config
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.command import bdist_egg  # vendor:skip
+else:
+  from pex.third_party.setuptools.command import bdist_egg
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources import (
+    parse_requirements, safe_name, parse_version,
+    safe_version, yield_lines, EntryPoint, iter_entry_points, to_filename)  # vendor:skip
+else:
+  from pex.third_party.pkg_resources import (
     parse_requirements, safe_name, parse_version,
     safe_version, yield_lines, EntryPoint, iter_entry_points, to_filename)
-import pex.third_party.setuptools.unicode_utils as unicode_utils
-from pex.third_party.setuptools.glob import glob
 
-from pex.third_party.setuptools.extern import packaging
-from pex.third_party.setuptools import SetuptoolsDeprecationWarning
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import setuptools.unicode_utils as unicode_utils  # vendor:skip
+else:
+  import pex.third_party.setuptools.unicode_utils as unicode_utils
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.glob import glob  # vendor:skip
+else:
+  from pex.third_party.setuptools.glob import glob
+
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import packaging  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import packaging
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools import SetuptoolsDeprecationWarning  # vendor:skip
+else:
+  from pex.third_party.setuptools import SetuptoolsDeprecationWarning
+
 
 def translate_pattern(glob):
     """

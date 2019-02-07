@@ -1,7 +1,11 @@
 import unicodedata
 import sys
 
-from pex.third_party.setuptools.extern import six
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
+
 
 
 # HFS Plus uses decomposed UTF-8

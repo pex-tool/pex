@@ -7,7 +7,11 @@ import re
 import textwrap
 from collections import namedtuple
 
-import pex.third_party.pkg_resources as pkg_resources
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import pkg_resources  # vendor:skip
+else:
+  import pex.third_party.pkg_resources as pkg_resources
+
 
 from .pkginfo import read_pkg_info
 

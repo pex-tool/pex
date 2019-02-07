@@ -4,9 +4,17 @@ from distutils.errors import DistutilsOptionError
 import distutils
 import os
 
-from pex.third_party.setuptools.extern.six.moves import configparser
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves import configparser  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves import configparser
 
-from pex.third_party.setuptools import Command
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools import Command  # vendor:skip
+else:
+  from pex.third_party.setuptools import Command
+
 
 __all__ = ['config_file', 'edit_config', 'option_base', 'setopt']
 

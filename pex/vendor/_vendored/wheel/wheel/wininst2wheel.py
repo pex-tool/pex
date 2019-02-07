@@ -9,8 +9,16 @@ from argparse import ArgumentParser
 from glob import iglob
 from shutil import rmtree
 
-import pex.third_party.wheel.bdist_wheel, pex.third_party.wheel as wheel
-from pex.third_party.wheel.archive import archive_wheelfile
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import wheel.bdist_wheel  # vendor:skip
+else:
+  import pex.third_party.wheel.bdist_wheel, pex.third_party.wheel as wheel
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from wheel.archive import archive_wheelfile  # vendor:skip
+else:
+  from pex.third_party.wheel.archive import archive_wheelfile
+
 
 egg_info_re = re.compile(r'''(^|/)(?P<name>[^/]+?)-(?P<ver>.+?)
     (-(?P<pyver>.+?))?(-(?P<arch>.+?))?.egg-info(/|$)''', re.VERBOSE)

@@ -11,8 +11,16 @@ from functools import wraps
 from importlib import import_module
 
 from distutils.errors import DistutilsOptionError, DistutilsFileError
-from pex.third_party.setuptools.extern.packaging.version import LegacyVersion, parse
-from pex.third_party.setuptools.extern.six import string_types, PY3
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.packaging.version import LegacyVersion, parse  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.packaging.version import LegacyVersion, parse
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six import string_types, PY3  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six import string_types, PY3
+
 
 
 __metaclass__ = type
@@ -35,7 +43,11 @@ def read_configuration(
 
     :rtype: dict
     """
-    from pex.third_party.setuptools.dist import Distribution, _Distribution
+    if "__PEX_UNVENDORED__" in __import__("os").environ:
+      from setuptools.dist import Distribution, _Distribution  # vendor:skip
+    else:
+      from pex.third_party.setuptools.dist import Distribution, _Distribution
+
 
     filepath = os.path.abspath(filepath)
 
@@ -557,9 +569,17 @@ class ConfigOptionsHandler(ConfigHandler):
             self.sections.get('packages.find', {}))
 
         if findns:
-            from pex.third_party.setuptools import find_namespace_packages as find_packages
+            if "__PEX_UNVENDORED__" in __import__("os").environ:
+              from setuptools import find_namespace_packages as find_packages  # vendor:skip
+            else:
+              from pex.third_party.setuptools import find_namespace_packages as find_packages
+
         else:
-            from pex.third_party.setuptools import find_packages
+            if "__PEX_UNVENDORED__" in __import__("os").environ:
+              from setuptools import find_packages  # vendor:skip
+            else:
+              from pex.third_party.setuptools import find_packages
+
 
         return find_packages(**find_kwargs)
 

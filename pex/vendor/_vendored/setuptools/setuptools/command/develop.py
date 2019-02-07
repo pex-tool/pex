@@ -5,12 +5,32 @@ import os
 import glob
 import io
 
-from pex.third_party.setuptools.extern import six
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import six  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import six
 
-from pex.third_party.pkg_resources import Distribution, PathMetadata, normalize_path
-from pex.third_party.setuptools.command.easy_install import easy_install
-from pex.third_party.setuptools import namespaces
-import pex.third_party.setuptools as setuptools
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources import Distribution, PathMetadata, normalize_path  # vendor:skip
+else:
+  from pex.third_party.pkg_resources import Distribution, PathMetadata, normalize_path
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.command.easy_install import easy_install  # vendor:skip
+else:
+  from pex.third_party.setuptools.command.easy_install import easy_install
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools import namespaces  # vendor:skip
+else:
+  from pex.third_party.setuptools import namespaces
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import setuptools  # vendor:skip
+else:
+  import pex.third_party.setuptools as setuptools
+
 
 __metaclass__ = type
 

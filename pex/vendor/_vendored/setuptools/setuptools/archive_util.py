@@ -8,7 +8,11 @@ import posixpath
 import contextlib
 from distutils.errors import DistutilsError
 
-from pex.third_party.pkg_resources import ensure_directory
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources import ensure_directory  # vendor:skip
+else:
+  from pex.third_party.pkg_resources import ensure_directory
+
 
 __all__ = [
     "unpack_archive", "unpack_zipfile", "unpack_tarfile", "default_filter",

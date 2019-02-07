@@ -9,7 +9,11 @@ __all__ = [
 from distutils.command.bdist import bdist
 import sys
 
-from pex.third_party.setuptools.command import install_scripts
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.command import install_scripts  # vendor:skip
+else:
+  from pex.third_party.setuptools.command import install_scripts
+
 
 if 'egg' not in bdist.format_commands:
     bdist.format_command['egg'] = ('bdist_egg', "Python .egg file")

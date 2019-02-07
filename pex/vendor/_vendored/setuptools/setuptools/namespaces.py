@@ -2,7 +2,11 @@ import os
 from distutils import log
 import itertools
 
-from pex.third_party.setuptools.extern.six.moves import map
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.six.moves import map  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.six.moves import map
+
 
 
 flatten = itertools.chain.from_iterable

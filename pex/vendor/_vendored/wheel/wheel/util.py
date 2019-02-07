@@ -141,7 +141,11 @@ def matches_requirement(req, wheels):
     :param wheels: List of wheels to search.
     """
     try:
-        from pex.third_party.pkg_resources import Distribution, Requirement
+        if "__PEX_UNVENDORED__" in __import__("os").environ:
+          from pkg_resources import Distribution, Requirement  # vendor:skip
+        else:
+          from pex.third_party.pkg_resources import Distribution, Requirement
+
     except ImportError:
         raise RuntimeError("Cannot use requirements without pkg_resources")
 
