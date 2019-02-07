@@ -127,4 +127,5 @@ class bdist_pex(Command):  # noqa
       _, stderr = process.communicate()
       result = process.returncode
       if result != 0:
-        die('Failed to create pex via {}:\n{}'.format(' '.join(cmd), stderr), result)
+        die('Failed to create pex via {}:\n{}'.format(' '.join(cmd), stderr.decode('utf-8')),
+            result)
