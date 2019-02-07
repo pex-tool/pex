@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import os
 import shlex
+import subprocess
 import sys
 from distutils import log
 from distutils.core import Command
@@ -122,7 +123,7 @@ class bdist_pex(Command):  # noqa
         log.info('Writing environment pex into %s' % target)
 
       log.debug('Building pex via: {}'.format(' '.join(cmd)))
-      process = Executor.open_process(cmd, env=env)
+      process = Executor.open_process(cmd, stderr=subprocess.PIPE, env=env)
       _, stderr = process.communicate()
       result = process.returncode
       if result != 0:
