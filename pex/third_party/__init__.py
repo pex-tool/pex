@@ -412,6 +412,17 @@ def install(root=None, expose=None):
 
 
 def expose(dists):
+  """Exposes vendored code in isolated chroots.
+
+  Any vendored distributions listed in ``dists`` will be unpacked to individual chroots for addition
+  to the ``sys.path``; ie: ``expose(['setuptools', 'wheel'])`` will unpack these vendored
+  distributions and yield the two chroot paths they were unpacked to.
+
+  :param dists: A list of vendored distribution names to expose.
+  :type dists: list of str
+  :raise: :class:`ValueError` if any distributions to expose cannot be found.
+  :returns: An iterator of exposed vendored distribution chroot paths.
+  """
   from pex.common import safe_delete
 
   for path in VendorImporter.expose(dists, root=isolated()):

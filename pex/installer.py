@@ -11,6 +11,7 @@ from pex.common import safe_mkdtemp, safe_rmtree
 from pex.compatibility import WINDOWS
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 
 __all__ = (
@@ -22,12 +23,12 @@ def after_installation(function):
   def function_wrapper(self, *args, **kw):
     self._installed = self.run()
     if not self._installed:
-      raise InstallerBase.InstallFailure('Failed to install %s' % self._source_dir)
+      raise SetuptoolsInstallerBase.InstallFailure('Failed to install %s' % self._source_dir)
     return function(self, *args, **kw)
   return function_wrapper
 
 
-class InstallerBase(object):
+class SetuptoolsInstallerBase(object):
   class Error(Exception): pass
   class InstallFailure(Error): pass
   class IncapableInterpreter(Error): pass
@@ -41,25 +42,25 @@ class InstallerBase(object):
 
   @property
   def mixins(self):
-    """Return a list of requirements to load into the setup script prior to invocation."""
-    return ['setuptools']
+    """Return a list of extra distribution names required by the `setup_command`."""
+    return []
 
   @property
   def install_tmp(self):
     return self._install_tmp
 
-  def _setup_command(self):
-    """the setup command-line to run, to be implemented by subclasses."""
+  def setup_command(self):
+    """The setup command-line to run, to be implemented by subclasses."""
     raise NotImplementedError
 
   @property
   def setup_py_wrapper(self):
     # NB: It would be more direct to just over-write setup.py by pre-pending the setuptools import.
-    # We cannot do this however because we would then run afoul of setup.py file in the wild with
+    # We cannot do this however because we would then run afoul of setup.py files in the wild with
     # from __future__ imports. This mode of injecting the import works around that issue.
     return """
 # We need to allow setuptools to monkeypatch distutils in case the underlying setup.py uses
-# distutils; otherwise, we won't have access to distutils commands installed vi the
+# distutils; otherwise, we won't have access to distutils commands installed via the
 # `distutils.commands` `entrypoints` setup metadata (which is only supported by setuptools).
 # The prime example here is `bdist_wheel` offered by the wheel dist.
 import setuptools
@@ -79,10 +80,11 @@ with open(__file__, 'rb') as fp:
 
     with TRACER.timed('Installing %s' % self._install_tmp, V=2):
       env = self._interpreter.sanitized_environment()
-      env['PYTHONPATH'] = os.pathsep.join(third_party.expose(self.mixins))
+      mixins = OrderedSet(['setuptools'] + self.mixins)
+      env['PYTHONPATH'] = os.pathsep.join(third_party.expose(mixins))
       env['__PEX_UNVENDORED__'] = '1'
 
-      command = [self._interpreter.binary, '-s', '-'] + self._setup_command()
+      command = [self._interpreter.binary, '-s', '-'] + self.setup_command()
       try:
         Executor.execute(command,
                          env=env,
@@ -102,7 +104,7 @@ with open(__file__, 'rb') as fp:
     safe_rmtree(self._install_tmp)
 
 
-class DistributionPackager(InstallerBase):
+class DistributionPackager(SetuptoolsInstallerBase):
   @after_installation
   def find_distribution(self):
     dists = os.listdir(self.install_tmp)
@@ -117,7 +119,7 @@ class DistributionPackager(InstallerBase):
 class Packager(DistributionPackager):
   """Create a source distribution from an unpacked setup.py-based project."""
 
-  def _setup_command(self):
+  def setup_command(self):
     if WINDOWS:
       return ['sdist', '--formats=zip', '--dist-dir=%s' % self._install_tmp]
     else:
@@ -130,7 +132,7 @@ class Packager(DistributionPackager):
 class EggInstaller(DistributionPackager):
   """Create an egg distribution from an unpacked setup.py-based project."""
 
-  def _setup_command(self):
+  def setup_command(self):
     return ['bdist_egg', '--dist-dir=%s' % self._install_tmp]
 
   def bdist(self):
@@ -142,9 +144,9 @@ class WheelInstaller(DistributionPackager):
 
   @property
   def mixins(self):
-    return ['setuptools', 'wheel']
+    return ['wheel']
 
-  def _setup_command(self):
+  def setup_command(self):
     return ['bdist_wheel', '--dist-dir=%s' % self._install_tmp]
 
   def bdist(self):
