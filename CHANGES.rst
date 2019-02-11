@@ -1,6 +1,24 @@
 Release Notes
 =============
 
+1.6.2
+-----
+
+* Support de-vendoring for installs. (#666)
+  `PR #666 <https://github.com/pantsbuild/pex/pull/666>`_
+
+* Add User-Agent header when resolving via urllib (#663)
+  `PR #663 <https://github.com/pantsbuild/pex/pull/663>`_
+
+* Fix interpreter finding (#662)
+  `PR #662 <https://github.com/pantsbuild/pex/pull/662>`_
+
+* Add recipe to use PEX with requests module and proxies. (#659)
+  `PR #659 <https://github.com/pantsbuild/pex/pull/659>`_
+
+* Allow pex to be invoked using runpy (python -m pex). (#637)
+  `PR #637 <https://github.com/pantsbuild/pex/pull/637>`_
+
 1.6.1
 -----
 
