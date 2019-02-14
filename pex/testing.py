@@ -9,13 +9,12 @@ import random
 import subprocess
 import sys
 import tempfile
-import traceback
 from collections import namedtuple
 from textwrap import dedent
 
-from pex.bin import pex as pex_bin_pex
 from pex.common import open_zip, safe_mkdir, safe_rmtree, touch
 from pex.compatibility import PY3, nested
+from pex.executor import Executor
 from pex.installer import EggInstaller, Packager
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -226,19 +225,15 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False,
   return pb
 
 
-class IntegResults(namedtuple('results', 'output return_code exception traceback')):
+class IntegResults(namedtuple('results', ['output', 'error', 'return_code'])):
   """Convenience object to return integration run results."""
 
   def assert_success(self):
-    if not (self.exception is None and self.return_code in [None, 0]):
-      raise AssertionError(
-        'integration test failed: return_code=%s, exception=%r, output=%s, traceback=%s' % (
-          self.return_code, self.exception, self.output, self.traceback
-        )
-      )
+    assert self.return_code == 0, ('integration test failed: return_code={}, output={}, error={}'
+                                   .format(self.return_code, self.output, self.error))
 
   def assert_failure(self):
-    assert self.exception or self.return_code
+    assert self.return_code != 0
 
 
 def run_pex_command(args, env=None):
@@ -248,38 +243,10 @@ def run_pex_command(args, env=None):
   than running a generated pex.  This is useful for testing end to end runs
   with specific command line arguments or env options.
   """
-  args.insert(0, '-vvvvv')
-  def logger_callback(_output):
-    def mock_logger(msg, V=None):
-      _output.append(msg)
-
-    return mock_logger
-
-  exception = None
-  tb = None
-  error_code = None
-  output = []
-  pex_bin_pex.log.set_logger(logger_callback(output))
-
-  def update_env(target_env):
-    if target_env:
-      orig = os.environ.copy()
-      os.environ.clear()
-      os.environ.update(target_env)
-      return orig
-
-  restore_env = update_env(env)
-  try:
-    pex_bin_pex.main(args=args)
-  except SystemExit as e:
-    error_code = e.code
-  except Exception as e:
-    exception = e
-    tb = traceback.format_exc()
-  finally:
-    update_env(restore_env)
-
-  return IntegResults(output, error_code, exception, tb)
+  cmd = [sys.executable, '-mpex', '-vvvvv'] + list(args)
+  process = Executor.open_process(cmd=cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  output, error = process.communicate()
+  return IntegResults(output.decode('utf-8'), error.decode('utf-8'), process.returncode)
 
 
 def run_simple_pex(pex, args=(), interpreter=None, stdin=None, **kwargs):
