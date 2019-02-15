@@ -118,7 +118,10 @@ def maybe_reexec_pex(compatibility_constraints):
 
     else:
       # Apply constraints to target using regular PATH
-      target = _select_interpreter(pex_python_path=None, compatibility_constraints=compatibility_constraints)
+      target = _select_interpreter(
+        pex_python_path=None,
+        compatibility_constraints=compatibility_constraints
+      )
 
   if target and os.path.realpath(target) != os.path.realpath(sys.executable):
     cmdline = [target] + sys.argv

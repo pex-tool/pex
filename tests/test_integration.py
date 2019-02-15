@@ -415,6 +415,7 @@ def test_interpreter_resolution_with_pex_python_path():
     else:
       assert str(pex_python_path.split(':')[0]).encode() in stdout
 
+
 @pytest.mark.skipif(IS_PYPY)
 def test_interpreter_constraints_honored_without_ppp_or_pp():
 
@@ -445,6 +446,7 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
     # If the constraints are honored, it will have run python3.6 and not python3.5
     if sys.version_info[0] == 3:
       assert ("Python %s" % PY36) in str(stdout).split("\n")[0]
+
 
 @pytest.mark.skipif(NOT_CPYTHON36)
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
