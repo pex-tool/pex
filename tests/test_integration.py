@@ -415,6 +415,36 @@ def test_interpreter_resolution_with_pex_python_path():
     else:
       assert str(pex_python_path.split(':')[0]).encode() in stdout
 
+@pytest.mark.skipif(IS_PYPY)
+def test_interpreter_constraints_honored_without_ppp_or_pp():
+
+  # Create a pex with interpreter constraints, but for not the default interpreter in the path.
+  with temporary_dir() as td:
+
+    py36_path = ensure_python_interpreter(PY36)
+
+    pex_out_path = os.path.join(td, 'pex.pex')
+    env = make_env(
+      PEX_IGNORE_RCFILES="1",
+      PATH=os.path.dirname(py36_path)
+    )
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraint===%s' % PY36,
+      '-o', pex_out_path],
+      env=env
+    )
+    res.assert_success()
+
+    # We want to try to run that pex with no environment variables set
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+    print("BL: stdout = {}".format(stdout))
+    assert rc == 0
+
+    # If the constraints are honored, it will have run python3.6 and not python3.5
+    if sys.version_info[0] == 3:
+      assert ("Python %s" % PY36) in str(stdout).split("\n")[0]
 
 @pytest.mark.skipif(NOT_CPYTHON36)
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
