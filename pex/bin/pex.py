@@ -519,8 +519,11 @@ def build_pex(args, options, resolver_option_builder):
     # affect usages of the interpreter(s) specified by the "--python" command line flag.
     constraints = options.interpreter_constraint
     validate_constraints(constraints)
-    rc_variables = Variables.from_rc(rc=options.rc_file)
-    pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
+    if options.rc_file or not ENV.PEX_IGNORE_RCFILES:
+      rc_variables = Variables.from_rc(rc=options.rc_file)
+      pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
+    else:
+      pex_python_path = ""
     interpreters = find_compatible_interpreters(pex_python_path, constraints)
 
   if not interpreters:
