@@ -89,8 +89,7 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
       # get all qualifying interpreters found in $PATH
       interpreters = PythonInterpreter.all()
 
-  return list(matched_interpreters(
-    interpreters, compatibility_constraints, meet_all_constraints=meet_all_constraints))
+  return list(matched_interpreters(interpreters, compatibility_constraints))
 
 
 def _select_pex_python_interpreter(target_python, compatibility_constraints):
@@ -100,8 +99,7 @@ def _select_pex_python_interpreter(target_python, compatibility_constraints):
     die('Failed to find interpreter specified by PEX_PYTHON: %s' % target)
   if compatibility_constraints:
     pi = PythonInterpreter.from_binary(target)
-    # AND the interpreter constraints
-    if not list(matched_interpreters([pi], compatibility_constraints, meet_all_constraints=True)):
+    if not list(matched_interpreters([pi], compatibility_constraints)):
       die('Interpreter specified by PEX_PYTHON (%s) is not compatible with specified '
           'interpreter constraints: %s' % (target, str(compatibility_constraints)))
   if not os.path.exists(target):
