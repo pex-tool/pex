@@ -68,6 +68,8 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
      PEX_PYTHON_PATH if it is set. If not, fall back to interpreters on $PATH.
   """
   if pex_python_path:
+    # AND the interpreter constraints
+    meet_all_constraints = True
     interpreters = []
     for binary in pex_python_path.split(os.pathsep):
       try:
@@ -78,6 +80,8 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
     if not interpreters:
       die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
   else:
+    # OR the interpreter constraints
+    meet_all_constraints = False
     if not os.getenv('PATH', ''):
       # no $PATH, use sys.executable
       interpreters = [PythonInterpreter.get()]
@@ -86,7 +90,7 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
       interpreters = PythonInterpreter.all()
 
   return list(matched_interpreters(
-    interpreters, compatibility_constraints, meet_all_constraints=True))
+    interpreters, compatibility_constraints, meet_all_constraints=meet_all_constraints))
 
 
 def _select_pex_python_interpreter(target_python, compatibility_constraints):
@@ -96,6 +100,7 @@ def _select_pex_python_interpreter(target_python, compatibility_constraints):
     die('Failed to find interpreter specified by PEX_PYTHON: %s' % target)
   if compatibility_constraints:
     pi = PythonInterpreter.from_binary(target)
+    # AND the interpreter constraints
     if not list(matched_interpreters([pi], compatibility_constraints, meet_all_constraints=True)):
       die('Interpreter specified by PEX_PYTHON (%s) is not compatible with specified '
           'interpreter constraints: %s' % (target, str(compatibility_constraints)))

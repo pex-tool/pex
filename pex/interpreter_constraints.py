@@ -27,10 +27,11 @@ def matched_interpreters(interpreters, constraints, meet_all_constraints=False):
 
   :param interpreters: a list of PythonInterpreter objects for filtering
   :param constraints: A sequence of strings that constrain the interpreter compatibility for this
-    pex, using the Requirement-style format, e.g. ``'CPython>=3', or just ['>=2.7','<3']``
-    for requirements agnostic to interpreter class.
-  :param meet_all_constraints: whether to match against all filters.
-    Defaults to matching interpreters that match at least one filter.
+    pex. Each string uses the Requirement-style format, e.g. 'CPython>=3' or '>=2.7,<3' for requirements
+    agnostic to interpreter class. Multiple requirement strings may be combined into a list, such as
+    ['CPython>=2.7,<3', 'CPython>=3.4'], to either OR or AND the requirements depending on `meet_all_constraints`.
+  :param meet_all_constraints: whether to match against all filters (AND).
+    Defaults to matching interpreters that match at least one filter (OR).
   :return interpreter: returns a generator that yields compatible interpreters
   """
   check = all if meet_all_constraints else any
