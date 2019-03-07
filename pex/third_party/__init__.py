@@ -8,10 +8,9 @@ import importlib
 import os
 import re
 import sys
-
 import warnings
 import zipfile
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict, namedtuple
 
 
 # NB: All pex imports are performed lazily to play well with the un-imports performed by both the

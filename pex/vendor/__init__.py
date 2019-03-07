@@ -10,7 +10,6 @@ from pex.common import touch
 from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 
-
 _PACKAGE_COMPONENTS = __name__.split('.')
 
 
