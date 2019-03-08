@@ -85,7 +85,11 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
       # get all qualifying interpreters found in $PATH
       interpreters = PythonInterpreter.all()
 
-  return list(matched_interpreters(interpreters, compatibility_constraints))
+  return list(
+    matched_interpreters(interpreters, compatibility_constraints)
+    if compatibility_constraints
+    else interpreters
+  )
 
 
 def _select_pex_python_interpreter(target_python, compatibility_constraints):
