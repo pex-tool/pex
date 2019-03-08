@@ -515,8 +515,7 @@ def test_pex_python():
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
                            '--rcfile=%s' % pexrc_path,
-                           '--interpreter-constraint=>3',
-                           '--interpreter-constraint=<3.8',
+                           '--interpreter-constraint=>3,<3.8',
                            '-o', pex_out_path],
                           env=env)
     res.assert_success()
@@ -536,8 +535,7 @@ def test_pex_python():
     pex_out_path = os.path.join(td, 'pex2.pex')
     res = run_pex_command(['--disable-cache',
                            '--rcfile=%s' % pexrc_path,
-                           '--interpreter-constraint=>3',
-                           '--interpreter-constraint=<3.8',
+                           '--interpreter-constraint=>3,<3.8',
                            '-o', pex_out_path],
                           env=env)
     res.assert_success()
