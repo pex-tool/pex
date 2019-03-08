@@ -388,8 +388,7 @@ def test_interpreter_resolution_with_pex_python_path():
     pex_out_path = os.path.join(td, 'pex.pex')
     res = run_pex_command(['--disable-cache',
       '--rcfile=%s' % pexrc_path,
-      '--interpreter-constraint=%s' % interpreter_constraint1,
-      '--interpreter-constraint=%s' % interpreter_constraint2,
+      '--interpreter-constraint=%s,%s' % (interpreter_constraint1, interpreter_constraint2),
       '-o', pex_out_path])
     res.assert_success()
 
