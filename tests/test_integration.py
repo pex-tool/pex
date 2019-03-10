@@ -339,7 +339,7 @@ def test_interpreter_constraints_to_pex_info_py2():
       '-o', pex_out_path])
     res.assert_success()
     pex_info = get_pex_info(pex_out_path)
-    assert ['>=2.7,<3', '>=3.5'] == sorted(pex_info.interpreter_constraints)
+    assert {'>=2.7,<3', '>=3.5'} == set(pex_info.interpreter_constraints)
 
 
 @pytest.mark.skipif(IS_PYPY)
@@ -378,7 +378,7 @@ def test_interpreter_resolution_with_multiple_constraint_options():
       '-o', pex_out_path])
     res.assert_success()
     pex_info = get_pex_info(pex_out_path)
-    assert ['>=2.7,<3', '>=500'] == sorted(pex_info.interpreter_constraints)
+    assert {'>=2.7,<3', '>=500'} == set(pex_info.interpreter_constraints)
     assert pex_info.build_properties['version'][0] < 3
 
 
