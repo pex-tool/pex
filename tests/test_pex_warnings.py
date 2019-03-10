@@ -15,7 +15,6 @@ from pex.variables import Variables
 
 def exercise_warnings(pex_info, **env):
   with warnings.catch_warnings(record=True) as events:
-    warnings.resetwarnings()
     pex_warnings.configure_warnings(pex_info, env=Variables(environ=env))
     pex_warnings.warn('test')
     return events
@@ -42,8 +41,8 @@ def pex_info_no_emit_warnings():
 
 skip_py2_warnings = pytest.mark.skipif(PY2,
                                        reason="The warnings.catch_warnings mechanism doesn't work "
-                                              "properly under python 2.7 / pypy2, etc. across "
-                                              "multiple tests")
+                                              "properly under CPython 2.7 / pypy 2.7, etc. across "
+                                              "multiple tests.")
 
 
 @skip_py2_warnings
