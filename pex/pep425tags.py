@@ -26,6 +26,7 @@ _OSX_ARCH_PAT = re.compile(r'(.+)_(\d+)_(\d+)_(.+)')
 
 # TODO(John Sirois): Kill this file and use wheel.pep425tags from our vendored wheel instead.
 
+
 # NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
 # please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_config_var(var):
