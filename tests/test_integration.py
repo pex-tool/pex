@@ -338,7 +338,7 @@ def test_interpreter_constraints_to_pex_info_py2():
       '--interpreter-constraint=>=3.5',
       '-o', pex_out_path])
     res.assert_success()
-    PexInfo.from_pex(pex_out_path)
+    pex_info = PexInfo.from_pex(pex_out_path)
     assert {'>=2.7,<3', '>=3.5'} == set(pex_info.interpreter_constraints)
 
 
