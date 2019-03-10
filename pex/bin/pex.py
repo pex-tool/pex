@@ -317,10 +317,10 @@ def configure_clp_pex_environment(parser):
     default=[],
     type='str',
     action='append',
-    help='A constraint that determines the interpreter compatibility for '
-         'this pex, using the Requirement-style format, e.g. "CPython>=3", or ">=2.7" '
-         'for requirements agnostic to interpreter class. This option can be passed multiple '
-         'times.')
+    help='Constrain the selected Python interpreter. Specify with Requirement-style syntax, '
+         'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3) '
+         'or "PyPy" (A pypy interpreter of any version). This argument may be repeated multiple '
+         'times to OR the constraints.')
 
   group.add_option(
     '--rcfile',
