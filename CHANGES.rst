@@ -1,6 +1,25 @@
 Release Notes
 =============
 
+1.6.3
+-----
+
+* Provide control over pex warning behavior. (#680)
+  `PR #680 <https://github.com/pantsbuild/pex/pull/680>`_
+
+* OR interpreter constraints when multiple given (#678)
+  `Issue #655 <https://github.com/pantsbuild/pex/issues/655>`_
+  `PR #678 <https://github.com/pantsbuild/pex/pull/678>`_
+
+* Pin isort version in CI (#679)
+  `PR #679 <https://github.com/pantsbuild/pex/pull/679>`_
+
+* Honor PEX_IGNORE_RCFILES in to_python_interpreter() (#673)
+  `PR #673 <https://github.com/pantsbuild/pex/pull/673>`_
+
+* Make `run_pex_command` more robust. (#670)
+  `PR #670 <https://github.com/pantsbuild/pex/pull/670>`_
+
 1.6.2
 -----
 
