@@ -5,7 +5,8 @@ from __future__ import absolute_import
 import ctypes
 import platform
 import re
-import warnings
+
+from pex import pex_warnings
 
 
 def glibc_version_string():
@@ -43,8 +44,8 @@ def check_glibc_version(version_str, required_major, minimum_minor):
   # uses version strings like "2.20-2014.11"). See gh-3588.
   m = re.match(r"(?P<major>[0-9]+)\.(?P<minor>[0-9]+)", version_str)
   if not m:
-    warnings.warn("Expected glibc version with 2 components major.minor,"
-                  " got: %s" % version_str, RuntimeWarning)
+    pex_warnings.warn("Expected glibc version with 2 components major.minor,"
+                      " got: %s" % version_str)
     return False
   return (int(m.group("major")) == required_major and
           int(m.group("minor")) >= minimum_minor)

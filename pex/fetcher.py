@@ -4,9 +4,9 @@
 from __future__ import absolute_import
 
 import re
-import warnings
 from abc import abstractmethod
 
+from pex import pex_warnings
 from pex.base import maybe_requirement
 from pex.compatibility import PY3, AbstractClass
 
@@ -51,7 +51,7 @@ class PyPIFetcher(FetcherBase):
 
   def __init__(self, pypi_base=PYPI_BASE, use_mirrors=False):
     if use_mirrors:
-      warnings.warn('use_mirrors is now deprecated.')
+      pex_warnings.warn('use_mirrors is now deprecated.')
 
     if not pypi_base.endswith('/'):
       pypi_base += '/'

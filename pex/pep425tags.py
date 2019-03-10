@@ -10,7 +10,6 @@ import platform
 import re
 import sys
 import sysconfig
-import warnings
 
 from pex.glibc import have_compatible_glibc
 
@@ -19,11 +18,13 @@ logger = logging.getLogger(__name__)
 _OSX_ARCH_PAT = re.compile(r'(.+)_(\d+)_(\d+)_(.+)')
 
 
+# TODO(John Sirois): Kill this file and use wheel.pep425tags from our vendored wheel instead.
+# The `# Issue #1074` doesn't even refer to a pex issue :/.
 def get_config_var(var):
   try:
     return sysconfig.get_config_var(var)
   except IOError as e:  # Issue #1074
-    warnings.warn("{0}".format(e), RuntimeWarning)
+    logger.warn(str(e))
     return None
 
 

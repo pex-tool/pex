@@ -477,6 +477,15 @@ def configure_clp():
       help='Turn on logging verbosity, may be specified multiple times.')
 
   parser.add_option(
+      '--emit-warnings', '--no-emit-warnings',
+      dest='emit_warnings',
+      action='callback',
+      callback=parse_bool,
+      default=True,
+      help='Emit runtime UserWarnings on stderr. If false, only emit them when PEX_VERBOSE is set.'
+           'Default: emit user warnings to stderr')
+
+  parser.add_option(
       '--pex-root',
       dest='pex_root',
       default=None,
@@ -559,6 +568,7 @@ def build_pex(args, options, resolver_option_builder):
   pex_info.pex_path = options.pex_path
   pex_info.always_write_cache = options.always_write_cache
   pex_info.ignore_errors = options.ignore_errors
+  pex_info.emit_warnings = options.emit_warnings
   pex_info.inherit_path = options.inherit_path
   if options.interpreter_constraint:
     for ic in options.interpreter_constraint:
