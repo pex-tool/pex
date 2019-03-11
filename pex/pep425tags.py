@@ -1,6 +1,13 @@
 # This file was forked from the pip project master branch on 2016/12/05
+# TODO(John Sirois): Kill this file and use wheel.pep425tags from our vendored wheel instead.
 
-"""Generate and work with PEP 425 Compatibility Tags."""
+"""Generate and work with PEP 425 Compatibility Tags.
+
+NB: Several functions here have their code grabbed by `pex.interpreter._generate_identity_source`
+to use in runtime identification of python interpreter platform details. These functions are marked
+here and should maintain reliance on only stdlib support. Even then, any new imports added should
+be checked against those setup in `pex.interpreter.ID_PY_TMPL`.
+"""
 
 from __future__ import absolute_import
 
@@ -10,7 +17,6 @@ import platform
 import re
 import sys
 import sysconfig
-import warnings
 
 from pex.glibc import have_compatible_glibc
 
@@ -19,14 +25,18 @@ logger = logging.getLogger(__name__)
 _OSX_ARCH_PAT = re.compile(r'(.+)_(\d+)_(\d+)_(.+)')
 
 
+# NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
+# please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_config_var(var):
   try:
     return sysconfig.get_config_var(var)
   except IOError as e:  # Issue #1074
-    warnings.warn("{0}".format(e), RuntimeWarning)
+    logger.warn(str(e))
     return None
 
 
+# NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
+# please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_abbr_impl():
   """Return abbreviated implementation name."""
   if hasattr(sys, 'pypy_version_info'):
@@ -40,6 +50,8 @@ def get_abbr_impl():
   return pyimpl
 
 
+# NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
+# please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_impl_ver():
   """Return implementation version."""
   impl_ver = get_config_var("py_version_nodot")
@@ -48,6 +60,8 @@ def get_impl_ver():
   return impl_ver
 
 
+# NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
+# please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_impl_version_info():
   """Return sys.version_info-like tuple for use in decrementing the minor
   version."""
@@ -59,13 +73,8 @@ def get_impl_version_info():
     return sys.version_info[0], sys.version_info[1]
 
 
-def get_impl_tag():
-  """
-  Returns the Tag for this specific implementation.
-  """
-  return "{0}{1}".format(get_abbr_impl(), get_impl_ver())
-
-
+# NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
+# please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_flag(var, fallback, expected=True, warn=True):
   """Use a fallback method for determining SOABI flags if the needed config
   var is unset or unavailable."""
@@ -78,6 +87,8 @@ def get_flag(var, fallback, expected=True, warn=True):
   return val == expected
 
 
+# NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
+# please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_abi_tag():
   """Return the ABI tag based on SOABI (if available) or emulate SOABI
   (CPython 2, PyPy)."""

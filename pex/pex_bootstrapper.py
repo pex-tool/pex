@@ -6,7 +6,8 @@ from __future__ import absolute_import, print_function
 import os
 import sys
 
-from pex.common import die, open_zip
+from pex import pex_warnings
+from pex.common import die
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import matched_interpreters
@@ -14,43 +15,6 @@ from pex.tracer import TRACER
 from pex.variables import ENV
 
 __all__ = ('bootstrap_pex',)
-
-
-def pex_info_name(entry_point):
-  """Return the PEX-INFO for an entry_point"""
-  return os.path.join(entry_point, 'PEX-INFO')
-
-
-def is_compressed(entry_point):
-  return os.path.exists(entry_point) and not os.path.exists(pex_info_name(entry_point))
-
-
-def read_pexinfo_from_directory(entry_point):
-  with open(pex_info_name(entry_point), 'rb') as fp:
-    return fp.read()
-
-
-def read_pexinfo_from_zip(entry_point):
-  with open_zip(entry_point) as zf:
-    return zf.read('PEX-INFO')
-
-
-def read_pex_info_content(entry_point):
-  """Return the raw content of a PEX-INFO."""
-  if is_compressed(entry_point):
-    return read_pexinfo_from_zip(entry_point)
-  else:
-    return read_pexinfo_from_directory(entry_point)
-
-
-def get_pex_info(entry_point):
-  """Return the PexInfo object for an entry point."""
-  from . import pex_info
-
-  pex_info_content = read_pex_info_content(entry_point)
-  if pex_info_content:
-    return pex_info.PexInfo.from_json(pex_info_content)
-  raise ValueError('Invalid entry_point: %s' % entry_point)
 
 
 def find_in_path(target_interpreter):
@@ -164,10 +128,19 @@ def maybe_reexec_pex(compatibility_constraints):
     os.execve(target, cmdline, ENV.copy())
 
 
-def bootstrap_pex(entry_point):
+def _bootstrap(entry_point):
+  from .pex_info import PexInfo
+  pex_info = PexInfo.from_pex(entry_point)
+  pex_warnings.configure_warnings(pex_info)
+
   from .finders import register_finders
   register_finders()
-  pex_info = get_pex_info(entry_point)
+
+  return pex_info
+
+
+def bootstrap_pex(entry_point):
+  pex_info = _bootstrap(entry_point)
   maybe_reexec_pex(pex_info.interpreter_constraints)
 
   from . import pex
@@ -176,10 +149,7 @@ def bootstrap_pex(entry_point):
 
 def bootstrap_pex_env(entry_point):
   """Bootstrap the current runtime environment using a given pex."""
+  pex_info = _bootstrap(entry_point)
+
   from .environment import PEXEnvironment
-  from .finders import register_finders
-  from .pex_info import PexInfo
-
-  register_finders()
-
-  PEXEnvironment(entry_point, PexInfo.from_pex(entry_point)).activate()
+  PEXEnvironment(entry_point, pex_info).activate()

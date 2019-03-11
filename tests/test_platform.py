@@ -3,7 +3,7 @@
 
 import sys
 
-from pex.pep425tags import get_abi_tag, get_impl_tag
+from pex.pep425tags import get_abi_tag, get_abbr_impl, get_impl_ver
 from pex.platforms import Platform
 
 EXPECTED_BASE = [('py27', 'none', 'any'), ('py2', 'none', 'any')]
@@ -56,12 +56,13 @@ def test_platform_supported_tags_manylinux():
 
 
 def test_platform_supported_tags_osx_minimal():
+  impl_tag = "{}{}".format(get_abbr_impl(), get_impl_ver())
   assert_tags(
     'macosx-10.4-x86_64',
     [
-      (get_impl_tag(), 'none', 'any'),
+      (impl_tag, 'none', 'any'),
       ('py%s' % sys.version_info[0], 'none', 'any'),
-      (get_impl_tag(), get_abi_tag(), 'macosx_10_4_x86_64')
+      (impl_tag, get_abi_tag(), 'macosx_10_4_x86_64')
     ]
   )
 

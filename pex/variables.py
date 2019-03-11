@@ -327,6 +327,17 @@ class Variables(object):
     """
     return self._get_bool('PEX_IGNORE_RCFILES', default=False)
 
+  @property
+  def PEX_EMIT_WARNINGS(self):
+    """Boolean
+
+    Emit UserWarnings to stderr. When false, warnings will only be logged at PEX_VERBOSE >= 1. When
+    unset the build-time value of `--emit-warnings` will be used. Default: unset.
+    """
+    return self._get_bool('PEX_EMIT_WARNINGS', default=None)
+
+  def __repr__(self):
+    return '{}({!r})'.format(type(self).__name__, self._environ)
 
 # Global singleton environment
 ENV = Variables()

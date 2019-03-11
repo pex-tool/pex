@@ -5,8 +5,8 @@ from __future__ import absolute_import
 
 import json
 import os
-import warnings
 
+from pex import pex_warnings
 from pex.common import open_zip
 from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
@@ -108,7 +108,7 @@ class PexInfo(object):
       if len(requirement_tuple) != 3:
         raise ValueError('Malformed PEX requirement: %r' % (requirement_tuple,))
       # pre 0.8.x requirement type:
-      warnings.warn('Attempting to use deprecated PEX feature.  Please upgrade past PEX 0.8.x.')
+      pex_warnings.warn('Attempting to use deprecated PEX feature.  Please upgrade past PEX 0.8.x.')
       return requirement_tuple[0]
     elif isinstance(requirement_tuple, compatibility_string):
       return requirement_tuple
@@ -225,6 +225,14 @@ class PexInfo(object):
     self._pex_info['ignore_errors'] = bool(value)
 
   @property
+  def emit_warnings(self):
+    return self._pex_info.get('emit_warnings', True)
+
+  @emit_warnings.setter
+  def emit_warnings(self, value):
+    self._pex_info['emit_warnings'] = bool(value)
+
+  @property
   def code_hash(self):
     return self._pex_info.get('code_hash')
 
@@ -315,3 +323,6 @@ class PexInfo(object):
     if not pex_path:
       return
     self.pex_path = ':'.join(merge_split(self.pex_path, pex_path))
+
+  def __repr__(self):
+    return '{}({!r})'.format(type(self).__name__, self._pex_info)

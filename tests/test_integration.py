@@ -13,7 +13,7 @@ import pytest
 
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller
-from pex.pex_bootstrapper import get_pex_info
+from pex.pex_info import PexInfo
 from pex.testing import (
     IS_PYPY,
     NOT_CPYTHON27,
@@ -338,7 +338,7 @@ def test_interpreter_constraints_to_pex_info_py2():
       '--interpreter-constraint=>=3.5',
       '-o', pex_out_path])
     res.assert_success()
-    pex_info = get_pex_info(pex_out_path)
+    pex_info = PexInfo.from_pex(pex_out_path)
     assert {'>=2.7,<3', '>=3.5'} == set(pex_info.interpreter_constraints)
 
 
@@ -351,7 +351,7 @@ def test_interpreter_constraints_to_pex_info_py3():
     res = run_pex_command(['--disable-cache', '--interpreter-constraint=>3', '-o', pex_out_path],
                           env=make_env(PATH=os.path.dirname(py3_interpreter)))
     res.assert_success()
-    pex_info = get_pex_info(pex_out_path)
+    pex_info = PexInfo.from_pex(pex_out_path)
     assert ['>3'] == pex_info.interpreter_constraints
 
 
@@ -362,7 +362,7 @@ def test_interpreter_resolution_with_constraint_option():
       '--interpreter-constraint=>=2.7,<3',
       '-o', pex_out_path])
     res.assert_success()
-    pex_info = get_pex_info(pex_out_path)
+    pex_info = PexInfo.from_pex(pex_out_path)
     assert ['>=2.7,<3'] == pex_info.interpreter_constraints
     assert pex_info.build_properties['version'][0] < 3
 
@@ -377,7 +377,7 @@ def test_interpreter_resolution_with_multiple_constraint_options():
       '--interpreter-constraint=>=500',
       '-o', pex_out_path])
     res.assert_success()
-    pex_info = get_pex_info(pex_out_path)
+    pex_info = PexInfo.from_pex(pex_out_path)
     assert {'>=2.7,<3', '>=500'} == set(pex_info.interpreter_constraints)
     assert pex_info.build_properties['version'][0] < 3
 
@@ -1228,3 +1228,36 @@ def test_issues_661_devendoring_required():
     res.assert_success()
 
     subprocess.check_call([cryptography_pex, '-c', 'import cryptography'])
+
+
+def build_and_execute_pex_with_warnings(*extra_build_args, **extra_runtime_env):
+  with temporary_dir() as out:
+    tcl_pex = os.path.join(out, 'tcl.pex')
+    run_pex_command(['twitter.common.lang==0.3.10', '-o', tcl_pex] + list(extra_build_args))
+
+    cmd = [tcl_pex, '-c', 'from twitter.common.lang import Singleton']
+    env = os.environ.copy()
+    env.update(**extra_runtime_env)
+    process = subprocess.Popen(cmd, env=env, stderr=subprocess.PIPE)
+    _, stderr = process.communicate()
+    return stderr
+
+
+def test_emit_warnings_default():
+  stderr = build_and_execute_pex_with_warnings()
+  assert stderr
+
+
+def test_no_emit_warnings():
+  stderr = build_and_execute_pex_with_warnings('--no-emit-warnings')
+  assert not stderr
+
+
+def test_no_emit_warnings_emit_env_override():
+  stderr = build_and_execute_pex_with_warnings('--no-emit-warnings', PEX_EMIT_WARNINGS='true')
+  assert stderr
+
+
+def test_no_emit_warnings_verbose_override():
+  stderr = build_and_execute_pex_with_warnings('--no-emit-warnings', PEX_VERBOSE='1')
+  assert stderr

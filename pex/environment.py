@@ -9,10 +9,9 @@ import os
 import site
 import sys
 import uuid
-import warnings
 import zipfile
 
-from pex import pex_builder
+from pex import pex_builder, pex_warnings
 from pex.bootstrap import Bootstrap
 from pex.common import die, open_zip, rename_if_empty, safe_mkdir, safe_rmtree
 from pex.interpreter import PythonInterpreter
@@ -325,9 +324,10 @@ class PEXEnvironment(Environment):
     # it all down when we hand off from the bootstrap to user code.
     pkg_resources, vendored = _import_pkg_resources()
     if vendored:
-      warnings.warn('The `pkg_resources` package was loaded from a pex vendored version when '
-                    'declaring namespace packages defined by {dist}. The {dist} distribution '
-                    'should fix its `install_requires` to include `setuptools`'.format(dist=dist))
+      pex_warnings.warn('The `pkg_resources` package was loaded from a pex vendored version when '
+                        'declaring namespace packages defined by {dist}. The {dist} distribution '
+                        'should fix its `install_requires` to include `setuptools`'
+                        .format(dist=dist))
 
     for pkg in dist.get_metadata_lines('namespace_packages.txt'):
       if pkg in sys.modules:

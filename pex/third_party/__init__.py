@@ -8,7 +8,6 @@ import importlib
 import os
 import re
 import sys
-import warnings
 import zipfile
 from collections import OrderedDict, namedtuple
 
@@ -258,8 +257,6 @@ class VendorImporter(object):
                           importables=importables,
                           uninstallable=uninstallable,
                           warning=warning)
-    if warning:
-      warnings.filterwarnings('default', category=DeprecationWarning, module=__name__)
     sys.meta_path.insert(0, vendor_importer)
     _tracer().log('Installed {}'.format(vendor_importer), V=3)
     return vendor_importer
@@ -302,8 +299,8 @@ class VendorImporter(object):
       if loader is not None:
         self._loaders.append(loader)
         if self._warning:
-          warnings.warn('Found loader for `import {}`:\n\t{}'.format(fullname, self._warning),
-                        category=DeprecationWarning)
+          from pex import pex_warnings
+          pex_warnings.warn('Found loader for `import {}`:\n\t{}'.format(fullname, self._warning))
         return loader
     return None
 
