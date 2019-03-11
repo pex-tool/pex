@@ -1,4 +1,5 @@
 # This file was forked from the pip project master branch on 2016/12/05
+# TODO(John Sirois): Kill this file and use wheel.pep425tags from our vendored wheel instead.
 
 """Generate and work with PEP 425 Compatibility Tags.
 
@@ -22,9 +23,6 @@ from pex.glibc import have_compatible_glibc
 logger = logging.getLogger(__name__)
 
 _OSX_ARCH_PAT = re.compile(r'(.+)_(\d+)_(\d+)_(.+)')
-
-
-# TODO(John Sirois): Kill this file and use wheel.pep425tags from our vendored wheel instead.
 
 
 # NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
