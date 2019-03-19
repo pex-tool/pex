@@ -430,8 +430,7 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
       PATH=":".join([
         os.path.dirname(py36_path),
         os.path.dirname(py35_path)
-      ]),
-      PEX_VERBOSE="1"
+      ])
     )
     res = run_pex_command(['--disable-cache',
       '--interpreter-constraint===%s' % PY35,
@@ -483,12 +482,19 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
 def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
-    res = run_pex_command(['--disable-cache',
-      '-o', pex_out_path])
+    env = make_env(
+      PEX_IGNORE_RCFILES="1",
+      PATH=os.path.dirname(os.path.realpath(sys.executable))
+    )
+    res = run_pex_command([
+      '--disable-cache',
+      '-o', pex_out_path],
+      env=env
+    )
     res.assert_success()
 
     stdin_payload = b'import os, sys; print(os.path.realpath(sys.executable)); sys.exit(0)'
-    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
     assert rc == 0
     assert os.path.realpath(sys.executable).encode() in stdout
 
