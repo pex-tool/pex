@@ -1160,13 +1160,19 @@ def test_setup_interpreter_constraint():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
     pex = os.path.join(out, 'pex.pex')
+    env = make_env(
+      PEX_IGNORE_RCFILES='1',
+      PATH=os.path.dirname(interpreter),
+    )
     results = run_pex_command(['jsonschema==2.6.0',
                                '--disable-cache',
                                '--interpreter-constraint=CPython=={}'.format(PY27),
                                '-o', pex],
-                              env=make_env(PATH=os.path.dirname(interpreter)))
+                              env=env)
     results.assert_success()
-    subprocess.check_call([pex, '-c', 'import jsonschema'])
+
+    stdout, rc = run_simple_pex(pex, env=env, stdin='import jsonschema')
+    assert rc == 0
 
 
 @pytest.mark.skipif(IS_PYPY,
