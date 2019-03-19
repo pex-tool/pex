@@ -22,6 +22,7 @@ from pex.testing import (
     NOT_CPYTHON36,
     NOT_CPYTHON36_OR_LINUX,
     PY27,
+    PY35,
     PY36,
     ensure_python_interpreter,
     get_dep_dist_names_from_pex,
@@ -418,10 +419,8 @@ def test_interpreter_resolution_with_pex_python_path():
 
 @pytest.mark.skipif(IS_PYPY)
 def test_interpreter_constraints_honored_without_ppp_or_pp():
-
   # Create a pex with interpreter constraints, but for not the default interpreter in the path.
   with temporary_dir() as td:
-
     py36_path = ensure_python_interpreter(PY36)
     py35_path = ensure_python_interpreter(PY35)
 
