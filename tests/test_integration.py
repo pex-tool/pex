@@ -433,7 +433,7 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
       ])
     )
     res = run_pex_command(['--disable-cache',
-      '--interpreter-constraint===%s' % PY35,
+      '--interpreter-constraint===%s' % PY36,
       '-o', pex_out_path],
       env=env
     )
@@ -448,7 +448,7 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
 
     # If the constraints are honored, it will have run python3.5 and not python3.6
     if sys.version_info[0] == 3:
-      assert ("Python %s" % PY35) in str(stdout).split("\n")[0]
+      assert ("Python %s" % PY36) in str(stdout).split("\n")[0]
 
 
 @pytest.mark.skipif(NOT_CPYTHON36)
