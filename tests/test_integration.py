@@ -1171,7 +1171,7 @@ def test_setup_interpreter_constraint():
                               env=env)
     results.assert_success()
 
-    stdout, rc = run_simple_pex(pex, env=env, stdin='import jsonschema')
+    stdout, rc = run_simple_pex(pex, env=env, stdin=b'import jsonschema')
     assert rc == 0
 
 
