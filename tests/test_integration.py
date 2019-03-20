@@ -427,9 +427,9 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
     pex_out_path = os.path.join(td, 'pex.pex')
     env = make_env(
       PEX_IGNORE_RCFILES="1",
-      PATH=":".join([
+      PATH=os.pathsep.join([
+        os.path.dirname(py35_path),
         os.path.dirname(py36_path),
-        os.path.dirname(py35_path)
       ])
     )
     res = run_pex_command(['--disable-cache',
@@ -443,12 +443,12 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
     stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
 
     stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
-    print("BL: stdout = {}".format(stdout))
     assert rc == 0
 
-    # If the constraints are honored, it will have run python3.5 and not python3.6
-    if sys.version_info[0] == 3:
-      assert ("Python %s" % PY36) in str(stdout).split("\n")[0]
+    # If the constraints are honored, it will have run python3.6 and not python3.5
+    # Without constraints, we would expect it to use python3.5 as it is the minimum interpreter
+    # in the PATH.
+    assert str(py36_path).encode() in stdout
 
 
 @pytest.mark.skipif(NOT_CPYTHON36)
