@@ -22,6 +22,7 @@ from pex.testing import (
     NOT_CPYTHON36,
     NOT_CPYTHON36_OR_LINUX,
     PY27,
+    PY35,
     PY36,
     ensure_python_interpreter,
     get_dep_dist_names_from_pex,
@@ -416,6 +417,40 @@ def test_interpreter_resolution_with_pex_python_path():
       assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
+@pytest.mark.skipif(IS_PYPY)
+def test_interpreter_constraints_honored_without_ppp_or_pp():
+  # Create a pex with interpreter constraints, but for not the default interpreter in the path.
+  with temporary_dir() as td:
+    py36_path = ensure_python_interpreter(PY36)
+    py35_path = ensure_python_interpreter(PY35)
+
+    pex_out_path = os.path.join(td, 'pex.pex')
+    env = make_env(
+      PEX_IGNORE_RCFILES="1",
+      PATH=os.pathsep.join([
+        os.path.dirname(py35_path),
+        os.path.dirname(py36_path),
+      ])
+    )
+    res = run_pex_command(['--disable-cache',
+      '--interpreter-constraint===%s' % PY36,
+      '-o', pex_out_path],
+      env=env
+    )
+    res.assert_success()
+
+    # We want to try to run that pex with no environment variables set
+    stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
+
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+    assert rc == 0
+
+    # If the constraints are honored, it will have run python3.6 and not python3.5
+    # Without constraints, we would expect it to use python3.5 as it is the minimum interpreter
+    # in the PATH.
+    assert str(py36_path).encode() in stdout
+
+
 @pytest.mark.skipif(NOT_CPYTHON36)
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
   with temporary_dir() as td:
@@ -447,12 +482,19 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
 def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
-    res = run_pex_command(['--disable-cache',
-      '-o', pex_out_path])
+    env = make_env(
+      PEX_IGNORE_RCFILES="1",
+      PATH=os.path.dirname(os.path.realpath(sys.executable))
+    )
+    res = run_pex_command([
+      '--disable-cache',
+      '-o', pex_out_path],
+      env=env
+    )
     res.assert_success()
 
     stdin_payload = b'import os, sys; print(os.path.realpath(sys.executable)); sys.exit(0)'
-    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
+    stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
     assert rc == 0
     assert os.path.realpath(sys.executable).encode() in stdout
 
@@ -1118,13 +1160,19 @@ def test_setup_interpreter_constraint():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
     pex = os.path.join(out, 'pex.pex')
+    env = make_env(
+      PEX_IGNORE_RCFILES='1',
+      PATH=os.path.dirname(interpreter),
+    )
     results = run_pex_command(['jsonschema==2.6.0',
                                '--disable-cache',
                                '--interpreter-constraint=CPython=={}'.format(PY27),
                                '-o', pex],
-                              env=make_env(PATH=os.path.dirname(interpreter)))
+                              env=env)
     results.assert_success()
-    subprocess.check_call([pex, '-c', 'import jsonschema'])
+
+    stdout, rc = run_simple_pex(pex, env=env, stdin=b'import jsonschema')
+    assert rc == 0
 
 
 @pytest.mark.skipif(IS_PYPY,

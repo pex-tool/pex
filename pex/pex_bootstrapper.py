@@ -94,12 +94,14 @@ def maybe_reexec_pex(compatibility_constraints):
   interpreter specified by PEX_PYTHON. If PEX_PYTHON_PATH is set, it attempts to search the path for
   a matching interpreter in accordance with the interpreter constraints. If both variables are
   present in a pexrc, this function gives precedence to PEX_PYTHON_PATH and errors out if no
-  compatible interpreters can be found on said path. If neither variable is set, fall through to
-  plain pex execution using PATH searching or the currently executing interpreter.
+  compatible interpreters can be found on said path.
+
+  If neither variable is set, we fall back to plain PEX execution using PATH searching or the
+  currently executing interpreter. If compatibility constraints are used, we match those constraints
+  against these interpreters.
 
   :param compatibility_constraints: list of requirements-style strings that constrain the
   Python interpreter to re-exec this pex with.
-
   """
   if os.environ.pop('SHOULD_EXIT_BOOTSTRAP_REEXEC', None):
     # We've already been here and selected an interpreter. Continue to execution.
@@ -115,6 +117,13 @@ def maybe_reexec_pex(compatibility_constraints):
                                               compatibility_constraints)
     elif ENV.PEX_PYTHON_PATH:
       target = _select_interpreter(ENV.PEX_PYTHON_PATH, compatibility_constraints)
+
+    elif compatibility_constraints:
+      # Apply constraints to target using regular PATH
+      target = _select_interpreter(
+        pex_python_path=None,
+        compatibility_constraints=compatibility_constraints
+      )
 
   if target and os.path.realpath(target) != os.path.realpath(sys.executable):
     cmdline = [target] + sys.argv
