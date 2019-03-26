@@ -3,7 +3,7 @@
 
 import sys
 
-from pex.pep425tags import get_abi_tag, get_abbr_impl, get_impl_ver
+from pex.pep425tags import get_abbr_impl, get_abi_tag, get_impl_ver
 from pex.platforms import Platform
 
 EXPECTED_BASE = [('py27', 'none', 'any'), ('py2', 'none', 'any')]
