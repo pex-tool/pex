@@ -19,12 +19,12 @@ This release un-breaks `lambdex <https://github.com/wickman/lambdex>`_.
 -----
 
 This release changes the behavior of the ``--interpreter-constraint`` option.
-Previously, interpreter constraints were ANDed which made it impossible to
+Previously, interpreter constraints were ANDed, which made it impossible to
 express constraints like '>=2.7,<3' OR '>=3.6,<4'; ie: either python 2.7 or
 else any python 3 release at or above 3.6. Now interpreter constraints are
-ORed which is likely a breaking change if you have scripts that pass multiple
+ORed, which is likely a breaking change if you have scripts that pass multiple
 interpreter constraints. To transition, use the native ``,`` AND operator in
-your constraint expression as used in the example above.
+your constraint expression, as used in the example above.
 
 * Provide control over pex warning behavior. (#680)
   `PR #680 <https://github.com/pantsbuild/pex/pull/680>`_
