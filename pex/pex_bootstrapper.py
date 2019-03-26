@@ -156,6 +156,13 @@ def bootstrap_pex(entry_point):
   pex.PEX(entry_point).execute()
 
 
+# NB: This helper is used by third party libs - namely https://github.com/wickman/lambdex.
+# TODO(John Sirois): Kill once https://github.com/wickman/lambdex/issues/5 is resolved.
+def is_compressed(entry_point):
+  from .pex_info import PexInfo
+  return os.path.exists(entry_point) and not os.path.exists(os.path.join(entry_point, PexInfo.PATH))
+
+
 def bootstrap_pex_env(entry_point):
   """Bootstrap the current runtime environment using a given pex."""
   pex_info = _bootstrap(entry_point)
