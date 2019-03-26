@@ -13,6 +13,7 @@ from pex.compatibility import string as compatibility_string
 from pex.orderedset import OrderedSet
 from pex.util import merge_split
 from pex.variables import ENV
+from pex.version import __version__ as pex_version
 
 
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.
@@ -56,6 +57,7 @@ class PexInfo(object):
     plat = Platform.current()
     platform_name = plat.platform
     return {
+      'pex_version': pex_version,
       'class': pi.identity.interpreter,
       'version': pi.identity.version,
       'platform': platform_name,
