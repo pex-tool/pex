@@ -9,6 +9,7 @@ from pex.bin.pex import make_relative_to_root
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.variables import ENV, Variables
+from pex.version import __version__ as pex_version
 
 
 def make_pex_info(requirements):
@@ -75,3 +76,7 @@ def test_from_env():
               always_write_cache=True)
 
   assert_same_info(PexInfo(info=info), PexInfo.from_env(env=Variables(environ=environ)))
+
+
+def test_build_properties():
+  assert pex_version == PexInfo.default().build_properties['pex_version']
