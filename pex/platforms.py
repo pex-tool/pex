@@ -17,7 +17,7 @@ def _gen_all_compatible_versions(version):
   # represents the (hosting) python major version, the 2nd the pypy major version and the 3rd the
   # pypy minor version. In both cases the last digit is the minor version and the python in question
   # guarantees backwards compatibility of minor version bumps within the major version as per
-  # semver.
+  # semver and PEP 425 (https://www.python.org/dev/peps/pep-0425/#id1).
   #
   # Concrete examples of what we want to return in each case:
   # 1. typical case of cpython "36": ["36", "35", "34", "33", "32", "31", "30"]
