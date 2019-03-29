@@ -310,36 +310,36 @@ def get_supported(version=None, noarch=False, platform=None, impl=None, abi=None
                 for m in reversed(range(int(minor) + 1)):
                     for a in get_darwin_arches(int(major), m, actual_arch):
                         arches.append(tpl % (m, a))
-          else:
-              # arch pattern didn't match (?!)
-              arches = [arch]
-      elif (
-          (platform is None and is_manylinux1_compatible()) or
-          # N.B. Here we work around the fact that `is_manylinux1_compatible()` expects
-          # to be running on the target platform being built for with a feature flag approach.
-          (arch.startswith('linux') and force_manylinux)
-      ):
-          arches = [arch.replace('linux', 'manylinux1'), arch]
-      else:
-          arches = [arch]
+            else:
+                # arch pattern didn't match (?!)
+                arches = [arch]
+        elif (
+            (platform is None and is_manylinux1_compatible()) or
+            # N.B. Here we work around the fact that `is_manylinux1_compatible()` expects
+            # to be running on the target platform being built for with a feature flag approach.
+            (arch.startswith('linux') and force_manylinux)
+        ):
+            arches = [arch.replace('linux', 'manylinux1'), arch]
+        else:
+            arches = [arch]
 
-      # Current version, current API (built specifically for our Python):
-      for abi in abis:
-          for arch in arches:
-              supported.append(('%s%s' % (impl, versions[0]), abi, arch))
-
-      # abi3 modules compatible with older version of Python
-      for version in versions[1:]:
-          # abi3 was introduced in Python 3.2
-          if version in ('31', '30'):
-              break
-        for abi in abi3s:   # empty set if not Python 3
+        # Current version, current API (built specifically for our Python):
+        for abi in abis:
             for arch in arches:
-                supported.append(('%s%s' % (impl, version), abi, arch))
+                supported.append(('%s%s' % (impl, versions[0]), abi, arch))
 
-      # Has binaries, does not use the Python API:
-      for arch in arches:
-          supported.append(('py%s' % (versions[0][0]), 'none', arch))
+        # abi3 modules compatible with older version of Python
+        for version in versions[1:]:
+            # abi3 was introduced in Python 3.2
+            if version in ('31', '30'):
+                break
+            for abi in abi3s:   # empty set if not Python 3
+                for arch in arches:
+                    supported.append(('%s%s' % (impl, version), abi, arch))
+
+        # Has binaries, does not use the Python API:
+        for arch in arches:
+            supported.append(('py%s' % (versions[0][0]), 'none', arch))
 
     # No abi / arch, but requires our implementation:
     supported.append(('%s%s' % (impl, versions[0]), 'none', 'any'))
