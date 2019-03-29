@@ -14,6 +14,7 @@ import pytest
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller
 from pex.pex_info import PexInfo
+from pex.resolver import resolve
 from pex.testing import (
     IS_PYPY,
     NOT_CPYTHON27,
@@ -1309,3 +1310,31 @@ def test_no_emit_warnings_emit_env_override():
 def test_no_emit_warnings_verbose_override():
   stderr = build_and_execute_pex_with_warnings('--no-emit-warnings', PEX_VERBOSE='1')
   assert stderr
+
+
+@pytest.mark.skipif(IS_PYPY)
+def test_issues_539_abi3_resolution():
+  # The cryptography team releases the following relevant pre-built wheels for version 2.6.1:
+  # cryptography-2.6.1-cp27-cp27m-macosx_10_6_intel.whl
+  # cryptography-2.6.1-cp27-cp27m-manylinux1_x86_64.whl
+  # cryptography-2.6.1-cp27-cp27mu-manylinux1_x86_64.whl
+  # cryptography-2.6.1-cp34-abi3-macosx_10_6_intel.whl
+  # cryptography-2.6.1-cp34-abi3-manylinux1_x86_64.whl
+  # With pex in --no-build mode, we force a test that pex abi3 resolution works when this test is
+  # run under CPython>3.4,<4 on OSX and linux.
+
+  with temporary_dir() as td:
+    # The dependency graph for cryptography-2.6.1 includes pycparser which is only released as an
+    # sdist. Since we want to test in --no-build, we pre-resolve/build the pycparser wheel here and
+    # add the resulting wheelhouse to the --no-build pex command.
+    resolve_cache = os.path.join(td, '.resolve_cache')
+    resolve(['pycparser'], cache=resolve_cache)
+
+    cryptography_pex = os.path.join(td, 'cryptography.pex')
+    res = run_pex_command(['-f', resolve_cache,
+                           '--no-build',
+                           'cryptography==2.6.1',
+                           '-o', cryptography_pex])
+    res.assert_success()
+
+    subprocess.check_call([cryptography_pex, '-c', 'import cryptography'])
