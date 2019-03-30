@@ -1,6 +1,8 @@
 # NB: Copied from our vendored setuptools' version at:
 #   pex/vendor/_vendored/setuptools/setuptools/glibc.py
 # Modifications are marked with `# NB: Modified from ...`
+# TODO(John Sirois): Remove this file as part of https://github.com/pantsbuild/pex/issues/696
+# -------------------------------------------------------------------------------------------
 
 # This file originally from pip:
 # https://github.com/pypa/pip/blob/8f4f15a5a95d7d5b511ceaee9ed261176c181970/src/pip/_internal/utils/glibc.py
