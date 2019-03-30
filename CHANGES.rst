@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+1.6.5
+-----
+
+This release fixes long-broken resolution of abi3 wheels.
+
+* Use all compatible versions when calculating tags. (#692)
+  `PR #692 <https://github.com/pantsbuild/pants/pull/692>`_
+
 1.6.4
 -----
 
