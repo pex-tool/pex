@@ -116,7 +116,7 @@ class TestPEP425Tags(object):
 class TestManylinux1Tags(object):
 
   @patch('pex.pep425tags.get_platform', lambda: 'linux_x86_64')
-  @patch('pex.pep425tags.have_compatible_glibc', lambda major, minor: True)
+  @patch('pex.glibc.have_compatible_glibc', lambda major, minor: True)
   def test_manylinux1_compatible_on_linux_x86_64(self):
     """
     Test that manylinux1 is enabled on linux_x86_64
@@ -124,7 +124,7 @@ class TestManylinux1Tags(object):
     assert pep425tags.is_manylinux1_compatible()
 
   @patch('pex.pep425tags.get_platform', lambda: 'linux_i686')
-  @patch('pex.pep425tags.have_compatible_glibc', lambda major, minor: True)
+  @patch('pex.glibc.have_compatible_glibc', lambda major, minor: True)
   def test_manylinux1_compatible_on_linux_i686(self):
     """
     Test that manylinux1 is enabled on linux_i686
@@ -132,7 +132,7 @@ class TestManylinux1Tags(object):
     assert pep425tags.is_manylinux1_compatible()
 
   @patch('pex.pep425tags.get_platform', lambda: 'linux_x86_64')
-  @patch('pex.pep425tags.have_compatible_glibc', lambda major, minor: False)
+  @patch('pex.glibc.have_compatible_glibc', lambda major, minor: False)
   def test_manylinux1_2(self):
     """
     Test that manylinux1 is disabled with incompatible glibc
@@ -140,7 +140,7 @@ class TestManylinux1Tags(object):
     assert not pep425tags.is_manylinux1_compatible()
 
   @patch('pex.pep425tags.get_platform', lambda: 'arm6vl')
-  @patch('pex.pep425tags.have_compatible_glibc', lambda major, minor: True)
+  @patch('pex.glibc.have_compatible_glibc', lambda major, minor: True)
   def test_manylinux1_3(self):
     """
     Test that manylinux1 is disabled on arm6vl
@@ -148,7 +148,7 @@ class TestManylinux1Tags(object):
     assert not pep425tags.is_manylinux1_compatible()
 
   @patch('pex.pep425tags.get_platform', lambda: 'linux_x86_64')
-  @patch('pex.pep425tags.have_compatible_glibc', lambda major, minor: True)
+  @patch('pex.glibc.have_compatible_glibc', lambda major, minor: True)
   @patch('sys.platform', 'linux2')
   def test_manylinux1_tag_is_first(self):
     """

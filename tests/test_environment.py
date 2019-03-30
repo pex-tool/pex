@@ -325,7 +325,7 @@ def test_osx_platform_intel_issue_523():
 
 def test_activate_extras_issue_615():
   with yield_pex_builder() as pb:
-    for resolved_dist in resolver.resolve(['pex[requests]==1.5.1'], interpreter=pb.interpreter):
+    for resolved_dist in resolver.resolve(['pex[requests]==1.6.3'], interpreter=pb.interpreter):
       pb.add_requirement(resolved_dist.requirement)
       pb.add_dist_location(resolved_dist.distribution.location)
     pb.set_script('pex')
@@ -339,4 +339,4 @@ def test_activate_extras_issue_615():
     assert 0 == process.returncode, (
       'Process failed with exit code {} and output:\n{}'.format(process.returncode, stderr)
     )
-    assert to_bytes('{} 1.5.1'.format(os.path.basename(pb.path()))) == stdout.strip()
+    assert to_bytes('{} 1.6.3'.format(os.path.basename(pb.path()))) == stdout.strip()
