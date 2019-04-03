@@ -16,7 +16,9 @@ def test_find_compatible_interpreters():
   pex_python_path = ':'.join([py27, py35, py36])
 
   def find_interpreters(*constraints):
-    return [interp.binary for interp in find_compatible_interpreters(pex_python_path, constraints)]
+    return [interp.binary for interp in
+            find_compatible_interpreters(pex_python_path=pex_python_path,
+                                         compatibility_constraints=constraints)]
 
   assert [py35, py36] == find_interpreters('>3')
   assert [py27] == find_interpreters('<3')
@@ -29,6 +31,9 @@ def test_find_compatible_interpreters():
   assert [] == find_interpreters('>4')
   assert [] == find_interpreters('>{}, <{}'.format(PY27, PY35))
 
-  # All interpreters on PATH.
-  interpreters = find_compatible_interpreters(pex_python_path='', compatibility_constraints=['<3'])
-  assert set(interpreters).issubset(set(PythonInterpreter.all()))
+  # All interpreters on PATH including whatever interpreter is currently running.
+  all_known_interpreters = set(PythonInterpreter.all())
+  all_known_interpreters.add(PythonInterpreter.get())
+
+  interpreters = find_compatible_interpreters(compatibility_constraints=['<3'])
+  assert set(interpreters).issubset(all_known_interpreters)
