@@ -4,6 +4,9 @@ Release Notes
 1.6.6
 -----
 
+This is the first release including only a single PEX pex, which
+supports execution under all interpreters pex supports.
+
 * Fix pex bootstrap interpreter selection. (#701)
   `PR #701 <https://github.com/pantsbuild/pex/pull/701>`_
 
