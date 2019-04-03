@@ -44,7 +44,7 @@ def find_compatible_interpreters(pex_python_path=None, compatibility_constraints
       die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
   else:
     # We may have been invoked with a specific interpreter not on the $PATH, make sure our
-    # sys.executable included as a candidate in this case.
+    # sys.executable is included as a candidate in this case.
     interpreters = OrderedSet([PythonInterpreter.get()])
 
     # Add all qualifying interpreters found in $PATH.
