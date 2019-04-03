@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.6.6
+-----
+
+* Fix pex bootstrap interpreter selection. (#701)
+  `PR #701 <https://github.com/pantsbuild/pex/pull/701>`_
+
+* Switch releases to a single multi-pex. (#698)
+  `PR #698 <https://github.com/pantsbuild/pex/pull/698>`_
+
 1.6.5
 -----
 
