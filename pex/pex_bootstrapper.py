@@ -11,6 +11,7 @@ from pex.common import die
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import matched_interpreters
+from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 from pex.variables import ENV
 
@@ -27,7 +28,7 @@ def find_in_path(target_interpreter):
       return try_path
 
 
-def find_compatible_interpreters(pex_python_path, compatibility_constraints):
+def find_compatible_interpreters(pex_python_path=None, compatibility_constraints=None):
   """Find all compatible interpreters on the system within the supplied constraints and use
      PEX_PYTHON_PATH if it is set. If not, fall back to interpreters on $PATH.
   """
@@ -42,12 +43,12 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
     if not interpreters:
       die('PEX_PYTHON_PATH was defined, but no valid interpreters could be identified. Exiting.')
   else:
-    if not os.getenv('PATH', ''):
-      # no $PATH, use sys.executable
-      interpreters = [PythonInterpreter.get()]
-    else:
-      # get all qualifying interpreters found in $PATH
-      interpreters = PythonInterpreter.all()
+    # We may have been invoked with a specific interpreter not on the $PATH, make sure our
+    # sys.executable is included as a candidate in this case.
+    interpreters = OrderedSet([PythonInterpreter.get()])
+
+    # Add all qualifying interpreters found in $PATH.
+    interpreters.update(PythonInterpreter.all())
 
   return list(
     matched_interpreters(interpreters, compatibility_constraints)
@@ -56,7 +57,7 @@ def find_compatible_interpreters(pex_python_path, compatibility_constraints):
   )
 
 
-def _select_pex_python_interpreter(target_python, compatibility_constraints):
+def _select_pex_python_interpreter(target_python, compatibility_constraints=None):
   target = find_in_path(target_python)
 
   if not target:
@@ -71,9 +72,9 @@ def _select_pex_python_interpreter(target_python, compatibility_constraints):
   return target
 
 
-def _select_interpreter(pex_python_path, compatibility_constraints):
+def _select_interpreter(pex_python_path=None, compatibility_constraints=None):
   compatible_interpreters = find_compatible_interpreters(
-    pex_python_path, compatibility_constraints)
+    pex_python_path=pex_python_path, compatibility_constraints=compatibility_constraints)
 
   if not compatible_interpreters:
     die('Failed to find compatible interpreter for constraints: %s'
@@ -114,16 +115,14 @@ def maybe_reexec_pex(compatibility_constraints):
       # TODO: Kill this off completely in favor of PEX_PYTHON_PATH
       # https://github.com/pantsbuild/pex/issues/431
       target = _select_pex_python_interpreter(ENV.PEX_PYTHON,
-                                              compatibility_constraints)
+                                              compatibility_constraints=compatibility_constraints)
     elif ENV.PEX_PYTHON_PATH:
-      target = _select_interpreter(ENV.PEX_PYTHON_PATH, compatibility_constraints)
+      target = _select_interpreter(pex_python_path=ENV.PEX_PYTHON_PATH,
+                                   compatibility_constraints=compatibility_constraints)
 
     elif compatibility_constraints:
       # Apply constraints to target using regular PATH
-      target = _select_interpreter(
-        pex_python_path=None,
-        compatibility_constraints=compatibility_constraints
-      )
+      target = _select_interpreter(compatibility_constraints=compatibility_constraints)
 
   if target and os.path.realpath(target) != os.path.realpath(sys.executable):
     cmdline = [target] + sys.argv
