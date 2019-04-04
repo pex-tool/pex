@@ -28,7 +28,10 @@ from pex.testing import (
     named_temporary_file,
     run_simple_pex_test,
     temporary_dir,
-    write_simple_pex
+    write_simple_pex,
+    safe_mkdir,
+    temporary_content,
+    run_simple_pex
 )
 from pex.util import DistributionHelper
 
@@ -234,6 +237,56 @@ def test_pex_run():
 
       fake_stdout.seek(0)
       assert fake_stdout.read() == b'hellohello'
+
+
+def test_pex_executable():
+  # Tests that pex keeps executable permissions
+  with temporary_dir() as temp_dir:
+    pex_dir = os.path.join(temp_dir, 'pex_dir')
+    safe_mkdir(pex_dir)
+
+    with open(os.path.join(pex_dir, 'exe.py'), 'w') as fp:
+      fp.write(textwrap.dedent('''
+               import subprocess
+               import os
+               import sys
+               import my_package
+               path = os.path.join(os.path.dirname(my_package.__file__), 'bin/start.sh')
+               sys.stdout.write(subprocess.check_output([path]).decode('utf-8'))      
+               '''))
+
+    project_content = {
+      'setup.py': textwrap.dedent('''
+          from setuptools import setup
+
+          setup(
+              name='my_project',
+              version='0.0.0.0',
+              zip_safe=True,
+              packages=['my_package'],
+              package_data={'my_package': ['bin/*']},
+              install_requires=[],
+          )
+      '''),
+      'my_package/__init__.py': 0,
+      'my_package/bin/start.sh': ("#!/usr/bin/env bash\n"
+                                  "echo 'hello world from start.sh!'"),
+      'my_package/my_module.py': 'def do_something():\n  print("hello world!")\n',
+    }
+    pex_builder = PEXBuilder(path=pex_dir)
+    with temporary_content(project_content, perms=0o755) as project_dir:
+      installer = WheelInstaller(project_dir)
+      bdist = DistributionHelper.distribution_from_path(installer.bdist())
+      pex_builder.add_dist_location(bdist.location)
+      pex_builder.set_executable(os.path.join(pex_dir, 'exe.py'))
+      pex_builder.freeze()
+
+      app_pex = os.path.join(os.path.join(temp_dir, 'out_pex_dir'), 'app.pex')
+      pex_builder.build(app_pex)
+      std_out, rc = run_simple_pex(app_pex,
+                                   env={'PEX_ROOT': os.path.join(temp_dir, '.pex')})
+      assert rc == 0
+      assert std_out.decode('utf-8') == 'hello world from start.sh!\n'
 
 
 def test_pex_paths():
