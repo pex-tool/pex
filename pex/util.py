@@ -5,14 +5,13 @@ from __future__ import absolute_import
 
 import contextlib
 import os
-import shutil
 import tempfile
 import uuid
 from hashlib import sha1
 from site import makepath
 from threading import Lock
 
-from pex.common import rename_if_empty, safe_mkdir, safe_mkdtemp, safe_open
+from pex.common import rename_if_empty, safe_mkdir, safe_mkdtemp
 from pex.compatibility import exec_function
 from pex.finders import register_finders
 from pex.third_party.pkg_resources import (
