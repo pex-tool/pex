@@ -116,9 +116,9 @@ class _ZipIterator(namedtuple('_ZipIterator', ['zipfile_path', 'prefix'])):
       yield package
 
   def _filter_names(self, relpath, pattern, group):
-    prefix = self.prefix + ((relpath + os.sep) if relpath else '')
-    if os.sep == '\\':
-      prefix = prefix.replace('\\', '/')
+    # We use '/' here instead of os.sep because the zip file format spec specifies that paths must use forward slashes.
+    # See section 4.4.17 of https://support.pkware.com/display/PKZIP/APPNOTE
+    prefix = self.prefix + ((relpath + '/') if relpath else '')
     pat = re.compile(r'^{prefix}{pattern}$'
                      .format(prefix=prefix,
                              pattern=pattern))
