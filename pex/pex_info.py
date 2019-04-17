@@ -137,7 +137,7 @@ class PexInfo(object):
     if key not in self._pex_info:
       return None
     value = self._pex_info[key]
-    return value.encode('utf-8') if PY2 else value
+    return value.encode('utf-8') if PY2 and value is not None else value
 
   @property
   def build_properties(self):
