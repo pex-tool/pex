@@ -26,12 +26,12 @@ from pex.testing import (
     make_bdist,
     make_installer,
     named_temporary_file,
+    run_simple_pex,
     run_simple_pex_test,
-    temporary_dir,
-    write_simple_pex,
     safe_mkdir,
     temporary_content,
-    run_simple_pex
+    temporary_dir,
+    write_simple_pex
 )
 from pex.util import DistributionHelper
 
