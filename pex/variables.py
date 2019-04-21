@@ -66,7 +66,7 @@ class Variables(object):
 
   def __init__(self, environ=None, rc=None, use_defaults=True):
     self._use_defaults = use_defaults
-    self._environ = environ.copy() if environ else os.environ
+    self._environ = (environ if environ is not None else os.environ).copy()
     if not self.PEX_IGNORE_RCFILES:
       rc_values = self.from_rc(rc).copy()
       rc_values.update(self._environ)

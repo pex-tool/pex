@@ -1,5 +1,7 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+import os
+from contextlib import contextmanager
 
 import pytest
 
@@ -67,12 +69,52 @@ def test_pex_get_int():
     assert Variables(environ={'HELLO': 'welp'})._get_int('HELLO')
 
 
+@contextmanager
+def environment_as(**kwargs):
+  existing = {key: os.environ.get(key) for key in kwargs}
+
+  def adjust_environment(mapping):
+    for key, value in mapping.items():
+      if value is not None:
+        os.environ[key] = value
+      else:
+        del os.environ[key]
+
+  adjust_environment(kwargs)
+  try:
+    yield
+  finally:
+    adjust_environment(existing)
+
+
+def assert_pex_vars_hermetic():
+  v = Variables()
+  assert os.environ == v.copy()
+
+  existing = os.environ.get('TEST')
+  expected = (existing or '') + 'different'
+  assert expected != existing
+
+  with environment_as(TEST=expected):
+    assert expected != v.copy().get('TEST')
+
+
+def test_pex_vars_hermetic_no_pexrc():
+  assert_pex_vars_hermetic()
+
+
+def test_pex_vars_hermetic():
+  with environment_as(PEX_IGNORE_RCFILES='True'):
+    assert_pex_vars_hermetic()
+
+
 def test_pex_vars_set():
   v = Variables(environ={})
   v.set('HELLO', '42')
   assert v._get_int('HELLO') == 42
   v.delete('HELLO')
   assert v._get_int('HELLO') is None
+  assert {} == v.copy()
 
 
 def test_pex_get_kv():
