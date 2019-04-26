@@ -484,7 +484,7 @@ class PEX(object):  # noqa: T000
 
     from pex.compatibility import exec_function
     sys.argv[0] = argv0
-    globals_map = globals()
+    globals_map = globals().copy()
     globals_map['__name__'] = '__main__'
     globals_map['__file__'] = name
     exec_function(ast, globals_map)
