@@ -1384,20 +1384,20 @@ def test_reproducible_build_sdist_requirements():
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
-def test_reproducible_m_flag():
+def test_reproducible_build_m_flag():
   assert_reproducible_build(['-m', 'pydoc'])
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
-def test_reproducible_c_flag():
+def test_reproducible_build_c_flag():
   assert_reproducible_build(['black==19.3b0', '-c', 'black'])
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
-def test_reproducible_python_flag():
+def test_reproducible_build_python_flag():
   assert_reproducible_build(['--python=python2.7'])
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
-def test_reproducible_python_shebang_flag():
+def test_reproducible_build_python_shebang_flag():
   assert_reproducible_build(['--python-shebang=/usr/bin/python'])
