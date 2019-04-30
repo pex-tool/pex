@@ -14,6 +14,7 @@ from zipfile import ZipFile
 
 import pytest
 
+from pex.common import safe_sleep
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller
 from pex.pex_info import PexInfo
@@ -1353,7 +1354,11 @@ def assert_reproducible_build(args):
     def create_pex(path, seed):
       run_pex_command(args + ['-o', path], env=make_env(PYTHONHASHSEED=seed))
     create_pex(pex1, seed=111)
-    time.sleep(2)
+    # We sleep to ensure that there is no non-reproducibility from timestamps or
+    # anything that may depend on the system time. Note that we must sleep for at least
+    # 2 seconds, because the zip format uses 2 second precision per section 4.4.6 of
+    # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
+    safe_sleep(2)
     create_pex(pex2, seed=22222)
     # First explode the PEXes to compare file-by-file for easier debugging.
     with ZipFile(pex1) as zf1, ZipFile(pex2) as zf2:

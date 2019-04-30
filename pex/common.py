@@ -11,6 +11,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import time
 import threading
 import zipfile
 from collections import defaultdict
@@ -154,6 +155,19 @@ def safe_rmtree(directory):
   """Delete a directory if it's present. If it's not present, no-op."""
   if os.path.exists(directory):
     shutil.rmtree(directory, True)
+
+
+def safe_sleep(seconds):
+  """Ensure that the thread sleeps at a minimum the requested seconds.
+
+  Until Python 3.5, there was no guarantee that time.sleep() would actually sleep the requested
+  time. See https://docs.python.org/3/library/time.html#time.sleep."""
+  if sys.version_info[0:2] >= (3, 5):
+    time.sleep(seconds)
+  else:
+    start_time = time.time()
+    while time.time() - start_time < seconds:
+      pass
 
 
 def rename_if_empty(src, dest, allowable_errors=(errno.EEXIST, errno.ENOTEMPTY)):
