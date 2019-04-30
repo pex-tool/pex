@@ -1390,7 +1390,16 @@ def test_reproducible_build_m_flag():
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_c_flag():
-  assert_reproducible_build(['black==19.3b0', '-c', 'black'])
+  setup_py = dedent("""
+    from setuptools import setup
+
+    setup(
+      name='my_app',
+      entry_points={'console_scripts': ['my_app = my_app:do_something']},
+    )
+  """)
+  with temporary_content({'setup.py': setup_py}) as project_dir:
+    assert_reproducible_build([project_dir, '-c', 'my_app'])
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
