@@ -1347,8 +1347,8 @@ def assert_reproducible_build(args):
     pex1 = os.path.join(td, '1.pex')
     pex2 = os.path.join(td, '2.pex')
     # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
-    # from the random seed, such as data structures, as Tox sets this value by default.
-    # See https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
+    # from the random seed, such as data structures, as Tox sets this value by default. See
+    # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
     run_pex_command(args + ['-o', pex1], env=make_env(PYTHONHASHSEED=111))
     run_pex_command(args + ['-o', pex2], env=make_env(PYTHONHASHSEED=22222))
     # First explode the PEXes to compare file-by-file for easier debugging.
