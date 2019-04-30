@@ -1375,29 +1375,29 @@ def test_reproducible_build_no_args():
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_bdist_requirements():
   # We test both a pure Python wheel (six) and a platform-specific wheel (cryptography).
-  assert_reproducible(['six==1.12.0', 'cryptography==2.6.1'])
+  assert_reproducible_build(['six==1.12.0', 'cryptography==2.6.1'])
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_sdist_requirements():
-  assert_reproducible(['pycparser==2.19', '--no-build'])
+  assert_reproducible_build(['pycparser==2.19', '--no-build'])
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_m_flag():
-  assert_reproducible(['-m', 'pydoc'])
+  assert_reproducible_build(['-m', 'pydoc'])
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_c_flag():
-  assert_reproducible(['black==19.3b0', '-c', 'black'])
+  assert_reproducible_build(['black==19.3b0', '-c', 'black'])
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_python_flag():
-  assert_reproducible(['--python=python2.7'])
+  assert_reproducible_build(['--python=python2.7'])
 
 
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_python_shebang_flag():
-  assert_reproducible(['--python-shebang=/usr/bin/python'])
+  assert_reproducible_build(['--python-shebang=/usr/bin/python'])
