@@ -1350,12 +1350,14 @@ def assert_reproducible_build(args):
     run_pex_command(args + ['-o', pex2])
     # First explode the PEXes to compare file-by-file for easier debugging.
     with ZipFile(pex1) as zf1, ZipFile(pex2) as zf2:
-      zf1.extractall(path=os.path.join(td, "pex1"))
-      zf2.extractall(path=os.path.join(td, "pex2"))
+      unzipped1 = os.path.join(td, "pex1")
+      unzipped2 = os.path.join(td, "pex2")
+      zf1.extractall(path=unzipped1)
+      zf2.extractall(path=unzipped2)
       for member1, member2 in zip(zf1.namelist(), zf2.namelist()):
         assert filecmp.cmp(
-          os.path.join(td, "pex1", member1),
-          os.path.join(td, "pex2", member2),
+          os.path.join(unzipped1, member1),
+          os.path.join(unzipped2, member2),
           shallow=False
         )
     # Then compare the original .pex files. This is the assertion we truly care about.
