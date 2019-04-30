@@ -1357,7 +1357,7 @@ def assert_reproducible_build(args):
       unzipped2 = os.path.join(td, "pex2")
       zf1.extractall(path=unzipped1)
       zf2.extractall(path=unzipped2)
-      for member1, member2 in zip(zf1.namelist(), zf2.namelist()):
+      for member1, member2 in zip(sorted(zf1.namelist()), sorted(zf2.namelist())):
         assert filecmp.cmp(
           os.path.join(unzipped1, member1),
           os.path.join(unzipped2, member2),
