@@ -1342,39 +1342,57 @@ def test_issues_539_abi3_resolution():
     subprocess.check_call([cryptography_pex, '-c', 'import cryptography'])
 
 
+def assert_reproducible_build(args):
+  with temporary_dir() as td:
+    pex1 = os.path.join(td, '1.pex')
+    pex2 = os.path.join(td, '2.pex')
+    run_pex_command(args + ['-o', pex1])
+    run_pex_command(args + ['-o', pex2])
+    # First explode the PEXes to compare file-by-file for easier debugging.
+    with ZipFile(pex1) as zf1, ZipFile(pex2) as zf2:
+      zf1.extractall(path=os.path.join(td, "pex1"))
+      zf2.extractall(path=os.path.join(td, "pex2"))
+      for member1, member2 in zip(zf1.namelist(), zf2.namelist()):
+        assert filecmp.cmp(
+          os.path.join(td, "pex1", member1),
+          os.path.join(td, "pex2", member2),
+          shallow=False
+        )
+    # Then compare the original .pex files. This is the assertion we truly care about.
+    assert filecmp.cmp(pex1, pex2, shallow=False)
+
+
 @pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
-def test_reproducible_build():
+def test_reproducible_build_no_args():
+  assert_reproducible_build([])
 
-  def assert_reproducible(args):
-    with temporary_dir() as td:
-      pex1 = os.path.join(td, '1.pex')
-      pex2 = os.path.join(td, '2.pex')
-      run_pex_command(args + ['-o', pex1])
-      run_pex_command(args + ['-o', pex2])
-      # First explode the PEXes to compare file-by-file for easier debugging.
-      with ZipFile(pex1) as zf1, ZipFile(pex2) as zf2:
-        zf1.extractall(path=os.path.join(td, "pex1"))
-        zf2.extractall(path=os.path.join(td, "pex2"))
-        for member1, member2 in zip(zf1.namelist(), zf2.namelist()):
-          assert filecmp.cmp(
-            os.path.join(td, "pex1", member1),
-            os.path.join(td, "pex2", member2),
-            shallow=False
-          )
-      # Then compare the original .pex files. This is the assertion we truly care about.
-      assert filecmp.cmp(pex1, pex2, shallow=False)
 
-  assert_reproducible([])
-
-  # With pre-built wheels, including
-  # 1) a universal wheel - six
-  # 2) an abi wheel - cryptography
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build_bdist_requirements():
+  # We test both a pure Python wheel (six) and a platform-specific wheel (cryptography).
   assert_reproducible(['six==1.12.0', 'cryptography==2.6.1'])
 
-  # With an sdist
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build_sdist_requirements():
   assert_reproducible(['pycparser==2.19', '--no-build'])
 
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_m_flag():
   assert_reproducible(['-m', 'pydoc'])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_c_flag():
   assert_reproducible(['black==19.3b0', '-c', 'black'])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_python_flag():
   assert_reproducible(['--python=python2.7'])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_python_shebang_flag():
   assert_reproducible(['--python-shebang=/usr/bin/python'])
