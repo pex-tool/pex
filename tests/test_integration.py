@@ -7,6 +7,7 @@ import os
 import platform
 import subprocess
 import sys
+import time
 from contextlib import contextmanager
 from textwrap import dedent
 from zipfile import ZipFile
@@ -1349,8 +1350,11 @@ def assert_reproducible_build(args):
     # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
     # from the random seed, such as data structures, as Tox sets this value by default. See
     # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
-    run_pex_command(args + ['-o', pex1], env=make_env(PYTHONHASHSEED=111))
-    run_pex_command(args + ['-o', pex2], env=make_env(PYTHONHASHSEED=22222))
+    def create_pex(path, seed):
+      run_pex_command(args + ['-o', path], env=make_env(PYTHONHASHSEED=seed))
+    create_pex(pex1, seed=111)
+    time.sleep(2)
+    create_pex(pex2, seed=22222)
     # First explode the PEXes to compare file-by-file for easier debugging.
     with ZipFile(pex1) as zf1, ZipFile(pex2) as zf2:
       unzipped1 = os.path.join(td, "pex1")
