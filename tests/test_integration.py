@@ -1,6 +1,7 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import filecmp
 import functools
 import os
 import platform
@@ -1338,3 +1339,30 @@ def test_issues_539_abi3_resolution():
     res.assert_success()
 
     subprocess.check_call([cryptography_pex, '-c', 'import cryptography'])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build():
+
+  def assert_reproducible(args):
+    with temporary_dir() as td:
+      pex1 = os.path.join(td, '1.pex')
+      pex2 = os.path.join(td, '2.pex')
+      run_pex_command(args + ['-o', pex1])
+      run_pex_command(args + ['-o', pex2])
+      assert filecmp.cmp(pex1, pex2, shallow=False)
+
+  assert_reproducible([])
+
+  # With pre-built wheels, including
+  # 1) a universal wheel - six
+  # 2) an abi wheel - cryptography
+  assert_reproducible(['six==1.12.0', 'cryptography==2.6.1'])
+
+  # With an sdist
+  assert_reproducible(['pycparser==2.19', '--no-build'])
+
+  assert_reproducible(['-m', 'pydoc'])
+  assert_reproducible(['black==19.3b0', '-c', 'black'])
+  assert_reproducible(['--python=python2.7'])
+  assert_reproducible(['--python-shebang=/usr/bin/python'])
