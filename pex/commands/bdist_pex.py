@@ -46,14 +46,6 @@ class bdist_pex(Command):  # noqa
   def finalize_options(self):
     self.pex_args = shlex.split(self.pex_args)
 
-  def _write(self, pex_builder, target, script=None):
-    builder = pex_builder.clone()
-
-    if script is not None:
-      builder.set_script(script)
-
-    builder.build(target)
-
   def parse_entry_points(self):
     def parse_entry_point_name(entry_point):
       script_name = entry_point.split('=', 1)[0]
