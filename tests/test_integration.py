@@ -7,7 +7,6 @@ import os
 import platform
 import subprocess
 import sys
-import time
 from contextlib import contextmanager
 from textwrap import dedent
 from zipfile import ZipFile
