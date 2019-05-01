@@ -139,13 +139,15 @@ Below, we provide some of the most commonly used commands used when working on P
 docs are worth acquainting yourself with to better understand how Tox works and how to do more
 advanced commmands.
 
-To run a specific test command, look in `tox.ini` for the name and run like this:
+To run a specific environment, identify the name of the environment you'd like to invoke by
+running ``tox --listenvs-all`, then invoke like this:
 
 .. code-block::
 
     $ tox -e style
 
-Tox allows passthrough arguments, which can be helpful to run specific tests:
+All of our tox environments allow passthrough arguments, which can be helpful to run specific
+tests:
 
 .. code-block::
 
