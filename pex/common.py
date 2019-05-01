@@ -165,8 +165,7 @@ def safe_sleep(seconds):
   if sys.version_info[0:2] >= (3, 5):
     time.sleep(seconds)
   else:
-    start_time = time.time()
-    current_time = time.time()
+    start_time = current_time = time.time()
     while current_time - start_time < seconds:
       remaining_time = seconds - (current_time - start_time)
       time.sleep(remaining_time)
