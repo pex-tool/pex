@@ -298,8 +298,7 @@ def configure_clp_pex_options(parser):
       action='store_true',
       help='Ensure that the generated Pex file is completely reproducible, i.e. if you were '
            'to run the same command again, the new PEX would be byte-for-byte equivalent '
-           'to the original. This means that the generated Pex will not have .pyc files '
-           'included, which results in a slight startup performance hit.')
+           'to the original. This may result in a slight startup performance hit.')
 
   parser.add_option_group(group)
 
