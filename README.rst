@@ -134,17 +134,22 @@ If you don't have tox, you can generate a pex of tox:
 
     $ pex tox -c tox -o ~/bin/tox
 
+Tox provides many useful commands and options, explained at https://testrun.org/tox/en/latest/.
+Below, we provide some of the most commonly used commands used when working on Pex, but the
+docs are worth acquainting yourself with to better understand how Tox works and how to do more
+advanced commmands.
+
 To run a specific test command, look in `tox.ini` for the name and run like this:
 
 .. code-block::
 
-    $ pex tox -v -e style
+    $ tox -e style
 
 Tox allows passthrough arguments, which can be helpful to run specific tests:
 
 .. code-block::
 
-    $ pex tox -v -e py37-integration -- -k test_reproducible_build
+    $ tox -e py37-integration -- -k test_reproducible_build
 
 To run Pex from source, rather than through what is on your PATH, invoke via Python:
 
