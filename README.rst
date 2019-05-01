@@ -114,14 +114,14 @@ that you can copy to staging or production environments.
 Documentation
 =============
 
-More documentation about pex, building .pex files, and how .pex files work
+More documentation about Pex, building .pex files, and how .pex files work
 is available at https://pex.readthedocs.io.
 
 
 Development
 ===========
 
-pex uses `tox <https://testrun.org/tox/en/latest/>`_ for test and development automation.  To run
+Pex uses `tox <https://testrun.org/tox/en/latest/>`_ for test and development automation. To run
 the test suite, just invoke tox:
 
 .. code-block:: bash
@@ -134,6 +134,30 @@ If you don't have tox, you can generate a pex of tox:
 
     $ pex tox -c tox -o ~/bin/tox
 
+Tox provides many useful commands and options, explained at https://testrun.org/tox/en/latest/.
+Below, we provide some of the most commonly used commands used when working on Pex, but the
+docs are worth acquainting yourself with to better understand how Tox works and how to do more
+advanced commmands.
+
+To run a specific environment, identify the name of the environment you'd like to invoke by
+running ``tox --listenvs-all``, then invoke like this:
+
+.. code-block::
+
+    $ tox -e style
+
+All of our tox test environments allow passthrough arguments, which can be helpful to run
+specific tests:
+
+.. code-block::
+
+    $ tox -e py37-integration -- -k test_reproducible_build
+
+To run Pex from source, rather than through what is on your PATH, invoke via Python:
+
+.. code-block::
+
+    $ python -m pex
 
 Contributing
 ============
