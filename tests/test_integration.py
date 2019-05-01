@@ -1,6 +1,7 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import filecmp
 import functools
 import os
 import platform
@@ -8,9 +9,11 @@ import subprocess
 import sys
 from contextlib import contextmanager
 from textwrap import dedent
+from zipfile import ZipFile
 
 import pytest
 
+from pex.common import safe_sleep
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller
 from pex.pex_info import PexInfo
@@ -1338,3 +1341,80 @@ def test_issues_539_abi3_resolution():
     res.assert_success()
 
     subprocess.check_call([cryptography_pex, '-c', 'import cryptography'])
+
+
+def assert_reproducible_build(args):
+  with temporary_dir() as td:
+    pex1 = os.path.join(td, '1.pex')
+    pex2 = os.path.join(td, '2.pex')
+    # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
+    # from the random seed, such as data structures, as Tox sets this value by default. See
+    # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
+    def create_pex(path, seed):
+      run_pex_command(args + ['-o', path], env=make_env(PYTHONHASHSEED=seed))
+    create_pex(pex1, seed=111)
+    # We sleep to ensure that there is no non-reproducibility from timestamps or
+    # anything that may depend on the system time. Note that we must sleep for at least
+    # 2 seconds, because the zip format uses 2 second precision per section 4.4.6 of
+    # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
+    safe_sleep(2)
+    create_pex(pex2, seed=22222)
+    # First explode the PEXes to compare file-by-file for easier debugging.
+    with ZipFile(pex1) as zf1, ZipFile(pex2) as zf2:
+      unzipped1 = os.path.join(td, "pex1")
+      unzipped2 = os.path.join(td, "pex2")
+      zf1.extractall(path=unzipped1)
+      zf2.extractall(path=unzipped2)
+      for member1, member2 in zip(sorted(zf1.namelist()), sorted(zf2.namelist())):
+        assert filecmp.cmp(
+          os.path.join(unzipped1, member1),
+          os.path.join(unzipped2, member2),
+          shallow=False
+        )
+    # Then compare the original .pex files. This is the assertion we truly care about.
+    assert filecmp.cmp(pex1, pex2, shallow=False)
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build_no_args():
+  assert_reproducible_build([])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build_bdist_requirements():
+  # We test both a pure Python wheel (six) and a platform-specific wheel (cryptography).
+  assert_reproducible_build(['six==1.12.0', 'cryptography==2.6.1'])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build_sdist_requirements():
+  assert_reproducible_build(['pycparser==2.19', '--no-build'])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build_m_flag():
+  assert_reproducible_build(['-m', 'pydoc'])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build_c_flag():
+  setup_py = dedent("""
+    from setuptools import setup
+
+    setup(
+      name='my_app',
+      entry_points={'console_scripts': ['my_app = my_app:do_something']},
+    )
+  """)
+  with temporary_content({'setup.py': setup_py}) as project_dir:
+    assert_reproducible_build([project_dir, '-c', 'my_app'])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build_python_flag():
+  assert_reproducible_build(['--python=python2.7'])
+
+
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
+def test_reproducible_build_python_shebang_flag():
+  assert_reproducible_build(['--python-shebang=/usr/bin/python'])
