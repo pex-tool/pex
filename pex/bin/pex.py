@@ -292,11 +292,10 @@ def configure_clp_pex_options(parser):
            '[Default: %default]')
 
   group.add_option(
-      '--reproducible', '--not-reproducible',
+      '--reproducible',
       dest='reproducible',
       default=False,
-      action='callback',
-      callback=parse_bool,
+      action='store_true',
       help='Ensure that the generated Pex file is completely reproducible, i.e. if you were '
            'to run the same command again, the new PEX would be byte-for-byte equivalent '
            'to the original. This means that the generated Pex will not have .pyc files '
