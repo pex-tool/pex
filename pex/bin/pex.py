@@ -292,13 +292,15 @@ def configure_clp_pex_options(parser):
            '[Default: %default]')
 
   group.add_option(
-      '--reproducible',
-      dest='reproducible',
-      default=False,
-      action='store_true',
-      help='Ensure that the generated Pex file is completely reproducible, i.e. if you were '
-           'to run the same command again, the new PEX would be byte-for-byte equivalent '
-           'to the original. This may result in a slight startup performance hit.')
+      '--include-pyc', '--no-include-pyc',
+      dest='include_pyc',
+      default=True,
+      action='callback',
+      callback=parse_bool,
+      help='Including .pyc files will result in slightly faster startup performance, but at the '
+           'expense of making the generated pex not be reproducible, meaning that if you were to '
+           'run `./pex -o` with the same inputs then the new pex would not be byte-for-byte '
+           'identical to the original.')
 
   parser.add_option_group(group)
 
@@ -683,7 +685,7 @@ def main(args=None):
     with TRACER.timed('Building pex'):
       pex_builder = build_pex(reqs, options, resolver_options_builder)
 
-    pex_builder.freeze(bytecode_compile=not options.reproducible)
+    pex_builder.freeze(bytecode_compile=options.include_pyc)
     pex = PEX(pex_builder.path(),
               interpreter=pex_builder.interpreter,
               verify_entry_point=options.validate_ep)
@@ -692,7 +694,7 @@ def main(args=None):
       log('Saving PEX file to %s' % options.pex_name, V=options.verbosity)
       tmp_name = options.pex_name + '~'
       safe_delete(tmp_name)
-      pex_builder.build(tmp_name, bytecode_compile=not options.reproducible)
+      pex_builder.build(tmp_name, bytecode_compile=options.include_pyc)
       os.rename(tmp_name, options.pex_name)
     else:
       if not _compatible_with_current_platform(options.platforms):
