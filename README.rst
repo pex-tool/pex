@@ -146,8 +146,8 @@ running ``tox --listenvs-all``, then invoke like this:
 
     $ tox -e style
 
-All of our tox environments allow passthrough arguments, which can be helpful to run specific
-tests:
+All of our tox test environments allow passthrough arguments, which can be helpful to run
+specific tests:
 
 .. code-block::
 
