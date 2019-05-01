@@ -140,7 +140,7 @@ docs are worth acquainting yourself with to better understand how Tox works and 
 advanced commmands.
 
 To run a specific environment, identify the name of the environment you'd like to invoke by
-running ``tox --listenvs-all`, then invoke like this:
+running ``tox --listenvs-all``, then invoke like this:
 
 .. code-block::
 
