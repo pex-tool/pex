@@ -294,7 +294,7 @@ def configure_clp_pex_options(parser):
   group.add_option(
       '--reproducible', '--not-reproducible',
       dest='reproducible',
-      default=True,
+      default=False,
       action='callback',
       callback=parse_bool,
       help='Ensure that the generated Pex file is completely reproducible, i.e. if you were '
