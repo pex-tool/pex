@@ -166,8 +166,11 @@ def safe_sleep(seconds):
     time.sleep(seconds)
   else:
     start_time = time.time()
-    while time.time() - start_time < seconds:
-      pass
+    current_time = time.time()
+    while current_time - start_time < seconds:
+      remaining_time = seconds - (current_time - start_time)
+      time.sleep(remaining_time)
+      current_time = time.time()
 
 
 def rename_if_empty(src, dest, allowable_errors=(errno.EEXIST, errno.ENOTEMPTY)):
