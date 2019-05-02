@@ -175,11 +175,11 @@ class DeterministicTimestampZipFile(PermPreservingZipFile):
 
 
 @contextlib.contextmanager
-def open_zip(path, *args, use_deterministic_timestamp=False, **kwargs):
+def open_zip(path, *args, deterministic_timestamp=False, **kwargs):
   """A contextmanager for zip files. Passes through positional and kwargs to zipfile.ZipFile."""
   zf = (
     DeterministicTimestampZipFile(path, *args, **kwargs)
-    if use_deterministic_timestamp
+    if deterministic_timestamp
     else PermPreservingZipFile(path, *args, **kwargs)
   )
   with contextlib.closing(zf) as zip:
@@ -446,8 +446,8 @@ class Chroot(object):
   def delete(self):
     shutil.rmtree(self.chroot)
 
-  def zip(self, filename, mode='w', use_deterministic_timestamp=False):
-    with open_zip(filename, mode, use_deterministic_timestamp=use_deterministic_timestamp) as zf:
+  def zip(self, filename, mode='w', deterministic_timestamp=False):
+    with open_zip(filename, mode, deterministic_timestamp=deterministic_timestamp) as zf:
       for f in sorted(self.files()):
         zf.write(
           os.path.join(self.chroot, f),

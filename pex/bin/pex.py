@@ -302,6 +302,18 @@ def configure_clp_pex_options(parser):
            'likely will not be reproducible, meaning that if you were to run `./pex -o` with the '
            'same inputs then the new pex would not be byte-for-byte identical to the original.')
 
+  group.add_option(
+      '--use-system-time', '--no-use-system-time',
+      dest='use_system_time',
+      # TODO: set this to True. It's only False for now to test what happens in CI if we
+      # always use deterministic timestamps.
+      default=False,
+      action='callback',
+      callback=parse_bool,
+      help='Use the current system time to generate timestamps for the new pex. Otherwise, Pex '
+           'will first try to read the time from the environment variable SOURCE_DATE_EPOCH and '
+           'will fallback to midnight on January 1, 1980. TODO: explain reproducibility.')
+
   parser.add_option_group(group)
 
 
@@ -694,7 +706,11 @@ def main(args=None):
       log('Saving PEX file to %s' % options.pex_name, V=options.verbosity)
       tmp_name = options.pex_name + '~'
       safe_delete(tmp_name)
-      pex_builder.build(tmp_name, bytecode_compile=options.compile)
+      pex_builder.build(
+        tmp_name,
+        bytecode_compile=options.compile,
+        deterministic_timestamp=not options.use_system_time
+      )
       os.rename(tmp_name, options.pex_name)
     else:
       if not _compatible_with_current_platform(options.platforms):

@@ -428,11 +428,12 @@ class PEXBuilder(object):
       self._precompile_source()
     self._frozen = True
 
-  def build(self, filename, bytecode_compile=True):
+  def build(self, filename, bytecode_compile=True, deterministic_timestamp=False):
     """Package the PEX into a zipfile.
 
     :param filename: The filename where the PEX should be stored.
     :param bytecode_compile: If True, precompile .py files into .pyc files.
+    :param deterministic_timestamp: If True, will not use system time for the zipfile timestamps.
 
     If the PEXBuilder is not yet frozen, it will be frozen by ``build``.  This renders the
     PEXBuilder immutable.
@@ -450,7 +451,7 @@ class PEXBuilder(object):
     with open(filename + '~', 'ab') as pexfile:
       assert os.path.getsize(pexfile.name) == 0
       pexfile.write(to_bytes('%s\n' % self._shebang))
-    self._chroot.zip(filename + '~', mode='a')
+    self._chroot.zip(filename + '~', mode='a', deterministic_timestamp=deterministic_timestamp)
     if os.path.exists(filename):
       os.unlink(filename)
     os.rename(filename + '~', filename)
