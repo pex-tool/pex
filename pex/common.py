@@ -118,71 +118,11 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
     attr = info.external_attr >> 16
     os.chmod(path, attr)
 
-class DeterministicTimestampZipFile(PermPreservingZipFile):
-  """A ZipFile that always uses the same timestamp, in addition to preserving permissions."""
-
-  def write(self, filename, arcname=None,
-            compress_type=None, compresslevel=None):
-    """Put the bytes from filename into the archive under the name
-    arcname. """
-    # NB: Everything is copied from https://github.com/python/cpython/blob/master/Lib/zipfile.py,
-    # excluding lines marked with NB.
-    if not self.fp:
-      raise ValueError(
-          "Attempt to write to ZIP archive that was already closed")
-    if self._writing:
-      raise ValueError(
-          "Can't write to ZIP archive while an open writing handle exists"
-      )
-
-    zinfo = zipfile.ZipInfo.from_file(filename, arcname)
-    # NB: We hardcode the date to be deterministic.
-    zinfo.date_time = deterministic_datetime().timetuple()[:6]
-
-    if zinfo.is_dir():
-      zinfo.compress_size = 0
-      zinfo.CRC = 0
-    else:
-      if compress_type is not None:
-        zinfo.compress_type = compress_type
-      else:
-        zinfo.compress_type = self.compression
-
-      if compresslevel is not None:
-        zinfo._compresslevel = compresslevel
-      else:
-        zinfo._compresslevel = self.compresslevel
-
-    if zinfo.is_dir():
-      with self._lock:
-        if self._seekable:
-          self.fp.seek(self.start_dir)
-        zinfo.header_offset = self.fp.tell()  # Start of header bytes
-        if zinfo.compress_type == ZIP_LZMA:
-        # Compressed data includes an end-of-stream (EOS) marker
-            zinfo.flag_bits |= 0x02
-
-        self._writecheck(zinfo)
-        self._didModify = True
-
-        self.filelist.append(zinfo)
-        self.NameToInfo[zinfo.filename] = zinfo
-        self.fp.write(zinfo.FileHeader(False))
-        self.start_dir = self.fp.tell()
-    else:
-      with open(filename, "rb") as src, self.open(zinfo, 'w') as dest:
-        shutil.copyfileobj(src, dest, 1024*8)
-
 
 @contextlib.contextmanager
-def open_zip(path, *args, deterministic_timestamp=False, **kwargs):
+def open_zip(path, *args, **kwargs):
   """A contextmanager for zip files. Passes through positional and kwargs to zipfile.ZipFile."""
-  zf = (
-    DeterministicTimestampZipFile(path, *args, **kwargs)
-    if deterministic_timestamp
-    else PermPreservingZipFile(path, *args, **kwargs)
-  )
-  with contextlib.closing(zf) as zip:
+  with contextlib.closing(PermPreservingZipFile(path, *args, **kwargs)) as zip:
     yield zip
 
 
@@ -447,10 +387,40 @@ class Chroot(object):
     shutil.rmtree(self.chroot)
 
   def zip(self, filename, mode='w', deterministic_timestamp=False):
-    with open_zip(filename, mode, deterministic_timestamp=deterministic_timestamp) as zf:
+    with open_zip(filename, mode) as zf:
       for f in sorted(self.files()):
-        zf.write(
-          os.path.join(self.chroot, f),
-          arcname=f,
-          compress_type=zipfile.ZIP_DEFLATED
-        )
+        full_path = os.path.join(self.chroot, f)
+        if not deterministic_timestamp:
+          zf.write(full_path, compress_type=zipfile.ZIP_DEFLATED)
+        else:
+          # This code mostly reimplements ZipInfo.from_file(), which is not available in Python
+          # 2.7. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495.
+          st = os.stat(filename)
+          isdir = stat.S_ISDIR(st.st_mode)
+          # Determine arcname, i.e. the archive name.
+          arcname = f
+          arcname = os.path.normpath(os.path.splitdrive(arcname)[1])
+          while arcname[0] in (os.sep, os.altsep):
+            arcname = arcname[1:]
+          if isdir:
+            arcname += '/'
+          # Setup ZipInfo with deterministic datetime.
+          zinfo = zipfile.ZipInfo(
+            filename=arcname,
+            # NB: the constructor expects a six tuple of year-month-day-hour-minute-second.
+            date_time=deterministic_datetime().timetuple()[:6]
+          )
+          zinfo.external_attr = (st.st_mode & 0xFFFF) << 16
+          if isdir:
+            zinfo.file_size = 0
+            zinfo.external_attr |= 0x10  # MS-DOS directory flag
+          else:
+            zinfo.file_size = st.st_size
+          # Determine the data to write.
+          if isdir:
+            data = b''
+          else:
+            with open(full_path, 'rb') as open_f:
+              data = open_f.read()
+          # Write to the archive.
+          zf.writestr(zinfo, data, compress_type=zipfile.ZIP_DEFLATED)
