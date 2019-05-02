@@ -291,6 +291,17 @@ def configure_clp_pex_options(parser):
            'No value (alias for prefer, for backwards compatibility). '
            '[Default: %default]')
 
+  group.add_option(
+      '--compile', '--no-compile',
+      dest='compile',
+      default=True,
+      action='callback',
+      callback=parse_bool,
+      help='Compiling means that the built pex will include .pyc files, which will result in '
+           'slightly faster startup performance. However, compiling means that the generated pex '
+           'likely will not be reproducible, meaning that if you were to run `./pex -o` with the '
+           'same inputs then the new pex would not be byte-for-byte identical to the original.')
+
   parser.add_option_group(group)
 
 
@@ -674,7 +685,7 @@ def main(args=None):
     with TRACER.timed('Building pex'):
       pex_builder = build_pex(reqs, options, resolver_options_builder)
 
-    pex_builder.freeze()
+    pex_builder.freeze(bytecode_compile=options.compile)
     pex = PEX(pex_builder.path(),
               interpreter=pex_builder.interpreter,
               verify_entry_point=options.validate_ep)
@@ -683,7 +694,7 @@ def main(args=None):
       log('Saving PEX file to %s' % options.pex_name, V=options.verbosity)
       tmp_name = options.pex_name + '~'
       safe_delete(tmp_name)
-      pex_builder.build(tmp_name)
+      pex_builder.build(tmp_name, bytecode_compile=options.compile)
       os.rename(tmp_name, options.pex_name)
     else:
       if not _compatible_with_current_platform(options.platforms):

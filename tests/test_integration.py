@@ -1351,7 +1351,7 @@ def assert_reproducible_build(args):
     # from the random seed, such as data structures, as Tox sets this value by default. See
     # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
     def create_pex(path, seed):
-      run_pex_command(args + ['-o', path], env=make_env(PYTHONHASHSEED=seed))
+      run_pex_command(args + ['-o', path, '--no-compile'], env=make_env(PYTHONHASHSEED=seed))
     create_pex(pex1, seed=111)
     # We sleep to ensure that there is no non-reproducibility from timestamps or
     # anything that may depend on the system time. Note that we must sleep for at least
