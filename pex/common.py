@@ -399,7 +399,7 @@ class Chroot(object):
         else:
           # This code mostly reimplements ZipInfo.from_file(), which is not available in Python
           # 2.7. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495.
-          st = os.stat(filename)
+          st = os.stat(full_path)
           isdir = stat.S_ISDIR(st.st_mode)
           # Determine arcname, i.e. the archive name.
           arcname = f
