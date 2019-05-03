@@ -428,7 +428,7 @@ class PEXBuilder(object):
       self._precompile_source()
     self._frozen = True
 
-  def build(self, filename, bytecode_compile=True, deterministic_timestamp=True):
+  def build(self, filename, bytecode_compile=True, deterministic_timestamp=False):
     """Package the PEX into a zipfile.
 
     :param filename: The filename where the PEX should be stored.

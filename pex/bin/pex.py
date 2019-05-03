@@ -305,9 +305,7 @@ def configure_clp_pex_options(parser):
   group.add_option(
       '--use-system-time', '--no-use-system-time',
       dest='use_system_time',
-      # TODO: set this to True. It's only False for now to test what happens in CI if we
-      # always use deterministic timestamps.
-      default=False,
+      default=True,
       action='callback',
       callback=parse_bool,
       help='Use the current system time to generate timestamps for the new pex. Otherwise, Pex '

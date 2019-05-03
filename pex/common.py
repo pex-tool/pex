@@ -386,7 +386,7 @@ class Chroot(object):
   def delete(self):
     shutil.rmtree(self.chroot)
 
-  def zip(self, filename, mode='w', deterministic_timestamp=True):
+  def zip(self, filename, mode='w', deterministic_timestamp=False):
     with open_zip(filename, mode) as zf:
       for f in sorted(self.files()):
         full_path = os.path.join(self.chroot, f)

@@ -105,7 +105,7 @@ def assert_chroot_perms(copyfn):
       assert extract_perms(two) == extract_perms(os.path.join(chroot.path(), 'two'))
 
       zip_path = os.path.join(src, 'chroot.zip')
-      chroot.zip(zip_path, deterministic_timestamp=True)
+      chroot.zip(zip_path)
       with temporary_dir() as extract_dir:
         with contextlib.closing(PermPreservingZipFile(zip_path)) as zf:
           zf.extractall(extract_dir)
