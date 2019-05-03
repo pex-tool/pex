@@ -197,5 +197,7 @@ def test_pex_builder_deterministic_timestamp():
     datetime.datetime(*requested_date) - datetime.datetime(1970, 1, 1)
   ).total_seconds())
   os.environ["SOURCE_DATE_EPOCH"] = str(utc_timestamp)
-  assert_all_files_have_timestamp(requested_date)
-  os.environ.pop("SOURCE_DATE_EPOCH")
+  try:
+    assert_all_files_have_timestamp(requested_date)
+  finally:
+    os.environ.pop("SOURCE_DATE_EPOCH")
