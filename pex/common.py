@@ -24,7 +24,7 @@ def deterministic_datetime():
 
   First try to read from the standard $SOURCE_DATE_EPOCH, then default to midnight January 1,
   1980, which is the start of time for MS-DOS time. Per section 4.4.6 of the zip spec at
-  https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TX, Zipfiles use MS-DOS time. So, we
+  https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT, Zipfiles use MS-DOS time. So, we
   use this default to ensure no issues with Zipfiles.
 
   Even though we use MS-DOS to inform the default value, note that we still return a normal UTC
