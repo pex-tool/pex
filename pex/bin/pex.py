@@ -312,7 +312,9 @@ def configure_clp_pex_options(parser):
       callback=parse_bool,
       help='Use the current system time to generate timestamps for the new pex. Otherwise, Pex '
            'will first try to read the time from the environment variable SOURCE_DATE_EPOCH and '
-           'will fallback to midnight on January 1, 1980. TODO: explain reproducibility.')
+           'will fallback to midnight on January 1, 1980. By using system time, the generated pex '
+           'will not be reproducible, meaning that if you were to run `./pex -o` with the '
+           'same inputs then the new pex would not be byte-for-byte identical to the original.')
 
   parser.add_option_group(group)
 
