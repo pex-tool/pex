@@ -391,7 +391,11 @@ class Chroot(object):
       for f in sorted(self.files()):
         full_path = os.path.join(self.chroot, f)
         if not deterministic_timestamp:
-          zf.write(full_path, compress_type=zipfile.ZIP_DEFLATED)
+          zf.write(
+            full_path,
+            arcname=f,
+            compress_type=zipfile.ZIP_DEFLATED
+          )
         else:
           # This code mostly reimplements ZipInfo.from_file(), which is not available in Python
           # 2.7. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495.
