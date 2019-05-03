@@ -1388,6 +1388,7 @@ def test_reproducible_build_bdist_requirements():
   assert_reproducible_build(['six==1.12.0', 'cryptography==2.6.1'])
 
 
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_sdist_requirements():
   assert_reproducible_build(['pycparser==2.19', '--no-build'])
 
@@ -1396,6 +1397,7 @@ def test_reproducible_build_m_flag():
   assert_reproducible_build(['-m', 'pydoc'])
 
 
+@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_c_flag():
   setup_py = dedent("""
     from setuptools import setup
