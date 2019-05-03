@@ -1,8 +1,10 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import datetime
 import os
 import stat
+import zipfile
 
 import pytest
 
@@ -177,3 +179,23 @@ def test_pex_builder_copy_or_link():
 
     build_and_check(td2, False)
     build_and_check(td3, True)
+
+
+def test_pex_builder_deterministic_timestamp():
+  def assert_all_files_have_timestamp(timestamp):
+    pb = PEXBuilder()
+    with temporary_dir() as td:
+      target = os.path.join(td, 'foo.pex')
+      pb.build(target, deterministic_timestamp=True)
+      with zipfile.ZipFile(target) as zf:
+        assert all(zinfo.date_time == timestamp for zinfo in zf.infolist())
+
+  assert_all_files_have_timestamp((1980, 1, 1, 0, 0, 0))
+  # Also test that $SOURCE_DATE_EPOCH is respected.
+  requested_date = (2019, 5, 1, 10, 10, 10)
+  utc_timestamp = int((
+    datetime.datetime(*requested_date) - datetime.datetime(1970, 1, 1)
+  ).total_seconds())
+  os.environ["SOURCE_DATE_EPOCH"] = str(utc_timestamp)
+  assert_all_files_have_timestamp(requested_date)
+  os.environ.pop("SOURCE_DATE_EPOCH")
