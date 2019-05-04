@@ -1347,11 +1347,17 @@ def assert_reproducible_build(args):
   with temporary_dir() as td:
     pex1 = os.path.join(td, '1.pex')
     pex2 = os.path.join(td, '2.pex')
+
     # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
     # from the random seed, such as data structures, as Tox sets this value by default. See
     # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
     def create_pex(path, seed):
-      run_pex_command(args + ['-o', path, '--no-compile'], env=make_env(PYTHONHASHSEED=seed))
+      result = run_pex_command(
+        args + ['-o', path, '--no-compile'],
+        env=make_env(PYTHONHASHSEED=seed)
+      )
+      result.assert_success()
+
     create_pex(pex1, seed=111)
     # We sleep to ensure that there is no non-reproducibility from timestamps or
     # anything that may depend on the system time. Note that we must sleep for at least
