@@ -19,21 +19,25 @@ from datetime import datetime
 from uuid import uuid4
 
 
-# We resolve a deterministic UTC datetime object that does not depend on the system time.
-# * First try to read from the standard $SOURCE_DATE_EPOCH. See
-#   https://reproducible-builds.org/docs/source-date-epoch/.
-# * Fallback to midnight January 1, 1980, which is the start of MS-DOS time. Per section
-#   4.4.6 of the zip spec at https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT,
-#   Zipfiles use MS-DOS time.
-# * Even though we use MS-DOS to inform the default value, note that we still return a normal
-#   UTC datetime object for flexibility with how the result is used.
-DETERMINISTIC_DATETIME = (
-  datetime.utcfromtimestamp(int(os.environ['SOURCE_DATE_EPOCH']))
-  if "SOURCE_DATE_EPOCH" in os.environ
-  else datetime(
-    year=1980, month=1, day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+def deterministic_datetime():
+  """Resolve a deterministic UTC datetime object that does not depend on the system time.
+
+  First try to read from the standard $SOURCE_DATE_EPOCH. See
+  https://reproducible-builds.org/docs/source-date-epoch/.
+
+  Fallback to midnight January 1, 1980, which is the start of MS-DOS time. Per section 4.4.6 of
+  the zip spec at https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT, Zipfiles use
+  MS-DOS time.
+
+  Even though we use MS-DOS to inform the default value, note that we still return a normal
+  UTC datetime object for flexibility with how the result is used."""
+  return (
+    datetime.utcfromtimestamp(int(os.environ['SOURCE_DATE_EPOCH']))
+    if "SOURCE_DATE_EPOCH" in os.environ
+    else datetime(
+      year=1980, month=1, day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+    )
   )
-)
 
 
 def die(msg, exit_code=1):
@@ -407,7 +411,7 @@ class Chroot(object):
           zinfo = zipfile.ZipInfo(
             filename=arcname,
             # NB: the constructor expects a six tuple of year-month-day-hour-minute-second.
-            date_time=DETERMINISTIC_DATETIME.timetuple()[:6]
+            date_time=deterministic_datetime().timetuple()[:6]
           )
           zinfo.external_attr = (st.st_mode & 0xFFFF) << 16
           if isdir:
