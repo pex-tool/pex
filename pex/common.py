@@ -22,11 +22,11 @@ from uuid import uuid4
 # We hardcode the datetime to January 1, 1980, which is the start of MS-DOS time. Per section 
 # 4.4.6 of the zip spec at https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT, 
 # Zipfiles use MS-DOS time.
-# NB: we do not respect the standard env var $SOURCE_DATE_EPOCH often used by tools for
-# deterministic timestamps, as the intended use case is security by checking if the binary was
-# tampered with; we do not have a compelling use case for respecing this env var, and it only
-# complicates the code, but this decision can be revisited if a user has a compelling use
-# case for it.
+# NB: We do not respect the standard env var $SOURCE_DATE_EPOCH often used by tools for
+# deterministic timestamps, as the intended use case is for security by checking if the binary
+# was tampered with. We do not have a compelling use case for respecting this env var, and it
+# only complicates the code, so we do not use it. However, this decision can be revisited if a
+# user has a compelling use case for it.
 DETERMINISTIC_DATETIME = datetime(
   year=1980, month=1, day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
 )

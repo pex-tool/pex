@@ -433,7 +433,7 @@ class PEXBuilder(object):
 
     :param filename: The filename where the PEX should be stored.
     :param bytecode_compile: If True, precompile .py files into .pyc files.
-    :param deterministic_timestamp: If True, will not use system time for the zipfile timestamps.
+    :param deterministic_timestamp: If True, will use our hardcoded time for zipfile timestamps.
 
     If the PEXBuilder is not yet frozen, it will be frozen by ``build``.  This renders the
     PEXBuilder immutable.
