@@ -231,6 +231,7 @@ class RequestsContext(Context):
       raise ValueError('max_retries may not be negative.')
 
     self._max_retries = max_retries
+    self._timeout = env.PEX_HTTP_TIMEOUT
     self._session = session or self._create_session(self._max_retries)
 
   def open(self, link):
@@ -240,7 +241,8 @@ class RequestsContext(Context):
     for attempt in range(self._max_retries + 1):
       try:
         return StreamFilelike(self._session.get(
-            link.url, verify=self._verify, stream=True, headers={'User-Agent': self.USER_AGENT}),
+            link.url, verify=self._verify, stream=True, headers={'User-Agent': self.USER_AGENT},
+            timeout=self._timeout),
             link)
       except requests.exceptions.ReadTimeout:
         # Connect timeouts are handled by the HTTPAdapter, unfortunately read timeouts are not
@@ -267,7 +269,7 @@ class RequestsContext(Context):
   def resolve(self, link):
     return link.wrap(self._session.head(
         link.url, verify=self._verify, allow_redirects=True,
-        headers={'User-Agent': self.USER_AGENT}
+        headers={'User-Agent': self.USER_AGENT}, timeout=self._timeout
     ).url)
 
 

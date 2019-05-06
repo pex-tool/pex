@@ -146,6 +146,13 @@ def test_requests_context_retries_from_environment():
   assert RequestsContext(verify=False, env=env)._max_retries == int(retry_count)
 
 
+@pytest.mark.skipif(NO_REQUESTS)
+def test_requests_context_timeout_from_environment():
+  timeout = '42'
+  env = Variables({'PEX_HTTP_TIMEOUT': timeout})
+  assert RequestsContext(verify=False, env=env)._timeout == int(timeout)
+
+
 def timeout_side_effect(timeout_error=None, num_timeouts=1):
   timeout_error = timeout_error or requests.packages.urllib3.exceptions.ConnectTimeoutError
   url = 'http://pypi.org/foo.tar.gz'
