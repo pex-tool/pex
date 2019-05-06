@@ -325,7 +325,8 @@ class Variables(object):
     """Integer
 
     When built with the `requests` HTTP library, a timeout to apply for HTTP connect attempts and
-    read attempts. See the `requests` docis for more information.
+    read attempts. See the `requests` docs (https://2.python-requests.org/en/master/user/quickstart/#timeouts)
+    for more information.
     Default: 15.
     """
     return self._get_int('PEX_HTTP_TIMEOUT', default=15)
