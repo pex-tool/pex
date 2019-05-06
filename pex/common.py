@@ -23,10 +23,12 @@ from uuid import uuid4
 # 4.4.6 of the zip spec at https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT, 
 # Zipfiles use MS-DOS time.
 # NB: We do not respect the standard env var $SOURCE_DATE_EPOCH often used by tools for
-# deterministic timestamps, as the intended use case is for security by checking if the binary
-# was tampered with. We do not have a compelling use case for respecting this env var, and it
-# only complicates the code, so we do not use it. However, this decision can be revisited if a
-# user has a compelling use case for it.
+# deterministic timestamps, as doing so risks reducing the reproducibility of built pexes across
+# different platforms, e.g. if two platforms set the env var differently. Usually, this is
+# supposed to be set for the sake of security to check that a shipped binary was not tampered
+# with, but that is not our primary use case, so we do not respect it both for simplicity of
+# our codebase and to avoid this potential reduction in reproducibility. Refer to
+# https://reproducible-builds.org/docs/source-date-epoch/ for more information.
 DETERMINISTIC_DATETIME = datetime(
   year=1980, month=1, day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
 )
