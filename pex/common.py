@@ -24,7 +24,7 @@ from uuid import uuid4
 # year-month-day-hour-minute-second, which we use here.
 DETERMINISTIC_DATETIME = datetime(
   year=1980, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None
-).timetuple[:6]
+).timetuple()[:6]
 
 
 def die(msg, exit_code=1):
