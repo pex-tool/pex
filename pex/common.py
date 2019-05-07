@@ -133,7 +133,6 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
     os.chmod(path, attr)
 
 
-
 @contextlib.contextmanager
 def open_zip(path, *args, **kwargs):
   """A contextmanager for zip files. Passes through positional and kwargs to zipfile.ZipFile."""
