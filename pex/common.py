@@ -408,7 +408,7 @@ class Chroot(object):
         zinfo = zf.zip_info_from_file(
             filename=full_path,
             arcname=f,
-            date_time=None if not deterministic_timestamp else DETERMINISTIC_DATETIME
+            date_time=DETERMINISTIC_DATETIME if deterministic_timestamp else None
         )
         with open(full_path, 'rb') as open_f:
           data = open_f.read()
