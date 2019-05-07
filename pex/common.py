@@ -405,19 +405,13 @@ class Chroot(object):
     with open_zip(filename, mode) as zf:
       for f in sorted(self.files()):
         full_path = os.path.join(self.chroot, f)
-        if not deterministic_timestamp:
-          zf.write(
-            full_path,
-            arcname=f,
-            compress_type=zipfile.ZIP_DEFLATED
-          )
-        else:
-          zinfo = zf.zip_info_from_file(
+        zinfo = zf.zip_info_from_file(
             filename=full_path,
             arcname=f,
-            # NB: the constructor expects a six tuple of year-month-day-hour-minute-second.
-            date_time=DETERMINISTIC_DATETIME.timetuple()[:6]
-          )
-          with open(full_path, 'rb') as open_f:
-            data = open_f.read()
-          zf.writestr(zinfo, data, compress_type=zipfile.ZIP_DEFLATED)
+            date_time=(
+              None if not deterministic_timestamp else DETERMINISTIC_DATETIME.timetuple()[:6]
+            )
+        )
+        with open(full_path, 'rb') as open_f:
+          data = open_f.read()
+        zf.writestr(zinfo, data, compress_type=zipfile.ZIP_DEFLATED)
