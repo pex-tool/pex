@@ -19,16 +19,8 @@ from datetime import datetime
 from uuid import uuid4
 
 
-# We hardcode the datetime to January 1, 1980, which is the start of MS-DOS time. Per section 
-# 4.4.6 of the zip spec at https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT, 
-# Zipfiles use MS-DOS time.
-# NB: We do not respect the standard env var $SOURCE_DATE_EPOCH often used by tools for
-# deterministic timestamps, as doing so risks reducing the reproducibility of built pexes across
-# different platforms, e.g. if two platforms set the env var differently. Usually, this is
-# supposed to be set for the sake of security to check that a shipped binary was not tampered
-# with, but that is not our primary use case, so we do not respect it both for simplicity of
-# our codebase and to avoid this potential reduction in reproducibility. Refer to
-# https://reproducible-builds.org/docs/source-date-epoch/ for more information.
+# We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
+# https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
 DETERMINISTIC_DATETIME = datetime(
   year=1980, month=1, day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
 )
