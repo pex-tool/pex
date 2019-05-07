@@ -90,6 +90,35 @@ _MKDTEMP_SINGLETON = MktempTeardownRegistry()
 class PermPreservingZipFile(zipfile.ZipFile, object):
   """A ZipFile that works around https://bugs.python.org/issue15795"""
 
+  @classmethod
+  def zip_info_from_file(cls, filename, arcname=None, date_time=None):
+    """Construct a ZipInfo for a file on the filesystem.
+
+    Usually this is provided directly as a method of ZipInfo, but it is not implemented in Python
+    2.7 so we re-implement it here. The main divergance we make from the original is adding a
+    parameter for the datetime (a six-tuple), which allows us to use a deterministic timestamp.
+    See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495."""
+    st = os.stat(filename)
+    isdir = stat.S_ISDIR(st.st_mode)
+    if arcname is None:
+      arcname = filename
+    arcname = os.path.normpath(os.path.splitdrive(arcname)[1])
+    while arcname[0] in (os.sep, os.altsep):
+      arcname = arcname[1:]
+    if isdir:
+      arcname += '/'
+    if date_time is None:
+      mtime = time.localtime(st.st_mtime)
+      date_time = mtime[0:6]
+    zinfo = zipfile.ZipInfo(filename=arcname, date_time=date_time)
+    zinfo.external_attr = (st.st_mode & 0xFFFF) << 16  # Unix attributes
+    if isdir:
+      zinfo.file_size = 0
+      zinfo.external_attr |= 0x10  # MS-DOS directory flag
+    else:
+      zinfo.file_size = st.st_size
+    return zinfo
+
   def _extract_member(self, member, targetpath, pwd):
     result = super(PermPreservingZipFile, self)._extract_member(member, targetpath, pwd)
     info = member if isinstance(member, zipfile.ZipInfo) else self.getinfo(member)
@@ -102,6 +131,7 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
     #   https://www.forensicswiki.org/wiki/ZIP#External_file_attributes
     attr = info.external_attr >> 16
     os.chmod(path, attr)
+
 
 
 @contextlib.contextmanager
@@ -382,34 +412,12 @@ class Chroot(object):
             compress_type=zipfile.ZIP_DEFLATED
           )
         else:
-          # This code mostly reimplements ZipInfo.from_file(), which is not available in Python
-          # 2.7. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495.
-          st = os.stat(full_path)
-          isdir = stat.S_ISDIR(st.st_mode)
-          # Determine arcname, i.e. the archive name.
-          arcname = f
-          arcname = os.path.normpath(os.path.splitdrive(arcname)[1])
-          while arcname[0] in (os.sep, os.altsep):
-            arcname = arcname[1:]
-          if isdir:
-            arcname += '/'
-          # Setup ZipInfo with deterministic datetime.
-          zinfo = zipfile.ZipInfo(
-            filename=arcname,
+          zinfo = zf.zip_info_from_file(
+            filename=full_path,
+            arcname=f,
             # NB: the constructor expects a six tuple of year-month-day-hour-minute-second.
             date_time=DETERMINISTIC_DATETIME.timetuple()[:6]
           )
-          zinfo.external_attr = (st.st_mode & 0xFFFF) << 16
-          if isdir:
-            zinfo.file_size = 0
-            zinfo.external_attr |= 0x10  # MS-DOS directory flag
-          else:
-            zinfo.file_size = st.st_size
-          # Determine the data to write.
-          if isdir:
-            data = b''
-          else:
-            with open(full_path, 'rb') as open_f:
-              data = open_f.read()
-          # Write to the archive.
+          with open(full_path, 'rb') as open_f:
+            data = open_f.read()
           zf.writestr(zinfo, data, compress_type=zipfile.ZIP_DEFLATED)
