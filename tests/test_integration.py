@@ -1391,7 +1391,11 @@ def test_reproducible_build_bdist_requirements():
 
 
 def test_reproducible_build_sdist_requirements():
-  assert_reproducible_build(['pycparser==2.19', '--no-build'])
+  try:
+    os.environ["PEX_VERBOSE"] = "9"
+    assert_reproducible_build(['pycparser==2.19', '--no-build'])
+  finally:
+    os.environ.pop("PEX_VERBOSE")
 
 
 def test_reproducible_build_m_flag():
