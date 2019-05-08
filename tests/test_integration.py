@@ -1353,7 +1353,7 @@ def assert_reproducible_build(args):
     # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
     def create_pex(path, seed):
       result = run_pex_command(
-        args + ['-o', path, '--no-compile'],
+        args + ['-o', path, '--no-compile', '--no-use-system-time'],
         env=make_env(PYTHONHASHSEED=seed)
       )
       result.assert_success()
@@ -1381,7 +1381,6 @@ def assert_reproducible_build(args):
     assert filecmp.cmp(pex1, pex2, shallow=False)
 
 
-@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_no_args():
   assert_reproducible_build([])
 
@@ -1397,7 +1396,6 @@ def test_reproducible_build_sdist_requirements():
   assert_reproducible_build(['pycparser==2.19', '--no-build'])
 
 
-@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_m_flag():
   assert_reproducible_build(['-m', 'pydoc'])
 
@@ -1416,11 +1414,9 @@ def test_reproducible_build_c_flag():
     assert_reproducible_build([project_dir, '-c', 'my_app'])
 
 
-@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_python_flag():
   assert_reproducible_build(['--python=python2.7'])
 
 
-@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_python_shebang_flag():
   assert_reproducible_build(['--python-shebang=/usr/bin/python'])

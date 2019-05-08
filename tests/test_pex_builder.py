@@ -3,6 +3,7 @@
 
 import os
 import stat
+import zipfile
 
 import pytest
 
@@ -177,3 +178,12 @@ def test_pex_builder_copy_or_link():
 
     build_and_check(td2, False)
     build_and_check(td3, True)
+
+
+def test_pex_builder_deterministic_timestamp():
+  pb = PEXBuilder()
+  with temporary_dir() as td:
+    target = os.path.join(td, 'foo.pex')
+    pb.build(target, deterministic_timestamp=True)
+    with zipfile.ZipFile(target) as zf:
+      assert all(zinfo.date_time == (1980, 1, 1, 0, 0, 0) for zinfo in zf.infolist())
