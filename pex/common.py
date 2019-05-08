@@ -20,11 +20,10 @@ from uuid import uuid4
 
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
-# https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT). Note that ZipInfo expects a
-# time.struct_time, which we set here.
+# https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
 DETERMINISTIC_DATETIME = datetime(
   year=1980, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None
-).timetuple()
+)
 
 
 def die(msg, exit_code=1):
@@ -407,7 +406,7 @@ class Chroot(object):
         zinfo = zf.zip_info_from_file(
             filename=full_path,
             arcname=f,
-            date_time=DETERMINISTIC_DATETIME if deterministic_timestamp else None
+            date_time=DETERMINISTIC_DATETIME.timetuple() if deterministic_timestamp else None
         )
         with open(full_path, 'rb') as open_f:
           data = open_f.read()
