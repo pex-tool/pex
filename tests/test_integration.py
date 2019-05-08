@@ -1390,12 +1390,9 @@ def test_reproducible_build_bdist_requirements():
   assert_reproducible_build(['six==1.12.0', 'cryptography==2.6.1'])
 
 
+@pytest.mark.skipif(IS_PYPY, "pycparser fails to resolve on PyPy.")
 def test_reproducible_build_sdist_requirements():
-  try:
-    os.environ["PEX_VERBOSE"] = "9"
-    assert_reproducible_build(['pycparser==2.19', '--no-build'])
-  finally:
-    os.environ.pop("PEX_VERBOSE")
+  assert_reproducible_build(['pycparser==2.19', '--no-build'])
 
 
 def test_reproducible_build_m_flag():
