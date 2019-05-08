@@ -108,7 +108,7 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
     if isdir:
       arcname += '/'
     if date_time is None:
-      datetime = time.localtime(st.st_mtime)
+      date_time = time.localtime(st.st_mtime)
     zinfo = zipfile.ZipInfo(filename=arcname, date_time=date_time[:6])
     zinfo.external_attr = (st.st_mode & 0xFFFF) << 16  # Unix attributes
     if isdir:
