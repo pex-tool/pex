@@ -1400,18 +1400,25 @@ def test_reproducible_build_m_flag():
   assert_reproducible_build(['-m', 'pydoc'])
 
 
-@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
-def test_reproducible_build_c_flag():
-  setup_py = dedent("""
+def test_reproducible_build_c_flag_from_source():
+  setup_py = dedent("""\
     from setuptools import setup
 
     setup(
       name='my_app',
-      entry_points={'console_scripts': ['my_app = my_app:do_something']},
+      entry_points={'console_scripts': ['my_app_function = my_app:do_something']},
     )
   """)
-  with temporary_content({'setup.py': setup_py}) as project_dir:
-    assert_reproducible_build([project_dir, '-c', 'my_app'])
+  my_app = dedent("""\
+    def do_something():
+      return "reproducible"
+  """)
+  with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
+    assert_reproducible_build([project_dir, '-c', 'my_app_function'])
+
+
+def test_reproducible_build_c_flag_from_dependency():
+  assert_reproducible_build(['future==0.17.1', '-c', 'futurize'])
 
 
 def test_reproducible_build_python_flag():
