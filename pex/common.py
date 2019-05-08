@@ -20,11 +20,11 @@ from uuid import uuid4
 
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
-# https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT). ZipInfo expects a 6-tuple of
-# year-month-day-hour-minute-second, which we use here.
+# https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT). Note that ZipInfo expects a
+# time.struct_time, which we set here.
 DETERMINISTIC_DATETIME = datetime(
   year=1980, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None
-).timetuple()[:6]
+).timetuple()
 
 
 def die(msg, exit_code=1):
@@ -97,8 +97,8 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
 
     Usually this is provided directly as a method of ZipInfo, but it is not implemented in Python
     2.7 so we re-implement it here. The main divergance we make from the original is adding a
-    parameter for the datetime (a six-tuple), which allows us to use a deterministic timestamp.
-    See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495."""
+    parameter for the datetime (a time.struct_time), which allows us to use a deterministic
+    timestamp. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495."""
     st = os.stat(filename)
     isdir = stat.S_ISDIR(st.st_mode)
     if arcname is None:
@@ -109,9 +109,8 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
     if isdir:
       arcname += '/'
     if date_time is None:
-      mtime = time.localtime(st.st_mtime)
-      date_time = mtime[0:6]
-    zinfo = zipfile.ZipInfo(filename=arcname, date_time=date_time)
+      datetime = time.localtime(st.st_mtime)
+    zinfo = zipfile.ZipInfo(filename=arcname, date_time=date_time[:6])
     zinfo.external_attr = (st.st_mode & 0xFFFF) << 16  # Unix attributes
     if isdir:
       zinfo.file_size = 0
