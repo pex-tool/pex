@@ -1385,7 +1385,6 @@ def test_reproducible_build_no_args():
   assert_reproducible_build([])
 
 
-@pytest.mark.skip("Acceptance test for landing https://github.com/pantsbuild/pex/issues/716.")
 def test_reproducible_build_bdist_requirements():
   # We test both a pure Python wheel (six) and a platform-specific wheel (cryptography).
   assert_reproducible_build(['six==1.12.0', 'cryptography==2.6.1'])

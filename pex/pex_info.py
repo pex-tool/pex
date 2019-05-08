@@ -117,7 +117,7 @@ class PexInfo(object):
     raise ValueError('Malformed PEX requirement: %r' % (requirement_tuple,))
 
   def __init__(self, info=None):
-    """Construct a new PexInfo.  This should not be used directly."""
+    """Construct a new PexInfo. This should not be used directly."""
 
     if info is not None and not isinstance(info, dict):
       raise ValueError('PexInfo can only be seeded with a dict, got: '
@@ -310,8 +310,8 @@ class PexInfo(object):
 
   def dump(self, **kwargs):
     pex_info_copy = self._pex_info.copy()
-    pex_info_copy['requirements'] = list(self._requirements)
-    pex_info_copy['interpreter_constraints'] = list(self._interpreter_constraints)
+    pex_info_copy['requirements'] = sorted(self._requirements)
+    pex_info_copy['interpreter_constraints'] = sorted(self._interpreter_constraints)
     pex_info_copy['distributions'] = self._distributions.copy()
     return json.dumps(pex_info_copy, **kwargs)
 
