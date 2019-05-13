@@ -42,7 +42,7 @@ You can also build pex in a git clone using tox:
 
 .. code-block:: bash
 
-    $ tox -e py27-package
+    $ tox -e package
     $ cp dist/pex ~/bin
 
 This builds a pex binary in ``dist/pex`` that can be copied onto your ``$PATH``.
