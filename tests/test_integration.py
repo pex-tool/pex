@@ -1316,8 +1316,17 @@ def test_no_emit_warnings_verbose_override():
 
 
 def test_undeclared_setuptools_import_on_pex_path():
+  """Test that packages which access pkg_resources at import time can be found with pkg_resources.
+
+  See https://github.com/pantsbuild/pex/issues/729 for context. We warn when a package accesses
+  pkg_resources without declaring it in install_requires, but we also want to check that those
+  packages can be accessed successfully via the PEX_PATH.
+  """
   with temporary_dir() as td:
     setuptools_pex = os.path.join(td, 'setuptools.pex')
+    # NB: the specific setuptools version does not necessarily matter. We only pin the version to
+    # avoid a future version of setuptools potentially fixing this issue and then us no longer
+    # checking that Pex is behaving properly for older setuptools versions.
     run_pex_command(['setuptools==40.6.3', '-o', setuptools_pex]).assert_success()
     bigquery_pex = os.path.join(td, 'bigquery.pex')
     run_pex_command(['google-cloud-bigquery==1.10.0', '-o', bigquery_pex]).assert_success()
@@ -1339,7 +1348,7 @@ def test_undeclared_setuptools_import_on_pex_path():
       '--entry-point', 'execute_import',
     ])
     res.assert_success()
-    assert res.output == 'bigquery version: 1.10.0\n'
+    assert res.output.strip() == 'bigquery version: 1.10.0'
 
 
 @pytest.mark.skipif(IS_PYPY)
