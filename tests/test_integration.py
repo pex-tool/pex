@@ -1315,6 +1315,33 @@ def test_no_emit_warnings_verbose_override():
   assert stderr
 
 
+def test_undeclared_setuptools_import_on_pex_path():
+  with temporary_dir() as td:
+    setuptools_pex = os.path.join(td, 'setuptools.pex')
+    run_pex_command(['setuptools==40.6.3', '-o', setuptools_pex]).assert_success()
+    bigquery_pex = os.path.join(td, 'bigquery.pex')
+    run_pex_command(['google-cloud-bigquery==1.10.0', '-o', bigquery_pex]).assert_success()
+
+    src_dir = os.path.join(td, 'src')
+    os.mkdir(src_dir)
+
+    src_file = os.path.join(src_dir, 'execute_import.py')
+    with open(src_file, 'w') as fp:
+      fp.write(dedent("""\
+        from google.cloud import bigquery
+
+        print('bigquery version: {}'.format(bigquery.__version__))
+        """))
+
+    res = run_pex_command([
+      '--pex-path={}'.format(':'.join([setuptools_pex, bigquery_pex])),
+      '-D', src_dir,
+      '--entry-point', 'execute_import',
+    ])
+    res.assert_success()
+    assert res.output == 'bigquery version: 1.10.0\n'
+
+
 @pytest.mark.skipif(IS_PYPY)
 def test_issues_539_abi3_resolution():
   # The cryptography team releases the following relevant pre-built wheels for version 2.6.1:
