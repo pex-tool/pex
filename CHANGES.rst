@@ -1,6 +1,65 @@
 Release Notes
 =============
 
+1.6.7
+-----
+
+We now support reproducible builds when creating a pex via `pex -o foo.pex`, meaning that if
+you were to run the command again with the same inputs, the two generated pexes would be
+byte-for-byte identical. To enable reproducible builds when building a pex, use the flags
+`--no-use-system-time --no-compile`, which will use a deterministic timestamp and not include
+`.pyc` files in the Pex.
+
+In Pex 1.7.0, we will default to reproducible builds.
+
+* add delayed pkg_resources import fix from #713, with an integration test (#730)
+  `PR #730 <https://github.com/pantsbuild/pex/pull/730>`_
+
+* Fix reproducible builds sdist test by properly requiring building the wheel (#727)
+  `PR #727 <https://github.com/pantsbuild/pex/pull/727>`_
+
+* Fix reproducible build test improperly using the -c flag and add a new test for -c flag (#725)
+  `PR #725 <https://github.com/pantsbuild/pex/pull/725>`_
+
+* Fix PexInfo requirements using a non-deterministic data structure (#723)
+  `PR #723 <https://github.com/pantsbuild/pex/pull/723>`_
+
+* Add new `--no-use-system-time` flag to use a deterministic timestamp in built PEX (#722)
+  `PR #722 <https://github.com/pantsbuild/pex/pull/722>`_
+
+* Add timeout when using requests. (#726)
+  `PR #726 <https://github.com/pantsbuild/pex/pull/726>`_
+
+* Refactor reproducible build tests to assert that the original pex command succeeded (#724)
+  `PR #724 <https://github.com/pantsbuild/pex/pull/724>`_
+
+* Introduce new `--no-compile` flag to not include .pyc in built pex due to its non-determinism (#718)
+  `PR #718 <https://github.com/pantsbuild/pex/pull/718>`_
+
+* Document how Pex developers can run specific tests and run Pex from source (#720)
+  `PR #720 <https://github.com/pantsbuild/pex/pull/720>`_
+
+* Remove unused bdist_pex.py helper function (#719)
+  `PR #719 <https://github.com/pantsbuild/pex/pull/719>`_
+
+* Add failing acceptance tests for reproducible Pex builds (#717)
+  `PR #717 <https://github.com/pantsbuild/pex/pull/717>`_
+
+* Make a copy of globals() before updating it. (#715)
+  `PR #715 <https://github.com/pantsbuild/pex/pull/715>`_
+
+* Make sure `PexInfo` is isolated from `os.environ`. (#711)
+  `PR #711 <https://github.com/pantsbuild/pex/pull/711>`_
+
+* Fix import sorting. (#712)
+  `PR #712 <https://github.com/pantsbuild/pex/pull/712>`_
+
+* When iterating over Zipfiles, always use the Unix file separator to fix a Windows issue (#638)
+  `PR #638 <https://github.com/pantsbuild/pex/pull/638>`_
+
+* Fix pex file looses the executable permissions of binary files (#703)
+  `PR #703 <https://github.com/pantsbuild/pex/pull/703>`_
+
 1.6.6
 -----
 
