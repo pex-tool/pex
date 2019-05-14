@@ -295,7 +295,6 @@ This release opens up setuptools support for more modern versions that support b
 
 * Support `-` when running as an interpreter. (#543)
   `PR #543 <https://github.com/pantsbuild/pex/pull/543>`_
->`_ttps://github.com/pantsbuild/pex/pull/6275.
 
 * Expand the range of supported setuptools. (#541)
   `PR #541 <https://github.com/pantsbuild/pex/pull/541>`_
