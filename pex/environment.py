@@ -368,6 +368,10 @@ class PEXEnvironment(Environment):
         with TRACER.timed('Adding sitedir', V=2):
           site.addsitedir(dist.location)
 
-        self._declare_namespace_packages(dist)
+    # NB: we use this loop, rather than putting the below line in the prior loop, to ensure that
+    # 'sys.path' contains all of the resolved dists before calling
+    # 'self._declare_namespace_packages'.
+    for dist in resolved:
+      self._declare_namespace_packages(dist)
 
     return working_set
