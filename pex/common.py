@@ -11,13 +11,12 @@ import shutil
 import stat
 import sys
 import tempfile
-import time
 import threading
+import time
 import zipfile
 from collections import defaultdict
 from datetime import datetime
 from uuid import uuid4
-
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
