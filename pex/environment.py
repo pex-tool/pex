@@ -307,31 +307,45 @@ class PEXEnvironment(Environment):
     return resolveds
 
   @staticmethod
-  def _declare_namespace_packages(dist):
-    if not dist.has_metadata('namespace_packages.txt'):
+  def _declare_namespace_packages(resolved_dists):
+    namespace_package_dists = [dist for dist in resolved_dists
+                               if dist.has_metadata('namespace_packages.txt')]
+    if not namespace_package_dists:
       return  # Nothing to do here.
 
-    # NB: Some distributions (notably `twitter.common.*`) in the wild declare setuptools-specific
-    # `namespace_packages` but do not properly declare a dependency on setuptools which they must
+    # When declaring namespace packages, we need to do so with the `setuptools` distribution that
+    # will be active in the pex environment at runtime and, as such, care must be taken.
+    #
+    # Properly behaved distributions will declare a dependency on `setuptools`, in which case we
+    # use that (non-vendored) distribution. A side-effect of importing `pkg_resources` from that
+    # distribution is that a global `pkg_resources.working_set` will be populated. For various
+    # `pkg_resources` distribution discovery functions to work, that global
+    # `pkg_resources.working_set` must be built with the `sys.path` fully settled. Since all dists
+    # in the dependency set (`resolved_dists`) have already been resolved and added to the
+    # `sys.path` we're safe to proceed here.
+    #
+    # Other distributions (notably `twitter.common.*`) in the wild declare `setuptools`-specific
+    # `namespace_packages` but do not properly declare a dependency on `setuptools` which they must
     # use to:
-    # 1. Declare namespace_packages metadata which we just verified they have with the check above.
+    # 1. Declare `namespace_packages` metadata which we just verified they have with the check
+    #    above.
     # 2. Declare namespace packages at runtime via the canonical:
     #    `__import__('pkg_resources').declare_namespace(__name__)`
     #
-    # As such, we assume the best and try to import pkg_resources from the distribution they depend
-    # on, and then fall back to our vendored version only if not present. This is safe, since we'll
-    # only introduce our shaded version when no other standard version is present and even then tear
-    # it all down when we hand off from the bootstrap to user code.
+    # For such distributions we fall back to our vendored version of `setuptools`. This is safe,
+    # since we'll only introduce our shaded version when no other standard version is present and
+    # even then tear it all down when we hand off from the bootstrap to user code.
     pkg_resources, vendored = _import_pkg_resources()
     if vendored:
       pex_warnings.warn('The `pkg_resources` package was loaded from a pex vendored version when '
-                        'declaring namespace packages defined by {dist}. The {dist} distribution '
-                        'should fix its `install_requires` to include `setuptools`'
-                        .format(dist=dist))
+                        'declaring namespace packages defined by {dists}. These distributions '
+                        'should fix their `install_requires` to include `setuptools`'
+                        .format(dists=namespace_package_dists))
 
-    for pkg in dist.get_metadata_lines('namespace_packages.txt'):
-      if pkg in sys.modules:
-        pkg_resources.declare_namespace(pkg)
+    for dist in namespace_package_dists:
+      for pkg in dist.get_metadata_lines('namespace_packages.txt'):
+        if pkg in sys.modules:
+          pkg_resources.declare_namespace(pkg)
 
   def _activate(self):
     self.update_candidate_distributions(self.load_internal_cache(self._pex, self._pex_info))
@@ -368,10 +382,6 @@ class PEXEnvironment(Environment):
         with TRACER.timed('Adding sitedir', V=2):
           site.addsitedir(dist.location)
 
-    # NB: we use this loop, rather than putting the below line in the prior loop, to ensure that
-    # 'sys.path' contains all of the resolved dists before calling
-    # 'self._declare_namespace_packages'.
-    for dist in resolved:
-      self._declare_namespace_packages(dist)
+    self._declare_namespace_packages(resolved)
 
     return working_set
