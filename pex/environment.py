@@ -313,7 +313,18 @@ class PEXEnvironment(Environment):
     if not namespace_package_dists:
       return  # Nothing to do here.
 
-    # NB: Some distributions (notably `twitter.common.*`) in the wild declare `setuptools`-specific
+    # When declaring namespace packages, we need to do so with the `setuptools` distribution that
+    # will be active in the pex environment at runtime and, as such, care must be taken.
+    #
+    # Properly behaved distributions will declare a dependency on `setuptools`, in which case we
+    # use that (non-vendored) distribution. A side-effect of importing `pkg_resources` from that
+    # distribution is that a global `pkg_resources.working_set` will be populated. For various
+    # `pkg_resources` distribution discovery functions to work, that global
+    # `pkg_resources.working_set` must be built with the `sys.path` fully settled. Since all dists
+    # in the dependency set (`resolved_dists`) have already been resolved and added to the
+    # `sys.path` we're safe to proceed here.
+    #
+    # Other distributions (notably `twitter.common.*`) in the wild declare `setuptools`-specific
     # `namespace_packages` but do not properly declare a dependency on `setuptools` which they must
     # use to:
     # 1. Declare `namespace_packages` metadata which we just verified they have with the check
@@ -321,15 +332,9 @@ class PEXEnvironment(Environment):
     # 2. Declare namespace packages at runtime via the canonical:
     #    `__import__('pkg_resources').declare_namespace(__name__)`
     #
-    # As such, we assume the best and try to import `pkg_resources` from the distribution they
-    # depend on (1), and then fall back to our vendored version only if not present. This is safe,
+    # For such distributions we fall back to our vendored version of `setuptools`. This is safe,
     # since we'll only introduce our shaded version when no other standard version is present and
     # even then tear it all down when we hand off from the bootstrap to user code.
-    #
-    # (1) If do we hit the best case and the distribution has declared a `setuptools` dependency,
-    # then we'll be populating that `setuptools` global `working_set` when we perform this import.
-    # This is safe to do since all dists in the dependency set have already been resolved and added
-    # to the `sys.path` for `pkg_resources` to see.
     pkg_resources, vendored = _import_pkg_resources()
     if vendored:
       pex_warnings.warn('The `pkg_resources` package was loaded from a pex vendored version when '
