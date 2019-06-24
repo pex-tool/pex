@@ -17,7 +17,7 @@ from pex.util import DistributionHelper
 
 exe_main = """
 import sys
-from my_package.my_module import do_something
+from p1.my_module import do_something
 do_something()
 
 with open(sys.argv[1], 'w') as fp:
@@ -27,7 +27,7 @@ with open(sys.argv[1], 'w') as fp:
 wheeldeps_exe_main = """
 import sys
 from pyparsing import *
-from my_package.my_module import do_something
+from p1.my_module import do_something
 do_something()
 
 with open(sys.argv[1], 'w') as fp:

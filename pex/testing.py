@@ -99,30 +99,47 @@ def write_zipfile(directory, dest, reverse=False):
   return dest
 
 
-PROJECT_CONTENT = {
-  'setup.py': dedent('''
+@contextlib.contextmanager
+def make_project(name='my_project',
+                 version='0.0.0',
+                 zip_safe=True,
+                 install_reqs=None,
+                 extras_require=None):
+
+  project_content = {
+    'setup.py': dedent('''
       from setuptools import setup
 
       setup(
-          name=%(project_name)r,
-          version=%(version)r,
-          zip_safe=%(zip_safe)r,
-          packages=['my_package'],
-          scripts=[
-              'scripts/hello_world',
-              'scripts/shell_script',
-          ],
-          package_data={'my_package': ['package_data/*.dat']},
-          install_requires=%(install_requires)r,
+        name=%(project_name)r,
+        version=%(version)r,
+        zip_safe=%(zip_safe)r,
+        packages=[%(project_name)r],
+        scripts=[
+          'scripts/hello_world',
+          'scripts/shell_script',
+        ],
+        package_data={%(project_name)r: ['package_data/*.dat']},
+        install_requires=%(install_requires)r,
+        extras_require=%(extras_require)r,
       )
-  '''),
-  'scripts/hello_world': '#!/usr/bin/env python\nprint("hello world!")\n',
-  'scripts/shell_script': '#!/usr/bin/env bash\necho hello world\n',
-  'my_package/__init__.py': 0,
-  'my_package/my_module.py': 'def do_something():\n  print("hello world!")\n',
-  'my_package/package_data/resource1.dat': 1000,
-  'my_package/package_data/resource2.dat': 1000,
-}
+    '''),
+    'scripts/hello_world': '#!/usr/bin/env python\nprint("hello world!")\n',
+    'scripts/shell_script': '#!/usr/bin/env bash\necho hello world\n',
+    os.path.join(name, '__init__.py'): 0,
+    os.path.join(name, 'my_module.py'): 'def do_something():\n  print("hello world!")\n',
+    os.path.join(name, 'package_data/resource1.dat'): 1000,
+    os.path.join(name, 'package_data/resource2.dat'): 1000,
+  }
+
+  interp = {'project_name': name,
+            'version': version,
+            'zip_safe': zip_safe,
+            'install_requires': install_reqs or [],
+            'extras_require': extras_require or {}}
+
+  with temporary_content(project_content, interp=interp) as td:
+    yield td
 
 
 @contextlib.contextmanager
@@ -131,29 +148,29 @@ def make_installer(name='my_project',
                    installer_impl=EggInstaller,
                    zip_safe=True,
                    install_reqs=None,
+                   extras_require=None,
                    interpreter=None,
                    **kwargs):
-  interp = {'project_name': name,
-            'version': version,
-            'zip_safe': zip_safe,
-            'install_requires': install_reqs or []}
-  with temporary_content(PROJECT_CONTENT, interp=interp) as td:
+
+  with make_project(name=name,
+                    version=version,
+                    zip_safe=zip_safe,
+                    install_reqs=install_reqs,
+                    extras_require=extras_require) as td:
     yield installer_impl(td, interpreter=interpreter, **kwargs)
 
 
 @contextlib.contextmanager
-def make_source_dir(name='my_project', version='0.0.0', install_reqs=None):
-  interp = {'project_name': name,
-            'version': version,
-            'zip_safe': True,
-            'install_requires': install_reqs or []}
-  with temporary_content(PROJECT_CONTENT, interp=interp) as td:
+def make_source_dir(name='my_project', version='0.0.0', install_reqs=None, extras_require=None):
+  with make_project(name=name,
+                    version=version,
+                    install_reqs=install_reqs,
+                    extras_require=extras_require) as td:
     yield td
 
 
-def make_sdist(name='my_project', version='0.0.0', zip_safe=True, install_reqs=None):
-  with make_installer(name=name, version=version, installer_impl=Packager, zip_safe=zip_safe,
-                      install_reqs=install_reqs) as packager:
+def make_sdist(**kwargs):
+  with make_installer(installer_impl=Packager, **kwargs) as packager:
     return packager.sdist()
 
 

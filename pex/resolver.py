@@ -333,6 +333,7 @@ Calculated platform: {calculated_platform!r}""".format(
         requirement = resolvable.requirement
       else:
         requirement = distribution.as_requirement()
+        requirement.extras = tuple(resolvable.extras())
       dists.append(ResolvedDistribution(requirement=requirement,
                                         distribution=distribution))
     return dists
