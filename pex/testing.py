@@ -169,8 +169,17 @@ def make_source_dir(name='my_project', version='0.0.0', install_reqs=None, extra
     yield td
 
 
-def make_sdist(**kwargs):
-  with make_installer(installer_impl=Packager, **kwargs) as packager:
+def make_sdist(name='my_project',
+               version='0.0.0',
+               zip_safe=True,
+               install_reqs=None,
+               extras_require=None):
+  with make_installer(name=name,
+                      version=version,
+                      installer_impl=Packager,
+                      zip_safe=zip_safe,
+                      install_reqs=install_reqs,
+                      extras_require=extras_require) as packager:
     return packager.sdist()
 
 
