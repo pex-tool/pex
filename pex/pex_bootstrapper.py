@@ -118,6 +118,13 @@ def maybe_reexec_pex(pex_info):
 
   current_interpreter = PythonInterpreter.get()
 
+  # NB: Used only for debugging and tests.
+  pex_exec_chain = []
+  if '_PEX_EXEC_CHAIN' in os.environ:
+    pex_exec_chain.extend(os.environ['_PEX_EXEC_CHAIN'].split(os.pathsep))
+  pex_exec_chain.append(current_interpreter.binary)
+  os.environ['_PEX_EXEC_CHAIN'] = os.pathsep.join(pex_exec_chain)
+
   current_interpreter_blessed_env_var = '_PEX_SHOULD_EXIT_BOOTSTRAP_REEXEC'
   if os.environ.pop(current_interpreter_blessed_env_var, None):
     # We've already been here and selected an interpreter. Continue to execution.
@@ -143,6 +150,9 @@ def maybe_reexec_pex(pex_info):
                  .format(sys.executable), V=3)
       return
 
+  os.environ.pop('PEX_PYTHON', None)
+  os.environ.pop('PEX_PYTHON_PATH', None)
+
   if target == current_interpreter:
     TRACER.log('Using the current interpreter {} since it matches constraints.'
                .format(sys.executable))
@@ -155,8 +165,7 @@ def maybe_reexec_pex(pex_info):
              % (cmdline, sys.executable, ENV.PEX_PYTHON, ENV.PEX_PYTHON_PATH,
                 compatibility_constraints))
 
-  os.environ.pop('PEX_PYTHON', None)
-  os.environ.pop('PEX_PYTHON_PATH', None)
+  # Avoid a re-run through compatibility_constraint checking.
   os.environ[current_interpreter_blessed_env_var] = '1'
 
   os.execv(target_binary, cmdline)
