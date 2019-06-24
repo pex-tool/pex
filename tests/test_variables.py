@@ -110,11 +110,10 @@ def test_pex_vars_hermetic():
 
 def test_pex_vars_set():
   v = Variables(environ={})
+  assert v._get_int('HELLO') is None
   v.set('HELLO', '42')
   assert v._get_int('HELLO') == 42
-  v.delete('HELLO')
-  assert v._get_int('HELLO') is None
-  assert {} == v.copy()
+  assert {'HELLO': '42'} == v.copy()
 
 
 def test_pex_get_kv():

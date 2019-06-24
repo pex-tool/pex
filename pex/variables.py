@@ -75,9 +75,6 @@ class Variables(object):
   def copy(self):
     return self._environ.copy()
 
-  def delete(self, variable):
-    self._environ.pop(variable, None)
-
   def set(self, variable, value):
     self._environ[variable] = str(value)
 
@@ -350,6 +347,7 @@ class Variables(object):
 
   def __repr__(self):
     return '{}({!r})'.format(type(self).__name__, self._environ)
+
 
 # Global singleton environment
 ENV = Variables()

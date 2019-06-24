@@ -603,7 +603,8 @@ def test_pex_python():
     stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
     stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
     assert rc == 1
-    fail_str = 'not compatible with specified interpreter constraints'.encode()
+    fail_str = ('Failed to find a compatible PEX_PYTHON={} for constraints'
+                .format(pex_python)).encode()
     assert fail_str in stdout
 
     # test PEX_PYTHON with no constraints
