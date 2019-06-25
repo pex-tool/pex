@@ -13,6 +13,7 @@ from inspect import getsource
 
 from pex.compatibility import string
 from pex.executor import Executor
+from pex.orderedset import OrderedSet
 from pex.pep425tags import (
     get_abbr_impl,
     get_abi_tag,
@@ -283,7 +284,7 @@ class PythonInterpreter(object):
   @classmethod
   def all(cls, paths=None):
     if paths is None:
-      paths = os.getenv('PATH', '').split(':')
+      paths = os.getenv('PATH', '').split(os.pathsep)
     return cls.filter(cls.find(paths))
 
   @classmethod
@@ -334,12 +335,13 @@ class PythonInterpreter(object):
              extras.
     :rtype: :class:`PythonInterpreter`
     """
-    if binary not in cls.CACHE:
-      if binary == sys.executable:
-        cls.CACHE[binary] = cls._from_binary_internal()
+    normalized_binary = os.path.realpath(binary)
+    if normalized_binary not in cls.CACHE:
+      if normalized_binary == os.path.realpath(sys.executable):
+        cls.CACHE[normalized_binary] = cls._from_binary_internal()
       else:
-        cls.CACHE[binary] = cls._from_binary_external(binary)
-    return cls.CACHE[binary]
+        cls.CACHE[normalized_binary] = cls._from_binary_external(normalized_binary)
+    return cls.CACHE[normalized_binary]
 
   @classmethod
   def _matches_binary_name(cls, basefile):
@@ -378,7 +380,7 @@ class PythonInterpreter(object):
       return (version[MAJOR] == 2 and version[MINOR] >= 7 or
               version[MAJOR] == 3 and version[MINOR] >= 4)
 
-    all_versions = set(interpreter.identity.version for interpreter in pythons)
+    all_versions = OrderedSet(interpreter.identity.version for interpreter in pythons)
     good_versions = filter(version_filter, all_versions)
 
     for version in good_versions:

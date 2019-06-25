@@ -17,7 +17,7 @@ def test_find_compatible_interpreters():
 
   def find_interpreters(*constraints):
     return [interp.binary for interp in
-            find_compatible_interpreters(pex_python_path=pex_python_path,
+            find_compatible_interpreters(path=pex_python_path,
                                          compatibility_constraints=constraints)]
 
   assert [py35, py36] == find_interpreters('>3')

@@ -3,6 +3,7 @@
 
 import filecmp
 import functools
+import json
 import os
 import platform
 import subprocess
@@ -43,7 +44,10 @@ from pex.util import DistributionHelper, named_temporary_file
 
 def make_env(**kwargs):
   env = os.environ.copy()
-  env.update((k, str(v)) for k, v in kwargs.items())
+  env.update((k, str(v)) for k, v in kwargs.items() if v is not None)
+  for k, v in kwargs.items():
+    if v is None:
+      env.pop(k, None)
   return env
 
 
@@ -603,7 +607,8 @@ def test_pex_python():
     stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
     stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
     assert rc == 1
-    fail_str = 'not compatible with specified interpreter constraints'.encode()
+    fail_str = ('Failed to find a compatible PEX_PYTHON={} for constraints'
+                .format(pex_python)).encode()
     assert fail_str in stdout
 
     # test PEX_PYTHON with no constraints
@@ -1482,3 +1487,84 @@ def test_issues_736_requirement_setup_py_with_extras():
         env=make_env(PEX_INTERPRETER='1')
       )
       assert output.decode('utf-8').strip() == u'hello world!'
+
+
+def _assert_exec_chain(exec_chain=None,
+                       pex_python=None,
+                       pex_python_path=None,
+                       interpreter_constraints=None):
+
+  with temporary_dir() as td:
+    test_pex = os.path.join(td, 'test.pex')
+
+    args = ['-o', test_pex]
+    if interpreter_constraints:
+      args.extend('--interpreter-constraint={}'.format(ic) for ic in interpreter_constraints)
+
+    env = os.environ.copy()
+    PATH = env.get('PATH').split(os.pathsep)
+
+    def add_to_path(entry):
+      if os.path.isfile(entry):
+        entry = os.path.dirname(entry)
+      PATH.append(entry)
+
+    if pex_python:
+      add_to_path(pex_python)
+    if pex_python_path:
+      for path in pex_python_path:
+        add_to_path(path)
+
+    env['PATH'] = os.pathsep.join(PATH)
+    result = run_pex_command(args, env=env)
+    result.assert_success()
+
+    env = make_env(_PEX_EXEC_CHAIN=1,
+                   PEX_INTERPRETER=1,
+                   PEX_PYTHON=pex_python,
+                   PEX_PYTHON_PATH=os.pathsep.join(pex_python_path) if pex_python_path else None)
+
+    output = subprocess.check_output(
+      [sys.executable, test_pex, '-c', 'import json, os; print(json.dumps(os.environ.copy()))'],
+      env=env
+    )
+    final_env = json.loads(output.decode('utf-8'))
+
+    assert 'PEX_PYTHON' not in final_env
+    assert 'PEX_PYTHON_PATH' not in final_env
+    assert '_PEX_SHOULD_EXIT_BOOTSTRAP_REEXEC' not in final_env
+
+    expected_exec_chain = [os.path.realpath(i) for i in [sys.executable] + (exec_chain or [])]
+    assert expected_exec_chain == final_env['_PEX_EXEC_CHAIN'].split(os.pathsep)
+
+
+def test_pex_no_reexec_no_constraints():
+  _assert_exec_chain()
+
+
+def test_pex_no_reexec_constraints_match_current():
+  current_version = '.'.join(str(component) for component in sys.version_info[0:3])
+  _assert_exec_chain(interpreter_constraints=['=={}'.format(current_version)])
+
+
+def test_pex_reexec_constraints_dont_match_current_pex_python_path():
+  py36_interpreter = ensure_python_interpreter(PY36)
+  py27_interpreter = ensure_python_interpreter(PY27)
+  _assert_exec_chain(exec_chain=[py36_interpreter],
+                     pex_python_path=[py27_interpreter, py36_interpreter],
+                     interpreter_constraints=['=={}'.format(PY36)])
+
+
+def test_pex_reexec_constraints_dont_match_current_pex_python_path_min_py_version_selected():
+  py36_interpreter = ensure_python_interpreter(PY36)
+  py27_interpreter = ensure_python_interpreter(PY27)
+  _assert_exec_chain(exec_chain=[py27_interpreter],
+                     pex_python_path=[py36_interpreter, py27_interpreter])
+
+
+def test_pex_reexec_constraints_dont_match_current_pex_python():
+  version = PY27 if sys.version_info[0:2] == (3, 6) else PY36
+  interpreter = ensure_python_interpreter(version)
+  _assert_exec_chain(exec_chain=[interpreter],
+                     pex_python=interpreter,
+                     interpreter_constraints=['=={}'.format(version)])
