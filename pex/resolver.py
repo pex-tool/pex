@@ -20,7 +20,7 @@ from pex.package import Package, distribution_compatible
 from pex.platforms import Platform
 from pex.resolvable import ResolvableRequirement, resolvables_from_iterable
 from pex.resolver_options import ResolverOptionsBuilder
-from pex.third_party.pkg_resources import safe_name
+from pex.third_party.pkg_resources import Distribution, Requirement, safe_name
 from pex.tracer import TRACER
 from pex.util import DistributionHelper
 
@@ -158,8 +158,13 @@ class _ResolvableSet(object):
     return _ResolvableSet([map_packages(rp) for rp in self.__tuples])
 
 
-class ResolvedDistribution(namedtuple('ResolvedDistribution', 'requirement distribution')):
+class ResolvedDistribution(namedtuple('ResolvedDistribution', ['requirement', 'distribution'])):
   """A requirement and the resolved distribution that satisfies it."""
+
+  def __new__(cls, requirement, distribution):
+    assert isinstance(requirement, Requirement)
+    assert isinstance(distribution, Distribution)
+    return super(ResolvedDistribution, cls).__new__(cls, requirement, distribution)
 
 
 class Resolver(object):
@@ -333,6 +338,7 @@ Calculated platform: {calculated_platform!r}""".format(
         requirement = resolvable.requirement
       else:
         requirement = distribution.as_requirement()
+        requirement.extras = tuple(resolvable.extras())
       dists.append(ResolvedDistribution(requirement=requirement,
                                         distribution=distribution))
     return dists

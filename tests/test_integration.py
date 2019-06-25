@@ -13,7 +13,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex.common import safe_sleep
+from pex.common import safe_copy, safe_sleep
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller
 from pex.pex_info import PexInfo
@@ -30,6 +30,8 @@ from pex.testing import (
     PY36,
     ensure_python_interpreter,
     get_dep_dist_names_from_pex,
+    make_sdist,
+    make_source_dir,
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
@@ -1461,3 +1463,22 @@ def test_reproducible_build_python_flag():
 
 def test_reproducible_build_python_shebang_flag():
   assert_reproducible_build(['--python-shebang=/usr/bin/python'])
+
+
+def test_issues_736_requirement_setup_py_with_extras():
+  with make_source_dir(name='project1',
+                       version='1.0.0',
+                       extras_require={'foo': ['project2']}) as project1_dir:
+    project2_sdist = make_sdist(name='project2', version='2.0.0')
+    with temporary_dir() as td:
+      safe_copy(project2_sdist, os.path.join(td, os.path.basename(project2_sdist)))
+
+      project1_pex = os.path.join(td, 'project1.pex')
+      result = run_pex_command(['-f', td, '-o', project1_pex, '{}[foo]'.format(project1_dir)])
+      result.assert_success()
+
+      output = subprocess.check_output(
+        [project1_pex, '-c', 'from project2 import my_module; my_module.do_something()'],
+        env=make_env(PEX_INTERPRETER='1')
+      )
+      assert output.decode('utf-8').strip() == u'hello world!'

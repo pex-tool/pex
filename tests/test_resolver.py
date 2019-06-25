@@ -13,7 +13,8 @@ from pex.package import EggPackage, SourcePackage
 from pex.resolvable import ResolvableRequirement
 from pex.resolver import Resolver, Unsatisfiable, _ResolvableSet, resolve_multi
 from pex.resolver_options import ResolverOptionsBuilder
-from pex.testing import make_sdist, temporary_dir
+from pex.testing import make_sdist, make_source_dir, temporary_dir
+from pex.third_party.pkg_resources import Requirement
 
 
 def do_resolve_multi(*args, **kwargs):
@@ -337,3 +338,37 @@ def test_resolvable_set_built():
   updated_rs.merge(rq, [binary_pkg])
   assert updated_rs.get('foo') == set([binary_pkg])
   assert updated_rs.packages() == [(rq, set([binary_pkg]), None, False)]
+
+
+def _parse_requirement(req):
+  return Requirement.parse(str(req))
+
+
+def test_resolve_extra_setup_py():
+  with make_source_dir(name='project1',
+                       version='1.0.0',
+                       extras_require={'foo': ['project2']}) as project1_dir:
+    project2_sdist = make_sdist(name='project2', version='2.0.0')
+    with temporary_dir() as td:
+      safe_copy(project2_sdist, os.path.join(td, os.path.basename(project2_sdist)))
+      fetchers = [Fetcher([td])]
+
+      resolved_dists = do_resolve_multi(['{}[foo]'.format(project1_dir)], fetchers=fetchers)
+      assert ({_parse_requirement(req) for req in ('project1[foo]==1.0.0',
+                                                   'project2; extra=="foo"')} ==
+              {_parse_requirement(resolved_dist.requirement) for resolved_dist in resolved_dists})
+
+
+def test_resolve_extra_sdist():
+  project1_sdist = make_sdist(name='project1',
+                              version='1.0.0',
+                              extras_require={'foo': ['project2']})
+  project2_sdist = make_sdist(name='project2', version='2.0.0')
+  with temporary_dir() as td:
+    for sdist in (project1_sdist, project2_sdist):
+      safe_copy(sdist, os.path.join(td, os.path.basename(sdist)))
+    fetchers = [Fetcher([td])]
+
+    resolved_dists = do_resolve_multi(['project1[foo]'], fetchers=fetchers)
+    assert ({_parse_requirement(req) for req in ('project1[foo]', 'project2; extra=="foo"')} ==
+            {_parse_requirement(resolved_dist.requirement) for resolved_dist in resolved_dists})
