@@ -1504,10 +1504,10 @@ def _assert_exec_chain(exec_chain=None,
     env = os.environ.copy()
     PATH = env.get('PATH').split(os.pathsep)
 
-    def add_to_path(path):
-      if os.path.isfile(path):
-        path = os.path.dirname(path)
-      PATH.append(path)
+    def add_to_path(entry):
+      if os.path.isfile(entry):
+        entry = os.path.dirname(entry)
+      PATH.append(entry)
 
     if pex_python:
       add_to_path(pex_python)
@@ -1554,7 +1554,7 @@ def test_pex_reexec_constraints_dont_match_current_pex_python_path():
                      interpreter_constraints=['=={}'.format(PY36)])
 
 
-def test_pex_reexec_constraints_dont_match_current_pex_python_path_min():
+def test_pex_reexec_constraints_dont_match_current_pex_python_path_min_py_version_selected():
   py36_interpreter = ensure_python_interpreter(PY36)
   py27_interpreter = ensure_python_interpreter(PY27)
   _assert_exec_chain(exec_chain=[py27_interpreter],

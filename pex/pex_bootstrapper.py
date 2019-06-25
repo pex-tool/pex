@@ -25,6 +25,7 @@ def _find_pex_python(pex_python):
         return PythonInterpreter.from_binary(try_path)
       except Executor.ExecutionError:
         pass
+    return None
 
   interpreter = try_create(pex_python)
   if interpreter:
@@ -97,23 +98,22 @@ def _select_interpreter(candidate_interpreters):
     return min(candidate_interpreters)
 
 
-def maybe_reexec_pex(pex_info):
-  """
-  Handle environment overrides for the Python interpreter to use when executing this pex.
+def maybe_reexec_pex(compatibility_constraints=None):
+  """Handle environment overrides for the Python interpreter to use when executing this pex.
 
   This function supports interpreter filtering based on interpreter constraints stored in PEX-INFO
-  metadata. If PEX_PYTHON is set in a pexrc, it attempts to obtain the binary location of the
-  interpreter specified by PEX_PYTHON. If PEX_PYTHON_PATH is set, it attempts to search the path for
-  a matching interpreter in accordance with the interpreter constraints. If both variables are
-  present in a pexrc, this function gives precedence to PEX_PYTHON_PATH and errors out if no
-  compatible interpreters can be found on said path.
+  metadata. If PEX_PYTHON is set it attempts to obtain the binary location of the interpreter
+  specified by PEX_PYTHON. If PEX_PYTHON_PATH is set, it attempts to search the path for a matching
+  interpreter in accordance with the interpreter constraints. If both variables are present, this
+  function gives precedence to PEX_PYTHON_PATH and errors out if no compatible interpreters can be
+  found on said path.
 
   If neither variable is set, we fall back to plain PEX execution using PATH searching or the
   currently executing interpreter. If compatibility constraints are used, we match those constraints
   against these interpreters.
 
-  :param compatibility_constraints: list of requirements-style strings that constrain the
-  Python interpreter to re-exec this pex with.
+  :param compatibility_constraints: optional list of requirements-style strings that constrain the
+                                    Python interpreter to re-exec this pex with.
   """
 
   current_interpreter = PythonInterpreter.get()
@@ -130,7 +130,6 @@ def maybe_reexec_pex(pex_info):
     # We've already been here and selected an interpreter. Continue to execution.
     return
 
-  compatibility_constraints = pex_info.interpreter_constraints
   with TRACER.timed('Selecting runtime interpreter', V=3):
     if ENV.PEX_PYTHON and not ENV.PEX_PYTHON_PATH:
       # preserve PEX_PYTHON re-exec for backwards compatibility
@@ -141,8 +140,13 @@ def maybe_reexec_pex(pex_info):
       target = _select_pex_python_interpreter(ENV.PEX_PYTHON,
                                               compatibility_constraints=compatibility_constraints)
     elif ENV.PEX_PYTHON_PATH or compatibility_constraints:
-      TRACER.log('Using PEX_PYTHON_PATH={} constrained by {}'
-                 .format(ENV.PEX_PYTHON, compatibility_constraints), V=3)
+      TRACER.log(
+        'Using {path} constrained by {constraints}'.format(
+          path='PEX_PYTHON_PATH={}'.format(ENV.PEX_PYTHON_PATH) if ENV.PEX_PYTHON_PATH else '$PATH',
+          constraints=compatibility_constraints
+        ),
+        V=3
+      )
       target = _select_path_interpreter(path=ENV.PEX_PYTHON_PATH,
                                         compatibility_constraints=compatibility_constraints)
     else:
@@ -184,7 +188,7 @@ def _bootstrap(entry_point):
 
 def bootstrap_pex(entry_point):
   pex_info = _bootstrap(entry_point)
-  maybe_reexec_pex(pex_info)
+  maybe_reexec_pex(pex_info.interpreter_constraints)
 
   from . import pex
   pex.PEX(entry_point).execute()
