@@ -1519,7 +1519,8 @@ def _assert_exec_chain(exec_chain=None,
     result = run_pex_command(args, env=env)
     result.assert_success()
 
-    env = make_env(PEX_INTERPRETER=1,
+    env = make_env(_PEX_EXEC_CHAIN=1,
+                   PEX_INTERPRETER=1,
                    PEX_PYTHON=pex_python,
                    PEX_PYTHON_PATH=os.pathsep.join(pex_python_path) if pex_python_path else None)
 

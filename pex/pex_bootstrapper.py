@@ -116,12 +116,12 @@ def maybe_reexec_pex(compatibility_constraints=None):
 
   current_interpreter = PythonInterpreter.get()
 
-  # NB: Used only for debugging and tests.
-  pex_exec_chain = []
+  # NB: Used only for tests.
   if '_PEX_EXEC_CHAIN' in os.environ:
-    pex_exec_chain.extend(os.environ['_PEX_EXEC_CHAIN'].split(os.pathsep))
-  pex_exec_chain.append(current_interpreter.binary)
-  os.environ['_PEX_EXEC_CHAIN'] = os.pathsep.join(pex_exec_chain)
+    flag_or_chain = os.environ.pop('_PEX_EXEC_CHAIN')
+    pex_exec_chain = [] if flag_or_chain == '1' else flag_or_chain.split(os.pathsep)
+    pex_exec_chain.append(current_interpreter.binary)
+    os.environ['_PEX_EXEC_CHAIN'] = os.pathsep.join(pex_exec_chain)
 
   current_interpreter_blessed_env_var = '_PEX_SHOULD_EXIT_BOOTSTRAP_REEXEC'
   if os.environ.pop(current_interpreter_blessed_env_var, None):
