@@ -20,12 +20,10 @@ __all__ = ('bootstrap_pex',)
 
 def _find_pex_python(pex_python):
   def try_create(try_path):
-    if os.path.exists(try_path):
-      try:
-        return PythonInterpreter.from_binary(try_path)
-      except Executor.ExecutionError:
-        pass
-    return None
+    try:
+      return PythonInterpreter.from_binary(try_path)
+    except Executor.ExecutionError:
+      return None
 
   interpreter = try_create(pex_python)
   if interpreter:
