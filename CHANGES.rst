@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+1.6.8
+-----
+
+* Fixup pex re-exec during bootstrap. (#741)
+  `PR #741 <https://github.com/pantsbuild/pex/pull/741>`_
+
+* Fix resolution of `setup.py` project extras. (#739)
+  `PR #739 <https://github.com/pantsbuild/pex/pull/739>`_
+
+* Tighten up namespace declaration logic. (#732)
+  `PR #732 <https://github.com/pantsbuild/pex/pull/732>`_
+
+* Fixup import sorting. (#731)
+  `PR #731 <https://github.com/pantsbuild/pex/pull/731>`_
+
 1.6.7
 -----
 
