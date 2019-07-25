@@ -49,7 +49,7 @@ class Variables(object):
     :rtype: dict
     """
     ret_vars = {}
-    rc_locations = DEFAULT_PEXRC_LOCATIONS + os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')
+    rc_locations = DEFAULT_PEXRC_LOCATIONS + [os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]
 
     if rc:
       rc_locations.append(rc)
