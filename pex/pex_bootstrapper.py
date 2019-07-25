@@ -173,9 +173,15 @@ def maybe_reexec_pex(compatibility_constraints=None):
   os.execv(target_binary, cmdline)
 
 
-def _bootstrap(entry_point):
+def _bootstrap(entry_point, include_pexrc=False):
   from .pex_info import PexInfo
   pex_info = PexInfo.from_pex(entry_point)
+
+  # Pull in the default ENV, which is an instance of pex.variables.Variables, which reads
+  # from the default pexrc locations.
+  if include_pexrc:
+    pex_info.update(PexInfo.from_env())
+
   pex_warnings.configure_warnings(pex_info)
 
   from .finders import register_finders
@@ -199,9 +205,12 @@ def is_compressed(entry_point):
   return os.path.exists(entry_point) and not os.path.exists(os.path.join(entry_point, PexInfo.PATH))
 
 
-def bootstrap_pex_env(entry_point):
-  """Bootstrap the current runtime environment using a given pex."""
-  pex_info = _bootstrap(entry_point)
+def bootstrap_pex_env(entry_point, include_pexrc=False):
+  """
+  Bootstrap the current runtime environment using a given pex. Optionally, pexrc files from 'standard'
+  locations can be included - see pex.variables.DEFAULT_PEXRC_LOCATIONS
+  """
+  pex_info = _bootstrap(entry_point, include_pexrc=include_pexrc)
 
   from .environment import PEXEnvironment
   PEXEnvironment(entry_point, pex_info).activate()

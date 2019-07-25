@@ -14,6 +14,11 @@ from pex.common import die
 
 __all__ = ('ENV', 'Variables')
 
+DEFAULT_PEXRC_LOCATIONS = [
+  '/etc/pexrc',
+  '~/.pexrc'
+]
+
 
 class Variables(object):
   """Environment variables supported by the PEX runtime."""
@@ -44,9 +49,8 @@ class Variables(object):
     :rtype: dict
     """
     ret_vars = {}
-    rc_locations = ['/etc/pexrc',
-                    '~/.pexrc',
-                    os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')]
+    rc_locations = DEFAULT_PEXRC_LOCATIONS + os.path.join(os.path.dirname(sys.argv[0]), '.pexrc')
+
     if rc:
       rc_locations.append(rc)
     for filename in rc_locations:
