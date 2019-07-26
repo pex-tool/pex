@@ -207,8 +207,8 @@ def is_compressed(entry_point):
 
 def bootstrap_pex_env(entry_point, include_pexrc=False):
   """
-  Bootstrap the current runtime environment using a given pex. Optionally, pexrc files from 'standard'
-  locations can be included - see pex.variables.DEFAULT_PEXRC_LOCATIONS
+  Bootstrap the current runtime environment using a given pex. Optionally, pexrc files from
+  'standard' locations can be included - see pex.variables.DEFAULT_PEXRC_LOCATIONS
   """
   pex_info = _bootstrap(entry_point, include_pexrc=include_pexrc)
 
