@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import json
 import os
 import sys
 
@@ -173,7 +174,7 @@ def maybe_reexec_pex(compatibility_constraints=None):
   os.execv(target_binary, cmdline)
 
 
-def _bootstrap(entry_point, include_pexrc=False):
+def _bootstrap(entry_point, include_pexrc=False, extra_vars=None):
   from .pex_info import PexInfo
   pex_info = PexInfo.from_pex(entry_point)
 
@@ -181,6 +182,13 @@ def _bootstrap(entry_point, include_pexrc=False):
   # from the default pexrc locations.
   if include_pexrc:
     pex_info.update(PexInfo.from_env())
+
+  # Override env settings using extra passed-in vars
+  if extra_vars:
+    if isinstance(extra_vars, dict):
+      pex_info.update(PexInfo.from_json(json.dumps(extra_vars)))
+    elif isinstance(extra_vars, str):
+      pex_info.update(PexInfo.from_json(extra_vars))
 
   pex_warnings.configure_warnings(pex_info)
 
@@ -205,12 +213,13 @@ def is_compressed(entry_point):
   return os.path.exists(entry_point) and not os.path.exists(os.path.join(entry_point, PexInfo.PATH))
 
 
-def bootstrap_pex_env(entry_point, include_pexrc=False):
+def bootstrap_pex_env(entry_point, include_pexrc=False, extra_vars=None):
   """
   Bootstrap the current runtime environment using a given pex. Optionally, pexrc files from
-  'standard' locations can be included - see pex.variables.DEFAULT_PEXRC_LOCATIONS
+  'standard' locations can be included - see pex.variables.DEFAULT_PEXRC_LOCATIONS - or
+  runtime-specific overrides (dict or json)
   """
-  pex_info = _bootstrap(entry_point, include_pexrc=include_pexrc)
+  pex_info = _bootstrap(entry_point, include_pexrc=include_pexrc, extra_vars=extra_vars)
 
-  from .environment import PEXEnvironment
+  from pex.environment import PEXEnvironment
   PEXEnvironment(entry_point, pex_info).activate()
