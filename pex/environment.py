@@ -307,7 +307,7 @@ class PEXEnvironment(Environment):
     return resolveds
 
   @staticmethod
-  def _declare_namespace_packages(resolved_dists):
+  def declare_namespace_packages(resolved_dists):
     namespace_package_dists = [dist for dist in resolved_dists
                                if dist.has_metadata('namespace_packages.txt')]
     if not namespace_package_dists:
@@ -381,7 +381,5 @@ class PEXEnvironment(Environment):
 
         with TRACER.timed('Adding sitedir', V=2):
           site.addsitedir(dist.location)
-
-    self._declare_namespace_packages(resolved)
 
     return working_set

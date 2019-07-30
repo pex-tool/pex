@@ -93,6 +93,9 @@ class PEX(object):  # noqa: T000
         for dist in env.activate():
           working_set.add(dist)
 
+      # Ensure that the pkg_resources is not imported until at least every pex environment (i.e. PEX_PATH)
+      # has been merged into the environment
+      PEXEnvironment.declare_namespace_packages(working_set.by_key.values())
       self._working_set = working_set
 
     return self._working_set
