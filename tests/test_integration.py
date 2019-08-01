@@ -1357,6 +1357,7 @@ def test_undeclared_setuptools_import_on_pex_path():
     res.assert_success()
     assert res.output.strip() == 'bigquery version: 1.10.0'
 
+
 def test_pkg_resource_early_import_on_pex_path():
   """Test that packages which access pkg_resources at import time can be found with pkg_resources.
 
@@ -1383,7 +1384,8 @@ def test_pkg_resource_early_import_on_pex_path():
         """))
 
     setuptools_pex = os.path.join(td, 'autopep8.pex')
-    run_pex_command(['autopep8', 'setuptools', '-D', src_dir, '--entry-point', 'execute_import', '-o', setuptools_pex]).assert_success()
+    run_pex_command(['autopep8', 'setuptools', '-D', src_dir, '--entry-point',
+      'execute_import', '-o', setuptools_pex]).assert_success()
     _, return_code = run_simple_pex(setuptools_pex, env=make_env(PEX_PATH=six_pex))
     assert return_code == 0
 
