@@ -11,7 +11,6 @@ from pex.common import open_zip
 from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
 from pex.orderedset import OrderedSet
-from pex.util import merge_split
 from pex.variables import ENV
 from pex.version import __version__ as pex_version
 
