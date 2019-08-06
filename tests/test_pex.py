@@ -296,7 +296,6 @@ def test_pex_paths():
       pex1_path = os.path.join(temp_dir, 'pex1')
       write_simple_pex(
         pex1_path,
-        exe_contents='',
         sources=[
           ('foo_pkg/__init__.py', ''),
           ('foo_pkg/foo_module.py', 'def foo_func():\n  return "42"')

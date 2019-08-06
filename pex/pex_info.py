@@ -318,13 +318,19 @@ class PexInfo(object):
   def copy(self):
     return self.from_json(self.dump())
 
+  @staticmethod
+  def _merge_split(*paths):
+    filtered_paths = filter(None, paths)
+    return [p for p in ':'.join(filtered_paths).split(':') if p]
+
   def merge_pex_path(self, pex_path):
     """Merges a new PEX_PATH definition into the existing one (if any).
-    :param string pex_path: The PEX_PATH to merge.
+
+    :param str pex_path: The PEX_PATH to merge.
     """
     if not pex_path:
       return
-    self.pex_path = ':'.join(merge_split(self.pex_path, pex_path))
+    self.pex_path = ':'.join(self._merge_split(self.pex_path, pex_path))
 
   def __repr__(self):
     return '{}({!r})'.format(type(self).__name__, self._pex_info)

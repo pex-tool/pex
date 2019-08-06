@@ -104,7 +104,7 @@ class PEXEnvironment(Environment):
     sys.path_hooks.insert(0, pypy_zipimporter_workaround)
 
   @classmethod
-  def force_local(cls, pex_file, pex_info):
+  def _force_local(cls, pex_file, pex_info):
     if pex_info.code_hash is None:
       # Do not support force_local if code_hash is not set. (It should always be set.)
       return pex_file
@@ -128,9 +128,8 @@ class PEXEnvironment(Environment):
     return explode_dir
 
   @classmethod
-  def update_module_paths(cls, pex_file, explode_dir):
+  def _update_module_paths(cls, pex_file):
     bootstrap = Bootstrap.locate()
-    pex_path = os.path.realpath(pex_file)
 
     # Un-import any modules already loaded from within the .pex file.
     to_reimport = []
@@ -140,19 +139,15 @@ class PEXEnvironment(Environment):
         continue
 
       pkg_path = getattr(module, '__path__', None)
-      if pkg_path and any(os.path.realpath(path_item).startswith(pex_path)
+      if pkg_path and any(os.path.realpath(path_item).startswith(pex_file)
                           for path_item in pkg_path):
         sys.modules.pop(name)
         to_reimport.append((name, pkg_path, True))
       elif name != '__main__':  # The __main__ module is special in python and is not re-importable.
         mod_file = getattr(module, '__file__', None)
-        if mod_file and os.path.realpath(mod_file).startswith(pex_path):
+        if mod_file and os.path.realpath(mod_file).startswith(pex_file):
           sys.modules.pop(name)
           to_reimport.append((name, mod_file, False))
-
-    # Force subsequent imports to come from the exploded .pex directory rather than the .pex file.
-    TRACER.log('Adding to the head of sys.path: %s' % explode_dir)
-    sys.path.insert(0, explode_dir)
 
     # And re-import them from the exploded pex.
     for name, existing_path, is_pkg in to_reimport:
@@ -166,7 +161,7 @@ class PEXEnvironment(Environment):
           reimported_module.__path__.append(path_item)
 
   @classmethod
-  def write_zipped_internal_cache(cls, pex, pex_info):
+  def _write_zipped_internal_cache(cls, pex, pex_info):
     prefix_length = len(pex_info.internal_cache) + 1
     existing_cached_distributions = []
     newly_cached_distributions = []
@@ -202,7 +197,7 @@ class PEXEnvironment(Environment):
     return existing_cached_distributions, newly_cached_distributions, zip_safe_distributions
 
   @classmethod
-  def load_internal_cache(cls, pex, pex_info):
+  def _load_internal_cache(cls, pex, pex_info):
     """Possibly cache out the internal cache."""
     internal_cache = os.path.join(pex, pex_info.internal_cache)
     with TRACER.timed('Searching dependency cache: %s' % internal_cache, V=2):
@@ -210,7 +205,7 @@ class PEXEnvironment(Environment):
         for dist in find_distributions(internal_cache):
           yield dist
       else:
-        for dist in itertools.chain(*cls.write_zipped_internal_cache(pex, pex_info)):
+        for dist in itertools.chain(*cls._write_zipped_internal_cache(pex, pex_info)):
           yield dist
 
   def __init__(self, pex, pex_info, interpreter=None, **kw):
@@ -244,7 +239,7 @@ class PEXEnvironment(Environment):
       V=9
     )
 
-  def update_candidate_distributions(self, distribution_iter):
+  def _update_candidate_distributions(self, distribution_iter):
     for dist in distribution_iter:
       if self.can_add(dist):
         with TRACER.timed('Adding %s' % dist, V=2):
@@ -348,11 +343,21 @@ class PEXEnvironment(Environment):
           pkg_resources.declare_namespace(pkg)
 
   def _activate(self):
-    self.update_candidate_distributions(self.load_internal_cache(self._pex, self._pex_info))
+    pex_file = os.path.realpath(self._pex)
 
-    if not self._pex_info.zip_safe and os.path.isfile(self._pex):
-      explode_dir = self.force_local(pex_file=self._pex, pex_info=self._pex_info)
-      self.update_module_paths(pex_file=self._pex, explode_dir=explode_dir)
+    self._update_candidate_distributions(self._load_internal_cache(pex_file, self._pex_info))
+
+    is_zipped_pex = os.path.isfile(pex_file)
+    if not self._pex_info.zip_safe and is_zipped_pex:
+      explode_dir = self._force_local(pex_file=pex_file, pex_info=self._pex_info)
+      # Force subsequent imports to come from the exploded .pex directory rather than the .pex file.
+      TRACER.log('Adding exploded non zip-safe pex to the head of sys.path: %s' % explode_dir)
+      sys.path.insert(0, explode_dir)
+      self._update_module_paths(pex_file=pex_file)
+    elif pex_file not in sys.path:
+      TRACER.log('Adding pex %s to the head of sys.path: %s'
+                 % ('file' if is_zipped_pex else 'dir', pex_file))
+      sys.path.insert(0, pex_file)
 
     all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
 

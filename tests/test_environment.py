@@ -48,14 +48,14 @@ def test_force_local():
     pb.info.pex_root = pex_root
     pb.build(pex_file)
 
-    code_cache = PEXEnvironment.force_local(pex_file, pb.info)
+    code_cache = PEXEnvironment._force_local(pex_file, pb.info)
     assert os.path.exists(pb.info.zip_unsafe_cache)
     assert len(os.listdir(pb.info.zip_unsafe_cache)) == 1
     assert [os.path.basename(code_cache)] == os.listdir(pb.info.zip_unsafe_cache)
     assert set(os.listdir(code_cache)) == set([PexInfo.PATH, '__main__.py', '__main__.pyc'])
 
     # idempotence
-    assert PEXEnvironment.force_local(pex_file, pb.info) == code_cache
+    assert PEXEnvironment._force_local(pex_file, pb.info) == code_cache
 
 
 def assert_force_local_implicit_ns_packages_issues_598(interpreter=None,
@@ -206,7 +206,7 @@ def test_write_zipped_internal_cache():
     pb.info.pex_root = pex_root
     pb.build(pex_file)
 
-    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file, pb.info)
+    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
     assert len(zip_safe) == 1
     assert normalize(zip_safe[0].location).startswith(
         normalize(os.path.join(pex_file, pb.info.internal_cache))), (
@@ -215,12 +215,12 @@ def test_write_zipped_internal_cache():
                 normalize(os.path.join(pex_file, pb.info.internal_cache))))
 
     pb.info.always_write_cache = True
-    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file, pb.info)
+    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
     assert len(new) == 1
     assert normalize(new[0].location).startswith(normalize(pb.info.install_cache))
 
     # Check that we can read from the cache
-    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file, pb.info)
+    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
     assert len(existing) == 1
     assert normalize(existing[0].location).startswith(normalize(pb.info.install_cache))
 
@@ -231,13 +231,13 @@ def test_write_zipped_internal_cache():
     pb.info.pex_root = pex_root
     pb.build(pex_file)
 
-    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file, pb.info)
+    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
     assert len(new) == 1
     assert normalize(new[0].location).startswith(normalize(pb.info.install_cache))
     original_location = normalize(new[0].location)
 
     # do the second time to validate idempotence of caching
-    existing, new, zip_safe = PEXEnvironment.write_zipped_internal_cache(pex_file, pb.info)
+    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
     assert len(existing) == 1
     assert normalize(existing[0].location) == original_location
 
@@ -248,7 +248,7 @@ def test_load_internal_cache_unzipped():
     pb.info.pex_root = pex_root
     pb.freeze()
 
-    dists = list(PEXEnvironment.load_internal_cache(pb.path(), pb.info))
+    dists = list(PEXEnvironment._load_internal_cache(pb.path(), pb.info))
     assert len(dists) == 1
     assert normalize(dists[0].location).startswith(
         normalize(os.path.join(pb.path(), pb.info.internal_cache)))
