@@ -10,6 +10,7 @@ import site
 import sys
 import uuid
 import zipfile
+from collections import OrderedDict
 
 from pex import pex_builder, pex_warnings
 from pex.bootstrap import Bootstrap
@@ -301,11 +302,26 @@ class PEXEnvironment(Environment):
 
     return resolveds
 
-  @staticmethod
-  def declare_namespace_packages(resolved_dists):
-    namespace_package_dists = [dist for dist in resolved_dists
-                               if dist.has_metadata('namespace_packages.txt')]
-    if not namespace_package_dists:
+  _NAMESPACE_PACKAGE_METADATA_RESOURCE = 'namespace_packages.txt'
+
+  @classmethod
+  def _get_namespace_packages(cls, dist):
+    if dist.has_metadata(cls._NAMESPACE_PACKAGE_METADATA_RESOURCE):
+      return dist.get_metadata_lines(cls._NAMESPACE_PACKAGE_METADATA_RESOURCE)
+    else:
+      return []
+
+  @classmethod
+  def declare_namespace_packages(cls, resolved_dists):
+    namespace_packages_by_dist = OrderedDict()
+    for dist in resolved_dists:
+      namespace_packages = cls._get_namespace_packages(dist)
+      # NB: Dists can explicitly declare empty namespace packages lists to indicate they have none.
+      # We only care about dists with one or more namespace packages though; thus, the guard.
+      if namespace_packages:
+        namespace_packages_by_dist[dist] = namespace_packages
+
+    if not namespace_packages_by_dist:
       return  # Nothing to do here.
 
     # When declaring namespace packages, we need to do so with the `setuptools` distribution that
@@ -335,12 +351,11 @@ class PEXEnvironment(Environment):
       pex_warnings.warn('The `pkg_resources` package was loaded from a pex vendored version when '
                         'declaring namespace packages defined by {dists}. These distributions '
                         'should fix their `install_requires` to include `setuptools`'
-                        .format(dists=namespace_package_dists))
+                        .format(dists=namespace_packages_by_dist.keys()))
 
-    for dist in namespace_package_dists:
-      for pkg in dist.get_metadata_lines('namespace_packages.txt'):
-        if pkg in sys.modules:
-          pkg_resources.declare_namespace(pkg)
+    for pkg in itertools.chain(*namespace_packages_by_dist.values()):
+      if pkg in sys.modules:
+        pkg_resources.declare_namespace(pkg)
 
   def _activate(self):
     pex_file = os.path.realpath(self._pex)
@@ -352,9 +367,10 @@ class PEXEnvironment(Environment):
       explode_dir = self._force_local(pex_file=pex_file, pex_info=self._pex_info)
       # Force subsequent imports to come from the exploded .pex directory rather than the .pex file.
       TRACER.log('Adding exploded non zip-safe pex to the head of sys.path: %s' % explode_dir)
+      sys.path[:] = [path for path in sys.path if pex_file != os.path.realpath(path)]
       sys.path.insert(0, explode_dir)
       self._update_module_paths(pex_file=pex_file)
-    elif pex_file not in sys.path:
+    elif not any(pex_file == os.path.realpath(path) for path in sys.path):
       TRACER.log('Adding pex %s to the head of sys.path: %s'
                  % ('file' if is_zipped_pex else 'dir', pex_file))
       sys.path.insert(0, pex_file)
