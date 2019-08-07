@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+1.6.9
+-----
+
+* Fix `sys.path` scrubbing of pex extras modules. (#752)
+  `PR #752 <https://github.com/pantsbuild/pex/pull/752>`_
+
+* Fix pkg resource early import (#750)
+  `PR #750 <https://github.com/pantsbuild/pex/pull/750>`_
+
 1.6.8
 -----
 
