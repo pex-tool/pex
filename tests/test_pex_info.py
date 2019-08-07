@@ -80,3 +80,23 @@ def test_from_env():
 
 def test_build_properties():
   assert pex_version == PexInfo.default().build_properties['pex_version']
+
+
+def test_merge_split():
+  path_1, path_2 = '/pex/path/1:/pex/path/2', '/pex/path/3:/pex/path/4'
+  result = PexInfo._merge_split(path_1, path_2)
+  assert result == ['/pex/path/1', '/pex/path/2', '/pex/path/3', '/pex/path/4']
+
+  path_1, path_2 = '/pex/path/1:', '/pex/path/3:/pex/path/4'
+  result = PexInfo._merge_split(path_1, path_2)
+  assert result == ['/pex/path/1', '/pex/path/3', '/pex/path/4']
+
+  path_1, path_2 = '/pex/path/1::/pex/path/2', '/pex/path/3:/pex/path/4'
+  result = PexInfo._merge_split(path_1, path_2)
+  assert result == ['/pex/path/1', '/pex/path/2', '/pex/path/3', '/pex/path/4']
+
+  path_1, path_2 = '/pex/path/1::/pex/path/2', '/pex/path/3:/pex/path/4'
+  result = PexInfo._merge_split(path_1, None)
+  assert result == ['/pex/path/1', '/pex/path/2']
+  result = PexInfo._merge_split(None, path_2)
+  assert result == ['/pex/path/3', '/pex/path/4']

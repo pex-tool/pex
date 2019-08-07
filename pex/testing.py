@@ -212,24 +212,28 @@ except ImportError:
 """
 
 
-def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False, interpreter=None):
-  """Write a pex file that contains an executable entry point
+def write_simple_pex(td,
+                     exe_contents=None,
+                     dists=None,
+                     sources=None,
+                     coverage=False,
+                     interpreter=None):
+  """Write a pex file that optionally contains an executable entry point.
 
-  :param td: temporary directory path
-  :param exe_contents: entry point python file
-  :type exe_contents: string
+  :param str td: temporary directory path
+  :param str exe_contents: entry point python file
   :param dists: distributions to include, typically sdists or bdists
+  :type: list of :class:`pex.third_party.pkg_resources.Distribution`
   :param sources: sources to include, as a list of pairs (env_filename, contents)
-  :param coverage: include coverage header
+  :type sources: list of (str, str)
+  :param bool coverage: include coverage header
   :param interpreter: a custom interpreter to use to build the pex
+  :type interpreter: :class:`pex.interpreter.PythonInterpreter`
   """
   dists = dists or []
   sources = sources or []
 
   safe_mkdir(td)
-
-  with open(os.path.join(td, 'exe.py'), 'w') as fp:
-    fp.write(exe_contents)
 
   pb = PEXBuilder(path=td,
                   preamble=COVERAGE_PREAMBLE if coverage else None,
@@ -245,7 +249,11 @@ def write_simple_pex(td, exe_contents, dists=None, sources=None, coverage=False,
       fp.write(contents)
     pb.add_source(src_path, env_filename)
 
-  pb.set_executable(os.path.join(td, 'exe.py'))
+  if exe_contents:
+    with open(os.path.join(td, 'exe.py'), 'w') as fp:
+      fp.write(exe_contents)
+    pb.set_executable(os.path.join(td, 'exe.py'))
+
   pb.freeze()
 
   return pb

@@ -24,7 +24,7 @@ from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.third_party.pkg_resources import EntryPoint, WorkingSet, find_distributions
 from pex.tracer import TRACER
-from pex.util import iter_pth_paths, merge_split, named_temporary_file
+from pex.util import iter_pth_paths, named_temporary_file
 from pex.variables import ENV
 
 
@@ -93,6 +93,9 @@ class PEX(object):  # noqa: T000
         for dist in env.activate():
           working_set.add(dist)
 
+      # Ensure that pkg_resources is not imported until at least every pex environment
+      # (i.e. PEX_PATH) has been merged into the environment
+      PEXEnvironment.declare_namespace_packages(working_set)
       self._working_set = working_set
 
     return self._working_set
@@ -274,8 +277,6 @@ class PEX(object):  # noqa: T000
       patch_dict(sys.modules, modules)
 
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
-
-    new_sys_path.extend(merge_split(self._pex_info.pex_path, self._vars.PEX_PATH))
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
 

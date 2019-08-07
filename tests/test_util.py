@@ -13,13 +13,7 @@ from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.testing import make_bdist, temporary_content, temporary_dir, write_zipfile
-from pex.util import (
-    CacheHelper,
-    DistributionHelper,
-    iter_pth_paths,
-    merge_split,
-    named_temporary_file
-)
+from pex.util import CacheHelper, DistributionHelper, iter_pth_paths, named_temporary_file
 
 try:
   from unittest import mock
@@ -222,17 +216,3 @@ def test_iter_pth_paths(mock_exists):
       with open(pth_tmp_path, 'wb') as f:
         f.write(to_bytes(pth_content))
       assert sorted(PTH_TEST_MAPPING[pth_content]) == sorted(list(iter_pth_paths(pth_tmp_path)))
-
-
-def test_merge_split():
-  path_1, path_2 = '/pex/path/1:/pex/path/2', '/pex/path/3:/pex/path/4'
-  result = merge_split(path_1, path_2)
-  assert result == ['/pex/path/1', '/pex/path/2', '/pex/path/3', '/pex/path/4']
-
-  path_1, path_2 = '/pex/path/1:', '/pex/path/3:/pex/path/4'
-  result = merge_split(path_1, path_2)
-  assert result == ['/pex/path/1', '/pex/path/3', '/pex/path/4']
-
-  path_1, path_2 = '/pex/path/1::/pex/path/2', '/pex/path/3:/pex/path/4'
-  result = merge_split(path_1, path_2)
-  assert result == ['/pex/path/1', '/pex/path/2', '/pex/path/3', '/pex/path/4']
