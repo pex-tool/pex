@@ -1634,7 +1634,7 @@ def test_issues_745_extras_isolation():
 
     # But if the pex has a declared dependency on subprocess32 we should be able to find the
     # subprocess32 bundled into the pex.
-    pex_root = os.path.join(td, 'pex_root')
+    pex_root = os.path.realpath(os.path.join(td, 'pex_root'))
     run_pex_command(['subprocess32',
                      '--sources-directory={}'.format(src_dir),
                      '--entry-point=test_issues_745',
@@ -1643,5 +1643,5 @@ def test_issues_745_extras_isolation():
 
     output = subprocess.check_output([python, pex_file], env=make_env(PEX_ROOT=pex_root))
 
-    subprocess32_location = output.decode('utf-8').strip()
+    subprocess32_location = os.path.realpath(output.decode('utf-8').strip())
     assert subprocess32_location.startswith(pex_root)
