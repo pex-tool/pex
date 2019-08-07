@@ -270,14 +270,14 @@ class IntegResults(namedtuple('results', ['output', 'error', 'return_code'])):
     assert self.return_code != 0
 
 
-def run_pex_command(args, env=None):
+def run_pex_command(args, env=None, python=sys.executable):
   """Simulate running pex command for integration testing.
 
   This is different from run_simple_pex in that it calls the pex command rather
   than running a generated pex.  This is useful for testing end to end runs
   with specific command line arguments or env options.
   """
-  cmd = [sys.executable, '-mpex', '-vvvvv'] + list(args)
+  cmd = [python, '-mpex', '-vvvvv'] + list(args)
   process = Executor.open_process(cmd=cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   output, error = process.communicate()
   return IntegResults(output.decode('utf-8'), error.decode('utf-8'), process.returncode)
