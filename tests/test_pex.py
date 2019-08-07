@@ -118,31 +118,42 @@ def test_pex_atexit_swallowing():
 
 
 def test_minimum_sys_modules():
+  # tainted modules evict
+  tainted_module = ModuleType('tainted_module')
+  tainted_module.__file__ = 'bad_path'
+  modules = {'tainted_module': tainted_module}
+  new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
+  assert new_modules == modules
+  new_modules = PEX.minimum_sys_modules(site_libs=['bad_path'], modules=modules)
+  assert new_modules == {}
+
   # builtins stay
   builtin_module = ModuleType('my_builtin')
-  modules = {'my_builtin': builtin_module}
-  new_modules = PEX.minimum_sys_modules([], modules)
+  stdlib_module = ModuleType('my_stdlib')
+  stdlib_module.__file__ = 'good_path'
+  modules = {'my_builtin': builtin_module, 'my_stdlib': stdlib_module}
+  new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
   assert new_modules == modules
-  new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
+  new_modules = PEX.minimum_sys_modules(site_libs=['bad_path'], modules=modules)
   assert new_modules == modules
 
-  # tainted evict
+  # tainted packages evict
   tainted_module = ModuleType('tainted_module')
   tainted_module.__path__ = ['bad_path']
   modules = {'tainted_module': tainted_module}
-  new_modules = PEX.minimum_sys_modules([], modules)
+  new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
   assert new_modules == modules
-  new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
+  new_modules = PEX.minimum_sys_modules(site_libs=['bad_path'], modules=modules)
   assert new_modules == {}
   assert tainted_module.__path__ == []
 
-  # tainted cleaned
+  # tainted packages cleaned
   tainted_module = ModuleType('tainted_module')
   tainted_module.__path__ = ['bad_path', 'good_path']
   modules = {'tainted_module': tainted_module}
-  new_modules = PEX.minimum_sys_modules([], modules)
+  new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
   assert new_modules == modules
-  new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
+  new_modules = PEX.minimum_sys_modules(site_libs=['bad_path'], modules=modules)
   assert new_modules == modules
   assert tainted_module.__path__ == ['good_path']
 
@@ -159,7 +170,7 @@ def test_minimum_sys_modules():
   tainted_module = FakeModule()
   tainted_module.__path__ = bad_path   # Not a list as expected
   modules = {'tainted_module': tainted_module}
-  new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
+  new_modules = PEX.minimum_sys_modules(site_libs=['bad_path'], modules=modules)
   assert new_modules == {}
 
 

@@ -174,7 +174,13 @@ class PEX(object):  # noqa: T000
     new_modules = {}
 
     for module_name, module in modules.items():
-      # builtins can stay
+      # Tainted modules should be dropped.
+      module_file = getattr(module, '__file__', os.devnull)
+      if cls._tainted_path(module_file, site_libs):
+        TRACER.log('Dropping %s' % (module_name,), V=3)
+        continue
+
+      # Untainted non-packages (builtin modules) need no further special handling and can stay.
       if not hasattr(module, '__path__'):
         new_modules[module_name] = module
         continue
@@ -184,13 +190,13 @@ class PEX(object):  # noqa: T000
         TRACER.log('Dropping %s' % (module_name,), V=3)
         continue
 
-      # Pop off site-impacting __path__ elements in-place.
+      # Drop tainted package paths.
       for k in reversed(range(len(module.__path__))):
         if cls._tainted_path(module.__path__[k], site_libs):
           TRACER.log('Scrubbing %s.__path__: %s' % (module_name, module.__path__[k]), V=3)
           module.__path__.pop(k)
 
-      # It still contains path elements not in site packages, so it can stay in sys.modules
+      # The package still contains untainted path elements, so it can stay.
       if module.__path__:
         new_modules[module_name] = module
 
