@@ -271,10 +271,16 @@ def get_supported(versions=None, noarch=False, platform=None,
         abis[0:0] = [abi]
 
     abi3s = set()
-    import imp
-    for suffix in imp.get_suffixes():
-        if suffix[0].startswith('.abi'):
-            abi3s.add(suffix[0].split('.', 2)[1])
+    if sys.version_info[0] == 2:
+        import imp
+        suffixes = [sfx[0] for sfx in imp.get_suffixes()]
+    else:
+        import importlib
+        suffixes = importlib.machinery.all_suffixes()
+
+    for suffix in suffixes:
+        if suffix.startswith('.abi'):
+            abi3s.add(suffix.split('.', 2)[1])
 
     abis.extend(sorted(list(abi3s)))
 
