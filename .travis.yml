@@ -142,13 +142,6 @@ matrix:
       script: tox -v -e py27-requests-cachecontrol
 
     - <<: *x-linux-shard
-      name: TOXENV=py34
-      env:
-        - *env
-        - PYENV_VERSION=3.4.9
-      script: tox -v -e py34
-
-    - <<: *x-linux-shard
       name: TOXENV=py35
       env:
         - *env
