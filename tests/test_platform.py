@@ -102,6 +102,7 @@ def test_pypy_abi_prefix():
 # NB: Having to patch here is a symptom of https://github.com/pantsbuild/pex/issues/694
 # Kill when the Platform API is fixed to not need to consult the local interpreter.
 @patch('imp.get_suffixes', lambda: [('.abi3.so', 'rb', 3)])
+@patch(' importlib.machinery.all_suffixes', lambda: ['.abi3.so'])
 def test_platform_supported_tags_abi3():
   tags = Platform.create('linux-x86_64-cp-37-m').supported_tags()
   expected_tags = [
@@ -141,6 +142,7 @@ def test_platform_supported_tags_abi3():
 # NB: Having to patch here is a symptom of https://github.com/pantsbuild/pex/issues/694
 # Kill when the Platform API is fixed to not need to consult the local interpreter.
 @patch('imp.get_suffixes', lambda: [])
+@patch(' importlib.machinery.all_suffixes', lambda: [])
 def test_platform_supported_tags_no_abi3():
   tags = Platform.create('linux-x86_64-cp-37-m').supported_tags()
   expected_tags = [
