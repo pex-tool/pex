@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+1.6.10
+------
+
+This is a hotfix release for the bug detailed in #756 that was
+introduced by #752 in python 3.7 interpreters.
+
+* Guard against modules with a `__file__` of `None`. (#757)
+  `Issue #756 <https://github.com/pantsbuild/pex/issues/756>`_
+  `PR #757 <https://github.com/pantsbuild/pex/pull/757>`_
+
 1.6.9
 -----
 
