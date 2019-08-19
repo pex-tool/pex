@@ -175,8 +175,8 @@ class PEX(object):  # noqa: T000
 
     for module_name, module in modules.items():
       # Tainted modules should be dropped.
-      module_file = getattr(module, '__file__', os.devnull)
-      if cls._tainted_path(module_file, site_libs):
+      module_file = getattr(module, '__file__', None)
+      if module_file and cls._tainted_path(module_file, site_libs):
         TRACER.log('Dropping %s' % (module_name,), V=3)
         continue
 
