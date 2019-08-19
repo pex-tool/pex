@@ -173,6 +173,13 @@ def test_minimum_sys_modules():
   new_modules = PEX.minimum_sys_modules(site_libs=['bad_path'], modules=modules)
   assert new_modules == {}
 
+  # If __file__ is explicitly None we should gracefully proceed to __path__ checks.
+  tainted_module = ModuleType('tainted_module')
+  tainted_module.__file__ = None
+  modules = {'tainted_module': tainted_module}
+  new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
+  assert new_modules == modules
+
 
 def test_site_libs():
   with nested(mock.patch.object(PEX, '_get_site_packages'), temporary_dir()) as (
