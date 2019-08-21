@@ -37,7 +37,9 @@ class Sorter(object):
         package.version,  # highest version
         cls.package_type_precedence(package, precedence=precedence),  # type preference
         cls.package_platform_tag_precedence(package),  # platform preference
-        package.local)  # prefer not fetching over the wire
+        package.local,  # prefer not fetching over the wire
+        package.url,  # otherwise equivalent files should deterministically sort
+    )
 
   def __init__(self, precedence=None):
     self._precedence = precedence or self.DEFAULT_PACKAGE_PRECEDENCE
