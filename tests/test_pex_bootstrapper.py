@@ -5,12 +5,6 @@ import json
 import os
 import pytest
 
-# mock lives in a different place between Py2 and Py3
-try:
-  from unittest import mock
-except ImportError:
-  import mock
-
 from pex.interpreter import PythonInterpreter
 from pex.pex_bootstrapper import find_compatible_interpreters, _bootstrap
 from pex.testing import IS_PYPY, PY27, PY35, PY36, ensure_python_interpreter
@@ -57,7 +51,7 @@ def test_bootstrap():
   # returning a defaults-only PexInfo.
   assert pex_info.code_hash == 'da39a3ee5e6b4b0d3255bfef95601890afd80709'
   assert pex_info.requirements == []
-  assert pex_info.zip_safe == True
+  assert pex_info.zip_safe is True
 
 
 def test_bootstrap_with_vars_dict():
