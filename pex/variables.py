@@ -176,12 +176,17 @@ class Variables(object):
 
   @property
   def PEX_INHERIT_PATH(self):
-    """Boolean
+    """String (false|prefer|fallback)
 
-    Allow inheriting packages from site-packages.  By default, PEX scrubs any packages and
-    namespace packages from sys.path prior to invoking the application.  This is generally not
-    advised, but can be used in situations when certain dependencies do not conform to standard
-    packaging practices and thus cannot be bundled into PEX files.  Default: false.
+    Allow inheriting packages from site-packages, user site-packages and the PYTHONPATH. By default,
+    PEX scrubs any non stdlib packages from sys.path prior to invoking the application. Using
+    'prefer' causes PEX to shift any non-stdlib packages before the pex environment on sys.path and
+    using 'fallback' shifts them after instead.
+
+    Using this option is generally not advised, but can help in situations when certain dependencies
+    do not conform to standard packaging practices and thus cannot be bundled into PEX files.
+
+    Default: false.
     """
     return self._get_string('PEX_INHERIT_PATH', default='false')
 

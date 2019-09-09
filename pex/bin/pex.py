@@ -284,12 +284,11 @@ def configure_clp_pex_options(parser):
       default='false',
       action='store',
       choices=['false', 'fallback', 'prefer'],
-      help='Inherit the contents of sys.path (including site-packages) running the pex. '
-           'Possible values: false (does not inherit sys.path), '
-           'fallback (inherits sys.path after packaged dependencies), '
-           'prefer (inherits sys.path before packaged dependencies), '
-           'No value (alias for prefer, for backwards compatibility). '
-           '[Default: %default]')
+      help='Inherit the contents of sys.path (including site-packages, user site-packages and '
+           'PYTHONPATH) running the pex. Possible values: false (does not inherit sys.path), '
+           'fallback (inherits sys.path after packaged dependencies), prefer (inherits sys.path '
+           'before packaged dependencies), No value (alias for prefer, for backwards '
+           'compatibility). [Default: %default]')
 
   group.add_option(
       '--compile', '--no-compile',

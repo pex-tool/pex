@@ -6,11 +6,13 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+from collections import namedtuple
 from contextlib import contextmanager
 from types import ModuleType
 
 import pytest
 
+from pex.common import safe_open
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
@@ -255,6 +257,105 @@ def test_pex_run():
 
       fake_stdout.seek(0)
       assert fake_stdout.read() == b'hellohello'
+
+
+class PythonpathIsolationTest(namedtuple('PythonpathIsolationTest',
+                                         ['pythonpath', 'dists', 'exe'])):
+
+  @staticmethod
+  def pex_info(inherit_path):
+    pex_info = PexInfo.default()
+    pex_info.inherit_path = inherit_path
+    return pex_info
+
+  def assert_isolation(self, inherit_path, expected_output):
+    env = dict(PYTHONPATH=self.pythonpath)
+    with named_temporary_file() as fake_stdout:
+      with temporary_dir() as temp_dir:
+        pex_builder = write_simple_pex(
+          temp_dir,
+          pex_info=self.pex_info(inherit_path),
+          dists=self.dists,
+          exe_contents=self.exe,
+        )
+
+        # Test the PEX.run API.
+        rc = PEX(pex_builder.path()).run(stdout=fake_stdout, env=env)
+        assert rc == 0
+
+        fake_stdout.seek(0)
+        assert expected_output == fake_stdout.read().decode('utf-8')
+
+        # Test direct PEX execution.
+        assert expected_output == subprocess.check_output([sys.executable, pex_builder.path()],
+                                                          env=env).decode('utf-8')
+
+
+@pytest.fixture(scope="module")
+def pythonpath_isolation_test():
+  with temporary_dir() as temp_dir:
+    pythonpath = os.path.join(temp_dir, 'one')
+    with safe_open(os.path.join(pythonpath, 'foo.py'), 'w') as fp:
+      fp.write('BAR = 42')
+    with safe_open(os.path.join(pythonpath, 'bar.py'), 'w') as fp:
+      fp.write('FOO = 137')
+
+    dist_content = {
+      'setup.py': textwrap.dedent("""
+        from setuptools import setup
+
+        setup(
+          name='foo',
+          version='0.0.0',
+          zip_safe=True,
+          packages=['foo'],
+          install_requires=[],
+        )
+      """),
+      'foo/__init__.py': 'BAR = 137',
+    }
+
+    with temporary_content(dist_content) as project_dir:
+      installer = WheelInstaller(project_dir)
+      foo_bdist = DistributionHelper.distribution_from_path(installer.bdist())
+
+      exe_contents = textwrap.dedent("""
+        import sys
+        
+        try:
+          import bar
+        except ImportError:
+          import collections
+          bar = collections.namedtuple('bar', ['FOO'])(None)
+  
+        import foo
+                  
+        sys.stdout.write("foo.BAR={} bar.FOO={}".format(foo.BAR, bar.FOO))
+      """)
+
+      yield PythonpathIsolationTest(pythonpath=pythonpath, dists=[foo_bdist], exe=exe_contents)
+
+
+def test_pythonpath_isolation_inherit_path_false(pythonpath_isolation_test):
+  pythonpath_isolation_test.assert_isolation(inherit_path='false',
+                                             expected_output='foo.BAR=137 bar.FOO=None')
+  # False should map to 'false'.
+  pythonpath_isolation_test.assert_isolation(inherit_path=False,
+                                             expected_output='foo.BAR=137 bar.FOO=None')
+
+
+def test_pythonpath_isolation_inherit_path_fallback(pythonpath_isolation_test):
+  pythonpath_isolation_test.assert_isolation(inherit_path='fallback',
+                                             expected_output='foo.BAR=137 bar.FOO=137')
+
+
+def test_pythonpath_isolation_inherit_path_prefer(pythonpath_isolation_test):
+  pythonpath_isolation_test.assert_isolation(inherit_path='prefer',
+                                             expected_output='foo.BAR=42 bar.FOO=137')
+
+  # True should map to 'prefer'.
+  pythonpath_isolation_test.assert_isolation(inherit_path=True,
+                                             expected_output='foo.BAR=42 bar.FOO=137')
 
 
 def test_pex_executable():

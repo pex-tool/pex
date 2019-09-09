@@ -1525,7 +1525,8 @@ def test_issues_736_requirement_setup_py_with_extras():
 def _assert_exec_chain(exec_chain=None,
                        pex_python=None,
                        pex_python_path=None,
-                       interpreter_constraints=None):
+                       interpreter_constraints=None,
+                       pythonpath=None):
 
   with temporary_dir() as td:
     test_pex = os.path.join(td, 'test.pex')
@@ -1555,7 +1556,8 @@ def _assert_exec_chain(exec_chain=None,
     env = make_env(_PEX_EXEC_CHAIN=1,
                    PEX_INTERPRETER=1,
                    PEX_PYTHON=pex_python,
-                   PEX_PYTHON_PATH=os.pathsep.join(pex_python_path) if pex_python_path else None)
+                   PEX_PYTHON_PATH=os.pathsep.join(pex_python_path) if pex_python_path else None,
+                   PYTHONPATH=os.pathsep.join(pythonpath) if pythonpath else None)
 
     output = subprocess.check_output(
       [sys.executable, test_pex, '-c', 'import json, os; print(json.dumps(os.environ.copy()))'],
@@ -1575,9 +1577,21 @@ def test_pex_no_reexec_no_constraints():
   _assert_exec_chain()
 
 
+def test_pex_reexec_no_constraints_pythonpath_present():
+  _assert_exec_chain(exec_chain=[os.path.realpath(sys.executable)],
+                     pythonpath=['.'])
+
+
 def test_pex_no_reexec_constraints_match_current():
   current_version = '.'.join(str(component) for component in sys.version_info[0:3])
   _assert_exec_chain(interpreter_constraints=['=={}'.format(current_version)])
+
+
+def test_pex_reexec_constraints_match_current_pythonpath_present():
+  current_version = '.'.join(str(component) for component in sys.version_info[0:3])
+  _assert_exec_chain(exec_chain=[os.path.realpath(sys.executable)],
+                     pythonpath=['.'],
+                     interpreter_constraints=['=={}'.format(current_version)])
 
 
 def test_pex_reexec_constraints_dont_match_current_pex_python_path():

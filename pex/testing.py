@@ -217,7 +217,8 @@ def write_simple_pex(td,
                      dists=None,
                      sources=None,
                      coverage=False,
-                     interpreter=None):
+                     interpreter=None,
+                     pex_info=None):
   """Write a pex file that optionally contains an executable entry point.
 
   :param str td: temporary directory path
@@ -229,6 +230,8 @@ def write_simple_pex(td,
   :param bool coverage: include coverage header
   :param interpreter: a custom interpreter to use to build the pex
   :type interpreter: :class:`pex.interpreter.PythonInterpreter`
+  :param pex_info: a custom PexInfo to use to build the pex.
+  :type pex_info: :class:`pex.pex_info.PexInfo`
   """
   dists = dists or []
   sources = sources or []
@@ -237,7 +240,8 @@ def write_simple_pex(td,
 
   pb = PEXBuilder(path=td,
                   preamble=COVERAGE_PREAMBLE if coverage else None,
-                  interpreter=interpreter)
+                  interpreter=interpreter,
+                  pex_info=pex_info)
 
   for dist in dists:
     pb.add_dist_location(dist.location)
