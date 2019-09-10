@@ -260,8 +260,8 @@ class PEX(object):  # noqa: T000
       if inherit_path == 'false':
         for path in user_pythonpath:
           TRACER.log('Scrubbing user PYTHONPATH element: %s' % path)
-      if inherit_path == 'prefer':
-        TRACER.log('Inserting user PYTHONPATH: %s' % os.pathsep.join(user_pythonpath))
+      elif inherit_path == 'prefer':
+        TRACER.log('Prepending user PYTHONPATH: %s' % os.pathsep.join(user_pythonpath))
         scrubbed_sys_path = user_pythonpath + scrubbed_sys_path
       elif inherit_path == 'fallback':
         TRACER.log('Appending user PYTHONPATH: %s' % os.pathsep.join(user_pythonpath))
