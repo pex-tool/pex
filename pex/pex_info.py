@@ -33,7 +33,8 @@ class PexInfo(object):
   script: string                      # script to execute in this pex environment
                                       # at most one of script/entry_point can be specified
   zip_safe: True, default False       # is this pex zip safe?
-  inherit_path: false/fallback/prefer # should this pex inherit site-packages + PYTHONPATH?
+  inherit_path: false/fallback/prefer # should this pex inherit site-packages + user site-packages
+                                      # + PYTHONPATH?
   ignore_errors: True, default False  # should we ignore inability to resolve dependencies?
   always_write_cache: False           # should we always write the internal cache to disk first?
                                       # this is useful if you have very large dependencies that

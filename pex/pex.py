@@ -202,6 +202,23 @@ class PEX(object):  # noqa: T000
 
     return new_modules
 
+  _PYTHONPATH = 'PYTHONPATH'
+  _STASHED_PYTHONPATH = '_PEX_PYTHONPATH'
+
+  @classmethod
+  def stash_pythonpath(cls):
+    pythonpath = os.environ.pop(cls._PYTHONPATH, None)
+    if pythonpath is not None:
+      os.environ[cls._STASHED_PYTHONPATH] = pythonpath
+    return pythonpath
+
+  @classmethod
+  def unstash_pythonpath(cls):
+    pythonpath = os.environ.pop(cls._STASHED_PYTHONPATH, None)
+    if pythonpath is not None:
+      os.environ[cls._PYTHONPATH] = pythonpath
+    return pythonpath
+
   @classmethod
   def minimum_sys_path(cls, site_libs, inherit_path):
     scrub_paths = OrderedSet()
@@ -229,6 +246,27 @@ class PEX(object):  # noqa: T000
         TRACER.log('Scrubbing from site-packages: %s' % path)
 
     scrubbed_sys_path = list(OrderedSet(sys.path) - scrub_paths)
+
+    pythonpath = cls.unstash_pythonpath()
+    if pythonpath is not None:
+      original_pythonpath = pythonpath.split(os.pathsep)
+      user_pythonpath = list(OrderedSet(original_pythonpath) - set(sys.path))
+      if original_pythonpath == user_pythonpath:
+        TRACER.log('Unstashed PYTHONPATH of %s' % pythonpath, V=2)
+      else:
+        TRACER.log('Extracted user PYTHONPATH of %s from unstashed PYTHONPATH of %s'
+                   % (os.pathsep.join(user_pythonpath), pythonpath), V=2)
+
+      if inherit_path == 'false':
+        for path in user_pythonpath:
+          TRACER.log('Scrubbing user PYTHONPATH element: %s' % path)
+      elif inherit_path == 'prefer':
+        TRACER.log('Prepending user PYTHONPATH: %s' % os.pathsep.join(user_pythonpath))
+        scrubbed_sys_path = user_pythonpath + scrubbed_sys_path
+      elif inherit_path == 'fallback':
+        TRACER.log('Appending user PYTHONPATH: %s' % os.pathsep.join(user_pythonpath))
+        scrubbed_sys_path = scrubbed_sys_path + user_pythonpath
+
     scrub_from_importer_cache = filter(
       lambda key: any(key.startswith(path) for path in scrub_paths),
       sys.path_importer_cache.keys())

@@ -128,6 +128,11 @@ def maybe_reexec_pex(compatibility_constraints=None):
     # We've already been here and selected an interpreter. Continue to execution.
     return
 
+  from . import pex
+  pythonpath = pex.PEX.stash_pythonpath()
+  if pythonpath is not None:
+    TRACER.log('Stashed PYTHONPATH of {}'.format(pythonpath), V=2)
+
   with TRACER.timed('Selecting runtime interpreter', V=3):
     if ENV.PEX_PYTHON and not ENV.PEX_PYTHON_PATH:
       # preserve PEX_PYTHON re-exec for backwards compatibility
@@ -147,25 +152,38 @@ def maybe_reexec_pex(compatibility_constraints=None):
       )
       target = _select_path_interpreter(path=ENV.PEX_PYTHON_PATH,
                                         compatibility_constraints=compatibility_constraints)
-    else:
-      TRACER.log('Using the current interpreter {} since no constraints have been specified.'
-                 .format(sys.executable), V=3)
+    elif pythonpath is None:
+      TRACER.log('Using the current interpreter {} since no constraints have been specified and '
+                 'PYTHONPATH is not set.'.format(sys.executable), V=3)
       return
+    else:
+      target = current_interpreter
 
   os.environ.pop('PEX_PYTHON', None)
   os.environ.pop('PEX_PYTHON_PATH', None)
 
-  if target == current_interpreter:
-    TRACER.log('Using the current interpreter {} since it matches constraints.'
-               .format(sys.executable))
+  if pythonpath is None and target == current_interpreter:
+    TRACER.log('Using the current interpreter {} since it matches constraints and '
+               'PYTHONPATH is not set.'.format(sys.executable))
     return
 
   target_binary = target.binary
   cmdline = [target_binary] + sys.argv
-  TRACER.log('Re-executing: cmdline="%s", sys.executable="%s", PEX_PYTHON="%s", '
-             'PEX_PYTHON_PATH="%s", COMPATIBILITY_CONSTRAINTS="%s"'
-             % (cmdline, sys.executable, ENV.PEX_PYTHON, ENV.PEX_PYTHON_PATH,
-                compatibility_constraints))
+  TRACER.log(
+    'Re-executing: '
+    'cmdline={cmdline!r}, '
+    'sys.executable={python!r}, '
+    'PEX_PYTHON={pex_python!r}, '
+    'PEX_PYTHON_PATH={pex_python_path!r}, '
+    'COMPATIBILITY_CONSTRAINTS={compatibility_constraints!r}'
+    '{pythonpath}"'.format(
+      cmdline=' '.join(cmdline),
+      python=sys.executable,
+      pex_python=ENV.PEX_PYTHON,
+      pex_python_path=ENV.PEX_PYTHON_PATH,
+      compatibility_constraints=compatibility_constraints,
+      pythonpath=', (stashed) PYTHONPATH="{}"'.format(pythonpath) if pythonpath is not None else '')
+  )
 
   # Avoid a re-run through compatibility_constraint checking.
   os.environ[current_interpreter_blessed_env_var] = '1'
