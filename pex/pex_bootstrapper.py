@@ -182,7 +182,7 @@ def maybe_reexec_pex(compatibility_constraints=None):
       pex_python=ENV.PEX_PYTHON,
       pex_python_path=ENV.PEX_PYTHON_PATH,
       compatibility_constraints=compatibility_constraints,
-      pythonpath=', (stashed) PYTHONPATH="{}'.format(pythonpath) if pythonpath is not None else '')
+      pythonpath=', (stashed) PYTHONPATH="{}"'.format(pythonpath) if pythonpath is not None else '')
   )
 
   # Avoid a re-run through compatibility_constraint checking.
