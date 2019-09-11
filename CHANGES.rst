@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+1.6.11
+------
+
+This release brings a consistency fix to requirement resolution and an
+isolation fix that scrubs all non-stdlib PYTHONPATH entries by default,
+only pre-pending or appending them to the `sys.path` if the
+corresponding `--inherit-path=(prefer|fallback)` is used.
+
+* Avoid reordering of equivalent packages from multiple fetchers (#762)
+  `PR #762 <https://github.com/pantsbuild/pex/pull/762>`_
+
+* Include `PYTHONPATH` in `--inherit-path` logic. (#765)
+  `PR #765 <https://github.com/pantsbuild/pex/pull/765>`_
+
 1.6.10
 ------
 
