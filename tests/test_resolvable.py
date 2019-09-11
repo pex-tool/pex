@@ -6,7 +6,7 @@ import pytest
 import pex.third_party.pkg_resources as pkg_resources
 from pex.interpreter import PythonInterpreter
 from pex.iterator import Iterator
-from pex.package import Package, SourcePackage
+from pex.package import Package, SourcePackage, WheelPackage
 from pex.resolvable import (
     Resolvable,
     ResolvableDirectory,
@@ -121,3 +121,26 @@ def test_resolvable_is_constraint_getter_setter():
   assert req.is_constraint is False
   req.is_constraint = True
   assert req.is_constraint is True
+
+
+def test_deterministic_packages_from_multiple_crawlers():
+  req = 'protobuf==3.9.1'
+  options_builder = ResolverOptionsBuilder(precedence=(WheelPackage,))
+  resolvable = ResolvableRequirement.from_string(req, options_builder)
+
+  pypi_source = Package.from_href('https://pypi.org/simple/protobuf/protobuf-3.9.1.tar.gz')
+  pypi_wheel = Package.from_href(
+    'https://pypi.org/simple/protobuf/protobuf-3.9.1-py2.py3-none-any.whl')
+  internal_wheel = Package.from_href(
+    'https://packages.internal.example/simple/protobuf/protobuf-3.9.1-py2.py3-none-any.whl')
+
+  # Multiple fetchers with equally-preferred packages should result in the same package every time,
+  # regardless the order that crawlers returned them.
+  mock_iterator = mock.create_autospec(Iterator, spec_set=True)
+  mock_iterator.iter.return_value = iter([pypi_source, pypi_wheel, internal_wheel])
+  url_order_one = [r.url for r in resolvable.compatible(mock_iterator)]
+
+  mock_iterator.iter.return_value = iter([pypi_source, internal_wheel, pypi_wheel])
+  url_order_two = [r.url for r in resolvable.compatible(mock_iterator)]
+
+  assert url_order_one == url_order_two

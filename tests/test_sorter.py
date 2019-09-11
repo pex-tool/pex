@@ -28,7 +28,7 @@ def test_package_precedence():
   # overridden precedence
   PRECEDENCE = (EggPackage, WheelPackage)
   assert Sorter.package_precedence(source, PRECEDENCE) == (
-      source.version, -1, 0, True)  # unknown rank
+      source.version, -1, 0, True, source.url)  # unknown rank
   assert Sorter.package_precedence(whl, PRECEDENCE) > Sorter.package_precedence(
       source, PRECEDENCE)
   assert Sorter.package_precedence(egg, PRECEDENCE) > Sorter.package_precedence(
