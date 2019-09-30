@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import os
 import re
+import tempfile
 from abc import abstractmethod, abstractproperty
 
 from pex.base import maybe_requirement, requirement_is_exact
@@ -13,6 +14,7 @@ from pex.compatibility import string as compatibility_string
 from pex.installer import Packager, SetuptoolsInstallerBase
 from pex.package import Package
 from pex.resolver_options import ResolverOptionsBuilder, ResolverOptionsInterface
+from pex.third_party.pip._internal import vcs as pip_vcs
 from pex.third_party.pkg_resources import Requirement, safe_extra
 
 # Extract extras as specified per "declaring extras":
@@ -129,32 +131,47 @@ class ResolvableRepository(Resolvable):
   """A VCS repository resolvable, e.g. 'git+', 'svn+', 'hg+', 'bzr+' packages."""
 
   COMPATIBLE_VCS = frozenset(['git', 'svn', 'hg', 'bzr'])
+  PATTERN = re.compile(r"""([^+]+)\+([^#]+)(?:#(.*))?""")
+
+  @staticmethod
+  def parse_query_string(query_string):
+    if query_string is None:
+      return {}
+
+    params = {
+      key: value
+      for key, value
+      in (kv_pair.split('=') for kv_pair in query_string.split('&'))}
+
+    return params
+
+  @classmethod
+  def parse_vcs_url(cls, url):
+    match = cls.PATTERN.match(url)
+
+    protocol, url, query_string = match.groups()
+
+    params = cls.parse_query_string(query_string)
+
+    return protocol, url, params
 
   @classmethod
   def from_string(cls, requirement_string, options_builder, interpreter=None):
     if any(requirement_string.startswith('%s+' % vcs) for vcs in cls.COMPATIBLE_VCS):
-      # further delegate
-      pass
+      protocol, _, params = cls.parse_vcs_url(requirement_string)
 
-    # TODO(wickman) Implement: Issue #93.
+      backend = pip_vcs.vcs.get_backend(protocol)
+
+      directory = tempfile.mkdtemp()
+
+      backend.export(directory, url=requirement_string)
+
+      if 'subdirectory' in params:
+        directory = os.path.join(directory, params['subdirectory'])
+
+      return ResolvableDirectory.from_string(directory, options_builder, interpreter)
+
     raise cls.InvalidRequirement('Versioning system URLs not supported.')
-
-  def __init__(self, options):
-    super(ResolvableRepository, self).__init__(options)
-
-  def compatible(self, iterator):
-    return []
-
-  def packages(self):
-    return []
-
-  @property
-  def name(self):
-    raise NotImplementedError
-
-  @property
-  def exact(self):
-    return True
 
 
 class ResolvablePackage(Resolvable):

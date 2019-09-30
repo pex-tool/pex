@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import pkgutil
+import re
 import subprocess
 import sys
 from collections import OrderedDict
@@ -186,9 +187,9 @@ class VendorizeError(Exception):
   """Indicates an error was encountered updating vendored libraries."""
 
 
-def vendorize(root_dir, vendor_specs, prefix):
+def vendorize(root_dir, vendor_specs, prefix, ignore_list):
   for vendor_spec in vendor_specs:
-    cmd = ['pip', 'install', '--upgrade', '--no-compile', '--target', vendor_spec.target_dir,
+    cmd = ['pip', 'install', '--no-compile', '--target', vendor_spec.target_dir,
            vendor_spec.requirement]
     result = subprocess.call(cmd)
     if result != 0:
@@ -214,6 +215,12 @@ def vendorize(root_dir, vendor_specs, prefix):
     for f in files:
       if f.endswith('.py'):
         python_file = os.path.join(root, f)
+        path = os.path.join(re.sub('^' + root_dir, '', root).strip('/'), f)
+
+        if path in ignore_list:
+          print(green('Ignoring {python_file}...'.format(python_file=python_file)))
+          continue
+
         print(green('Examining {python_file}...'.format(python_file=python_file)))
         modifications = import_rewriter.rewrite(python_file)
         if modifications:
@@ -227,14 +234,12 @@ def vendorize(root_dir, vendor_specs, prefix):
 
 
 if __name__ == '__main__':
-  if len(sys.argv) != 1:
-    print('Usage: {}'.format(sys.argv[0]), file=sys.stderr)
-    sys.exit(1)
+  ignore_list = set(sys.argv[1:])
 
   root_directory = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..'))
   import_prefix = third_party.import_prefix()
   try:
-    vendorize(root_directory, list(iter_vendor_specs()), import_prefix)
+    vendorize(root_directory, list(iter_vendor_specs()), import_prefix, ignore_list)
     sys.exit(0)
   except VendorizeError as e:
     print('Problem encountered vendorizing: {}'.format(e), file=sys.stderr)

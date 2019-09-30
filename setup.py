@@ -20,7 +20,7 @@ with open(os.path.join(__HERE, 'CHANGES.rst')) as fp:
 
 
 from pex import third_party
-third_party.install(expose=['setuptools', 'wheel'])
+third_party.install(expose=['pip', 'setuptools', 'wheel'])
 
 
 from pex.third_party.setuptools import find_packages, setup

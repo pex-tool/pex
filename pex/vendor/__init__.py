@@ -77,6 +77,7 @@ def iter_vendor_specs():
   :return: An iterator over specs of all vendored code.
   :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
   """
+  yield VendorSpec.create('pip==19.2.3')
   yield VendorSpec.create('setuptools==40.6.2')
 
   # We're currently stuck here due to removal of an API we depend on.
