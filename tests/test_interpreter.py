@@ -68,8 +68,10 @@ class TestPythonInterpreter(object):
       'Python',
       'python2',
       'python2.7',
+      'python2.7m',
       'python3',
-      'python3.6'
+      'python3.6',
+      'python3.6m'
     )
 
     matches = interpreter.PythonInterpreter._matches_binary_name

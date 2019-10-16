@@ -267,6 +267,11 @@ class PythonInterpreter(object):
 
     re.compile(r'python[23]$'),
     re.compile(r'python[23].[0-9]$'),
+
+    # Some distributions include a suffix on the in the interpreter name, similar to PEP-3149
+    # E.g. Gentoo has /usr/bin/python3.6m to indicate it was built with pymalloc
+    re.compile(r'python[23].[0-9][a-z]$'),
+
     re.compile(r'pypy$'),
     re.compile(r'pypy-1.[0-9]$'),
   )
