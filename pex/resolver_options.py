@@ -44,6 +44,7 @@ class ResolverOptionsBuilder(object):
                allow_unverified=None,
                allow_prereleases=None,
                use_manylinux=None,
+               transitive=True,
                precedence=None,
                context=None):
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
@@ -54,6 +55,7 @@ class ResolverOptionsBuilder(object):
     self._precedence = precedence if precedence is not None else Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = context or Context.get()
     self._use_manylinux = use_manylinux
+    self._transitive = transitive
 
   def clone(self):
     return ResolverOptionsBuilder(
@@ -63,6 +65,7 @@ class ResolverOptionsBuilder(object):
         allow_unverified=self._allow_unverified.copy(),
         allow_prereleases=self._allow_prereleases,
         use_manylinux=self._use_manylinux,
+        transitive=self._transitive,
         precedence=self._precedence[:],
         context=self._context,
     )
@@ -117,6 +120,14 @@ class ResolverOptionsBuilder(object):
     self._use_manylinux = False
     return self
 
+  def transitive(self):
+    self._transitive = True
+    return self
+
+  def intransitive(self):
+    self._transitive = False
+    return self
+
   def allow_builds(self):
     if SourcePackage not in self._precedence:
       self._precedence = self._precedence + (SourcePackage,)
@@ -163,6 +174,7 @@ class ResolverOptionsBuilder(object):
         allow_unverified=key in self._allow_unverified,
         allow_prereleases=self._allow_prereleases,
         use_manylinux=self._use_manylinux,
+        transitive=self._transitive,
         precedence=self._precedence,
         context=self._context,
     )
@@ -175,6 +187,7 @@ class ResolverOptions(ResolverOptionsInterface):
                allow_unverified=False,
                allow_prereleases=None,
                use_manylinux=None,
+               transitive=True,
                precedence=None,
                context=None):
     self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
@@ -182,6 +195,7 @@ class ResolverOptions(ResolverOptionsInterface):
     self._allow_unverified = allow_unverified
     self._allow_prereleases = allow_prereleases
     self._use_manylinux = use_manylinux
+    self._transitive = transitive
     self._precedence = precedence if precedence is not None else Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = context or Context.get()
 

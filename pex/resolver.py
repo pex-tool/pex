@@ -220,7 +220,8 @@ Calculated platform: {calculated_platform!r}""".format(
         # platform.
         return expand_platform()
 
-  def __init__(self, allow_prereleases=None, interpreter=None, platform=None, use_manylinux=None):
+  def __init__(self, allow_prereleases=None, interpreter=None, platform=None, use_manylinux=None,
+               transitive=True):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = self._maybe_expand_platform(self._interpreter, platform)
     self._allow_prereleases = allow_prereleases
@@ -230,6 +231,7 @@ Calculated platform: {calculated_platform!r}""".format(
       self._interpreter,
       use_manylinux
     )
+    self._transitive = transitive
     TRACER.log(
       'R: tags for %r x %r -> %s' % (self._platform, self._interpreter, self._supported_tags),
       V=9
@@ -312,11 +314,12 @@ Calculated platform: {calculated_platform!r}""".format(
         new_parent = '%s->%s' % (parent, resolvable) if parent else str(resolvable)
         # We patch packaging.markers.default_environment here so we find optional reqs for the
         # platform we're building the PEX for, rather than the one we're on.
-        with patched_packing_env(self._target_interpreter_env):
-          resolvables.extend(
-            (ResolvableRequirement(req, resolvable.options), new_parent) for req in
-            distribution.requires(extras=resolvable_set.extras(resolvable.name))
-          )
+        if self._transitive:
+          with patched_packing_env(self._target_interpreter_env):
+            resolvables.extend(
+              (ResolvableRequirement(req, resolvable.options), new_parent) for req in
+              distribution.requires(extras=resolvable_set.extras(resolvable.name))
+            )
       resolvable_set = resolvable_set.replace_built(built_packages)
 
     # We may have built multiple distributions depending upon if we found transitive dependencies
@@ -417,7 +420,8 @@ def resolve(requirements,
             cache=None,
             cache_ttl=None,
             allow_prereleases=None,
-            use_manylinux=None):
+            use_manylinux=None,
+            transitive=True):
   """Produce all distributions needed to (recursively) meet `requirements`
 
   :param requirements: An iterator of Requirement-like things, either
@@ -453,6 +457,7 @@ def resolve(requirements,
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
     unspecified only stable versions will be resolved, unless explicitly included.
   :keyword use_manylinux: (optional) Whether or not to use manylinux for linux resolves.
+  :keyword transitive: (optional) Whether or not to resolve transitive dependencies.
   :returns: List of :class:`ResolvedDistribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -488,6 +493,7 @@ def resolve(requirements,
   builder = ResolverOptionsBuilder(fetchers=fetchers,
                                    allow_prereleases=allow_prereleases,
                                    use_manylinux=use_manylinux,
+                                   transitive=transitive,
                                    precedence=precedence,
                                    context=context)
 
@@ -496,11 +502,13 @@ def resolve(requirements,
                                cache_ttl,
                                allow_prereleases=allow_prereleases,
                                use_manylinux=use_manylinux,
+                               transitive=transitive,
                                interpreter=interpreter,
                                platform=platform)
   else:
     resolver = Resolver(allow_prereleases=allow_prereleases,
                         use_manylinux=use_manylinux,
+                        transitive=transitive,
                         interpreter=interpreter,
                         platform=platform)
 
@@ -516,7 +524,8 @@ def resolve_multi(requirements,
                   cache=None,
                   cache_ttl=None,
                   allow_prereleases=None,
-                  use_manylinux=None):
+                  use_manylinux=None,
+                  transitive=True):
   """A generator function that produces all distributions needed to meet `requirements`
   for multiple interpreters and/or platforms.
 
@@ -547,6 +556,8 @@ def resolve_multi(requirements,
     ``context``.
   :keyword allow_prereleases: (optional) Include pre-release and development versions.  If
     unspecified only stable versions will be resolved, unless explicitly included.
+  :keyword use_manylinux: (optional) Whether or not to use manylinux for linux resolves.
+  :keyword transitive: (optional) Whether or not to resolve transitive dependencies.
   :yields: All :class:`ResolvedDistribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -568,7 +579,8 @@ def resolve_multi(requirements,
                                 cache,
                                 cache_ttl,
                                 allow_prereleases,
-                                use_manylinux=use_manylinux):
+                                use_manylinux=use_manylinux,
+                                transitive=transitive):
         if resolvable not in seen:
           seen.add(resolvable)
           yield resolvable

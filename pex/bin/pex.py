@@ -121,6 +121,12 @@ def process_precedence(option, option_str, option_value, parser, builder):
   elif option_str in ('--no-manylinux', '--no-use-manylinux'):
     setattr(parser.values, option.dest, False)
     builder.no_use_manylinux()
+  elif option_str == '--transitive':
+    setattr(parser.values, option.dest, True)
+    builder.transitive()
+  elif option_str in ('--no-transitive', '--intransitive'):
+    setattr(parser.values, option.dest, False)
+    builder.intransitive()
   else:
     raise OptionValueError
 
@@ -239,6 +245,15 @@ def configure_clp_pex_resolution(parser, builder):
       callback_args=(builder,),
       help=('Whether to allow resolution of manylinux dists for linux target '
             'platforms; Default: allow manylinux'))
+
+  group.add_option(
+    '--transitive', '--no-transitive', '--intransitive',
+    dest='transitive',
+    default=True,
+    action='callback',
+    callback=process_precedence,
+    callback_args=(builder,),
+    help=('Whether to transitively resolve requirements. Default: True'))
 
   # Set the pex tool to fetch from PyPI by default if nothing is specified.
   parser.set_default('repos', [PyPIFetcher()])
@@ -621,7 +636,8 @@ def build_pex(args, options, resolver_option_builder):
                                 cache=options.cache_dir,
                                 cache_ttl=options.cache_ttl,
                                 allow_prereleases=resolver_option_builder.prereleases_allowed,
-                                use_manylinux=options.use_manylinux)
+                                use_manylinux=options.use_manylinux,
+                                transitive=options.transitive)
 
       for resolved_dist in resolveds:
         log('  %s -> %s' % (resolved_dist.requirement, resolved_dist.distribution),
