@@ -667,6 +667,29 @@ def _compatible_with_current_platform(platforms):
   )
 
 
+def expand_reqs(reqs):
+  """Returns the reqs with any file references expanded to the lines in the content of that file.
+
+  A file reference is a req starting with @. The suffix is assumed to be a path to a text file
+  in which each line is a requirement as received by pex in its positional args.
+
+  This is distinct from the --requirement and --constraint options. Those point to files that
+  must be in the requirements.txt format.  These @files can contain any requirement that pex
+  can parse from its positional args.
+
+  This is useful in case you have a large number of such reqs (e.g., a long list of URLs)
+  and want to control command length.
+  """
+  expanded_reqs = []
+  for req in reqs:
+    if req.startswith('@'):
+      with open(req[1:], 'r') as fp:
+        expanded_reqs.extend(req.strip() for req in fp.readlines())
+    else:
+      expanded_reqs.append(req)
+  return expanded_reqs
+
+
 def main(args=None):
   args = args[:] if args else sys.argv[1:]
   args = [transform_legacy_arg(arg) for arg in args]
@@ -679,6 +702,7 @@ def main(args=None):
     args, cmdline = args, []
 
   options, reqs = parser.parse_args(args=args)
+  reqs = expand_reqs(reqs)
   if options.python and options.interpreter_constraint:
     die('The "--python" and "--interpreter-constraint" options cannot be used together.')
 

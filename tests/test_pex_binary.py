@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from optparse import OptionParser
 from tempfile import NamedTemporaryFile
 
-from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution
+from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution, expand_reqs
 from pex.common import safe_copy
 from pex.compatibility import nested, to_bytes
 from pex.fetcher import Fetcher, PyPIFetcher
@@ -186,3 +186,11 @@ def test_clp_prereleases_resolver():
     with mock.patch.object(pex.resolver, 'ResolverOptionsBuilder', BuilderWithFetcher):
       pex_builder = build_pex(reqs, options, resolver_options_builder)
       assert pex_builder is not None
+
+
+def test_expand_reqs():
+  with NamedTemporaryFile() as tmpfile:
+    tmpfile.write(to_bytes('path/to/req1.egg\nreq2==0.1.2\nreq3'))
+    tmpfile.flush()
+    reqs = ['req0', '@%s' % tmpfile.name, 'req4']
+    assert ['req0', 'path/to/req1.egg', 'req2==0.1.2', 'req3', 'req4'] == expand_reqs(reqs)
