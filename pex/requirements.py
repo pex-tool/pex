@@ -33,6 +33,9 @@ class RequirementsTxtSentinel(object):
 
 # Process lines in the requirements.txt format as defined here:
 # https://pip.pypa.io/en/latest/reference/pip_install.html#requirements-file-format
+# Note that the lines can be not just pip-style requirement specifiers as detailed
+# at the link above, but any string representation of a Resolvable that pex understands,
+# including package URLs and setup.py directories.
 def requirements_from_lines(lines, builder=None, relpath=None, interpreter=None):
   relpath = relpath or os.getcwd()
   builder = builder.clone() if builder else ResolverOptionsBuilder()
