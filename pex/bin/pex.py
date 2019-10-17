@@ -121,7 +121,12 @@ def process_precedence(option, option_str, option_value, parser, builder):
   elif option_str in ('--no-manylinux', '--no-use-manylinux'):
     setattr(parser.values, option.dest, False)
     builder.no_use_manylinux()
-  elif option_str == '--transitive':
+  else:
+    raise OptionValueError
+
+
+def process_transitive(option, option_str, option_value, parser, builder):
+  if option_str == '--transitive':
     setattr(parser.values, option.dest, True)
     builder.transitive()
   elif option_str in ('--no-transitive', '--intransitive'):
@@ -251,9 +256,9 @@ def configure_clp_pex_resolution(parser, builder):
     dest='transitive',
     default=True,
     action='callback',
-    callback=process_precedence,
+    callback=process_transitive,
     callback_args=(builder,),
-    help=('Whether to transitively resolve requirements. Default: True'))
+    help='Whether to transitively resolve requirements. Default: True')
 
   # Set the pex tool to fetch from PyPI by default if nothing is specified.
   parser.set_default('repos', [PyPIFetcher()])
