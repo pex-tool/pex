@@ -117,6 +117,23 @@ def test_ambiguous_transitive_resolvable():
       assert resolved_dists[0].distribution.version == '1.0.0'
 
 
+def test_intransitive():
+  foo1_0 = make_sdist(name='foo', version='1.0.0')
+  # The nonexistent req ensures that we are actually not acting transitively (as that would fail).
+  bar1_0 = make_sdist(name='bar', version='1.0.0', install_reqs=['nonexistent==1.0.0'])
+  with temporary_dir() as td:
+    for sdist in (foo1_0, bar1_0):
+      safe_copy(sdist, os.path.join(td, os.path.basename(sdist)))
+    fetchers = [Fetcher([td])]
+    with temporary_dir() as cd:
+      resolved_dists = do_resolve_multi(['foo', 'bar'],
+                                        fetchers=fetchers,
+                                        cache=cd,
+                                        cache_ttl=1000,
+                                        transitive=False)
+      assert len(resolved_dists) == 2
+
+
 def test_resolve_prereleases():
   stable_dep = make_sdist(name='dep', version='2.0.0')
   prerelease_dep = make_sdist(name='dep', version='3.0.0rc3')
