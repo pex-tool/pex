@@ -1,6 +1,18 @@
 Release Notes
 =============
 
+1.6.12
+------
+
+This release adds the `--intransitive` option to support pre-resolved requirements
+lists and allows for python binaries built under Gentoo naming conventions.
+
+* Add an --intransitive option. (#775)
+  `PR #775 <https://github.com/pantsbuild/pex/pull/775>`_
+
+* PythonInterpreter: support python binary names with single letter suffixes (#769)
+  `PR #769 <https://github.com/pantsbuild/pex/pull/769>`_
+
 1.6.11
 ------
 
