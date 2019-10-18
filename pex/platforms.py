@@ -54,6 +54,7 @@ def _get_supported(version=None, platform=None, impl=None, abi=None, force_manyl
       python_tag, abi_tag, platform_tag = supported
       if platform_tag.startswith('linux') and force_manylinux:
         yield python_tag, abi_tag, platform_tag.replace('linux', 'manylinux1')
+        yield python_tag, abi_tag, platform_tag.replace('linux', 'manylinux2010')
 
   return list(OrderedSet(iter_all_supported()))
 
