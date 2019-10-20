@@ -255,6 +255,16 @@ class PEXBuilder(object):
     self._ensure_unfrozen('Setting an entry point')
     self._pex_info.entry_point = entry_point
 
+  def set_pex_root(self, pex_root):
+    """Set the root directory for this PEX environment.
+
+    :param pex_root: The root directory of the PEX.
+
+    By default the root directory is ~/.pex.
+    """
+    self._ensure_unfrozen('Setting pex root')
+    self._pex_info.pex_root = pex_root
+
   def set_shebang(self, shebang):
     """Set the exact shebang line for the PEX file.
 

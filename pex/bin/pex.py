@@ -612,6 +612,9 @@ def build_pex(reqs, options):
   elif options.script:
     pex_builder.set_script(options.script)
 
+  if options.pex_root:
+    pex_builder.set_pex_root(options.pex_root)
+
   if options.python_shebang:
     pex_builder.set_shebang(options.python_shebang)
 
