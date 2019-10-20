@@ -490,6 +490,16 @@ def configure_clp():
            '  This option can be used multiple times.')
 
   parser.add_option(
+    '-d', '--distribution',
+    dest='distribution',
+    metavar='FILE',
+    default=[],
+    type=str,
+    action='append',
+    help='Add a distribution to be packaged into the generated .pex file.'
+         '  This option can be used multiple times.')
+
+  parser.add_option(
       '-r', '--requirement',
       dest='requirement_files',
       metavar='FILE',
@@ -603,6 +613,10 @@ def build_pex(args, options, resolver_option_builder):
 
   for directory in options.resources_directory:
     walk_and_do(pex_builder.add_resource, directory)
+
+  for file in options.distribution:
+    file = os.path.normpath(file)
+    pex_builder.add_dist_location(file)
 
   pex_info = pex_builder.info
   pex_info.zip_safe = options.zip_safe
