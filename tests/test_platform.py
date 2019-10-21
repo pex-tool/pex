@@ -107,22 +107,31 @@ def test_platform_supported_tags_abi3():
   expected_tags = [
     ('cp37', 'cp37m', 'linux_x86_64'),
     ('cp37', 'cp37m', 'manylinux1_x86_64'),
+    ('cp37', 'cp37m', 'manylinux2010_x86_64'),
     ('cp37', 'abi3', 'linux_x86_64'),
     ('cp37', 'abi3', 'manylinux1_x86_64'),
+    ('cp37', 'abi3', 'manylinux2010_x86_64'),
     ('cp37', 'none', 'linux_x86_64'),
     ('cp37', 'none', 'manylinux1_x86_64'),
+    ('cp37', 'none', 'manylinux2010_x86_64'),
     ('cp36', 'abi3', 'linux_x86_64'),
     ('cp36', 'abi3', 'manylinux1_x86_64'),
+    ('cp36', 'abi3', 'manylinux2010_x86_64'),
     ('cp35', 'abi3', 'linux_x86_64'),
     ('cp35', 'abi3', 'manylinux1_x86_64'),
+    ('cp35', 'abi3', 'manylinux2010_x86_64'),
     ('cp34', 'abi3', 'linux_x86_64'),
     ('cp34', 'abi3', 'manylinux1_x86_64'),
+    ('cp34', 'abi3', 'manylinux2010_x86_64'),
     ('cp33', 'abi3', 'linux_x86_64'),
     ('cp33', 'abi3', 'manylinux1_x86_64'),
+    ('cp33', 'abi3', 'manylinux2010_x86_64'),
     ('cp32', 'abi3', 'linux_x86_64'),
     ('cp32', 'abi3', 'manylinux1_x86_64'),
+    ('cp32', 'abi3', 'manylinux2010_x86_64'),
     ('py3', 'none', 'linux_x86_64'),
     ('py3', 'none', 'manylinux1_x86_64'),
+    ('py3', 'none', 'manylinux2010_x86_64'),
     ('cp37', 'none', 'any'),
     ('cp3', 'none', 'any'),
     ('py37', 'none', 'any'),
@@ -135,6 +144,7 @@ def test_platform_supported_tags_abi3():
     ('py31', 'none', 'any'),
     ('py30', 'none', 'any'),
   ]
+
   assert expected_tags == tags
 
 
@@ -146,10 +156,13 @@ def test_platform_supported_tags_no_abi3():
   expected_tags = [
     ('cp37', 'cp37m', 'linux_x86_64'),
     ('cp37', 'cp37m', 'manylinux1_x86_64'),
+    ('cp37', 'cp37m', 'manylinux2010_x86_64'),
     ('cp37', 'none', 'linux_x86_64'),
     ('cp37', 'none', 'manylinux1_x86_64'),
+    ('cp37', 'none', 'manylinux2010_x86_64'),
     ('py3', 'none', 'linux_x86_64'),
     ('py3', 'none', 'manylinux1_x86_64'),
+    ('py3', 'none', 'manylinux2010_x86_64'),
     ('cp37', 'none', 'any'),
     ('cp3', 'none', 'any'),
     ('py37', 'none', 'any'),
