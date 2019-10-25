@@ -18,7 +18,7 @@ from pex.fetcher import Fetcher, PyPIFetcher
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import validate_constraints
 from pex.pex import PEX
-from pex.pex_bootstrapper import find_compatible_interpreters
+from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
@@ -574,7 +574,7 @@ def build_pex(args, options, resolver_option_builder):
       pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
     else:
       pex_python_path = ""
-    interpreters = find_compatible_interpreters(pex_python_path, constraints)
+    interpreters = list(iter_compatible_interpreters(pex_python_path, constraints))
 
   if not interpreters:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)

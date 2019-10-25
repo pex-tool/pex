@@ -6,19 +6,20 @@ from __future__ import absolute_import, print_function
 import os
 import sys
 
+from pex.orderedset import OrderedSet
+
 from pex import pex_warnings
 from pex.common import die
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import matched_interpreters
-from pex.orderedset import OrderedSet
+from pex.interpreter_constraints import matched_interpreters_iter
 from pex.tracer import TRACER
 from pex.variables import ENV
 
 __all__ = ('bootstrap_pex',)
 
 
-def _find_pex_python(pex_python):
+def _iter_pex_python(pex_python):
   def try_create(try_path):
     try:
       return PythonInterpreter.from_binary(try_path)
@@ -31,69 +32,104 @@ def _find_pex_python(pex_python):
     yield interpreter
   else:
     # Otherwise scan the PATH for matches:
-    for directory in os.getenv('PATH', '').split(os.pathsep):
-      try_path = os.path.join(directory, pex_python)
+    try_paths = OrderedSet(os.path.realpath(os.path.join(directory, pex_python))
+                           for directory in os.getenv('PATH', '').split(os.pathsep))
+
+    # Prefer the current interpreter if present in the `path`.
+    current_interpreter = PythonInterpreter.get()
+    if current_interpreter.binary in try_paths:
+      try_paths.remove(current_interpreter.binary)
+      yield current_interpreter
+
+    for try_path in try_paths:
       interpreter = try_create(try_path)
       if interpreter:
         yield interpreter
 
 
-def find_compatible_interpreters(path=None, compatibility_constraints=None):
+def iter_compatible_interpreters(path=None, compatibility_constraints=None):
   """Find all compatible interpreters on the system within the supplied constraints and use
      path if it is set. If not, fall back to interpreters on $PATH.
   """
-  interpreters = OrderedSet()
-  paths = None
-  if path:
-    paths = path.split(os.pathsep)
+  def _iter_interpreters():
+    seen = set()
+
+    paths = None
+    current_interpreter = PythonInterpreter.get()
+    if path:
+      paths = OrderedSet(os.path.realpath(p) for p in path.split(os.pathsep))
+
+      # Prefer the current interpreter if present on the `path`.
+      candidate_paths = frozenset((current_interpreter.binary,
+                                   os.path.dirname(current_interpreter.binary)))
+      if candidate_paths.intersection(paths):
+        for p in candidate_paths:
+          paths.remove(p)
+        seen.add(current_interpreter)
+        yield current_interpreter
+    else:
+      # We may have been invoked with a specific interpreter, make sure our sys.executable is
+      # included as a candidate in this case.
+      seen.add(current_interpreter)
+      yield current_interpreter
+
+    for interp in PythonInterpreter.iter(paths=paths):
+      if interp not in seen:
+        seen.add(interp)
+        yield interp
+
+  return _compatible_interpreters_iter(_iter_interpreters(),
+                                       compatibility_constraints=compatibility_constraints)
+
+
+def _compatible_interpreters_iter(interpreters_iter, compatibility_constraints=None):
+  if compatibility_constraints:
+    for interpreter in matched_interpreters_iter(interpreters_iter, compatibility_constraints):
+      yield interpreter
   else:
-    # We may have been invoked with a specific interpreter, make sure our sys.executable is included
-    # as a candidate in this case.
-    interpreters.add(PythonInterpreter.get())
-  interpreters.update(PythonInterpreter.all(paths=paths))
-  return _filter_compatible_interpreters(interpreters,
-                                         compatibility_constraints=compatibility_constraints)
-
-
-def _filter_compatible_interpreters(interpreters, compatibility_constraints=None):
-  return list(
-    matched_interpreters(interpreters, compatibility_constraints)
-    if compatibility_constraints
-    else interpreters
-  )
+    for interpreter in interpreters_iter:
+      yield interpreter
 
 
 def _select_pex_python_interpreter(pex_python, compatibility_constraints=None):
-  compatible_interpreters = _filter_compatible_interpreters(
-    _find_pex_python(pex_python),
+  compatible_interpreters_iter = _compatible_interpreters_iter(
+    _iter_pex_python(pex_python),
     compatibility_constraints=compatibility_constraints
   )
-  if not compatible_interpreters:
+  selected = _select_interpreter(compatible_interpreters_iter)
+  if not selected:
     die('Failed to find a compatible PEX_PYTHON={} for constraints: {}'
         .format(pex_python, compatibility_constraints))
-  return _select_interpreter(compatible_interpreters)
+  return selected
 
 
 def _select_path_interpreter(path=None, compatibility_constraints=None):
-  compatible_interpreters = find_compatible_interpreters(
+  compatible_interpreters_iter = iter_compatible_interpreters(
     path=path,
     compatibility_constraints=compatibility_constraints
   )
-  if not compatible_interpreters:
+  selected = _select_interpreter(compatible_interpreters_iter)
+  if not selected:
     die('Failed to find compatible interpreter on path {} for constraints: {}'
         .format(path or os.getenv('PATH'), compatibility_constraints))
-  return _select_interpreter(compatible_interpreters)
+  return selected
 
 
-def _select_interpreter(candidate_interpreters):
+def _select_interpreter(candidate_interpreters_iter):
   current_interpreter = PythonInterpreter.get()
-  if current_interpreter in candidate_interpreters:
-    # Always prefer continuing with the current interpreter when possible.
-    return current_interpreter
-  else:
-    # TODO: Allow the selection strategy to be parameterized:
-    #   https://github.com/pantsbuild/pex/issues/430
-    return min(candidate_interpreters)
+  candidate_interpreters = []
+  for interpreter in candidate_interpreters_iter:
+    if current_interpreter == interpreter:
+      # Always prefer continuing with the current interpreter when possible.
+      return current_interpreter
+    else:
+      candidate_interpreters.append(interpreter)
+  if not candidate_interpreters:
+    return None
+
+  # TODO: Allow the selection strategy to be parameterized:
+  #   https://github.com/pantsbuild/pex/issues/430
+  return min(candidate_interpreters)
 
 
 def maybe_reexec_pex(compatibility_constraints=None):
@@ -140,7 +176,7 @@ def maybe_reexec_pex(compatibility_constraints=None):
       # https://github.com/pantsbuild/pex/issues/431
       TRACER.log('Using PEX_PYTHON={} constrained by {}'
                  .format(ENV.PEX_PYTHON, compatibility_constraints), V=3)
-      target = _select_pex_python_interpreter(ENV.PEX_PYTHON,
+      target = _select_pex_python_interpreter(pex_python=ENV.PEX_PYTHON,
                                               compatibility_constraints=compatibility_constraints)
     elif ENV.PEX_PYTHON_PATH or compatibility_constraints:
       TRACER.log(
