@@ -8,12 +8,10 @@ from __future__ import absolute_import
 import os
 import re
 import sys
-from collections import defaultdict
 from inspect import getsource
 
 from pex.compatibility import string
 from pex.executor import Executor
-from pex.orderedset import OrderedSet
 from pex.pep425tags import (
     get_abbr_impl,
     get_abi_tag,

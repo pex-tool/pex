@@ -6,13 +6,12 @@ from __future__ import absolute_import, print_function
 import os
 import sys
 
-from pex.orderedset import OrderedSet
-
 from pex import pex_warnings
 from pex.common import die
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import matched_interpreters_iter
+from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 from pex.variables import ENV
 
