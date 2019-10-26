@@ -298,6 +298,13 @@ def configure_clp_pex_options(parser):
            'will not be reproducible, meaning that if you were to run `./pex -o` with the '
            'same inputs then the new pex would not be byte-for-byte identical to the original.')
 
+  group.add_option(
+      '--pex-root',
+      dest='pex_root',
+      default=None,
+      help='Specify the pex root to be used in the generated .pex file. [Default: ~/.pex]'
+  )
+
   parser.add_option_group(group)
 
 

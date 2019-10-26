@@ -62,14 +62,30 @@ def test_pex_raise():
   run_simple_pex_test(body, coverage=True)
 
 
-def test_pex_root():
+def test_pex_root_build():
+  with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td, output_dir, tmp_home):
+    output_path = os.path.join(output_dir, 'pex.pex')
+    args = ['pex', '-o', output_path, '--not-zip-safe']
+    results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1',
+                                                      PEX_ROOT=td))
+    results.assert_success()
+    assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
+    assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
+
+
+def test_pex_root_run():
   with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td, output_dir, tmp_home):
     output_path = os.path.join(output_dir, 'pex.pex')
     args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={0}'.format(td)]
     results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1'))
     results.assert_success()
     assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
-    assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
+    build_pex_root = os.path.join(tmp_home, '.pex')
+    assert 'build' in os.listdir(build_pex_root), 'Expected build directory in temp home dir.'
+
+    _, rc = run_simple_pex(output_path)
+    assert rc == 0
+    assert 'install' in os.listdir(td), 'Expected install directory in tmp pex root.'
 
 
 def test_cache_disable():
@@ -80,9 +96,9 @@ def test_cache_disable():
       '-o', output_path,
       '--not-zip-safe',
       '--disable-cache',
-      '--pex-root={0}'.format(td),
     ]
-    results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1'))
+    results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1',
+                              PEX_ROOT=td))
     results.assert_success()
     assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
     assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
