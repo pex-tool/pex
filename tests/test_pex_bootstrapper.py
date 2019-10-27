@@ -4,7 +4,7 @@
 import pytest
 
 from pex.interpreter import PythonInterpreter
-from pex.pex_bootstrapper import find_compatible_interpreters
+from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.testing import IS_PYPY, PY27, PY35, PY36, ensure_python_interpreter
 
 
@@ -17,7 +17,7 @@ def test_find_compatible_interpreters():
 
   def find_interpreters(*constraints):
     return [interp.binary for interp in
-            find_compatible_interpreters(path=pex_python_path,
+            iter_compatible_interpreters(path=pex_python_path,
                                          compatibility_constraints=constraints)]
 
   assert [py35, py36] == find_interpreters('>3')
@@ -35,5 +35,5 @@ def test_find_compatible_interpreters():
   all_known_interpreters = set(PythonInterpreter.all())
   all_known_interpreters.add(PythonInterpreter.get())
 
-  interpreters = find_compatible_interpreters(compatibility_constraints=['<3'])
+  interpreters = iter_compatible_interpreters(compatibility_constraints=['<3'])
   assert set(interpreters).issubset(all_known_interpreters)

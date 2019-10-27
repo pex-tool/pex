@@ -8,12 +8,10 @@ from __future__ import absolute_import
 import os
 import re
 import sys
-from collections import defaultdict
 from inspect import getsource
 
 from pex.compatibility import string
 from pex.executor import Executor
-from pex.orderedset import OrderedSet
 from pex.pep425tags import (
     get_abbr_impl,
     get_abi_tag,
@@ -287,10 +285,23 @@ class PythonInterpreter(object):
     return cls.from_binary(sys.executable)
 
   @classmethod
-  def all(cls, paths=None):
+  def iter(cls, paths=None):
+    """Iterate all interpreters found in `paths`.
+
+    NB: The paths can either be directories to search for python binaries or the paths of python
+    binaries themselves.
+
+    :param paths: The paths to look for python interpreters; by default the `PATH`.
+    :type paths: list str
+    """
     if paths is None:
       paths = os.getenv('PATH', '').split(os.pathsep)
-    return cls.filter(cls.find(paths))
+    for interpreter in cls._filter(cls._find(paths)):
+      yield interpreter
+
+  @classmethod
+  def all(cls, paths=None):
+    return list(cls.iter(paths=paths))
 
   @classmethod
   def _from_binary_internal(cls):
@@ -353,53 +364,40 @@ class PythonInterpreter(object):
     return any(matcher.match(basefile) is not None for matcher in cls.REGEXEN)
 
   @classmethod
-  def find(cls, paths):
+  def _find(cls, paths):
     """
       Given a list of files or directories, try to detect python interpreters amongst them.
-      Returns a list of PythonInterpreter objects.
+      Returns an iterator over PythonInterpreter objects.
     """
-    pythons = []
     for path in paths:
       for fn in cls.expand_path(path):
         basefile = os.path.basename(fn)
         if cls._matches_binary_name(basefile):
           try:
-            pythons.append(cls.from_binary(fn))
+            yield cls.from_binary(fn)
           except Exception as e:
             TRACER.log('Could not identify %s: %s' % (fn, e))
             continue
-    return pythons
 
   @classmethod
-  def filter(cls, pythons):
+  def _filter(cls, pythons):
     """
-      Given a map of python interpreters in the format provided by PythonInterpreter.find(),
-      filter out duplicate versions and versions we would prefer not to use.
+      Given an iterator over python interpreters filter out duplicate versions and versions we would
+      prefer not to use.
 
-      Returns a map in the same format as find.
+      Returns an iterator over PythonInterpreters.
     """
-    good = []
-
     MAJOR, MINOR, SUBMINOR = range(3)
     def version_filter(version):
       return (version[MAJOR] == 2 and version[MINOR] >= 7 or
               version[MAJOR] == 3 and version[MINOR] >= 4)
 
-    all_versions = OrderedSet(interpreter.identity.version for interpreter in pythons)
-    good_versions = filter(version_filter, all_versions)
-
-    for version in good_versions:
-      # For each candidate, use the latest version we find on the filesystem.
-      candidates = defaultdict(list)
-      for interp in pythons:
-        if interp.identity.version == version:
-          candidates[interp.identity.interpreter].append(interp)
-      for interp_class in candidates:
-        candidates[interp_class].sort(
-            key=lambda interp: os.path.getmtime(interp.binary), reverse=True)
-        good.append(candidates[interp_class].pop(0))
-
-    return good
+    seen = set()
+    for interp in pythons:
+      version = interp.identity.version
+      if version not in seen and version_filter(version):
+        seen.add(version)
+        yield interp
 
   @classmethod
   def sanitized_environment(cls):
