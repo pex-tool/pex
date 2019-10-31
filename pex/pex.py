@@ -212,7 +212,7 @@ class PEX(object):  # noqa: T000
     for module_name in all_module_names:
       if is_tainted_sub_modules(module_name):
         del new_modules[module_name]
-            
+
     return new_modules
 
   _PYTHONPATH = 'PYTHONPATH'
