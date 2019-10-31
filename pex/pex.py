@@ -200,16 +200,18 @@ class PEX(object):  # noqa: T000
       # The package still contains untainted path elements, so it can stay.
       if module.__path__:
         new_modules[module_name] = module
-     else:
+      else:
         tainted_package_names += [module_name]
 
     def is_tainted_sub_modules(sub_module_name):
-        return any(sub_module_name.startswith(module_name + '.') for module_name in tainted_package_names)
+      return any(sub_module_name.startswith(module_name + '.')
+                 for module_name
+                 in tainted_package_names)
 
     all_module_names = new_modules.keys()
     for module_name in all_module_names:
-        if is_tainted_sub_modules(module_name):
-            del new_modules[module_name]
+      if is_tainted_sub_modules(module_name):
+        del new_modules[module_name]
             
     return new_modules
 
