@@ -22,6 +22,9 @@ from pex.finders import (
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
+from pex.resolvable import resolvables_from_iterable
+from pex.resolver_options import ResolverOptionsBuilder
+from pex.resolver import resolve
 from pex.third_party.pkg_resources import EntryPoint, WorkingSet, find_distributions
 from pex.tracer import TRACER
 from pex.util import iter_pth_paths, named_temporary_file
@@ -220,7 +223,7 @@ class PEX(object):  # noqa: T000
     return pythonpath
 
   @classmethod
-  def minimum_sys_path(cls, site_libs, inherit_path):
+  def minimum_sys_path(cls, site_libs, inherit_path, hydrated_distributions=None):
     scrub_paths = OrderedSet()
     site_distributions = OrderedSet()
     user_site_distributions = OrderedSet()
@@ -245,7 +248,7 @@ class PEX(object):  # noqa: T000
       for path in site_distributions:
         TRACER.log('Scrubbing from site-packages: %s' % path)
 
-    scrubbed_sys_path = list(OrderedSet(sys.path) - scrub_paths)
+    scrubbed_sys_path = list(OrderedSet(sys.path) - scrub_paths) + (hydrated_distributions or [])
 
     pythonpath = cls.unstash_pythonpath()
     if pythonpath is not None:
@@ -279,7 +282,7 @@ class PEX(object):  # noqa: T000
     return scrubbed_sys_path, scrubbed_importer_cache
 
   @classmethod
-  def minimum_sys(cls, inherit_path):
+  def minimum_sys(cls, inherit_path, hydrated_distributions):
     """Return the minimum sys necessary to run this interpreter, a la python -S.
 
     :returns: (sys.path, sys.path_importer_cache, sys.modules) tuple of a
@@ -293,7 +296,9 @@ class PEX(object):  # noqa: T000
       site_libs.add(extras_path)
     site_libs = set(os.path.normpath(path) for path in site_libs)
 
-    sys_path, sys_path_importer_cache = cls.minimum_sys_path(site_libs, inherit_path)
+    sys_path, sys_path_importer_cache = cls.minimum_sys_path(
+      site_libs, inherit_path,
+      hydrated_distributions=hydrated_distributions)
     sys_modules = cls.minimum_sys_modules(site_libs)
 
     return sys_path, sys_path_importer_cache, sys_modules
@@ -309,7 +314,7 @@ class PEX(object):  # noqa: T000
 
   # Thar be dragons -- when this function exits, the interpreter is potentially in a wonky state
   # since the patches here (minimum_sys_modules for example) actually mutate global state.
-  def patch_sys(self, inherit_path):
+  def patch_sys(self, inherit_path, hydrated_distributions=None):
     """Patch sys with all site scrubbed."""
     def patch_dict(old_value, new_value):
       old_value.clear()
@@ -320,7 +325,8 @@ class PEX(object):  # noqa: T000
       patch_dict(sys.path_importer_cache, path_importer_cache)
       patch_dict(sys.modules, modules)
 
-    new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
+    new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(
+      inherit_path, hydrated_distributions=None)
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
 
@@ -388,10 +394,33 @@ class PEX(object):  # noqa: T000
     """
     teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
     try:
+      hydrated_distributions = []
+      if self._pex_info.dehydrated_requirements:
+        resolvables = resolvables_from_iterable(self._pex_info.dehydrated_requirements,
+                                                ResolverOptionsBuilder(),
+                                                interpreter=self._interpreter)
+        with TRACER.timed('Resolving dehydrated requirements'):
+          resolveds = resolve(
+            resolvables,
+            fetchers=None,
+            interpreter=self._interpreter,
+            platform='current',
+            context=None,
+            precedence=None,
+            cache=os.path.join(self._vars.PEX_ROOT, 'build'),
+            cache_ttl=None,
+            allow_prereleases=True,
+            use_manylinux=True,
+            transitive=False,
+          )
+          for resolved_dist in resolveds:
+            TRACER.log('  %s -> %s' % (resolved_dist.requirement, resolved_dist.distribution))
+            hydrated_distributions.append(resolved_dist.distribution.location)
+
       pex_inherit_path = self._vars.PEX_INHERIT_PATH
       if pex_inherit_path == "false":
         pex_inherit_path = self._pex_info.inherit_path
-      self.patch_sys(pex_inherit_path)
+      self.patch_sys(pex_inherit_path, hydrated_distributions=hydrated_distributions)
       working_set = self._activate()
       self.patch_pkg_resources(working_set)
       exit_code = self._wrap_coverage(self._wrap_profiling, self._execute)

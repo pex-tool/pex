@@ -430,14 +430,8 @@ def resolve(requirements,
     unspecified, the default is to look for packages on PyPI.
   :keyword interpreter: (optional) A :class:`PythonInterpreter` object to use for building
     distributions and for testing distribution compatibility.
-  :keyword versions: (optional) a list of string versions, of the form ["33", "32"],
-    or None. The first version will be assumed to support our ABI.
   :keyword platform: (optional) specify the exact platform you want valid
     tags for, or None. If None, use the local system platform.
-  :keyword impl: (optional) specify the exact implementation you want valid
-    tags for, or None. If None, use the local interpreter impl.
-  :keyword abi: (optional) specify the exact abi you want valid
-    tags for, or None. If None, use the local interpreter abi.
   :keyword context: (optional) A :class:`Context` object to use for network access.  If
     unspecified, the resolver will attempt to use the best available network context.
   :keyword precedence: (optional) An ordered list of allowable :class:`Package` classes
