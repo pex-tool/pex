@@ -269,6 +269,7 @@ class PexInfo(object):
 
   def add_dehydrated_requirement(self, requirement):
     self._dehydrated_requirements.add(str(requirement))
+    self.add_requirement(requirement)
 
   @property
   def requirements(self):
