@@ -260,6 +260,17 @@ def configure_clp_pex_resolution(parser, builder):
     callback_args=(builder,),
     help='Whether to transitively resolve requirements. Default: True')
 
+  group.add_option(
+    '--dehydrated',
+    dest='dehydrated',
+    default=False,
+    action='callback',
+    callback=parse_bool,
+    help='[EXPERIMENTAL] Whether to avoid adding requirements to the generated pex file and '
+         'instead add an entry to PEX-INFO containing the transitive dependencies of all '
+         'requirements.'
+  )
+
   # Set the pex tool to fetch from PyPI by default if nothing is specified.
   parser.set_default('repos', [PyPIFetcher()])
   parser.add_option_group(group)
@@ -647,8 +658,12 @@ def build_pex(args, options, resolver_option_builder):
       for resolved_dist in resolveds:
         log('  %s -> %s' % (resolved_dist.requirement, resolved_dist.distribution),
             V=options.verbosity)
-        pex_builder.add_distribution(resolved_dist.distribution)
-        pex_builder.add_requirement(resolved_dist.requirement)
+
+        if options.dehydrated:
+          pex_info.add_dehydrated_requirement(resolved_dist.requirement)
+        else:
+          pex_builder.add_distribution(resolved_dist.distribution)
+          pex_builder.add_requirement(resolved_dist.requirement)
     except Unsatisfiable as e:
       die(e)
 

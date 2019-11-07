@@ -26,6 +26,7 @@ class PexInfo(object):
   distributions: {dist_name: str}    # map from distribution name (i.e. path in
                                      # the internal cache) to its cache key (sha1)
   requirements: list                 # list of requirements for this environment
+  dehydrated_requirements: list      # list of requirements to resolve at bootstrap time.
 
   # Environment options
   pex_root: string                    # root of all pex-related files eg: ~/.pex
@@ -67,6 +68,7 @@ class PexInfo(object):
   def default(cls, interpreter=None):
     pex_info = {
       'requirements': [],
+      'dehydrated_requirements': [],
       'distributions': {},
       'build_properties': cls.make_build_properties(interpreter),
     }
@@ -132,6 +134,10 @@ class PexInfo(object):
     if not isinstance(requirements, (list, tuple)):
       raise ValueError('Expected requirements to be a list, got %s' % type(requirements))
     self._requirements = OrderedSet(self._parse_requirement_tuple(req) for req in requirements)
+    dehydrated_requirements = self._pex_info.get('dehydrated_requirements', [])
+    if not isinstance(dehydrated_requirements, (list, tuple)):
+      raise ValueError('Expected dehydrated_requirements to be a list, got %s' % type(dehydrated_requirements))
+    self._dehydrated_requirements = OrderedSet(self._parse_requirement_tuple(req) for req in dehydrated_requirements)
 
   def _get_safe(self, key):
     if key not in self._pex_info:
@@ -261,9 +267,16 @@ class PexInfo(object):
   def add_requirement(self, requirement):
     self._requirements.add(str(requirement))
 
+  def add_dehydrated_requirement(self, requirement):
+    self._dehydrated_requirements.add(str(requirement))
+
   @property
   def requirements(self):
     return self._requirements
+
+  @property
+  def dehydrated_requirements(self):
+    return self._dehydrated_requirements
 
   def add_distribution(self, location, sha):
     self._distributions[location] = sha
@@ -307,10 +320,12 @@ class PexInfo(object):
     self._distributions.update(other.distributions)
     self._interpreter_constraints.update(other.interpreter_constraints)
     self._requirements.update(other.requirements)
+    self._dehydrated_requirements.update(other.dehydrated_requirements)
 
   def dump(self, **kwargs):
     pex_info_copy = self._pex_info.copy()
     pex_info_copy['requirements'] = sorted(self._requirements)
+    pex_info_copy['dehydrated_requirements'] = sorted(self._dehydrated_requirements)
     pex_info_copy['interpreter_constraints'] = sorted(self._interpreter_constraints)
     pex_info_copy['distributions'] = self._distributions.copy()
     return json.dumps(pex_info_copy, **kwargs)
