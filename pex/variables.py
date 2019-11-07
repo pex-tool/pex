@@ -109,6 +109,11 @@ class Variables(object):
     except KeyError:
       return self._defaulted(default)
 
+  def _get_comma_separated(self, variable, default=None):
+    value = self._get_string(variable, default=default)
+    if value is not None:
+      return value.split(',')
+
   def strip_defaults(self):
     """Returns a copy of these variables but with defaults stripped.
 
@@ -310,6 +315,15 @@ class Variables(object):
     environment issues.  Default: 0
     """
     return self._get_int('PEX_VERBOSE', default=0)
+
+  @property
+  def PEX_BOOTSTRAP_HYDRATION_INDICES(self):
+    """List
+
+    ,-separated strings for cheeseshop indices.
+    """
+    return self._get_comma_separated('PEX_BOOTSTRAP_HYDRATION_INDICES', default='https://pypi.org/simple/')
+
 
   # TODO(#94) Remove and push into --flags.
   @property

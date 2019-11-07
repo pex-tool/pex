@@ -660,7 +660,7 @@ def build_pex(args, options, resolver_option_builder):
             V=options.verbosity)
 
         if options.dehydrated:
-          pex_info.add_dehydrated_requirement(resolved_dist.requirement)
+          pex_info.add_dehydrated_requirement(resolved_dist.distribution.as_requirement())
         else:
           pex_builder.add_distribution(resolved_dist.distribution)
           pex_builder.add_requirement(resolved_dist.requirement)

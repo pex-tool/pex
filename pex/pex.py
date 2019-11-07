@@ -24,7 +24,7 @@ from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.resolvable import resolvables_from_iterable
 from pex.resolver_options import ResolverOptionsBuilder
-from pex.resolver import resolve
+from pex.resolver import CachingResolver
 from pex.third_party.pkg_resources import EntryPoint, WorkingSet, find_distributions
 from pex.tracer import TRACER
 from pex.util import iter_pth_paths, named_temporary_file
@@ -326,7 +326,7 @@ class PEX(object):  # noqa: T000
       patch_dict(sys.modules, modules)
 
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(
-      inherit_path, hydrated_distributions=None)
+      inherit_path, hydrated_distributions=hydrated_distributions)
 
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
 
@@ -396,23 +396,31 @@ class PEX(object):  # noqa: T000
     try:
       hydrated_distributions = []
       if self._pex_info.dehydrated_requirements:
+        resolver = CachingResolver(
+          cache=os.path.join(self._vars.PEX_ROOT, 'build'),
+          cache_ttl=None,
+          allow_prereleases=True,
+          use_manylinux=True,
+          transitive=False,
+          interpreter=self._interpreter,
+          platform='current',
+        )
+        resolver_options_builder = ResolverOptionsBuilder(
+          fetchers=[],
+          allow_prereleases=True,
+          use_manylinux=True,
+          transitive=False,
+          precedence=None,
+          context=None,
+        )
+        for index in self._vars.PEX_BOOTSTRAP_HYDRATION_INDICES:
+          resolver_options_builder.add_index(index)
+
         resolvables = resolvables_from_iterable(self._pex_info.dehydrated_requirements,
-                                                ResolverOptionsBuilder(),
+                                                resolver_options_builder,
                                                 interpreter=self._interpreter)
         with TRACER.timed('Resolving dehydrated requirements'):
-          resolveds = resolve(
-            resolvables,
-            fetchers=None,
-            interpreter=self._interpreter,
-            platform='current',
-            context=None,
-            precedence=None,
-            cache=os.path.join(self._vars.PEX_ROOT, 'build'),
-            cache_ttl=None,
-            allow_prereleases=True,
-            use_manylinux=True,
-            transitive=False,
-          )
+          resolveds = resolver.resolve(resolvables)
           for resolved_dist in resolveds:
             TRACER.log('  %s -> %s' % (resolved_dist.requirement, resolved_dist.distribution))
             hydrated_distributions.append(resolved_dist.distribution.location)
