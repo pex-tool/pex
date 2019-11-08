@@ -20,7 +20,7 @@ def _root():
   return path
 
 
-class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version'])):
+class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version', 'rewrite'])):
   """Represents a vendored distribution.
 
   NB: Vendored distributions should comply with the host distribution platform constraints. In the
@@ -30,12 +30,12 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version'])):
   ROOT = _root()
 
   @classmethod
-  def create(cls, requirement):
+  def create(cls, requirement, rewrite=True):
     components = requirement.rsplit('==', 1)
     if len(components) != 2:
       raise ValueError('Vendored requirements must be pinned, given {!r}'.format(requirement))
     key, version = tuple(c.strip() for c in components)
-    return cls(key=key, version=version)
+    return cls(key=key, version=version, rewrite=rewrite)
 
   @property
   def _subpath_components(self):
@@ -66,6 +66,10 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version'])):
     from a `PEP-302 <https://www.python.org/dev/peps/pep-0302/>`_ importer like
     :class:`pex.third_party.VendorImporter`.
     """
+    if not self.rewrite:
+      # The extra package structure is only required for vendored code used via import rewrties.
+      return
+
     for index, _ in enumerate(self._subpath_components):
       relpath = _PACKAGE_COMPONENTS + self._subpath_components[:index + 1] + ['__init__.py']
       touch(os.path.join(self.ROOT, *relpath))
@@ -77,11 +81,9 @@ def iter_vendor_specs():
   :return: An iterator over specs of all vendored code.
   :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
   """
-  yield VendorSpec.create('setuptools==40.6.2')
-
-  # We're currently stuck here due to removal of an API we depend on.
-  # See: https://github.com/pantsbuild/pex/issues/603
-  yield VendorSpec.create('wheel==0.31.1')
+  yield VendorSpec.create('pip==19.3.1', rewrite=False)
+  yield VendorSpec.create('setuptools==41.6')
+  yield VendorSpec.create('wheel==0.33.6')
 
 
 def _vendored_dists(distributions):
