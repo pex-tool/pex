@@ -1,20 +1,58 @@
-# NB: Copied from our vendored setuptools' version at:
-#   pex/vendor/_vendored/setuptools/setuptools/glibc.py
+# NB: Copied from our vendored pip' version at:
+#   pex/vendor/_vendored/pip/pip/_internal/utils/glibc.py
 # Modifications are marked with `# NB: Modified from ...`
 # TODO(John Sirois): Remove this file as part of https://github.com/pantsbuild/pex/issues/696
 # -------------------------------------------------------------------------------------------
 
-# This file originally from pip:
-# https://github.com/pypa/pip/blob/8f4f15a5a95d7d5b511ceaee9ed261176c181970/src/pip/_internal/utils/glibc.py
+# The following comment should be removed at some point in the future.
+# mypy: strict-optional=False
+
 from __future__ import absolute_import
 
-import ctypes
+import os
 import re
 from pex import pex_warnings  # NB: Modified from `import warnings`
 
 
+# NB: Modified from `from pip._internal.utils.typing import MYPY_CHECK_RUNNING`
+#     pip._internal.utils.typing is inlined below:
+MYPY_CHECK_RUNNING = False
+
+
+if MYPY_CHECK_RUNNING:
+    from typing import Optional, Tuple
+
+
 def glibc_version_string():
+    # type: () -> Optional[str]
     "Returns glibc version string, or None if not using glibc."
+    return glibc_version_string_confstr() or glibc_version_string_ctypes()
+
+
+def glibc_version_string_confstr():
+    # type: () -> Optional[str]
+    "Primary implementation of glibc_version_string using os.confstr."
+    # os.confstr is quite a bit faster than ctypes.DLL. It's also less likely
+    # to be broken or missing. This strategy is used in the standard library
+    # platform module:
+    # https://github.com/python/cpython/blob/fcf1d003bf4f0100c9d0921ff3d70e1127ca1b71/Lib/platform.py#L175-L183
+    try:
+        # os.confstr("CS_GNU_LIBC_VERSION") returns a string like "glibc 2.17":
+        _, version = os.confstr("CS_GNU_LIBC_VERSION").split()
+    except (AttributeError, OSError, ValueError):
+        # os.confstr() or CS_GNU_LIBC_VERSION not available (or a bad value)...
+        return None
+    return version
+
+
+def glibc_version_string_ctypes():
+    # type: () -> Optional[str]
+    "Fallback implementation of glibc_version_string using ctypes."
+
+    try:
+        import ctypes
+    except ImportError:
+        return None
 
     # ctypes.CDLL(None) internally calls dlopen(NULL), and as the dlopen
     # manpage says, "If filename is NULL, then the returned handle is for the
@@ -40,6 +78,7 @@ def glibc_version_string():
 
 # Separated out from have_compatible_glibc for easier unit testing
 def check_glibc_version(version_str, required_major, minimum_minor):
+    # type: (str, int, int) -> bool
     # Parse string and check against requested version.
     #
     # We use a regexp instead of str.split because we want to discard any
@@ -48,15 +87,16 @@ def check_glibc_version(version_str, required_major, minimum_minor):
     # uses version strings like "2.20-2014.11"). See gh-3588.
     m = re.match(r"(?P<major>[0-9]+)\.(?P<minor>[0-9]+)", version_str)
     if not m:
-        # NB: Modified from `warnings.warn(..., RuntimeError)`
+        # NB: Modified from `warnings.warn(..., RuntimeWarning)`
         pex_warnings.warn("Expected glibc version with 2 components major.minor,"
-                          " got: %s" % version_str)
+                          " got: %s" % version_str, RuntimeWarning)
         return False
     return (int(m.group("major")) == required_major and
             int(m.group("minor")) >= minimum_minor)
 
 
 def have_compatible_glibc(required_major, minimum_minor):
+    # type: (int, int) -> bool
     version_str = glibc_version_string()
     if version_str is None:
         return False
@@ -81,6 +121,7 @@ def have_compatible_glibc(required_major, minimum_minor):
 # misleading. Solution: instead of using platform, use our code that actually
 # works.
 def libc_ver():
+    # type: () -> Tuple[str, str]
     """Try to determine the glibc version
 
     Returns a tuple of strings (lib, version) which default to empty strings
