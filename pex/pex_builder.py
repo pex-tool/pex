@@ -12,6 +12,7 @@ from pex.compiler import Compiler
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
+from pex.pip import install_wheel
 from pex.third_party.pkg_resources import DefaultProvider, ZipProvider, get_provider
 from pex.tracer import TRACER
 from pex.util import CacheHelper, DistributionHelper
@@ -274,18 +275,6 @@ class PEXBuilder(object):
         self._copy_or_link(filename, target)
     return CacheHelper.dir_hash(path)
 
-  def _get_installer_paths(self, base):
-    """Set up an overrides dict for WheelFile.install that installs the contents
-    of a wheel into its own base in the pex dependencies cache.
-    """
-    return {
-      'purelib': base,
-      'headers': os.path.join(base, 'headers'),
-      'scripts': os.path.join(base, 'bin'),
-      'platlib': base,
-      'data': base
-    }
-
   def _add_dist_zip(self, path, dist_name):
     # We need to distinguish between wheels and other zips. Most of the time,
     # when we have a zip, it contains its contents in an importable form.
@@ -293,12 +282,10 @@ class PEXBuilder(object):
     # into an importable shape. We can do that by installing it into its own
     # wheel dir.
     if dist_name.endswith("whl"):
-      from pex.third_party.wheel.install import WheelFile
       tmp = safe_mkdtemp()
       whltmp = os.path.join(tmp, dist_name)
       os.mkdir(whltmp)
-      wf = WheelFile(path)
-      wf.install(overrides=self._get_installer_paths(whltmp), force=True)
+      install_wheel(wheel=path, target=whltmp, overwrite=True, interpreter=self.interpreter)
       for root, _, files in os.walk(whltmp):
         pruned_dir = os.path.relpath(root, tmp)
         for f in files:

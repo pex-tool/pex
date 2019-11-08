@@ -1,18 +1,16 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import functools
 import os
 import subprocess
 from hashlib import sha1
 from textwrap import dedent
 
-from pex.common import open_zip, safe_mkdir
+from pex.common import open_zip, safe_mkdir, temporary_dir
 from pex.compatibility import nested, to_bytes
-from pex.installer import EggInstaller, WheelInstaller
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.testing import make_bdist, temporary_content, temporary_dir, write_zipfile
+from pex.testing import temporary_content, write_zipfile
 from pex.util import CacheHelper, DistributionHelper, iter_pth_paths, named_temporary_file
 
 try:
@@ -62,26 +60,6 @@ def test_hash_consistency():
           zip_hash = CacheHelper.zip_hash(zf)
           assert zip_hash == dir_hash
           assert zip_hash != sha1().hexdigest()  # make sure it's not an empty hash
-
-
-def test_zipsafe():
-  make_egg = functools.partial(make_bdist, installer_impl=EggInstaller)
-  make_whl = functools.partial(make_bdist, installer_impl=WheelInstaller)
-
-  for zipped in (False, True):
-    for zip_safe in (False, True):
-      # Eggs can be zip safe
-      with make_egg(zipped=zipped, zip_safe=zip_safe) as dist:
-        assert DistributionHelper.zipsafe(dist) is zip_safe
-
-      # Wheels cannot be zip safe
-      with make_whl(zipped=zipped, zip_safe=zip_safe) as dist:
-        assert not DistributionHelper.zipsafe(dist)
-
-  for zipped in (False, True):
-    for zip_safe in (False, True):
-      with make_egg(zipped=zipped, zip_safe=zip_safe) as dist:
-        assert DistributionHelper.zipsafe(dist) is zip_safe
 
 
 try:
@@ -175,14 +153,6 @@ def test_named_temporary_file():
       assert new_fp.read() == 'hi'
 
   assert not os.path.exists(name)
-
-
-def test_distributionhelper_egg_assert():
-  d = DistributionHelper.distribution_from_path(
-    './tests/example_packages/setuptools-18.0.1-py2.7.egg',
-    'setuptools'
-  )
-  assert len(d.resource_listdir('/')) > 3
 
 
 @mock.patch('os.path.exists', autospec=True, spec_set=True)

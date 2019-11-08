@@ -8,16 +8,16 @@ import os
 import random
 import subprocess
 import sys
-import tempfile
 from collections import namedtuple
 from textwrap import dedent
 
-from pex.common import open_zip, safe_mkdir, safe_rmtree, touch
+from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, temporary_dir, touch
 from pex.compatibility import PY3, nested
 from pex.executor import Executor
-from pex.installer import EggInstaller, Packager
+from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
+from pex.pip import build_wheels
 from pex.util import DistributionHelper, named_temporary_file
 
 IS_PYPY = "hasattr(sys, 'pypy_version_info')"
@@ -28,15 +28,6 @@ IS_NOT_LINUX = "platform.system() != 'Linux'"
 NOT_CPYTHON27_OR_OSX = "%s or %s" % (NOT_CPYTHON27, IS_NOT_LINUX)
 NOT_CPYTHON27_OR_LINUX = "%s or %s" % (NOT_CPYTHON27, IS_LINUX)
 NOT_CPYTHON36_OR_LINUX = "%s or %s" % (NOT_CPYTHON36, IS_LINUX)
-
-
-@contextlib.contextmanager
-def temporary_dir():
-  td = tempfile.mkdtemp()
-  try:
-    yield td
-  finally:
-    safe_rmtree(td)
 
 
 @contextlib.contextmanager
@@ -142,22 +133,49 @@ def make_project(name='my_project',
     yield td
 
 
+class WheelBuilder(object):
+  """Create a wheel distribution from an unpacked setup.py-based project."""
+
+  class BuildFailure(Exception):
+    pass
+
+  def __init__(self, source_dir, interpreter=None, wheel_dir=None):
+    """Create a wheel from an unpacked source distribution in source_dir."""
+    self._source_dir = source_dir
+    self._wheel_dir = wheel_dir or safe_mkdtemp()
+    self._interpreter = interpreter or PythonInterpreter.get()
+
+  def bdist(self):
+    build_wheels(
+      distributions=[self._source_dir],
+      target=self._wheel_dir,
+      interpreter=self._interpreter
+    )
+    dists = os.listdir(self._wheel_dir)
+    if len(dists) == 0:
+      raise self.BuildFailure('No distributions were produced!')
+    elif len(dists) > 1:
+      raise self.BuildFailure('Ambiguous source distributions found: %s' % (' '.join(dists)))
+    else:
+      return os.path.join(self._wheel_dir, dists[0])
+
+
 @contextlib.contextmanager
-def make_installer(name='my_project',
-                   version='0.0.0',
-                   installer_impl=EggInstaller,
-                   zip_safe=True,
-                   install_reqs=None,
-                   extras_require=None,
-                   interpreter=None,
-                   **kwargs):
+def built_wheel(name='my_project',
+                version='0.0.0',
+                zip_safe=True,
+                install_reqs=None,
+                extras_require=None,
+                interpreter=None,
+                **kwargs):
 
   with make_project(name=name,
                     version=version,
                     zip_safe=zip_safe,
                     install_reqs=install_reqs,
                     extras_require=extras_require) as td:
-    yield installer_impl(td, interpreter=interpreter, **kwargs)
+    builder = WheelBuilder(td, interpreter=interpreter, **kwargs)
+    yield builder.bdist()
 
 
 @contextlib.contextmanager
@@ -169,29 +187,9 @@ def make_source_dir(name='my_project', version='0.0.0', install_reqs=None, extra
     yield td
 
 
-def make_sdist(name='my_project',
-               version='0.0.0',
-               zip_safe=True,
-               install_reqs=None,
-               extras_require=None):
-  with make_installer(name=name,
-                      version=version,
-                      installer_impl=Packager,
-                      zip_safe=zip_safe,
-                      install_reqs=install_reqs,
-                      extras_require=extras_require) as packager:
-    return packager.sdist()
-
-
 @contextlib.contextmanager
-def make_bdist(name='my_project', version='0.0.0', installer_impl=EggInstaller, zipped=False,
-               zip_safe=True, **kwargs):
-  with make_installer(name=name,
-                      version=version,
-                      installer_impl=installer_impl,
-                      zip_safe=zip_safe,
-                      **kwargs) as installer:
-    dist_location = installer.bdist()
+def make_bdist(name='my_project', version='0.0.0', zipped=False, zip_safe=True, **kwargs):
+  with built_wheel(name=name, version=version, zip_safe=zip_safe, **kwargs) as dist_location:
     if zipped:
       yield DistributionHelper.distribution_from_path(dist_location)
     else:

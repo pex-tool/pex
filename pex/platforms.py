@@ -122,6 +122,16 @@ class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
     else:
       return cls(platform, impl, version, abi)
 
+  @classmethod
+  def of_interpreter(cls, intepreter=None):
+    if intepreter is None:
+      return cls.current()
+
+    return cls(platform=get_platform(),
+               impl=intepreter.identity.abbr_impl,
+               version=intepreter.identity.impl_ver,
+               abi=intepreter.identity.abi_tag)
+
   @staticmethod
   def _maybe_prefix_abi(impl, version, abi):
     if impl != 'cp':

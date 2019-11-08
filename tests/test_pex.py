@@ -12,9 +12,8 @@ from types import ModuleType
 
 import pytest
 
-from pex.common import safe_open
+from pex.common import safe_open, temporary_dir
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
-from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -24,15 +23,15 @@ from pex.testing import (
     IS_PYPY,
     PY27,
     PY36,
+    WheelBuilder,
+    built_wheel,
     ensure_python_interpreter,
     make_bdist,
-    make_installer,
     named_temporary_file,
     run_simple_pex,
     run_simple_pex_test,
     safe_mkdir,
     temporary_content,
-    temporary_dir,
     write_simple_pex
 )
 from pex.util import DistributionHelper
@@ -223,11 +222,9 @@ def test_site_libs_excludes_prefix():
 
 @pytest.mark.parametrize('zip_safe', (False, True))
 @pytest.mark.parametrize('project_name', ('my_project', 'my-project'))
-@pytest.mark.parametrize('installer_impl', (EggInstaller, WheelInstaller))
-def test_pex_script(installer_impl, project_name, zip_safe):
-  kw = dict(name=project_name, installer_impl=installer_impl, zip_safe=zip_safe)
-  with make_installer(**kw) as installer:
-    bdist = DistributionHelper.distribution_from_path(installer.bdist())
+def test_pex_script(project_name, zip_safe):
+  with built_wheel(name=project_name, zip_safe=zip_safe) as bdist_path:
+    bdist = DistributionHelper.distribution_from_path(bdist_path)
 
     env_copy = os.environ.copy()
     env_copy['PEX_SCRIPT'] = 'hello_world'
@@ -316,7 +313,7 @@ def pythonpath_isolation_test():
     }
 
     with temporary_content(dist_content) as project_dir:
-      installer = WheelInstaller(project_dir)
+      installer = WheelBuilder(project_dir)
       foo_bdist = DistributionHelper.distribution_from_path(installer.bdist())
 
       exe_contents = textwrap.dedent("""
@@ -394,7 +391,7 @@ def test_pex_executable():
     }
     pex_builder = PEXBuilder(path=pex_dir)
     with temporary_content(project_content, perms=0o755) as project_dir:
-      installer = WheelInstaller(project_dir)
+      installer = WheelBuilder(project_dir)
       bdist = DistributionHelper.distribution_from_path(installer.bdist())
       pex_builder.add_dist_location(bdist.location)
       pex_builder.set_executable(os.path.join(pex_dir, 'exe.py'))
@@ -498,7 +495,7 @@ def test_activate_interpreter_different_from_current():
       pex_builder = PEXBuilder(path=pex_chroot,
                                interpreter=custom_interpreter,
                                pex_info=pex_info)
-      with make_bdist(installer_impl=WheelInstaller, interpreter=custom_interpreter) as bdist:
+      with make_bdist(interpreter=custom_interpreter) as bdist:
         pex_builder.add_distribution(bdist)
         pex_builder.set_entry_point('sys:exit')
         pex_builder.freeze()

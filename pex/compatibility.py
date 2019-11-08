@@ -8,8 +8,7 @@ from __future__ import absolute_import
 
 import os
 from abc import ABCMeta
-from io import BytesIO, StringIO
-from numbers import Integral, Real
+from io import StringIO
 from sys import version_info as sys_version_info
 
 try:
@@ -23,9 +22,6 @@ AbstractClass = ABCMeta('AbstractClass', (object,), {})
 PY2 = sys_version_info[0] == 2
 PY3 = sys_version_info[0] == 3
 
-integer = (Integral,)
-real = (Real,)
-numeric = integer + real
 string = (str,) if PY3 else (str, unicode)
 unicode_string = (str,) if PY3 else (unicode,)
 bytes = (bytes,)
@@ -107,21 +103,3 @@ else:
 
 
 WINDOWS = os.name == 'nt'
-
-
-__all__ = (
-  'AbstractClass',
-  'BytesIO',
-  'ConfigParser',
-  'PY2',
-  'PY3',
-  'StringIO',
-  'WINDOWS',
-  'bytes',
-  'exec_function',
-  'nested',
-  'pathname2url',
-  'string',
-  'to_bytes',
-  'url2pathname',
-)

@@ -150,7 +150,7 @@ class TestManylinux1Tags(object):
   @patch('pex.pep425tags.get_platform', lambda: 'linux_x86_64')
   @patch('pex.glibc.have_compatible_glibc', lambda major, minor: True)
   @patch('sys.platform', 'linux2')
-  def test_manylinux1_tag_is_first(self):
+  def test_manylinux_tags_are_first(self):
     """
     Test that the more specific tag manylinux1 comes first.
     """
@@ -162,7 +162,14 @@ class TestManylinux1Tags(object):
       if arches == ['any']:
         continue
       # Expect the most specific arch first:
-      if len(arches) == 3:
-        assert arches == ['manylinux1_x86_64', 'linux_x86_64', 'any']
+      if len(arches) == 5:
+        assert arches == ['manylinux2014_x86_64',
+                          'manylinux2010_x86_64',
+                          'manylinux1_x86_64',
+                          'linux_x86_64',
+                          'any']
       else:
-        assert arches == ['manylinux1_x86_64', 'linux_x86_64']
+        assert arches == ['manylinux2014_x86_64',
+                          'manylinux2010_x86_64',
+                          'manylinux1_x86_64',
+                          'linux_x86_64']

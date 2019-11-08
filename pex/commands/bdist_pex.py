@@ -70,7 +70,7 @@ class bdist_pex(Command):  # noqa
     return ()
 
   def run(self):
-    parser, options_builder = configure_clp()
+    parser = configure_clp()
     options, reqs = parser.parse_args(self.pex_args)
 
     if options.entry_point or options.script or options.pex_name:

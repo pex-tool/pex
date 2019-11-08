@@ -7,11 +7,11 @@ import zipfile
 
 import pytest
 
-from pex.common import open_zip
+from pex.common import open_zip, temporary_dir
 from pex.compatibility import WINDOWS, nested
 from pex.pex import PEX
 from pex.pex_builder import BOOTSTRAP_DIR, PEXBuilder
-from pex.testing import make_bdist, safe_mkdir, temporary_dir
+from pex.testing import make_bdist, safe_mkdir
 from pex.testing import write_simple_pex as write_pex
 from pex.util import DistributionHelper
 

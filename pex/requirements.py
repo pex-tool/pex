@@ -4,17 +4,11 @@
 from __future__ import absolute_import
 
 import os
-
-from pex.resolvable import Resolvable
-from pex.resolver_options import ResolverOptionsBuilder
+import re
 
 
 class UnsupportedLine(Exception):
   pass
-
-
-def _startswith_any(line, things):
-  return any(line.startswith(thing) for thing in things)
 
 
 def _get_parameter(line):
@@ -26,85 +20,52 @@ def _get_parameter(line):
   return sline[1]
 
 
-class RequirementsTxtSentinel(object):
-  def __init__(self, filename):
-    self.filename = filename
+def local_project_from_requirement(requirement, relpath=None):
+  """Return the absolute path for a local project requirement.
+
+  :param str requirement: The requirement string to parse.
+  :param str relpath: The base path to measure the local project path from.
+  :return: The absolute path of the local project requirement or `None` if the requirement string
+           does not represent a local project requirement.
+  """
+
+  relpath = relpath or os.getcwd()
+
+  # Strip any extras that may be present. e.g. given: `./local/setup-py-project[foo]`
+  # produce: `./local/setup-py-project`
+  maybe_dir = re.sub(r'\[(?#extras).*\]$', '', requirement)
+  maybe_abs_dir = maybe_dir if os.path.isabs(maybe_dir) else os.path.join(relpath, maybe_dir)
+  if any(os.path.isfile(os.path.join(maybe_abs_dir, f)) for f in ('setup.py', 'pyproject.toml')):
+    return maybe_abs_dir
 
 
 # Process lines in the requirements.txt format as defined here:
 # https://pip.pypa.io/en/latest/reference/pip_install.html#requirements-file-format
-# Note that the lines can be not just pip-style requirement specifiers as detailed
-# at the link above, but any string representation of a Resolvable that pex understands,
-# including package URLs and setup.py directories.
-def requirements_from_lines(lines, builder=None, relpath=None, interpreter=None):
+# Note that we're only interested in requirement specifiers that look like local directories and not
+# any pip options which we'll let pip handle.
+def _iter_local_projects(lines, relpath=None):
   relpath = relpath or os.getcwd()
-  builder = builder.clone() if builder else ResolverOptionsBuilder()
-  to_resolve = []
 
   for line in lines:
     line = line.strip()
     if not line or line.startswith('#'):
       continue
-    elif line.startswith('-e '):
-      raise UnsupportedLine('Editable distributions not supported: %s' % line)
-    elif _startswith_any(line, ('-i ', '--index-url')):
-      builder.set_index(_get_parameter(line))
-    elif line.startswith('--extra-index-url'):
-      builder.add_index(_get_parameter(line))
-    elif _startswith_any(line, ('-f ', '--find-links')):
-      builder.add_repository(_get_parameter(line))
-    elif line.startswith('--allow-external'):
-      builder.allow_external(_get_parameter(line))
-    elif line.startswith('--allow-all-external'):
-      builder.allow_all_external()
-    elif line.startswith('--allow-unverified'):
-      builder.allow_unverified(_get_parameter(line))
-    elif line.startswith('--pre'):
-      builder.allow_prereleases(True)
-    elif line.startswith('--no-pre'):
-      builder.allow_prereleases(False)
-    elif line.startswith('--no-index'):
-      builder.clear_indices()
-    elif line.startswith('--no-use-wheel'):
-      builder.no_use_wheel()
-    # defer the conversion of strings/files to resolvables until all options defined
-    # within the current grouping of lines has been processed.
-    elif _startswith_any(line, ('-r ', '--requirement')):
+    elif line.startswith(('-r ', '--requirement')):
       path = os.path.join(relpath, _get_parameter(line))
-      to_resolve.append(RequirementsTxtSentinel(path))
-    else:
-      to_resolve.append(line)
-
-  resolvables = []
-
-  for resolvable in to_resolve:
-    if isinstance(resolvable, RequirementsTxtSentinel):
-      resolvables.extend(requirements_from_file(resolvable.filename,
-                                                builder=builder,
-                                                interpreter=interpreter))
-    else:
-      try:
-        resolvables.append(Resolvable.get(resolvable,
-                                          options_builder=builder,
-                                          interpreter=interpreter))
-      except Resolvable.Error as e:
-        raise UnsupportedLine('Could not resolve line: %s (%s)' % (resolvable, e))
-
-  return resolvables
+      for local_project in local_projects_from_requirement_file(path):
+        yield local_project
+    elif not line.startswith('-'):
+      local_project = local_project_from_requirement(line, relpath=relpath)
+      if local_project:
+        yield local_project
 
 
-def requirements_from_file(filename, builder=None, interpreter=None):
-  """Return a list of :class:`Resolvable` objects from a requirements.txt file.
+def local_projects_from_requirement_file(filename):
+  """Return a list of local project absolute paths from a requirements.txt file.
 
-  :param filename: The filename of the requirements.txt
-  :keyword builder: (optional) The ResolverOptionsBuilder from which we should inherit
-    default resolver options.
-  :type builder: :class:`ResolverOptionsBuilder`
+  :param filename: The filename of the requirements file.
   """
 
   relpath = os.path.dirname(filename)
   with open(filename, 'r') as fp:
-    return requirements_from_lines(fp.readlines(),
-                                   builder=builder,
-                                   relpath=relpath,
-                                   interpreter=interpreter)
+    return _iter_local_projects(fp.readlines(), relpath=relpath)

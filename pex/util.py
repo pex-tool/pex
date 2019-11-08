@@ -9,7 +9,6 @@ import tempfile
 import uuid
 from hashlib import sha1
 from site import makepath
-from threading import Lock
 
 from pex.common import rename_if_empty, safe_mkdir, safe_mkdtemp
 from pex.compatibility import exec_function
@@ -33,17 +32,6 @@ class DistributionHelper(object):
           yield fn, stream
       else:
         yield full_fn[1:], dist.get_resource_stream(dist._provider, full_fn)
-
-  @staticmethod
-  def zipsafe(dist):
-    """Returns whether or not we determine a distribution is zip-safe."""
-    # zip-safety is only an attribute of eggs.  wheels are considered never
-    # zip safe per implications of PEP 427.
-    if hasattr(dist, 'egg_info') and dist.egg_info.endswith('EGG-INFO'):
-      egg_metadata = dist.metadata_listdir('')
-      return 'zip-safe' in egg_metadata and 'native_libs.txt' not in egg_metadata
-    else:
-      return False
 
   @classmethod
   def access_zipped_assets(cls, static_module_name, static_path, dir_location=None):
@@ -184,22 +172,6 @@ class CacheHelper(object):
     dist = DistributionHelper.distribution_from_path(target_dir)
     assert dist is not None, 'Failed to cache distribution %s' % source
     return dist
-
-
-class Memoizer(object):
-  """A thread safe class for memoizing the results of a computation."""
-
-  def __init__(self):
-    self._data = {}
-    self._lock = Lock()
-
-  def get(self, key, default=None):
-    with self._lock:
-      return self._data.get(key, default)
-
-  def store(self, key, value):
-    with self._lock:
-      self._data[key] = value
 
 
 @contextlib.contextmanager

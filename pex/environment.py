@@ -166,7 +166,6 @@ class PEXEnvironment(Environment):
     prefix_length = len(pex_info.internal_cache) + 1
     existing_cached_distributions = []
     newly_cached_distributions = []
-    zip_safe_distributions = []
     with open_zip(pex) as zf:
       # Distribution names are the first element after ".deps/" and before the next "/"
       distribution_names = set(filter(None, (filename[prefix_length:].split('/')[0]
@@ -184,18 +183,13 @@ class PEXEnvironment(Environment):
           if dist is not None:
             existing_cached_distributions.append(dist)
             continue
-        else:
-          dist = DistributionHelper.distribution_from_path(os.path.join(pex, internal_dist_path))
-          if dist is not None:
-            if DistributionHelper.zipsafe(dist) and not pex_info.always_write_cache:
-              zip_safe_distributions.append(dist)
-              continue
 
+        dist = DistributionHelper.distribution_from_path(os.path.join(pex, internal_dist_path))
         with TRACER.timed('Caching %s' % dist):
           newly_cached_distributions.append(
             CacheHelper.cache_distribution(zf, internal_dist_path, cached_location))
 
-    return existing_cached_distributions, newly_cached_distributions, zip_safe_distributions
+    return existing_cached_distributions, newly_cached_distributions
 
   @classmethod
   def _load_internal_cache(cls, pex, pex_info):
