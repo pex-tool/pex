@@ -618,6 +618,7 @@ class manifest_maker(sdist):
 
     def add_defaults(self):
         sdist.add_defaults(self)
+        self.check_license()
         self.filelist.append(self.template)
         self.filelist.append(self.manifest)
         rcfiles = list(walk_revctrl())

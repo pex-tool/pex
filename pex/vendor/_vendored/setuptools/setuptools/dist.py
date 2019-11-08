@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 __all__ = ['Distribution']
 
+import io
+import sys
 import re
 import os
 import warnings
@@ -9,8 +11,10 @@ import distutils.log
 import distutils.core
 import distutils.cmd
 import distutils.dist
+from distutils.util import strtobool
+from distutils.debug import DEBUG
+from distutils.fancy_getopt import translate_longopt
 import itertools
-
 
 from collections import defaultdict
 from email import message_from_file
@@ -30,6 +34,11 @@ if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern import packaging  # vendor:skip
 else:
   from pex.third_party.setuptools.extern import packaging
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern import ordered_set  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern import ordered_set
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
@@ -64,7 +73,6 @@ if "__PEX_UNVENDORED__" in __import__("os").environ:
 else:
   import pex.third_party.pkg_resources as pkg_resources
 
-from .py36compat import Distribution_parse_config_files
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   __import__('setuptools.extern.packaging.specifiers')  # vendor:skip
@@ -91,7 +99,8 @@ def get_metadata_version(self):
             mv = StrictVersion('2.1')
         elif (self.maintainer is not None or
               self.maintainer_email is not None or
-              getattr(self, 'python_requires', None) is not None):
+              getattr(self, 'python_requires', None) is not None or
+              self.project_urls):
             mv = StrictVersion('1.2')
         elif (self.provides or self.requires or self.obsoletes or
                 self.classifiers or self.download_url):
@@ -169,7 +178,6 @@ def write_pkg_file(self, file):
     else:
         def write_field(key, value):
             file.write("%s: %s\n" % (key, value))
-
 
     write_field('Metadata-Version', str(version))
     write_field('Name', self.get_name())
@@ -250,8 +258,12 @@ def check_importable(dist, attr, value):
 
 
 def assert_string_list(dist, attr, value):
-    """Verify that value is a string list or None"""
+    """Verify that value is a string list"""
     try:
+        # verify that value is a list or tuple to exclude unordered
+        # or single-use iterables
+        assert isinstance(value, (list, tuple))
+        # verify that elements of value are strings
         assert ''.join(value) != value
     except (TypeError, ValueError, AttributeError, AssertionError):
         raise DistutilsSetupError(
@@ -344,20 +356,17 @@ def check_test_suite(dist, attr, value):
 
 def check_package_data(dist, attr, value):
     """Verify that value is a dictionary of package names to glob lists"""
-    if isinstance(value, dict):
-        for k, v in value.items():
-            if not isinstance(k, str):
-                break
-            try:
-                iter(v)
-            except TypeError:
-                break
-        else:
-            return
-    raise DistutilsSetupError(
-        attr + " must be a dictionary mapping package names to lists of "
-        "wildcard patterns"
-    )
+    if not isinstance(value, dict):
+        raise DistutilsSetupError(
+            "{!r} must be a dictionary mapping package names to lists of "
+            "string wildcard patterns".format(attr))
+    for k, v in value.items():
+        if not isinstance(k, six.string_types):
+            raise DistutilsSetupError(
+                "keys of {!r} dict must be strings (got {!r})"
+                .format(attr, k)
+            )
+        assert_string_list(dist, 'values of {!r} dict'.format(attr), v)
 
 
 def check_packages(dist, attr, value):
@@ -372,7 +381,7 @@ def check_packages(dist, attr, value):
 _Distribution = get_unpatched(distutils.core.Distribution)
 
 
-class Distribution(Distribution_parse_config_files, _Distribution):
+class Distribution(_Distribution):
     """Distribution with support for features, tests, and package data
 
     This is an enhanced version of 'distutils.dist.Distribution' that
@@ -443,7 +452,7 @@ class Distribution(Distribution_parse_config_files, _Distribution):
     _DISTUTILS_UNSUPPORTED_METADATA = {
         'long_description_content_type': None,
         'project_urls': dict,
-        'provides_extras': set,
+        'provides_extras': ordered_set.OrderedSet,
     }
 
     _patched_dist = None
@@ -596,12 +605,145 @@ class Distribution(Distribution_parse_config_files, _Distribution):
         req.marker = None
         return req
 
+    def _parse_config_files(self, filenames=None):
+        """
+        Adapted from distutils.dist.Distribution.parse_config_files,
+        this method provides the same functionality in subtly-improved
+        ways.
+        """
+        if "__PEX_UNVENDORED__" in __import__("os").environ:
+          from setuptools.extern.six.moves.configparser import ConfigParser  # vendor:skip
+        else:
+          from pex.third_party.setuptools.extern.six.moves.configparser import ConfigParser
+
+
+        # Ignore install directory options if we have a venv
+        if six.PY3 and sys.prefix != sys.base_prefix:
+            ignore_options = [
+                'install-base', 'install-platbase', 'install-lib',
+                'install-platlib', 'install-purelib', 'install-headers',
+                'install-scripts', 'install-data', 'prefix', 'exec-prefix',
+                'home', 'user', 'root']
+        else:
+            ignore_options = []
+
+        ignore_options = frozenset(ignore_options)
+
+        if filenames is None:
+            filenames = self.find_config_files()
+
+        if DEBUG:
+            self.announce("Distribution.parse_config_files():")
+
+        parser = ConfigParser()
+        for filename in filenames:
+            with io.open(filename, encoding='utf-8') as reader:
+                if DEBUG:
+                    self.announce("  reading {filename}".format(**locals()))
+                (parser.read_file if six.PY3 else parser.readfp)(reader)
+            for section in parser.sections():
+                options = parser.options(section)
+                opt_dict = self.get_option_dict(section)
+
+                for opt in options:
+                    if opt != '__name__' and opt not in ignore_options:
+                        val = self._try_str(parser.get(section, opt))
+                        opt = opt.replace('-', '_')
+                        opt_dict[opt] = (filename, val)
+
+            # Make the ConfigParser forget everything (so we retain
+            # the original filenames that options come from)
+            parser.__init__()
+
+        # If there was a "global" section in the config file, use it
+        # to set Distribution options.
+
+        if 'global' in self.command_options:
+            for (opt, (src, val)) in self.command_options['global'].items():
+                alias = self.negative_opt.get(opt)
+                try:
+                    if alias:
+                        setattr(self, alias, not strtobool(val))
+                    elif opt in ('verbose', 'dry_run'):  # ugh!
+                        setattr(self, opt, strtobool(val))
+                    else:
+                        setattr(self, opt, val)
+                except ValueError as msg:
+                    raise DistutilsOptionError(msg)
+
+    @staticmethod
+    def _try_str(val):
+        """
+        On Python 2, much of distutils relies on string values being of
+        type 'str' (bytes) and not unicode text. If the value can be safely
+        encoded to bytes using the default encoding, prefer that.
+
+        Why the default encoding? Because that value can be implicitly
+        decoded back to text if needed.
+
+        Ref #1653
+        """
+        if six.PY3:
+            return val
+        try:
+            return val.encode()
+        except UnicodeEncodeError:
+            pass
+        return val
+
+    def _set_command_options(self, command_obj, option_dict=None):
+        """
+        Set the options for 'command_obj' from 'option_dict'.  Basically
+        this means copying elements of a dictionary ('option_dict') to
+        attributes of an instance ('command').
+
+        'command_obj' must be a Command instance.  If 'option_dict' is not
+        supplied, uses the standard option dictionary for this command
+        (from 'self.command_options').
+
+        (Adopted from distutils.dist.Distribution._set_command_options)
+        """
+        command_name = command_obj.get_command_name()
+        if option_dict is None:
+            option_dict = self.get_option_dict(command_name)
+
+        if DEBUG:
+            self.announce("  setting options for '%s' command:" % command_name)
+        for (option, (source, value)) in option_dict.items():
+            if DEBUG:
+                self.announce("    %s = %s (from %s)" % (option, value,
+                                                         source))
+            try:
+                bool_opts = [translate_longopt(o)
+                             for o in command_obj.boolean_options]
+            except AttributeError:
+                bool_opts = []
+            try:
+                neg_opt = command_obj.negative_opt
+            except AttributeError:
+                neg_opt = {}
+
+            try:
+                is_string = isinstance(value, six.string_types)
+                if option in neg_opt and is_string:
+                    setattr(command_obj, neg_opt[option], not strtobool(value))
+                elif option in bool_opts and is_string:
+                    setattr(command_obj, option, strtobool(value))
+                elif hasattr(command_obj, option):
+                    setattr(command_obj, option, value)
+                else:
+                    raise DistutilsOptionError(
+                        "error in %s: command '%s' has no such option '%s'"
+                        % (source, command_name, option))
+            except ValueError as msg:
+                raise DistutilsOptionError(msg)
+
     def parse_config_files(self, filenames=None, ignore_option_errors=False):
         """Parses configuration files from various levels
         and loads configuration.
 
         """
-        _Distribution.parse_config_files(self, filenames=filenames)
+        self._parse_config_files(filenames=filenames)
 
         parse_configuration(self, self.command_options,
                             ignore_option_errors=ignore_option_errors)
@@ -791,7 +933,7 @@ class Distribution(Distribution_parse_config_files, _Distribution):
     def include(self, **attrs):
         """Add items to distribution that are named in keyword arguments
 
-        For example, 'dist.exclude(py_modules=["x"])' would add 'x' to
+        For example, 'dist.include(py_modules=["x"])' would add 'x' to
         the distribution's 'py_modules' attribute, if it was not already
         there.
 
@@ -1009,7 +1151,6 @@ class Distribution(Distribution_parse_config_files, _Distribution):
             return _Distribution.handle_display_options(self, option_order)
 
         # Stdout may be StringIO (e.g. in tests)
-        import io
         if not isinstance(sys.stdout, io.TextIOWrapper):
             return _Distribution.handle_display_options(self, option_order)
 
@@ -1188,4 +1329,5 @@ class Feature:
 
 
 class DistDeprecationWarning(SetuptoolsDeprecationWarning):
-    """Class for warning about deprecations in dist in setuptools. Not ignored by default, unlike DeprecationWarning."""
+    """Class for warning about deprecations in dist in
+    setuptools. Not ignored by default, unlike DeprecationWarning."""

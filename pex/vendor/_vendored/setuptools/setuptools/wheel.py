@@ -9,9 +9,19 @@ import re
 import zipfile
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from pkg_resources import Distribution, PathMetadata, parse_version  # vendor:skip
+  import pkg_resources  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import Distribution, PathMetadata, parse_version
+  import pex.third_party.pkg_resources as pkg_resources
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  import setuptools  # vendor:skip
+else:
+  import pex.third_party.setuptools as setuptools
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from pkg_resources import parse_version  # vendor:skip
+else:
+  from pex.third_party.pkg_resources import parse_version
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.packaging.utils import canonicalize_name  # vendor:skip
@@ -22,11 +32,6 @@ if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six import PY3  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six import PY3
-
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from setuptools import Distribution as SetuptoolsDistribution  # vendor:skip
-else:
-  from pex.third_party.setuptools import Distribution as SetuptoolsDistribution
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools import pep425tags  # vendor:skip
@@ -103,7 +108,7 @@ class Wheel:
         return next((True for t in self.tags() if t in supported_tags), False)
 
     def egg_name(self):
-        return Distribution(
+        return pkg_resources.Distribution(
             project_name=self.project_name, version=self.version,
             platform=(None if self.platform == 'any' else get_platform()),
         ).egg_name() + '.egg'
@@ -154,9 +159,9 @@ class Wheel:
         zf.extractall(destination_eggdir)
         # Convert metadata.
         dist_info = os.path.join(destination_eggdir, dist_info)
-        dist = Distribution.from_location(
+        dist = pkg_resources.Distribution.from_location(
             destination_eggdir, dist_info,
-            metadata=PathMetadata(destination_eggdir, dist_info),
+            metadata=pkg_resources.PathMetadata(destination_eggdir, dist_info),
         )
 
         # Note: Evaluate and strip markers now,
@@ -179,7 +184,7 @@ class Wheel:
             os.path.join(egg_info, 'METADATA'),
             os.path.join(egg_info, 'PKG-INFO'),
         )
-        setup_dist = SetuptoolsDistribution(
+        setup_dist = setuptools.Distribution(
             attrs=dict(
                 install_requires=install_requires,
                 extras_require=extras_require,

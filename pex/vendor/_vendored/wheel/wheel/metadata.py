@@ -5,7 +5,6 @@ Tools for converting old- to new-style metadata.
 import os.path
 import re
 import textwrap
-from collections import namedtuple
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   import pkg_resources  # vendor:skip
@@ -17,13 +16,15 @@ from .pkginfo import read_pkg_info
 
 # Wheel itself is probably the only program that uses non-extras markers
 # in METADATA/PKG-INFO. Support its syntax with the extra at the end only.
-EXTRA_RE = re.compile("""^(?P<package>.*?)(;\s*(?P<condition>.*?)(extra == '(?P<extra>.*?)')?)$""")
-
-MayRequiresKey = namedtuple('MayRequiresKey', ('condition', 'extra'))
+EXTRA_RE = re.compile(
+    r"""^(?P<package>.*?)(;\s*(?P<condition>.*?)(extra == '(?P<extra>.*?)')?)$""")
 
 
 def requires_to_requires_dist(requirement):
-    """Compose the version predicates for requirement in PEP 345 fashion."""
+    """Return the version specifier for a requirement in PEP 345/566 fashion."""
+    if getattr(requirement, 'url', None):
+        return " @ " + requirement.url
+
     requires_dist = []
     for op, ver in requirement.specs:
         requires_dist.append(op + ver)
@@ -37,7 +38,7 @@ def convert_requirements(requirements):
     for req in requirements:
         parsed_requirement = pkg_resources.Requirement.parse(req)
         spec = requires_to_requires_dist(parsed_requirement)
-        extras = ",".join(parsed_requirement.extras)
+        extras = ",".join(sorted(parsed_requirement.extras))
         if extras:
             extras = "[%s]" % extras
         yield (parsed_requirement.project_name + extras + spec)
@@ -53,18 +54,22 @@ def generate_requirements(extras_require):
     """
     for extra, depends in extras_require.items():
         condition = ''
-        if extra and ':' in extra:  # setuptools extra:condition syntax
+        extra = extra or ''
+        if ':' in extra:  # setuptools extra:condition syntax
             extra, condition = extra.split(':', 1)
-            extra = pkg_resources.safe_extra(extra)
+
+        extra = pkg_resources.safe_extra(extra)
         if extra:
-            yield ('Provides-Extra', extra)
+            yield 'Provides-Extra', extra
             if condition:
                 condition = "(" + condition + ") and "
             condition += "extra == '%s'" % extra
+
         if condition:
-            condition = '; ' + condition
+            condition = ' ; ' + condition
+
         for new_req in convert_requirements(depends):
-            yield ('Requires-Dist', new_req + condition)
+            yield 'Requires-Dist', new_req + condition
 
 
 def pkginfo_to_metadata(egg_info_path, pkginfo_path):
@@ -73,14 +78,20 @@ def pkginfo_to_metadata(egg_info_path, pkginfo_path):
     """
     pkg_info = read_pkg_info(pkginfo_path)
     pkg_info.replace_header('Metadata-Version', '2.1')
+    # Those will be regenerated from `requires.txt`.
+    del pkg_info['Provides-Extra']
+    del pkg_info['Requires-Dist']
     requires_path = os.path.join(egg_info_path, 'requires.txt')
     if os.path.exists(requires_path):
         with open(requires_path) as requires_file:
             requires = requires_file.read()
-        for extra, reqs in sorted(pkg_resources.split_sections(requires),
-                                  key=lambda x: x[0] or ''):
-            for item in generate_requirements({extra: reqs}):
-                pkg_info[item[0]] = item[1]
+
+        parsed_requirements = sorted(pkg_resources.split_sections(requires),
+                                     key=lambda x: x[0] or '')
+        for extra, reqs in parsed_requirements:
+            for key, value in generate_requirements({extra: reqs}):
+                if (key, value) not in pkg_info.items():
+                    pkg_info[key] = value
 
     description = pkg_info['Description']
     if description:

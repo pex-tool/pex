@@ -67,7 +67,7 @@ if not match_hostname:
     def _dnsname_match(dn, hostname, max_wildcards=1):
         """Matching according to RFC 6125, section 6.4.3
 
-        http://tools.ietf.org/html/rfc6125#section-6.4.3
+        https://tools.ietf.org/html/rfc6125#section-6.4.3
         """
         pats = []
         if not dn:
