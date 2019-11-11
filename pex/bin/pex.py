@@ -184,15 +184,6 @@ def configure_clp_pex_resolution(parser):
       help='Whether to allow building of distributions from source; Default: allow builds')
 
   group.add_option(
-      '--manylinux', '--no-manylinux', '--no-use-manylinux',
-      dest='use_manylinux',
-      default=True,
-      action='callback',
-      callback=parse_bool,
-      help='Whether to allow resolution of manylinux dists for linux target platforms; '
-           'Default: allow manylinux')
-
-  group.add_option(
     '--transitive', '--no-transitive', '--intransitive',
     dest='transitive',
     default=True,
@@ -554,7 +545,6 @@ def build_pex(reqs, options):
                                 requirement_files=options.requirement_files,
                                 constraint_files=options.constraint_files,
                                 allow_prereleases=options.allow_prereleases,
-                                use_manylinux=options.use_manylinux,
                                 transitive=options.transitive,
                                 interpreters=interpreters,
                                 platforms=options.platforms,

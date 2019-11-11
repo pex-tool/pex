@@ -5,7 +5,6 @@
 from __future__ import absolute_import, print_function
 
 import os
-import re
 import sys
 from collections import deque
 
@@ -77,7 +76,6 @@ def download_distributions(target,
                            requirement_files=None,
                            constraint_files=None,
                            allow_prereleases=False,
-                           use_manylinux=True,
                            transitive=True,
                            interpreter=None,
                            platform=None,
@@ -103,17 +101,7 @@ def download_distributions(target,
       # We're either resolving for a different host / platform or a different interpreter for the
       # current platform that we have no access to; so we need to let pip know and not otherwise
       # pickup platform info from the interpreter we execute pip with.
-
-      platform_name = platform_info.platform
-      # TODO(John Sirois): Consider killing; The extended platform should simply be written this
-      # way by the caller in the 1st place - no need to carry around a bool:
-      # 1. It's redundant.
-      # 2. It's lossy. There are actually, currently, manylinux1, manylinux2010 and manylinux2014
-      #    psuedo-platforms that can be specified.
-      if use_manylinux:
-        platform_name = re.sub(r'^linux_', 'manylinux1_', platform_name)
-
-      download_cmd.extend(['--platform', platform_name])
+      download_cmd.extend(['--platform', platform_info.platform])
       download_cmd.extend(['--implementation', platform_info.impl])
       download_cmd.extend(['--python-version', platform_info.version])
       download_cmd.extend(['--abi', platform_info.abi])

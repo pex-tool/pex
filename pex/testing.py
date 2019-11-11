@@ -26,7 +26,6 @@ NOT_CPYTHON36 = ("%s or (sys.version_info[0], sys.version_info[1]) != (3, 6)" % 
 IS_LINUX = "platform.system() == 'Linux'"
 IS_NOT_LINUX = "platform.system() != 'Linux'"
 NOT_CPYTHON27_OR_OSX = "%s or %s" % (NOT_CPYTHON27, IS_NOT_LINUX)
-NOT_CPYTHON27_OR_LINUX = "%s or %s" % (NOT_CPYTHON27, IS_LINUX)
 NOT_CPYTHON36_OR_LINUX = "%s or %s" % (NOT_CPYTHON36, IS_LINUX)
 
 
