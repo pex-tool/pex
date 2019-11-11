@@ -58,31 +58,6 @@ def _get_supported(version=None, platform=None, impl=None, abi=None, force_manyl
   return list(OrderedSet(iter_all_supported()))
 
 
-def _gen_all_abis(impl, version):
-  def tmpl_abi(impl, version, suffix):
-    return ''.join((impl, version, suffix))
-  yield tmpl_abi(impl, version, 'd')
-  yield tmpl_abi(impl, version, 'dm')
-  yield tmpl_abi(impl, version, 'dmu')
-  yield tmpl_abi(impl, version, 'm')
-  yield tmpl_abi(impl, version, 'mu')
-  yield tmpl_abi(impl, version, 'u')
-
-
-def _get_supported_for_any_abi(version=None, platform=None, impl=None, force_manylinux=False):
-  """Generates supported tags for unspecified ABI types to support more intuitive cross-platform
-     resolution."""
-  unique_tags = {
-    tag for abi in _gen_all_abis(impl, version)
-    for tag in _get_supported(version=version,
-                              platform=platform,
-                              impl=impl,
-                              abi=abi,
-                              force_manylinux=force_manylinux)
-  }
-  return list(unique_tags)
-
-
 class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
   """Represents a target platform and it's extended interpreter compatibility
   tags (e.g. implementation, version and ABI)."""
@@ -145,23 +120,12 @@ class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
   def is_extended(self):
     return all(attr is not None for attr in (self.impl, self.version, self.abi))
 
-  def supported_tags(self, interpreter=None, force_manylinux=True):
+  def supported_tags(self, force_manylinux=True):
     """Returns a list of supported PEP425 tags for the current platform."""
-    if interpreter and not self.is_extended:
-      # N.B. If we don't get an extended platform specifier, we generate
-      # all possible ABI permutations to mimic earlier pex version
-      # behavior and make cross-platform resolution more intuitive.
-      return _get_supported_for_any_abi(
-        platform=self.platform,
-        impl=interpreter.identity.abbr_impl,
-        version=interpreter.identity.impl_ver,
-        force_manylinux=force_manylinux
-      )
-    else:
-      return _get_supported(
-        platform=self.platform,
-        impl=self.impl,
-        version=self.version,
-        abi=self.abi,
-        force_manylinux=force_manylinux
-      )
+    return _get_supported(
+      platform=self.platform,
+      impl=self.impl,
+      version=self.version,
+      abi=self.abi,
+      force_manylinux=force_manylinux
+    )

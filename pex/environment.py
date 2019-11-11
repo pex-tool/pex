@@ -218,7 +218,7 @@ class PEXEnvironment(Environment):
     if self._interpreter.identity.abbr_impl == 'pp' and zipfile.is_zipfile(self._pex):
       self._install_pypy_zipimporter_workaround(self._pex)
 
-    platform = Platform.current()
+    platform = Platform.of_interpreter(interpreter)
     platform_name = platform.platform
     super(PEXEnvironment, self).__init__(
       search_path=[] if pex_info.inherit_path == 'false' else sys.path,
@@ -228,7 +228,7 @@ class PEXEnvironment(Environment):
       **kw
     )
     self._target_interpreter_env = self._interpreter.identity.pkg_resources_env(platform_name)
-    self._supported_tags.extend(platform.supported_tags(self._interpreter))
+    self._supported_tags.extend(platform.supported_tags())
     TRACER.log(
       'E: tags for %r x %r -> %s' % (self.platform, self._interpreter, self._supported_tags),
       V=9

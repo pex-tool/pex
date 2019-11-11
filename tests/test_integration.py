@@ -21,7 +21,6 @@ from pex.pip import build_wheels, download_distributions
 from pex.testing import (
     IS_PYPY,
     NOT_CPYTHON27,
-    NOT_CPYTHON27_OR_LINUX,
     NOT_CPYTHON27_OR_OSX,
     NOT_CPYTHON36,
     NOT_CPYTHON36_OR_LINUX,
@@ -840,7 +839,11 @@ def test_pex_manylinux_and_tag_selection_linux_msgpack():
     # Exclude 3.3, >=3.6 because no wheels exist for these versions on pypi.
     current_version = sys.version_info[:2]
     if current_version != (3, 3) and current_version < (3, 6):
-      test_msgpack('linux-x86_64', 'manylinux1_x86_64.whl')
+      ver = '{}{}'.format(*current_version)
+      test_msgpack(
+        'linux-x86_64-cp-{}-m'.format(ver),
+        'msgpack_python-0.4.7-cp{ver}-cp{ver}m-manylinux1_x86_64.whl'.format(ver=ver)
+      )
 
     test_msgpack('linux-x86_64-cp-27-m', 'msgpack_python-0.4.7-cp27-cp27m-manylinux1_x86_64.whl')
     test_msgpack('linux-x86_64-cp-27-mu', 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_x86_64.whl')
@@ -850,7 +853,7 @@ def test_pex_manylinux_and_tag_selection_linux_msgpack():
     test_msgpack('linux-x86_64-cp-34-m', 'msgpack_python-0.4.7-cp34-cp34m-manylinux1_x86_64.whl')
     test_msgpack('linux-x86_64-cp-35-m', 'msgpack_python-0.4.7-cp35-cp35m-manylinux1_x86_64.whl')
 
-    ensure_failure(msgpack, msgpack_ver, 'linux-x86_64', '--no-manylinux')
+    ensure_failure(msgpack, msgpack_ver, 'linux-x86_64-cp-27-m', '--no-manylinux')
 
 
 def test_pex_manylinux_and_tag_selection_lxml_osx():
@@ -911,21 +914,6 @@ def test_ipython_appnope_env_markers():
                          '--',
                          '--version'])
   res.assert_success()
-
-
-# TODO: https://github.com/pantsbuild/pex/issues/479
-@pytest.mark.skipif(NOT_CPYTHON27_OR_LINUX,
-  reason='this needs to run on an interpreter with ABI type m (OSX) vs mu (linux)')
-def test_cross_platform_abi_targeting_behavior():
-  with temporary_dir() as td:
-    pex_out_path = os.path.join(td, 'pex.pex')
-    res = run_pex_command(['--disable-cache',
-                           '--no-pypi',
-                           '--platform=linux-x86_64',
-                           '--find-links=tests/example_packages/',
-                           'MarkupSafe==1.0',
-                           '-o', pex_out_path])
-    res.assert_success()
 
 
 @pytest.mark.skipif(NOT_CPYTHON27)
@@ -1023,8 +1011,8 @@ def test_multiplatform_entrypoint():
                            '--no-build',
                            '--python={}'.format(interpreter),
                            '--python-shebang=#!{}'.format(interpreter),
-                           '--platform=linux-x86_64',
-                           '--platform=macosx-10.13-x86_64',
+                           '--platform=linux-x86_64-cp-36-m',
+                           '--platform=macosx-10.13-x86_64-cp-36-m',
                            '-c', 'p537',
                            '-o', pex_out_path,
                            '--validate-entry-point'])

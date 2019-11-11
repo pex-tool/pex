@@ -91,25 +91,32 @@ def download_distributions(target,
   download_cmd.extend(_calculate_package_index_options(indexes=indexes, find_links=find_links))
 
   if platform:
+    # TODO(John Sirois): Consider moving this parsing up to the CLI and switching the API to take
+    # an (extended) `Platform` object instead of a string.
     platform_info = Platform.create(platform)
+    if not platform_info.is_extended:
+      raise PipError('Can only download distributions for fully specified platforms, given {!r}.'
+                     .format(platform))
+
     foreign_platform = platform_info != Platform.of_interpreter(interpreter)
     if foreign_platform:
-      # We're resolving for a different host platform / interpreter we have no access to; so we need
-      # to let pip know and not otherwise pickup platform info from the interpreter we execute pip
-      # with.
+      # We're either resolving for a different host / platform or a different interpreter for the
+      # current platform that we have no access to; so we need to let pip know and not otherwise
+      # pickup platform info from the interpreter we execute pip with.
 
-      platform = platform_info.platform
-      # TODO(John Sirois): XXX: File issue to kill; this can be done up in pants or in a pants
-      #  plugin.
-      if use_manylinux and platform.startswith('linux_'):
-        platform = re.sub(r'^linux_', 'manylinux1_', platform)
+      platform_name = platform_info.platform
+      # TODO(John Sirois): Consider killing; The extended platform should simply be written this
+      # way by the caller in the 1st place - no need to carry around a bool:
+      # 1. It's redundant.
+      # 2. It's lossy. There are actually, currently, manylinux1, manylinux2010 and manylinux2014
+      #    psuedo-platforms that can be specified.
+      if use_manylinux:
+        platform_name = re.sub(r'^linux_', 'manylinux1_', platform_name)
 
-      download_cmd.extend(['--platform', platform])
-
-      if platform_info.is_extended:
-        download_cmd.extend(['--implementation', platform_info.impl])
-        download_cmd.extend(['--python-version', platform_info.version])
-        download_cmd.extend(['--abi', platform_info.abi])
+      download_cmd.extend(['--platform', platform_name])
+      download_cmd.extend(['--implementation', platform_info.impl])
+      download_cmd.extend(['--python-version', platform_info.version])
+      download_cmd.extend(['--abi', platform_info.abi])
   else:
     foreign_platform = False
 
