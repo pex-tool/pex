@@ -8,13 +8,12 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 from collections import defaultdict, namedtuple
 from textwrap import dedent
 
 from pex import third_party
 from pex.common import safe_mkdir, safe_mkdtemp
-from pex.executor import Executor
+from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pip import PipError, build_wheels, download_distributions, install_wheel
 from pex.requirements import local_project_from_requirement, local_projects_from_requirement_file
@@ -57,13 +56,15 @@ def _calculate_dependency_markers(distributions, interpreter=None):
   """.format(search_path=search_path))
 
   env = os.environ.copy()
-  env.update({
-    'PYTHONPATH': os.pathsep.join(third_party.expose(['setuptools'])),
-    '__PEX_UNVENDORED__': '1'
-  })
-  python = interpreter.binary if interpreter is not None else sys.executable
+  env['__PEX_UNVENDORED__'] = '1'
 
-  process = Executor.open_process([python, '-s', '-c', program], stdout=subprocess.PIPE, env=env)
+  pythonpath = third_party.expose(['setuptools'])
+
+  interpreter = interpreter or PythonInterpreter.get()
+  _, process = interpreter.open_process(args=['-c', program],
+                                        stdout=subprocess.PIPE,
+                                        pythonpath=pythonpath,
+                                        env=env)
   stdout, _ = process.communicate()
   if process.returncode != 0:
     raise Untranslateable('Could not determine dependency environment markers for {}'
@@ -129,6 +130,26 @@ def resolve(requirements=None,
   :raises Untranslateable: If no compatible distributions could be acquired for
     a particular requirement.
   """
+
+  # This function has three stages: 1) resolve, 2) build, and 3) chroot.
+  #
+  # You'd think we might be able to just pip install all the requirements, but pexes can be
+  # multi-platform / multi-interpreter, in which case only a subset of distributions resolved into
+  # the PEX should be activated for the runtime interpreter. Sometimes there are platform specific
+  # wheels and sometimes python version specific dists (backports being the common case). As such,
+  # we need to be able to add each resolved distribution to the `sys.path` individually
+  # (`PEXEnvironment` handles this selective activation at runtime). Since pip install only accepts
+  # a single location to install all resolved dists, that won't work.
+  #
+  # This means we need to seperately resolve all distributions, then install each in their own
+  # chroot. To do this we use `pip download` for the resolve and download of all needed
+  # distributions and then `pip install` to install each distribution in its own chroot.
+  #
+  # As a complicating factor, the runtime activation scheme relies on PEP 425 tags; i.e.: wheel
+  # names. Some requirements are only available or applicable in source form - either via sdist, VCS
+  # URL or local projects. As such we need to insert a `pip wheel` step to generate wheels for all
+  # requirements resolved in source form via `pip download` / inspection of requirements to
+  # discover those that are local directories (local setup.py or pyproject.toml python projects).
 
   if not requirements and not requirement_files:
     # Nothing to resolve.

@@ -5,13 +5,11 @@
 from __future__ import absolute_import, print_function
 
 import os
-import sys
 from collections import deque
 
 from pex import third_party
-from pex.executor import Executor
+from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
-from pex.tracer import TRACER
 from pex.variables import ENV
 
 
@@ -21,14 +19,11 @@ class PipError(Exception):
 
 def execute_pip_isolated(args, cache=None, interpreter=None):
   env = os.environ.copy()
-  env.update({
-    'PYTHONPATH': os.pathsep.join(third_party.expose(['pip', 'setuptools', 'wheel'])),
-    '__PEX_UNVENDORED__': '1'
-  })
-  python = interpreter.binary if interpreter is not None else sys.executable
-  python_exe_args = [python, '-s']
+  env['__PEX_UNVENDORED__'] = '1'
 
-  pip_args = python_exe_args + ['-m', 'pip', '--disable-pip-version-check', '--isolated']
+  pythonpath = third_party.expose(['pip', 'setuptools', 'wheel'])
+
+  pip_args = ['-m', 'pip', '--disable-pip-version-check', '--isolated']
 
   # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor of 3.
   verbosity = ENV.PEX_VERBOSE // 3
@@ -43,17 +38,16 @@ def execute_pip_isolated(args, cache=None, interpreter=None):
     pip_args.append('--no-cache-dir')
 
   pip_cmd = pip_args + args
-  TRACER.log('Executing: {}'.format(' '.join(pip_cmd)))
-  process = Executor.open_process(pip_cmd, env=env)
-  if 0 != process.wait():
-    raise PipError('Executing {} failed with {}'.format(' '.join(pip_cmd), process.returncode))
+
+  interpreter = interpreter or PythonInterpreter.get()
+  cmd, process = interpreter.open_process(args=pip_cmd, pythonpath=pythonpath, env=env)
+  if process.wait() != 0:
+    raise PipError('Executing {} failed with {}'.format(' '.join(cmd), process.returncode))
 
 
 def _calculate_package_index_options(indexes=None, find_links=None):
   # N.B.: We interpret None to mean accept pip index defaults, [] to mean turn off all index use.
-  if indexes is None:
-    pass
-  else:
+  if indexes is not None:
     if len(indexes) == 0:
       yield '--no-index'
     else:

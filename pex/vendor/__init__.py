@@ -23,6 +23,13 @@ def _root():
 class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version', 'rewrite'])):
   """Represents a vendored distribution.
 
+  :field str key: The distribution requirement key; e.g.: for a requirement of
+    requests[security]==2.22.0 the key is 'requests'.
+  :field str version: The distribution requirement version; e.g.: for a requirement of
+    requests[security]==2.22.0 the version is '2.22.0'.
+  :field bool rewrite: Whether to re-write the distribution's imports for use with the
+    `pex.third_party` importer.
+
   NB: Vendored distributions should comply with the host distribution platform constraints. In the
   case of pex, which is a py2.py3 platform agnostic wheel, vendored libraries should be as well.
   """
@@ -67,7 +74,7 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version', 'rewrit
     :class:`pex.third_party.VendorImporter`.
     """
     if not self.rewrite:
-      # The extra package structure is only required for vendored code used via import rewrties.
+      # The extra package structure is only required for vendored code used via import rewrites.
       return
 
     for index, _ in enumerate(self._subpath_components):
