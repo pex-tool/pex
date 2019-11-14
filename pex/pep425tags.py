@@ -1,11 +1,9 @@
-# NB: Copied from our vendored setuptools' version at:
-#   pex/vendor/_vendored/setuptools/setuptools/pep425tags.py
+# NB: Copied from our vendored pip' version at:
+#   pex/vendor/_vendored/pip/pip/_internal/pep425tags.py
 # Modifications are marked with `# NB: Modified from ...`
 # TODO(John Sirois): Remove this file as part of https://github.com/pantsbuild/pex/issues/696
 # -------------------------------------------------------------------------------------------
 
-# This file originally from pip:
-# https://github.com/pypa/pip/blob/8f4f15a5a95d7d5b511ceaee9ed261176c181970/src/pip/_internal/pep425tags.py
 """Generate and work with PEP 425 Compatibility Tags.
 
 NB: Several functions here have their code grabbed by `pex.interpreter._generate_identity_source`
@@ -17,14 +15,47 @@ be checked against those setup in `pex.interpreter.ID_PY_TMPL`.
 from __future__ import absolute_import
 
 import distutils.util
-from distutils import log
+import logging
 import platform
 import re
 import sys
 import sysconfig
 from collections import OrderedDict
 
-from pex import glibc  # NB: Modified from `from . import glibc`
+import pex.glibc  # NB: Modified from `import pip._internal.utils.glibc`
+
+
+# NB: Modified from `from pip._internal.utils.compat import get_extension_suffixes`
+#     pip._internal.utils.compat is inlined below:
+PY2 = sys.version_info[0] == 2
+
+
+if PY2:
+  from imp import get_suffixes
+
+  def get_extension_suffixes():
+    return [suffix[0] for suffix in get_suffixes()]
+
+else:
+  from importlib.machinery import EXTENSION_SUFFIXES
+
+  def get_extension_suffixes():
+    return EXTENSION_SUFFIXES
+
+
+# NB: Modified from `from pip._internal.utils.typing import MYPY_CHECK_RUNNING`
+#     pip._internal.utils.typing is inlined below:
+MYPY_CHECK_RUNNING = False
+
+
+if MYPY_CHECK_RUNNING:
+    from typing import (
+        Tuple, Callable, List, Optional, Union, Dict, Set
+    )
+
+    Pep425Tag = Tuple[str, str, str]
+
+logger = logging.getLogger(__name__)
 
 _osx_arch_pat = re.compile(r'(.+)_(\d+)_(\d+)_(.+)')
 
@@ -32,16 +63,18 @@ _osx_arch_pat = re.compile(r'(.+)_(\d+)_(\d+)_(.+)')
 # NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
 # please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_config_var(var):
+    # type: (str) -> Optional[str]
     try:
         return sysconfig.get_config_var(var)
     except IOError as e:  # Issue #1074
-        log.warn(str(e))  # NB: Modified from `warnings.warn("{}".format(e), RuntimeWarning)`
+        logger.warn(str(e))  # NB: Modified from `warnings.warn("{}".format(e), RuntimeWarning)`
         return None
 
 
 # NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
 # please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_abbr_impl():
+    # type: () -> str
     """Return abbreviated implementation name."""
     if hasattr(sys, 'pypy_version_info'):
         pyimpl = 'pp'
@@ -54,9 +87,16 @@ def get_abbr_impl():
     return pyimpl
 
 
+def version_info_to_nodot(version_info):
+    # type: (Tuple[int, ...]) -> str
+    # Only use up to the first two numbers.
+    return ''.join(map(str, version_info[:2]))
+
+
 # NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
 # please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_impl_ver():
+    # type: () -> str
     """Return implementation version."""
     impl_ver = get_config_var("py_version_nodot")
     if not impl_ver or get_abbr_impl() == 'pp':
@@ -67,26 +107,38 @@ def get_impl_ver():
 # NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
 # please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_impl_version_info():
+    # type: () -> Tuple[int, ...]
     """Return sys.version_info-like tuple for use in decrementing the minor
     version."""
     if get_abbr_impl() == 'pp':
         # as per https://github.com/pypa/pip/issues/2882
-        return (sys.version_info[0], sys.pypy_version_info.major,
-                sys.pypy_version_info.minor)
+        # attrs exist only on pypy
+        return (sys.version_info[0],
+                sys.pypy_version_info.major,  # type: ignore
+                sys.pypy_version_info.minor)  # type: ignore
     else:
         return sys.version_info[0], sys.version_info[1]
+
+
+def get_impl_tag():
+    # type: () -> str
+    """
+    Returns the Tag for this specific implementation.
+    """
+    return "{}{}".format(get_abbr_impl(), get_impl_ver())
 
 
 # NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
 # please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_flag(var, fallback, expected=True, warn=True):
+    # type: (str, Callable[..., bool], Union[bool, int], bool) -> bool
     """Use a fallback method for determining SOABI flags if the needed config
     var is unset or unavailable."""
     val = get_config_var(var)
     if val is None:
         if warn:
-            log.debug("Config variable '%s' is unset, Python ABI tag may "
-                      "be incorrect", var)
+            logger.debug("Config variable '%s' is unset, Python ABI tag may "
+                         "be incorrect", var)
         return fallback()
     return val == expected
 
@@ -94,46 +146,45 @@ def get_flag(var, fallback, expected=True, warn=True):
 # NB: Used in `pex.interpreter.ID_PY_TMPL` and should only rely on stdlib. If imports change,
 # please consult `pex.interpreter.ID_PY_TMPL` and adjust stdlib imports there as needed.
 def get_abi_tag():
+    # type: () -> Optional[str]
     """Return the ABI tag based on SOABI (if available) or emulate SOABI
     (CPython 2, PyPy)."""
     soabi = get_config_var('SOABI')
     impl = get_abbr_impl()
+    abi = None  # type: Optional[str]
+
     if not soabi and impl in {'cp', 'pp'} and hasattr(sys, 'maxunicode'):
         d = ''
         m = ''
         u = ''
-        if get_flag('Py_DEBUG',
-                    lambda: hasattr(sys, 'gettotalrefcount'),
-                    warn=(impl == 'cp')):
+        is_cpython = (impl == 'cp')
+        if get_flag(
+                'Py_DEBUG', lambda: hasattr(sys, 'gettotalrefcount'),
+                warn=is_cpython):
             d = 'd'
-        if get_flag('WITH_PYMALLOC',
-                    lambda: impl == 'cp',
-                    warn=(impl == 'cp')):
+        if sys.version_info < (3, 8) and get_flag(
+                'WITH_PYMALLOC', lambda: is_cpython, warn=is_cpython):
             m = 'm'
-
-        # NB: Modified from ~ `from .extern import six; six.PY2`
-        PY2 = sys.version_info[0] == 2
-        if (get_flag('Py_UNICODE_SIZE',
-                     lambda: sys.maxunicode == 0x10ffff,
-                     expected=4,
-                     warn=(impl == 'cp' and PY2)) and PY2):
+        if sys.version_info < (3, 3) and get_flag(
+                'Py_UNICODE_SIZE', lambda: sys.maxunicode == 0x10ffff,
+                expected=4, warn=is_cpython):
             u = 'u'
-
         abi = '%s%s%s%s%s' % (impl, get_impl_ver(), d, m, u)
     elif soabi and soabi.startswith('cpython-'):
         abi = 'cp' + soabi.split('-')[1]
     elif soabi:
         abi = soabi.replace('.', '_').replace('-', '_')
-    else:
-        abi = None
+
     return abi
 
 
 def _is_running_32bit():
+    # type: () -> bool
     return sys.maxsize == 2147483647
 
 
 def get_platform():
+    # type: () -> str
     """Return our platform name 'win32', 'linux_x86_64'"""
     if sys.platform == 'darwin':
         # distutils.util.get_platform() returns the release based on the value
@@ -159,7 +210,34 @@ def get_platform():
     return result
 
 
+def is_linux_armhf():
+    # type: () -> bool
+    if get_platform() != "linux_armv7l":
+        return False
+    # hard-float ABI can be detected from the ELF header of the running
+    # process
+    try:
+        with open(sys.executable, 'rb') as f:
+            elf_header_raw = f.read(40)  # read 40 first bytes of ELF header
+    except (IOError, OSError, TypeError):
+        return False
+    if elf_header_raw is None or len(elf_header_raw) < 40:
+        return False
+    if isinstance(elf_header_raw, str):
+        elf_header = [ord(c) for c in elf_header_raw]
+    else:
+        elf_header = [b for b in elf_header_raw]
+    result = elf_header[0:4] == [0x7f, 0x45, 0x4c, 0x46]  # ELF magic number
+    result &= elf_header[4:5] == [1]  # 32-bit ELF
+    result &= elf_header[5:6] == [1]  # little-endian
+    result &= elf_header[18:20] == [0x28, 0]  # ARM machine
+    result &= elf_header[39:40] == [5]  # ARM EABIv5
+    result &= (elf_header[37:38][0] & 4) == 4  # EF_ARM_ABI_FLOAT_HARD
+    return result
+
+
 def is_manylinux1_compatible():
+    # type: () -> bool
     # Only Linux, and only x86-64 / i686
     if get_platform() not in {"linux_x86_64", "linux_i686"}:
         return False
@@ -173,16 +251,62 @@ def is_manylinux1_compatible():
         pass
 
     # Check glibc version. CentOS 5 uses glibc 2.5.
-    return glibc.have_compatible_glibc(2, 5)
+    return pex.glibc.have_compatible_glibc(2, 5)  # NB: Modified from `pip._internal.utils.glibc...`
+
+
+def is_manylinux2010_compatible():
+    # type: () -> bool
+    # Only Linux, and only x86-64 / i686
+    if get_platform() not in {"linux_x86_64", "linux_i686"}:
+        return False
+
+    # Check for presence of _manylinux module
+    try:
+        import _manylinux
+        return bool(_manylinux.manylinux2010_compatible)
+    except (ImportError, AttributeError):
+        # Fall through to heuristic check below
+        pass
+
+    # Check glibc version. CentOS 6 uses glibc 2.12.
+    return pex.glibc.have_compatible_glibc(2, 12)  # NB: Modified from `pip._internal.utils.glibc...`
+
+
+def is_manylinux2014_compatible():
+    # type: () -> bool
+    # Only Linux, and only supported architectures
+    platform = get_platform()
+    if platform not in {"linux_x86_64", "linux_i686", "linux_aarch64",
+                        "linux_armv7l", "linux_ppc64", "linux_ppc64le",
+                        "linux_s390x"}:
+        return False
+
+    # check for hard-float ABI in case we're running linux_armv7l not to
+    # install hard-float ABI wheel in a soft-float ABI environment
+    if platform == "linux_armv7l" and not is_linux_armhf():
+        return False
+
+    # Check for presence of _manylinux module
+    try:
+        import _manylinux
+        return bool(_manylinux.manylinux2014_compatible)
+    except (ImportError, AttributeError):
+        # Fall through to heuristic check below
+        pass
+
+    # Check glibc version. CentOS 7 uses glibc 2.17.
+    return pex.glibc.have_compatible_glibc(2, 17)  # NB: Modified from `pip._internal.utils.glibc...`
 
 
 def get_darwin_arches(major, minor, machine):
+    # type: (int, int, str) -> List[str]
     """Return a list of supported arches (including group arches) for
     the given major, minor and machine architecture of an macOS machine.
     """
     arches = []
 
     def _supports_arch(major, minor, arch):
+        # type: (int, int, str) -> bool
         # Looking at the application support for macOS versions in the chart
         # provided by https://en.wikipedia.org/wiki/OS_X#Versions it appears
         # our timeline looks roughly like:
@@ -223,7 +347,7 @@ def get_darwin_arches(major, minor, machine):
         ("intel", ("x86_64", "i386")),
         ("fat64", ("x86_64", "ppc64")),
         ("fat32", ("x86_64", "i386", "ppc")),
-    ])
+    ])  # type: Dict[str, Tuple[str, ...]]
 
     if _supports_arch(major, minor, machine):
         arches.append(machine)
@@ -237,8 +361,24 @@ def get_darwin_arches(major, minor, machine):
     return arches
 
 
-def get_supported(versions=None, noarch=False, platform=None,
-                  impl=None, abi=None):
+def get_all_minor_versions_as_strings(version_info):
+    # type: (Tuple[int, ...]) -> List[str]
+    versions = []
+    major = version_info[:-1]
+    # Support all previous minor Python versions.
+    for minor in range(version_info[-1], -1, -1):
+        versions.append(''.join(map(str, major + (minor,))))
+    return versions
+
+
+def get_supported(
+    versions=None,  # type: Optional[List[str]]
+    noarch=False,  # type: bool
+    platform=None,  # type: Optional[str]
+    impl=None,  # type: Optional[str]
+    abi=None  # type: Optional[str]
+):
+    # type: (...) -> List[Pep425Tag]
     """Return a list of supported tags for each version specified in
     `versions`.
 
@@ -255,26 +395,21 @@ def get_supported(versions=None, noarch=False, platform=None,
 
     # Versions must be given with respect to the preference
     if versions is None:
-        versions = []
         version_info = get_impl_version_info()
-        major = version_info[:-1]
-        # Support all previous minor Python versions.
-        for minor in range(version_info[-1], -1, -1):
-            versions.append(''.join(map(str, major + (minor,))))
+        versions = get_all_minor_versions_as_strings(version_info)
 
     impl = impl or get_abbr_impl()
 
-    abis = []
+    abis = []  # type: List[str]
 
     abi = abi or get_abi_tag()
     if abi:
         abis[0:0] = [abi]
 
-    abi3s = set()
-    import imp
-    for suffix in imp.get_suffixes():
-        if suffix[0].startswith('.abi'):
-            abi3s.add(suffix[0].split('.', 2)[1])
+    abi3s = set()  # type: Set[str]
+    for suffix in get_extension_suffixes():
+        if suffix.startswith('.abi'):
+            abi3s.add(suffix.split('.', 2)[1])
 
     abis.extend(sorted(list(abi3s)))
 
@@ -282,6 +417,7 @@ def get_supported(versions=None, noarch=False, platform=None,
 
     if not noarch:
         arch = platform or get_platform()
+        arch_prefix, arch_sep, arch_suffix = arch.partition('_')
         if arch.startswith('macosx'):
             # support macosx-10.6-intel on macosx-10.9-x86_64
             match = _osx_arch_pat.match(arch)
@@ -295,8 +431,31 @@ def get_supported(versions=None, noarch=False, platform=None,
             else:
                 # arch pattern didn't match (?!)
                 arches = [arch]
-        elif platform is None and is_manylinux1_compatible():
-            arches = [arch.replace('linux', 'manylinux1'), arch]
+        elif arch_prefix == 'manylinux2014':
+            arches = [arch]
+            # manylinux1/manylinux2010 wheels run on most manylinux2014 systems
+            # with the exception of wheels depending on ncurses. PEP 599 states
+            # manylinux1/manylinux2010 wheels should be considered
+            # manylinux2014 wheels:
+            # https://www.python.org/dev/peps/pep-0599/#backwards-compatibility-with-manylinux2010-wheels
+            if arch_suffix in {'i686', 'x86_64'}:
+                arches.append('manylinux2010' + arch_sep + arch_suffix)
+                arches.append('manylinux1' + arch_sep + arch_suffix)
+        elif arch_prefix == 'manylinux2010':
+            # manylinux1 wheels run on most manylinux2010 systems with the
+            # exception of wheels depending on ncurses. PEP 571 states
+            # manylinux1 wheels should be considered manylinux2010 wheels:
+            # https://www.python.org/dev/peps/pep-0571/#backwards-compatibility-with-manylinux1-wheels
+            arches = [arch, 'manylinux1' + arch_sep + arch_suffix]
+        elif platform is None:
+            arches = []
+            if is_manylinux2014_compatible():
+                arches.append('manylinux2014' + arch_sep + arch_suffix)
+            if is_manylinux2010_compatible():
+                arches.append('manylinux2010' + arch_sep + arch_suffix)
+            if is_manylinux1_compatible():
+                arches.append('manylinux1' + arch_sep + arch_suffix)
+            arches.append(arch)
         else:
             arches = [arch]
 
@@ -331,3 +490,6 @@ def get_supported(versions=None, noarch=False, platform=None,
             supported.append(('py%s' % (version[0]), 'none', 'any'))
 
     return supported
+
+
+implementation_tag = get_impl_tag()

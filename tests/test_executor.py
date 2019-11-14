@@ -6,9 +6,8 @@ import subprocess
 
 import pytest
 
-from pex.common import safe_mkdir
+from pex.common import safe_mkdir, temporary_dir
 from pex.executor import Executor
-from pex.testing import temporary_dir
 
 TEST_EXECUTABLE = '/a/nonexistent/path/to/nowhere'
 TEST_CMD_LIST = [TEST_EXECUTABLE, '--version']

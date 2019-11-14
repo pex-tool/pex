@@ -166,7 +166,6 @@ class PEXEnvironment(Environment):
     prefix_length = len(pex_info.internal_cache) + 1
     existing_cached_distributions = []
     newly_cached_distributions = []
-    zip_safe_distributions = []
     with open_zip(pex) as zf:
       # Distribution names are the first element after ".deps/" and before the next "/"
       distribution_names = set(filter(None, (filename[prefix_length:].split('/')[0]
@@ -184,18 +183,13 @@ class PEXEnvironment(Environment):
           if dist is not None:
             existing_cached_distributions.append(dist)
             continue
-        else:
-          dist = DistributionHelper.distribution_from_path(os.path.join(pex, internal_dist_path))
-          if dist is not None:
-            if DistributionHelper.zipsafe(dist) and not pex_info.always_write_cache:
-              zip_safe_distributions.append(dist)
-              continue
 
+        dist = DistributionHelper.distribution_from_path(os.path.join(pex, internal_dist_path))
         with TRACER.timed('Caching %s' % dist):
           newly_cached_distributions.append(
             CacheHelper.cache_distribution(zf, internal_dist_path, cached_location))
 
-    return existing_cached_distributions, newly_cached_distributions, zip_safe_distributions
+    return existing_cached_distributions, newly_cached_distributions
 
   @classmethod
   def _load_internal_cache(cls, pex, pex_info):
@@ -224,7 +218,7 @@ class PEXEnvironment(Environment):
     if self._interpreter.identity.abbr_impl == 'pp' and zipfile.is_zipfile(self._pex):
       self._install_pypy_zipimporter_workaround(self._pex)
 
-    platform = Platform.current()
+    platform = Platform.of_interpreter(interpreter)
     platform_name = platform.platform
     super(PEXEnvironment, self).__init__(
       search_path=[] if pex_info.inherit_path == 'false' else sys.path,
@@ -234,7 +228,7 @@ class PEXEnvironment(Environment):
       **kw
     )
     self._target_interpreter_env = self._interpreter.identity.pkg_resources_env(platform_name)
-    self._supported_tags.extend(platform.supported_tags(self._interpreter))
+    self._supported_tags.extend(platform.supported_tags())
     TRACER.log(
       'E: tags for %r x %r -> %s' % (self.platform, self._interpreter, self._supported_tags),
       V=9

@@ -161,7 +161,7 @@ def is_manylinux1_compatible():
 
 def get_darwin_arches(major, minor, machine):
     """Return a list of supported arches (including group arches) for
-    the given major, minor and machine architecture of an macOS machine.
+    the given major, minor and machine architecture of a macOS machine.
     """
     arches = []
 

@@ -1,5 +1,6 @@
 # Copyright 2016 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import contextlib
 import errno
 import os
@@ -7,8 +8,14 @@ from contextlib import contextmanager
 
 import pytest
 
-from pex.common import Chroot, PermPreservingZipFile, chmod_plus_x, rename_if_empty, touch
-from pex.testing import temporary_dir
+from pex.common import (
+    Chroot,
+    PermPreservingZipFile,
+    chmod_plus_x,
+    rename_if_empty,
+    temporary_dir,
+    touch
+)
 
 try:
   from unittest import mock

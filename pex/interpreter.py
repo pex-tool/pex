@@ -308,11 +308,41 @@ class PythonInterpreter(object):
     return cls(sys.executable, PythonIdentity.get())
 
   @classmethod
+  def _create_isolated_cmd(cls, binary, args=None, pythonpath=None, env=None):
+    cmd = [binary]
+
+    # Don't add the user site directory to `sys.path`.
+    #
+    # Additionally, it would be nice to pass `-S` to disable adding site-packages but unfortunately
+    # some python distributions include portions of the standard library there.
+    cmd.append('-s')
+
+    env = cls.sanitized_environment(env=env)
+    if pythonpath:
+      env['PYTHONPATH'] = os.pathsep.join(pythonpath)
+    else:
+      # Turn off reading of PYTHON* environment variables.
+      cmd.append('-E')
+
+    if args:
+      cmd.extend(args)
+
+    rendered_command = ' '.join(cmd)
+    if pythonpath:
+      rendered_command = 'PYTHONPATH={} {}'.format(env['PYTHONPATH'], rendered_command)
+    TRACER.log('Executing: {}'.format(rendered_command))
+
+    return cmd, env
+
+  @classmethod
+  def _execute(cls, binary, args=None, pythonpath=None, env=None, stdin_payload=None, **kwargs):
+    cmd, env = cls._create_isolated_cmd(binary, args=args, pythonpath=pythonpath, env=env)
+    stdout, stderr = Executor.execute(cmd, stdin_payload=stdin_payload, env=env, **kwargs)
+    return cmd, stdout, stderr
+
+  @classmethod
   def _from_binary_external(cls, binary):
-    environ = cls.sanitized_environment()
-    stdout, _ = Executor.execute([binary, '-sE'],
-                                 env=environ,
-                                 stdin_payload=_generate_identity_source())
+    _, stdout, _ = cls._execute(binary, stdin_payload=_generate_identity_source())
     identity = stdout.strip()
     if not identity:
       raise cls.IdentificationError('Could not establish identity of %s' % binary)
@@ -400,10 +430,10 @@ class PythonInterpreter(object):
         yield interp
 
   @classmethod
-  def sanitized_environment(cls):
+  def sanitized_environment(cls, env=None):
     # N.B. This is merely a hack because sysconfig.py on the default OS X
     # installation of 2.7 breaks.
-    env_copy = os.environ.copy()
+    env_copy = (env or os.environ).copy()
     env_copy.pop('MACOSX_DEPLOYMENT_TARGET', None)
     return env_copy
 
@@ -437,6 +467,19 @@ class PythonInterpreter(object):
   @property
   def version_string(self):
     return str(self._identity)
+
+  def execute(self, args=None, stdin_payload=None, pythonpath=None, env=None, **kwargs):
+    return self._execute(self.binary,
+                         args=args,
+                         stdin_payload=stdin_payload,
+                         pythonpath=pythonpath,
+                         env=env,
+                         **kwargs)
+
+  def open_process(self, args=None, pythonpath=None, env=None, **kwargs):
+    cmd, env = self._create_isolated_cmd(self.binary, args=args, pythonpath=pythonpath, env=env)
+    process = Executor.open_process(cmd, env=env, **kwargs)
+    return cmd, process
 
   def __hash__(self):
     return hash((self._binary, self._identity))

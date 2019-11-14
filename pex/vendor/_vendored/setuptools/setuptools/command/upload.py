@@ -2,7 +2,6 @@ import io
 import os
 import hashlib
 import getpass
-import platform
 
 from base64 import standard_b64encode
 
@@ -26,6 +25,7 @@ if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves.urllib.parse import urlparse  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six.moves.urllib.parse import urlparse
+
 
 
 class upload(orig.upload):
@@ -92,7 +92,7 @@ class upload(orig.upload):
             'version': meta.get_version(),
 
             # file content
-            'content': (os.path.basename(filename),content),
+            'content': (os.path.basename(filename), content),
             'filetype': command,
             'pyversion': pyversion,
             'md5_digest': hashlib.md5(content).hexdigest(),

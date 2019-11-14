@@ -206,24 +206,27 @@ def vendorize(root_dir, vendor_specs, prefix):
 
     vendor_spec.create_packages()
 
-  vendored_path = [vendor_spec.target_dir for vendor_spec in vendor_specs]
+  vendored_path = [vendor_spec.target_dir for vendor_spec in vendor_specs if vendor_spec.rewrite]
   import_rewriter = ImportRewriter.for_path_items(prefix=prefix, path_items=vendored_path)
-  for root, dirs, files in os.walk(root_dir):
-    if root == root_dir:
-      dirs[:] = ['pex', 'tests']
-    for f in files:
-      if f.endswith('.py'):
-        python_file = os.path.join(root, f)
-        print(green('Examining {python_file}...'.format(python_file=python_file)))
-        modifications = import_rewriter.rewrite(python_file)
-        if modifications:
-          num_mods = len(modifications)
-          print(bold(green('  Vendorized {count} import{plural} in {python_file}'
-                           .format(count=num_mods,
-                                   plural='s' if num_mods > 1 else '',
-                                   python_file=python_file))))
-          for _from, _to in modifications.items():
-            print('    {} -> {}'.format(_from, _to))
+
+  rewrite_paths = [os.path.join(root_dir, c) for c in ('pex', 'tests')] + vendored_path
+  for rewrite_path in rewrite_paths:
+    for root, dirs, files in os.walk(rewrite_path):
+      if root == os.path.join(root_dir, 'pex', 'vendor'):
+        dirs[:] = [d for d in dirs if d != '_vendored']
+      for f in files:
+        if f.endswith('.py'):
+          python_file = os.path.join(root, f)
+          print(green('Examining {python_file}...'.format(python_file=python_file)))
+          modifications = import_rewriter.rewrite(python_file)
+          if modifications:
+            num_mods = len(modifications)
+            print(bold(green('  Vendorized {count} import{plural} in {python_file}'
+                             .format(count=num_mods,
+                                     plural='s' if num_mods > 1 else '',
+                                     python_file=python_file))))
+            for _from, _to in modifications.items():
+              print('    {} -> {}'.format(_from, _to))
 
 
 if __name__ == '__main__':

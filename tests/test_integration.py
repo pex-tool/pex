@@ -3,9 +3,9 @@
 
 import filecmp
 import functools
+import glob
 import json
 import os
-import platform
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -14,31 +14,29 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex.common import safe_copy, safe_open, safe_sleep
+from pex.common import safe_copy, safe_open, safe_sleep, temporary_dir
 from pex.compatibility import WINDOWS, nested, to_bytes
-from pex.installer import EggInstaller
 from pex.pex_info import PexInfo
-from pex.resolver import resolve
+from pex.pip import build_wheels, download_distributions
 from pex.testing import (
     IS_PYPY,
     NOT_CPYTHON27,
-    NOT_CPYTHON27_OR_LINUX,
     NOT_CPYTHON27_OR_OSX,
     NOT_CPYTHON36,
     NOT_CPYTHON36_OR_LINUX,
     PY27,
     PY35,
     PY36,
+    WheelBuilder,
+    built_wheel,
     ensure_python_distribution,
     ensure_python_interpreter,
     get_dep_dist_names_from_pex,
-    make_sdist,
     make_source_dir,
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
-    temporary_content,
-    temporary_dir
+    temporary_content
 )
 from pex.util import DistributionHelper, named_temporary_file
 
@@ -173,7 +171,7 @@ def test_entry_point_exit_code():
   """ % error_msg)
 
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
-    installer = EggInstaller(project_dir)
+    installer = WheelBuilder(project_dir)
     dist = DistributionHelper.distribution_from_path(installer.bdist())
     so, rc = run_simple_pex_test('', env=make_env(PEX_SCRIPT='my_app'), dists=[dist])
     assert so.decode('utf-8').strip() == error_msg
@@ -788,8 +786,8 @@ def test_pex_multi_resolve_2():
     results = run_pex_command(['--disable-cache',
                                'lxml==3.8.0',
                                '--no-build',
-                               '--platform=linux-x86_64-cp-36-m',
-                               '--platform=linux-x86_64-cp-27-m',
+                               '--platform=manylinux1-x86_64-cp-36-m',
+                               '--platform=manylinux1-x86_64-cp-27-m',
                                '--platform=macosx-10.6-x86_64-cp-36-m',
                                '--platform=macosx-10.6-x86_64-cp-27-m',
                                '-o', pex_path])
@@ -824,8 +822,8 @@ def pex_manylinux_and_tag_selection_context():
         substr in d for d in included_dists
       ), 'couldnt find {} in {}'.format(substr, included_dists)
 
-    def ensure_failure(req_name, req_version, platform, extra_flags):
-      pex_path, results = do_resolve(req_name, req_version, platform, extra_flags)
+    def ensure_failure(req_name, req_version, platform):
+      pex_path, results = do_resolve(req_name, req_version, platform)
       results.assert_failure()
 
     yield test_resolve, ensure_failure
@@ -841,17 +839,28 @@ def test_pex_manylinux_and_tag_selection_linux_msgpack():
     # Exclude 3.3, >=3.6 because no wheels exist for these versions on pypi.
     current_version = sys.version_info[:2]
     if current_version != (3, 3) and current_version < (3, 6):
-      test_msgpack('linux-x86_64', 'manylinux1_x86_64.whl')
+      ver = '{}{}'.format(*current_version)
+      test_msgpack(
+        'manylinux1-x86_64-cp-{}-m'.format(ver),
+        'msgpack_python-0.4.7-cp{ver}-cp{ver}m-manylinux1_x86_64.whl'.format(ver=ver)
+      )
 
-    test_msgpack('linux-x86_64-cp-27-m', 'msgpack_python-0.4.7-cp27-cp27m-manylinux1_x86_64.whl')
-    test_msgpack('linux-x86_64-cp-27-mu', 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_x86_64.whl')
-    test_msgpack('linux-i686-cp-27-m', 'msgpack_python-0.4.7-cp27-cp27m-manylinux1_i686.whl')
-    test_msgpack('linux-i686-cp-27-mu', 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_i686.whl')
-    test_msgpack('linux-x86_64-cp-27-mu', 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_x86_64.whl')
-    test_msgpack('linux-x86_64-cp-34-m', 'msgpack_python-0.4.7-cp34-cp34m-manylinux1_x86_64.whl')
-    test_msgpack('linux-x86_64-cp-35-m', 'msgpack_python-0.4.7-cp35-cp35m-manylinux1_x86_64.whl')
+    test_msgpack('manylinux1-x86_64-cp-27-m',
+                 'msgpack_python-0.4.7-cp27-cp27m-manylinux1_x86_64.whl')
+    test_msgpack('manylinux2010-x86_64-cp-27-mu',
+                 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_x86_64.whl')
+    test_msgpack('manylinux2014-i686-cp-27-m',
+                 'msgpack_python-0.4.7-cp27-cp27m-manylinux1_i686.whl')
+    test_msgpack('manylinux1-i686-cp-27-mu',
+                 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_i686.whl')
+    test_msgpack('manylinux2010-x86_64-cp-27-mu',
+                 'msgpack_python-0.4.7-cp27-cp27mu-manylinux1_x86_64.whl')
+    test_msgpack('manylinux2014-x86_64-cp-34-m',
+                 'msgpack_python-0.4.7-cp34-cp34m-manylinux1_x86_64.whl')
+    test_msgpack('manylinux1-x86_64-cp-35-m',
+                 'msgpack_python-0.4.7-cp35-cp35m-manylinux1_x86_64.whl')
 
-    ensure_failure(msgpack, msgpack_ver, 'linux-x86_64', '--no-manylinux')
+    ensure_failure(msgpack, msgpack_ver, 'linux-x86_64-cp-27-m')
 
 
 def test_pex_manylinux_and_tag_selection_lxml_osx():
@@ -876,7 +885,7 @@ def test_pex_manylinux_runtime():
     results = run_pex_command(['--disable-cache',
                                '--no-build',
                                'msgpack-python==0.4.7',
-                               '--platform=current'.format(platform),
+                               '--platform=current',
                                '-o', pex_path])
     results.assert_success()
 
@@ -905,44 +914,6 @@ def test_pex_exit_code_propagation():
 
 
 @pytest.mark.skipif(NOT_CPYTHON27)
-def test_platform_specific_inline_egg_resolution():
-  with temporary_dir() as td:
-    pex_out_path = os.path.join(td, 'pex.pex')
-    res = run_pex_command(['--disable-cache',
-                           '--no-wheel',
-                           'MarkupSafe==1.0',
-                           '-o', pex_out_path])
-    res.assert_success()
-
-
-@pytest.mark.skipif(NOT_CPYTHON27)
-def test_platform_specific_egg_resolution():
-  with temporary_dir() as td:
-    pex_out_path = os.path.join(td, 'pex.pex')
-    res = run_pex_command(['--disable-cache',
-                           '--no-wheel',
-                           '--no-build',
-                           '--no-pypi',
-                           '--platform=linux-x86_64',
-                           '--find-links=tests/example_packages/',
-                           'M2Crypto==0.22.3',
-                           '-o', pex_out_path])
-    res.assert_success()
-
-
-@pytest.mark.skipif(NOT_CPYTHON27)
-def test_platform_specific_egg_resolution_matching():
-  with temporary_dir() as td:
-    pex_out_path = os.path.join(td, 'pex.pex')
-    res = run_pex_command(['--disable-cache',
-                           '--no-wheel',
-                           '--no-build',
-                           'netifaces==0.10.6',  # Only provides win32 eggs.
-                           '-o', pex_out_path])
-    res.assert_failure()
-
-
-@pytest.mark.skipif(NOT_CPYTHON27)
 def test_ipython_appnope_env_markers():
   res = run_pex_command(['--disable-cache',
                          'ipython==5.8.0',
@@ -950,21 +921,6 @@ def test_ipython_appnope_env_markers():
                          '--',
                          '--version'])
   res.assert_success()
-
-
-# TODO: https://github.com/pantsbuild/pex/issues/479
-@pytest.mark.skipif(NOT_CPYTHON27_OR_LINUX,
-  reason='this needs to run on an interpreter with ABI type m (OSX) vs mu (linux)')
-def test_cross_platform_abi_targeting_behavior():
-  with temporary_dir() as td:
-    pex_out_path = os.path.join(td, 'pex.pex')
-    res = run_pex_command(['--disable-cache',
-                           '--no-pypi',
-                           '--platform=linux-x86_64',
-                           '--find-links=tests/example_packages/',
-                           'MarkupSafe==1.0',
-                           '-o', pex_out_path])
-    res.assert_success()
 
 
 @pytest.mark.skipif(NOT_CPYTHON27)
@@ -1062,8 +1018,8 @@ def test_multiplatform_entrypoint():
                            '--no-build',
                            '--python={}'.format(interpreter),
                            '--python-shebang=#!{}'.format(interpreter),
-                           '--platform=linux-x86_64',
-                           '--platform=macosx-10.13-x86_64',
+                           '--platform=manylinux1-x86_64-cp-36-m',
+                           '--platform=macosx-10.13-x86_64-cp-36-m',
                            '-c', 'p537',
                            '-o', pex_out_path,
                            '--validate-entry-point'])
@@ -1073,8 +1029,7 @@ def test_multiplatform_entrypoint():
     assert b'Hello World!' == greeting.strip()
 
 
-@contextmanager
-def pex_with_entrypoints(entry_point):
+def test_pex_console_script_custom_setuptools_useable():
   setup_py = dedent("""
     from setuptools import setup
 
@@ -1084,8 +1039,7 @@ def pex_with_entrypoints(entry_point):
       zip_safe=True,
       packages=[''],
       install_requires=['setuptools==36.2.7'],
-      entry_points={'console_scripts': ['my_app_function = my_app:do_something',
-                                        'my_app_module = my_app']},
+      entry_points={'console_scripts': ['my_app_function = my_app:do_something']},
     )
   """)
 
@@ -1098,30 +1052,17 @@ def pex_with_entrypoints(entry_point):
         return 0
       except:
         return 1
-
-    if __name__ == '__main__':
-      sys.exit(do_something())
   """)
 
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
     with temporary_dir() as out:
       pex = os.path.join(out, 'pex.pex')
-      pex_command = ['--validate-entry-point', '-c', entry_point, project_dir, '-o', pex]
+      pex_command = ['--validate-entry-point', '-c', 'my_app_function', project_dir, '-o', pex]
       results = run_pex_command(pex_command)
       results.assert_success()
-      yield pex
 
-
-def test_pex_script_module_custom_setuptools_useable():
-  with pex_with_entrypoints('my_app_module') as pex:
-    stdout, rc = run_simple_pex(pex, env=make_env(PEX_VERBOSE=1))
-    assert rc == 0, stdout
-
-
-def test_pex_script_function_custom_setuptools_useable():
-  with pex_with_entrypoints('my_app_function') as pex:
-    stdout, rc = run_simple_pex(pex, env=make_env(PEX_VERBOSE=1))
-    assert rc == 0, stdout
+      stdout, rc = run_simple_pex(pex, env=make_env(PEX_VERBOSE=1))
+      assert rc == 0, stdout
 
 
 @contextmanager
@@ -1193,7 +1134,7 @@ def test_setup_interpreter_constraint():
 def test_setup_python_multiple_transitive_markers():
   py27_interpreter = ensure_python_interpreter(PY27)
   py36_interpreter = ensure_python_interpreter(PY36)
-  with temporary_dir() as out:
+  with temporary_dir(cleanup=False) as out:
     pex = os.path.join(out, 'pex.pex')
     results = run_pex_command(['jsonschema==2.6.0',
                                '--disable-cache',
@@ -1406,11 +1347,13 @@ def test_issues_539_abi3_resolution():
     # The dependency graph for cryptography-2.6.1 includes pycparser which is only released as an
     # sdist. Since we want to test in --no-build, we pre-resolve/build the pycparser wheel here and
     # add the resulting wheelhouse to the --no-build pex command.
-    resolve_cache = os.path.join(td, '.resolve_cache')
-    resolve(['pycparser'], cache=resolve_cache)
+    download_dir = os.path.join(td, '.downloads')
+    download_distributions(target=download_dir, requirements=['pycparser'])
+    wheel_dir = os.path.join(td, '.wheels')
+    build_wheels(target=wheel_dir, distributions=glob.glob(os.path.join(download_dir, '*')))
 
     cryptography_pex = os.path.join(td, 'cryptography.pex')
-    res = run_pex_command(['-f', resolve_cache,
+    res = run_pex_command(['-f', wheel_dir,
                            '--no-build',
                            'cryptography==2.6.1',
                            '-o', cryptography_pex])
@@ -1507,19 +1450,19 @@ def test_issues_736_requirement_setup_py_with_extras():
   with make_source_dir(name='project1',
                        version='1.0.0',
                        extras_require={'foo': ['project2']}) as project1_dir:
-    project2_sdist = make_sdist(name='project2', version='2.0.0')
-    with temporary_dir() as td:
-      safe_copy(project2_sdist, os.path.join(td, os.path.basename(project2_sdist)))
+    with built_wheel(name='project2', version='2.0.0') as project2_bdist:
+      with temporary_dir() as td:
+        safe_copy(project2_bdist, os.path.join(td, os.path.basename(project2_bdist)))
 
-      project1_pex = os.path.join(td, 'project1.pex')
-      result = run_pex_command(['-f', td, '-o', project1_pex, '{}[foo]'.format(project1_dir)])
-      result.assert_success()
+        project1_pex = os.path.join(td, 'project1.pex')
+        result = run_pex_command(['-f', td, '-o', project1_pex, '{}[foo]'.format(project1_dir)])
+        result.assert_success()
 
-      output = subprocess.check_output(
-        [project1_pex, '-c', 'from project2 import my_module; my_module.do_something()'],
-        env=make_env(PEX_INTERPRETER='1')
-      )
-      assert output.decode('utf-8').strip() == u'hello world!'
+        output = subprocess.check_output(
+          [project1_pex, '-c', 'from project2 import my_module; my_module.do_something()'],
+          env=make_env(PEX_INTERPRETER='1')
+        )
+        assert output.decode('utf-8').strip() == u'hello world!'
 
 
 def _assert_exec_chain(exec_chain=None,

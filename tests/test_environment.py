@@ -10,32 +10,30 @@ from textwrap import dedent
 import pytest
 
 from pex import resolver
+from pex.common import temporary_dir
 from pex.compatibility import PY2, nested, to_bytes
 from pex.environment import PEXEnvironment
-from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
-from pex.package import SourcePackage, WheelPackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolver import resolve
 from pex.testing import (
     PY35,
+    WheelBuilder,
     ensure_python_interpreter,
     make_bdist,
     temporary_content,
-    temporary_dir,
     temporary_filename
 )
 
 
 @contextmanager
-def yield_pex_builder(zip_safe=True, installer_impl=EggInstaller, interpreter=None):
+def yield_pex_builder(zip_safe=True, interpreter=None):
   with nested(temporary_dir(),
               make_bdist('p1',
                          zipped=True,
                          zip_safe=zip_safe,
-                         installer_impl=installer_impl,
                          interpreter=interpreter)) as (td, p1):
     pb = PEXBuilder(path=td, interpreter=interpreter)
     pb.add_dist_location(p1.location)
@@ -130,7 +128,7 @@ def assert_force_local_implicit_ns_packages_issues_598(interpreter=None,
 
   def add_wheel(builder, content):
     with temporary_content(content) as project:
-      dist = WheelInstaller(project, interpreter=builder.interpreter).bdist()
+      dist = WheelBuilder(project, interpreter=builder.interpreter).bdist()
       builder.add_dist_location(dist)
 
   def add_sources(builder, content):
@@ -206,21 +204,13 @@ def test_write_zipped_internal_cache():
     pb.info.pex_root = pex_root
     pb.build(pex_file)
 
-    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
-    assert len(zip_safe) == 1
-    assert normalize(zip_safe[0].location).startswith(
-        normalize(os.path.join(pex_file, pb.info.internal_cache))), (
-            'loc: %s, cache: %s' % (
-                normalize(zip_safe[0].location),
-                normalize(os.path.join(pex_file, pb.info.internal_cache))))
-
     pb.info.always_write_cache = True
-    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
+    existing, new = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
     assert len(new) == 1
     assert normalize(new[0].location).startswith(normalize(pb.info.install_cache))
 
     # Check that we can read from the cache
-    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
+    existing, new = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
     assert len(existing) == 1
     assert normalize(existing[0].location).startswith(normalize(pb.info.install_cache))
 
@@ -231,13 +221,13 @@ def test_write_zipped_internal_cache():
     pb.info.pex_root = pex_root
     pb.build(pex_file)
 
-    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
+    existing, new = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
     assert len(new) == 1
     assert normalize(new[0].location).startswith(normalize(pb.info.install_cache))
     original_location = normalize(new[0].location)
 
     # do the second time to validate idempotence of caching
-    existing, new, zip_safe = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
+    existing, new = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
     assert len(existing) == 1
     assert normalize(existing[0].location) == original_location
 
@@ -269,11 +259,10 @@ def test_osx_platform_intel_issue_523():
     # We need to run the bad interpreter with a modern, non-Apple-Extras setuptools in order to
     # successfully install psutil; yield_pex_builder sets up the bad interpreter with our vendored
     # setuptools and wheel extras.
-    with nested(yield_pex_builder(installer_impl=WheelInstaller, interpreter=bad_interpreter()),
+    with nested(yield_pex_builder(interpreter=bad_interpreter()),
                 temporary_filename()) as (pb, pex_file):
       for resolved_dist in resolver.resolve(['psutil==5.4.3'],
                                             cache=cache,
-                                            precedence=(SourcePackage, WheelPackage),
                                             interpreter=pb.interpreter):
         pb.add_dist_location(resolved_dist.distribution.location)
       pb.build(pex_file)

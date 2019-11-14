@@ -1,15 +1,14 @@
 # Copyright 2016 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import os
-import stat
 import subprocess
 import sys
 from contextlib import contextmanager
 from textwrap import dedent
 
-from pex.common import open_zip
-from pex.installer import WheelInstaller
-from pex.testing import temporary_content, temporary_dir
+from pex.common import open_zip, temporary_dir
+from pex.testing import WheelBuilder, temporary_content
 
 
 def bdist_pex_setup_py(**kwargs):
@@ -102,9 +101,9 @@ def test_unwriteable_contents():
   UNWRITEABLE_PERMS = 0o400
   with temporary_content({'setup.py': my_app_setup_py,
                           'my_app/__init__.py': '',
-                          'my_app/unwriteable.so': ''},
+                          'my_app/unwriteable.so': 'so contents'},
                          perms=UNWRITEABLE_PERMS) as my_app_project_dir:
-    my_app_whl = WheelInstaller(my_app_project_dir).bdist()
+    my_app_whl = WheelBuilder(my_app_project_dir).bdist()
 
     uses_my_app_setup_py = bdist_pex_setup_py(name='uses_my_app',
                                               version='0.0.0',
@@ -120,4 +119,5 @@ def test_unwriteable_contents():
           unwriteable_so = unwriteable_sos.pop()
           zf.extract(unwriteable_so, path=uses_my_app_project_dir)
           extract_dest = os.path.join(uses_my_app_project_dir, unwriteable_so)
-          assert UNWRITEABLE_PERMS == stat.S_IMODE(os.stat(extract_dest).st_mode)
+          with open(extract_dest) as fp:
+            assert 'so contents' == fp.read()

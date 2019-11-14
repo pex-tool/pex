@@ -13,7 +13,7 @@ from distutils.core import Command
 from pex.bin.pex import configure_clp
 from pex.common import die
 from pex.compatibility import ConfigParser, StringIO, string, to_unicode
-from pex.executor import Executor
+from pex.interpreter import PythonInterpreter
 
 
 # Suppress checkstyle violations due to distutils command requirements.
@@ -70,7 +70,7 @@ class bdist_pex(Command):  # noqa
     return ()
 
   def run(self):
-    parser, options_builder = configure_clp()
+    parser = configure_clp()
     options, reqs = parser.parse_args(self.pex_args)
 
     if options.entry_point or options.script or options.pex_name:
@@ -96,26 +96,27 @@ class bdist_pex(Command):  # noqa
       target = os.path.join(self.bdist_dir, name + '-' + version + '.pex')
       pex_specs.append((name if name in console_scripts else None, target))
 
-    # In order for code to run to here, pex is on the sys.path - make sure to propagate the
-    # sys.path so the subprocess can find us.
-    env = os.environ.copy()
-    env['PYTHONPATH'] = os.pathsep.join(sys.path)
-
-    args = [sys.executable, '-s', '-m', 'pex.bin.pex', package_dir] + reqs + self.pex_args
+    args = ['-m', 'pex', package_dir] + reqs + self.pex_args
     if self.get_log_level() < log.INFO and options.verbosity == 0:
       args.append('-v')
 
     for script_name, target in pex_specs:
-      cmd = args + ['--output-file', target]
+      pex_cmd = args + ['--output-file', target]
       if script_name:
         log.info('Writing %s to %s' % (script_name, target))
-        cmd += ['--script', script_name]
+        pex_cmd += ['--script', script_name]
       else:
         # The package has no namesake entry point, so build an environment pex.
         log.info('Writing environment pex into %s' % target)
 
-      log.debug('Building pex via: {}'.format(' '.join(cmd)))
-      process = Executor.open_process(cmd, stderr=subprocess.PIPE, env=env)
+      cmd, process = PythonInterpreter.get().open_process(
+        args=pex_cmd,
+        stderr=subprocess.PIPE,
+
+        # In order for code to run to here, pex is on the sys.path - make sure to propagate the
+        # sys.path so the subprocess can find us.
+        pythonpath=sys.path
+      )
       _, stderr = process.communicate()
       result = process.returncode
       if result != 0:

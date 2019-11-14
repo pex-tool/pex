@@ -6,6 +6,14 @@ import sys
 import sysconfig
 import warnings
 
+try:
+    from importlib.machinery import all_suffixes as get_all_suffixes
+except ImportError:
+    from imp import get_suffixes
+
+    def get_all_suffixes():
+        return [suffix[0] for suffix in get_suffixes()]
+
 
 def get_config_var(var):
     try:
@@ -76,7 +84,9 @@ def get_abi_tag():
             d = 'd'
         if get_flag('WITH_PYMALLOC',
                     lambda: impl == 'cp',
-                    warn=(impl == 'cp')):
+                    warn=(impl == 'cp' and
+                          sys.version_info < (3, 8))) \
+                and sys.version_info < (3, 8):
             m = 'm'
         if get_flag('Py_UNICODE_SIZE',
                     lambda: sys.maxunicode == 0x10ffff,
@@ -132,10 +142,9 @@ def get_supported(versions=None, supplied_platform=None):
         abis[0:0] = [abi]
 
     abi3s = set()
-    import imp
-    for suffix in imp.get_suffixes():
-        if suffix[0].startswith('.abi'):
-            abi3s.add(suffix[0].split('.', 2)[1])
+    for suffix in get_all_suffixes():
+        if suffix.startswith('.abi'):
+            abi3s.add(suffix.split('.', 2)[1])
 
     abis.extend(sorted(list(abi3s)))
 
@@ -169,7 +178,8 @@ def get_supported(versions=None, supplied_platform=None):
             supported.append(('%s%s' % (impl, versions[0][0]), 'none', 'any'))
 
     # Major Python version + platform; e.g. binaries not using the Python API
-    supported.append(('py%s' % (versions[0][0]), 'none', arch))
+    for arch in platforms:
+        supported.append(('py%s' % (versions[0][0]), 'none', arch))
 
     # No abi / arch, generic Python
     for i, version in enumerate(versions):

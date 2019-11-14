@@ -138,6 +138,16 @@ def open_zip(path, *args, **kwargs):
     yield zip
 
 
+@contextlib.contextmanager
+def temporary_dir(cleanup=True):
+  td = tempfile.mkdtemp()
+  try:
+    yield td
+  finally:
+    if cleanup:
+      safe_rmtree(td)
+
+
 def safe_mkdtemp(**kw):
   """Create a temporary directory that is cleaned up on process exit.
 

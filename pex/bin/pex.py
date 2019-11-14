@@ -10,29 +10,23 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
-from optparse import OptionGroup, OptionParser, OptionValueError
+from optparse import OptionGroup, OptionParser
 from textwrap import TextWrapper
 
 from pex.common import die, safe_delete, safe_mkdtemp
-from pex.fetcher import Fetcher, PyPIFetcher
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import validate_constraints
 from pex.pex import PEX
 from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
-from pex.requirements import requirements_from_file
-from pex.resolvable import resolvables_from_iterable
 from pex.resolver import Unsatisfiable, resolve_multi
-from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER
 from pex.variables import ENV, Variables
 from pex.version import __version__
 
-CANNOT_DISTILL = 101
 CANNOT_SETUP_INTERPRETER = 102
 INVALID_OPTIONS = 103
-INVALID_ENTRY_POINT = 104
 
 
 class Logger(object):
@@ -64,76 +58,41 @@ def process_disable_cache(option, option_str, option_value, parser):
   setattr(parser.values, option.dest, None)
 
 
-def process_pypi_option(option, option_str, option_value, parser, builder):
+class PyPiSentinel(object):
+  def __str__(self):
+    'https://pypi.org/simple'
+
+
+_PYPI = PyPiSentinel()
+
+
+def process_pypi_option(option, option_str, option_value, parser):
   if option_str.startswith('--no'):
     setattr(parser.values, option.dest, [])
-    builder.clear_indices()
   else:
-    indices = getattr(parser.values, option.dest, [])
-    pypi = PyPIFetcher()
-    if pypi not in indices:
-      indices.append(pypi)
-    setattr(parser.values, option.dest, indices)
-    builder.add_index(PyPIFetcher.PYPI_BASE)
+    indexes = getattr(parser.values, option.dest, [])
+    if _PYPI not in indexes:
+      indexes.append(_PYPI)
+    setattr(parser.values, option.dest, indexes)
 
 
-def process_find_links(option, option_str, option_value, parser, builder):
-  repos = getattr(parser.values, option.dest, [])
-  repo = Fetcher([option_value])
-  if repo not in repos:
-    repos.append(repo)
-  setattr(parser.values, option.dest, repos)
-  builder.add_repository(option_value)
+def process_find_links(option, option_str, option_value, parser):
+  find_links = getattr(parser.values, option.dest, [])
+  if option_value not in find_links:
+    find_links.append(option_value)
+  setattr(parser.values, option.dest, find_links)
 
 
-def process_index_url(option, option_str, option_value, parser, builder):
-  indices = getattr(parser.values, option.dest, [])
-  index = PyPIFetcher(option_value)
-  if index not in indices:
-    indices.append(index)
-  setattr(parser.values, option.dest, indices)
-  builder.add_index(option_value)
+def process_index_url(option, option_str, option_value, parser):
+  indexes = getattr(parser.values, option.dest, [])
+  if option_value not in indexes:
+    indexes.append(option_value)
+  setattr(parser.values, option.dest, indexes)
 
 
-def process_prereleases(option, option_str, option_value, parser, builder):
-  if option_str == '--pre':
-    builder.allow_prereleases(True)
-  elif option_str == '--no-pre':
-    builder.allow_prereleases(False)
-  else:
-    raise OptionValueError
-
-
-def process_precedence(option, option_str, option_value, parser, builder):
-  if option_str == '--build':
-    builder.allow_builds()
-  elif option_str == '--no-build':
-    builder.no_allow_builds()
-  elif option_str == '--wheel':
-    setattr(parser.values, option.dest, True)
-    builder.use_wheel()
-  elif option_str in ('--no-wheel', '--no-use-wheel'):
-    setattr(parser.values, option.dest, False)
-    builder.no_use_wheel()
-  elif option_str == '--manylinux':
-    setattr(parser.values, option.dest, True)
-    builder.use_manylinux()
-  elif option_str in ('--no-manylinux', '--no-use-manylinux'):
-    setattr(parser.values, option.dest, False)
-    builder.no_use_manylinux()
-  else:
-    raise OptionValueError
-
-
-def process_transitive(option, option_str, option_value, parser, builder):
-  if option_str == '--transitive':
-    setattr(parser.values, option.dest, True)
-    builder.transitive()
-  elif option_str in ('--no-transitive', '--intransitive'):
-    setattr(parser.values, option.dest, False)
-    builder.intransitive()
-  else:
-    raise OptionValueError
+def process_transitive(option, option_str, option_value, parser):
+  transitive = option_str == '--transitive'
+  setattr(parser.values, option.dest, transitive)
 
 
 def print_variable_help(option, option_str, option_value, parser):
@@ -144,15 +103,7 @@ def print_variable_help(option, option_str, option_value, parser):
   sys.exit(0)
 
 
-def warn_deprecated_option(removal_version, removal_hint):
-  def emit_warning_callback(_unused_option, option_str, _unused_option_value, _unused_parser):
-    log('{flag} is deprecated and will be removed in {removal_version}:\n\t{removal_hint}'
-        .format(flag=option_str, removal_version=removal_version, removal_hint=removal_hint),
-        V=-1)
-  return emit_warning_callback
-
-
-def configure_clp_pex_resolution(parser, builder):
+def configure_clp_pex_resolution(parser):
   group = OptionGroup(
       parser,
       'Resolver options',
@@ -162,9 +113,9 @@ def configure_clp_pex_resolution(parser, builder):
   group.add_option(
       '--pypi', '--no-pypi', '--no-index',
       action='callback',
-      dest='repos',
+      dest='indexes',
+      default=[_PYPI],
       callback=process_pypi_option,
-      callback_args=(builder,),
       help='Whether to use pypi to resolve dependencies; Default: use pypi')
 
   group.add_option(
@@ -178,9 +129,9 @@ def configure_clp_pex_resolution(parser, builder):
       '-f', '--find-links', '--repo',
       metavar='PATH/URL',
       action='callback',
-      dest='repos',
+      default=[],
+      dest='find_links',
       callback=process_find_links,
-      callback_args=(builder,),
       type=str,
       help='Additional repository path (directory or URL) to look for requirements.')
 
@@ -188,19 +139,17 @@ def configure_clp_pex_resolution(parser, builder):
       '-i', '--index', '--index-url',
       metavar='URL',
       action='callback',
-      dest='repos',
+      dest='indexes',
       callback=process_index_url,
-      callback_args=(builder,),
       type=str,
       help='Additional cheeseshop indices to use to satisfy requirements.')
 
   group.add_option(
     '--pre', '--no-pre',
     dest='allow_prereleases',
-    default=None,
+    default=False,
     action='callback',
-    callback=process_prereleases,
-    callback_args=(builder,),
+    callback=parse_bool,
     help='Whether to include pre-release and development versions of requirements; '
          'Default: only stable versions are used, unless explicitly requested')
 
@@ -219,37 +168,20 @@ def configure_clp_pex_resolution(parser, builder):
            'lookups. [Default: ~/.pex/build]')
 
   group.add_option(
-      '--cache-ttl',
-      dest='cache_ttl',
-      type=int,
-      default=3600,
-      help='The cache TTL to use for inexact requirement specifications.')
-
-  group.add_option(
       '--wheel', '--no-wheel', '--no-use-wheel',
       dest='use_wheel',
       default=True,
       action='callback',
-      callback=process_precedence,
-      callback_args=(builder,),
+      callback=parse_bool,
       help='Whether to allow wheel distributions; Default: allow wheels')
 
   group.add_option(
       '--build', '--no-build',
-      action='callback',
-      callback=process_precedence,
-      callback_args=(builder,),
-      help='Whether to allow building of distributions from source; Default: allow builds')
-
-  group.add_option(
-      '--manylinux', '--no-manylinux', '--no-use-manylinux',
-      dest='use_manylinux',
+      dest='build',
       default=True,
       action='callback',
-      callback=process_precedence,
-      callback_args=(builder,),
-      help=('Whether to allow resolution of manylinux dists for linux target '
-            'platforms; Default: allow manylinux'))
+      callback=parse_bool,
+      help='Whether to allow building of distributions from source; Default: allow builds')
 
   group.add_option(
     '--transitive', '--no-transitive', '--intransitive',
@@ -257,11 +189,8 @@ def configure_clp_pex_resolution(parser, builder):
     default=True,
     action='callback',
     callback=process_transitive,
-    callback_args=(builder,),
     help='Whether to transitively resolve requirements. Default: True')
 
-  # Set the pex tool to fetch from PyPI by default if nothing is specified.
-  parser.set_default('repos', [PyPIFetcher()])
   parser.add_option_group(group)
 
 
@@ -393,16 +322,6 @@ def configure_clp_pex_environment(parser):
            'string representing the python version (e.g. "27", "36"). ABI is the ABI tag '
            '(e.g. "cp36m", "cp27mu", "abi3", "none"). Default: current platform.')
 
-  group.add_option(
-      '--interpreter-cache-dir',
-      type=str,
-      action='callback',
-      callback=warn_deprecated_option(
-        removal_version='2.0.0',
-        removal_hint='Unused - you can discontinue passing the option.'
-      ),
-      help='DEPRECATED: Unused - will be removed in pex 2.0.0.')
-
   parser.add_option_group(group)
 
 
@@ -448,8 +367,7 @@ def configure_clp():
       'sources, requirements, their dependencies and other options.')
 
   parser = OptionParser(usage=usage, version='%prog {0}'.format(__version__))
-  resolver_options_builder = ResolverOptionsBuilder()
-  configure_clp_pex_resolution(parser, resolver_options_builder)
+  configure_clp_pex_resolution(parser)
   configure_clp_pex_options(parser)
   configure_clp_pex_environment(parser)
   configure_clp_pex_entry_points(parser)
@@ -540,7 +458,7 @@ def configure_clp():
       help='Print out help about the various environment variables used to change the behavior of '
            'a running PEX file.')
 
-  return parser, resolver_options_builder
+  return parser
 
 
 def _safe_link(src, dst):
@@ -551,33 +469,34 @@ def _safe_link(src, dst):
   os.symlink(src, dst)
 
 
-def build_pex(args, options, resolver_option_builder):
-  with TRACER.timed('Resolving interpreters', V=2):
-    def to_python_interpreter(full_path_or_basename):
-      if os.path.exists(full_path_or_basename):
-        return PythonInterpreter.from_binary(full_path_or_basename)
+def build_pex(reqs, options):
+  interpreters = None  # Default to the current interpreter.
+
+  # NB: options.python and interpreter constraints cannot be used together.
+  if options.python:
+    with TRACER.timed('Resolving interpreters', V=2):
+      def to_python_interpreter(full_path_or_basename):
+        if os.path.exists(full_path_or_basename):
+          return PythonInterpreter.from_binary(full_path_or_basename)
+        else:
+          interpreter = PythonInterpreter.from_env(full_path_or_basename)
+          if interpreter is None:
+            die('Failed to find interpreter: %s' % full_path_or_basename)
+          return interpreter
+
+      interpreters = [to_python_interpreter(interp) for interp in options.python]
+  elif options.interpreter_constraint:
+    with TRACER.timed('Resolving interpreters', V=2):
+      constraints = options.interpreter_constraint
+      validate_constraints(constraints)
+      if options.rc_file or not ENV.PEX_IGNORE_RCFILES:
+        rc_variables = Variables.from_rc(rc=options.rc_file)
+        pex_python_path = rc_variables.get('PEX_PYTHON_PATH', None)
       else:
-        interpreter = PythonInterpreter.from_env(full_path_or_basename)
-        if interpreter is None:
-          die('Failed to find interpreter: %s' % full_path_or_basename)
-        return interpreter
-
-    interpreters = [to_python_interpreter(interp) for interp in options.python or [sys.executable]]
-
-  if options.interpreter_constraint:
-    # NB: options.python and interpreter constraints cannot be used together, so this will not
-    # affect usages of the interpreter(s) specified by the "--python" command line flag.
-    constraints = options.interpreter_constraint
-    validate_constraints(constraints)
-    if options.rc_file or not ENV.PEX_IGNORE_RCFILES:
-      rc_variables = Variables.from_rc(rc=options.rc_file)
-      pex_python_path = rc_variables.get('PEX_PYTHON_PATH', '')
-    else:
-      pex_python_path = ""
-    interpreters = list(iter_compatible_interpreters(pex_python_path, constraints))
-
-  if not interpreters:
-    die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
+        pex_python_path = None
+      interpreters = list(iter_compatible_interpreters(pex_python_path, constraints))
+      if not interpreters:
+        die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
   try:
     with open(options.preamble_file) as preamble_fd:
@@ -586,7 +505,7 @@ def build_pex(args, options, resolver_option_builder):
     # options.preamble_file is None
     preamble = None
 
-  interpreter = min(interpreters)
+  interpreter = min(interpreters) if interpreters else None
 
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
@@ -615,34 +534,26 @@ def build_pex(args, options, resolver_option_builder):
     for ic in options.interpreter_constraint:
       pex_builder.add_interpreter_constraint(ic)
 
-  resolvables = resolvables_from_iterable(args, resolver_option_builder, interpreter=interpreter)
+  # NB: `None` means use the default (pypi) index, `[]` means use no indexes.
+  indexes = None
+  if options.indexes != [_PYPI] and options.indexes is not None:
+    indexes = [str(index) for index in options.indexes]
 
-  for requirements_txt in options.requirement_files:
-    resolvables.extend(requirements_from_file(requirements_txt,
-                                              builder=resolver_option_builder,
-                                              interpreter=interpreter))
-
-  # pip states the constraints format is identical tor requirements
-  # https://pip.pypa.io/en/stable/user_guide/#constraints-files
-  for constraints_txt in options.constraint_files:
-    constraints = []
-    for r in requirements_from_file(constraints_txt,
-                                    builder=resolver_option_builder,
-                                    interpreter=interpreter):
-      r.is_constraint = True
-      constraints.append(r)
-    resolvables.extend(constraints)
-
-  with TRACER.timed('Resolving distributions'):
+  with TRACER.timed('Resolving distributions ({})'.format(reqs)):
     try:
-      resolveds = resolve_multi(resolvables,
+      resolveds = resolve_multi(requirements=reqs,
+                                requirement_files=options.requirement_files,
+                                constraint_files=options.constraint_files,
+                                allow_prereleases=options.allow_prereleases,
+                                transitive=options.transitive,
                                 interpreters=interpreters,
                                 platforms=options.platforms,
+                                indexes=indexes,
+                                find_links=options.find_links,
                                 cache=options.cache_dir,
-                                cache_ttl=options.cache_ttl,
-                                allow_prereleases=resolver_option_builder.prereleases_allowed,
-                                use_manylinux=options.use_manylinux,
-                                transitive=options.transitive)
+                                build=options.build,
+                                use_wheel=options.use_wheel,
+                                compile=options.compile)
 
       for resolved_dist in resolveds:
         log('  %s -> %s' % (resolved_dist.requirement, resolved_dist.distribution),
@@ -691,7 +602,7 @@ def _compatible_with_current_platform(platforms):
 def main(args=None):
   args = args[:] if args else sys.argv[1:]
   args = [transform_legacy_arg(arg) for arg in args]
-  parser, resolver_options_builder = configure_clp()
+  parser = configure_clp()
 
   try:
     separator = args.index('--')
@@ -714,7 +625,7 @@ def main(args=None):
 
   with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
     with TRACER.timed('Building pex'):
-      pex_builder = build_pex(reqs, options, resolver_options_builder)
+      pex_builder = build_pex(reqs, options)
 
     pex_builder.freeze(bytecode_compile=options.compile)
     pex = PEX(pex_builder.path(),

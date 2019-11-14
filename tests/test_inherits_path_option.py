@@ -4,8 +4,9 @@
 import os
 from contextlib import contextmanager
 
+from pex.common import temporary_dir
 from pex.pex_builder import PEXBuilder
-from pex.testing import run_simple_pex, temporary_dir
+from pex.testing import run_simple_pex
 
 
 @contextmanager

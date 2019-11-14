@@ -225,15 +225,6 @@ def unregister_finders():
   __PREVIOUS_FINDER = None
 
 
-def get_script_from_egg(name, dist):
-  """Returns location, content of script in distribution or (None, None) if not there."""
-  if dist.metadata_isdir('scripts') and name in dist.metadata_listdir('scripts'):
-    return (
-        os.path.join(dist.egg_info, 'scripts', name),
-        dist.get_metadata('scripts/%s' % name).replace('\r\n', '\n').replace('\r', '\n'))
-  return None, None
-
-
 def get_script_from_whl(name, dist):
   # This can get called in different contexts; in some, it looks for files in the
   # wheel archives being used to produce a pex; in others, it looks for files in the
@@ -256,18 +247,13 @@ def get_script_from_whl(name, dist):
 def get_script_from_distribution(name, dist):
   # PathMetadata: exploded distribution on disk.
   if isinstance(dist._provider, pkg_resources.PathMetadata):
-    if dist.egg_info.endswith('EGG-INFO'):
-      return get_script_from_egg(name, dist)
-    elif dist.egg_info.endswith('.dist-info'):
+    if dist.egg_info.endswith('.dist-info'):
       return get_script_from_whl(name, dist)
     else:
       return None, None
   # WheelMetadata: Zipped whl (in theory should not experience this at runtime.)
   elif isinstance(dist._provider, WheelMetadata):
     return get_script_from_whl(name, dist)
-  # EggMetadata: Zipped egg
-  elif isinstance(dist._provider, pkg_resources.EggMetadata):
-    return get_script_from_egg(name, dist)
   return None, None
 
 

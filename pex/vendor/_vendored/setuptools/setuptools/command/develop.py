@@ -12,9 +12,9 @@ else:
 
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from pkg_resources import Distribution, PathMetadata, normalize_path  # vendor:skip
+  import pkg_resources  # vendor:skip
 else:
-  from pex.third_party.pkg_resources import Distribution, PathMetadata, normalize_path
+  import pex.third_party.pkg_resources as pkg_resources
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.command.easy_install import easy_install  # vendor:skip
@@ -85,9 +85,9 @@ class develop(namespaces.DevelopInstaller, easy_install):
         if self.egg_path is None:
             self.egg_path = os.path.abspath(ei.egg_base)
 
-        target = normalize_path(self.egg_base)
-        egg_path = normalize_path(os.path.join(self.install_dir,
-                                               self.egg_path))
+        target = pkg_resources.normalize_path(self.egg_base)
+        egg_path = pkg_resources.normalize_path(
+            os.path.join(self.install_dir, self.egg_path))
         if egg_path != target:
             raise DistutilsOptionError(
                 "--egg-path must be a relative path from the install"
@@ -95,9 +95,9 @@ class develop(namespaces.DevelopInstaller, easy_install):
             )
 
         # Make a distribution for the package's source
-        self.dist = Distribution(
+        self.dist = pkg_resources.Distribution(
             target,
-            PathMetadata(target, os.path.abspath(ei.egg_info)),
+            pkg_resources.PathMetadata(target, os.path.abspath(ei.egg_info)),
             project_name=ei.egg_name
         )
 
@@ -117,13 +117,14 @@ class develop(namespaces.DevelopInstaller, easy_install):
         path_to_setup = egg_base.replace(os.sep, '/').rstrip('/')
         if path_to_setup != os.curdir:
             path_to_setup = '../' * (path_to_setup.count('/') + 1)
-        resolved = normalize_path(
+        resolved = pkg_resources.normalize_path(
             os.path.join(install_dir, egg_path, path_to_setup)
         )
-        if resolved != normalize_path(os.curdir):
+        if resolved != pkg_resources.normalize_path(os.curdir):
             raise DistutilsOptionError(
                 "Can't get a consistent path to setup script from"
-                " installation directory", resolved, normalize_path(os.curdir))
+                " installation directory", resolved,
+                pkg_resources.normalize_path(os.curdir))
         return path_to_setup
 
     def install_for_development(self):
@@ -134,7 +135,7 @@ class develop(namespaces.DevelopInstaller, easy_install):
             self.reinitialize_command('build_py', inplace=0)
             self.run_command('build_py')
             bpy_cmd = self.get_finalized_command("build_py")
-            build_path = normalize_path(bpy_cmd.build_lib)
+            build_path = pkg_resources.normalize_path(bpy_cmd.build_lib)
 
             # Build extensions
             self.reinitialize_command('egg_info', egg_base=build_path)
@@ -148,7 +149,8 @@ class develop(namespaces.DevelopInstaller, easy_install):
             self.egg_path = build_path
             self.dist.location = build_path
             # XXX
-            self.dist._provider = PathMetadata(build_path, ei_cmd.egg_info)
+            self.dist._provider = pkg_resources.PathMetadata(
+                build_path, ei_cmd.egg_info)
         else:
             # Without 2to3 inplace works fine:
             self.run_command('egg_info')
@@ -220,6 +222,7 @@ class VersionlessRequirement:
     name as the 'requirement' so that scripts will work across
     multiple versions.
 
+    >>> from pkg_resources import Distribution
     >>> dist = Distribution(project_name='foo', version='1.0')
     >>> str(dist.as_requirement())
     'foo==1.0'
