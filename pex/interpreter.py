@@ -327,11 +327,10 @@ class PythonInterpreter(object):
     if args:
       cmd.extend(args)
 
-    if TRACER.should_log():
-      rendered_command = ' '.join(cmd)
-      if pythonpath:
-        rendered_command = 'PYTHONPATH={} {}'.format(env['PYTHONPATH'], rendered_command)
-      TRACER.log('Executing: {}'.format(rendered_command))
+    rendered_command = ' '.join(cmd)
+    if pythonpath:
+      rendered_command = 'PYTHONPATH={} {}'.format(env['PYTHONPATH'], rendered_command)
+    TRACER.log('Executing: {}'.format(rendered_command))
 
     return cmd, env
 
