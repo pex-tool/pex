@@ -1371,10 +1371,7 @@ def assert_reproducible_build(args):
     # from the random seed, such as data structures, as Tox sets this value by default. See
     # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
     def create_pex(path, seed):
-      result = run_pex_command(
-        args + ['-o', path, '--no-compile', '--no-use-system-time'],
-        env=make_env(PYTHONHASHSEED=seed)
-      )
+      result = run_pex_command(args + ['-o', path], env=make_env(PYTHONHASHSEED=seed))
       result.assert_success()
 
     create_pex(pex1, seed=111)

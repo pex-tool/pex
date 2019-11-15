@@ -242,7 +242,7 @@ def configure_clp_pex_options(parser):
   group.add_option(
       '--compile', '--no-compile',
       dest='compile',
-      default=True,
+      default=False,
       action='callback',
       callback=parse_bool,
       help='Compiling means that the built pex will include .pyc files, which will result in '
@@ -253,7 +253,7 @@ def configure_clp_pex_options(parser):
   group.add_option(
       '--use-system-time', '--no-use-system-time',
       dest='use_system_time',
-      default=True,
+      default=False,
       action='callback',
       callback=parse_bool,
       help='Use the current system time to generate timestamps for the new pex. Otherwise, Pex '
