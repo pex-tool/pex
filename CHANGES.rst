@@ -1,6 +1,58 @@
 Release Notes
 =============
 
+2.0.0
+-----
+
+Pex 2.0.0 is cut on the advent of a large, mostly internal change for typical
+use cases: it now uses vendored pip to perform resolves and wheel builds. This
+fixes a large number of compatibility and correctness bugs as well as gaining
+feature support from pip including handling manylinux2010 and manylinux2014 as
+well as VCS requirements and support for PEP-517 & PEP-518 builds.
+
+API changes to be wary of:
+
+* The egg distribution format is no longer supported.
+* The deprecated ``--interpreter-cache-dir`` CLI option was removed.
+* The ``--cache-ttl`` CLI option and ``cache_ttl`` resolver API argument were
+  removed.
+* The resolver API replaced ``fetchers`` with a list of ``indexes`` and a list
+  of ``find_links`` repos.
+* The resolver API removed (http) ``context`` which is now automatically
+  handled.
+* The resolver API removed ``precedence`` which is now pip default precedence:
+  wheels when available and not ruled out via the ``--no-wheel`` CLI option or
+  ``use_wheel=False`` API argument.
+* The ``--platform`` CLI option and ``platform`` resolver API argument now must
+  be full platform strings that include platform, implementation, version and
+  abi; e.g.: ``--platform=macosx-10.13-x86_64-cp-36-m``.
+* The ``--manylinux`` CLI option and ``use_manylinux`` resolver API argument
+  were removed. Instead, to resolve manylinux wheels for a foreign platform,
+  specify the manylinux platform to target with an explicit ``--platform`` CLI
+  flag or ``platform`` resolver API argument; e.g.:
+  ``--platform=manylinux2010-x86_64-cp-36-m``.
+
+In addition, Pex 2.0.0 now builds reproduceable pexes by default; ie:
+
+* Python modules embedded in the pex are not pre-compiled (pass --compile if
+  you want this).
+* The timestamps for Pex file zip entries default to midnight on
+  January 1, 1980 (pass --use-system-time to change this).
+
+This finishes off the effort tracked by
+`Issue #716 <https://github.com/pantsbuild/pex/pull/718>`_
+
+Changes in this release:
+
+* Pex defaults to reproduceable builds. (#791)
+  `PR #791 <https://github.com/pantsbuild/pex/pull/791>`_
+
+* Use pip for resolving and building distributions. (#788)
+  `PR #788 <https://github.com/pantsbuild/pex/pull/788>`_
+
+* Bias selecting the current interpreter. (#783)
+  `PR #783 <https://github.com/pantsbuild/pex/pull/783>`_
+
 1.6.12
 ------
 
