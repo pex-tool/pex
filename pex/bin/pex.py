@@ -60,7 +60,7 @@ def process_disable_cache(option, option_str, option_value, parser):
 
 class PyPiSentinel(object):
   def __str__(self):
-    'https://pypi.org/simple'
+    return 'https://pypi.org/simple'
 
 
 _PYPI = PyPiSentinel()
