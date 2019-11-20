@@ -25,7 +25,7 @@ def test_clp_no_pypi_option():
     options, _ = parser.parse_args(args=[])
     assert len(options.indexes) == 1
     options, _ = parser.parse_args(args=['--no-pypi'])
-    assert len(options.indexes) == 0, '--no-pypi should remove fetchers.'
+    assert len(options.indexes) == 0, '--no-pypi should remove the pypi index.'
 
 
 def test_clp_pypi_option_duplicate():
@@ -55,6 +55,15 @@ def test_clp_index_option():
     assert len(options.indexes) == 2
     assert options2.indexes[0] == options.indexes[0]
     assert options2.indexes[1] == 'http://www.example.com'
+
+
+def test_clp_index_option_render():
+  with option_parser() as parser:
+    configure_clp_pex_resolution(parser)
+    options, _ = parser.parse_args(args=['--index', 'http://www.example.com'])
+    assert ['https://pypi.org/simple', 'http://www.example.com'] == [
+      str(idx) for idx in options.indexes
+    ]
 
 
 def test_clp_build_precedence():
