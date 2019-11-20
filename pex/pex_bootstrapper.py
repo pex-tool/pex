@@ -61,8 +61,9 @@ def iter_compatible_interpreters(path=None, compatibility_constraints=None):
       # Prefer the current interpreter if present on the `path`.
       candidate_paths = frozenset((current_interpreter.binary,
                                    os.path.dirname(current_interpreter.binary)))
-      if candidate_paths.intersection(paths):
-        for p in candidate_paths:
+      candidate_paths_in_path = candidate_paths.intersection(paths)
+      if candidate_paths_in_path:
+        for p in candidate_paths_in_path:
           paths.remove(p)
         seen.add(current_interpreter)
         yield current_interpreter
