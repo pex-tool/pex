@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.0.1
+-----
+
+This is a htofix release that fixes a bug when specifying a custom index
+(`-i`/`--index`/`--index-url`) via the CLI.
+
+* Fix #794 issue by add missing return statement in __str__ (#795)
+  `PR #795 <https://github.com/pantsbuild/pex/pull/795>`_
+
 2.0.0
 -----
 
