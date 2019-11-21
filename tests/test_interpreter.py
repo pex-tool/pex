@@ -7,7 +7,7 @@ import pytest
 
 from pex import interpreter
 from pex.compatibility import PY3
-from pex.testing import IS_PYPY, PY27, PY35, ensure_python_interpreter
+from pex.testing import PY27, PY35, ensure_python_interpreter, skip_for_pyenv_use_under_pypy
 
 try:
   from mock import patch
@@ -44,12 +44,12 @@ class TestPythonInterpreter(object):
   def test_interpreter2(self):
     return ensure_python_interpreter(self.TEST_INTERPRETER2_VERSION)
 
-  @pytest.mark.skipif(IS_PYPY)
+  @skip_for_pyenv_use_under_pypy
   def test_interpreter_versioning(self, test_interpreter1):
     py_interpreter = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     assert py_interpreter.identity.version == self.TEST_INTERPRETER1_VERSION_TUPLE
 
-  @pytest.mark.skipif(IS_PYPY)
+  @skip_for_pyenv_use_under_pypy
   def test_interpreter_caching(self, test_interpreter1, test_interpreter2):
     py_interpreter1 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     py_interpreter2 = interpreter.PythonInterpreter.from_binary(test_interpreter2)

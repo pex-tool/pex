@@ -10,7 +10,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
-from optparse import OptionGroup, OptionParser
+from optparse import OptionGroup, OptionParser, OptionValueError
 from textwrap import TextWrapper
 
 from pex.common import die, safe_delete, safe_mkdtemp
@@ -20,7 +20,7 @@ from pex.pex import PEX
 from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
-from pex.resolver import Unsatisfiable, resolve_multi
+from pex.resolver import Unsatisfiable, parsed_platform, resolve_multi
 from pex.tracer import TRACER
 from pex.variables import ENV, Variables
 from pex.version import __version__
@@ -29,20 +29,9 @@ CANNOT_SETUP_INTERPRETER = 102
 INVALID_OPTIONS = 103
 
 
-class Logger(object):
-  def _default_logger(self, msg, V):
-    if V:
-      print(msg, file=sys.stderr)
-
-  _LOGGER = _default_logger
-
-  def __call__(self, msg, V):
-    self._LOGGER(msg, V)
-
-  def set_logger(self, logger_callback):
-    self._LOGGER = logger_callback
-
-log = Logger()
+def log(msg, V=0):
+  if V != 0:
+    print(msg, file=sys.stderr)
 
 
 def parse_bool(option, opt_str, _, parser):
@@ -101,6 +90,15 @@ def print_variable_help(option, option_str, option_value, parser):
     for line in TextWrapper(initial_indent=' ' * 4, subsequent_indent=' ' * 4).wrap(variable_help):
       print(line)
   sys.exit(0)
+
+
+def process_platform(option, option_str, option_value, parser):
+  platforms = getattr(parser.values, option.dest, [])
+  try:
+    platforms.append(parsed_platform(option_value))
+  except Platform.InvalidPlatformError as e:
+    raise OptionValueError("The {} option is invalid:\n{}"
+                           .format(option_str, e))
 
 
 def configure_clp_pex_resolution(parser):
@@ -312,7 +310,8 @@ def configure_clp_pex_environment(parser):
       dest='platforms',
       default=[],
       type=str,
-      action='append',
+      action='callback',
+      callback=process_platform,
       help='The platform for which to build the PEX. This option can be passed multiple times '
            'to create a multi-platform pex. To use wheels for specific interpreter/platform tags'
            ', you can append them to the platform with hyphens like: PLATFORM-IMPL-PYVER-ABI '
@@ -592,11 +591,10 @@ def transform_legacy_arg(arg):
 
 
 def _compatible_with_current_platform(platforms):
-  return (
-    not platforms or
-    'current' in platforms or
-    str(Platform.current()) in platforms
-  )
+  if not platforms:
+    return True
+  current_platforms = {None, Platform.current()}
+  return current_platforms.intersection(platforms)
 
 
 def main(args=None):
@@ -623,7 +621,7 @@ def main(args=None):
   if options.cache_dir:
     options.cache_dir = make_relative_to_root(options.cache_dir)
 
-  with ENV.patch(PEX_VERBOSE=str(options.verbosity)):
+  with ENV.patch(PEX_VERBOSE=str(options.verbosity)) as patched_env:
     with TRACER.timed('Building pex'):
       pex_builder = build_pex(reqs, options)
 
@@ -644,11 +642,13 @@ def main(args=None):
       os.rename(tmp_name, options.pex_name)
     else:
       if not _compatible_with_current_platform(options.platforms):
-        log('WARNING: attempting to run PEX with incompatible platforms!')
+        log('WARNING: attempting to run PEX with incompatible platforms!', V=1)
+        log('Running on platform {} but built for {}'
+            .format(Platform.current(), ', '.join(map(str, options.platforms))), V=1)
 
       log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline),
           V=options.verbosity)
-      sys.exit(pex.run(args=list(cmdline)))
+      sys.exit(pex.run(args=list(cmdline), env=patched_env))
 
 
 if __name__ == '__main__':

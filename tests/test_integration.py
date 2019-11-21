@@ -22,7 +22,6 @@ from pex.testing import (
     IS_PYPY,
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
-    NOT_CPYTHON36,
     NOT_CPYTHON36_OR_LINUX,
     PY27,
     PY35,
@@ -36,6 +35,7 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
+    skip_for_pyenv_use_under_pypy,
     temporary_content
 )
 from pex.util import DistributionHelper, named_temporary_file
@@ -352,7 +352,7 @@ def test_interpreter_constraints_to_pex_info_py2():
     assert {'>=2.7,<3', '>=3.5'} == set(pex_info.interpreter_constraints)
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_interpreter_constraints_to_pex_info_py3():
   py3_interpreter = ensure_python_interpreter(PY36)
   with temporary_dir() as output_dir:
@@ -392,7 +392,7 @@ def test_interpreter_resolution_with_multiple_constraint_options():
     assert pex_info.build_properties['version'][0] < 3
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_interpreter_resolution_with_pex_python_path():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -426,7 +426,7 @@ def test_interpreter_resolution_with_pex_python_path():
       assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_interpreter_constraints_honored_without_ppp_or_pp():
   # Create a pex with interpreter constraints, but for not the default interpreter in the path.
   with temporary_dir() as td:
@@ -460,7 +460,7 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
     assert str(py36_path).encode() in stdout
 
 
-@pytest.mark.skipif(NOT_CPYTHON36)
+@skip_for_pyenv_use_under_pypy
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -508,7 +508,7 @@ def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
     assert os.path.realpath(sys.executable).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_pex_exec_with_pex_python_path_only():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -534,7 +534,7 @@ def test_pex_exec_with_pex_python_path_only():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -562,7 +562,7 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_pex_python():
   py2_path_interpreter = ensure_python_interpreter(PY27)
   py3_path_interpreter = ensure_python_interpreter(PY36)
@@ -623,7 +623,7 @@ def test_pex_python():
     assert correct_interpreter_path in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_entry_point_targeting():
   """Test bugfix for https://github.com/pantsbuild/pex/issues/434"""
   with temporary_dir() as td:
@@ -644,7 +644,7 @@ def test_entry_point_targeting():
     assert 'usage: autopep8'.encode() in stdout
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
   """
   This is a test for verifying the proper function of the
@@ -829,7 +829,7 @@ def pex_manylinux_and_tag_selection_context():
     yield test_resolve, ensure_failure
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_pex_manylinux_and_tag_selection_linux_msgpack():
   """Tests resolver manylinux support and tag targeting."""
   with pex_manylinux_and_tag_selection_context() as (test_resolve, ensure_failure):
@@ -869,7 +869,7 @@ def test_pex_manylinux_and_tag_selection_lxml_osx():
     test_resolve('lxml', '3.8.0', 'macosx-10.6-x86_64-cp-36-m', 'lxml-3.8.0-cp36-cp36m-macosx')
 
 
-@pytest.mark.skipif(NOT_CPYTHON27_OR_OSX)
+@pytest.mark.skipif(NOT_CPYTHON27_OR_OSX, reason="Relies on a pre-built wheel for linux 2.7")
 def test_pex_manylinux_runtime():
   """Tests resolver manylinux support and runtime resolution (and --platform=current)."""
   test_stub = dedent(
@@ -913,7 +913,7 @@ def test_pex_exit_code_propagation():
     assert subprocess.call([pex_path, os.path.realpath(tester_path)]) == 1
 
 
-@pytest.mark.skipif(NOT_CPYTHON27)
+@pytest.mark.skipif(NOT_CPYTHON27, reason='Tests environment markers that select for python 2.7.')
 def test_ipython_appnope_env_markers():
   res = run_pex_command(['--disable-cache',
                          'ipython==5.8.0',
@@ -923,7 +923,6 @@ def test_ipython_appnope_env_markers():
   res.assert_success()
 
 
-@pytest.mark.skipif(NOT_CPYTHON27)
 def test_cross_platform_abi_targeting_behavior_exact():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
@@ -987,7 +986,7 @@ def test_pex_resource_bundling():
       assert stdout == b'hello\n'
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_entry_point_verification_3rdparty():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
@@ -998,7 +997,7 @@ def test_entry_point_verification_3rdparty():
     res.assert_success()
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_invalid_entry_point_verification_3rdparty():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
@@ -1009,7 +1008,7 @@ def test_invalid_entry_point_verification_3rdparty():
     res.assert_failure()
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_multiplatform_entrypoint():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'p537.pex')
@@ -1332,7 +1331,7 @@ def test_pkg_resource_early_import_on_pex_path():
     assert return_code == 0
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_issues_539_abi3_resolution():
   # The cryptography team releases the following relevant pre-built wheels for version 2.6.1:
   # cryptography-2.6.1-cp27-cp27m-macosx_10_6_intel.whl

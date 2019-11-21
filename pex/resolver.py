@@ -16,6 +16,7 @@ from pex.common import safe_mkdir, safe_mkdtemp
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pip import PipError, build_wheels, download_distributions, install_wheel
+from pex.platforms import Platform
 from pex.requirements import local_project_from_requirement, local_projects_from_requirement_file
 from pex.third_party.pkg_resources import Distribution, Environment, Requirement
 from pex.tracer import TRACER
@@ -79,6 +80,21 @@ def _calculate_dependency_markers(distributions, interpreter=None):
   return markers_by_req_key
 
 
+def parsed_platform(platform=None):
+  """Parse the given platform into a `Platform` object.
+
+  Unlike `Platform.create`, this function supports the special platform of 'current' or `None`. This
+  maps to the platform of any local python interpreter.
+
+  :param platform: The platform string to parse. If `None` or 'current', return `None`. If already a
+                   `Platform` object, return it.
+  :type platform: str or :class:`Platform`
+  :return: The parsed platform or `None` for the current platform.
+  :rtype: :class:`Platform` or :class:`NoneType`
+  """
+  return Platform.create(platform) if platform and platform != 'current' else None
+
+
 def resolve(requirements=None,
             requirement_files=None,
             constraint_files=None,
@@ -109,7 +125,7 @@ def resolve(requirements=None,
     distribution compatibility. Defaults to the current interpreter.
   :type interpreter: :class:`pex.interpreter.PythonInterpreter`
   :keyword str platform: The exact target platform to resolve distributions for. If ``None`` or
-    ``'current'``, use the local system platform.
+    ``'current'``, resolve for distributions appropriate for `interpreter`.
   :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
     distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
     use of all indexes, pass an empty list.
@@ -169,7 +185,7 @@ def resolve(requirements=None,
                            allow_prereleases=allow_prereleases,
                            transitive=transitive,
                            interpreter=interpreter,
-                           platform=platform,
+                           platform=parsed_platform(platform),
                            indexes=indexes,
                            find_links=find_links,
                            cache=cache,
@@ -333,22 +349,32 @@ def resolve_multi(requirements=None,
                                       use_wheel=use_wheel,
                                       compile=compile)
 
+  parsed_platforms = [parsed_platform(platform) for platform in platforms] if platforms else []
+
   def iter_kwargs():
-    if not interpreters and not platforms:
+    if not interpreters and not parsed_platforms:
+      # No specified targets, so just build for the current interpreter (on the current platform).
       yield dict(interpreter=None, platform=None)
       return
 
     if interpreters:
       for interpreter in interpreters:
-        yield dict(interpreter=interpreter)
+        # Build for the specified local interpreters (on the current platform).
+        yield dict(interpreter=interpreter, platform=None)
 
-    if platforms:
-      for platform in platforms:
-        yield dict(platform=platform)
+    if parsed_platforms:
+      for platform in parsed_platforms:
+        if platform is not None or not interpreters:
+          # 1. Build for specific platforms.
+          # 2. Build for the current platform (None) only if not done already (ie: no intepreters
+          #    were specified).
+          yield dict(interpreter=None, platform=platform)
 
   seen = set()
   for kwargs in iter_kwargs():
-    for resolvable in curried_resolve(**kwargs):
-      if resolvable not in seen:
-        seen.add(resolvable)
-        yield resolvable
+    for resolved_distribution in curried_resolve(**kwargs):
+      # The resolved wheel name is a suitable multi-platform distinguishing key.
+      key = os.path.basename(resolved_distribution.distribution.location)
+      if key not in seen:
+        seen.add(key)
+        yield resolved_distribution

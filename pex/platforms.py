@@ -4,8 +4,8 @@
 from __future__ import absolute_import
 
 from collections import namedtuple
+from textwrap import dedent
 
-from pex.orderedset import OrderedSet
 from pex.pep425tags import get_abbr_impl, get_abi_tag, get_impl_ver, get_platform, get_supported
 
 
@@ -39,39 +39,29 @@ def _gen_all_compatible_versions(version):
   return list(iter_compatible_versions())
 
 
-def _get_supported(version=None, platform=None, impl=None, abi=None, force_manylinux=False):
-  versions = _gen_all_compatible_versions(version) if version is not None else None
-  all_supported = get_supported(
-    versions=versions,
-    platform=platform,
-    impl=impl,
-    abi=abi
-  )
-
-  def iter_all_supported():
-    for supported in all_supported:
-      yield supported
-      python_tag, abi_tag, platform_tag = supported
-      if platform_tag.startswith('linux') and force_manylinux:
-        yield python_tag, abi_tag, platform_tag.replace('linux', 'manylinux1')
-
-  return list(OrderedSet(iter_all_supported()))
-
-
 class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
   """Represents a target platform and it's extended interpreter compatibility
   tags (e.g. implementation, version and ABI)."""
 
+  class InvalidPlatformError(Exception):
+    """Indicates an invalid platform string."""
+
   SEP = '-'
 
-  def __new__(cls, platform, impl=None, version=None, abi=None):
+  def __new__(cls, platform, impl, version, abi):
+    if not all((platform, impl, version, abi)):
+      raise cls.InvalidPlatformError(
+        'Platform specifiers cannot have blank fields. Given platform={platform!r}, impl={impl!r}, '
+        'version={version!r}, abi={abi!r}'.format(
+          platform=platform, impl=impl, version=version, abi=abi
+        )
+      )
     platform = platform.replace('-', '_').replace('.', '_')
-    if all((impl, version, abi)):
-      abi = cls._maybe_prefix_abi(impl, version, abi)
+    abi = cls._maybe_prefix_abi(impl, version, abi)
     return super(cls, Platform).__new__(cls, platform, impl, version, abi)
 
   def __str__(self):
-    return self.SEP.join(self) if all(self) else self.platform
+    return self.SEP.join(self)
 
   @classmethod
   def current(cls):
@@ -87,15 +77,33 @@ class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
       return platform
 
     platform = platform.lower()
-    if platform == 'current':
-      return cls.current()
-
     try:
       platform, impl, version, abi = platform.rsplit(cls.SEP, 3)
-    except ValueError:
-      return cls(platform)
-    else:
       return cls(platform, impl, version, abi)
+    except ValueError:
+      raise cls.InvalidPlatformError(dedent("""\
+        Not a valid platform specifier: {}
+        
+        Platform strings must be in one of two forms:
+        1. Canonical: <platform>-<python impl abbr>-<python version>-<abi>
+        2. Abbreviated: <platform>-<python impl abbr>-<python version>-<abbr abi>
+        
+        Given a canonical platform string for CPython 3.7.5 running on 64 bit linux of:
+          linux-x86_64-cp-37-cp37m
+        
+        Where the fields above are:
+        + <platform>: linux-x86_64 
+        + <python impl abbr>: cp
+        + <python version>: 37
+        + <abi>: cp37m
+        
+        The abbreviated platform string is:
+          linux-x86_64-cp-37-m
+          
+        These fields stem from wheel name conventions as outlined in
+        https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by
+        https://www.python.org/dev/peps/pep-0425.
+        """.format(platform)))
 
   @classmethod
   def of_interpreter(cls, intepreter=None):
@@ -116,16 +124,14 @@ class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
     impl_ver = ''.join((impl, version))
     return abi if abi.startswith(impl_ver) else ''.join((impl_ver, abi))
 
-  @property
-  def is_extended(self):
-    return all(attr is not None for attr in (self.impl, self.version, self.abi))
-
-  def supported_tags(self, force_manylinux=True):
+  def supported_tags(self):
     """Returns a list of supported PEP425 tags for the current platform."""
-    return _get_supported(
+    if self == self.current():
+      return get_supported()
+
+    return get_supported(
+      versions=_gen_all_compatible_versions(self.version),
       platform=self.platform,
       impl=self.impl,
-      version=self.version,
-      abi=self.abi,
-      force_manylinux=force_manylinux
+      abi=self.abi
     )

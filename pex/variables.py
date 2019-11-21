@@ -122,7 +122,7 @@ class Variables(object):
     old_environ = self._environ
     self._environ = self._environ.copy()
     self._environ.update(kw)
-    yield
+    yield self._environ
     self._environ = old_environ
 
   @property
