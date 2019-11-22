@@ -1,11 +1,23 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+import functools
 import os
 
-from pex.common import safe_copy, temporary_dir
+import pytest
+
+from pex.common import safe_copy, safe_mkdtemp, temporary_dir
+from pex.interpreter import PythonInterpreter
 from pex.resolver import resolve_multi
-from pex.testing import built_wheel, make_source_dir
+from pex.testing import (
+    IS_LINUX,
+    IS_PYPY,
+    PY35,
+    PY36,
+    PY_VER,
+    built_wheel,
+    ensure_python_interpreter,
+    make_source_dir
+)
 from pex.third_party.pkg_resources import Requirement
 
 
@@ -14,18 +26,18 @@ def build_wheel(*args, **kwargs):
     return whl
 
 
-def do_resolve_multi(*args, **kwargs):
-  if 'indexes' not in kwargs:
-    kwargs['indexes'] = []
+def local_resolve_multi(*args, **kwargs):
+  # Skip remote lookups.
+  kwargs['indexes'] = []
   return list(resolve_multi(*args, **kwargs))
 
 
 def test_empty_resolve():
-  empty_resolve_multi = do_resolve_multi([])
+  empty_resolve_multi = local_resolve_multi([])
   assert empty_resolve_multi == []
 
   with temporary_dir() as td:
-    empty_resolve_multi = do_resolve_multi([], cache=td)
+    empty_resolve_multi = local_resolve_multi([], cache=td)
     assert empty_resolve_multi == []
 
 
@@ -34,7 +46,7 @@ def test_simple_local_resolve():
 
   with temporary_dir() as td:
     safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
-    resolved_dists = do_resolve_multi(['project'], find_links=[td])
+    resolved_dists = local_resolve_multi(['project'], find_links=[td])
     assert len(resolved_dists) == 1
 
 
@@ -47,9 +59,9 @@ def test_diamond_local_resolve_cached():
     for wheel in (project1_wheel, project2_wheel):
       safe_copy(wheel, os.path.join(dd, os.path.basename(wheel)))
     with temporary_dir() as cd:
-      resolved_dists = do_resolve_multi(['project1', 'project2'],
-                                        find_links=[dd],
-                                        cache=cd)
+      resolved_dists = local_resolve_multi(['project1', 'project2'],
+                                           find_links=[dd],
+                                           cache=cd)
       assert len(resolved_dists) == 2
 
 
@@ -63,17 +75,17 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
       safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
     with temporary_dir() as cd:
       # First run, pinning 1.0.0 in the cache
-      resolved_dists = do_resolve_multi(['project==1.0.0'],
-                                        find_links=[td],
-                                        cache=cd)
+      resolved_dists = local_resolve_multi(['project==1.0.0'],
+                                           find_links=[td],
+                                           cache=cd)
       assert len(resolved_dists) == 1
       assert resolved_dists[0].distribution.version == '1.0.0'
 
       # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should also
       # return SourcePackages found in td
-      resolved_dists = do_resolve_multi(['project'],
-                                        find_links=[td],
-                                        cache=cd)
+      resolved_dists = local_resolve_multi(['project'],
+                                           find_links=[td],
+                                           cache=cd)
       assert len(resolved_dists) == 1
       assert resolved_dists[0].distribution.version == '1.1.0'
 
@@ -86,10 +98,10 @@ def test_intransitive():
     for wheel in (foo1_0, bar1_0):
       safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
     with temporary_dir() as cd:
-      resolved_dists = do_resolve_multi(['foo', 'bar'],
-                                        find_links=[td],
-                                        cache=cd,
-                                        transitive=False)
+      resolved_dists = local_resolve_multi(['foo', 'bar'],
+                                           find_links=[td],
+                                           cache=cd,
+                                           transitive=False)
       assert len(resolved_dists) == 2
 
 
@@ -102,7 +114,7 @@ def test_resolve_prereleases():
       safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
     def assert_resolve(expected_version, **resolve_kwargs):
-      resolved_dists = do_resolve_multi(['dep>=1,<4'], find_links=[td], **resolve_kwargs)
+      resolved_dists = local_resolve_multi(['dep>=1,<4'], find_links=[td], **resolve_kwargs)
       assert 1 == len(resolved_dists)
       resolved_dist = resolved_dists[0]
       assert expected_version == resolved_dist.distribution.version
@@ -124,7 +136,7 @@ def test_resolve_extra_setup_py():
     with temporary_dir() as td:
       safe_copy(project2_wheel, os.path.join(td, os.path.basename(project2_wheel)))
 
-      resolved_dists = do_resolve_multi(['{}[foo]'.format(project1_dir)], find_links=[td])
+      resolved_dists = local_resolve_multi(['{}[foo]'.format(project1_dir)], find_links=[td])
       assert ({_parse_requirement(req) for req in ('project1==1.0.0',
                                                    'project2==2.0.0')} ==
               {_parse_requirement(resolved_dist.requirement) for resolved_dist in resolved_dists})
@@ -139,6 +151,70 @@ def test_resolve_extra_wheel():
     for wheel in (project1_wheel, project2_wheel):
       safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
-    resolved_dists = do_resolve_multi(['project1[foo]'], find_links=[td])
+    resolved_dists = local_resolve_multi(['project1[foo]'], find_links=[td])
     assert ({_parse_requirement(req) for req in ('project1==1.0.0', 'project2==2.0.0')} ==
             {_parse_requirement(resolved_dist.requirement) for resolved_dist in resolved_dists})
+
+
+def resolve_wheel_names(**kwargs):
+  return [
+    os.path.basename(resolved_distribution.distribution.location)
+    for resolved_distribution in resolve_multi(
+      requirements=['p537==1.0.4'],
+      transitive=False,
+      **kwargs
+    )
+  ]
+
+
+@pytest.fixture(scope="module")
+def p537_resolve_cache():
+  return safe_mkdtemp()
+
+
+@pytest.mark.skipif(PY_VER < (3, 5) or IS_PYPY,
+                    reason="The p537 distribution only builds for CPython 3.5+")
+def test_resolve_current_platform(p537_resolve_cache):
+  resolve_current = functools.partial(resolve_wheel_names,
+                                      cache=p537_resolve_cache,
+                                      platforms=['current'])
+
+  other_python_version = PY36 if PY_VER == (3, 5) else PY35
+  other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
+  current_python = PythonInterpreter.get()
+
+  resolved_other = resolve_current(interpreters=[other_python])
+  resolved_current = resolve_current()
+
+  assert 1 == len(resolved_other)
+  assert 1 == len(resolved_current)
+  assert resolved_other != resolved_current
+  assert resolved_current == resolve_current(interpreters=[current_python])
+  assert resolved_current == resolve_current(interpreters=[current_python, current_python])
+
+  # Here we have 2 local interpreters satisfying current but with different platforms and thus
+  # different dists for 2 total dists.
+  assert 2 == len(resolve_current(interpreters=[current_python, other_python]))
+
+
+@pytest.mark.skipif(PY_VER < (3, 5) or IS_PYPY,
+                    reason="The p537 distribution only builds for CPython 3.5+")
+def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
+  foreign_platform = 'macosx-10.13-x86_64-cp-37-m' if IS_LINUX else 'manylinux1_x86_64-cp-37-m'
+  resolve_current_and_foreign = functools.partial(resolve_wheel_names,
+                                                  cache=p537_resolve_cache,
+                                                  platforms=['current', foreign_platform])
+
+  assert 2 == len(resolve_current_and_foreign())
+
+  other_python_version = PY36 if PY_VER == (3, 5) else PY35
+  other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
+  current_python = PythonInterpreter.get()
+
+  assert 2 == len(resolve_current_and_foreign(interpreters=[current_python]))
+  assert 2 == len(resolve_current_and_foreign(interpreters=[other_python]))
+  assert 2 == len(resolve_current_and_foreign(interpreters=[current_python, current_python]))
+
+  # Here we have 2 local interpreters, satisfying current, but with different platforms and thus
+  # different dists and then the foreign platform for 3 total dists.
+  assert 3 == len(resolve_current_and_foreign(interpreters=[current_python, other_python]))

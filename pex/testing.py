@@ -5,11 +5,14 @@ from __future__ import absolute_import, print_function
 
 import contextlib
 import os
+import platform
 import random
 import subprocess
 import sys
 from collections import namedtuple
 from textwrap import dedent
+
+import pytest
 
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, temporary_dir, touch
 from pex.compatibility import PY3, nested
@@ -20,13 +23,21 @@ from pex.pex_builder import PEXBuilder
 from pex.pip import build_wheels
 from pex.util import DistributionHelper, named_temporary_file
 
-IS_PYPY = "hasattr(sys, 'pypy_version_info')"
-NOT_CPYTHON27 = ("%s or (sys.version_info[0], sys.version_info[1]) != (2, 7)" % (IS_PYPY))
-NOT_CPYTHON36 = ("%s or (sys.version_info[0], sys.version_info[1]) != (3, 6)" % (IS_PYPY))
-IS_LINUX = "platform.system() == 'Linux'"
-IS_NOT_LINUX = "platform.system() != 'Linux'"
-NOT_CPYTHON27_OR_OSX = "%s or %s" % (NOT_CPYTHON27, IS_NOT_LINUX)
-NOT_CPYTHON36_OR_LINUX = "%s or %s" % (NOT_CPYTHON36, IS_LINUX)
+PY_VER = sys.version_info[:2]
+IS_PYPY = hasattr(sys, 'pypy_version_info')
+NOT_CPYTHON27 = IS_PYPY or PY_VER != (2, 7)
+NOT_CPYTHON36 = IS_PYPY or PY_VER != (3, 6)
+IS_LINUX = platform.system() == 'Linux'
+IS_NOT_LINUX = not IS_LINUX
+NOT_CPYTHON27_OR_OSX = NOT_CPYTHON27 or IS_NOT_LINUX
+NOT_CPYTHON36_OR_LINUX = NOT_CPYTHON36 or IS_LINUX
+
+
+skip_for_pyenv_use_under_pypy = pytest.mark.skipif(
+  IS_PYPY,
+  reason='Our pyenv interpreter setup fails under pypy: '
+         'https://github.com/pantsbuild/pex/issues/477'
+)
 
 
 @contextlib.contextmanager
@@ -271,14 +282,17 @@ class IntegResults(namedtuple('results', ['output', 'error', 'return_code'])):
     assert self.return_code != 0
 
 
-def run_pex_command(args, env=None, python=sys.executable):
+def run_pex_command(args, env=None, python=None, quiet=False):
   """Simulate running pex command for integration testing.
 
   This is different from run_simple_pex in that it calls the pex command rather
   than running a generated pex.  This is useful for testing end to end runs
   with specific command line arguments or env options.
   """
-  cmd = [python, '-mpex', '-vvvvv'] + list(args)
+  cmd = [python or sys.executable, '-mpex']
+  if not quiet:
+    cmd.append('-vvvvv')
+  cmd.extend(args)
   process = Executor.open_process(cmd=cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   output, error = process.communicate()
   return IntegResults(output.decode('utf-8'), error.decode('utf-8'), process.returncode)

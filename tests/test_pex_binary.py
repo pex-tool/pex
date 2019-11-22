@@ -11,7 +11,15 @@ import pytest
 from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution
 from pex.common import safe_copy, temporary_dir
 from pex.compatibility import nested, to_bytes
-from pex.testing import built_wheel
+from pex.platforms import Platform
+from pex.testing import (
+    PY27,
+    built_wheel,
+    ensure_python_interpreter,
+    run_pex_command,
+    run_simple_pex,
+    skip_for_pyenv_use_under_pypy
+)
 
 
 @contextmanager
@@ -167,3 +175,45 @@ def test_clp_prereleases_resolver():
     pex_builder = build_pex(reqs, options)
     assert pex_builder is not None
     assert len(pex_builder.info.distributions) == 3, 'Should have resolved deps'
+
+
+def test_build_pex():
+  with temporary_dir() as sandbox:
+    pex_path = os.path.join(sandbox, 'pex')
+    results = run_pex_command(['ansicolors==1.1.8', '--output-file', pex_path])
+    results.assert_success()
+    stdout, returncode = run_simple_pex(
+      pex=pex_path,
+      args=['-c', 'import colors; print(" ".join(colors.COLORS))']
+    )
+    assert 0 == returncode
+    assert b'black red green yellow blue magenta cyan white' == stdout.strip()
+
+
+def assert_run_pex(python=None, pex_args=None):
+  pex_args = list(pex_args) if pex_args else []
+  results = run_pex_command(
+    python=python,
+    args=pex_args + [
+      'ansicolors==1.1.8', '--', '-c', 'import colors; print(" ".join(colors.COLORS))'
+    ],
+    quiet=True
+  )
+  results.assert_success()
+  assert 'black red green yellow blue magenta cyan white' == results.output.strip()
+  return results.error.splitlines()
+
+
+@skip_for_pyenv_use_under_pypy
+def test_run_pex():
+  incompatible_platforms_warning_msg = 'WARNING: attempting to run PEX with incompatible platforms!'
+
+  assert incompatible_platforms_warning_msg not in assert_run_pex()
+  assert incompatible_platforms_warning_msg not in assert_run_pex(pex_args=['--platform=current'])
+  assert incompatible_platforms_warning_msg not in assert_run_pex(
+    pex_args=['--platform={}'.format(Platform.current())]
+  )
+
+  py27 = ensure_python_interpreter(PY27)
+  stderr_lines = assert_run_pex(python=py27, pex_args=['--platform=macosx-10.13-x86_64-cp-37-m'])
+  assert incompatible_platforms_warning_msg in stderr_lines

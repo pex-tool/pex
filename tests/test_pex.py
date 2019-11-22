@@ -20,7 +20,6 @@ from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolver import resolve
 from pex.testing import (
-    IS_PYPY,
     PY27,
     PY36,
     WheelBuilder,
@@ -31,6 +30,7 @@ from pex.testing import (
     run_simple_pex,
     run_simple_pex_test,
     safe_mkdir,
+    skip_for_pyenv_use_under_pypy,
     temporary_content,
     write_simple_pex
 )
@@ -42,7 +42,6 @@ except ImportError:
   import mock
 
 
-@pytest.mark.skipif('sys.version_info > (3,)')
 def test_pex_uncaught_exceptions():
   body = "raise Exception('This is an exception')"
   so, rc = run_simple_pex_test(body)
@@ -96,7 +95,6 @@ def test_pex_sys_exit_prints_objects():
   _test_sys_exit('Exception("derp")', to_bytes('derp\n'), 1)
 
 
-@pytest.mark.skipif('hasattr(sys, "pypy_version_info")')
 def test_pex_atexit_swallowing():
   body = textwrap.dedent("""
   import atexit
@@ -484,7 +482,7 @@ def test_pex_verify_entry_point_module_should_fail():
           verify_entry_point=True)
 
 
-@pytest.mark.skipif(IS_PYPY)
+@skip_for_pyenv_use_under_pypy
 def test_activate_interpreter_different_from_current():
   with temporary_dir() as pex_root:
     interp_version = PY36 if PY2 else PY27

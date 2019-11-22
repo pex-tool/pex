@@ -79,29 +79,7 @@ def download_distributions(target,
                            build=True,
                            use_wheel=True):
 
-  download_cmd = ['download', '--dest', target]
-  download_cmd.extend(_calculate_package_index_options(indexes=indexes, find_links=find_links))
-
-  if platform:
-    # TODO(John Sirois): Consider moving this parsing up to the CLI and switching the API to take
-    # an (extended) `Platform` object instead of a string.
-    platform_info = Platform.create(platform)
-    if not platform_info.is_extended:
-      raise PipError('Can only download distributions for fully specified platforms, given {!r}.'
-                     .format(platform))
-
-    foreign_platform = platform_info != Platform.of_interpreter(interpreter)
-    if foreign_platform:
-      # We're either resolving for a different host / platform or a different interpreter for the
-      # current platform that we have no access to; so we need to let pip know and not otherwise
-      # pickup platform info from the interpreter we execute pip with.
-      download_cmd.extend(['--platform', platform_info.platform])
-      download_cmd.extend(['--implementation', platform_info.impl])
-      download_cmd.extend(['--python-version', platform_info.version])
-      download_cmd.extend(['--abi', platform_info.abi])
-  else:
-    foreign_platform = False
-
+  foreign_platform = (platform != Platform.of_interpreter(interpreter)) if platform else False
   if not use_wheel:
     if not build:
       raise PipError('Cannot both ignore wheels (use_wheel=False) and refrain from building '
@@ -109,6 +87,18 @@ def download_distributions(target,
     elif foreign_platform:
       raise PipError('Cannot ignore wheels (use_wheel=False) when resolving for a foreign '
                      'platform: {}'.format(platform))
+
+  download_cmd = ['download', '--dest', target]
+  download_cmd.extend(_calculate_package_index_options(indexes=indexes, find_links=find_links))
+
+  if foreign_platform:
+    # We're either resolving for a different host / platform or a different interpreter for the
+    # current platform that we have no access to; so we need to let pip know and not otherwise
+    # pickup platform info from the interpreter we execute pip with.
+    download_cmd.extend(['--platform', platform.platform])
+    download_cmd.extend(['--implementation', platform.impl])
+    download_cmd.extend(['--python-version', platform.version])
+    download_cmd.extend(['--abi', platform.abi])
 
   if foreign_platform or not build:
     download_cmd.extend(['--only-binary', ':all:'])
