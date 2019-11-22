@@ -38,6 +38,7 @@ from pex.testing import (
     skip_for_pyenv_use_under_pypy,
     temporary_content
 )
+from pex.third_party import pkg_resources
 from pex.util import DistributionHelper, named_temporary_file
 
 
@@ -668,6 +669,10 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
     with open(pexrc_path, 'w') as pexrc:
       pexrc.write("PEX_PYTHON=%s" % sys.executable)
 
+    # The code below depends on pex.testing which depends on pytest - make sure the built pex gets
+    # this dep.
+    pytest_dist = pkg_resources.WorkingSet().find(pkg_resources.Requirement.parse('pytest'))
+
     test_setup_path = os.path.join(td, 'setup.py')
     with open(test_setup_path, 'w') as fh:
       fh.write(dedent('''
@@ -679,9 +684,10 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
           description='tests',
           author='tester',
           author_email='test@test.com',
-          packages=['testing']
+          packages=['testing'],
+          install_requires={install_requires!r}
         )
-        '''))
+        '''.format(install_requires=[str(pytest_dist.as_requirement())])))
 
     os.mkdir(os.path.join(td, 'testing'))
     test_init_path = os.path.join(td, 'testing/__init__.py')
