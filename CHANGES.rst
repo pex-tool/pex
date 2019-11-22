@@ -1,6 +1,22 @@
 Release Notes
 =============
 
+2.0.2
+-----
+
+This is a hotfix release that fixes a bug exposed when Pex was asked to use an
+interpreter with a non-canonical path as well as fixes for 'current' platform
+handling in the resolver API.
+
+* Fix current platform handling. (#801)
+  `PR #801 <https://github.com/pantsbuild/pex/pull/801>`_
+
+* Add a test of pypi index rendering. (#799)
+  `PR #799 <https://github.com/pantsbuild/pex/pull/799>`_
+
+* Fix `iter_compatible_interpreters` path biasing. (#798)
+  `PR #798 <https://github.com/pantsbuild/pex/pull/798>`_
+
 2.0.1
 -----
 
