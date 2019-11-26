@@ -6,13 +6,13 @@ from __future__ import absolute_import
 import functools
 import json
 import os
-import shutil
 import subprocess
 from collections import defaultdict, namedtuple
 from textwrap import dedent
+from uuid import uuid4
 
 from pex import third_party
-from pex.common import safe_mkdir, safe_mkdtemp
+from pex.common import safe_mkdtemp
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pip import PipError, build_wheels, download_distributions, install_wheel
@@ -172,27 +172,29 @@ def resolve(requirements=None,
     return []
 
   workspace = safe_mkdtemp()
+  cache = cache or workspace
   resolved_dists = os.path.join(workspace, 'resolved')
   built_wheels = os.path.join(workspace, 'wheels')
-  installed_chroots = os.path.join(workspace, 'chroots')
+  installed_chroots = os.path.join(cache, 'chroots')
 
   # 1. Resolve
-  try:
-    download_distributions(target=resolved_dists,
-                           requirements=requirements,
-                           requirement_files=requirement_files,
-                           constraint_files=constraint_files,
-                           allow_prereleases=allow_prereleases,
-                           transitive=transitive,
-                           interpreter=interpreter,
-                           platform=parsed_platform(platform),
-                           indexes=indexes,
-                           find_links=find_links,
-                           cache=cache,
-                           build=build,
-                           use_wheel=use_wheel)
-  except PipError as e:
-    raise Unsatisfiable(str(e))
+  with TRACER.timed('Resolving and downloading distributions'):
+    try:
+      download_distributions(target=resolved_dists,
+                             requirements=requirements,
+                             requirement_files=requirement_files,
+                             constraint_files=constraint_files,
+                             allow_prereleases=allow_prereleases,
+                             transitive=transitive,
+                             interpreter=interpreter,
+                             platform=parsed_platform(platform),
+                             indexes=indexes,
+                             find_links=find_links,
+                             cache=cache,
+                             build=build,
+                             use_wheel=use_wheel)
+    except PipError as e:
+      raise Unsatisfiable(str(e))
 
   # 2. Build
   to_build = []
@@ -205,57 +207,64 @@ def resolve(requirements=None,
     for requirement_file in requirement_files:
       to_build.extend(local_projects_from_requirement_file(requirement_file))
 
-  to_copy = []
+  to_install = []
   if os.path.exists(resolved_dists):
     for distribution in os.listdir(resolved_dists):
       path = os.path.join(resolved_dists, distribution)
       if os.path.isfile(path) and path.endswith('.whl'):
-        to_copy.append(path)
+        to_install.append(path)
       else:
         to_build.append(path)
 
-  if not any((to_build, to_copy)):
+  if not any((to_build, to_install)):
     # Nothing to build or install.
     return []
 
-  safe_mkdir(built_wheels)
-
   if to_build:
-    try:
-      build_wheels(distributions=to_build,
-                   target=built_wheels,
-                   cache=cache,
-                   interpreter=interpreter)
-    except PipError as e:
-      raise Untranslateable('Failed to build at least one of {}:\n\t{}'.format(to_build, str(e)))
-
-  if to_copy:
-    for wheel in to_copy:
-      dest = os.path.join(built_wheels, os.path.basename(wheel))
-      TRACER.log('Copying downloaded wheel from {} to {}'.format(wheel, dest))
-      shutil.copy(wheel, dest)
+    with TRACER.timed('Building distributions:\n  {}'.format('\n  '.join(to_build))):
+      try:
+        build_wheels(distributions=to_build,
+                     target=built_wheels,
+                     cache=cache,
+                     interpreter=interpreter)
+      except PipError as e:
+        raise Untranslateable('Failed to build at least one of {}:\n  {}'
+                              .format(', '.join(to_build), str(e)))
+      to_install.extend(os.path.join(built_wheels, wheel) for wheel in os.listdir(built_wheels))
 
   # 3. Chroot
   resolved_distributions = []
 
-  for wheel_file in os.listdir(built_wheels):
-    chroot = os.path.join(installed_chroots, wheel_file)
-    try:
-      install_wheel(wheel=os.path.join(built_wheels, wheel_file),
-                    target=chroot,
-                    compile=compile,
-                    overwrite=True,
-                    cache=cache,
-                    interpreter=interpreter)
-    except PipError as e:
-      raise Untranslateable('Failed to install {}:\n\t{}'.format(wheel_file, str(e)))
+  with TRACER.timed('Installing distributions:\n  {}'.format('\n  '.join(to_install))):
+    for wheel_file_path in to_install:
+      wheel_file = os.path.basename(wheel_file_path)
+      chroot = os.path.join(installed_chroots, wheel_file)
+      if os.path.exists(chroot):
+        TRACER.log('Using cached installation of {} at {}'.format(wheel_file, chroot))
+      else:
+        TRACER.log('Installing {} in {}'.format(wheel_file_path, chroot))
+        tmp_chroot = '{}.{}'.format(chroot, uuid4().hex)
+        try:
+          install_wheel(wheel=wheel_file_path,
+                        target=tmp_chroot,
+                        compile=compile,
+                        overwrite=True,
+                        cache=cache,
+                        interpreter=interpreter)
+        except PipError as e:
+          raise Untranslateable('Failed to install {}:\n\t{}'.format(wheel_file_path, str(e)))
+        os.rename(tmp_chroot, chroot)
 
-    environment = Environment(search_path=[chroot])
-    for dist_project_name in environment:
-      resolved_distributions.extend(environment[dist_project_name])
+      environment = Environment(search_path=[chroot])
+      for dist_project_name in environment:
+        resolved_distributions.extend(environment[dist_project_name])
 
-  markers_by_req_key = _calculate_dependency_markers(resolved_distributions,
-                                                     interpreter=interpreter)
+  with TRACER.timed('Determining environment markers of installed distributions:\n  {}'
+                    .format('\n  '.join(map(str, resolved_distributions)))):
+    markers_by_req_key = _calculate_dependency_markers(
+      resolved_distributions,
+      interpreter=interpreter
+    )
 
   def to_requirement(dist):
     req = dist.as_requirement()

@@ -538,7 +538,7 @@ def build_pex(reqs, options):
   if options.indexes != [_PYPI] and options.indexes is not None:
     indexes = [str(index) for index in options.indexes]
 
-  with TRACER.timed('Resolving distributions ({})'.format(reqs)):
+  with TRACER.timed('Resolving distributions ({})'.format(reqs + options.requirement_files)):
     try:
       resolveds = resolve_multi(requirements=reqs,
                                 requirement_files=options.requirement_files,

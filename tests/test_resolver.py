@@ -6,6 +6,7 @@ import os
 import pytest
 
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
+from pex.compatibility import nested
 from pex.interpreter import PythonInterpreter
 from pex.resolver import resolve_multi
 from pex.testing import (
@@ -48,6 +49,29 @@ def test_simple_local_resolve():
     safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
     resolved_dists = local_resolve_multi(['project'], find_links=[td])
     assert len(resolved_dists) == 1
+
+
+def test_resolve_cache():
+  project_wheel = build_wheel(name='project')
+
+  with nested(temporary_dir(), temporary_dir()) as (td, cache):
+    safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
+
+    # Without a cache, each resolve should be isolated, but otherwise identical.
+    resolved_dists1 = local_resolve_multi(['project'], find_links=[td])
+    resolved_dists2 = local_resolve_multi(['project'], find_links=[td])
+    assert resolved_dists1 != resolved_dists2
+    assert len(resolved_dists1) == 1
+    assert len(resolved_dists2) == 1
+    assert resolved_dists1[0].requirement == resolved_dists2[0].requirement
+    assert resolved_dists1[0].distribution.location != resolved_dists2[0].distribution.location
+
+    # With a cache, each resolve should be identical.
+    resolved_dists3 = local_resolve_multi(['project'], find_links=[td], cache=cache)
+    resolved_dists4 = local_resolve_multi(['project'], find_links=[td], cache=cache)
+    assert resolved_dists1 != resolved_dists3
+    assert resolved_dists2 != resolved_dists3
+    assert resolved_dists3 == resolved_dists4
 
 
 def test_diamond_local_resolve_cached():

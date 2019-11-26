@@ -330,7 +330,7 @@ class PythonInterpreter(object):
     rendered_command = ' '.join(cmd)
     if pythonpath:
       rendered_command = 'PYTHONPATH={} {}'.format(env['PYTHONPATH'], rendered_command)
-    TRACER.log('Executing: {}'.format(rendered_command))
+    TRACER.log('Executing: {}'.format(rendered_command), V=3)
 
     return cmd, env
 
