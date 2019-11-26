@@ -8,6 +8,7 @@ import os
 from collections import deque
 
 from pex import third_party
+from pex.compatibility import urlparse
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.variables import ENV
@@ -46,6 +47,16 @@ def execute_pip_isolated(args, cache=None, interpreter=None):
 
 
 def _calculate_package_index_options(indexes=None, find_links=None):
+  trusted_hosts = []
+
+  def maybe_trust_insecure_host(url):
+    url_info = urlparse.urlparse(url)
+    if 'http' == url_info.scheme:
+      # Implicitly trust explicitly asked for http indexes and find_links repos instead of requiring
+      # seperate trust configuration.
+      trusted_hosts.append(url_info.netloc)
+    return url
+
   # N.B.: We interpret None to mean accept pip index defaults, [] to mean turn off all index use.
   if indexes is not None:
     if len(indexes) == 0:
@@ -53,16 +64,20 @@ def _calculate_package_index_options(indexes=None, find_links=None):
     else:
       all_indexes = deque(indexes)
       yield '--index-url'
-      yield all_indexes.popleft()
+      yield maybe_trust_insecure_host(all_indexes.popleft())
       if all_indexes:
         for extra_index in all_indexes:
           yield '--extra-index-url'
-          yield extra_index
+          yield maybe_trust_insecure_host(extra_index)
 
   if find_links:
     for find_link_url in find_links:
       yield '--find-links'
-      yield find_link_url
+      yield maybe_trust_insecure_host(find_link_url)
+
+  for trusted_host in trusted_hosts:
+    yield '--trusted-host'
+    yield trusted_host
 
 
 def download_distributions(target,

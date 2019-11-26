@@ -19,7 +19,6 @@ from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.pex_info import PexInfo
 from pex.pip import build_wheels, download_distributions
 from pex.testing import (
-    IS_PYPY,
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
     NOT_CPYTHON36_OR_LINUX,
@@ -1096,9 +1095,7 @@ def test_pex_interpreter_interact_custom_setuptools_useable():
     assert rc == 0, stdout
 
 
-@pytest.mark.skipif(IS_PYPY,
-                    reason='Our pyenv interpreter setup fails under pypy: '
-                           'https://github.com/pantsbuild/pex/issues/477')
+@skip_for_pyenv_use_under_pypy
 def test_setup_python():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
@@ -1111,9 +1108,7 @@ def test_setup_python():
     subprocess.check_call([pex, '-c', 'import jsonschema'])
 
 
-@pytest.mark.skipif(IS_PYPY,
-                    reason='Our pyenv interpreter setup fails under pypy: '
-                           'https://github.com/pantsbuild/pex/issues/477')
+@skip_for_pyenv_use_under_pypy
 def test_setup_interpreter_constraint():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
@@ -1133,9 +1128,7 @@ def test_setup_interpreter_constraint():
     assert rc == 0
 
 
-@pytest.mark.skipif(IS_PYPY,
-                    reason='Our pyenv interpreter setup fails under pypy: '
-                           'https://github.com/pantsbuild/pex/issues/477')
+@skip_for_pyenv_use_under_pypy
 def test_setup_python_multiple_transitive_markers():
   py27_interpreter = ensure_python_interpreter(PY27)
   py36_interpreter = ensure_python_interpreter(PY36)
@@ -1169,9 +1162,7 @@ def test_setup_python_multiple_transitive_markers():
     assert to_bytes(os.path.realpath(py36_interpreter)) == stdout.strip()
 
 
-@pytest.mark.skipif(IS_PYPY,
-                    reason='Our pyenv interpreter setup fails under pypy: '
-                           'https://github.com/pantsbuild/pex/issues/477')
+@skip_for_pyenv_use_under_pypy
 def test_setup_python_direct_markers():
   py36_interpreter = ensure_python_interpreter(PY36)
   with temporary_dir() as out:
@@ -1189,9 +1180,7 @@ def test_setup_python_direct_markers():
       subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py36_interpreter)))
 
 
-@pytest.mark.skipif(IS_PYPY,
-                    reason='Our pyenv interpreter setup fails under pypy: '
-                           'https://github.com/pantsbuild/pex/issues/477')
+@skip_for_pyenv_use_under_pypy
 def test_setup_python_multiple_direct_markers():
   py36_interpreter = ensure_python_interpreter(PY36)
   py27_interpreter = ensure_python_interpreter(PY27)
@@ -1562,9 +1551,7 @@ def test_pex_reexec_constraints_dont_match_current_pex_python():
                      interpreter_constraints=['=={}'.format(version)])
 
 
-@pytest.mark.skipif(IS_PYPY,
-                    reason='Our pyenv interpreter setup fails under pypy: '
-                           'https://github.com/pantsbuild/pex/issues/477')
+@skip_for_pyenv_use_under_pypy
 def test_issues_745_extras_isolation():
   # Here we ensure one of our extras, `subprocess32`, is properly isolated in the transition from
   # pex bootstrapping where it is imported by `pex.executor` to execution of user code.
@@ -1604,3 +1591,20 @@ def test_issues_745_extras_isolation():
 
     subprocess32_location = os.path.realpath(output.decode('utf-8').strip())
     assert subprocess32_location.startswith(pex_root)
+
+
+@skip_for_pyenv_use_under_pypy
+def test_trusted_host_handling():
+  python = ensure_python_interpreter(PY27)
+  # Since we explicitly ask Pex to find links at http://www.antlr3.org/download/Python, it should
+  # implicitly trust the www.antlr3.org host.
+  results = run_pex_command(
+    args=[
+      '--find-links=http://www.antlr3.org/download/Python',
+      'antlr_python_runtime==3.1.3',
+      '--',
+      '-c', 'import antlr3'
+    ],
+    python=python
+  )
+  results.assert_success()
