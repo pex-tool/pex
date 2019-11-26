@@ -252,7 +252,7 @@ def resolve(requirements=None,
                         cache=cache,
                         interpreter=interpreter)
         except PipError as e:
-          raise Untranslateable('Failed to install {}:\n\t{}'.format(wheel_file_path, str(e)))
+          raise Untranslateable('Failed to install {}:\n\t{}'.format(wheel_file_path, e))
         os.rename(tmp_chroot, chroot)
 
       environment = Environment(search_path=[chroot])
