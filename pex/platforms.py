@@ -58,7 +58,7 @@ class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
       )
     platform = platform.replace('-', '_').replace('.', '_')
     abi = cls._maybe_prefix_abi(impl, version, abi)
-    return super(cls, Platform).__new__(cls, platform, impl, version, abi)
+    return super(Platform, cls).__new__(cls, platform, impl, version, abi)
 
   def __str__(self):
     return self.SEP.join(self)

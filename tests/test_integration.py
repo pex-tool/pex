@@ -17,7 +17,7 @@ import pytest
 from pex.common import safe_copy, safe_open, safe_sleep, temporary_dir
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.pex_info import PexInfo
-from pex.pip import build_wheels, download_distributions
+from pex.pip import spawn_build_wheels, spawn_download_distributions
 from pex.testing import (
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
@@ -1342,9 +1342,15 @@ def test_issues_539_abi3_resolution():
     # sdist. Since we want to test in --no-build, we pre-resolve/build the pycparser wheel here and
     # add the resulting wheelhouse to the --no-build pex command.
     download_dir = os.path.join(td, '.downloads')
-    download_distributions(target=download_dir, requirements=['pycparser'])
+    spawn_download_distributions(
+      download_dir=download_dir,
+      requirements=['pycparser']
+    ).wait()
     wheel_dir = os.path.join(td, '.wheels')
-    build_wheels(target=wheel_dir, distributions=glob.glob(os.path.join(download_dir, '*')))
+    spawn_build_wheels(
+      wheel_dir=wheel_dir,
+      distributions=glob.glob(os.path.join(download_dir, '*'))
+    ).wait()
 
     cryptography_pex = os.path.join(td, 'cryptography.pex')
     res = run_pex_command(['-f', wheel_dir,

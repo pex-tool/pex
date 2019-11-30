@@ -4,27 +4,16 @@
 
 from __future__ import absolute_import, print_function
 
-import os
 from collections import deque
 
-from pex import third_party
 from pex.compatibility import urlparse
-from pex.interpreter import PythonInterpreter
-from pex.platforms import Platform
+from pex.distribution_target import DistributionTarget
+from pex.jobs import spawn_python_job
 from pex.variables import ENV
 
 
-class PipError(Exception):
-  """Indicates an error running a pip command."""
-
-
-def execute_pip_isolated(args, cache=None, interpreter=None):
-  env = os.environ.copy()
-  env['__PEX_UNVENDORED__'] = '1'
-
-  pythonpath = third_party.expose(['pip', 'setuptools', 'wheel'])
-
-  pip_args = ['-m', 'pip', '--disable-pip-version-check', '--isolated']
+def _spawn_pip_isolated(args, cache=None, interpreter=None):
+  pip_args = ['-m', 'pip', '--disable-pip-version-check', '--isolated', '--exists-action', 'i']
 
   # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor of 3.
   verbosity = ENV.PEX_VERBOSE // 3
@@ -38,12 +27,11 @@ def execute_pip_isolated(args, cache=None, interpreter=None):
   else:
     pip_args.append('--no-cache-dir')
 
-  pip_cmd = pip_args + args
-
-  interpreter = interpreter or PythonInterpreter.get()
-  cmd, process = interpreter.open_process(args=pip_cmd, pythonpath=pythonpath, env=env)
-  if process.wait() != 0:
-    raise PipError('Executing {} failed with {}'.format(' '.join(cmd), process.returncode))
+  return spawn_python_job(
+    args=pip_args + args,
+    interpreter=interpreter,
+    expose=['pip', 'setuptools', 'wheel']
+  )
 
 
 def _calculate_package_index_options(indexes=None, find_links=None):
@@ -80,33 +68,34 @@ def _calculate_package_index_options(indexes=None, find_links=None):
     yield trusted_host
 
 
-def download_distributions(target,
-                           requirements=None,
-                           requirement_files=None,
-                           constraint_files=None,
-                           allow_prereleases=False,
-                           transitive=True,
-                           interpreter=None,
-                           platform=None,
-                           indexes=None,
-                           find_links=None,
-                           cache=None,
-                           build=True,
-                           use_wheel=True):
+def spawn_download_distributions(download_dir,
+                                 requirements=None,
+                                 requirement_files=None,
+                                 constraint_files=None,
+                                 allow_prereleases=False,
+                                 transitive=True,
+                                 target=None,
+                                 indexes=None,
+                                 find_links=None,
+                                 cache=None,
+                                 build=True,
+                                 use_wheel=True):
 
-  foreign_platform = (platform != Platform.of_interpreter(interpreter)) if platform else False
+  target = target or DistributionTarget.current()
+
+  platform = target.get_platform()
   if not use_wheel:
     if not build:
-      raise PipError('Cannot both ignore wheels (use_wheel=False) and refrain from building '
-                     'distributions (build=False).')
-    elif foreign_platform:
-      raise PipError('Cannot ignore wheels (use_wheel=False) when resolving for a foreign '
-                     'platform: {}'.format(platform))
+      raise ValueError('Cannot both ignore wheels (use_wheel=False) and refrain from building '
+                       'distributions (build=False).')
+    elif target.is_foreign:
+      raise ValueError('Cannot ignore wheels (use_wheel=False) when resolving for a foreign '
+                       'platform: {}'.format(platform))
 
-  download_cmd = ['download', '--dest', target]
+  download_cmd = ['download', '--dest', download_dir]
   download_cmd.extend(_calculate_package_index_options(indexes=indexes, find_links=find_links))
 
-  if foreign_platform:
+  if target.is_foreign:
     # We're either resolving for a different host / platform or a different interpreter for the
     # current platform that we have no access to; so we need to let pip know and not otherwise
     # pickup platform info from the interpreter we execute pip with.
@@ -115,7 +104,7 @@ def download_distributions(target,
     download_cmd.extend(['--python-version', platform.version])
     download_cmd.extend(['--abi', platform.abi])
 
-  if foreign_platform or not build:
+  if target.is_foreign or not build:
     download_cmd.extend(['--only-binary', ':all:'])
 
   if not use_wheel:
@@ -137,28 +126,53 @@ def download_distributions(target,
 
   download_cmd.extend(requirements)
 
-  execute_pip_isolated(download_cmd, cache=cache, interpreter=interpreter)
+  return _spawn_pip_isolated(download_cmd, cache=cache, interpreter=target.get_interpreter())
 
 
-def build_wheels(distributions,
-                 target,
-                 interpreter=None,
-                 indexes=None,
-                 find_links=None,
-                 cache=None):
-  wheel_cmd = ['wheel', '--no-deps', '--wheel-dir', target]
+def spawn_build_wheels(distributions,
+                       wheel_dir,
+                       interpreter=None,
+                       indexes=None,
+                       find_links=None,
+                       cache=None):
+
+  wheel_cmd = ['wheel', '--no-deps', '--wheel-dir', wheel_dir]
 
   # If the build is PEP-517 compliant it may need to resolve build requirements.
   wheel_cmd.extend(_calculate_package_index_options(indexes=indexes, find_links=find_links))
 
   wheel_cmd.extend(distributions)
-  execute_pip_isolated(wheel_cmd, cache=cache, interpreter=interpreter)
+  return _spawn_pip_isolated(wheel_cmd, cache=cache, interpreter=interpreter)
 
 
-def install_wheel(wheel, target, compile=False, overwrite=False, cache=None, interpreter=None):
-  install_cmd = ['install', '--no-deps', '--no-index', '--only-binary', ':all:', '--target', target]
+def spawn_install_wheel(wheel,
+                        install_dir,
+                        compile=False,
+                        overwrite=False,
+                        cache=None,
+                        target=None):
+
+  target = target or DistributionTarget.current()
+
+  install_cmd = [
+    'install',
+    '--no-deps',
+    '--no-index',
+    '--only-binary', ':all:',
+    '--target', install_dir
+  ]
+
+  interpreter = target.get_interpreter()
+  if target.is_foreign:
+    if compile:
+      raise ValueError('Cannot compile bytecode for {} using {}.'.format(wheel, interpreter))
+
+    # We're installing a wheel for a foreign platform. This is just an unpacking operation though;
+    # so we don't actually need to perform it with a target platform compatible interpreter.
+    install_cmd.append('--ignore-requires-python')
+
   install_cmd.append('--compile' if compile else '--no-compile')
   if overwrite:
     install_cmd.extend(['--upgrade', '--force-reinstall'])
   install_cmd.append(wheel)
-  execute_pip_isolated(install_cmd, cache=cache, interpreter=interpreter)
+  return _spawn_pip_isolated(install_cmd, cache=cache, interpreter=interpreter)
