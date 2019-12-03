@@ -15,6 +15,7 @@ import threading
 import time
 import zipfile
 from collections import defaultdict
+from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
 
@@ -217,19 +218,84 @@ def safe_sleep(seconds):
       current_time = time.time()
 
 
-def rename_if_empty(src, dest, allowable_errors=(errno.EEXIST, errno.ENOTEMPTY)):
-  """Rename `src` to `dest` using `os.rename()`.
+class AtomicDirectory(object):
+  def __init__(self, target_dir):
+    self._target_dir = target_dir
+    self._work_dir = '{}.{}'.format(target_dir, uuid4().hex)
 
-  If an `OSError` with errno in `allowable_errors` is encountered during the rename, the `dest`
-  dir is left unchanged and the `src` directory will simply be removed.
+  @property
+  def work_dir(self):
+    return self._work_dir
+
+  @property
+  def target_dir(self):
+    return self._target_dir
+
+  @property
+  def is_finalized(self):
+    return os.path.exists(self._target_dir)
+
+  def finalize(self, source=None):
+    """Rename `work_dir` to `target_dir` using `os.rename()`.
+
+    :param str source: An optional source offset into the `work_dir`` to use for the atomic
+                       update of `target_dir`. By default the whole `work_dir` is used.
+
+    If a race is lost and `target_dir` already exists, the `target_dir` dir is left unchanged and
+    the `work_dir` directory will simply be removed.
+    """
+    if self.is_finalized:
+      return
+
+    source = os.path.join(self._work_dir, source) if source else self._work_dir
+    try:
+      # Perform an atomic rename.
+      #
+      # Per the docs: https://docs.python.org/2.7/library/os.html#os.rename
+      #
+      #   The operation may fail on some Unix flavors if src and dst are on different filesystems.
+      #   If successful, the renaming will be an atomic operation (this is a POSIX requirement).
+      #
+      # We have satisfied the single filesystem constraint by arranging the `work_dir` to be a
+      # sibling of the `target_dir`.
+      os.rename(source, self._target_dir)
+    except OSError as e:
+      if e.errno not in (errno.EEXIST, errno.ENOTEMPTY):
+        raise e
+    finally:
+      self.cleanup()
+
+  def cleanup(self):
+    safe_rmtree(self._work_dir)
+
+
+@contextmanager
+def atomic_directory(target_dir, source=None):
+  """A context manager that yields a new empty work directory path it will move to `target_dir`.
+
+  :param str target_dir: The target directory to atomically update.
+  :param str source: An optional source offset into the work directory to use for the atomic update
+                     of the target directory. By default the whole work directory is used.
+
+  If the `target_dir` already exists the enclosed block will be yielded `None` to signal there is
+  no work to do.
+
+  If the enclosed block fails the `target_dir` will be undisturbed.
+
+  The new work directory will be cleaned up regardless of whether or not the enclosed block
+  succeeds.
   """
+  atomic_dir = AtomicDirectory(target_dir=target_dir)
+  if atomic_dir.is_finalized:
+    yield None
+    return
+
+  safe_mkdir(atomic_dir.work_dir)
   try:
-    os.rename(src, dest)
-  except OSError as e:
-    if e.errno in allowable_errors:
-      safe_rmtree(src)
-    else:
-      raise
+    yield atomic_dir.work_dir
+    atomic_dir.finalize(source=source)
+  finally:
+    atomic_dir.cleanup()
 
 
 def chmod_plus_x(path):

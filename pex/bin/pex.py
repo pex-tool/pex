@@ -162,9 +162,9 @@ def configure_clp_pex_resolution(parser):
   group.add_option(
       '--cache-dir',
       dest='cache_dir',
-      default='{pex_root}/build',
+      default='{pex_root}',
       help='The local cache directory to use for speeding up requirement '
-           'lookups. [Default: ~/.pex/build]')
+           'lookups. [Default: ~/.pex]')
 
   group.add_option(
       '--wheel', '--no-wheel', '--no-use-wheel',
@@ -458,7 +458,7 @@ def configure_clp():
   parser.add_option(
       '--pex-root',
       dest='pex_root',
-      default=None,
+      default=ENV.PEX_ROOT,
       help='Specify the pex root used in this invocation of pex. [Default: ~/.pex]'
   )
 
@@ -625,16 +625,13 @@ def main(args=None):
   if options.python and options.interpreter_constraint:
     die('The "--python" and "--interpreter-constraint" options cannot be used together.')
 
-  if options.pex_root:
-    ENV.set('PEX_ROOT', options.pex_root)
-  else:
-    options.pex_root = ENV.PEX_ROOT  # If option not specified fallback to env variable.
+  with ENV.patch(PEX_VERBOSE=str(options.verbosity),
+                 PEX_ROOT=options.pex_root) as patched_env:
 
-  # Don't alter cache if it is disabled.
-  if options.cache_dir:
-    options.cache_dir = make_relative_to_root(options.cache_dir)
+    # Don't alter cache if it is disabled.
+    if options.cache_dir:
+      options.cache_dir = make_relative_to_root(options.cache_dir)
 
-  with ENV.patch(PEX_VERBOSE=str(options.verbosity)) as patched_env:
     with TRACER.timed('Building pex'):
       pex_builder = build_pex(reqs, options)
 

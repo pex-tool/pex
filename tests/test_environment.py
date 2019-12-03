@@ -10,7 +10,7 @@ from textwrap import dedent
 import pytest
 
 from pex import resolver
-from pex.common import temporary_dir
+from pex.common import open_zip, temporary_dir
 from pex.compatibility import PY2, nested, to_bytes
 from pex.environment import PEXEnvironment
 from pex.interpreter import PythonInterpreter
@@ -196,44 +196,36 @@ def normalize(path):
   return os.path.normpath(os.path.realpath(path)).lower()
 
 
+def assert_dist_cache(zip_safe):
+  with nested(yield_pex_builder(zip_safe=zip_safe),
+              temporary_dir(),
+              temporary_filename()) as (pb, pex_root, pex_file):
+
+    pb.info.pex_root = pex_root
+    pb.build(pex_file)
+
+    with open_zip(pex_file) as zf:
+      dists = PEXEnvironment._write_zipped_internal_cache(zf=zf, pex_info=pb.info)
+      assert len(dists) == 1
+      original_location = normalize(dists[0].location)
+      assert original_location.startswith(normalize(pb.info.install_cache))
+
+    # Call a second time to validate idempotence of caching.
+    dists = PEXEnvironment._write_zipped_internal_cache(zf=None, pex_info=pb.info)
+    assert len(dists) == 1
+    assert normalize(dists[0].location) == original_location
+
+
 def test_write_zipped_internal_cache():
-  # zip_safe pex will not be written to install cache unless always_write_cache
-  with nested(yield_pex_builder(zip_safe=True), temporary_dir(), temporary_filename()) as (
-      pb, pex_root, pex_file):
+  assert_dist_cache(zip_safe=False)
 
-    pb.info.pex_root = pex_root
-    pb.build(pex_file)
-
-    pb.info.always_write_cache = True
-    existing, new = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
-    assert len(new) == 1
-    assert normalize(new[0].location).startswith(normalize(pb.info.install_cache))
-
-    # Check that we can read from the cache
-    existing, new = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
-    assert len(existing) == 1
-    assert normalize(existing[0].location).startswith(normalize(pb.info.install_cache))
-
-  # non-zip_safe pex will be written to install cache
-  with nested(yield_pex_builder(zip_safe=False), temporary_dir(), temporary_filename()) as (
-      pb, pex_root, pex_file):
-
-    pb.info.pex_root = pex_root
-    pb.build(pex_file)
-
-    existing, new = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
-    assert len(new) == 1
-    assert normalize(new[0].location).startswith(normalize(pb.info.install_cache))
-    original_location = normalize(new[0].location)
-
-    # do the second time to validate idempotence of caching
-    existing, new = PEXEnvironment._write_zipped_internal_cache(pex_file, pb.info)
-    assert len(existing) == 1
-    assert normalize(existing[0].location) == original_location
+  # Zip_safe pexes still always should have dists written to install cache, only the pex code (
+  # sources and resources) should be imported from the pex zip when zip safe.
+  assert_dist_cache(zip_safe=True)
 
 
 def test_load_internal_cache_unzipped():
-  # zip_safe pex will not be written to install cache unless always_write_cache
+  # Unzipped pexes should use distributions from the pex internal cache.
   with nested(yield_pex_builder(zip_safe=True), temporary_dir()) as (pb, pex_root):
     pb.info.pex_root = pex_root
     pb.freeze()

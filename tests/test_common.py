@@ -9,10 +9,11 @@ from contextlib import contextmanager
 import pytest
 
 from pex.common import (
+    AtomicDirectory,
     Chroot,
     PermPreservingZipFile,
+    atomic_directory,
     chmod_plus_x,
-    rename_if_empty,
     temporary_dir,
     touch
 )
@@ -33,23 +34,65 @@ def maybe_raises(exception=None):
     yield
 
 
-def rename_if_empty_test(errno, expect_raises=None):
+def atomic_directory_finalize_test(errno, expect_raises=None):
   with mock.patch('os.rename', spec_set=True, autospec=True) as mock_rename:
     mock_rename.side_effect = OSError(errno, os.strerror(errno))
     with maybe_raises(expect_raises):
-      rename_if_empty('from.dir', 'to.dir')
+      AtomicDirectory('to.dir').finalize()
 
 
-def test_rename_if_empty_eexist():
-  rename_if_empty_test(errno.EEXIST)
+def test_atomic_directory_finalize_eexist():
+  atomic_directory_finalize_test(errno.EEXIST)
 
 
-def test_rename_if_empty_enotempty():
-  rename_if_empty_test(errno.ENOTEMPTY)
+def test_atomic_directory_finalize_enotempty():
+  atomic_directory_finalize_test(errno.ENOTEMPTY)
 
 
-def test_rename_if_empty_eperm():
-  rename_if_empty_test(errno.EPERM, expect_raises=OSError)
+def test_atomic_directory_finalize_eperm():
+  atomic_directory_finalize_test(errno.EPERM, expect_raises=OSError)
+
+
+def test_atomic_directory_empty_workdir_finalize():
+  with temporary_dir() as sandbox:
+    target_dir = os.path.join(sandbox, 'target_dir')
+    assert not os.path.exists(target_dir)
+
+    with atomic_directory(target_dir) as work_dir:
+      assert work_dir is not None
+      assert os.path.exists(work_dir)
+      assert os.path.isdir(work_dir)
+      assert [] == os.listdir(work_dir)
+
+      touch(os.path.join(work_dir, 'created'))
+
+      assert not os.path.exists(target_dir)
+
+    assert not os.path.exists(work_dir), 'The work_dir should always be cleaned up.'
+    assert os.path.exists(os.path.join(target_dir, 'created'))
+
+
+def test_atomic_directory_empty_workdir_failure():
+  class SimulatedRuntimeError(RuntimeError):
+    pass
+
+  with temporary_dir() as sandbox:
+    target_dir = os.path.join(sandbox, 'target_dir')
+    with pytest.raises(SimulatedRuntimeError):
+      with atomic_directory(target_dir) as work_dir:
+        touch(os.path.join(work_dir, 'created'))
+        raise SimulatedRuntimeError()
+
+    assert not os.path.exists(work_dir), 'The work_dir should always be cleaned up.'
+    assert not os.path.exists(target_dir), (
+      'When the context raises the work_dir it was given should not be moved to the target_dir.'
+    )
+
+
+def test_atomic_directory_empty_workdir_finalized():
+  with temporary_dir() as target_dir:
+    with atomic_directory(target_dir) as work_dir:
+      assert work_dir is None, 'When the target_dir exists no work_dir should be created.'
 
 
 def extract_perms(path):

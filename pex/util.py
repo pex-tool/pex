@@ -6,11 +6,10 @@ from __future__ import absolute_import
 import contextlib
 import os
 import tempfile
-import uuid
 from hashlib import sha1
 from site import makepath
 
-from pex.common import rename_if_empty, safe_mkdir, safe_mkdtemp
+from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
 from pex.compatibility import exec_function
 from pex.finders import register_finders
 from pex.third_party.pkg_resources import (
@@ -19,6 +18,7 @@ from pex.third_party.pkg_resources import (
     resource_listdir,
     resource_string
 )
+from pex.tracer import TRACER
 
 
 class DistributionHelper(object):
@@ -154,23 +154,30 @@ class CacheHelper(object):
 
   @classmethod
   def cache_distribution(cls, zf, source, target_dir):
-    """Possibly cache an egg from within a zipfile into target_cache.
+    """Possibly cache a wheel from within a zipfile into `target_dir`.
 
-       Given a zipfile handle and a filename corresponding to an egg distribution within
-       that zip, maybe write to the target cache and return a Distribution."""
-    dependency_basename = os.path.basename(source)
-    if not os.path.exists(target_dir):
-      target_dir_tmp = target_dir + '.' + uuid.uuid4().hex
-      for name in zf.namelist():
-        if name.startswith(source) and not name.endswith('/'):
-          zf.extract(name, target_dir_tmp)
-      os.rename(os.path.join(target_dir_tmp, source),
-                os.path.join(target_dir_tmp, dependency_basename))
+    Given a zipfile handle and a source path prefix corresponding to a wheel install embedded within
+    that zip, maybe extract the wheel install into the target cache and then return a distribution
+    from the cache.
 
-      rename_if_empty(target_dir_tmp, target_dir)
+    :param zf: An open zip file (a zipped pex).
+    :type zf: :class:`zipfile.ZipFile`
+    :param str source: The path prefix of a wheel install embedded in the zip file.
+    :param str target_dir: The directory to cache the distribution in if not already cached.
+    :returns: The cached distribution.
+    :rtype: :class:`pex.third_party.pkg_resources.Distribution`
+    """
+    with atomic_directory(target_dir, source=source) as target_dir_tmp:
+      if target_dir_tmp is None:
+        TRACER.log('Using cached {}'.format(target_dir))
+      else:
+        with TRACER.timed('Caching {}:{} in {}'.format(zf.filename, source, target_dir)):
+          for name in zf.namelist():
+            if name.startswith(source) and not name.endswith('/'):
+              zf.extract(name, target_dir_tmp)
 
     dist = DistributionHelper.distribution_from_path(target_dir)
-    assert dist is not None, 'Failed to cache distribution %s' % source
+    assert dist is not None, 'Failed to cache distribution '.format(source)
     return dist
 
 

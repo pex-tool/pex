@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import logging
 import os
 
-from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
+from pex.common import Chroot, chmod_plus_x, safe_mkdir, safe_mkdtemp, temporary_dir
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
 from pex.distribution_target import DistributionTarget
@@ -276,37 +276,14 @@ class PEXBuilder(object):
         self._copy_or_link(filename, target)
     return CacheHelper.dir_hash(path)
 
-  def _add_dist_zip(self, path, dist_name):
-    # We need to distinguish between wheels and other zips. Most of the time,
-    # when we have a zip, it contains its contents in an importable form.
-    # But wheels don't have to be importable, so we need to force them
-    # into an importable shape. We can do that by installing it into its own
-    # wheel dir.
-    if dist_name.endswith("whl"):
-      tmp = safe_mkdtemp()
-      whltmp = os.path.join(tmp, dist_name)
-      os.mkdir(whltmp)
-      install_job = spawn_install_wheel(
+  def _add_dist_wheel_file(self, path, dist_name):
+    with temporary_dir() as install_dir:
+      spawn_install_wheel(
         wheel=path,
-        install_dir=whltmp,
+        install_dir=install_dir,
         target=DistributionTarget.for_interpreter(self.interpreter)
-      )
-      install_job.wait()
-      for root, _, files in os.walk(whltmp):
-        pruned_dir = os.path.relpath(root, tmp)
-        for f in files:
-          fullpath = os.path.join(root, f)
-          target = os.path.join(self._pex_info.internal_cache, pruned_dir, f)
-          self._copy_or_link(fullpath, target)
-      return CacheHelper.dir_hash(whltmp)
-
-    with open_zip(path) as zf:
-      for name in zf.namelist():
-        if name.endswith('/'):
-          continue
-        target = os.path.join(self._pex_info.internal_cache, dist_name, name)
-        self._chroot.write(zf.read(name), target)
-      return CacheHelper.zip_hash(zf)
+      ).wait()
+      return self._add_dist_dir(install_dir, dist_name)
 
   def _prepare_code_hash(self):
     self._pex_info.code_hash = CacheHelper.pex_hash(self._chroot.path())
@@ -325,8 +302,10 @@ class PEXBuilder(object):
 
     if os.path.isdir(dist.location):
       dist_hash = self._add_dist_dir(dist.location, dist_name)
+    elif dist.location.endswith('.whl'):
+      dist_hash = self._add_dist_wheel_file(dist.location, dist_name)
     else:
-      dist_hash = self._add_dist_zip(dist.location, dist_name)
+      raise self.InvalidDistribution('Unsupported distribution type: {}'.format(dist))
 
     # add dependency key so that it can rapidly be retrieved from cache
     self._pex_info.add_distribution(dist_name, dist_hash)
@@ -347,13 +326,8 @@ class PEXBuilder(object):
     bdist = DistributionHelper.distribution_from_path(dist)
     if bdist is None:
       raise self.InvalidDistribution('Could not find distribution at %s' % dist)
-    self.add_distribution(bdist)
+    self.add_distribution(bdist, dist_name=name)
     self.add_requirement(bdist.as_requirement())
-
-  def add_egg(self, egg):
-    """Alias for add_dist_location."""
-    self._ensure_unfrozen('Adding an egg')
-    return self.add_dist_location(egg)
 
   def _precompile_source(self):
     source_relpaths = [path for label in ('source', 'executable', 'main', 'bootstrap')
