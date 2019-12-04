@@ -105,11 +105,14 @@ else:
 if PY3:
   from queue import Queue
 
-  def cpu_count():
-    from os import sched_getaffinity
-    # The set of CPUs accessible to the current process (pid 0).
-    cpu_set = os.sched_getaffinity(0)
-    return len(cpu_set)
+  # The `os.sched_getaffinity` function appears to be supported on Linux but not OSX.
+  if not hasattr(os, 'sched_getaffinity'):
+    os.cpu_count
+  else:
+    def cpu_count():
+      # The set of CPUs accessible to the current process (pid 0).
+      cpu_set = os.sched_getaffinity(0)
+      return len(cpu_set)
 else:
   from Queue import Queue
   from multiprocessing import cpu_count
