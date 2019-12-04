@@ -202,13 +202,10 @@ class BuildResult(namedtuple('BuildResult', ['request', 'atomic_dir'])):
   def dist_dir(self):
     return self.atomic_dir.target_dir
 
-  def install_requests(self):
-    for wheel in os.listdir(self.dist_dir):
-      yield InstallRequest.create(self.request.target, os.path.join(self.dist_dir, wheel))
-
   def finalize_build(self):
     self.atomic_dir.finalize()
-    return self.install_requests()
+    for wheel in os.listdir(self.dist_dir):
+      yield InstallRequest.create(self.request.target, os.path.join(self.dist_dir, wheel))
 
 
 class InstallRequest(namedtuple('InstallRequest', ['target', 'wheel_path', 'fingerprint'])):
@@ -247,7 +244,11 @@ class InstallResult(namedtuple('InstallResult', ['request', 'atomic_dir'])):
   def install_chroot(self):
     return self.atomic_dir.target_dir
 
-  def requirements_requests(self, install_requests):
+  def finalize_install(self, install_requests):
+    self.atomic_dir.finalize()
+    return self._iter_requirements_requests(install_requests)
+
+  def _iter_requirements_requests(self, install_requests):
     if self.is_installed:
       # N.B.: Direct snip from the Environment docs:
       #
@@ -268,10 +269,6 @@ class InstallResult(namedtuple('InstallResult', ['request', 'atomic_dir'])):
           target=install_request.target,
           distributions=distributions
         )
-
-  def finalize_install(self, install_requests):
-    self.atomic_dir.finalize()
-    return self.requirements_requests(install_requests)
 
 
 class ResolveRequest(object):
@@ -351,7 +348,7 @@ class ResolveRequest(object):
       else:
         TRACER.log('Using cached build of {} at {}'
                    .format(build_request.source_path, build_result.dist_dir))
-        install_requests.extend(build_result.install_requests())
+        install_requests.extend(build_result.finalize_build())
     return unsatisfied_build_requests, install_requests
 
   def _spawn_wheel_build(self, built_wheels_dir, build_request):
