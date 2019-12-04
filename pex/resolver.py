@@ -41,42 +41,74 @@ class ResolvedDistribution(namedtuple('ResolvedDistribution', ['requirement', 'd
     return super(ResolvedDistribution, cls).__new__(cls, requirement, distribution)
 
 
-class DistributionMarkers(object):
-  @staticmethod
-  def spawn_calculation(distributions, interpreter=None):
-    search_path = [dist.location for dist in distributions]
+class DistributionRequirements(object):
+  class Request(namedtuple('DistributionRequirementsRequest', ['target', 'distributions'])):
+    def spawn_calculation(self):
+      search_path = [dist.location for dist in self.distributions]
 
-    program = dedent("""
-      import json
-      import sys
-      from collections import defaultdict
-      from pkg_resources import Environment
-      
-      
-      env = Environment(search_path={search_path!r})
-      dependency_requirements = []
-      for key in env:
-        for dist in env[key]:
-          dependency_requirements.extend(str(req) for req in dist.requires())
-      json.dump(dependency_requirements, sys.stdout)
-    """.format(search_path=search_path))
+      program = dedent("""
+        import json
+        import sys
+        from collections import defaultdict
+        from pkg_resources import Environment
 
-    return spawn_python_job(
-      args=['-c', program],
-      stdout=subprocess.PIPE,
-      interpreter=interpreter,
-      expose=['setuptools']
-    )
 
-  @staticmethod
-  def markers_by_requirement(stdout):
-    dependency_requirements = json.loads(stdout.decode('utf-8'))
-    markers_by_req_key = defaultdict(OrderedSet)
-    for requirement in dependency_requirements:
-      req = Requirement.parse(requirement)
-      if req.marker:
-        markers_by_req_key[req.key].add(req.marker)
-    return markers_by_req_key
+        env = Environment(search_path={search_path!r})
+        dependency_requirements = []
+        for key in env:
+          for dist in env[key]:
+            dependency_requirements.extend(str(req) for req in dist.requires())
+        json.dump(dependency_requirements, sys.stdout)
+      """.format(search_path=search_path))
+
+      job = spawn_python_job(
+        args=['-c', program],
+        stdout=subprocess.PIPE,
+        interpreter=self.target.get_interpreter(),
+        expose=['setuptools']
+      )
+      return SpawnedJob.stdout(job=job, result_func=self._markers_by_requirement)
+
+    @staticmethod
+    def _markers_by_requirement(stdout):
+      dependency_requirements = json.loads(stdout.decode('utf-8'))
+      markers_by_req_key = defaultdict(OrderedSet)
+      for requirement in dependency_requirements:
+        req = Requirement.parse(requirement)
+        if req.marker:
+          markers_by_req_key[req.key].add(req.marker)
+      return markers_by_req_key
+
+  @classmethod
+  def merged(cls, markers_by_requirement_key_iter):
+    markers_by_requirement_key = defaultdict(OrderedSet)
+    for distribution_markers in markers_by_requirement_key_iter:
+      for requirement, markers in distribution_markers.items():
+        markers_by_requirement_key[requirement].update(markers)
+    return cls(markers_by_requirement_key)
+
+  def __init__(self, markers_by_requirement_key):
+    self._markers_by_requirement_key = markers_by_requirement_key
+
+  def to_requirement(self, dist):
+    req = dist.as_requirement()
+    markers = self._markers_by_requirement_key.get(req.key)
+    if not markers:
+      return req
+
+    if len(markers) == 1:
+      marker = next(iter(markers))
+      req.marker = marker
+      return req
+
+    # Here we have a resolve with multiple paths to the dependency represented by dist. At least
+    # two of those paths had (different) conditional requirements for dist based on environment
+    # marker predicates. Since the pip resolve succeeded, the implication is that the environment
+    # markers are compatible; i.e.: their intersection selects the target interpreter. Here we
+    # make that intersection explicit.
+    # See: https://www.python.org/dev/peps/pep-0496/#micro-language
+    marker = ' and '.join('({})'.format(marker) for marker in markers)
+    return Requirement.parse('{}; {}'.format(req, marker))
 
 
 def parsed_platform(platform=None):
@@ -104,6 +136,9 @@ class AtomicDirectory(namedtuple('AtomicDirectory', ['work_dir', 'target_dir']))
     return os.path.exists(self.target_dir)
 
   def finalize(self):
+    if self.is_finalized:
+      return
+
     try:
       os.rename(self.work_dir, self.target_dir)
     except OSError as e:
@@ -173,8 +208,7 @@ class BuildResult(namedtuple('BuildResult', ['request', 'atomic_dir'])):
 
   def finalize_build(self):
     self.atomic_dir.finalize()
-    for install_request in self.install_requests():
-      yield install_request
+    return self.install_requests()
 
 
 class InstallRequest(namedtuple('InstallRequest', ['target', 'wheel_path', 'fingerprint'])):
@@ -213,7 +247,7 @@ class InstallResult(namedtuple('InstallResult', ['request', 'atomic_dir'])):
   def install_chroot(self):
     return self.atomic_dir.target_dir
 
-  def find_distributions(self):
+  def requirements_requests(self, install_requests):
     if self.is_installed:
       # N.B.: Direct snip from the Environment docs:
       #
@@ -225,17 +259,19 @@ class InstallResult(namedtuple('InstallResult', ['request', 'atomic_dir'])):
       # explicitly setting both `python` and `platform` to `None`.
       environment = Environment(search_path=[self.install_chroot], python=None, platform=None)
 
+      distributions = []
       for dist_project_name in environment:
-        for dist in environment[dist_project_name]:
-          yield dist
+        distributions.extend(environment[dist_project_name])
 
-  def finalize_install(self):
+      for install_request in install_requests:
+        yield DistributionRequirements.Request(
+          target=install_request.target,
+          distributions=distributions
+        )
+
+  def finalize_install(self, install_requests):
     self.atomic_dir.finalize()
-    for distribution in self.find_distributions():
-      yield distribution
-
-
-MarkersRequest = namedtuple('MarkersRequest', ['target', 'distributions'])
+    return self.requirements_requests(install_requests)
 
 
 class ResolveRequest(object):
@@ -268,6 +304,20 @@ class ResolveRequest(object):
     self._compile = compile
     self._max_parallel_jobs = max_parallel_jobs
 
+  def _iter_local_projects(self):
+    if self._requirements:
+      for req in self._requirements:
+        local_project = local_project_from_requirement(req)
+        if local_project:
+          for target in self._targets:
+            yield BuildRequest.create(target=target, source_path=local_project)
+
+    if self._requirement_files:
+      for requirement_file in self._requirement_files:
+        for local_project in local_projects_from_requirement_file(requirement_file):
+          for target in self._targets:
+            yield BuildRequest.create(target=target, source_path=local_project)
+
   def _run_parallel(self, inputs, spawn_func, raise_type):
     for result in execute_parallel(self._max_parallel_jobs, inputs, spawn_func, raise_type):
       yield result
@@ -290,6 +340,20 @@ class ResolveRequest(object):
     )
     return SpawnedJob.wait(job=download_job, result=ResolveResult(target, download_dir))
 
+  def _categorize_build_requests(self, build_requests, dist_root):
+    unsatisfied_build_requests = []
+    install_requests = []
+    for build_request in build_requests:
+      build_result = build_request.result(dist_root)
+      if not build_result.is_built:
+        TRACER.log('Building {} to {}'.format(build_request.source_path, build_result.dist_dir))
+        unsatisfied_build_requests.append(build_request)
+      else:
+        TRACER.log('Using cached build of {} at {}'
+                   .format(build_request.source_path, build_result.dist_dir))
+        install_requests.extend(build_result.install_requests())
+    return unsatisfied_build_requests, install_requests
+
   def _spawn_wheel_build(self, built_wheels_dir, build_request):
     build_result = build_request.result(built_wheels_dir)
     build_job = spawn_build_wheels(
@@ -299,6 +363,21 @@ class ResolveRequest(object):
       interpreter=build_request.target.get_interpreter()
     )
     return SpawnedJob.wait(job=build_job, result=build_result)
+
+  def _categorize_install_requests(self, install_requests, installed_wheels_dir):
+    unsatisfied_install_requests = []
+    install_results = []
+    for install_request in install_requests:
+      install_result = install_request.result(installed_wheels_dir)
+      if not install_result.is_installed:
+        TRACER.log('Installing {} in {}'
+                   .format(install_request.wheel_path, install_result.install_chroot))
+        unsatisfied_install_requests.append(install_request)
+      else:
+        TRACER.log('Using cached installation of {} at {}'
+                   .format(install_request.wheel_file, install_result.install_chroot))
+        install_results.append(install_result)
+    return unsatisfied_install_requests, install_results
 
   def _spawn_install(self, installed_wheels_dir, install_request):
     install_result = install_request.result(installed_wheels_dir)
@@ -312,18 +391,12 @@ class ResolveRequest(object):
     )
     return SpawnedJob.wait(job=install_job, result=install_result)
 
-  def _spawn_calculate_markers(self, markers_request):
-    markers_calculation_job = DistributionMarkers.spawn_calculation(
-      distributions=markers_request.distributions,
-      interpreter=markers_request.target.get_interpreter()
-    )
-    return SpawnedJob.stdout(
-      job=markers_calculation_job,
-      result_func=DistributionMarkers.markers_by_requirement
-    )
-
   def resolve_distributions(self):
-    # This method has three stages: 1) resolve, 2) build, and 3) install.
+    # This method has four stages:
+    # 1. Resolve sdists and wheels.
+    # 2. Build local projects and sdists.
+    # 3. Install wheels in individual chroots.
+    # 4. Calculate the final resolved requirements.
     #
     # You'd think we might be able to just pip install all the requirements, but pexes can be
     # multi-platform / multi-interpreter, in which case only a subset of distributions resolved into
@@ -342,6 +415,10 @@ class ResolveRequest(object):
     # VCS URL or local projects. As such we need to insert a `pip wheel` step to generate wheels for
     # all requirements resolved in source form via `pip download` / inspection of requirements to
     # discover those that are local directories (local setup.py or pyproject.toml python projects).
+    #
+    # Finally, we must calculate the pinned requirement corresponding to each distribution we
+    # resolved along with any environment markers that control which runtime environments the
+    # requirement should be activated in.
 
     if not self._requirements and not self._requirement_files:
       # Nothing to resolve.
@@ -356,24 +433,15 @@ class ResolveRequest(object):
 
     built_wheels_dir = os.path.join(cache, 'built_wheels')
     spawn_wheel_build = functools.partial(self._spawn_wheel_build, built_wheels_dir)
-    to_build = []
-    if self._requirements:
-      for req in self._requirements:
-        local_project = local_project_from_requirement(req)
-        if local_project:
-          to_build.extend(BuildRequest.create(target=target, source_path=local_project)
-                          for target in self._targets)
-    if self._requirement_files:
-      for requirement_file in self._requirement_files:
-        for local_project in local_projects_from_requirement_file(requirement_file):
-          to_build.extend(BuildRequest.create(target=target, source_path=local_project)
-                          for target in self._targets)
+    to_build = list(self._iter_local_projects())
 
     installed_wheels_dir = os.path.join(cache, 'installed_wheels')
     spawn_install = functools.partial(self._spawn_install, installed_wheels_dir)
     to_install = []
 
-    # 1. Resolve
+    to_calculate_requirements_for = []
+
+    # 1. Resolve sdists and wheels.
     with TRACER.timed('Resolving for:\n  '.format('\n  '.join(map(str, to_resolve)))):
       for resolve_result in self._run_parallel(inputs=to_resolve,
                                                spawn_func=spawn_resolve,
@@ -385,100 +453,74 @@ class ResolveRequest(object):
       # Nothing to build or install.
       return []
 
-    # 2. Build
+    # 2. Build local projects and sdists.
     if to_build:
       with TRACER.timed('Building distributions for:\n  {}'
                         .format('\n  '.join(map(str, to_build)))):
-        unsatisfied_build_requests = []
-        for build_request in to_build:
-          build_result = build_request.result(built_wheels_dir)
-          if not build_result.is_built:
-            TRACER.log('Building {} to {}'
-                       .format(build_request.source_path, build_result.dist_dir))
-            unsatisfied_build_requests.append(build_request)
-          else:
-            TRACER.log('Using cached build of {} at {}'
-                       .format(build_request.source_path, build_result.dist_dir))
-            to_install.extend(build_result.install_requests())
 
-        for build_result in self._run_parallel(inputs=unsatisfied_build_requests,
+        build_requests, install_requests = self._categorize_build_requests(
+          build_requests=to_build,
+          dist_root=built_wheels_dir
+        )
+        to_install.extend(install_requests)
+
+        for build_result in self._run_parallel(inputs=build_requests,
                                                spawn_func=spawn_wheel_build,
                                                raise_type=Untranslateable):
           to_install.extend(build_result.finalize_build())
 
-    # 3. Install
-    installed_distributions_by_target = OrderedDict()
-    def add_distributions(target, dists):
-      installed_distributions_by_target.setdefault(target, []).extend(dists)
+    # 3. Install wheels in individual chroots.
 
-    with TRACER.timed('Installing:\n  {}'.format('\n  '.join(map(str, to_install)))):
-      # Dedup by wheel name; e.g.: only install universal wheels once even though they'll get
-      # downloaded / built for each interpreter or platform.
-      install_requests_by_wheel_file = OrderedDict()
-      for install_request in to_install:
-        install_requests = install_requests_by_wheel_file.setdefault(install_request.wheel_file, [])
-        install_requests.append(install_request)
+    # Dedup by wheel name; e.g.: only install universal wheels once even though they'll get
+    # downloaded / built for each interpreter or platform.
+    install_requests_by_wheel_file = OrderedDict()
+    for install_request in to_install:
+      install_requests = install_requests_by_wheel_file.setdefault(install_request.wheel_file, [])
+      install_requests.append(install_request)
 
-      unsatisfied_install_requests = OrderedDict()
-      for install_requests in install_requests_by_wheel_file.values():
-        representative_install_request = install_requests[0]
-        install_result = representative_install_request.result(installed_wheels_dir)
-        if not install_result.is_installed:
-          TRACER.log('Installing {} in {}'
-                     .format(representative_install_request.wheel_path,
-                             install_result.install_chroot))
-          unsatisfied_install_requests[representative_install_request] = install_requests
-        else:
-          TRACER.log('Using cached installation of {} at {}'
-                     .format(representative_install_request.wheel_file,
-                             install_result.install_chroot))
-          distributions = list(install_result.find_distributions())
-          for install_request in install_requests:
-            add_distributions(install_request.target, distributions)
+    representative_install_requests = [
+      requests[0] for requests in install_requests_by_wheel_file.values()
+    ]
 
-      for install_result in self._run_parallel(inputs=unsatisfied_install_requests.keys(),
+    def add_requirements_requests(install_result):
+      install_requests = install_requests_by_wheel_file[install_result.request.wheel_file]
+      to_calculate_requirements_for.extend(install_result.finalize_install(install_requests))
+
+    with TRACER.timed('Installing:\n  {}'
+                      .format('\n  '.join(map(str, representative_install_requests)))):
+
+      install_requests, install_results = self._categorize_install_requests(
+        install_requests=representative_install_requests,
+        installed_wheels_dir=installed_wheels_dir
+      )
+      for install_result in install_results:
+        add_requirements_requests(install_result)
+
+      for install_result in self._run_parallel(inputs=install_requests,
                                                spawn_func=spawn_install,
                                                raise_type=Untranslateable):
-        distributions = list(install_result.finalize_install())
-        for install_request in unsatisfied_install_requests[install_result.request]:
-          add_distributions(install_request.target, distributions)
+        add_requirements_requests(install_result)
 
-    # And, finally, calculate environment markers for the resolved distributions.
-    markers_requests = [MarkersRequest(target=target, distributions=distributions)
-                        for target, distributions in installed_distributions_by_target.items()]
-    markers_by_req_key = defaultdict(OrderedSet)
-    with TRACER.timed('Determining environment markers of installed distributions:\n  {}'
-                      .format('\n  '.join(map(str, markers_requests)))):
-      for distribution_markers in self._run_parallel(inputs=markers_requests,
-                                                     spawn_func=self._spawn_calculate_markers,
-                                                     raise_type=Untranslateable):
-        for requirement, markers in distribution_markers.items():
-          markers_by_req_key[requirement].update(markers)
-
-    def to_requirement(dist):
-      req = dist.as_requirement()
-      markers = markers_by_req_key.get(req.key)
-      if not markers:
-        return req
-
-      if len(markers) == 1:
-        marker = next(iter(markers))
-        req.marker = marker
-        return req
-
-      # Here we have a resolve with multiple paths to the dependency represented by dist. At least
-      # two of those paths had (different) conditional requirements for dist based on environment
-      # marker predicates. Since the pip resolve succeeded, the implication is that the environment
-      # markers are compatible; i.e.: their intersection selects the target interpreter. Here we
-      # make that intersection explicit.
-      # See: https://www.python.org/dev/peps/pep-0496/#micro-language
-      marker = ' and '.join('({})'.format(marker) for marker in markers)
-      return Requirement.parse('{}; {}'.format(req, marker))
+    # 4. Calculate the final resolved requirements.
+    with TRACER.timed('Calculating resolved requirements for:\n  {}'
+                      .format('\n  '.join(map(str, to_calculate_requirements_for)))):
+      distribution_requirements = DistributionRequirements.merged(
+        self._run_parallel(
+          inputs=to_calculate_requirements_for,
+          spawn_func=DistributionRequirements.Request.spawn_calculation,
+          raise_type=Untranslateable
+        )
+      )
 
     resolved_distributions = OrderedSet()
-    for dists in installed_distributions_by_target.values():
-      resolved_distributions.update(ResolvedDistribution(to_requirement(dist), dist)
-                                    for dist in dists)
+    for requirements_request in to_calculate_requirements_for:
+      for distribution in requirements_request.distributions:
+        resolved_distributions.add(
+          ResolvedDistribution(
+            requirement=distribution_requirements.to_requirement(distribution),
+            distribution=distribution
+          )
+        )
     return resolved_distributions
 
 
