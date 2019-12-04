@@ -107,7 +107,7 @@ if PY3:
 
   # The `os.sched_getaffinity` function appears to be supported on Linux but not OSX.
   if not hasattr(os, 'sched_getaffinity'):
-    os.cpu_count
+    from os import cpu_count
   else:
     def cpu_count():
       # The set of CPUs accessible to the current process (pid 0).
