@@ -161,6 +161,9 @@ class SpawnedJob(object):
     """Terminates the spawned job if it's not already complete."""
     self._job.kill()
 
+  def __str__(self):
+    return str(self._job)
+
 
 _CPU_COUNT = cpu_count()
 _ABSOLUTE_MAX_JOBS = _CPU_COUNT * 2
@@ -235,6 +238,6 @@ def execute_parallel(max_jobs, inputs, spawn_func, raise_type):
           yield item.await_result()
         except Job.Error as e:
           stop.set()
-          error = raise_type('Job {} raised {}'.format(item.job, e))
+          error = raise_type('{} raised {}'.format(item, e))
     finally:
       job_slots.release()
