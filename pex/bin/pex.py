@@ -191,13 +191,15 @@ def configure_clp_pex_resolution(parser):
     help='Whether to transitively resolve requirements. Default: True')
 
   group.add_option(
-    '-j', '--parallel',
+    '-j', '--jobs',
     metavar='JOBS',
     dest='max_parallel_jobs',
     type=int,
     default=DEFAULT_MAX_JOBS,
     help='The maximum number of parallel jobs to use when resolving, building and installing '
-         'distributions. [Default: %default]')
+         'distributions. You might want to increase the maximum number of parallel jobs to '
+         'potentially improve the latency of the pex creation process at the expense of other'
+         'processes on your system. [Default: %default]')
 
   parser.add_option_group(group)
 

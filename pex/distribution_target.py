@@ -62,10 +62,9 @@ class DistributionTarget(object):
     return self._interpreter, self._platform
 
   def __eq__(self, other):
-    return type(self) == type(other) and self._tup() == other._tup()
-
-  def __ne__(self, other):
-    return not self.__eq__(other)
+    if type(other) is not type(self):
+      return NotImplemented
+    return self._tup() == other._tup()
 
   def __hash__(self):
     return hash(self._tup())

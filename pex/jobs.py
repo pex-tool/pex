@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import errno
 import os
-from collections import namedtuple
 from threading import BoundedSemaphore, Event, Thread
 
 from pex import third_party
@@ -15,19 +14,26 @@ from pex.tracer import TRACER
 
 
 class Job(object):
-  """Represents a job spawned as a subprocess."""
+  """Represents a job spawned as a subprocess.
+
+  Presents a similar API to `subprocess` except where noted.
+  """
 
   class Error(Exception):
     """Indicates that a Job exited non-zero."""
 
   def __init__(self, command, process):
+    """
+    :param command: The command used to spawn the job process.
+    :type command: list of str
+    :param process: The spawned process handle.
+    :type process: :class:`subprocess.Popen`
+    """
     self._command = command
     self._process = process
 
   def wait(self):
     """Waits for the job to complete.
-
-    N.B.: This method is idempotent.
 
     :raises: :class:`Job.Error` if the job exited non-zero.
     """
@@ -35,9 +41,7 @@ class Job(object):
     self._check_returncode()
 
   def communicate(self, input=None):
-    """communicates with the job sending any input data to stdin and collecting stdout and stderr.
-
-    N.B.: This method is not idempotent.
+    """Communicates with the job sending any input data to stdin and collecting stdout and stderr.
 
     :param input: Data to send to stdin of the job as per the `subprocess` API.
     :return: A tuple of the job's stdout and stderr as per the `subprocess` API.
@@ -86,6 +90,8 @@ def spawn_python_job(args, env=None, interpreter=None, expose=None, **subprocess
   """
   if expose:
     subprocess_env = (env or os.environ).copy()
+    # In order to expose vendored distributions with their un-vendored import paths in-tact, we
+    # need to set `__PEX_UNVENDORED__`. See: vendor.__main__.ImportRewriter._modify_import.
     subprocess_env['__PEX_UNVENDORED__'] = '1'
 
     pythonpath = third_party.expose(expose)
@@ -103,11 +109,20 @@ def spawn_python_job(args, env=None, interpreter=None, expose=None, **subprocess
   return Job(command=cmd, process=process)
 
 
-class SpawnedJob(namedtuple('SpawnedJob', ['job', 'result_func'])):
+class SpawnedJob(object):
   """A handle to a spawned :class:`Job` and its associated result."""
 
   @classmethod
   def wait(cls, job, result):
+    """Wait for the job to complete and return a fixed result upon success.
+
+    :param job: The spawned job.
+    :type job: :class:`Job`
+    :param result: The fixed success result.
+    :return: A spawned job that whose result is a side effect of the job (a written file, a
+             populated directory, etc.).
+    :rtype: :class:`SpawnedJob`
+    """
     def wait_result_func():
       job.wait()
       return result
@@ -116,19 +131,35 @@ class SpawnedJob(namedtuple('SpawnedJob', ['job', 'result_func'])):
 
   @classmethod
   def stdout(cls, job, result_func, input=None):
+    """Wait for the job to complete and return a result derived from its stdout.
+
+    :param job: The spawned job.
+    :type job: :class:`Job`
+    :param result_func: A function taking the stdout byte string collected from the spawned job and
+                        returning the desired result.
+    :param input: Optional input stream data to pass to the process as per the
+                  `subprocess.Popen.communicate` API.
+    :return: A spawned job that whose result is derived from stdout contents.
+    :rtype: :class:`SpawnedJob`
+    """
     def stdout_result_func():
       stdout, _ = job.communicate(input=input)
       return result_func(stdout)
 
     return cls(job=job, result_func=stdout_result_func)
 
+  def __init__(self, job, result_func):
+    """Not intended for direct use, see `wait` and `stdout` factories."""
+    self._job = job
+    self._result_func = result_func
+
   def await_result(self):
     """Waits for the spawned job to complete and returns its result."""
-    return self.result_func()
+    return self._result_func()
 
   def kill(self):
     """Terminates the spawned job if it's not already complete."""
-    self.job.kill()
+    self._job.kill()
 
 
 _CPU_COUNT = cpu_count()
@@ -163,22 +194,23 @@ def execute_parallel(max_jobs, inputs, spawn_func, raise_type):
              .format(size, '\n  '.join(map(str, inputs))),
              V=9)
 
-  stop = Event()
+  stop = Event()  # Used as a signal to stop spawning further jobs once any one job fails.
   job_slots = BoundedSemaphore(value=size)
-  spawned_job_queue = Queue()
-  queue_done_sentinel = object()
+  done_sentinel = object()
+  spawned_job_queue = Queue()  # Queue[Union[SpawnedJob, Exception, Literal[done_sentinel]]]
 
   def spawn_jobs():
-    for input in inputs:
-      if not stop.is_set():
-        job_slots.acquire()
-        try:
-          item = spawn_func(input)
-        except Exception as e:
-          item = e
-        finally:
-          spawned_job_queue.put(item)
-    spawned_job_queue.put(queue_done_sentinel)
+    for item in inputs:
+      if stop.is_set():
+        break
+      job_slots.acquire()
+      try:
+        resut = spawn_func(item)
+      except Exception as e:
+        resut = e
+      finally:
+        spawned_job_queue.put(resut)
+    spawned_job_queue.put(done_sentinel)
 
   spawner = Thread(name='PEX Parallel Job Spawner', target=spawn_jobs)
   spawner.daemon = True
@@ -187,7 +219,8 @@ def execute_parallel(max_jobs, inputs, spawn_func, raise_type):
   error = None
   while True:
     item = spawned_job_queue.get()
-    if item is queue_done_sentinel:
+
+    if item is done_sentinel:
       if error:
         raise error
       return
@@ -195,8 +228,8 @@ def execute_parallel(max_jobs, inputs, spawn_func, raise_type):
     try:
       if isinstance(item, Exception):
         error = item
-      elif error is not None:
-        item.job.kill()
+      elif error is not None:  # I.E.: `item` is not an exception, but there was a prior exception.
+        item.kill()
       else:
         try:
           yield item.await_result()
