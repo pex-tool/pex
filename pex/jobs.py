@@ -119,8 +119,8 @@ class SpawnedJob(object):
     :param job: The spawned job.
     :type job: :class:`Job`
     :param result: The fixed success result.
-    :return: A spawned job that whose result is a side effect of the job (a written file, a
-             populated directory, etc.).
+    :return: A spawned job whose result is a side effect of the job (a written file, a populated
+             directory, etc.).
     :rtype: :class:`SpawnedJob`
     """
     def wait_result_func():
@@ -139,7 +139,7 @@ class SpawnedJob(object):
                         returning the desired result.
     :param input: Optional input stream data to pass to the process as per the
                   `subprocess.Popen.communicate` API.
-    :return: A spawned job that whose result is derived from stdout contents.
+    :return: A spawned job whose result is derived from stdout contents.
     :rtype: :class:`SpawnedJob`
     """
     def stdout_result_func():
