@@ -10,7 +10,7 @@ from textwrap import dedent
 import pytest
 
 from pex import pip
-from pex.common import safe_mkdir, safe_open, safe_rmtree, safe_mkdtemp
+from pex.common import safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
 from pex.pex_info import PexInfo
 from pex.testing import run_pex_command
 
