@@ -305,7 +305,7 @@ class PEXBuilder(object):
     elif dist.location.endswith('.whl'):
       dist_hash = self._add_dist_wheel_file(dist.location, dist_name)
     else:
-      raise self.InvalidDistribution('Unsupported distribution type: {}'.format(dist))
+      raise self.InvalidDistribution('Unsupported distribution type: {}. pex can accept dist dirs and wheels.'.format(dist))
 
     # add dependency key so that it can rapidly be retrieved from cache
     self._pex_info.add_distribution(dist_name, dist_hash)
