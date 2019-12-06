@@ -9,10 +9,11 @@ import os
 from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
+from pex.distribution_target import DistributionTarget
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.pip import install_wheel
+from pex.pip import spawn_install_wheel
 from pex.third_party.pkg_resources import DefaultProvider, ZipProvider, get_provider
 from pex.tracer import TRACER
 from pex.util import CacheHelper, DistributionHelper
@@ -285,7 +286,12 @@ class PEXBuilder(object):
       tmp = safe_mkdtemp()
       whltmp = os.path.join(tmp, dist_name)
       os.mkdir(whltmp)
-      install_wheel(wheel=path, target=whltmp, overwrite=True, interpreter=self.interpreter)
+      install_job = spawn_install_wheel(
+        wheel=path,
+        install_dir=whltmp,
+        target=DistributionTarget.for_interpreter(self.interpreter)
+      )
+      install_job.wait()
       for root, _, files in os.walk(whltmp):
         pruned_dir = os.path.relpath(root, tmp)
         for f in files:

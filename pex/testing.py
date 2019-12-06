@@ -20,7 +20,7 @@ from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.pip import build_wheels
+from pex.pip import spawn_build_wheels
 from pex.util import DistributionHelper, named_temporary_file
 
 PY_VER = sys.version_info[:2]
@@ -156,11 +156,11 @@ class WheelBuilder(object):
     self._interpreter = interpreter or PythonInterpreter.get()
 
   def bdist(self):
-    build_wheels(
+    spawn_build_wheels(
       distributions=[self._source_dir],
-      target=self._wheel_dir,
+      wheel_dir=self._wheel_dir,
       interpreter=self._interpreter
-    )
+    ).wait()
     dists = os.listdir(self._wheel_dir)
     if len(dists) == 0:
       raise self.BuildFailure('No distributions were produced!')

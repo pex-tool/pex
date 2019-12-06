@@ -16,6 +16,7 @@ from textwrap import TextWrapper
 from pex.common import die, safe_delete, safe_mkdtemp
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import validate_constraints
+from pex.jobs import DEFAULT_MAX_JOBS
 from pex.pex import PEX
 from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.pex_builder import PEXBuilder
@@ -188,6 +189,17 @@ def configure_clp_pex_resolution(parser):
     action='callback',
     callback=process_transitive,
     help='Whether to transitively resolve requirements. Default: True')
+
+  group.add_option(
+    '-j', '--jobs',
+    metavar='JOBS',
+    dest='max_parallel_jobs',
+    type=int,
+    default=DEFAULT_MAX_JOBS,
+    help='The maximum number of parallel jobs to use when resolving, building and installing '
+         'distributions. You might want to increase the maximum number of parallel jobs to '
+         'potentially improve the latency of the pex creation process at the expense of other'
+         'processes on your system. [Default: %default]')
 
   parser.add_option_group(group)
 
@@ -552,7 +564,8 @@ def build_pex(reqs, options):
                                 cache=options.cache_dir,
                                 build=options.build,
                                 use_wheel=options.use_wheel,
-                                compile=options.compile)
+                                compile=options.compile,
+                                max_parallel_jobs=options.max_parallel_jobs)
 
       for resolved_dist in resolveds:
         log('  %s -> %s' % (resolved_dist.requirement, resolved_dist.distribution),

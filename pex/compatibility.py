@@ -102,4 +102,20 @@ else:
   from urllib import pathname2url, url2pathname
 
 
+if PY3:
+  from queue import Queue
+
+  # The `os.sched_getaffinity` function appears to be supported on Linux but not OSX.
+  if not hasattr(os, 'sched_getaffinity'):
+    from os import cpu_count
+  else:
+    def cpu_count():
+      # The set of CPUs accessible to the current process (pid 0).
+      cpu_set = os.sched_getaffinity(0)
+      return len(cpu_set)
+else:
+  from Queue import Queue
+  from multiprocessing import cpu_count
+
+
 WINDOWS = os.name == 'nt'

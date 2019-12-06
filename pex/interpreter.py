@@ -318,6 +318,7 @@ class PythonInterpreter(object):
     cmd.append('-s')
 
     env = cls.sanitized_environment(env=env)
+    pythonpath = list(pythonpath or ())
     if pythonpath:
       env['PYTHONPATH'] = os.pathsep.join(pythonpath)
     else:
