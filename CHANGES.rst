@@ -1,6 +1,26 @@
 Release Notes
 =============
 
+2.0.3
+-----
+
+This release fixes a regression in handling explicitly requested `--index` or
+`--find-links` http (insecure) repos. In addition, performance of the pex 2.x
+resolver is brought in line with the 1.x resolver in all cases and improved in
+most cases.
+
+* Unify PEX buildtime and runtime wheel caches. #821
+  `PR #821 <https://github.com/pantsbuild/pex/pull/821>`_
+
+* Parallelize resolve. (#819)
+  `PR #819 <https://github.com/pantsbuild/pex/pull/819>`_
+
+* Use the resolve cache to skip installs. (#815)
+  `PR #815 <https://github.com/pantsbuild/pex/pull/815>`_
+
+* Implicitly trust explicitly requested repos. (#813)
+  `PR #813 <https://github.com/pantsbuild/pex/pull/813>`_
+
 2.0.2
 -----
 
