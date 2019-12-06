@@ -75,9 +75,6 @@ class Variables(object):
   def copy(self):
     return self._environ.copy()
 
-  def set(self, variable, value):
-    self._environ[variable] = str(value)
-
   def _defaulted(self, default):
     return default if self._use_defaults else None
 

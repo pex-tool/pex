@@ -46,7 +46,7 @@ class PexInfo(object):
   """
 
   PATH = 'PEX-INFO'
-  INTERNAL_CACHE = '.deps'
+  INSTALL_CACHE = 'installed_wheels'
 
   @classmethod
   def make_build_properties(cls, interpreter=None):
@@ -290,11 +290,11 @@ class PexInfo(object):
 
   @property
   def internal_cache(self):
-    return self.INTERNAL_CACHE
+    return '.deps'
 
   @property
   def install_cache(self):
-    return os.path.join(self.pex_root, 'install')
+    return os.path.join(self.pex_root, self.INSTALL_CACHE)
 
   @property
   def zip_unsafe_cache(self):

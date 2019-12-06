@@ -69,7 +69,6 @@ def test_pex_root():
     results.assert_success()
     assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
     assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
-    assert 'build' in os.listdir(td), 'Expected build directory in tmp pex root.'
 
 
 def test_cache_disable():

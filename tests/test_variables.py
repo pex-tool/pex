@@ -108,14 +108,6 @@ def test_pex_vars_hermetic():
     assert_pex_vars_hermetic()
 
 
-def test_pex_vars_set():
-  v = Variables(environ={})
-  assert v._get_int('HELLO') is None
-  v.set('HELLO', '42')
-  assert v._get_int('HELLO') == 42
-  assert {'HELLO': '42'} == v.copy()
-
-
 def test_pex_get_kv():
   v = Variables(environ={})
   assert v._get_kv('HELLO') is None

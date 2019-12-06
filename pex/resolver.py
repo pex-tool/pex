@@ -1,21 +1,21 @@
+# coding=utf-8
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import
 
-import errno
 import functools
 import json
 import os
 import subprocess
 from collections import OrderedDict, defaultdict, namedtuple
 from textwrap import dedent
-from uuid import uuid4
 
-from pex.common import safe_mkdtemp
+from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
 from pex.jobs import SpawnedJob, execute_parallel, spawn_python_job
 from pex.orderedset import OrderedSet
+from pex.pex_info import PexInfo
 from pex.pip import spawn_build_wheels, spawn_download_distributions, spawn_install_wheel
 from pex.platforms import Platform
 from pex.requirements import local_project_from_requirement, local_projects_from_requirement_file
@@ -126,35 +126,6 @@ def parsed_platform(platform=None):
   return Platform.create(platform) if platform and platform != 'current' else None
 
 
-class AtomicDirectory(namedtuple('AtomicDirectory', ['work_dir', 'target_dir'])):
-  @classmethod
-  def for_target_dir(cls, target_dir):
-    return cls(work_dir='{}.{}'.format(target_dir, uuid4().hex), target_dir=target_dir)
-
-  @property
-  def is_finalized(self):
-    return os.path.exists(self.target_dir)
-
-  def finalize(self):
-    if self.is_finalized:
-      return
-
-    try:
-      # Perform an atomic rename.
-      #
-      # Per the docs: https://docs.python.org/2.7/library/os.html#os.rename
-      #
-      #   The operation may fail on some Unix flavors if src and dst are on different filesystems.
-      #   If successful, the renaming will be an atomic operation (this is a POSIX requirement).
-      #
-      # We have satisfied the single filesystem constraint by arranging the `work_dir` to be a
-      # sibling of the `target_dir`.
-      os.rename(self.work_dir, self.target_dir)
-    except OSError as e:
-      if e.errno != errno.ENOTEMPTY:
-        raise e
-
-
 class ResolveResult(namedtuple('ResolveResult', ['target', 'download_dir'])):
   @staticmethod
   def _is_wheel(path):
@@ -198,7 +169,7 @@ class BuildResult(namedtuple('BuildResult', ['request', 'atomic_dir'])):
       build_request.fingerprint,
       build_request.target.id
     )
-    return cls(request=build_request, atomic_dir=AtomicDirectory.for_target_dir(dist_dir))
+    return cls(request=build_request, atomic_dir=AtomicDirectory(dist_dir))
 
   @property
   def is_built(self):
@@ -232,7 +203,7 @@ class InstallRequest(namedtuple('InstallRequest', ['target', 'wheel_path', 'fing
     return InstallResult.from_request(self, installation_root=installation_root)
 
 
-class InstallResult(namedtuple('InstallResult', ['request', 'atomic_dir'])):
+class InstallResult(namedtuple('InstallResult', ['request', 'installation_root', 'atomic_dir'])):
   @classmethod
   def from_request(cls, install_request, installation_root):
     install_chroot = os.path.join(
@@ -240,7 +211,11 @@ class InstallResult(namedtuple('InstallResult', ['request', 'atomic_dir'])):
       install_request.fingerprint,
       install_request.wheel_file
     )
-    return cls(request=install_request, atomic_dir=AtomicDirectory.for_target_dir(install_chroot))
+    return cls(
+      request=install_request,
+      installation_root=installation_root,
+      atomic_dir=AtomicDirectory(install_chroot)
+    )
 
   @property
   def is_installed(self):
@@ -256,6 +231,63 @@ class InstallResult(namedtuple('InstallResult', ['request', 'atomic_dir'])):
 
   def finalize_install(self, install_requests):
     self.atomic_dir.finalize()
+
+    # The install_chroot is keyed by the hash of the wheel file (zip) we installed. Here we add a
+    # key by the hash of the exploded wheel dir (the install_chroot). This latter key is used by
+    # zipped PEXes at runtime to explode their wheel chroots to the filesystem. By adding the key
+    # here we short-circuit the explode process for PEXes created and run on the same machine.
+    #
+    # From a clean cache after building a simple pex this looks like:
+    # $ rm -rf ~/.pex
+    # $ python -mpex -c pex -o /tmp/pex.pex .
+    # $ tree -L 4 ~/.pex/
+    # /home/jsirois/.pex/
+    # ├── built_wheels
+    # │   └── 1003685de2c3604dc6daab9540a66201c1d1f718
+    # │       └── cp-38-cp38
+    # │           └── pex-2.0.2-py2.py3-none-any.whl
+    # └── installed_wheels
+    #     ├── 2a594cef34d2e9109bad847358d57ac4615f81f4
+    #     │   └── pex-2.0.2-py2.py3-none-any.whl
+    #     │       ├── bin
+    #     │       ├── pex
+    #     │       └── pex-2.0.2.dist-info
+    #     └── ae13cba3a8e50262f4d730699a11a5b79536e3e1
+    #         └── pex-2.0.2-py2.py3-none-any.whl -> /home/jsirois/.pex/installed_wheels/2a594cef34d2e9109bad847358d57ac4615f81f4/pex-2.0.2-py2.py3-none-any.whl  # noqa
+    #
+    # 11 directories, 1 file
+    #
+    # And we see in the created pex, the runtime key that the layout above satisfies:
+    # $ unzip -qc /tmp/pex.pex PEX-INFO | jq .distributions
+    # {
+    #   "pex-2.0.2-py2.py3-none-any.whl": "ae13cba3a8e50262f4d730699a11a5b79536e3e1"
+    # }
+    #
+    # When the pex is run, the runtime key is followed to the build time key, avoiding re-unpacking
+    # the wheel:
+    # $ PEX_VERBOSE=1 /tmp/pex.pex --version
+    # pex: Found site-library: /usr/lib/python3.8/site-packages
+    # pex: Tainted path element: /usr/lib/python3.8/site-packages
+    # pex: Scrubbing from user site: /home/jsirois/.local/lib/python3.8/site-packages
+    # pex: Scrubbing from site-packages: /usr/lib/python3.8/site-packages
+    # pex: Activating PEX virtual environment from /tmp/pex.pex: 9.1ms
+    # pex: Bootstrap complete, performing final sys.path modifications...
+    # pex: PYTHONPATH contains:
+    # pex:     /tmp/pex.pex
+    # pex:   * /usr/lib/python38.zip
+    # pex:     /usr/lib/python3.8
+    # pex:     /usr/lib/python3.8/lib-dynload
+    # pex:     /home/jsirois/.pex/installed_wheels/2a594cef34d2e9109bad847358d57ac4615f81f4/pex-2.0.2-py2.py3-none-any.whl  # noqa
+    # pex:   * /tmp/pex.pex/.bootstrap
+    # pex:   * - paths that do not exist or will be imported via zipimport
+    # pex.pex 2.0.2
+    #
+    wheel_dir_hash = CacheHelper.dir_hash(self.install_chroot)
+    runtime_key_dir = os.path.join(self.installation_root, wheel_dir_hash)
+    with atomic_directory(runtime_key_dir) as work_dir:
+      if work_dir:
+        os.symlink(self.install_chroot, os.path.join(work_dir, self.request.wheel_file))
+
     return self._iter_requirements_requests(install_requests)
 
   def _iter_requirements_requests(self, install_requests):
@@ -442,7 +474,7 @@ class ResolveRequest(object):
     spawn_wheel_build = functools.partial(self._spawn_wheel_build, built_wheels_dir)
     to_build = list(self._iter_local_projects())
 
-    installed_wheels_dir = os.path.join(cache, 'installed_wheels')
+    installed_wheels_dir = os.path.join(cache, PexInfo.INSTALL_CACHE)
     spawn_install = functools.partial(self._spawn_install, installed_wheels_dir)
     to_install = []
 

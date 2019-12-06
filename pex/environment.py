@@ -8,16 +8,14 @@ import itertools
 import os
 import site
 import sys
-import uuid
 import zipfile
 from collections import OrderedDict
 
 from pex import pex_builder, pex_warnings
 from pex.bootstrap import Bootstrap
-from pex.common import die, open_zip, rename_if_empty, safe_mkdir, safe_rmtree
+from pex.common import atomic_directory, die, open_zip
 from pex.interpreter import PythonInterpreter
 from pex.package import distribution_compatible
-from pex.pex_info import PexInfo
 from pex.platforms import Platform
 from pex.third_party.pkg_resources import (
     DistributionNotFound,
@@ -27,7 +25,7 @@ from pex.third_party.pkg_resources import (
     find_distributions
 )
 from pex.tracer import TRACER
-from pex.util import CacheHelper, DistributionHelper
+from pex.util import CacheHelper
 
 
 def _import_pkg_resources():
@@ -111,21 +109,14 @@ class PEXEnvironment(Environment):
       return pex_file
     explode_dir = os.path.join(pex_info.zip_unsafe_cache, pex_info.code_hash)
     TRACER.log('PEX is not zip safe, exploding to %s' % explode_dir)
-    if not os.path.exists(explode_dir):
-      explode_tmp = explode_dir + '.' + uuid.uuid4().hex
-      with TRACER.timed('Unzipping %s' % pex_file):
-        try:
-          safe_mkdir(explode_tmp)
+    with atomic_directory(explode_dir) as explode_tmp:
+      if explode_tmp:
+        with TRACER.timed('Unzipping %s' % pex_file):
           with open_zip(pex_file) as pex_zip:
             pex_files = (x for x in pex_zip.namelist()
                          if not x.startswith(pex_builder.BOOTSTRAP_DIR) and
-                            not x.startswith(PexInfo.INTERNAL_CACHE))
+                            not x.startswith(pex_info.internal_cache))
             pex_zip.extractall(explode_tmp, pex_files)
-        except:  # noqa: T803
-          safe_rmtree(explode_tmp)
-          raise
-      TRACER.log('Renaming %s to %s' % (explode_tmp, explode_dir))
-      rename_if_empty(explode_tmp, explode_dir)
     return explode_dir
 
   @classmethod
@@ -162,34 +153,14 @@ class PEXEnvironment(Environment):
           reimported_module.__path__.append(path_item)
 
   @classmethod
-  def _write_zipped_internal_cache(cls, pex, pex_info):
-    prefix_length = len(pex_info.internal_cache) + 1
-    existing_cached_distributions = []
-    newly_cached_distributions = []
-    with open_zip(pex) as zf:
-      # Distribution names are the first element after ".deps/" and before the next "/"
-      distribution_names = set(filter(None, (filename[prefix_length:].split('/')[0]
-          for filename in zf.namelist() if filename.startswith(pex_info.internal_cache))))
-      # Create Distribution objects from these, and possibly write to disk if necessary.
-      for distribution_name in distribution_names:
-        internal_dist_path = '/'.join([pex_info.internal_cache, distribution_name])
-        # First check if this is already cached
-        dist_digest = pex_info.distributions.get(distribution_name) or CacheHelper.zip_hash(
-            zf, internal_dist_path)
-        cached_location = os.path.join(pex_info.install_cache, '%s.%s' % (
-          distribution_name, dist_digest))
-        if os.path.exists(cached_location):
-          dist = DistributionHelper.distribution_from_path(cached_location)
-          if dist is not None:
-            existing_cached_distributions.append(dist)
-            continue
-
-        dist = DistributionHelper.distribution_from_path(os.path.join(pex, internal_dist_path))
-        with TRACER.timed('Caching %s' % dist):
-          newly_cached_distributions.append(
-            CacheHelper.cache_distribution(zf, internal_dist_path, cached_location))
-
-    return existing_cached_distributions, newly_cached_distributions
+  def _write_zipped_internal_cache(cls, zf, pex_info):
+    cached_distributions = []
+    for distribution_name, dist_digest in pex_info.distributions.items():
+      internal_dist_path = '/'.join([pex_info.internal_cache, distribution_name])
+      cached_location = os.path.join(pex_info.install_cache, dist_digest, distribution_name)
+      dist = CacheHelper.cache_distribution(zf, internal_dist_path, cached_location)
+      cached_distributions.append(dist)
+    return cached_distributions
 
   @classmethod
   def _load_internal_cache(cls, pex, pex_info):
@@ -200,8 +171,9 @@ class PEXEnvironment(Environment):
         for dist in find_distributions(internal_cache):
           yield dist
       else:
-        for dist in itertools.chain(*cls._write_zipped_internal_cache(pex, pex_info)):
-          yield dist
+        with open_zip(pex) as zf:
+          for dist in cls._write_zipped_internal_cache(zf, pex_info):
+            yield dist
 
   def __init__(self, pex, pex_info, interpreter=None, **kw):
     self._internal_cache = os.path.join(pex, pex_info.internal_cache)
