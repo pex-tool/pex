@@ -413,7 +413,7 @@ class ResolveRequest(object):
     # (`PEXEnvironment` handles this selective activation at runtime). Since pip install only
     # accepts a single location to install all resolved dists, that won't work.
     #
-    # This means we need to seperately resolve all distributions, then install each in their own
+    # This means we need to separately resolve all distributions, then install each in their own
     # chroot. To do this we use `pip download` for the resolve and download of all needed
     # distributions and then `pip install` to install each distribution in its own chroot.
     #
