@@ -165,7 +165,8 @@ def spawn_install_wheel(wheel,
   interpreter = target.get_interpreter()
   if target.is_foreign:
     if compile:
-      raise ValueError('Cannot compile bytecode for {} using {}.'.format(wheel, interpreter))
+      raise ValueError('Cannot compile bytecode for {} using {} because the wheel has a foreign '
+                       'platform.'.format(wheel, interpreter))
 
     # We're installing a wheel for a foreign platform. This is just an unpacking operation though;
     # so we don't actually need to perform it with a target platform compatible interpreter.

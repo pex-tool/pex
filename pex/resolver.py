@@ -140,6 +140,15 @@ class AtomicDirectory(namedtuple('AtomicDirectory', ['work_dir', 'target_dir']))
       return
 
     try:
+      # Perform an atomic rename.
+      #
+      # Per the docs: https://docs.python.org/2.7/library/os.html#os.rename
+      #
+      #   The operation may fail on some Unix flavors if src and dst are on different filesystems.
+      #   If successful, the renaming will be an atomic operation (this is a POSIX requirement).
+      #
+      # We have satisfied the single filesystem constraint by arranging the `work_dir` to be a
+      # sibling of the `target_dir`.
       os.rename(self.work_dir, self.target_dir)
     except OSError as e:
       if e.errno != errno.ENOTEMPTY:
@@ -152,9 +161,10 @@ class ResolveResult(namedtuple('ResolveResult', ['target', 'download_dir'])):
     return os.path.isfile(path) and path.endswith('.whl')
 
   def _iter_distribution_paths(self):
-    if os.path.exists(self.download_dir):
-      for distribution in os.listdir(self.download_dir):
-        yield os.path.join(self.download_dir, distribution)
+    if not os.path.exists(self.download_dir):
+      return
+    for distribution in os.listdir(self.download_dir):
+      yield os.path.join(self.download_dir, distribution)
 
   def build_requests(self):
     for distribution_path in self._iter_distribution_paths():
