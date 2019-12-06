@@ -11,12 +11,11 @@ import subprocess
 from collections import OrderedDict, defaultdict, namedtuple
 from textwrap import dedent
 
-from pex.pex_info import PexInfo
-
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
 from pex.jobs import SpawnedJob, execute_parallel, spawn_python_job
 from pex.orderedset import OrderedSet
+from pex.pex_info import PexInfo
 from pex.pip import spawn_build_wheels, spawn_download_distributions, spawn_install_wheel
 from pex.platforms import Platform
 from pex.requirements import local_project_from_requirement, local_projects_from_requirement_file

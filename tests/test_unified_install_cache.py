@@ -10,7 +10,7 @@ from textwrap import dedent
 import pytest
 
 from pex import pip
-from pex.common import safe_rmtree, safe_open, safe_mkdir
+from pex.common import safe_mkdir, safe_open, safe_rmtree, safe_mkdtemp
 from pex.pex_info import PexInfo
 from pex.testing import run_pex_command
 
@@ -20,7 +20,9 @@ def pex_project_dir():
   return subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
 
 
-def test_issues_789_demo(pex_project_dir, tmpdir):
+def test_issues_789_demo(pex_project_dir):
+  tmpdir = safe_mkdtemp()
+
   # 1. Imagine we've pre-resolved the requirements needed in our wheel house.
   requirements = [
     'ansicolors',
@@ -37,7 +39,7 @@ def test_issues_789_demo(pex_project_dir, tmpdir):
   # 2. Also imagine this configuration is passed to a tool (PEX or a wrapper as in this test
   # example) via the CLI or other configuration data sources. For example, Pants has a `PythonSetup`
   # that combines with BUILD target data to get you this sort of configuration info outside pex.
-  resolver_settings=dict(
+  resolver_settings = dict(
     indexes=[],  # Turn off pypi.
     find_links=[wheelhouse],  # Use our wheel house.
     build=False,  # Use only pre-built wheels.
