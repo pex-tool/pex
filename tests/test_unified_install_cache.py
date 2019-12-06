@@ -69,9 +69,9 @@ def test_issues_789_demo(pex_project_dir):
 
       def run():
         env = os.environ.copy()
-        env.update(PEX_INTERPRETER='1')
+        env.update(PEX_MODULE='isort')
         isort_process = subprocess.Popen(
-          [sys.argv[0], '-m', 'isort'] + sys.argv[1:],
+          sys.argv,
           env=env,
           stdout = subprocess.PIPE,
           stderr = subprocess.PIPE
@@ -164,7 +164,7 @@ def test_issues_789_demo(pex_project_dir):
           ipex_builder = PEXBuilder(pex_info=ipex_info)
 
           # Populate the pex with the needed code.
-          ptex_info = json.load(zf.open('PTEX-INFO'))
+          ptex_info = json.loads(zf.read('PTEX-INFO').decode('utf-8'))
           for path in ptex_info['code']:
             ipex_builder.add_source(os.path.join(code_root, path), path)
 
