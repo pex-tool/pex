@@ -56,10 +56,6 @@ setup(
   extras_require={
     # For improved subprocess robustness under python2.7.
     'subprocess': ['subprocess32>=3.2.7'],
-    # For improved requirement resolution and fetching robustness.
-    'requests': ['requests>=2.8.14'],
-    # For improved requirement resolution and fetching performance.
-    'cachecontrol': ['CacheControl>=0.12.3'],
   },
   cmdclass={'bdist_pex': bdist_pex},  # Make bdist_pex available for _this_ setup.py.
   entry_points={
