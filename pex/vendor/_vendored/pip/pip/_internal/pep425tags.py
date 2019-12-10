@@ -1,5 +1,5 @@
 """Generate and work with PEP 425 Compatibility Tags."""
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import distutils.util
 import logging
@@ -345,6 +345,16 @@ def get_supported(
     :param abi: specify the exact abi you want valid
         tags for, or None. If None, use the local interpreter abi.
     """
+    print('>>> calculating supported for versions={versions}, noarch={noarch}, '
+          'platform={platform}, impl={impl}, abi={abi}:...'.format(
+        versions=', '.join(map(str, versions)),
+        noarch=noarch,
+        platform=platform,
+        impl=impl,
+        abi=abi,
+      ),
+      file=sys.stderr
+    )
     supported = []
 
     # Versions must be given with respect to the preference
@@ -443,6 +453,7 @@ def get_supported(
         if i == 0:
             supported.append(('py%s' % (version[0]), 'none', 'any'))
 
+    print('\n\t{}'.format('\n\t'.join(map(str, supported))), file=sys.stderr)
     return supported
 
 
