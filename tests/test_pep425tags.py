@@ -49,6 +49,10 @@ class TestPEP425Tags(object):
         assert abi_tag == base + flags + 'u'
 
     else:
+      if sys.version_info >= (3, 8):
+        # On Python >= 3.8, the m flag is no longer used: https://bugs.python.org/issue36707
+        flags = flags.replace('m', '')
+
       # On Python >= 3.3, UCS-4 is essentially permanently enabled, and
       # Py_UNICODE_SIZE is None. SOABI on these builds does not include
       # the 'u' so manual SOABI detection should not do so either.

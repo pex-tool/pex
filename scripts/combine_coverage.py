@@ -2,6 +2,7 @@ import os
 import sys
 
 from coverage.data import CoverageData
+
 from pex.pex_builder import BOOTSTRAP_DIR
 
 
@@ -36,7 +37,8 @@ def combine_pex_coverage(root_dir, coverage_file_iter, unlink=True):
     cov.read()
     combined.add_line_data(dict(_iter_filter(root_dir, cov.line_data())))
     combined.add_arc_data(dict(_iter_filter(root_dir, cov.arc_data())))
-    os.unlink(filename)
+    if unlink:
+      os.unlink(filename)
 
   # filter out non-pex files
   prefix = os.path.join(root_dir, 'pex/')
