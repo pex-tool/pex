@@ -15,12 +15,18 @@ def distribution_compatible(dist, supported_tags=None):
     by the platform in question; defaults to the current interpreter's supported tags.
   :returns: True if the distribution is compatible, False if it is unrecognized or incompatible.
   """
-  if supported_tags is None:
-    supported_tags = get_supported()
 
   filename, ext = os.path.splitext(os.path.basename(dist.location))
   if ext.lower() != '.whl':
-    return False
+    # This supports resolving pex's own vendored distributions which are vendored in directory
+    # directory with the project name (`pip/` for pip) and not the corresponding wheel name
+    # (`pip-19.3.1-py2.py3-none-any.whl/` for pip). Pes only vendors universal wheels for all
+    # platforms it supports at buildtime and runtime so this is always safe.
+    return True
+
+  if supported_tags is None:
+    supported_tags = get_supported()
+
   try:
     name_, raw_version_, py_tag, abi_tag, arch_tag = filename.rsplit('-', 4)
   except ValueError:

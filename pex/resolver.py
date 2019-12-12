@@ -16,7 +16,7 @@ from pex.distribution_target import DistributionTarget
 from pex.jobs import SpawnedJob, execute_parallel, spawn_python_job
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
-from pex.pip import spawn_build_wheels, spawn_download_distributions, spawn_install_wheel
+from pex.pip import get_pip
 from pex.platforms import Platform
 from pex.requirements import local_project_from_requirement, local_projects_from_requirement_file
 from pex.third_party.pkg_resources import Distribution, Environment, Requirement
@@ -363,7 +363,7 @@ class ResolveRequest(object):
 
   def _spawn_resolve(self, resolved_dists_dir, target):
     download_dir = os.path.join(resolved_dists_dir, target.id)
-    download_job = spawn_download_distributions(
+    download_job = get_pip().spawn_download_distributions(
       download_dir=download_dir,
       requirements=self._requirements,
       requirement_files=self._requirement_files,
@@ -395,7 +395,7 @@ class ResolveRequest(object):
 
   def _spawn_wheel_build(self, built_wheels_dir, build_request):
     build_result = build_request.result(built_wheels_dir)
-    build_job = spawn_build_wheels(
+    build_job = get_pip().spawn_build_wheels(
       distributions=[build_request.source_path],
       wheel_dir=build_result.build_dir,
       cache=self._cache,
@@ -420,7 +420,7 @@ class ResolveRequest(object):
 
   def _spawn_install(self, installed_wheels_dir, install_request):
     install_result = install_request.result(installed_wheels_dir)
-    install_job = spawn_install_wheel(
+    install_job = get_pip().spawn_install_wheel(
       wheel=install_request.wheel_path,
       install_dir=install_result.build_chroot,
       compile=self._compile,
@@ -430,7 +430,7 @@ class ResolveRequest(object):
     )
     return SpawnedJob.wait(job=install_job, result=install_result)
 
-  def resolve_distributions(self):
+  def resolve_distributions(self, ignore_errors=False):
     # This method has four stages:
     # 1. Resolve sdists and wheels.
     # 2. Build local projects and sdists.
@@ -560,7 +560,37 @@ class ResolveRequest(object):
             distribution=distribution
           )
         )
+
+    if not ignore_errors and self._transitive:
+      self._check_resolve(resolved_distributions)
     return resolved_distributions
+
+  def _check_resolve(self, resolved_distributions):
+    dist_by_key = OrderedDict(
+      (resolved_distribution.requirement.key, resolved_distribution.distribution)
+      for resolved_distribution in resolved_distributions
+    )
+
+    unsatisfied = []
+    for dist in dist_by_key.values():
+      for requirement in dist.requires():
+        resolved_dist = dist_by_key.get(requirement.key)
+        if not resolved_dist or resolved_dist not in requirement:
+          unsatisfied.append(
+            '{dist} requires {requirement} but {resolved_dist} was resolved'.format(
+              dist=dist.as_requirement(),
+              requirement=requirement,
+              resolved_dist=resolved_dist.as_requirement() if resolved_dist else None
+            )
+          )
+
+    if unsatisfied:
+      raise Unsatisfiable(
+        'Failed to resolve compatible distributions:\n{failures}'.format(
+          failures='\n'.join('{index}: {failure}'.format(index=index + 1, failure=failure)
+                             for index, failure in enumerate(unsatisfied))
+        )
+      )
 
 
 def resolve(requirements=None,
@@ -576,7 +606,8 @@ def resolve(requirements=None,
             build=True,
             use_wheel=True,
             compile=False,
-            max_parallel_jobs=None):
+            max_parallel_jobs=None,
+            ignore_errors=False):
   """Produce all distributions needed to meet all specified requirements.
 
   :keyword requirements: A sequence of requirement strings.
@@ -612,6 +643,7 @@ def resolve(requirements=None,
     Defaults to ``False``.
   :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
     building and installing distributions in a resolve. Defaults to the number of CPUs available.
+  :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
   :returns: List of :class:`ResolvedDistribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -634,7 +666,7 @@ def resolve(requirements=None,
                                    compile=compile,
                                    max_parallel_jobs=max_parallel_jobs)
 
-  return list(resolve_request.resolve_distributions())
+  return list(resolve_request.resolve_distributions(ignore_errors=ignore_errors))
 
 
 def resolve_multi(requirements=None,
@@ -650,7 +682,8 @@ def resolve_multi(requirements=None,
                   build=True,
                   use_wheel=True,
                   compile=False,
-                  max_parallel_jobs=None):
+                  max_parallel_jobs=None,
+                  ignore_errors=False):
   """A generator function that produces all distributions needed to meet `requirements`
   for multiple interpreters and/or platforms.
 
@@ -689,6 +722,7 @@ def resolve_multi(requirements=None,
     Defaults to ``False``.
   :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
     building and installing distributions in a resolve. Defaults to the number of CPUs available.
+  :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
   :returns: List of :class:`ResolvedDistribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
   :raises Untranslateable: If no compatible distributions could be acquired for
@@ -730,4 +764,4 @@ def resolve_multi(requirements=None,
                                    compile=compile,
                                    max_parallel_jobs=max_parallel_jobs)
 
-  return list(resolve_request.resolve_distributions())
+  return list(resolve_request.resolve_distributions(ignore_errors=ignore_errors))

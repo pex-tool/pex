@@ -6,7 +6,7 @@ import os
 import pytest
 
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
-from pex.pip import spawn_install_wheel
+from pex.pip import get_pip
 from pex.util import DistributionHelper
 
 
@@ -16,7 +16,7 @@ from pex.util import DistributionHelper
 def test_get_script_from_distributions(tmpdir):
   whl_path = './tests/example_packages/aws_cfn_bootstrap-1.4-py2-none-any.whl'
   install_dir = os.path.join(str(tmpdir), os.path.basename(whl_path))
-  spawn_install_wheel(wheel=whl_path, install_dir=install_dir).wait()
+  get_pip().spawn_install_wheel(wheel=whl_path, install_dir=install_dir).wait()
 
   dist = DistributionHelper.distribution_from_path(install_dir)
   assert 'aws-cfn-bootstrap' == dist.project_name

@@ -9,17 +9,18 @@ import os
 import site
 import sys
 import zipfile
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from pex import pex_builder, pex_warnings
 from pex.bootstrap import Bootstrap
 from pex.common import atomic_directory, die, open_zip
 from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
 from pex.package import distribution_compatible
 from pex.platforms import Platform
 from pex.third_party.pkg_resources import DistributionNotFound, Environment, Requirement, WorkingSet
 from pex.tracer import TRACER
-from pex.util import CacheHelper
+from pex.util import CacheHelper, DistributionHelper
 
 
 def _import_pkg_resources():
@@ -226,16 +227,16 @@ class PEXEnvironment(Environment):
     return self._working_set
 
   def _resolve(self, working_set, reqs):
-    reqs = reqs[:]
-    unresolved_reqs = set()
-    resolveds = set()
+    reqs_by_key = OrderedDict((req.key, req) for req in reqs)
+    unresolved_reqs = OrderedDict()
+    resolveds = OrderedSet()
 
     environment = self._target_interpreter_env.copy()
     environment['extra'] = list(set(itertools.chain(*(req.extras for req in reqs))))
 
     # Resolve them one at a time so that we can figure out which ones we need to elide should
     # there be an interpreter incompatibility.
-    for req in reqs:
+    for req in reqs_by_key.values():
       if req.marker and not req.marker.evaluate(environment=environment):
         TRACER.log('Skipping activation of `%s` due to environment marker de-selection' % req)
         continue
@@ -244,27 +245,55 @@ class PEXEnvironment(Environment):
           resolveds.update(working_set.resolve([req], env=self))
         except DistributionNotFound as e:
           TRACER.log('Failed to resolve a requirement: %s' % e)
-          unresolved_reqs.add(e.req.project_name)
+          requirers = unresolved_reqs.setdefault(e.req, OrderedSet())
           if e.requirers:
-            unresolved_reqs.update(e.requirers)
-
-    unresolved_reqs = set([req.lower() for req in unresolved_reqs])
+            requirers.update(reqs_by_key[requirer] for requirer in e.requirers)
 
     if unresolved_reqs:
       TRACER.log('Unresolved requirements:')
       for req in unresolved_reqs:
         TRACER.log('  - %s' % req)
+
       TRACER.log('Distributions contained within this pex:')
+      distributions_by_key = defaultdict(list)
       if not self._pex_info.distributions:
         TRACER.log('  None')
       else:
-        for dist in self._pex_info.distributions:
-          TRACER.log('  - %s' % dist)
+        for dist_name, dist_digest in self._pex_info.distributions.items():
+          TRACER.log('  - %s' % dist_name)
+          distribution = DistributionHelper.distribution_from_path(
+            path=os.path.join(self._pex_info.install_cache, dist_digest, dist_name)
+          )
+          distributions_by_key[distribution.as_requirement().key].append(distribution)
+
       if not self._pex_info.ignore_errors:
+        items = []
+        for index, (requirement, requirers) in enumerate(unresolved_reqs.items()):
+          rendered_requirers = ''
+          if requirers:
+            rendered_requirers = (
+              '\n    Required by:'
+              '\n      {requirers}'
+            ).format(requirers='\n      '.join(map(str, requirers)))
+
+          items.append(
+            '{index: 2d}: {requirement}'
+            '{rendered_requirers}'
+            '\n    But this pex only contains:'
+            '\n      {distributions}'.format(
+              index=index + 1,
+              requirement=requirement,
+              rendered_requirers=rendered_requirers,
+              distributions='\n      '.join(os.path.basename(d.location)
+                                            for d in distributions_by_key[requirement.key])
+            )
+          )
+
         die(
-          'Failed to execute PEX file, missing %s compatible dependencies for:\n%s' % (
-            Platform.current(),
-            '\n'.join(str(r) for r in unresolved_reqs)
+          'Failed to execute PEX file. Needed {platform} compatible dependencies for:\n{items}'
+          .format(
+            platform=Platform.of_interpreter(self._interpreter),
+            items='\n\t'.join(items)
           )
         )
 
