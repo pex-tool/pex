@@ -16,11 +16,13 @@ import pytest
 
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, temporary_dir, touch
 from pex.compatibility import PY3, nested
+from pex.distribution_target import DistributionTarget
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.pip import spawn_build_wheels
+from pex.pip import spawn_build_wheels, spawn_install_wheel
+from pex.third_party.pkg_resources import Distribution
 from pex.util import DistributionHelper, named_temporary_file
 
 PY_VER = sys.version_info[:2]
@@ -105,7 +107,8 @@ def make_project(name='my_project',
                  version='0.0.0',
                  zip_safe=True,
                  install_reqs=None,
-                 extras_require=None):
+                 extras_require=None,
+                 entry_points=None):
 
   project_content = {
     'setup.py': dedent('''
@@ -123,6 +126,7 @@ def make_project(name='my_project',
         package_data={%(project_name)r: ['package_data/*.dat']},
         install_requires=%(install_requires)r,
         extras_require=%(extras_require)r,
+        entry_points=%(entry_points)r,
       )
     '''),
     'scripts/hello_world': '#!/usr/bin/env python\nprint("hello world!")\n',
@@ -137,7 +141,8 @@ def make_project(name='my_project',
             'version': version,
             'zip_safe': zip_safe,
             'install_requires': install_reqs or [],
-            'extras_require': extras_require or {}}
+            'extras_require': extras_require or {},
+            'entry_points': entry_points or {}}
 
   with temporary_content(project_content, interp=interp) as td:
     yield td
@@ -198,16 +203,20 @@ def make_source_dir(name='my_project', version='0.0.0', install_reqs=None, extra
 
 
 @contextlib.contextmanager
-def make_bdist(name='my_project', version='0.0.0', zipped=False, zip_safe=True, **kwargs):
-  with built_wheel(name=name, version=version, zip_safe=zip_safe, **kwargs) as dist_location:
-    if zipped:
-      yield DistributionHelper.distribution_from_path(dist_location)
-    else:
-      with temporary_dir() as td:
-        extract_path = os.path.join(td, os.path.basename(dist_location))
-        with open_zip(dist_location) as zf:
-          zf.extractall(extract_path)
-        yield DistributionHelper.distribution_from_path(extract_path)
+def make_bdist(name='my_project', version='0.0.0', zip_safe=True, interpreter=None, **kwargs):
+  with built_wheel(name=name,
+                   version=version,
+                   zip_safe=zip_safe,
+                   interpreter=interpreter,
+                   **kwargs) as dist_location:
+
+    install_dir = os.path.join(safe_mkdtemp(), os.path.basename(dist_location))
+    spawn_install_wheel(
+      wheel=dist_location,
+      install_dir=install_dir,
+      target=DistributionTarget.for_interpreter(interpreter)
+    ).wait()
+    yield DistributionHelper.distribution_from_path(install_dir)
 
 
 COVERAGE_PREAMBLE = """
@@ -252,7 +261,7 @@ def write_simple_pex(td,
                   pex_info=pex_info)
 
   for dist in dists:
-    pb.add_dist_location(dist.location)
+    pb.add_dist_location(dist.location if isinstance(dist, Distribution) else dist)
 
   for env_filename, contents in sources:
     src_path = os.path.join(td, env_filename)

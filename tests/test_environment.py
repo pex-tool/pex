@@ -31,10 +31,7 @@ from pex.testing import (
 @contextmanager
 def yield_pex_builder(zip_safe=True, interpreter=None):
   with nested(temporary_dir(),
-              make_bdist('p1',
-                         zipped=True,
-                         zip_safe=zip_safe,
-                         interpreter=interpreter)) as (td, p1):
+              make_bdist('p1', zip_safe=zip_safe, interpreter=interpreter)) as (td, p1):
     pb = PEXBuilder(path=td, interpreter=interpreter)
     pb.add_dist_location(p1.location)
     yield pb

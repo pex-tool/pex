@@ -231,10 +231,6 @@ def _bootstrap(entry_point):
   from .pex_info import PexInfo
   pex_info = PexInfo.from_pex(entry_point)
   pex_warnings.configure_warnings(pex_info)
-
-  from .finders import register_finders
-  register_finders()
-
   return pex_info
 
 

@@ -38,7 +38,7 @@ from pex.testing import (
     temporary_content
 )
 from pex.third_party import pkg_resources
-from pex.util import DistributionHelper, named_temporary_file
+from pex.util import named_temporary_file
 
 
 def make_env(**kwargs):
@@ -171,7 +171,7 @@ def test_entry_point_exit_code():
 
   with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
     installer = WheelBuilder(project_dir)
-    dist = DistributionHelper.distribution_from_path(installer.bdist())
+    dist = installer.bdist()
     so, rc = run_simple_pex_test('', env=make_env(PEX_SCRIPT='my_app'), dists=[dist])
     assert so.decode('utf-8').strip() == error_msg
     assert rc == 1
