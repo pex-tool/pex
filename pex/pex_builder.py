@@ -227,12 +227,12 @@ class PEXBuilder(object):
       return
 
     # check if 'script' is an ordinary script
-    dist, _, _ = get_script_from_distributions(script, self._distributions)
-    if dist:
+    dist_script = get_script_from_distributions(script, self._distributions)
+    if dist_script:
       if self._pex_info.entry_point:
         raise self.InvalidExecutableSpecification('Cannot set both entry point and script of PEX!')
       self._pex_info.script = script
-      TRACER.log('Set entrypoint to script %r in %r' % (script, dist))
+      TRACER.log('Set entrypoint to script %r in %r' % (script, dist_script.dist))
       return
 
     raise self.InvalidExecutableSpecification(
@@ -324,11 +324,18 @@ class PEXBuilder(object):
     supported by setuptools/pkg_resources.
     """
     self._ensure_unfrozen('Adding a distribution')
-    bdist = DistributionHelper.distribution_from_path(dist)
-    if bdist is None:
-      raise self.InvalidDistribution('Could not find distribution at %s' % dist)
-    self.add_distribution(bdist, dist_name=name)
-    self.add_requirement(bdist.as_requirement())
+    dist_path = dist
+    if os.path.isfile(dist_path) and dist_path.endswith('.whl'):
+      dist_path = os.path.join(safe_mkdtemp(), os.path.basename(dist))
+      spawn_install_wheel(
+        wheel=dist,
+        install_dir=dist_path,
+        target=DistributionTarget.for_interpreter(self.interpreter)
+      ).wait()
+
+    dist = DistributionHelper.distribution_from_path(dist_path)
+    self.add_distribution(dist, dist_name=name)
+    self.add_requirement(dist.as_requirement())
 
   def _precompile_source(self):
     source_relpaths = [path for label in ('source', 'executable', 'main', 'bootstrap')

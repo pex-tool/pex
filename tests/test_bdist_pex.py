@@ -3,47 +3,29 @@
 
 import os
 import subprocess
-import sys
 from contextlib import contextmanager
 from textwrap import dedent
 
 from pex.common import open_zip, temporary_dir
-from pex.testing import WheelBuilder, temporary_content
-
-
-def bdist_pex_setup_py(**kwargs):
-  return dedent("""
-    from pex.commands.bdist_pex import bdist_pex
-    from setuptools import setup
-
-    setup(cmdclass={{'bdist_pex': bdist_pex}}, **{kwargs!r})
-  """.format(kwargs=kwargs))
+from pex.jobs import spawn_python_job
+from pex.testing import WheelBuilder, make_project, temporary_content
 
 
 @contextmanager
 def bdist_pex(project_dir, bdist_args=None):
   with temporary_dir() as dist_dir:
-    cmd = [sys.executable, 'setup.py', 'bdist_pex', '--bdist-dir={}'.format(dist_dir)]
+    cmd = ['setup.py', 'bdist_pex', '--bdist-dir={}'.format(dist_dir)]
     if bdist_args:
       cmd.extend(bdist_args)
-    subprocess.check_call(cmd, cwd=project_dir)
+
+    spawn_python_job(args=cmd, cwd=project_dir).wait()
     dists = os.listdir(dist_dir)
     assert len(dists) == 1
     yield os.path.join(dist_dir, dists[0])
 
 
 def assert_entry_points(entry_points):
-  setup_py = bdist_pex_setup_py(name='my_app',
-                                version='0.0.0',
-                                zip_safe=True,
-                                packages=[''],
-                                entry_points=entry_points)
-  my_app = dedent("""
-      def do_something():
-        print("hello world!")
-    """)
-
-  with temporary_content({'setup.py': setup_py, 'my_app.py': my_app}) as project_dir:
+  with make_project(name='my_app', entry_points=entry_points) as project_dir:
     with bdist_pex(project_dir) as my_app_pex:
       process = subprocess.Popen([my_app_pex], stdout=subprocess.PIPE)
       stdout, _ = process.communicate()
@@ -53,12 +35,7 @@ def assert_entry_points(entry_points):
 
 
 def assert_pex_args_shebang(shebang):
-  setup_py = bdist_pex_setup_py(name='my_app',
-                                version='0.0.0',
-                                zip_safe=True,
-                                packages=[''])
-
-  with temporary_content({'setup.py': setup_py}) as project_dir:
+  with make_project() as project_dir:
     pex_args = '--pex-args=--python-shebang="{}"'.format(shebang)
     with bdist_pex(project_dir, bdist_args=[pex_args]) as my_app_pex:
       with open(my_app_pex, 'rb') as fp:
@@ -66,13 +43,13 @@ def assert_pex_args_shebang(shebang):
 
 
 def test_entry_points_dict():
-  assert_entry_points({'console_scripts': ['my_app = my_app:do_something']})
+  assert_entry_points({'console_scripts': ['my_app = my_app.my_module:do_something']})
 
 
 def test_entry_points_ini_string():
   assert_entry_points(dedent("""
       [console_scripts]
-      my_app=my_app:do_something
+      my_app=my_app.my_module:do_something
     """))
 
 
@@ -105,11 +82,7 @@ def test_unwriteable_contents():
                          perms=UNWRITEABLE_PERMS) as my_app_project_dir:
     my_app_whl = WheelBuilder(my_app_project_dir).bdist()
 
-    uses_my_app_setup_py = bdist_pex_setup_py(name='uses_my_app',
-                                              version='0.0.0',
-                                              zip_safe=True,
-                                              install_requires=['my_app'])
-    with temporary_content({'setup.py': uses_my_app_setup_py}) as uses_my_app_project_dir:
+    with make_project(name='uses_my_app', install_reqs=['my_app']) as uses_my_app_project_dir:
       pex_args = '--pex-args=--disable-cache --no-pypi -f {}'.format(os.path.dirname(my_app_whl))
       with bdist_pex(uses_my_app_project_dir, bdist_args=[pex_args]) as uses_my_app_pex:
         with open_zip(uses_my_app_pex) as zf:

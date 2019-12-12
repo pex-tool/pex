@@ -14,11 +14,7 @@ from pex.bootstrap import Bootstrap
 from pex.common import die
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
-from pex.finders import (
-    get_entry_point_from_console_script,
-    get_script_from_distributions,
-    unregister_finders
-)
+from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
@@ -457,7 +453,6 @@ class PEX(object):  # noqa: T000
     # Remove the third party resources pex uses and demote pex bootstrap code to the end of
     # sys.path for the duration of the run to allow conflicting versions supplied by user
     # dependencies to win during the course of the execution of user code.
-    unregister_finders()
     third_party.uninstall()
 
     bootstrap = Bootstrap.locate()
@@ -511,11 +506,11 @@ class PEX(object):  # noqa: T000
       TRACER.log('Found console_script %r in %r' % (entry_point, dist))
       sys.exit(self.execute_entry(entry_point))
 
-    dist, script_path, script_content = get_script_from_distributions(script_name, dists)
-    if not dist:
+    dist_script = get_script_from_distributions(script_name, dists)
+    if not dist_script:
       raise self.NotFound('Could not find script %r in pex!' % script_name)
     TRACER.log('Found script %r in %r' % (script_name, dist))
-    return self.execute_content(script_path, script_content, argv0=script_name)
+    return self.execute_content(dist_script.path, dist_script.read_contents(), argv0=script_name)
 
   @classmethod
   def execute_content(cls, name, content, argv0=None):

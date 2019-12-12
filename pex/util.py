@@ -11,7 +11,6 @@ from site import makepath
 
 from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
 from pex.compatibility import exec_function
-from pex.finders import register_finders
 from pex.third_party.pkg_resources import (
     find_distributions,
     resource_isdir,
@@ -79,8 +78,6 @@ class DistributionHelper(object):
     return None.  If name is not provided and there is unambiguously a single
     distribution, return that distribution otherwise None.
     """
-    # Monkeypatch pkg_resources finders should it not already be so.
-    register_finders()
     if name is None:
       distributions = set(find_distributions(path))
       if len(distributions) == 1:

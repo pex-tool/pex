@@ -17,13 +17,7 @@ from pex.common import atomic_directory, die, open_zip
 from pex.interpreter import PythonInterpreter
 from pex.package import distribution_compatible
 from pex.platforms import Platform
-from pex.third_party.pkg_resources import (
-    DistributionNotFound,
-    Environment,
-    Requirement,
-    WorkingSet,
-    find_distributions
-)
+from pex.third_party.pkg_resources import DistributionNotFound, Environment, Requirement, WorkingSet
 from pex.tracer import TRACER
 from pex.util import CacheHelper
 
@@ -167,9 +161,17 @@ class PEXEnvironment(Environment):
     """Possibly cache out the internal cache."""
     internal_cache = os.path.join(pex, pex_info.internal_cache)
     with TRACER.timed('Searching dependency cache: %s' % internal_cache, V=2):
+      if len(pex_info.distributions) == 0:
+        # We have no .deps to load.
+        return
+
       if os.path.isdir(pex):
-        for dist in find_distributions(internal_cache):
-          yield dist
+        search_path = [os.path.join(internal_cache, dist_chroot)
+                       for dist_chroot in os.listdir(internal_cache)]
+        internal_env = Environment(search_path=search_path)
+        for dist_name in internal_env:
+          for dist in internal_env[dist_name]:
+            yield dist
       else:
         with open_zip(pex) as zf:
           for dist in cls._write_zipped_internal_cache(zf, pex_info):
