@@ -89,7 +89,7 @@ def iter_vendor_specs():
   :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
   """
   yield VendorSpec.create('pip==19.3.1', rewrite=False)
-  yield VendorSpec.create('setuptools==41.6')
+  yield VendorSpec.create('setuptools==41.6.0')
   yield VendorSpec.create('wheel==0.33.6')
 
 

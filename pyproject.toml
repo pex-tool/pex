@@ -1,0 +1,41 @@
+[build-system]
+requires = ["flit_core >=2,<3"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.metadata]
+module = "pex"
+author = "The PEX developers"
+author-email = "pantsbuild@gmail.com"
+home-page = "https://github.com/pantsbuild/pex"
+description-file = "README.rst"
+classifiers = [
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: Unix",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 2",
+  "Programming Language :: Python :: 2.7",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.5",
+  "Programming Language :: Python :: 3.6",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+]
+requires-python = ">=2.7,<3.9,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
+
+[tool.flit.metadata.requires-extra]
+# For improved subprocess robustness under python2.7.
+subprocess = ["subprocess32>=3.2.7"]
+
+[tool.flit.scripts]
+pex = "pex.bin.pex:main"
+
+[tool.flit.entrypoints."distutils.commands"]
+# Make bdist_pex available for folks who install the pex distribution.
+bdist_pex = "pex.commands.bdist_pex:bdist_pex"
+
+[tool.flit.sdist]
+include = ["CHANGES.rst"]
+
