@@ -106,6 +106,11 @@ class Variables(object):
     except KeyError:
       return self._defaulted(default)
 
+  def strip(self):
+    stripped_environ = {k: v
+                        for k, v in self.copy().items() if not k.startswith(('PEX_', '__PEX_'))}
+    return Variables(environ=stripped_environ)
+
   def strip_defaults(self):
     """Returns a copy of these variables but with defaults stripped.
 

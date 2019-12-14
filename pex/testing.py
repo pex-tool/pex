@@ -21,7 +21,7 @@ from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.pip import spawn_build_wheels, spawn_install_wheel
+from pex.pip import get_pip
 from pex.third_party.pkg_resources import Distribution
 from pex.util import DistributionHelper, named_temporary_file
 
@@ -161,7 +161,7 @@ class WheelBuilder(object):
     self._interpreter = interpreter or PythonInterpreter.get()
 
   def bdist(self):
-    spawn_build_wheels(
+    get_pip().spawn_build_wheels(
       distributions=[self._source_dir],
       wheel_dir=self._wheel_dir,
       interpreter=self._interpreter
@@ -211,7 +211,7 @@ def make_bdist(name='my_project', version='0.0.0', zip_safe=True, interpreter=No
                    **kwargs) as dist_location:
 
     install_dir = os.path.join(safe_mkdtemp(), os.path.basename(dist_location))
-    spawn_install_wheel(
+    get_pip().spawn_install_wheel(
       wheel=dist_location,
       install_dir=install_dir,
       target=DistributionTarget.for_interpreter(interpreter)

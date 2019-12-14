@@ -234,8 +234,8 @@ def configure_clp_pex_options(parser):
       dest='ignore_errors',
       default=False,
       action='store_true',
-      help='Ignore run-time requirement resolution errors when invoking the pex. '
-           '[Default: %default]')
+      help='Ignore requirement resolution solver errors when building pexes and later invoking '
+           'them. [Default: %default]')
 
   group.add_option(
       '--inherit-path',
@@ -565,7 +565,8 @@ def build_pex(reqs, options):
                                 build=options.build,
                                 use_wheel=options.use_wheel,
                                 compile=options.compile,
-                                max_parallel_jobs=options.max_parallel_jobs)
+                                max_parallel_jobs=options.max_parallel_jobs,
+                                ignore_errors=options.ignore_errors)
 
       for resolved_dist in resolveds:
         log('  %s -> %s' % (resolved_dist.requirement, resolved_dist.distribution),

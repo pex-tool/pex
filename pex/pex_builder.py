@@ -13,7 +13,7 @@ from pex.distribution_target import DistributionTarget
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.pip import spawn_install_wheel
+from pex.pip import get_pip
 from pex.third_party.pkg_resources import DefaultProvider, ZipProvider, get_provider
 from pex.tracer import TRACER
 from pex.util import CacheHelper, DistributionHelper
@@ -278,7 +278,7 @@ class PEXBuilder(object):
 
   def _add_dist_wheel_file(self, path, dist_name):
     with temporary_dir() as install_dir:
-      spawn_install_wheel(
+      get_pip().spawn_install_wheel(
         wheel=path,
         install_dir=install_dir,
         target=DistributionTarget.for_interpreter(self.interpreter)
@@ -327,7 +327,7 @@ class PEXBuilder(object):
     dist_path = dist
     if os.path.isfile(dist_path) and dist_path.endswith('.whl'):
       dist_path = os.path.join(safe_mkdtemp(), os.path.basename(dist))
-      spawn_install_wheel(
+      get_pip().spawn_install_wheel(
         wheel=dist,
         install_dir=dist_path,
         target=DistributionTarget.for_interpreter(self.interpreter)
