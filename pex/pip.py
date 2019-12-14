@@ -20,7 +20,7 @@ class Pip(object):
   def create(cls, path=None):
     """Creates a pip tool with PEX isolation at path.
 
-    :param str path: The path to build the pip tool pex at; A temporary directory by default.
+    :param str path: The path to build the pip tool pex at; a temporary directory by default.
     """
     from pex.pex_builder import PEXBuilder
 
