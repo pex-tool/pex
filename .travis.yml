@@ -17,73 +17,32 @@ x-pyenv-shard: &x-pyenv-shard
     fi
     "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
     "${PYENV}" global ${PYENV_VERSION}
-    pip install -U tox "setuptools>=36"
+    pip install -U tox
 
-x-py27: &x-py27 PYENV_VERSION=2.7.15
+x-py27: &x-py27 PYENV_VERSION=2.7.17
 
-x-py37: &x-py37 PYENV_VERSION=3.7.0
+x-py38: &x-py38 PYENV_VERSION=3.8.0
 
-x-pypy: &x-pypy PYENV_VERSION=pypy2.7-6.0.0
+x-pypy: &x-pypy PYENV_VERSION=pypy2.7-7.2.0
 
 x-linux-shard: &x-linux-shard
-  <<: *x-pyenv-shard
   os: linux
-  sudo: false
-  dist: trusty
+  dist: bionic 
+  language: python
+  install: |
+    pip install -U tox
 
 x-linux-27-shard: &x-linux-27-shard
   <<: *x-linux-shard
-  env:
-    - *env
-    - *x-py27
+  python: 2.7
 
 x-linux-pypy-shard: &x-linux-pypy-shard
   <<: *x-linux-shard
-  env:
-    - *env
-    - *x-pypy
+  python: pypy2.7-7.2.0
 
-# Python 3.7 requires at least OpenSSL 1.0.2:
-#   https://docs.python.org/3/whatsnew/3.7.html#platform-support-removals.
-# Travis' `trusty` image does not get us there and, at the time of writing, the beta `xenial`
-# distribution is not generally available. As such, we install and activate a custom OpenSSL
-# here - the latest 1.0.2 version at the time of writing.
-x-linux-37-shard: &x-linux-37-shard
+x-linux-38-shard: &x-linux-38-shard
   <<: *x-linux-shard
-  addons:
-    apt:
-      packages:
-        # Even though we install our own, it does not ship with a root CA store, so we ensure one
-        # here at /usr/lib/ssl/certs and activate it by exporting SSL_CERT_DIR which OpenSSL knows
-        # how to read.
-        - openssl
-  env:
-    - *env
-    - *x-py37
-    - OPENSSL_VERSION=1.0.2p
-    - OPENSSL_DIR="${HOME}/.pyenv_pex_openssl"
-    - LD_LIBRARY_PATH="${OPENSSL_DIR}/lib"
-    - SSL_CERT_DIR=/usr/lib/ssl/certs
-    - PYTHON_CONFIGURE_OPTS="--with-openssl=${OPENSSL_DIR}"
-    - TOX_TESTENV_PASSENV=SSL_CERT_DIR
-  cache:
-    <<: *cache
-    directories:
-      - .pyenv_test
-      - "${PYENV_ROOT}"
-      - "${OPENSSL_DIR}"
-  before_install: |
-    if [ ! -f "${OPENSSL_DIR}/installed-${OPENSSL_VERSION}" ]; then
-      rm -rf "${OPENSSL_DIR}"
-      curl https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | tar -xz
-      (
-        cd openssl-${OPENSSL_VERSION}
-        ./config shared --prefix="${OPENSSL_DIR}"
-        make
-        make install
-      )
-      touch "${OPENSSL_DIR}/installed-${OPENSSL_VERSION}"
-    fi
+  python: 3.8
 
 x-osx-shard: &x-osx-shard
   <<: *x-pyenv-shard
@@ -101,11 +60,11 @@ x-osx-27-shard: &x-osx-27-shard
     - *x-py27
     - *x-osx-ssl
 
-x-osx-37-shard: &x-osx-37-shard
+x-osx-38-shard: &x-osx-38-shard
   <<: *x-osx-shard
   env:
     - *env
-    - *x-py37
+    - *x-py38
     - *x-osx-ssl
 
 # NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
@@ -117,11 +76,11 @@ matrix:
       name: TOXENV=style
       script: tox -v -e style
 
-    - <<: *x-linux-27-shard
+    - <<: *x-linux-38-shard
       name: TOXENV=isort-check
       script: tox -v -e isort-check
 
-    - <<: *x-linux-27-shard
+    - <<: *x-linux-38-shard
       name: TOXENV=vendor-check
       script: tox -v -e vendor-check
 
@@ -135,21 +94,22 @@ matrix:
 
     - <<: *x-linux-shard
       name: TOXENV=py35
-      env:
-        - *env
-        - PYENV_VERSION=3.5.6
+      python: 3.5
       script: tox -v -e py35
 
     - <<: *x-linux-shard
       name: TOXENV=py36
-      env:
-        - *env
-        - PYENV_VERSION=3.6.6
+      python: 3.6
       script: tox -v -e py36
 
-    - <<: *x-linux-37-shard
+    - <<: *x-linux-shard
       name: TOXENV=py37
+      python: 3.7
       script: tox -v -e py37
+
+    - <<: *x-linux-38-shard
+      name: TOXENV=py38
+      script: tox -v -e py38
 
     - <<: *x-linux-pypy-shard
       name: TOXENV=pypy
@@ -159,9 +119,9 @@ matrix:
       name: TOXENV=py27-integration
       script: tox -v -e py27-integration
 
-    - <<: *x-linux-37-shard
-      name: TOXENV=py37-integration
-      script: tox -v -e py37-integration
+    - <<: *x-linux-38-shard
+      name: TOXENV=py38-integration
+      script: tox -v -e py38-integration
 
     - <<: *x-linux-pypy-shard
       name: TOXENV=pypy-integration
@@ -171,14 +131,14 @@ matrix:
       name: TOXENV=py27
       script: tox -v -e py27
 
-    - <<: *x-osx-37-shard
-      name: TOXENV=py37
-      script: tox -v -e py37
+    - <<: *x-osx-38-shard
+      name: TOXENV=py38
+      script: tox -v -e py38
 
     - <<: *x-osx-27-shard
       name: TOXENV=py27-integration
       script: tox -v -e py27-integration
 
-    - <<: *x-osx-37-shard
-      name: TOXENV=py37-integration
-      script: tox -v -e py37-integration
+    - <<: *x-osx-38-shard
+      name: TOXENV=py38-integration
+      script: tox -v -e py38-integration
