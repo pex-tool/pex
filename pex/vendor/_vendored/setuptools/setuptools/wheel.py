@@ -1,6 +1,7 @@
 """Wheels support."""
 
 from distutils.util import get_platform
+from distutils import log
 import email
 import itertools
 import os
@@ -24,6 +25,11 @@ else:
   from pex.third_party.pkg_resources import parse_version
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
+  from setuptools.extern.packaging.tags import sys_tags  # vendor:skip
+else:
+  from pex.third_party.setuptools.extern.packaging.tags import sys_tags
+
+if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.packaging.utils import canonicalize_name  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.packaging.utils import canonicalize_name
@@ -32,11 +38,6 @@ if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six import PY3  # vendor:skip
 else:
   from pex.third_party.setuptools.extern.six import PY3
-
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from setuptools import pep425tags  # vendor:skip
-else:
-  from pex.third_party.setuptools import pep425tags
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.command.egg_info import write_requirements  # vendor:skip
@@ -104,7 +105,7 @@ class Wheel:
 
     def is_compatible(self):
         '''Is the wheel is compatible with the current platform?'''
-        supported_tags = pep425tags.get_supported()
+        supported_tags = set((t.interpreter, t.abi, t.platform) for t in sys_tags())
         return next((True for t in self.tags() if t in supported_tags), False)
 
     def egg_name(self):
@@ -190,11 +191,17 @@ class Wheel:
                 extras_require=extras_require,
             ),
         )
-        write_requirements(
-            setup_dist.get_command_obj('egg_info'),
-            None,
-            os.path.join(egg_info, 'requires.txt'),
-        )
+        # Temporarily disable info traces.
+        log_threshold = log._global_log.threshold
+        log.set_threshold(log.WARN)
+        try:
+            write_requirements(
+                setup_dist.get_command_obj('egg_info'),
+                None,
+                os.path.join(egg_info, 'requires.txt'),
+            )
+        finally:
+            log.set_threshold(log_threshold)
 
     @staticmethod
     def _move_data_entries(destination_eggdir, dist_data):
@@ -234,6 +241,8 @@ class Wheel:
             for mod in namespace_packages:
                 mod_dir = os.path.join(destination_eggdir, *mod.split('.'))
                 mod_init = os.path.join(mod_dir, '__init__.py')
-                if os.path.exists(mod_dir) and not os.path.exists(mod_init):
+                if not os.path.exists(mod_dir):
+                    os.mkdir(mod_dir)
+                if not os.path.exists(mod_init):
                     with open(mod_init, 'w') as fp:
                         fp.write(NAMESPACE_PACKAGE_INIT)

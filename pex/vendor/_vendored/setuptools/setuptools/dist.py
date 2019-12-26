@@ -453,6 +453,7 @@ class Distribution(_Distribution):
         'long_description_content_type': None,
         'project_urls': dict,
         'provides_extras': ordered_set.OrderedSet,
+        'license_files': ordered_set.OrderedSet,
     }
 
     _patched_dist = None
@@ -772,15 +773,28 @@ class Distribution(_Distribution):
         return resolved_dists
 
     def finalize_options(self):
-        _Distribution.finalize_options(self)
-        if self.features:
-            self._set_global_opts_from_features()
+        """
+        Allow plugins to apply arbitrary operations to the
+        distribution. Each hook may optionally define a 'order'
+        to influence the order of execution. Smaller numbers
+        go first and the default is 0.
+        """
+        hook_key = 'setuptools.finalize_distribution_options'
 
+        def by_order(hook):
+            return getattr(hook, 'order', 0)
+        eps = pkg_resources.iter_entry_points(hook_key)
+        for ep in sorted(eps, key=by_order):
+            ep.load()(self)
+
+    def _finalize_setup_keywords(self):
         for ep in pkg_resources.iter_entry_points('distutils.setup_keywords'):
             value = getattr(self, ep.name, None)
             if value is not None:
                 ep.require(installer=self.fetch_build_egg)
                 ep.load()(self, ep.name, value)
+
+    def _finalize_2to3_doctests(self):
         if getattr(self, 'convert_2to3_doctests', None):
             # XXX may convert to set here when we can rely on set being builtin
             self.convert_2to3_doctests = [
@@ -808,38 +822,17 @@ class Distribution(_Distribution):
     def fetch_build_egg(self, req):
         """Fetch an egg needed for building"""
         if "__PEX_UNVENDORED__" in __import__("os").environ:
-          from setuptools.command.easy_install import easy_install  # vendor:skip
+          from setuptools.installer import fetch_build_egg  # vendor:skip
         else:
-          from pex.third_party.setuptools.command.easy_install import easy_install
+          from pex.third_party.setuptools.installer import fetch_build_egg
 
-        dist = self.__class__({'script_args': ['easy_install']})
-        opts = dist.get_option_dict('easy_install')
-        opts.clear()
-        opts.update(
-            (k, v)
-            for k, v in self.get_option_dict('easy_install').items()
-            if k in (
-                # don't use any other settings
-                'find_links', 'site_dirs', 'index_url',
-                'optimize', 'site_dirs', 'allow_hosts',
-            ))
-        if self.dependency_links:
-            links = self.dependency_links[:]
-            if 'find_links' in opts:
-                links = opts['find_links'][1] + links
-            opts['find_links'] = ('setup', links)
-        install_dir = self.get_egg_cache_dir()
-        cmd = easy_install(
-            dist, args=["x"], install_dir=install_dir,
-            exclude_scripts=True,
-            always_copy=False, build_directory=None, editable=False,
-            upgrade=False, multi_version=True, no_report=True, user=False
-        )
-        cmd.ensure_finalized()
-        return cmd.easy_install(req)
+        return fetch_build_egg(self, req)
 
-    def _set_global_opts_from_features(self):
+    def _finalize_feature_opts(self):
         """Add --with-X/--without-X options based on optional features"""
+
+        if not self.features:
+            return
 
         go = []
         no = self.negative_opt.copy()
