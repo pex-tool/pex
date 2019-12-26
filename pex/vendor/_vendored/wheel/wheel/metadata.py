@@ -6,11 +6,7 @@ import os.path
 import re
 import textwrap
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  import pkg_resources  # vendor:skip
-else:
-  import pex.third_party.pkg_resources as pkg_resources
-
+import pkg_resources
 
 from .pkginfo import read_pkg_info
 

@@ -16,11 +16,7 @@ from glob import iglob
 from shutil import rmtree
 from warnings import warn
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  import pkg_resources  # vendor:skip
-else:
-  import pex.third_party.pkg_resources as pkg_resources
-
+import pkg_resources
 
 from .pep425tags import get_abbr_impl, get_impl_ver, get_abi_tag, get_platform
 from .pkginfo import write_pkg_info
