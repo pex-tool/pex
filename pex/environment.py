@@ -16,8 +16,8 @@ from pex.bootstrap import Bootstrap
 from pex.common import atomic_directory, die, open_zip
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
-from pex.package import distribution_compatible
 from pex.platforms import Platform
+from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import DistributionNotFound, Environment, Requirement, WorkingSet
 from pex.tracer import TRACER
 from pex.util import CacheHelper, DistributionHelper
@@ -186,24 +186,19 @@ class PEXEnvironment(Environment):
     self._working_set = None
     self._interpreter = interpreter or PythonInterpreter.get()
     self._inherit_path = pex_info.inherit_path
-    self._supported_tags = []
+    self._supported_tags = frozenset(self._interpreter.identity.supported_tags)
+    self._target_interpreter_env = self._interpreter.identity.env_markers
 
     # For the bug this works around, see: https://bitbucket.org/pypy/pypy/issues/1686
     # NB: This must be installed early before the underlying pex is loaded in any way.
-    if self._interpreter.identity.abbr_impl == 'pp' and zipfile.is_zipfile(self._pex):
+    if self._interpreter.identity.python_tag.startswith('pp') and zipfile.is_zipfile(self._pex):
       self._install_pypy_zipimporter_workaround(self._pex)
 
-    platform = Platform.of_interpreter(interpreter)
-    platform_name = platform.platform
     super(PEXEnvironment, self).__init__(
       search_path=[] if pex_info.inherit_path == 'false' else sys.path,
-      # NB: Our pkg_resources.Environment base-class wants the platform name string and not the
-      # pex.platform.Platform object.
-      platform=platform_name,
+      platform=self._interpreter.identity.platform_tag,
       **kw
     )
-    self._target_interpreter_env = self._interpreter.identity.pkg_resources_env(platform_name)
-    self._supported_tags.extend(platform.supported_tags())
     TRACER.log(
       'E: tags for %r x %r -> %s' % (self.platform, self._interpreter, self._supported_tags),
       V=9
@@ -216,7 +211,20 @@ class PEXEnvironment(Environment):
           self.add(dist)
 
   def can_add(self, dist):
-    return distribution_compatible(dist, self._supported_tags)
+    filename, ext = os.path.splitext(os.path.basename(dist.location))
+    if ext.lower() != '.whl':
+      # This supports resolving pex's own vendored distributions which are vendored in directory
+      # directory with the project name (`pip/` for pip) and not the corresponding wheel name
+      # (`pip-19.3.1-py2.py3-none-any.whl/` for pip). Pex only vendors universal wheels for all
+      # platforms it supports at buildtime and runtime so this is always safe.
+      return True
+
+    try:
+      wheel_name_, wheel_raw_version_, wheel_tags = filename.split('-', 2)
+    except ValueError:
+      return False
+
+    return not self._supported_tags.isdisjoint(tags.parse_tag(wheel_tags))
 
   def activate(self):
     if not self._activated:
@@ -293,7 +301,7 @@ class PEXEnvironment(Environment):
           'Failed to execute PEX file. Needed {platform} compatible dependencies for:\n{items}'
           .format(
             platform=Platform.of_interpreter(self._interpreter),
-            items='\n\t'.join(items)
+            items='\n'.join(items)
           )
         )
 

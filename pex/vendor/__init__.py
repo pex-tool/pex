@@ -126,7 +126,7 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names):
       if root == spec.target_dir:
         dirs[:] = [pkg_name for pkg_name in dirs if pkg_name in vendor_module_names]
         files[:] = [mod_name for mod_name in files if mod_name[:-3] in vendor_module_names]
-        vendored_names = dirs + files
+        vendored_names = dirs + [filename[:-3] for filename in files]
         if vendored_names:
           pkg_path = ''
           for pkg in spec.relpath.split(os.sep):

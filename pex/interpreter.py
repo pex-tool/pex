@@ -5,66 +5,21 @@
 
 from __future__ import absolute_import
 
+import json
 import os
 import re
 import sys
-from inspect import getsource
 
+from pex import third_party
 from pex.compatibility import string
 from pex.executor import Executor
-from pex.pep425tags import (
-    get_abbr_impl,
-    get_abi_tag,
-    get_config_var,
-    get_flag,
-    get_impl_ver,
-    get_impl_version_info
-)
+from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
 
-try:
-  from numbers import Integral
-except ImportError:
-  Integral = (int, long)
 
-
-ID_PY_TMPL = b"""\
-import sys
-import sysconfig
-import warnings
-
-__CODE__
-
-
-print(
-  "%s %s %s %s %s %s" % (
-    get_abbr_impl(),
-    get_abi_tag(),
-    get_impl_ver(),
-    sys.version_info[0],
-    sys.version_info[1],
-    sys.version_info[2]
-  )
-)
-
-"""
-
-
-def _generate_identity_source():
-  # Determine in the most platform-compatible way possible the identity of the interpreter
-  # and its known packages.
-  encodables = (
-    get_flag,
-    get_config_var,
-    get_abbr_impl,
-    get_abi_tag,
-    get_impl_version_info,
-    get_impl_ver
-  )
-
-  return ID_PY_TMPL.replace(b'__CODE__',
-                            b'\n\n'.join(getsource(func).encode('utf-8') for func in encodables))
+def encode_identity():
+  print(PythonIdentity.get().encode())
 
 
 class PythonIdentity(object):
@@ -73,14 +28,14 @@ class PythonIdentity(object):
   class UnknownRequirement(Error): pass
 
   # TODO(wickman)  Support interpreter-specific versions, e.g. PyPy-2.2.1
-  HASHBANGS = {
+  INTERPRETER_NAME_TO_HASHBANG = {
     'CPython': 'python%(major)d.%(minor)d',
     'Jython': 'jython',
     'PyPy': 'pypy',
     'IronPython': 'ipy',
   }
 
-  ABBR_TO_INTERPRETER = {
+  ABBR_TO_INTERPRETER_NAME = {
     'pp': 'PyPy',
     'jy': 'Jython',
     'ip': 'IronPython',
@@ -89,48 +44,80 @@ class PythonIdentity(object):
 
   @classmethod
   def get(cls):
+    supported_tags = tuple(tags.sys_tags())
+    preferred_tag = supported_tags[0]
     return cls(
-      get_abbr_impl(),
-      get_abi_tag(),
-      get_impl_ver(),
-      str(sys.version_info[0]),
-      str(sys.version_info[1]),
-      str(sys.version_info[2])
+      python_tag=preferred_tag.interpreter,
+      abi_tag=preferred_tag.abi,
+      platform_tag=preferred_tag.platform,
+      version=sys.version_info[:3],
+      supported_tags=supported_tags,
+      env_markers=markers.default_environment()
     )
 
   @classmethod
-  def from_id_string(cls, id_string):
-    TRACER.log('creating PythonIdentity from id string: %s' % id_string, V=3)
-    values = str(id_string).split()
+  def decode(cls, encoded):
+    TRACER.log('creating PythonIdentity from encoded: %s' % encoded, V=9)
+    values = json.loads(encoded)
     if len(values) != 6:
-      raise cls.InvalidError("Invalid id string: %s" % id_string)
-    return cls(*values)
+      raise cls.InvalidError("Invalid id string: %s" % encoded)
 
-  def __init__(self, impl, abi, impl_version, major, minor, patch):
-    assert impl in self.ABBR_TO_INTERPRETER, (
-      'unknown interpreter: {}'.format(impl)
+    supported_tags = values.pop('supported_tags')
+
+    def iter_tags():
+      for supported_tag in supported_tags:
+        yield tags.Tag(
+          interpreter=supported_tag['interpreter'],
+          abi=supported_tag['abi'],
+          platform=supported_tag['platform']
+        )
+
+    return cls(supported_tags=iter_tags(), **values)
+
+  @classmethod
+  def _find_interpreter_name(cls, python_tag):
+    for abbr, interpreter in cls.ABBR_TO_INTERPRETER_NAME.items():
+      if python_tag.startswith(abbr):
+        return interpreter
+    raise ValueError('Unknown interpreter: {}'.format(python_tag))
+
+  def __init__(self, python_tag, abi_tag, platform_tag, version, supported_tags, env_markers):
+    # N.B.: We keep this mapping to support historical values for `distribution` and `requirement`
+    # properties.
+    self._interpreter_name = self._find_interpreter_name(python_tag)
+
+    self._python_tag = python_tag
+    self._abi_tag = abi_tag
+    self._platform_tag = platform_tag
+    self._version = tuple(version)
+    self._supported_tags = tuple(supported_tags)
+    self._env_markers = dict(env_markers)
+
+  def encode(self):
+    values = dict(
+      python_tag=self._python_tag,
+      abi_tag=self._abi_tag,
+      platform_tag=self._platform_tag,
+      version=self._version,
+      supported_tags=[
+        dict(interpreter=tag.interpreter, abi=tag.abi, platform=tag.platform)
+        for tag in self._supported_tags
+      ],
+      env_markers=self._env_markers
     )
-    self._interpreter = self.ABBR_TO_INTERPRETER[impl]
-    self._abbr = impl
-    self._version = tuple(int(v) for v in (major, minor, patch))
-    self._impl_ver = impl_version
-    self._abi = abi
+    return json.dumps(values)
+
+  @property
+  def python_tag(self):
+    return self._python_tag
 
   @property
   def abi_tag(self):
-    return self._abi
+    return self._abi_tag
 
   @property
-  def abbr_impl(self):
-    return self._abbr
-
-  @property
-  def impl_ver(self):
-    return self._impl_ver
-
-  @property
-  def interpreter(self):
-    return self._interpreter
+  def platform_tag(self):
+    return self._platform_tag
 
   @property
   def version(self):
@@ -139,6 +126,18 @@ class PythonIdentity(object):
   @property
   def version_str(self):
     return '.'.join(map(str, self.version))
+
+  @property
+  def supported_tags(self):
+    return self._supported_tags
+
+  @property
+  def env_markers(self):
+    return dict(self._env_markers)
+
+  @property
+  def interpreter(self):
+    return self._interpreter_name
 
   @property
   def requirement(self):
@@ -167,13 +166,13 @@ class PythonIdentity(object):
   def matches(self, requirement):
     """Given a Requirement, check if this interpreter matches."""
     try:
-      requirement = self.parse_requirement(requirement, self._interpreter)
+      requirement = self.parse_requirement(requirement, self._interpreter_name)
     except ValueError as e:
       raise self.UnknownRequirement(str(e))
     return self.distribution in requirement
 
   def hashbang(self):
-    hashbang_string = self.HASHBANGS.get(self.interpreter, 'CPython') % {
+    hashbang_string = self.INTERPRETER_NAME_TO_HASHBANG.get(self._interpreter_name, 'CPython') % {
       'major': self._version[0],
       'minor': self._version[1],
       'patch': self._version[2],
@@ -186,74 +185,24 @@ class PythonIdentity(object):
     # specifically, '2.7', '3.2', etc.
     return '%d.%d' % (self.version[0:2])
 
-  def pkg_resources_env(self, platform_str):
-    """Returns a dict that can be used in place of packaging.default_environment."""
-    os_name = ''
-    platform_machine = ''
-    platform_release = ''
-    platform_system = ''
-    platform_version = ''
-    sys_platform = ''
-
-    if 'win' in platform_str:
-      os_name = 'nt'
-      platform_machine = 'AMD64' if '64' in platform_str else 'x86'
-      platform_system = 'Windows'
-      sys_platform = 'win32'
-    elif 'linux' in platform_str:
-      os_name = 'posix'
-      platform_machine = 'x86_64' if '64' in platform_str else 'i686'
-      platform_system = 'Linux'
-      sys_platform = 'linux2' if self._version[0] == 2 else 'linux'
-    elif 'macosx' in platform_str:
-      os_name = 'posix'
-      platform_str = platform_str.replace('.', '_')
-      platform_machine = platform_str.split('_', 3)[-1]
-      # Darwin version are macOS version + 4
-      platform_release = '{}.0.0'.format(int(platform_str.split('_')[2]) + 4)
-      platform_system = 'Darwin'
-      platform_version = 'Darwin Kernel Version {}'.format(platform_release)
-      sys_platform = 'darwin'
-
-    return {
-      'implementation_name': self.interpreter.lower(),
-      'implementation_version': self.version_str,
-      'os_name': os_name,
-      'platform_machine': platform_machine,
-      'platform_release': platform_release,
-      'platform_system': platform_system,
-      'platform_version': platform_version,
-      'python_full_version': self.version_str,
-      'platform_python_implementation': self.interpreter,
-      'python_version': self.version_str[:3],
-      'sys_platform': sys_platform,
-    }
-
   def __str__(self):
     return '%s-%s.%s.%s' % (
-      self._interpreter,
+      self._interpreter_name,
       self._version[0],
       self._version[1],
       self._version[2]
     )
 
-  def __repr__(self):
-    return 'PythonIdentity(%r, %r, %r, %r, %r, %r)' % (
-      self.abbr_impl,
-      self.abi_tag,
-      self.impl_ver,
-      self._version[0],
-      self._version[1],
-      self._version[2]
-    )
+  def _tup(self):
+    return self._python_tag, self._abi_tag, self._platform_tag, self._version
 
   def __eq__(self, other):
-    return all([isinstance(other, PythonIdentity),
-                self.interpreter == other.interpreter,
-                self.version == other.version])
+    if type(other) is not type(self):
+      return NotImplemented
+    return self._tup() == other._tup()
 
   def __hash__(self):
-    return hash((self._interpreter, self._version))
+    return hash(self._tup())
 
 
 class PythonInterpreter(object):
@@ -343,11 +292,16 @@ class PythonInterpreter(object):
 
   @classmethod
   def _from_binary_external(cls, binary):
-    _, stdout, _ = cls._execute(binary, stdin_payload=_generate_identity_source())
+    pythonpath = third_party.expose(['pex'])
+    _, stdout, _ = cls._execute(
+      binary,
+      args=['-c', 'from pex.interpreter import encode_identity; encode_identity()'],
+      pythonpath=pythonpath
+    )
     identity = stdout.strip()
     if not identity:
       raise cls.IdentificationError('Could not establish identity of %s' % binary)
-    return cls(binary, PythonIdentity.from_id_string(identity))
+    return cls(binary, PythonIdentity.decode(identity))
 
   @classmethod
   def expand_path(cls, path):
