@@ -91,7 +91,7 @@ def iter_vendor_specs():
   :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
   """
   yield VendorSpec.pinned('pip', '19.3.1', rewrite=False)
-  yield VendorSpec.pinned('setuptools', '41.6.0')
+  yield VendorSpec.pinned('setuptools', '42.0.2')
   yield VendorSpec.pinned('wheel', '0.33.6')
 
 
