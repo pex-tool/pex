@@ -327,6 +327,7 @@ class ResolveRequest(object):
                build=True,
                use_wheel=True,
                compile=False,
+               manylinux=None,
                max_parallel_jobs=None):
 
     self._targets = targets
@@ -341,6 +342,7 @@ class ResolveRequest(object):
     self._build = build
     self._use_wheel = use_wheel
     self._compile = compile
+    self._manylinux = manylinux
     self._max_parallel_jobs = max_parallel_jobs
 
   def _iter_local_projects(self):
@@ -375,6 +377,7 @@ class ResolveRequest(object):
       find_links=self._find_links,
       cache=self._cache,
       build=self._build,
+      manylinux=self._manylinux,
       use_wheel=self._use_wheel
     )
     return SpawnedJob.wait(job=download_job, result=ResolveResult(target, download_dir))
@@ -424,7 +427,6 @@ class ResolveRequest(object):
       wheel=install_request.wheel_path,
       install_dir=install_result.build_chroot,
       compile=self._compile,
-      overwrite=True,
       cache=self._cache,
       target=install_request.target
     )
@@ -606,6 +608,7 @@ def resolve(requirements=None,
             build=True,
             use_wheel=True,
             compile=False,
+            manylinux=None,
             max_parallel_jobs=None,
             ignore_errors=False):
   """Produce all distributions needed to meet all specified requirements.
@@ -641,6 +644,8 @@ def resolve(requirements=None,
     Defaults to ``True``.
   :keyword bool compile: Whether to pre-compile resolved distribution python sources.
     Defaults to ``False``.
+  :keyword str manylinux: The upper bound manylinux standard to support when targeting foreign linux
+    platforms. Defaults to ``None``.
   :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
     building and installing distributions in a resolve. Defaults to the number of CPUs available.
   :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
@@ -664,6 +669,7 @@ def resolve(requirements=None,
                                    build=build,
                                    use_wheel=use_wheel,
                                    compile=compile,
+                                   manylinux=manylinux,
                                    max_parallel_jobs=max_parallel_jobs)
 
   return list(resolve_request.resolve_distributions(ignore_errors=ignore_errors))
@@ -682,6 +688,7 @@ def resolve_multi(requirements=None,
                   build=True,
                   use_wheel=True,
                   compile=False,
+                  manylinux=None,
                   max_parallel_jobs=None,
                   ignore_errors=False):
   """A generator function that produces all distributions needed to meet `requirements`
@@ -720,6 +727,8 @@ def resolve_multi(requirements=None,
     Defaults to ``True``.
   :keyword bool compile: Whether to pre-compile resolved distribution python sources.
     Defaults to ``False``.
+  :keyword str manylinux: The upper bound manylinux standard to support when targeting foreign linux
+    platforms. Defaults to ``None``.
   :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
     building and installing distributions in a resolve. Defaults to the number of CPUs available.
   :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
@@ -762,6 +771,7 @@ def resolve_multi(requirements=None,
                                    build=build,
                                    use_wheel=use_wheel,
                                    compile=compile,
+                                   manylinux=manylinux,
                                    max_parallel_jobs=max_parallel_jobs)
 
   return list(resolve_request.resolve_distributions(ignore_errors=ignore_errors))

@@ -126,6 +126,7 @@ class Pip(object):
                                    find_links=None,
                                    cache=None,
                                    build=True,
+                                   manylinux=None,
                                    use_wheel=True):
 
     target = target or DistributionTarget.current()
@@ -150,6 +151,8 @@ class Pip(object):
       # We're either resolving for a different host / platform or a different interpreter for the
       # current platform that we have no access to; so we need to let pip know and not otherwise
       # pickup platform info from the interpreter we execute pip with.
+      if manylinux and platform.platform.startswith('linux'):
+        download_cmd.extend(['--platform', platform.platform.replace('linux', manylinux, 1)])
       download_cmd.extend(['--platform', platform.platform])
       download_cmd.extend(['--implementation', platform.impl])
       download_cmd.extend(['--python-version', platform.version])
@@ -199,7 +202,6 @@ class Pip(object):
                           wheel,
                           install_dir,
                           compile=False,
-                          overwrite=False,
                           cache=None,
                           target=None):
 
@@ -224,8 +226,7 @@ class Pip(object):
       install_cmd.append('--ignore-requires-python')
 
     install_cmd.append('--compile' if compile else '--no-compile')
-    if overwrite:
-      install_cmd.extend(['--upgrade', '--force-reinstall'])
+    install_cmd.extend(['--upgrade', '--force-reinstall'])
     install_cmd.append(wheel)
     return self._spawn_pip_isolated(install_cmd, cache=cache, interpreter=interpreter)
 

@@ -1,5 +1,6 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import functools
 import os
 
@@ -183,12 +184,12 @@ def test_resolve_extra_wheel():
 def resolve_wheel_names(**kwargs):
   return [
     os.path.basename(resolved_distribution.distribution.location)
-    for resolved_distribution in resolve_multi(
-      requirements=['p537==1.0.4'],
-      transitive=False,
-      **kwargs
-    )
+    for resolved_distribution in resolve_multi(**kwargs)
   ]
+
+
+def resolve_p537_wheel_names(**kwargs):
+  return resolve_wheel_names(requirements=['p537==1.0.4'], transitive=False, **kwargs)
 
 
 @pytest.fixture(scope="module")
@@ -199,7 +200,7 @@ def p537_resolve_cache():
 @pytest.mark.skipif(PY_VER < (3, 5) or IS_PYPY,
                     reason="The p537 distribution only builds for CPython 3.5+")
 def test_resolve_current_platform(p537_resolve_cache):
-  resolve_current = functools.partial(resolve_wheel_names,
+  resolve_current = functools.partial(resolve_p537_wheel_names,
                                       cache=p537_resolve_cache,
                                       platforms=['current'])
 
@@ -225,7 +226,7 @@ def test_resolve_current_platform(p537_resolve_cache):
                     reason="The p537 distribution only builds for CPython 3.5+")
 def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
   foreign_platform = 'macosx-10.13-x86_64-cp-37-m' if IS_LINUX else 'manylinux1_x86_64-cp-37-m'
-  resolve_current_and_foreign = functools.partial(resolve_wheel_names,
+  resolve_current_and_foreign = functools.partial(resolve_p537_wheel_names,
                                                   cache=p537_resolve_cache,
                                                   platforms=['current', foreign_platform])
 
@@ -242,3 +243,38 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
   # Here we have 2 local interpreters, satisfying current, but with different platforms and thus
   # different dists and then the foreign platform for 3 total dists.
   assert 3 == len(resolve_current_and_foreign(interpreters=[current_python, other_python]))
+
+
+def test_resolve_foreign_abi3():
+  # For version 2.8, cryptography publishes the following abi3 wheels for linux and macosx:
+  # cryptography-2.8-cp34-abi3-macosx_10_6_intel.whl
+  # cryptography-2.8-cp34-abi3-manylinux1_x86_64.whl
+  # cryptography-2.8-cp34-abi3-manylinux2010_x86_64.whl
+
+  cryptogrpahy_resolve_cache = safe_mkdtemp()
+  resolve_cryptography_wheel_names = functools.partial(
+    resolve_wheel_names,
+    requirements=['cryptography==2.8'],
+    platforms=['linux_x86_64-cp-36-m', 'macosx_10.11_x86_64-cp-36-m'],
+    transitive=False,
+    build=False,
+    cache=cryptogrpahy_resolve_cache
+  )
+
+  wheel_names = resolve_cryptography_wheel_names(manylinux='manylinux2014')
+  assert {
+    'cryptography-2.8-cp34-abi3-manylinux2010_x86_64.whl',
+    'cryptography-2.8-cp34-abi3-macosx_10_6_intel.whl'
+  } == set(wheel_names)
+
+  wheel_names = resolve_cryptography_wheel_names(manylinux='manylinux2010')
+  assert {
+    'cryptography-2.8-cp34-abi3-manylinux2010_x86_64.whl',
+    'cryptography-2.8-cp34-abi3-macosx_10_6_intel.whl'
+  } == set(wheel_names)
+
+  wheel_names = resolve_cryptography_wheel_names(manylinux='manylinux1')
+  assert {
+    'cryptography-2.8-cp34-abi3-manylinux1_x86_64.whl',
+    'cryptography-2.8-cp34-abi3-macosx_10_6_intel.whl'
+  } == set(wheel_names)
