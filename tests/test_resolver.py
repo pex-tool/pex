@@ -252,10 +252,14 @@ def test_resolve_foreign_abi3():
   # cryptography-2.8-cp34-abi3-manylinux2010_x86_64.whl
 
   cryptogrpahy_resolve_cache = safe_mkdtemp()
+  foreign_ver = '37' if PY_VER == (3, 6) else '36'
   resolve_cryptography_wheel_names = functools.partial(
     resolve_wheel_names,
     requirements=['cryptography==2.8'],
-    platforms=['linux_x86_64-cp-36-m', 'macosx_10.11_x86_64-cp-36-m'],
+    platforms=[
+      'linux_x86_64-cp-{}-m'.format(foreign_ver),
+      'macosx_10.11_x86_64-cp-{}-m'.format(foreign_ver)
+    ],
     transitive=False,
     build=False,
     cache=cryptogrpahy_resolve_cache
