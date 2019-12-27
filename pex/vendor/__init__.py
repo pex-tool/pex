@@ -7,7 +7,7 @@ import collections
 import os
 
 from pex.common import touch
-from pex.orderedset import OrderedSet
+from pex.compatibility import urlparse
 from pex.tracer import TRACER
 
 _PACKAGE_COMPONENTS = __name__.split('.')
@@ -20,13 +20,12 @@ def _root():
   return path
 
 
-class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version', 'rewrite'])):
+class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'requirement', 'rewrite'])):
   """Represents a vendored distribution.
 
   :field str key: The distribution requirement key; e.g.: for a requirement of
     requests[security]==2.22.0 the key is 'requests'.
-  :field str version: The distribution requirement version; e.g.: for a requirement of
-    requests[security]==2.22.0 the version is '2.22.0'.
+  :field str requirement: The distribution requirement string; e.g.: requests[security]==2.22.0.
   :field bool rewrite: Whether to re-write the distribution's imports for use with the
     `pex.third_party` importer.
 
@@ -37,12 +36,19 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version', 'rewrit
   ROOT = _root()
 
   @classmethod
-  def create(cls, requirement, rewrite=True):
-    components = requirement.rsplit('==', 1)
-    if len(components) != 2:
-      raise ValueError('Vendored requirements must be pinned, given {!r}'.format(requirement))
-    key, version = tuple(c.strip() for c in components)
-    return cls(key=key, version=version, rewrite=rewrite)
+  def pinned(cls, key, version, rewrite=True):
+    return cls(key=key, requirement='{}=={}'.format(key, version), rewrite=rewrite)
+
+  @classmethod
+  def vcs(cls, url, rewrite=True):
+    result = urlparse.urlparse(url)
+    fragment_params = urlparse.parse_qs(result.fragment)
+    values = fragment_params.get('egg')
+    if not values or len(values) != 1:
+      raise ValueError('Expected the vcs requirement url to have an #egg=<name> fragment. '
+                       'Got: {}'.format(url))
+
+    return cls(key=values[0], requirement=url, rewrite=rewrite)
 
   @property
   def _subpath_components(self):
@@ -55,10 +61,6 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'version', 'rewrit
   @property
   def target_dir(self):
     return os.path.join(self.ROOT, self.relpath)
-
-  @property
-  def requirement(self):
-    return '{}=={}'.format(self.key, self.version)
 
   def create_packages(self):
     """Create missing packages joining the vendor root to the base of the vendored distribution.
@@ -88,37 +90,9 @@ def iter_vendor_specs():
   :return: An iterator over specs of all vendored code.
   :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
   """
-  yield VendorSpec.create('pip==19.3.1', rewrite=False)
-  yield VendorSpec.create('setuptools==41.6.0')
-  yield VendorSpec.create('wheel==0.33.6')
-
-
-def _vendored_dists(distributions):
-  entries = [spec.target_dir for spec in iter_vendor_specs() if spec.key in distributions]
-
-  import pex.third_party.pkg_resources as pkg_resources
-  return list(pkg_resources.WorkingSet(entries=entries))
-
-
-def setup_interpreter(distributions, interpreter=None):
-  """Return an interpreter configured with vendored distributions as extras.
-
-  Any distributions that are present in the vendored set will be added to the interpreter as extras.
-
-  :param distributions: The names of distributions to setup the interpreter with.
-  :type distributions: list of str
-  :param interpreter: An optional interpreter to configure. If ``None``, the current interpreter is
-                      used.
-  :type interpreter: :class:`pex.interpreter.PythonInterpreter`
-  :return: An bare interpreter configured with vendored extras.
-  :rtype: :class:`pex.interpreter.PythonInterpreter`
-  """
-  from pex.interpreter import PythonInterpreter
-
-  interpreter = interpreter or PythonInterpreter.get()
-  for dist in _vendored_dists(OrderedSet(distributions)):
-    interpreter = interpreter.with_extra(dist.key, dist.version, dist.location)
-  return interpreter
+  yield VendorSpec.pinned('pip', '19.3.1', rewrite=False)
+  yield VendorSpec.pinned('setuptools', '41.6.0')
+  yield VendorSpec.pinned('wheel', '0.33.6')
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
