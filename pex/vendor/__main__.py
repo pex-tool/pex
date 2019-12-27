@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import glob
 import os
 import pkgutil
 import subprocess
@@ -201,8 +202,8 @@ def vendorize(root_dir, vendor_specs, prefix):
     # The RECORD contains file hashes of all installed files and is unfortunately unstable in the
     # case of scripts which get a shebang added with a system-specific path to the python
     # interpreter to execute.
-    safe_delete(os.path.join(vendor_spec.target_dir,
-                             '{}-{}.dist-info/RECORD'.format(vendor_spec.key, vendor_spec.version)))
+    for record_file in glob.glob(os.path.join(vendor_spec.target_dir, '*-*.dist-info/RECORD')):
+      safe_delete(record_file)
 
     vendor_spec.create_packages()
 
