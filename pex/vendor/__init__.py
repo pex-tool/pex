@@ -90,9 +90,18 @@ def iter_vendor_specs():
   :return: An iterator over specs of all vendored code.
   :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
   """
+  # We use this via pex.third_party at runtime to check for compatible wheel tags.
+  yield VendorSpec.pinned('packaging', '19.2')
+
+  # We shell out to pip at buildtime to resolve and install dependencies.
   yield VendorSpec.pinned('pip', '19.3.1', rewrite=False)
+
+  # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
+  # pex.third_party at runtime in various ways.
   yield VendorSpec.pinned('setuptools', '42.0.2')
-  yield VendorSpec.pinned('wheel', '0.33.6')
+
+  # We expose this to pip at buildtime for legacy builds.
+  yield VendorSpec.pinned('wheel', '0.33.6', rewrite=False)
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
@@ -117,7 +126,7 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names):
       if root == spec.target_dir:
         dirs[:] = [pkg_name for pkg_name in dirs if pkg_name in vendor_module_names]
         files[:] = [mod_name for mod_name in files if mod_name[:-3] in vendor_module_names]
-        vendored_names = dirs + files
+        vendored_names = dirs + [filename[:-3] for filename in files]
         if vendored_names:
           pkg_path = ''
           for pkg in spec.relpath.split(os.sep):

@@ -4,16 +4,8 @@ import os.path
 import re
 import sys
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from wheel.cli import WheelError  # vendor:skip
-else:
-  from pex.third_party.wheel.cli import WheelError
-
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from wheel.wheelfile import WheelFile  # vendor:skip
-else:
-  from pex.third_party.wheel.wheelfile import WheelFile
-
+from wheel.cli import WheelError
+from wheel.wheelfile import WheelFile
 
 DIST_INFO_RE = re.compile(r"^(?P<namever>(?P<name>.+?)-(?P<ver>\d.*?))\.dist-info$")
 

@@ -46,9 +46,8 @@ class DistributionTarget(object):
     """
     if self._platform is None:
       interpreter = self.get_interpreter()
-      return '{impl}-{ver}-{abi}'.format(impl=interpreter.identity.abbr_impl,
-                                         ver=interpreter.identity.impl_ver,
-                                         abi=interpreter.identity.abi_tag)
+      return '{python}-{abi}'.format(python=interpreter.identity.python_tag,
+                                     abi=interpreter.identity.abi_tag)
     else:
       return str(self._platform)
 

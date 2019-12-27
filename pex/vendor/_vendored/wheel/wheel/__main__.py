@@ -11,11 +11,7 @@ def main():  # needed for console script
         import os.path
         path = os.path.dirname(os.path.dirname(__file__))
         sys.path[0:0] = [path]
-    if "__PEX_UNVENDORED__" in __import__("os").environ:
-      import wheel.cli  # vendor:skip
-    else:
-      import pex.third_party.wheel.cli, pex.third_party.wheel as wheel
-
+    import wheel.cli
     sys.exit(wheel.cli.main())
 
 

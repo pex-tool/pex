@@ -367,8 +367,10 @@ class PEXBuilder(object):
     vendor.vendor_runtime(chroot=self._chroot,
                           dest_basedir=BOOTSTRAP_DIR,
                           label='bootstrap',
-                          # NB: We use wheel here in the builder, but that's only at build-time.
-                          root_module_names=['pkg_resources'])
+                          # NB: We use pip here in the builder, but that's only at buildtime and
+                          # although we don't use pyparsing directly, packaging.markers, which we
+                          # do use at runtime, does.
+                          root_module_names=['packaging', 'pkg_resources', 'pyparsing'])
 
     source_name = 'pex'
     provider = get_provider(source_name)
@@ -417,7 +419,7 @@ class PEXBuilder(object):
       self.freeze(bytecode_compile=bytecode_compile)
     try:
       os.unlink(filename + '~')
-      self._logger.warn('Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
+      self._logger.warning('Previous binary unexpectedly exists, cleaning: %s' % (filename + '~'))
     except OSError:
       # The expectation is that the file does not exist, so continue
       pass

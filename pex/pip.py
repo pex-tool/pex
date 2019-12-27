@@ -37,8 +37,8 @@ class Pip(object):
         import sys
 
 
-        # Propagate un-vendored setuptools and wheel to pip for any legacy setup.py builds it needs
-        # to perform.
+        # Propagate un-vendored setuptools to pip for any legacy setup.py builds it needs to
+        # perform.
         os.environ['__PEX_UNVENDORED__'] = '1'
         os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
 
