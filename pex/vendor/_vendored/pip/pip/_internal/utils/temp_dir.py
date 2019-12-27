@@ -1,6 +1,3 @@
-# The following comment should be removed at some point in the future.
-# mypy: disallow-untyped-defs=False
-
 from __future__ import absolute_import
 
 import errno
@@ -8,15 +5,35 @@ import itertools
 import logging
 import os.path
 import tempfile
+from contextlib import contextmanager
+
+from pip._vendor.contextlib2 import ExitStack
 
 from pip._internal.utils.misc import rmtree
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
 if MYPY_CHECK_RUNNING:
-    from typing import Optional
+    from typing import Any, Iterator, Optional, TypeVar
+
+    _T = TypeVar('_T', bound='TempDirectory')
 
 
 logger = logging.getLogger(__name__)
+
+
+_tempdir_manager = None  # type: Optional[ExitStack]
+
+
+@contextmanager
+def global_tempdir_manager():
+    # type: () -> Iterator[None]
+    global _tempdir_manager
+    with ExitStack() as stack:
+        old_tempdir_manager, _tempdir_manager = _tempdir_manager, stack
+        try:
+            yield
+        finally:
+            _tempdir_manager = old_tempdir_manager
 
 
 class TempDirectory(object):
@@ -44,7 +61,8 @@ class TempDirectory(object):
         self,
         path=None,    # type: Optional[str]
         delete=None,  # type: Optional[bool]
-        kind="temp"
+        kind="temp",  # type: str
+        globally_managed=False,  # type: bool
     ):
         super(TempDirectory, self).__init__()
 
@@ -61,6 +79,10 @@ class TempDirectory(object):
         self.delete = delete
         self.kind = kind
 
+        if globally_managed:
+            assert _tempdir_manager is not None
+            _tempdir_manager.enter_context(self)
+
     @property
     def path(self):
         # type: () -> str
@@ -70,16 +92,20 @@ class TempDirectory(object):
         return self._path
 
     def __repr__(self):
+        # type: () -> str
         return "<{} {!r}>".format(self.__class__.__name__, self.path)
 
     def __enter__(self):
+        # type: (_T) -> _T
         return self
 
     def __exit__(self, exc, value, tb):
+        # type: (Any, Any, Any) -> None
         if self.delete:
             self.cleanup()
 
     def _create(self, kind):
+        # type: (str) -> str
         """Create a temporary directory and store its path in self.path
         """
         # We realpath here because some systems have their default tmpdir
@@ -93,6 +119,7 @@ class TempDirectory(object):
         return path
 
     def cleanup(self):
+        # type: () -> None
         """Remove the temporary directory created and reset state
         """
         self._deleted = True
@@ -122,11 +149,13 @@ class AdjacentTempDirectory(TempDirectory):
     LEADING_CHARS = "-~.=%0123456789"
 
     def __init__(self, original, delete=None):
+        # type: (str, Optional[bool]) -> None
         self.original = original.rstrip('/\\')
         super(AdjacentTempDirectory, self).__init__(delete=delete)
 
     @classmethod
     def _generate_names(cls, name):
+        # type: (str) -> Iterator[str]
         """Generates a series of temporary names.
 
         The algorithm replaces the leading characters in the name
@@ -150,6 +179,7 @@ class AdjacentTempDirectory(TempDirectory):
                     yield new_name
 
     def _create(self, kind):
+        # type: (str) -> str
         root, name = os.path.split(self.original)
         for candidate in self._generate_names(name):
             path = os.path.join(root, candidate)

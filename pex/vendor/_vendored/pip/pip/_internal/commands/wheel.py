@@ -13,10 +13,10 @@ from pip._internal.cli import cmdoptions
 from pip._internal.cli.req_command import RequirementCommand
 from pip._internal.exceptions import CommandError, PreviousBuildDirError
 from pip._internal.req import RequirementSet
-from pip._internal.req.req_tracker import RequirementTracker
+from pip._internal.req.req_tracker import get_requirement_tracker
 from pip._internal.utils.temp_dir import TempDirectory
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
-from pip._internal.wheel import WheelBuilder
+from pip._internal.wheel_builder import WheelBuilder
 
 if MYPY_CHECK_RUNNING:
     from optparse import Values
@@ -114,24 +114,17 @@ class WheelCommand(RequirementCommand):
         # type: (Values, List[Any]) -> None
         cmdoptions.check_install_build_global(options)
 
-        if options.build_dir:
-            options.build_dir = os.path.abspath(options.build_dir)
-
-        options.src_dir = os.path.abspath(options.src_dir)
-
         session = self.get_default_session(options)
 
         finder = self._build_package_finder(options, session)
         build_delete = (not (options.no_clean or options.build_dir))
         wheel_cache = WheelCache(options.cache_dir, options.format_control)
 
-        with RequirementTracker() as req_tracker, TempDirectory(
+        with get_requirement_tracker() as req_tracker, TempDirectory(
             options.build_dir, delete=build_delete, kind="wheel"
         ) as directory:
 
-            requirement_set = RequirementSet(
-                require_hashes=options.require_hashes,
-            )
+            requirement_set = RequirementSet()
 
             try:
                 self.populate_requirement_set(
@@ -143,18 +136,23 @@ class WheelCommand(RequirementCommand):
                     temp_build_dir=directory,
                     options=options,
                     req_tracker=req_tracker,
+                    session=session,
+                    finder=finder,
                     wheel_download_dir=options.wheel_dir,
+                    use_user_site=False,
                 )
 
                 resolver = self.make_resolver(
                     preparer=preparer,
                     finder=finder,
-                    session=session,
                     options=options,
                     wheel_cache=wheel_cache,
                     ignore_requires_python=options.ignore_requires_python,
                     use_pep517=options.use_pep517,
                 )
+
+                self.trace_basic_info(finder)
+
                 resolver.resolve(requirement_set)
 
                 # build wheels
@@ -162,10 +160,10 @@ class WheelCommand(RequirementCommand):
                     preparer, wheel_cache,
                     build_options=options.build_options or [],
                     global_options=options.global_options or [],
-                    no_clean=options.no_clean,
                 )
                 build_failures = wb.build(
                     requirement_set.requirements.values(),
+                    should_unpack=False,
                 )
                 if len(build_failures) != 0:
                     raise CommandError(

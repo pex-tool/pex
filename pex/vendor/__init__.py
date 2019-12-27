@@ -94,7 +94,8 @@ def iter_vendor_specs():
   yield VendorSpec.pinned('packaging', '19.2')
 
   # We shell out to pip at buildtime to resolve and install dependencies.
-  yield VendorSpec.pinned('pip', '19.3.1', rewrite=False)
+  # N.B.: This is pip 20.0.dev0 with a patch to support foreign download targets more fully.
+  yield VendorSpec.vcs('git+https://github.com/pantsbuild/pip@e96681a0d5cf#egg=pip', rewrite=False)
 
   # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
   # pex.third_party at runtime in various ways.
