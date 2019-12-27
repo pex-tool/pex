@@ -338,20 +338,27 @@ def isolated():
   global _ISOLATED
   if _ISOLATED is None:
     from pex import vendor
-    from pex.common import safe_mkdtemp, Chroot
+    from pex.common import atomic_directory, safe_copy
+    from pex.util import CacheHelper
+    from pex.variables import ENV
 
-    chroot = Chroot(safe_mkdtemp())
-    with _tracer().timed('Isolating pex in {}'.format(chroot)):
-      pex_path = os.path.join(vendor.VendorSpec.ROOT, 'pex')
-      for root, _, files in os.walk(pex_path):
-        for f in files:
-          if not f.endswith('.pyc'):
-            abs_file_path = os.path.join(root, f)
-            relpath = os.path.relpath(abs_file_path, pex_path)
-            chroot.copy(abs_file_path, os.path.join('pex', relpath), label='pex')
+    pex_path = os.path.join(vendor.VendorSpec.ROOT, 'pex')
+    with _tracer().timed('Isolating pex'):
+      isolated_dir = os.path.join(ENV.PEX_ROOT, 'isolated', CacheHelper.dir_hash(pex_path))
+      with atomic_directory(isolated_dir) as chroot:
+        if chroot:
+          with _tracer().timed('Extracting pex to {}'.format(isolated_dir)):
+            pex_path = os.path.join(vendor.VendorSpec.ROOT, 'pex')
+            for root, dirs, files in os.walk(pex_path):
+              relroot = os.path.relpath(root, pex_path)
+              for d in dirs:
+                os.makedirs(os.path.join(chroot, 'pex', relroot, d))
+              for f in files:
+                if not f.endswith('.pyc'):
+                  safe_copy(os.path.join(root, f), os.path.join(chroot, 'pex', relroot, f))
 
-    _ISOLATED = chroot
-  return _ISOLATED.path()
+    _ISOLATED = isolated_dir
+  return _ISOLATED
 
 
 def uninstall():
