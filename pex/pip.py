@@ -202,6 +202,7 @@ class Pip(object):
                           wheel,
                           install_dir,
                           compile=False,
+                          overwrite=False,
                           cache=None,
                           target=None):
 
@@ -226,7 +227,8 @@ class Pip(object):
       install_cmd.append('--ignore-requires-python')
 
     install_cmd.append('--compile' if compile else '--no-compile')
-    install_cmd.extend(['--upgrade', '--force-reinstall'])
+    if overwrite:
+      install_cmd.extend(['--upgrade', '--force-reinstall'])
     install_cmd.append(wheel)
     return self._spawn_pip_isolated(install_cmd, cache=cache, interpreter=interpreter)
 
