@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+from textwrap import dedent
 
 from pex import third_party
 from pex.compatibility import string
@@ -16,10 +17,6 @@ from pex.executor import Executor
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
-
-
-def encode_identity():
-  print(PythonIdentity.get().encode())
 
 
 class PythonIdentity(object):
@@ -295,7 +292,15 @@ class PythonInterpreter(object):
     pythonpath = third_party.expose(['pex'])
     _, stdout, _ = cls._execute(
       binary,
-      args=['-c', 'from pex.interpreter import encode_identity; encode_identity()'],
+      args=[
+        '-c',
+        dedent("""\
+        import sys
+        from pex.interpreter import PythonIdentity
+
+        sys.stdout.write(PythonIdentity.get().encode())
+        """)
+      ],
       pythonpath=pythonpath
     )
     identity = stdout.strip()
