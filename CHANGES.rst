@@ -1,6 +1,49 @@
 Release Notes
 =============
 
+2.1.0
+-----
+
+This release restores and improves support for building and running
+multiplatform pexes. Foreign `linux*` platform builds now include
+`manylinux2014` compatible wheels by default and foreign CPython pexes now
+resolve `abi3` wheels correctly. In addition, error messages at both buildtime
+and runtime related to resolution of dependencies are more informative.
+
+Pex 2.1.0 should be considered the first Pex 2-series release that fully
+replaces and improves upon Pex 1-series functionality.
+
+* Fix pex resolving for foreign platforms. (#835)
+  `PR #835 <https://github.com/pantsbuild/pex/pull/835>`_
+
+* Use pypa/packaging. (#831)
+  `PR #831 <https://github.com/pantsbuild/pex/pull/831>`_
+
+* Upgrade vendored setuptools to 42.0.2. (#832)
+  `PR #832 <https://github.com/pantsbuild/pex/pull/832>`_
+  `PR #1830 <https://github.com/pypa/setuptools/pull/1830>`_
+
+* De-vendor pex just once per version. (#833)
+  `PR #833 <https://github.com/pantsbuild/pex/pull/833>`_
+
+* Support VCS urls for vendoring. (#834)
+  `PR #834 <https://github.com/pantsbuild/pex/pull/834>`_
+
+* Support python 3.8 in CI. (#829)
+  `PR #829 <https://github.com/pantsbuild/pex/pull/829>`_
+
+* Fix pex resolution to respect --ignore-errors. (#828)
+  `PR #828 <https://github.com/pantsbuild/pex/pull/828>`_
+
+* Kill `pkg_resources` finders monkey-patching. (#827)
+  `PR #827 <https://github.com/pantsbuild/pex/pull/827>`_
+
+* Use flit to distribute pex. (#826)
+  `PR #826 <https://github.com/pantsbuild/pex/pull/826>`_
+
+* Cleanup extras_require. (#825)
+  `PR #825 <https://github.com/pantsbuild/pex/pull/825>`_
+
 2.0.3
 -----
 
