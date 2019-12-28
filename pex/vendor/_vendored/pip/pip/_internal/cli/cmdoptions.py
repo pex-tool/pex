@@ -9,11 +9,11 @@ pass on state. To be consistent, all options will follow this design.
 
 # The following comment should be removed at some point in the future.
 # mypy: strict-optional=False
-# mypy: disallow-untyped-defs=False
 
 from __future__ import absolute_import
 
 import logging
+import os
 import textwrap
 import warnings
 from distutils.util import strtobool
@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def raise_option_error(parser, option, msg):
+    # type: (OptionParser, Option, str) -> None
     """
     Raise an option parsing error using parser.error().
 
@@ -77,14 +78,15 @@ def check_install_build_global(options, check_options=None):
         check_options = options
 
     def getname(n):
+        # type: (str) -> Optional[Any]
         return getattr(check_options, n, None)
     names = ["build_options", "global_options", "install_options"]
     if any(map(getname, names)):
         control = options.format_control
         control.disallow_binaries()
         warnings.warn(
-            'Disabling all use of wheels due to the use of --build-options '
-            '/ --global-options / --install-options.', stacklevel=2,
+            'Disabling all use of wheels due to the use of --build-option '
+            '/ --global-option / --install-option.', stacklevel=2,
         )
 
 
@@ -97,7 +99,7 @@ def check_dist_restriction(options, check_target=False):
     """
     dist_restriction_set = any([
         options.python_version,
-        options.platform,
+        options.platforms,
         options.abi,
         options.implementation,
     ])
@@ -322,6 +324,7 @@ index_url = partial(
 
 
 def extra_index_url():
+    # type: () -> Option
     return Option(
         '--extra-index-url',
         dest='extra_index_urls',
@@ -410,12 +413,21 @@ def editable():
     )
 
 
+def _handle_src(option, opt_str, value, parser):
+    # type: (Option, str, str, OptionParser) -> None
+    value = os.path.abspath(value)
+    setattr(parser.values, option.dest, value)
+
+
 src = partial(
     Option,
     '--src', '--source', '--source-dir', '--source-directory',
     dest='src_dir',
+    type='str',
     metavar='dir',
     default=get_src_prefix(),
+    action='callback',
+    callback=_handle_src,
     help='Directory to check out editable projects into. '
     'The default in a virtualenv is "<venv path>/src". '
     'The default for global installs is "<current dir>/src".'
@@ -479,11 +491,13 @@ def only_binary():
 platform = partial(
     Option,
     '--platform',
-    dest='platform',
+    dest='platforms',
     metavar='platform',
+    action='append',
     default=None,
     help=("Only use wheels compatible with <platform>. "
-          "Defaults to the platform of the running system."),
+          "Defaults to the platform of the running system. "
+          "This option can be used multiple times."),
 )  # type: Callable[..., Option]
 
 
@@ -593,7 +607,7 @@ def add_target_python_options(cmd_opts):
 def make_target_python(options):
     # type: (Values) -> TargetPython
     target_python = TargetPython(
-        platform=options.platform,
+        platforms=options.platforms,
         py_version_info=options.python_version,
         abi=options.abi,
         implementation=options.implementation,
@@ -669,11 +683,22 @@ no_deps = partial(
     help="Don't install package dependencies.",
 )  # type: Callable[..., Option]
 
+
+def _handle_build_dir(option, opt, value, parser):
+    # type: (Option, str, str, OptionParser) -> None
+    if value:
+        value = os.path.abspath(value)
+    setattr(parser.values, option.dest, value)
+
+
 build_dir = partial(
     Option,
     '-b', '--build', '--build-dir', '--build-directory',
     dest='build_dir',
+    type='str',
     metavar='dir',
+    action='callback',
+    callback=_handle_build_dir,
     help='Directory to unpack packages into and build in. Note that '
          'an initial build still takes place in a temporary directory. '
          'The location of temporary directories can be controlled by setting '
@@ -868,6 +893,16 @@ def check_list_path_option(options):
         )
 
 
+no_python_version_warning = partial(
+    Option,
+    '--no-python-version-warning',
+    dest='no_python_version_warning',
+    action='store_true',
+    default=False,
+    help='Silence deprecation warnings for upcoming unsupported Pythons.',
+)  # type: Callable[..., Option]
+
+
 ##########
 # groups #
 ##########
@@ -895,6 +930,7 @@ general_group = {
         no_cache,
         disable_pip_version_check,
         no_color,
+        no_python_version_warning,
     ]
 }  # type: Dict[str, Any]
 

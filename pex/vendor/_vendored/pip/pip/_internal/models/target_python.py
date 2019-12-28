@@ -1,6 +1,6 @@
 import sys
 
-from pip._internal.pep425tags import get_supported, version_info_to_nodot
+from pip._internal.pep425tags import get_supported
 from pip._internal.utils.misc import normalize_version_info
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
@@ -18,18 +18,18 @@ class TargetPython(object):
 
     def __init__(
         self,
-        platform=None,  # type: Optional[str]
+        platforms=None,  # type: Optional[List[str]]
         py_version_info=None,  # type: Optional[Tuple[int, ...]]
         abi=None,  # type: Optional[str]
         implementation=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         """
-        :param platform: A string or None. If None, searches for packages
-            that are supported by the current system. Otherwise, will find
-            packages that can be built on the platform passed in. These
-            packages will only be downloaded for distribution: they will
-            not be built locally.
+        :param platforms: A list of platform strings or None. If None,
+            searches for packages that are supported by the current system.
+            Otherwise, will find packages that can be built on the platforms
+            passed in. These packages will only be downloaded for
+            distribution: they will not be built locally.
         :param py_version_info: An optional tuple of ints representing the
             Python version information to use (e.g. `sys.version_info[:3]`).
             This can have length 1, 2, or 3 when provided.
@@ -50,7 +50,7 @@ class TargetPython(object):
 
         self.abi = abi
         self.implementation = implementation
-        self.platform = platform
+        self.platforms = platforms
         self.py_version = py_version
         self.py_version_info = py_version_info
 
@@ -69,7 +69,7 @@ class TargetPython(object):
             )
 
         key_values = [
-            ('platform', self.platform),
+            ('platforms', self.platforms),
             ('version_info', display_version),
             ('abi', self.abi),
             ('implementation', self.implementation),
@@ -87,17 +87,9 @@ class TargetPython(object):
         The tags are returned in order of preference (most preferred first).
         """
         if self._valid_tags is None:
-            # Pass versions=None if no py_version_info was given since
-            # versions=None uses special default logic.
-            py_version_info = self._given_py_version_info
-            if py_version_info is None:
-                versions = None
-            else:
-                versions = [version_info_to_nodot(py_version_info)]
-
             tags = get_supported(
-                versions=versions,
-                platform=self.platform,
+                version_info=self._given_py_version_info,
+                platforms=self.platforms,
                 abi=self.abi,
                 impl=self.implementation,
             )

@@ -1,47 +1,16 @@
-"""Primary application entrypoint.
-"""
-# The following comment should be removed at some point in the future.
-# mypy: disallow-untyped-defs=False
+from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
-from __future__ import absolute_import
-
-import locale
-import logging
-import os
-import sys
-
-from pip._internal.cli.autocompletion import autocomplete
-from pip._internal.cli.main_parser import parse_command
-from pip._internal.commands import create_command
-from pip._internal.exceptions import PipError
-from pip._internal.utils import deprecation
-
-logger = logging.getLogger(__name__)
+if MYPY_CHECK_RUNNING:
+    from typing import Optional, List
 
 
 def main(args=None):
-    if args is None:
-        args = sys.argv[1:]
+    # type: (Optional[List[str]]) -> int
+    """This is preserved for old console scripts that may still be referencing
+    it.
 
-    # Configure our deprecation warnings to be sent through loggers
-    deprecation.install_warning_logger()
+    For additional details, see https://github.com/pypa/pip/issues/7498.
+    """
+    from pip._internal.utils.entrypoints import _wrapper
 
-    autocomplete()
-
-    try:
-        cmd_name, cmd_args = parse_command(args)
-    except PipError as exc:
-        sys.stderr.write("ERROR: %s" % exc)
-        sys.stderr.write(os.linesep)
-        sys.exit(1)
-
-    # Needed for locale.getpreferredencoding(False) to work
-    # in pip._internal.utils.encoding.auto_decode
-    try:
-        locale.setlocale(locale.LC_ALL, '')
-    except locale.Error as e:
-        # setlocale can apparently crash if locale are uninitialized
-        logger.debug("Ignoring error %s when setting locale", e)
-    command = create_command(cmd_name, isolated=("--isolated" in cmd_args))
-
-    return command.main(cmd_args)
+    return _wrapper(args)

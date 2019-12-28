@@ -80,6 +80,19 @@ def process_index_url(option, option_str, option_value, parser):
   setattr(parser.values, option.dest, indexes)
 
 
+_DEFAULT_MANYLINUX_STANDARD = 'manylinux2014'
+
+
+def process_manylinux(option, option_str, option_value, parser):
+  if option_str.startswith('--no'):
+    setattr(parser.values, option.dest, None)
+  elif option_value.startswith('manylinux'):
+    setattr(parser.values, option.dest, option_value)
+  else:
+    raise OptionValueError('Please specify a manylinux standard; ie: --manylinux=manylinux1. '
+                           'Given {}'.format(option_value))
+
+
 def process_transitive(option, option_str, option_value, parser):
   transitive = option_str == '--transitive'
   setattr(parser.values, option.dest, transitive)
@@ -181,6 +194,17 @@ def configure_clp_pex_resolution(parser):
       action='callback',
       callback=parse_bool,
       help='Whether to allow building of distributions from source; Default: allow builds')
+
+  group.add_option(
+      '--manylinux', '--no-manylinux', '--no-use-manylinux',
+      dest='manylinux',
+      type=str,
+      default=_DEFAULT_MANYLINUX_STANDARD,
+      action='callback',
+      callback=process_manylinux,
+      help=('Whether to allow resolution of manylinux wheels for linux target '
+            'platforms; Default: allow manylinux wheels compatible with {}'
+            .format(_DEFAULT_MANYLINUX_STANDARD)))
 
   group.add_option(
     '--transitive', '--no-transitive', '--intransitive',
@@ -565,6 +589,7 @@ def build_pex(reqs, options):
                                 build=options.build,
                                 use_wheel=options.use_wheel,
                                 compile=options.compile,
+                                manylinux=options.manylinux,
                                 max_parallel_jobs=options.max_parallel_jobs,
                                 ignore_errors=options.ignore_errors)
 

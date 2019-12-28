@@ -33,6 +33,7 @@ from pip._internal.exceptions import (
 from pip._internal.utils.deprecation import deprecated
 from pip._internal.utils.logging import BrokenStdoutLoggingError, setup_logging
 from pip._internal.utils.misc import get_prog
+from pip._internal.utils.temp_dir import global_tempdir_manager
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 from pip._internal.utils.virtualenv import running_under_virtualenv
 
@@ -92,7 +93,7 @@ class Command(CommandContextMixIn):
         raise NotImplementedError
 
     def parse_args(self, args):
-        # type: (List[str]) -> Tuple
+        # type: (List[str]) -> Tuple[Any, Any]
         # factored out for testability
         return self.parser.parse_args(args)
 
@@ -106,6 +107,10 @@ class Command(CommandContextMixIn):
 
     def _main(self, args):
         # type: (List[str]) -> int
+        # Intentionally set as early as possible so globally-managed temporary
+        # directories are available to the rest of the code.
+        self.enter_context(global_tempdir_manager())
+
         options, args = self.parse_args(args)
 
         # Set verbosity so that it can be used elsewhere.
@@ -117,7 +122,10 @@ class Command(CommandContextMixIn):
             user_log_file=options.log,
         )
 
-        if sys.version_info[:2] == (2, 7):
+        if (
+            sys.version_info[:2] == (2, 7) and
+            not options.no_python_version_warning
+        ):
             message = (
                 "A future version of pip will drop support for Python 2.7. "
                 "More details about Python 2 support in pip, can be found at "
@@ -125,11 +133,22 @@ class Command(CommandContextMixIn):
             )
             if platform.python_implementation() == "CPython":
                 message = (
-                    "Python 2.7 will reach the end of its life on January "
+                    "Python 2.7 reached the end of its life on January "
                     "1st, 2020. Please upgrade your Python as Python 2.7 "
-                    "won't be maintained after that date. "
+                    "is no longer maintained. "
                 ) + message
             deprecated(message, replacement=None, gone_in=None)
+
+        if options.skip_requirements_regex:
+            deprecated(
+                "--skip-requirements-regex is unsupported and will be removed",
+                replacement=(
+                    "manage requirements/constraints files explicitly, "
+                    "possibly generating them from metadata"
+                ),
+                gone_in="20.1",
+                issue=7297,
+            )
 
         # TODO: Try to get these passing down from the command?
         #       without resorting to os.environ to hold these.
