@@ -312,7 +312,7 @@ class PEXEnvironment(Environment):
   @classmethod
   def _get_namespace_packages(cls, dist):
     if dist.has_metadata(cls._NAMESPACE_PACKAGE_METADATA_RESOURCE):
-      return dist.get_metadata_lines(cls._NAMESPACE_PACKAGE_METADATA_RESOURCE)
+      return list(dist.get_metadata_lines(cls._NAMESPACE_PACKAGE_METADATA_RESOURCE))
     else:
       return []
 
@@ -353,10 +353,17 @@ class PEXEnvironment(Environment):
     # even then tear it all down when we hand off from the bootstrap to user code.
     pkg_resources, vendored = _import_pkg_resources()
     if vendored:
+      dists = '\n'.join(
+        '\n{index}. {dist} namespace packages:\n  {ns_packages}'.format(
+          index=index + 1,
+          dist=dist.as_requirement(),
+          ns_packages='\n  '.join(ns_packages)
+        ) for index, (dist, ns_packages) in enumerate(namespace_packages_by_dist.items())
+      )
       pex_warnings.warn('The `pkg_resources` package was loaded from a pex vendored version when '
-                        'declaring namespace packages defined by {dists}. These distributions '
+                        'declaring namespace packages defined by:\n{dists}\n\nThese distributions '
                         'should fix their `install_requires` to include `setuptools`'
-                        .format(dists=namespace_packages_by_dist.keys()))
+                        .format(dists=dists))
 
     for pkg in itertools.chain(*namespace_packages_by_dist.values()):
       if pkg in sys.modules:
