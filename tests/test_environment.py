@@ -318,3 +318,33 @@ def test_activate_extras_issue_615():
       'Process failed with exit code {} and output:\n{}'.format(process.returncode, stderr)
     )
     assert to_bytes('{} 1.6.3'.format(os.path.basename(pb.path()))) == stdout.strip()
+
+
+def assert_namespace_packages_warning(distribution, version, expected_warning):
+  requirement = '{}=={}'.format(distribution, version)
+  pb = PEXBuilder()
+  for resolved_dist in resolver.resolve([requirement]):
+    pb.add_dist_location(resolved_dist.distribution.location)
+  pb.freeze()
+
+  process = PEX(pb.path()).run(args=['-c', ''], blocking=False, stderr=subprocess.PIPE)
+  _, stderr = process.communicate()
+  stderr_text = stderr.decode('utf8')
+
+  partial_warning_preamble = 'PEXWarning: The `pkg_resources` package was loaded'
+  partial_warning_detail = '{} namespace packages:'.format(requirement)
+
+  if expected_warning:
+    assert partial_warning_preamble in stderr_text
+    assert partial_warning_detail in stderr_text
+  else:
+    assert partial_warning_preamble not in stderr_text
+    assert partial_warning_detail not in stderr_text
+
+
+def test_present_non_empty_namespace_packages_metadata_does_warn():
+  assert_namespace_packages_warning('twitter.common.lang', '0.3.11', expected_warning=True)
+
+
+def test_present_but_empty_namespace_packages_metadata_does_not_warn():
+  assert_namespace_packages_warning('pycodestyle', '2.5.0', expected_warning=False)
