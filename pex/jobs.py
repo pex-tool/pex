@@ -4,12 +4,9 @@
 from __future__ import absolute_import
 
 import errno
-import os
 from threading import BoundedSemaphore, Event, Thread
 
-from pex import third_party
 from pex.compatibility import Queue, cpu_count
-from pex.interpreter import PythonInterpreter
 from pex.tracer import TRACER
 
 
@@ -48,7 +45,7 @@ class Job(object):
     :raises: :class:`Job.Error` if the job exited non-zero.
     """
     stdout, stderr = self._process.communicate(input=input)
-    self._check_returncode()
+    self._check_returncode(stderr)
     return stdout, stderr
 
   def kill(self):
@@ -62,55 +59,41 @@ class Job(object):
       if e.errno != errno.ESRCH:
         raise e
 
-  def _check_returncode(self):
+  def _check_returncode(self, stderr=None):
     if self._process.returncode != 0:
-      raise self.Error('Executing {} failed with {}'
-                       .format(' '.join(self._command), self._process.returncode))
+      msg = 'Executing {} failed with {}'.format(' '.join(self._command), self._process.returncode)
+      if stderr:
+        msg += '\nSTDERR:\n{}'.format(stderr.decode('utf-8'))
+      raise self.Error(msg)
 
   def __str__(self):
     return 'pid: {pid} -> {command}'.format(pid=self._process.pid, command=' '.join(self._command))
 
 
-def spawn_python_job(args, env=None, interpreter=None, expose=None, **subprocess_kwargs):
-  """Spawns a python job.
-
-  :param args: The arguments to pass to the python interpreter.
-  :type args: list of str
-  :param env: The environment to spawn the python interpreter process in. Defaults to the ambient
-              environment.
-  :type env: dict of (str, str)
-  :param interpreter: The interpreter to use to spawn the python job. Defaults to the current
-                      interpreter.
-  :type interpreter: :class:`PythonInterpreter`
-  :param expose: The names of any vendored distributions to expose to the spawned python process.
-  :type expose: list of str
-  :param subprocess_kwargs: Any additional :class:`subprocess.Popen` kwargs to pass through.
-  :returns: A job handle to the spawned python process.
-  :rtype: :class:`Job`
-  """
-  if expose:
-    subprocess_env = (env or os.environ).copy()
-    # In order to expose vendored distributions with their un-vendored import paths in-tact, we
-    # need to set `__PEX_UNVENDORED__`. See: vendor.__main__.ImportRewriter._modify_import.
-    subprocess_env['__PEX_UNVENDORED__'] = '1'
-
-    pythonpath = third_party.expose(expose)
-  else:
-    subprocess_env = env
-    pythonpath = None
-
-  interpreter = interpreter or PythonInterpreter.get()
-  cmd, process = interpreter.open_process(
-    args=args,
-    pythonpath=pythonpath,
-    env=subprocess_env,
-    **subprocess_kwargs
-  )
-  return Job(command=cmd, process=process)
-
-
 class SpawnedJob(object):
   """A handle to a spawned :class:`Job` and its associated result."""
+
+  @classmethod
+  def completed(cls, result):
+    """Wrap an already completed result in a SpawnedJob.
+
+    The returned job will no-op when `kill` is called since the job is already completed.
+
+    :param result: The completed result.
+    :return: A spawned job whose result is already complete.
+    :rtype: :class:`SpawnedJob`
+    """
+    class Completed(SpawnedJob):
+      def __init__(self):
+        super(Completed, self).__init__(job=None, result_func=lambda: result)
+
+      def kill(self):
+        pass
+
+      def __str__(self):
+        return 'SpawnedJob.completed({})'.format(result)
+
+    return Completed()
 
   @classmethod
   def wait(cls, job, result):
@@ -181,16 +164,19 @@ def _sanitize_max_jobs(max_jobs=None):
     return min(max_jobs, _ABSOLUTE_MAX_JOBS)
 
 
-def execute_parallel(max_jobs, inputs, spawn_func, raise_type):
+def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
   """Execute jobs for the given inputs in parallel.
 
   :param int max_jobs: The maximum number of parallel jobs to spawn.
   :param inputs: An iterable of the data to parallelize over `spawn_func`.
   :param spawn_func: A function taking a single input and returning a :class:`SpawnedJob`.
-  :param raise_type: A type that takes a single string argument and will be used to construct a
-                     raiseable value when any of the spawned jobs errors.
+  :param raise_type: An optional type that takes a single string argument and will be used to
+                     construct a raiseable value when any of the spawned jobs errors. `None` by
+                     default which indicates spawned jobs that error should be skipped; i.e.: the
+                     returned iterator over spawned job results will return less results than
+                     inputs.
   :returns: An iterator over the spawned job results as they come in.
-  :raises: A `raise_type` exception if any individual job errors.
+  :raises: A `raise_type` exception if any individual job errors and `raise_type` is not `None`.
   """
   size = _sanitize_max_jobs(max_jobs)
   TRACER.log('Spawning a maximum of {} parallel jobs to process:\n  {}'
@@ -208,11 +194,11 @@ def execute_parallel(max_jobs, inputs, spawn_func, raise_type):
         break
       job_slots.acquire()
       try:
-        resut = spawn_func(item)
+        result = spawn_func(item)
       except Exception as e:
-        resut = e
+        result = e
       finally:
-        spawned_job_queue.put(resut)
+        spawned_job_queue.put(result)
     spawned_job_queue.put(done_sentinel)
 
   spawner = Thread(name='PEX Parallel Job Spawner', target=spawn_jobs)
@@ -230,14 +216,23 @@ def execute_parallel(max_jobs, inputs, spawn_func, raise_type):
 
     try:
       if isinstance(item, Exception):
-        error = item
+        if raise_type:
+          error = item
+        else:
+          # Otherwise, if we were given no `raise_type`, we skip over the input that raised.
+          pass
       elif error is not None:  # I.E.: `item` is not an exception, but there was a prior exception.
         item.kill()
       else:
         try:
           yield item.await_result()
         except Job.Error as e:
-          stop.set()
-          error = raise_type('{} raised {}'.format(item, e))
+          if raise_type:
+            # Fail fast and proceed to kill all outstanding spawned jobs.
+            stop.set()
+            error = raise_type('{} raised {}'.format(item, e))
+          else:
+            # Otherwise, if we were given no `raise_type`, we continue on and just log the failure.
+            TRACER.log('{} raised {}'.format(item, e))
     finally:
       job_slots.release()
