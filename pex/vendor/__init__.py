@@ -29,6 +29,8 @@ class VendorSpec(collections.namedtuple('VendorSpec',
   :field str requirement: The distribution requirement string; e.g.: requests[security]==2.22.0.
   :field bool rewrite: Whether to re-write the distribution's imports for use with the
     `pex.third_party` importer.
+  :field bool constrain: Whether to attempt to constrain the requirement via pip's --constraint
+    mechanism.
 
   NB: Vendored distributions should comply with the host distribution platform constraints. In the
   case of pex, which is a py2.py3 platform agnostic wheel, vendored libraries should be as well.
