@@ -20,7 +20,8 @@ def _root():
   return path
 
 
-class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'requirement', 'rewrite'])):
+class VendorSpec(collections.namedtuple('VendorSpec',
+                                        ['key', 'requirement', 'rewrite', 'constrain'])):
   """Represents a vendored distribution.
 
   :field str key: The distribution requirement key; e.g.: for a requirement of
@@ -28,6 +29,8 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'requirement', 're
   :field str requirement: The distribution requirement string; e.g.: requests[security]==2.22.0.
   :field bool rewrite: Whether to re-write the distribution's imports for use with the
     `pex.third_party` importer.
+  :field bool constrain: Whether to attempt to constrain the requirement via pip's --constraint
+    mechanism.
 
   NB: Vendored distributions should comply with the host distribution platform constraints. In the
   case of pex, which is a py2.py3 platform agnostic wheel, vendored libraries should be as well.
@@ -37,7 +40,7 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'requirement', 're
 
   @classmethod
   def pinned(cls, key, version, rewrite=True):
-    return cls(key=key, requirement='{}=={}'.format(key, version), rewrite=rewrite)
+    return cls(key=key, requirement='{}=={}'.format(key, version), rewrite=rewrite, constrain=True)
 
   @classmethod
   def vcs(cls, url, rewrite=True):
@@ -48,7 +51,8 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'requirement', 're
       raise ValueError('Expected the vcs requirement url to have an #egg=<name> fragment. '
                        'Got: {}'.format(url))
 
-    return cls(key=values[0], requirement=url, rewrite=rewrite)
+    # N.B.: Constraints do not work for vcs urls.
+    return cls(key=values[0], requirement=url, rewrite=rewrite, constrain=False)
 
   @property
   def _subpath_components(self):
