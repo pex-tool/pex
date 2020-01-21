@@ -20,7 +20,8 @@ def _root():
   return path
 
 
-class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'requirement', 'rewrite'])):
+class VendorSpec(collections.namedtuple('VendorSpec',
+                                        ['key', 'requirement', 'rewrite', 'constrain'])):
   """Represents a vendored distribution.
 
   :field str key: The distribution requirement key; e.g.: for a requirement of
@@ -37,7 +38,7 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'requirement', 're
 
   @classmethod
   def pinned(cls, key, version, rewrite=True):
-    return cls(key=key, requirement='{}=={}'.format(key, version), rewrite=rewrite)
+    return cls(key=key, requirement='{}=={}'.format(key, version), rewrite=rewrite, constrain=True)
 
   @classmethod
   def vcs(cls, url, rewrite=True):
@@ -48,7 +49,8 @@ class VendorSpec(collections.namedtuple('VendorSpec', ['key', 'requirement', 're
       raise ValueError('Expected the vcs requirement url to have an #egg=<name> fragment. '
                        'Got: {}'.format(url))
 
-    return cls(key=values[0], requirement=url, rewrite=rewrite)
+    # N.B.: Constraints do not work for vcs urls.
+    return cls(key=values[0], requirement=url, rewrite=rewrite, constrain=False)
 
   @property
   def _subpath_components(self):

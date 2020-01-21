@@ -191,9 +191,23 @@ def vendorize(root_dir, vendor_specs, prefix):
   for vendor_spec in vendor_specs:
     cmd = ['pip', 'install', '--upgrade', '--no-compile', '--target', vendor_spec.target_dir,
            vendor_spec.requirement]
+
+    constraints_file = os.path.join(vendor_spec.target_dir, 'constraints.txt')
+    if vendor_spec.constrain and os.path.isfile(constraints_file):
+      cmd.extend(['--constraint', constraints_file])
+
     result = subprocess.call(cmd)
     if result != 0:
       raise VendorizeError('Failed to vendor {!r}'.format(vendor_spec))
+
+    if vendor_spec.constrain:
+      cmd = ['pip', 'freeze', '--all', '--path', vendor_spec.target_dir]
+      process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+      stdout, _ = process.communicate()
+      if process.returncode != 0:
+        raise VendorizeError('Failed to freeze vendoring of {!r}'.format(vendor_spec))
+      with open(constraints_file, 'wb') as fp:
+        fp.write(stdout)
 
     # We know we can get these as a by-product of a pip install but never need them.
     safe_rmtree(os.path.join(vendor_spec.target_dir, 'bin'))
