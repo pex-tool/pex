@@ -341,7 +341,7 @@ class PythonInterpreter(object):
       identity = stdout.decode('utf-8').strip()
       if not identity:
         raise cls.IdentificationError('Could not establish identity of %s' % binary)
-      return cls(binary, PythonIdentity.decode(identity))
+      return cls(PythonIdentity.decode(identity))
 
     return SpawnedJob.stdout(job, result_func=create_interpreter)
 
