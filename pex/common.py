@@ -48,7 +48,17 @@ def safe_copy(source, dest, overwrite=False):
         if overwrite:
           do_copy()
       elif e.errno in (errno.EPERM, errno.EXDEV):
-        # Hard link across devices or permission issue, fall back on copying
+        # For a hard link across devices issue, fall back on copying.
+        #
+        # For a permission issue, the cause could be one of:
+        # 1. We can't read source.
+        # 2. We can't write dest.
+        # 3. We don't own source but can read it.
+        # Although we can't do anything about cases 1 and 2, case 3 is due to
+        # `protected_hardlinks` (see: https://www.kernel.org/doc/Documentation/sysctl/fs.txt) and
+        # we can fall back to copying in that case.
+        #
+        # See also https://github.com/pantsbuild/pex/issues/850 where this was discovered.
         do_copy()
       else:
         raise
