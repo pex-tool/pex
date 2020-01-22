@@ -46,6 +46,7 @@ class PythonIdentity(object):
     supported_tags = tuple(tags.sys_tags())
     preferred_tag = supported_tags[0]
     return cls(
+      binary=sys.executable,
       python_tag=preferred_tag.interpreter,
       abi_tag=preferred_tag.abi,
       platform_tag=preferred_tag.platform,
@@ -58,8 +59,8 @@ class PythonIdentity(object):
   def decode(cls, encoded):
     TRACER.log('creating PythonIdentity from encoded: %s' % encoded, V=9)
     values = json.loads(encoded)
-    if len(values) != 6:
-      raise cls.InvalidError("Invalid id string: %s" % encoded)
+    if len(values) != 7:
+      raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
 
     supported_tags = values.pop('supported_tags')
 
@@ -80,11 +81,21 @@ class PythonIdentity(object):
         return interpreter
     raise ValueError('Unknown interpreter: {}'.format(python_tag))
 
-  def __init__(self, python_tag, abi_tag, platform_tag, version, supported_tags, env_markers):
+  def __init__(
+      self,
+      binary,
+      python_tag,
+      abi_tag,
+      platform_tag,
+      version,
+      supported_tags,
+      env_markers
+  ):
     # N.B.: We keep this mapping to support historical values for `distribution` and `requirement`
     # properties.
     self._interpreter_name = self._find_interpreter_name(python_tag)
 
+    self._binary = binary
     self._python_tag = python_tag
     self._abi_tag = abi_tag
     self._platform_tag = platform_tag
@@ -94,6 +105,7 @@ class PythonIdentity(object):
 
   def encode(self):
     values = dict(
+      binary=self._binary,
       python_tag=self._python_tag,
       abi_tag=self._abi_tag,
       platform_tag=self._platform_tag,
@@ -105,6 +117,10 @@ class PythonIdentity(object):
       env_markers=self._env_markers
     )
     return json.dumps(values)
+
+  @property
+  def binary(self):
+    return self._binary
 
   @property
   def python_tag(self):
@@ -195,8 +211,9 @@ class PythonIdentity(object):
     )
 
   def __repr__(self):
-    return '{type}({python_tag!r}, {abi_tag!r}, {platform_tag!r}, {version!r})'.format(
+    return '{type}({binary!r}, {python_tag!r}, {abi_tag!r}, {platform_tag!r}, {version!r})'.format(
       type=self.__class__.__name__,
+      binary=self._binary,
       python_tag=self._python_tag,
       abi_tag=self._abi_tag,
       platform_tag=self._platform_tag,
@@ -204,7 +221,7 @@ class PythonIdentity(object):
     )
 
   def _tup(self):
-    return self._python_tag, self._abi_tag, self._platform_tag, self._version
+    return self._binary, self._python_tag, self._abi_tag, self._platform_tag, self._version
 
   def __eq__(self, other):
     if type(other) is not type(self):
@@ -360,7 +377,7 @@ class PythonInterpreter(object):
     if cached_interpreter is not None:
       return SpawnedJob.completed(cached_interpreter)
     if normalized_binary == cls._normalize_path(sys.executable):
-      current_interpreter = cls(sys.executable, PythonIdentity.get())
+      current_interpreter = cls(PythonIdentity.get())
       return SpawnedJob.completed(current_interpreter)
     return cls._spawn_from_binary_external(normalized_binary)
 
@@ -423,16 +440,15 @@ class PythonInterpreter(object):
     env_copy.pop('MACOSX_DEPLOYMENT_TARGET', None)
     return env_copy
 
-  def __init__(self, binary, identity):
+  def __init__(self, identity):
     """Construct a PythonInterpreter.
 
     You should probably use `PythonInterpreter.from_binary` instead.
 
-    :param binary: The full path of the python binary.
     :param identity: The :class:`PythonIdentity` of the PythonInterpreter.
     """
-    self._binary = self._normalize_path(binary)
     self._identity = identity
+    self._binary = self._normalize_path(self.identity.binary)
 
     self._PYTHON_INTERPRETER_BY_NORMALIZED_PATH[self._binary] = self
 

@@ -39,17 +39,16 @@ def test_find_compatible_interpreters():
   all_known_interpreters.add(PythonInterpreter.get())
 
   interpreters = set(iter_compatible_interpreters(compatibility_constraints=['<3']))
-  assert interpreters.issubset(all_known_interpreters), (
-    dedent("""\
+  i_rendered = '\n      '.join(sorted(map(repr, interpreters)))
+  aki_rendered = '\n      '.join(sorted(map(repr, all_known_interpreters)))
+  assert interpreters.issubset(all_known_interpreters), dedent(
+    """
     interpreters '<3':
       {interpreters}
 
     all known interpreters:
       {all_known_interpreters}
-    """.format(
-      interpreters='\n      '.join(sorted(map(repr, interpreters))),
-      all_known_interpreters='\n      '.join(sorted(map(repr, all_known_interpreters)))
-    ))
+    """.format(interpreters=i_rendered, all_known_interpreters=aki_rendered)
   )
 
 
