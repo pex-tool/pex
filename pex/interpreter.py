@@ -350,7 +350,7 @@ class PythonInterpreter(object):
     if os.path.isfile(path):
       return [path]
     elif os.path.isdir(path):
-      return [os.path.join(path, fn) for fn in os.listdir(path)]
+      return sorted(os.path.join(path, fn) for fn in os.listdir(path))
     return []
 
   @classmethod
