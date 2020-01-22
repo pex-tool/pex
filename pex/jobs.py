@@ -183,10 +183,15 @@ def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
              .format(size, '\n  '.join(map(str, inputs))),
              V=9)
 
+  class SpawnError(Exception):
+    def __init__(self, item, error):
+      self.item = item
+      self.error = error
+
   stop = Event()  # Used as a signal to stop spawning further jobs once any one job fails.
   job_slots = BoundedSemaphore(value=size)
   done_sentinel = object()
-  spawned_job_queue = Queue()  # Queue[Union[SpawnedJob, Exception, Literal[done_sentinel]]]
+  spawned_job_queue = Queue()  # Queue[Union[SpawnedJob, SpawnError, Literal[done_sentinel]]]
 
   def spawn_jobs():
     for item in inputs:
@@ -196,7 +201,7 @@ def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
       try:
         result = spawn_func(item)
       except Exception as e:
-        result = e
+        result = SpawnError(item, e)
       finally:
         spawned_job_queue.put(result)
     spawned_job_queue.put(done_sentinel)
@@ -215,15 +220,16 @@ def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
       return
 
     try:
-      if isinstance(item, Exception):
+      if isinstance(item, SpawnError):
         if raise_type:
-          error = item
+          error = item.error
         else:
           # Otherwise, if we were given no `raise_type`, we skip over the input that raised.
-          pass
+          TRACER.log('Failed to spawn a job for {}: {} raised {}'
+                     .format(item.item, spawn_func, item.error))
       elif error is not None:  # I.E.: `item` is not an exception, but there was a prior exception.
         item.kill()
-      else:
+      elif isinstance(item, SpawnedJob):
         try:
           yield item.await_result()
         except Job.Error as e:
@@ -234,5 +240,8 @@ def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
           else:
             # Otherwise, if we were given no `raise_type`, we continue on and just log the failure.
             TRACER.log('{} raised {}'.format(item, e))
+      else:
+        raise AssertionError('Unexpected item on spawned job queue {} of type {}'
+                             .format(item, type(item)))
     finally:
       job_slots.release()
