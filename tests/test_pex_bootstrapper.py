@@ -3,6 +3,7 @@
 
 import os
 import sys
+from textwrap import dedent
 
 from pex.interpreter import PythonInterpreter
 from pex.pex_bootstrapper import iter_compatible_interpreters
@@ -37,8 +38,19 @@ def test_find_compatible_interpreters():
   all_known_interpreters = set(PythonInterpreter.all())
   all_known_interpreters.add(PythonInterpreter.get())
 
-  interpreters = iter_compatible_interpreters(compatibility_constraints=['<3'])
-  assert set(interpreters).issubset(all_known_interpreters)
+  interpreters = set(iter_compatible_interpreters(compatibility_constraints=['<3']))
+  assert interpreters.issubset(all_known_interpreters), (
+    dedent("""\
+    interpreters '<3':
+      {interpreters}
+
+    all known interpreters:
+      {all_known_interpreters}
+    """.format(
+      interpreters='\n      '.join(sorted(map(repr, interpreters))),
+      all_known_interpreters='\n      '.join(sorted(map(repr, all_known_interpreters)))
+    ))
+  )
 
 
 @skip_for_pyenv_use_under_pypy
