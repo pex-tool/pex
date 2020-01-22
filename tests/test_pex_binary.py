@@ -17,8 +17,7 @@ from pex.testing import (
     built_wheel,
     ensure_python_interpreter,
     run_pex_command,
-    run_simple_pex,
-    skip_for_pyenv_use_under_pypy
+    run_simple_pex
 )
 
 
@@ -204,7 +203,6 @@ def assert_run_pex(python=None, pex_args=None):
   return results.error.splitlines()
 
 
-@skip_for_pyenv_use_under_pypy
 def test_run_pex():
   incompatible_platforms_warning_msg = 'WARNING: attempting to run PEX with incompatible platforms!'
 

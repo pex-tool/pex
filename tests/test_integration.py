@@ -19,6 +19,7 @@ from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
 from pex.testing import (
+    IS_PYPY,
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
     NOT_CPYTHON36_OR_LINUX,
@@ -34,7 +35,6 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
-    skip_for_pyenv_use_under_pypy,
     temporary_content
 )
 from pex.third_party import pkg_resources
@@ -351,7 +351,6 @@ def test_interpreter_constraints_to_pex_info_py2():
     assert {'>=2.7,<3', '>=3.5'} == set(pex_info.interpreter_constraints)
 
 
-@skip_for_pyenv_use_under_pypy
 def test_interpreter_constraints_to_pex_info_py3():
   py3_interpreter = ensure_python_interpreter(PY36)
   with temporary_dir() as output_dir:
@@ -391,7 +390,6 @@ def test_interpreter_resolution_with_multiple_constraint_options():
     assert pex_info.build_properties['version'][0] < 3
 
 
-@skip_for_pyenv_use_under_pypy
 def test_interpreter_resolution_with_pex_python_path():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -425,7 +423,6 @@ def test_interpreter_resolution_with_pex_python_path():
       assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@skip_for_pyenv_use_under_pypy
 def test_interpreter_constraints_honored_without_ppp_or_pp():
   # Create a pex with interpreter constraints, but for not the default interpreter in the path.
   with temporary_dir() as td:
@@ -459,7 +456,6 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
     assert str(py36_path).encode() in stdout
 
 
-@skip_for_pyenv_use_under_pypy
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -507,7 +503,6 @@ def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
     assert os.path.realpath(sys.executable).encode() in stdout
 
 
-@skip_for_pyenv_use_under_pypy
 def test_pex_exec_with_pex_python_path_only():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -533,7 +528,6 @@ def test_pex_exec_with_pex_python_path_only():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@skip_for_pyenv_use_under_pypy
 def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
   with temporary_dir() as td:
     pexrc_path = os.path.join(td, '.pexrc')
@@ -561,7 +555,6 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
     assert str(pex_python_path.split(':')[0]).encode() in stdout
 
 
-@skip_for_pyenv_use_under_pypy
 def test_pex_python():
   py2_path_interpreter = ensure_python_interpreter(PY27)
   py3_path_interpreter = ensure_python_interpreter(PY36)
@@ -622,7 +615,6 @@ def test_pex_python():
     assert correct_interpreter_path in stdout
 
 
-@skip_for_pyenv_use_under_pypy
 def test_entry_point_targeting():
   """Test bugfix for https://github.com/pantsbuild/pex/issues/434"""
   with temporary_dir() as td:
@@ -643,7 +635,6 @@ def test_entry_point_targeting():
     assert 'usage: autopep8'.encode() in stdout
 
 
-@skip_for_pyenv_use_under_pypy
 def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
   """
   This is a test for verifying the proper function of the
@@ -833,7 +824,6 @@ def pex_manylinux_and_tag_selection_context():
     yield test_resolve, ensure_failure
 
 
-@skip_for_pyenv_use_under_pypy
 def test_pex_manylinux_and_tag_selection_linux_msgpack():
   """Tests resolver manylinux support and tag targeting."""
   with pex_manylinux_and_tag_selection_context() as (test_resolve, ensure_failure):
@@ -983,7 +973,6 @@ def test_pex_resource_bundling():
       assert stdout == b'hello\n'
 
 
-@skip_for_pyenv_use_under_pypy
 def test_entry_point_verification_3rdparty():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
@@ -994,7 +983,6 @@ def test_entry_point_verification_3rdparty():
     res.assert_success()
 
 
-@skip_for_pyenv_use_under_pypy
 def test_invalid_entry_point_verification_3rdparty():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'pex.pex')
@@ -1005,7 +993,6 @@ def test_invalid_entry_point_verification_3rdparty():
     res.assert_failure()
 
 
-@skip_for_pyenv_use_under_pypy
 def test_multiplatform_entrypoint():
   with temporary_dir() as td:
     pex_out_path = os.path.join(td, 'p537.pex')
@@ -1087,7 +1074,6 @@ def test_pex_interpreter_interact_custom_setuptools_useable():
     assert rc == 0, stdout
 
 
-@skip_for_pyenv_use_under_pypy
 def test_setup_python():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
@@ -1100,7 +1086,6 @@ def test_setup_python():
     subprocess.check_call([pex, '-c', 'import jsonschema'])
 
 
-@skip_for_pyenv_use_under_pypy
 def test_setup_interpreter_constraint():
   interpreter = ensure_python_interpreter(PY27)
   with temporary_dir() as out:
@@ -1120,7 +1105,6 @@ def test_setup_interpreter_constraint():
     assert rc == 0
 
 
-@skip_for_pyenv_use_under_pypy
 def test_setup_python_multiple_transitive_markers():
   py27_interpreter = ensure_python_interpreter(PY27)
   py36_interpreter = ensure_python_interpreter(PY36)
@@ -1154,7 +1138,6 @@ def test_setup_python_multiple_transitive_markers():
     assert to_bytes(os.path.realpath(py36_interpreter)) == stdout.strip()
 
 
-@skip_for_pyenv_use_under_pypy
 def test_setup_python_direct_markers():
   py36_interpreter = ensure_python_interpreter(PY36)
   with temporary_dir() as out:
@@ -1172,7 +1155,6 @@ def test_setup_python_direct_markers():
       subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py36_interpreter)))
 
 
-@skip_for_pyenv_use_under_pypy
 def test_setup_python_multiple_direct_markers():
   py36_interpreter = ensure_python_interpreter(PY36)
   py27_interpreter = ensure_python_interpreter(PY27)
@@ -1318,7 +1300,10 @@ def test_pkg_resource_early_import_on_pex_path():
     assert return_code == 0
 
 
-@skip_for_pyenv_use_under_pypy
+@pytest.mark.skipif(IS_PYPY,
+                    reason="The cryptography 2.6.1 project only has pre-built wheels for CPython "
+                           "available on PyPI and this test relies upon a pre-built wheel being "
+                           "available.")
 def test_issues_539_abi3_resolution():
   # The cryptography team releases the following relevant pre-built wheels for version 2.6.1:
   # cryptography-2.6.1-cp27-cp27m-macosx_10_6_intel.whl
@@ -1549,7 +1534,6 @@ def test_pex_reexec_constraints_dont_match_current_pex_python():
                      interpreter_constraints=['=={}'.format(version)])
 
 
-@skip_for_pyenv_use_under_pypy
 def test_issues_745_extras_isolation():
   # Here we ensure one of our extras, `subprocess32`, is properly isolated in the transition from
   # pex bootstrapping where it is imported by `pex.executor` to execution of user code.
@@ -1591,7 +1575,6 @@ def test_issues_745_extras_isolation():
     assert subprocess32_location.startswith(pex_root)
 
 
-@skip_for_pyenv_use_under_pypy
 def test_trusted_host_handling():
   python = ensure_python_interpreter(PY27)
   # Since we explicitly ask Pex to find links at http://www.antlr3.org/download/Python, it should

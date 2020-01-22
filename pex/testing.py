@@ -12,8 +12,6 @@ import sys
 from collections import namedtuple
 from textwrap import dedent
 
-import pytest
-
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, temporary_dir, touch
 from pex.compatibility import PY3, nested
 from pex.distribution_target import DistributionTarget
@@ -33,13 +31,6 @@ IS_LINUX = platform.system() == 'Linux'
 IS_NOT_LINUX = not IS_LINUX
 NOT_CPYTHON27_OR_OSX = NOT_CPYTHON27 or IS_NOT_LINUX
 NOT_CPYTHON36_OR_LINUX = NOT_CPYTHON36 or IS_LINUX
-
-
-skip_for_pyenv_use_under_pypy = pytest.mark.skipif(
-  IS_PYPY,
-  reason='Our pyenv interpreter setup fails under pypy: '
-         'https://github.com/pantsbuild/pex/issues/477'
-)
 
 
 @contextlib.contextmanager

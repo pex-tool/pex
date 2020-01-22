@@ -6,7 +6,7 @@ import sys
 
 from pex.interpreter import PythonInterpreter
 from pex.pex_bootstrapper import iter_compatible_interpreters
-from pex.testing import PY27, PY35, PY36, ensure_python_interpreter, skip_for_pyenv_use_under_pypy
+from pex.testing import PY27, PY35, PY36, ensure_python_interpreter
 
 
 def find_interpreters(path, *constraints):
@@ -15,7 +15,6 @@ def find_interpreters(path, *constraints):
                                        compatibility_constraints=constraints)]
 
 
-@skip_for_pyenv_use_under_pypy
 def test_find_compatible_interpreters():
   py27 = ensure_python_interpreter(PY27)
   py35 = ensure_python_interpreter(PY35)
@@ -41,7 +40,6 @@ def test_find_compatible_interpreters():
   assert set(interpreters).issubset(all_known_interpreters)
 
 
-@skip_for_pyenv_use_under_pypy
 def test_find_compatible_interpreters_bias_current():
   py36 = ensure_python_interpreter(PY36)
   assert [os.path.realpath(sys.executable), py36] == find_interpreters([py36, sys.executable])
