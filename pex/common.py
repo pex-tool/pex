@@ -47,8 +47,8 @@ def safe_copy(source, dest, overwrite=False):
         # File already exists.  If overwrite=True, write otherwise skip.
         if overwrite:
           do_copy()
-      elif e.errno == errno.EXDEV:
-        # Hard link across devices, fall back on copying
+      elif e.errno in (errno.EPERM, errno.EXDEV):
+        # Hard link across devices or permission issue, fall back on copying
         do_copy()
       else:
         raise
