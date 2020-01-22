@@ -1,33 +1,6 @@
-x-pyenv-shard: &x-pyenv-shard
-  language: generic
-  env: &env >
-    PYENV_ROOT="${HOME}/.pyenv_pex"
-    PATH="${PYENV_ROOT}/shims:${PATH}"
-  cache: &cache
-    # The default is 3 minutes (180).
-    timeout: 300
-    directories:
-      - .pyenv_test
-      - "${PYENV_ROOT}"
-  install: |
-    PYENV="${PYENV_ROOT}/bin/pyenv"
-    if [ ! -x "${PYENV}" ]; then
-      rm -rf ${PYENV_ROOT}
-      git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
-    fi
-    "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
-    "${PYENV}" global ${PYENV_VERSION}
-    pip install -U tox
-
-x-py27: &x-py27 PYENV_VERSION=2.7.17
-
-x-py38: &x-py38 PYENV_VERSION=3.8.0
-
-x-pypy: &x-pypy PYENV_VERSION=pypy2.7-7.2.0
-
 x-linux-shard: &x-linux-shard
   os: linux
-  dist: bionic 
+  dist: bionic
   language: python
   install: |
     pip install -U tox
@@ -45,9 +18,30 @@ x-linux-38-shard: &x-linux-38-shard
   python: 3.8
 
 x-osx-shard: &x-osx-shard
-  <<: *x-pyenv-shard
   os: osx
-  osx_image: xcode9.4
+  osx_image: xcode11.3
+  language: generic
+  env: &env >
+    PYENV_ROOT="${HOME}/.pyenv_pex"
+    PATH="${PYENV_ROOT}/shims:${PATH}"
+  cache:
+    # The default is 3 minutes (180).
+    timeout: 300
+    directories:
+      - .pyenv_test
+      - "${PYENV_ROOT}"
+  install: |
+    PYENV="${PYENV_ROOT}/bin/pyenv"
+    if [ ! -x "${PYENV}" ]; then
+      rm -rf ${PYENV_ROOT}
+      git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
+    fi
+    "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
+    "${PYENV}" global ${PYENV_VERSION}
+    pip install -U tox
+  # Fix missing headers under xcode11 on Mojave (macOS 10.14):
+  # https://apple.stackexchange.com/questions/372032/usr-include-missing-on-macos-catalina-with-xcode-11/372600#372600
+  before_script: export CPATH=`xcrun --show-sdk-path`/usr/include
 
 x-osx-ssl: &x-osx-ssl >
   CPPFLAGS=-I/usr/local/opt/openssl/include
@@ -57,15 +51,15 @@ x-osx-27-shard: &x-osx-27-shard
   <<: *x-osx-shard
   env:
     - *env
-    - *x-py27
     - *x-osx-ssl
+    - PYENV_VERSION=2.7.17
 
 x-osx-38-shard: &x-osx-38-shard
   <<: *x-osx-shard
   env:
     - *env
-    - *x-py38
     - *x-osx-ssl
+    - PYENV_VERSION=3.8.0
 
 # NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
 # use TOXENV and instead pass the toxenv via -e on the command line. This helps ensure we share
