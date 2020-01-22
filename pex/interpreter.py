@@ -185,11 +185,22 @@ class PythonIdentity(object):
     return '%d.%d' % (self.version[0:2])
 
   def __str__(self):
-    return '%s-%s.%s.%s' % (
-      self._interpreter_name,
-      self._version[0],
-      self._version[1],
-      self._version[2]
+    # N.B.: Kept as distinct from __repr__ to support legacy str(identity) used by Pants v1 when
+    # forming cache locations.
+    return '{interpreter_name}-{major}.{minor}.{patch}'.format(
+      interpreter_name=self._interpreter_name,
+      major=self._version[0],
+      minor=self._version[1],
+      patch=self._version[2]
+    )
+
+  def __repr__(self):
+    return '{type}({python_tag!r}, {abi_tag!r}, {platform_tag!r}, {version!r})'.format(
+      type=self.__class__.__name__,
+      python_tag=self._python_tag,
+      abi_tag=self._abi_tag,
+      platform_tag=self._platform_tag,
+      version=self._version
     )
 
   def _tup(self):
@@ -475,7 +486,11 @@ class PythonInterpreter(object):
     return self.version < other.version
 
   def __repr__(self):
-    return '%s(%r, %r)' % (self.__class__.__name__, self._binary, self._identity)
+    return '{type}({binary!r}, {identity!r})'.format(
+      type=self.__class__.__name__,
+      binary=self._binary,
+      identity=self._identity
+    )
 
 
 def spawn_python_job(args, env=None, interpreter=None, expose=None, **subprocess_kwargs):
