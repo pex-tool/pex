@@ -229,7 +229,7 @@ def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
                      .format(item.item, spawn_func, item.error))
       elif error is not None:  # I.E.: `item` is not an exception, but there was a prior exception.
         item.kill()
-      else:
+      elif isinstance(item, SpawnedJob):
         try:
           yield item.await_result()
         except Job.Error as e:
@@ -240,5 +240,8 @@ def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
           else:
             # Otherwise, if we were given no `raise_type`, we continue on and just log the failure.
             TRACER.log('{} raised {}'.format(item, e))
+      else:
+        raise AssertionError('Unexpected item on spawned job queue {} of type {}'
+                             .format(item, type(item)))
     finally:
       job_slots.release()
