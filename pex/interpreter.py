@@ -5,20 +5,25 @@
 
 from __future__ import absolute_import
 
+import hashlib
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
 from textwrap import dedent
 
 from pex import third_party
+from pex.common import safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
 from pex.jobs import Job, SpawnedJob, execute_parallel
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
+from pex.util import CacheHelper
+from pex.variables import ENV
 
 
 class PythonIdentity(object):
@@ -64,12 +69,8 @@ class PythonIdentity(object):
     supported_tags = values.pop('supported_tags')
 
     def iter_tags():
-      for supported_tag in supported_tags:
-        yield tags.Tag(
-          interpreter=supported_tag['interpreter'],
-          abi=supported_tag['abi'],
-          platform=supported_tag['platform']
-        )
+      for (interpreter, abi, platform) in supported_tags:
+        yield tags.Tag(interpreter=interpreter, abi=abi, platform=platform)
 
     return cls(supported_tags=iter_tags(), **values)
 
@@ -98,10 +99,7 @@ class PythonIdentity(object):
       abi_tag=self._abi_tag,
       platform_tag=self._platform_tag,
       version=self._version,
-      supported_tags=[
-        dict(interpreter=tag.interpreter, abi=tag.abi, platform=tag.platform)
-        for tag in self._supported_tags
-      ],
+      supported_tags=[(tag.interpreter, tag.abi, tag.platform) for tag in self._supported_tags],
       env_markers=self._env_markers
     )
     return json.dumps(values)
@@ -290,39 +288,74 @@ class PythonInterpreter(object):
     stdout, stderr = Executor.execute(cmd, stdin_payload=stdin_payload, env=env, **kwargs)
     return cmd, stdout, stderr
 
+  INTERP_INFO_FILE = 'INTERP-INFO'
+
   @classmethod
   def _spawn_from_binary_external(cls, binary):
-    pythonpath = third_party.expose(['pex'])
-    cmd, env = cls._create_isolated_cmd(
-      binary,
-      args=[
-        '-c',
-        dedent("""\
-        import sys
-        from pex.interpreter import PythonIdentity
-
-        sys.stdout.write(PythonIdentity.get().encode())
-        """)
-      ],
-      pythonpath=pythonpath
-    )
-    process = Executor.open_process(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    job = Job(command=cmd, process=process)
-
     def create_interpreter(stdout):
       identity = stdout.decode('utf-8').strip()
       if not identity:
         raise cls.IdentificationError('Could not establish identity of %s' % binary)
       return cls(binary, PythonIdentity.decode(identity))
 
-    return SpawnedJob.stdout(job, result_func=create_interpreter)
+    # Part of the PythonInterpreter data are environment markers that depend on the current OS
+    # release. That data can change when the OS is upgraded but (some of) the installed interpreters
+    # remain the same. As such, include the OS in the hash structure for cached interpreters.
+    os_digest = hashlib.sha1()
+    for os_identifier in platform.release(), platform.version():
+      os_digest.update(os_identifier.encode('utf-8'))
+    os_hash = os_digest.hexdigest()
+
+    interpreter_cache_dir = os.path.join(ENV.PEX_ROOT, 'interpreters')
+    os_cache_dir = os.path.join(interpreter_cache_dir, os_hash)
+    if os.path.isdir(interpreter_cache_dir) and not os.path.isdir(os_cache_dir):
+      with TRACER.timed('GCing interpreter cache from prior OS version'):
+        safe_rmtree(interpreter_cache_dir)
+
+    interpreter_hash = CacheHelper.hash(binary)
+    cache_dir = os.path.join(os_cache_dir, interpreter_hash)
+    cache_file = os.path.join(cache_dir, cls.INTERP_INFO_FILE)
+    if os.path.isfile(cache_file):
+      try:
+        with open(cache_file, 'rb') as fp:
+          return SpawnedJob.completed(create_interpreter(fp.read()))
+      except (IOError, OSError, cls.Error, PythonIdentity.Error):
+        safe_rmtree(cache_dir)
+        return cls._spawn_from_binary_external(binary)
+    else:
+      pythonpath = third_party.expose(['pex'])
+      cmd, env = cls._create_isolated_cmd(
+        binary,
+        args=[
+          '-c',
+          dedent("""\
+          import os
+          import sys
+
+          from pex.common import atomic_directory, safe_open
+          from pex.interpreter import PythonIdentity
+
+
+          encoded_identity = PythonIdentity.get().encode()
+          sys.stdout.write(encoded_identity)
+          with atomic_directory({cache_dir!r}) as cache_dir:
+            if cache_dir:
+              with safe_open(os.path.join(cache_dir, {info_file!r}), 'w') as fp:
+                fp.write(encoded_identity)
+          """.format(cache_dir=cache_dir, info_file=cls.INTERP_INFO_FILE))
+        ],
+        pythonpath=pythonpath
+      )
+      process = Executor.open_process(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+      job = Job(command=cmd, process=process)
+      return SpawnedJob.stdout(job, result_func=create_interpreter)
 
   @classmethod
   def _expand_path(cls, path):
     if os.path.isfile(path):
       return [path]
     elif os.path.isdir(path):
-      return [os.path.join(path, fn) for fn in os.listdir(path)]
+      return sorted(os.path.join(path, fn) for fn in os.listdir(path))
     return []
 
   @classmethod
