@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from textwrap import dedent
 
 from pex.common import open_zip, temporary_dir
-from pex.jobs import spawn_python_job
+from pex.interpreter import spawn_python_job
 from pex.testing import WheelBuilder, make_project, temporary_content
 
 

@@ -13,7 +13,8 @@ from textwrap import dedent
 
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
-from pex.jobs import SpawnedJob, execute_parallel, spawn_python_job
+from pex.interpreter import spawn_python_job
+from pex.jobs import SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
@@ -360,7 +361,12 @@ class ResolveRequest(object):
             yield BuildRequest.create(target=target, source_path=local_project)
 
   def _run_parallel(self, inputs, spawn_func, raise_type):
-    for result in execute_parallel(self._max_parallel_jobs, inputs, spawn_func, raise_type):
+    for result in execute_parallel(
+        inputs=inputs,
+        spawn_func=spawn_func,
+        raise_type=raise_type,
+        max_jobs=self._max_parallel_jobs
+    ):
       yield result
 
   def _spawn_resolve(self, resolved_dists_dir, target):
