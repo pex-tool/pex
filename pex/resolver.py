@@ -33,13 +33,15 @@ class Unsatisfiable(Exception):
   pass
 
 
-class ResolvedDistribution(namedtuple('ResolvedDistribution', ['requirement', 'distribution'])):
-  """A requirement and the resolved distribution that satisfies it."""
+class ResolvedDistribution(namedtuple('ResolvedDistribution',
+                                      ['target', 'requirement', 'distribution'])):
+  """A distribution target, requirement and the resolved distribution that satisfies them both."""
 
-  def __new__(cls, requirement, distribution):
+  def __new__(cls, target, requirement, distribution):
+    assert isinstance(target, DistributionTarget)
     assert isinstance(requirement, Requirement)
     assert isinstance(distribution, Distribution)
-    return super(ResolvedDistribution, cls).__new__(cls, requirement, distribution)
+    return super(ResolvedDistribution, cls).__new__(cls, target, requirement, distribution)
 
 
 class DistributionRequirements(object):
@@ -565,6 +567,7 @@ class ResolveRequest(object):
       for distribution in requirements_request.distributions:
         resolved_distributions.add(
           ResolvedDistribution(
+            target=requirements_request.target,
             requirement=distribution_requirements.to_requirement(distribution),
             distribution=distribution
           )
@@ -575,23 +578,37 @@ class ResolveRequest(object):
     return resolved_distributions
 
   def _check_resolve(self, resolved_distributions):
-    dist_by_key = OrderedDict(
-      (resolved_distribution.requirement.key, resolved_distribution.distribution)
+    resolved_distribution_by_key = OrderedDict(
+      (resolved_distribution.requirement.key, resolved_distribution)
       for resolved_distribution in resolved_distributions
     )
 
     unsatisfied = []
-    for dist in dist_by_key.values():
+    for resolved_distribution in resolved_distribution_by_key.values():
+      dist = resolved_distribution.distribution
+      target = resolved_distribution.target
       for requirement in dist.requires():
-        resolved_dist = dist_by_key.get(requirement.key)
-        if not resolved_dist or resolved_dist not in requirement:
+        if not target.requirement_applies(requirement):
+          continue
+
+        resolved_requirement_dist = resolved_distribution_by_key.get(requirement.key)
+        if not resolved_requirement_dist:
           unsatisfied.append(
-            '{dist} requires {requirement} but {resolved_dist} was resolved'.format(
+            '{dist} requires {requirement} but no version was resolved'.format(
               dist=dist.as_requirement(),
-              requirement=requirement,
-              resolved_dist=resolved_dist.as_requirement() if resolved_dist else None
+              requirement=requirement
             )
           )
+        else:
+          resolved_dist = resolved_requirement_dist.distribution
+          if resolved_dist not in requirement:
+            unsatisfied.append(
+              '{dist} requires {requirement} but {resolved_dist} was resolved'.format(
+                dist=dist.as_requirement(),
+                requirement=requirement,
+                resolved_dist=resolved_dist
+              )
+            )
 
     if unsatisfied:
       raise Unsatisfiable(
