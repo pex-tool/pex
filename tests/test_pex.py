@@ -30,7 +30,6 @@ from pex.testing import (
     run_simple_pex,
     run_simple_pex_test,
     safe_mkdir,
-    skip_for_pyenv_use_under_pypy,
     temporary_content,
     write_simple_pex
 )
@@ -479,7 +478,6 @@ def test_pex_verify_entry_point_module_should_fail():
           verify_entry_point=True)
 
 
-@skip_for_pyenv_use_under_pypy
 def test_activate_interpreter_different_from_current():
   with temporary_dir() as pex_root:
     interp_version = PY36 if PY2 else PY27
