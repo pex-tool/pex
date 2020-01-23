@@ -33,6 +33,8 @@ x-osx-shard: &x-osx-shard
   # Fix missing headers under xcode11 on Mojave (macOS 10.14):
   #   https://github.com/python-pillow/Pillow/issues/3438#issuecomment-435169249
   before_install:
+    - sudo rm -rf /Library/Developer/CommandLineTools
+    - xcode-select --install
     - sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -target /
   install: |
     PYENV="${PYENV_ROOT}/bin/pyenv"
