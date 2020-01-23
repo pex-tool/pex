@@ -30,6 +30,10 @@ x-osx-shard: &x-osx-shard
     directories:
       - .pyenv_test
       - "${PYENV_ROOT}"
+  # Fix missing headers under xcode11 on Mojave (macOS 10.14):
+  #   https://github.com/python-pillow/Pillow/issues/3438#issuecomment-435169249
+  before_install:
+    - sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -target /
   install: |
     PYENV="${PYENV_ROOT}/bin/pyenv"
     if [ ! -x "${PYENV}" ]; then
@@ -39,9 +43,6 @@ x-osx-shard: &x-osx-shard
     "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
     "${PYENV}" global ${PYENV_VERSION}
     pip install -U tox
-  # Fix missing headers under xcode11 on Mojave (macOS 10.14):
-  # https://apple.stackexchange.com/questions/372032/usr-include-missing-on-macos-catalina-with-xcode-11/372600#372600
-  before_script: export CPATH=`xcrun --show-sdk-path`/usr/include
 
 x-osx-ssl: &x-osx-ssl >
   CPPFLAGS=-I/usr/local/opt/openssl/include
