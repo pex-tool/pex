@@ -13,6 +13,7 @@ from pex.resolver import resolve_multi
 from pex.testing import (
     IS_LINUX,
     IS_PYPY,
+    PY27,
     PY35,
     PY36,
     PY_VER,
@@ -282,3 +283,28 @@ def test_resolve_foreign_abi3():
     'cryptography-2.8-cp34-abi3-manylinux1_x86_64.whl',
     'cryptography-2.8-cp34-abi3-macosx_10_6_intel.whl'
   } == set(wheel_names)
+
+
+def test_issues_851():
+  # Previously, the PY36 resolve would fail post-resolution checks for configparser, pathlib2 and
+  # contextlib2 which are only required for python_version<3.
+
+  def resolve_pytest(python_version, pytest_version):
+    interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(python_version))
+    resolved_dists = resolve_multi(interpreters=[interpreter],
+                                           requirements=['pytest=={}'.format(pytest_version)])
+    project_to_version = {rd.requirement.key: rd.distribution.version for rd in resolved_dists}
+    assert project_to_version['pytest'] == pytest_version
+    return project_to_version
+
+  resolved_project_to_version = resolve_pytest(python_version=PY36, pytest_version='5.3.4')
+  assert 'importlib-metadata' in resolved_project_to_version
+  assert 'configparser' not in resolved_project_to_version
+  assert 'pathlib2' not in resolved_project_to_version
+  assert 'contextlib2' not in resolved_project_to_version
+
+  resolved_project_to_version = resolve_pytest(python_version=PY27, pytest_version='4.6.9')
+  assert 'importlib-metadata' in resolved_project_to_version
+  assert 'configparser' in resolved_project_to_version
+  assert 'pathlib2' in resolved_project_to_version
+  assert 'contextlib2' in resolved_project_to_version

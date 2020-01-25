@@ -38,6 +38,21 @@ class DistributionTarget(object):
   def get_platform(self):
     return self._platform or Platform.current()
 
+  def requirement_applies(self, requirement):
+    """Determines if the given requirement applies to this distribution target.
+
+    :param requirement: The requirement to evaluate.
+    :type requirement: :class:`pex.third_party.pkg_resources.Requirement`
+    :rtype: bool
+    """
+    if not requirement.marker:
+      return True
+
+    if self._interpreter is None:
+      return True
+
+    return requirement.marker.evaluate(self._interpreter.identity.env_markers)
+
   @property
   def id(self):
     """A unique id for a resolve target suitable as a path name component.
