@@ -410,6 +410,8 @@ class ResolveRequest(object):
       distributions=[build_request.source_path],
       wheel_dir=build_result.build_dir,
       cache=self._cache,
+      indexes=self._indexes,
+      find_links=self._find_links,
       interpreter=build_request.target.get_interpreter()
     )
     return SpawnedJob.wait(job=build_job, result=build_result)
