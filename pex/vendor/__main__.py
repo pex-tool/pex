@@ -189,8 +189,22 @@ class VendorizeError(Exception):
 
 def vendorize(root_dir, vendor_specs, prefix):
   for vendor_spec in vendor_specs:
-    cmd = ['pip', 'install', '--upgrade', '--no-compile', '--target', vendor_spec.target_dir,
-           vendor_spec.requirement]
+    # NB: We set --no-build-isolation to prevent pip from installing the requirements listed in
+    # its [build-system] config in its pyproject.toml.
+    #
+    # Those requirements are (currently) the unpinned ["setuptools", "wheel"], which will cause pip
+    # to use the latest version of those packages.  This is a hermeticity problem: re-vendoring a
+    # package at a later time may yield a different result.  At the very least the result will
+    # differ in the version embedded in the WHEEL metadata file, which causes issues with our
+    # tests.
+    #
+    # Setting --no-build-isolation means that versions of setuptools and wheel must be provided
+    # in the environment in which we run the pip command, which is the environment in which we run
+    # pex.vendor. Since we document that pex.vendor should be run via tox, that environment will
+    # contain pinned versions of setuptools and wheel. As a result, vendoring (at least via tox)
+    # is hermetic.
+    cmd = ['pip', 'install', '--upgrade', '--no-build-isolation', '--no-compile',
+           '--target', vendor_spec.target_dir, vendor_spec.requirement]
 
     constraints_file = os.path.join(vendor_spec.target_dir, 'constraints.txt')
     if vendor_spec.constrain and os.path.isfile(constraints_file):

@@ -6,6 +6,7 @@ import functools
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -1131,8 +1132,9 @@ def test_setup_python_multiple_transitive_markers():
     assert to_bytes(os.path.realpath(py27_interpreter)) == stdout.strip()
 
     py36_env = make_env(PATH=os.path.dirname(py36_interpreter))
-    with pytest.raises(subprocess.CalledProcessError):
-      subprocess.check_call(py2_only_program, env=py36_env)
+    with pytest.raises(subprocess.CalledProcessError) as err:
+      subprocess.check_output(py2_only_program, stderr=subprocess.STDOUT, env=py36_env)
+    assert b"ModuleNotFoundError: No module named 'functools32'" in err.value.output
 
     stdout = subprocess.check_output(both_program, env=py36_env)
     assert to_bytes(os.path.realpath(py36_interpreter)) == stdout.strip()
@@ -1151,8 +1153,10 @@ def test_setup_python_direct_markers():
 
     py2_only_program = [pex, '-c', 'import subprocess32']
 
-    with pytest.raises(subprocess.CalledProcessError):
-      subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py36_interpreter)))
+    with pytest.raises(subprocess.CalledProcessError) as err:
+      subprocess.check_output(py2_only_program, stderr=subprocess.STDOUT,
+                            env=make_env(PATH=os.path.dirname(py36_interpreter)))
+    assert b"ModuleNotFoundError: No module named 'subprocess32'" in err.value.output
 
 
 def test_setup_python_multiple_direct_markers():
@@ -1170,8 +1174,13 @@ def test_setup_python_multiple_direct_markers():
 
     py2_only_program = [pex, '-c', 'import subprocess32']
 
-    with pytest.raises(subprocess.CalledProcessError):
-      subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py36_interpreter)))
+    with pytest.raises(subprocess.CalledProcessError) as err:
+      subprocess.check_output(py2_only_program, stderr=subprocess.STDOUT,
+                              env=make_env(PATH=os.path.dirname(py36_interpreter)))
+    # TODO: Is the intention of this test that this should fail on platform incompatibility?
+    #  Or should we be working around the platform issue so that the error we see here is
+    #  b"ModuleNotFoundError: No module named 'subprocess32'" ?
+    assert re.search(b"Needed .* compatible dependencies", err.value.output) is not None
 
     subprocess.check_call(py2_only_program, env=make_env(PATH=os.path.dirname(py27_interpreter)))
 
