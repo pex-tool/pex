@@ -602,9 +602,11 @@ class ResolveRequest(object):
           )
         else:
           resolved_dist = resolved_requirement_dist.distribution
-          # If a requirement is resolved vacuously due to a platform constraint (e.g., 'pathlib2; python_version < "3"'
-          # when we're on Python 3) then resolved_dist will be None, and this is not an error.
-          # TODO: Can resolved_dist==None indicate an error in other cases?
+          # If a requirement is resolved vacuously due to a platform constraint
+          # (e.g., 'pathlib2; python_version < "3"' when we're on Python 3) then resolved_dist
+          # will be None, and this does not indicate an error.
+          # TODO: Can resolved_dist==None indicate an error in other cases? If so we need to
+          #  distinguish those cases here.
           if resolved_dist is not None and resolved_dist not in requirement:
             unsatisfied.append(
               '{dist} requires {requirement} but {resolved_dist} was resolved'.format(
