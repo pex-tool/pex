@@ -1,6 +1,73 @@
 Release Notes
 =============
 
+2.1.1
+-----
+
+This release significantly improves performance and correctness of
+interpreter discovery, particularly when pyenv is involved.
+It also provides a workaround for EPERM issues when hard linking
+across devices, by falling back to copying.
+Resolve error checking also now accounts for environment markers.
+
+* Revert "Fix the resolve check in the presence of platform constraints. (#877)" (#879)
+  `PR #879 <https://github.com/pantsbuild/pex/pull/879>`_
+
+* [resolver] Fix issue with wheel when using --index-url option (#865)
+  `PR #865 <https://github.com/pantsbuild/pex/pull/865>`_
+
+* Fix the resolve check in the presence of platform constraints. (#877)
+  `PR #877 <https://github.com/pantsbuild/pex/pull/877>`_
+
+* Check expected pex invocation failure reason in tests. (#874)
+  `PR #874 <https://github.com/pantsbuild/pex/pull/874>`_
+
+* Improve hermeticity of vendoring. (#873)
+  `PR #873 <https://github.com/pantsbuild/pex/pull/873>`_
+
+* Temporarily skip a couple of tests, to get CI green. (#876)
+  `PR #876 <https://github.com/pantsbuild/pex/pull/876>`_
+
+* Respect env markers when checking resolves. (#861)
+  `PR #861 <https://github.com/pantsbuild/pex/pull/861>`_
+
+* Ensure Pex PEX contraints match pex wheel / sdist. (#863)
+  `PR #863 <https://github.com/pantsbuild/pex/pull/863>`_
+
+* Delete unused pex/package.py. (#862)
+  `PR #862 <https://github.com/pantsbuild/pex/pull/862>`_
+
+* Introduce an interpreter cache. (#856)
+  `PR #856 <https://github.com/pantsbuild/pex/pull/856>`_
+
+* Re-enable pyenv interpreter tests under pypy. (#859)
+  `PR #859 <https://github.com/pantsbuild/pex/pull/859>`_
+
+* Harden PythonInterpreter against pyenv shims. (#860)
+  `PR #860 <https://github.com/pantsbuild/pex/pull/860>`_
+
+* Parallelize interpreter discovery. (#842)
+  `PR #842 <https://github.com/pantsbuild/pex/pull/842>`_
+
+* Explain hard link EPERM copy fallback. (#855)
+  `PR #855 <https://github.com/pantsbuild/pex/pull/855>`_
+
+* Handle EPERM when Linking (#852)
+  `PR #852 <https://github.com/pantsbuild/pex/pull/852>`_
+
+* Pin transitive dependencies of vendored code. (#854)
+  `PR #854 <https://github.com/pantsbuild/pex/pull/854>`_
+
+* Kill empty setup.py. (#849)
+  `PR #849 <https://github.com/pantsbuild/pex/pull/849>`_
+
+* Fix `tox -epackage` to create pex supporting 3.8. (#843)
+  `PR #843 <https://github.com/pantsbuild/pex/pull/843>`_
+
+* Fix Pex to handle empty ns package metadata. (#841)
+  `PR #841 <https://github.com/pantsbuild/pex/pull/841>`_
+
+
 2.1.0
 -----
 
@@ -278,7 +345,7 @@ supports execution under all interpreters pex supports.
 This release fixes long-broken resolution of abi3 wheels.
 
 * Use all compatible versions when calculating tags. (#692)
-  `PR #692 <https://github.com/pantsbuild/pants/pull/692>`_
+  `PR #692 <https://github.com/pantsbuild/pex/pull/692>`_
 
 1.6.4
 -----
