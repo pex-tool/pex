@@ -579,8 +579,7 @@ class ResolveRequest(object):
       self._check_resolve(resolved_distributions)
     return resolved_distributions
 
-  @staticmethod
-  def _check_resolve(resolved_distributions):
+  def _check_resolve(self, resolved_distributions):
     resolved_distribution_by_key = OrderedDict(
       (resolved_distribution.requirement.key, resolved_distribution)
       for resolved_distribution in resolved_distributions
@@ -604,12 +603,7 @@ class ResolveRequest(object):
           )
         else:
           resolved_dist = resolved_requirement_dist.distribution
-          # If a requirement is resolved vacuously due to a platform constraint
-          # (e.g., 'pathlib2; python_version < "3"' when we're on Python 3) then resolved_dist
-          # will be None, and this does not indicate an error.
-          # TODO: Can resolved_dist==None indicate an error in other cases? If so we need to
-          #  distinguish those cases here.
-          if resolved_dist is not None and resolved_dist not in requirement:
+          if resolved_dist not in requirement:
             unsatisfied.append(
               '{dist} requires {requirement} but {resolved_dist} was resolved'.format(
                 dist=dist.as_requirement(),
