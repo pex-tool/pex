@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.2
+-----
+
+This release fixes a bug in which interpreter discovery failed
+when running from a zipped pex.
+
+* Use pkg_resources when isolating a pex code chroot. (#881)
+  `PR #881 <https://github.com/pantsbuild/pex/pull/881>`_
+
 2.1.1
 -----
 
