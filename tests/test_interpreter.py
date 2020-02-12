@@ -57,6 +57,11 @@ class TestPythonInterpreter(object):
     py_interpreter3 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     assert py_interpreter1 is py_interpreter3
 
+    interpreter.PythonInterpreter.clear_cache()
+    py_interpreter4 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
+    assert py_interpreter1 is not py_interpreter4
+
+
   def test_binary_name_matching(self):
     valid_binary_names = (
       'jython',
