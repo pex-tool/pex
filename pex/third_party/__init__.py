@@ -7,6 +7,7 @@ import contextlib
 import importlib
 import os
 import re
+import shutil
 import sys
 import zipfile
 from collections import OrderedDict, namedtuple
@@ -338,9 +339,23 @@ def isolated():
   global _ISOLATED
   if _ISOLATED is None:
     from pex import vendor
-    from pex.common import atomic_directory, safe_copy
+    from pex.common import atomic_directory
     from pex.util import CacheHelper
     from pex.variables import ENV
+    from pex.third_party.pkg_resources import resource_isdir, resource_listdir, resource_stream
+
+    module = 'pex'
+    def recursive_copy(srcdir, dstdir):
+      os.mkdir(dstdir)
+      for entry_name in resource_listdir(module, srcdir):
+        # NB: Resource path components are always separated by /, on all systems.
+        src_entry = '%s/%s' % (srcdir, entry_name) if srcdir else entry_name
+        dst_entry = os.path.join(dstdir, entry_name)
+        if resource_isdir(module, src_entry):
+          recursive_copy(src_entry, dst_entry)
+        elif not entry_name.endswith('.pyc'):
+          with open(dst_entry, 'wb') as fp:
+            shutil.copyfileobj(resource_stream(module, src_entry), fp)
 
     pex_path = os.path.join(vendor.VendorSpec.ROOT, 'pex')
     with _tracer().timed('Isolating pex'):
@@ -348,14 +363,7 @@ def isolated():
       with atomic_directory(isolated_dir) as chroot:
         if chroot:
           with _tracer().timed('Extracting pex to {}'.format(isolated_dir)):
-            pex_path = os.path.join(vendor.VendorSpec.ROOT, 'pex')
-            for root, dirs, files in os.walk(pex_path):
-              relroot = os.path.relpath(root, pex_path)
-              for d in dirs:
-                os.makedirs(os.path.join(chroot, 'pex', relroot, d))
-              for f in files:
-                if not f.endswith('.pyc'):
-                  safe_copy(os.path.join(root, f), os.path.join(chroot, 'pex', relroot, f))
+            recursive_copy('', os.path.join(chroot, 'pex'))
 
     _ISOLATED = isolated_dir
   return _ISOLATED
