@@ -57,6 +57,10 @@ class TestPythonInterpreter(object):
     py_interpreter3 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
     assert py_interpreter1 is py_interpreter3
 
+  def test_nonexistent_interpreter(self):
+    with pytest.raises(interpreter.PythonInterpreter.InterpreterNotFound):
+      interpreter.PythonInterpreter.from_binary('/nonexistent/path')
+
   def test_binary_name_matching(self):
     valid_binary_names = (
       'jython',
