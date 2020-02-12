@@ -349,7 +349,7 @@ def isolated():
       os.mkdir(dstdir)
       for entry_name in resource_listdir(module, srcdir):
         # NB: Resource path components are always separated by /, on all systems.
-        src_entry = '%s/%s' % (srcdir, entry_name) if srcdir else entry_name
+        src_entry = '{}/{}'.format(srcdir, entry_name) if srcdir else entry_name
         dst_entry = os.path.join(dstdir, entry_name)
         if resource_isdir(module, src_entry):
           recursive_copy(src_entry, dst_entry)
