@@ -404,6 +404,8 @@ class PythonInterpreter(object):
   @classmethod
   def _spawn_from_binary(cls, binary):
     normalized_binary = cls._normalize_path(binary)
+    if not os.path.exists(normalized_binary):
+      raise cls.InterpreterNotFound(normalized_binary)
 
     # N.B.: The CACHE is written as the last step in PythonInterpreter instance initialization.
     cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(normalized_binary)
