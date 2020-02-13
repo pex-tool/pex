@@ -319,6 +319,11 @@ class PythonInterpreter(object):
   INTERP_INFO_FILE = 'INTERP-INFO'
 
   @classmethod
+  def clear_cache(cls):
+    interpreter_cache_dir = os.path.join(ENV.PEX_ROOT, 'interpreters')
+    safe_rmtree(interpreter_cache_dir)
+
+  @classmethod
   def _spawn_from_binary_external(cls, binary):
     def create_interpreter(stdout):
       identity = stdout.decode('utf-8').strip()
@@ -407,7 +412,7 @@ class PythonInterpreter(object):
     if not os.path.exists(normalized_binary):
       raise cls.InterpreterNotFound(normalized_binary)
 
-    # N.B.: The CACHE is written as the last step in PythonInterpreter instance initialization.
+    # N.B.: The cache is written as the last step in PythonInterpreter instance initialization.
     cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(normalized_binary)
     if cached_interpreter is not None:
       return SpawnedJob.completed(cached_interpreter)
