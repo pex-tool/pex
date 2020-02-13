@@ -244,11 +244,19 @@ def _create_link_from_element(
     return link
 
 
+_parse_links_cache = {}
+
+
 def parse_links(page):
     # type: (HTMLPage) -> Iterable[Link]
     """
     Parse an HTML document, and yield its anchor elements as Link objects.
     """
+    cache_key = (page.content, page.encoding)
+    maybe_cache_entry = _parse_links_cache.get(cache_key, None)
+    if maybe_cache_entry is not None:
+        return maybe_cache_entry
+
     document = html5lib.parse(
         page.content,
         transport_encoding=page.encoding,
@@ -257,6 +265,8 @@ def parse_links(page):
 
     url = page.url
     base_url = _determine_base_url(document, url)
+
+    all_links = []
     for anchor in document.findall(".//a"):
         link = _create_link_from_element(
             anchor,
@@ -265,7 +275,11 @@ def parse_links(page):
         )
         if link is None:
             continue
-        yield link
+        all_links.append(link)
+
+    _parse_links_cache[cache_key] = all_links
+
+    return all_links
 
 
 class HTMLPage(object):
