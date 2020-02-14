@@ -24,8 +24,8 @@ from pip._internal.vcs import is_url, vcs
 
 if MYPY_CHECK_RUNNING:
     from typing import (
-        Callable, Iterable, List, MutableMapping, Optional, Sequence, Tuple,
-        Union,
+        Any, Callable, Dict, Iterable, List, MutableMapping, Optional,
+        Sequence, Tuple, Union,
     )
     import xml.etree.ElementTree
 
@@ -39,6 +39,32 @@ if MYPY_CHECK_RUNNING:
 
 
 logger = logging.getLogger(__name__)
+
+
+def lru_cache(
+        *args,                  # type: Any
+        **kwargs                # type: Any
+):
+    # type: (...) -> Any
+    cache = {}                  # type: Dict[Any, Any]
+
+    def wrapper(fn):
+        # type: (Any) -> Any
+
+        def wrapped(
+                *args,          # type: Any
+                **kwargs        # type: Any
+        ):
+            # type: (...) -> Any
+            cache_key = tuple(args) + tuple(kwargs.items())
+            value = cache.get(cache_key, None)
+            if value is not None:
+                return value
+            value = fn(*args, **kwargs)
+            cache[cache_key] = value
+            return value
+        return wrapped
+    return wrapper
 
 
 def _match_vcs_scheme(url):
@@ -244,6 +270,38 @@ def _create_link_from_element(
     return link
 
 
+class CacheablePageContent(object):
+    def __init__(self, page):
+        # type: (HTMLPage) -> None
+        self.page = page
+
+    def __eq__(self, other):
+        # type: (object) -> bool
+        return (isinstance(other, type(self)) and
+                self.page.content == other.page.content and
+                self.page.encoding == other.page.encoding)
+
+    def __hash__(self):
+        # type: () -> int
+        return hash((self.page.content, self.page.encoding))
+
+
+def with_cached_html_pages(fn):
+    # type: (Any) -> Any
+
+    @lru_cache(maxsize=None)
+    def wrapper(cacheable_page):
+        # type: (CacheablePageContent) -> List[Any]
+        return list(fn(cacheable_page.page))
+
+    def wrapper_wrapper(page):
+        # type: (HTMLPage) -> List[Any]
+        return wrapper(CacheablePageContent(page))
+
+    return wrapper_wrapper
+
+
+@with_cached_html_pages
 def parse_links(page):
     # type: (HTMLPage) -> Iterable[Link]
     """
@@ -308,6 +366,18 @@ def _make_html_page(response):
     return HTMLPage(response.content, encoding=encoding, url=response.url)
 
 
+def with_cached_link_fetch(fn):
+    # type: (Any) -> Any
+
+    @lru_cache(maxsize=None)
+    def wrapper(link, session=None):
+        # type: (Link, Optional[PipSession]) -> Optional[HTMLPage]
+        return fn(link, session=session)
+
+    return wrapper
+
+
+@with_cached_link_fetch
 def _get_html_page(link, session=None):
     # type: (Link, Optional[PipSession]) -> Optional[HTMLPage]
     if session is None:
