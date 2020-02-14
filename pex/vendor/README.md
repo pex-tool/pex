@@ -14,18 +14,25 @@ To update versions of vendored code or add new vendored code:
 1. Modify `pex.vendor.iter_vendor_specs` with updated versions or new distributions.
    Today that function looks like:
    ```python
-   def iter_vendor_specs(include_wheel=True):
+   def iter_vendor_specs():
      """Iterate specifications for code vendored by pex.
 
-     :param bool include_wheel: If ``True`` include the vendored wheel spec.
-     :return: An iterator over specs of all vendored code optionally including ``wheel``.
+     :return: An iterator over specs of all vendored code.
      :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
      """
-     yield VendorSpec.create('setuptools==40.6.2')
-     if include_wheel:
-       # We're currently stuck here due to removal of an API we depend on.
-       # See: https://github.com/pantsbuild/pex/issues/603
-       yield VendorSpec.create('wheel==0.31.1')
+     # We use this via pex.third_party at runtime to check for compatible wheel tags.
+     yield VendorSpec.pinned('packaging', '19.2')
+
+     # We shell out to pip at buildtime to resolve and install dependencies.
+     # N.B.: This is pip 20.0.dev0 with a patch to support foreign download targets more fully.
+     yield VendorSpec.vcs('git+https://github.com/pantsbuild/pip@5eb9470c0c59#egg=pip', rewrite=False)
+
+     # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
+     # pex.third_party at runtime in various ways.
+     yield VendorSpec.pinned('setuptools', '42.0.2')
+
+     # We expose this to pip at buildtime for legacy builds.
+     yield VendorSpec.pinned('wheel', '0.33.6', rewrite=False)
    ```
    Simply edit an existing `VendorSpec` or `yield` a new one.
 2. Run `tox -e vendor`.
