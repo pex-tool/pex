@@ -1,6 +1,23 @@
 Release Notes
 =============
 
+2.1.3
+-----
+
+This release fixes a performance regression in which pip
+would re-tokenize --find-links pages unnecessarily.
+The parsed pages are now cached in a pip patch that has
+also been submitted upstream.
+
+* Revendor pip (#890)
+  `PR #890 <https://github.com/pantsbuild/pex/pull/890>`_
+
+* Add a clear_cache() method to PythonInterpreter. (#885)
+  `PR #885 <https://github.com/pantsbuild/pex/pull/885>`_
+
+* Error eagerly if an interpreter binary doesn't exist. (#886)
+  `PR #886 <https://github.com/pantsbuild/pex/pull/886>`_
+
 2.1.2
 -----
 
