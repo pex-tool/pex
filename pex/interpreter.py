@@ -572,7 +572,7 @@ def spawn_python_job(
   :type expose: list of str
   :param pythonpath: The PYTHONPATH to expose to the spawned python process. These will be
                      pre-pended to the `expose` path if passed.
-  :type expose: list of str
+  :type pythonpath: list of str
   :param subprocess_kwargs: Any additional :class:`subprocess.Popen` kwargs to pass through.
   :returns: A job handle to the spawned python process.
   :rtype: :class:`Job`
