@@ -12,6 +12,7 @@ from pex import third_party
 from pex.compatibility import urlparse
 from pex.distribution_target import DistributionTarget
 from pex.jobs import Job
+from pex.tracer import TRACER
 from pex.variables import ENV
 
 
@@ -70,6 +71,12 @@ class Pip(object):
 
     command = pip_args + args
     with ENV.strip().patch(PEX_ROOT=ENV.PEX_ROOT, PEX_VERBOSE=str(pex_verbosity)) as env:
+      # Guard against API calls from environment with ambient PYTHONPATH preventing pip PEX
+      # bootstrapping. See: https://github.com/pantsbuild/pex/issues/892
+      pythonpath = env.pop('PYTHONPATH', None)
+      if pythonpath:
+        TRACER.log('Scrubbed PYTHONPATH={} from the pip PEX environment.'.format(pythonpath), V=3)
+
       from pex.pex import PEX
       pip = PEX(pex=self._pip_pex_path, interpreter=interpreter)
       return Job(

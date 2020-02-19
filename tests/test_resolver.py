@@ -3,6 +3,8 @@
 
 import functools
 import os
+import subprocess
+from textwrap import dedent
 
 import pytest
 
@@ -308,3 +310,42 @@ def test_issues_851():
   assert 'configparser' in resolved_project_to_version
   assert 'pathlib2' in resolved_project_to_version
   assert 'contextlib2' in resolved_project_to_version
+
+
+def test_issues_892():
+  python27 = ensure_python_interpreter(PY27)
+  program = dedent("""\
+    from __future__ import print_function
+
+    import os
+    import sys
+
+
+    # This puts python3.6 stdlib on PYTHONPATH.
+    os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
+
+
+    from pex import resolver
+    from pex.interpreter import PythonInterpreter
+
+
+    python27 = PythonInterpreter.from_binary({python27!r})
+    result = resolver.resolve(requirements=['packaging==19.2'], interpreter=python27)
+    print('Resolved: {{}}'.format(result))
+  """.format(python27=python27))
+
+  python36 = ensure_python_interpreter(PY36)
+  cmd, process = PythonInterpreter.from_binary(python36).open_process(
+    args=['-c', program],
+    stderr=subprocess.PIPE
+  )
+  _, stderr = process.communicate()
+  assert process.returncode == 0, dedent(
+    """
+    Command {cmd} failed with {returncode}.
+
+    STDERR
+    ======
+    {stderr}
+    """.format(cmd=cmd, returncode=process.returncode, stderr=stderr.decode('utf8'))
+  )
