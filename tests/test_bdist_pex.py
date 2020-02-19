@@ -11,14 +11,22 @@ from pex.interpreter import spawn_python_job
 from pex.testing import WheelBuilder, make_project, temporary_content
 
 
+def pex_project_dir():
+  return subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
+
+
 @contextmanager
 def bdist_pex(project_dir, bdist_args=None):
   with temporary_dir() as dist_dir:
-    cmd = ['setup.py', 'bdist_pex', '--bdist-dir={}'.format(dist_dir)]
+    cmd = [
+      'setup.py',
+      '--command-packages', 'pex.commands',
+      'bdist_pex', '--bdist-dir={}'.format(dist_dir)
+    ]
     if bdist_args:
       cmd.extend(bdist_args)
 
-    spawn_python_job(args=cmd, cwd=project_dir).wait()
+    spawn_python_job(args=cmd, cwd=project_dir, pythonpath=[pex_project_dir()]).wait()
     dists = os.listdir(dist_dir)
     assert len(dists) == 1
     yield os.path.join(dist_dir, dists[0])

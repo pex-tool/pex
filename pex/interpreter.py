@@ -549,7 +549,14 @@ class PythonInterpreter(object):
     )
 
 
-def spawn_python_job(args, env=None, interpreter=None, expose=None, **subprocess_kwargs):
+def spawn_python_job(
+  args,
+  env=None,
+  interpreter=None,
+  expose=None,
+  pythonpath=None,
+  **subprocess_kwargs
+):
   """Spawns a python job.
 
   :param args: The arguments to pass to the python interpreter.
@@ -561,21 +568,25 @@ def spawn_python_job(args, env=None, interpreter=None, expose=None, **subprocess
                       interpreter.
   :type interpreter: :class:`PythonInterpreter`
   :param expose: The names of any vendored distributions to expose to the spawned python process.
+                 These will be appended to `pythonpath` if passed.
+  :type expose: list of str
+  :param pythonpath: The PYTHONPATH to expose to the spawned python process. These will be
+                     pre-pended to the `expose` path if passed.
   :type expose: list of str
   :param subprocess_kwargs: Any additional :class:`subprocess.Popen` kwargs to pass through.
   :returns: A job handle to the spawned python process.
   :rtype: :class:`Job`
   """
+  pythonpath = list(pythonpath or ())
   if expose:
     subprocess_env = (env or os.environ).copy()
     # In order to expose vendored distributions with their un-vendored import paths in-tact, we
     # need to set `__PEX_UNVENDORED__`. See: vendor.__main__.ImportRewriter._modify_import.
     subprocess_env['__PEX_UNVENDORED__'] = '1'
 
-    pythonpath = third_party.expose(expose)
+    pythonpath.extend(third_party.expose(expose))
   else:
     subprocess_env = env
-    pythonpath = None
 
   interpreter = interpreter or PythonInterpreter.get()
   cmd, process = interpreter.open_process(
