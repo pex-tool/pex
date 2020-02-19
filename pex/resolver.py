@@ -494,7 +494,7 @@ class ResolveRequest(object):
     to_calculate_requirements_for = []
 
     # 1. Resolve sdists and wheels.
-    with TRACER.timed('Resolving for:\n  '.format('\n  '.join(map(str, to_resolve)))):
+    with TRACER.timed('Resolving for:\n  {}'.format('\n  '.join(map(str, to_resolve)))):
       for resolve_result in self._run_parallel(inputs=to_resolve,
                                                spawn_func=spawn_resolve,
                                                raise_type=Unsatisfiable):
