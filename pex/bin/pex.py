@@ -483,7 +483,8 @@ def configure_clp():
       '--pex-root',
       dest='pex_root',
       default=ENV.PEX_ROOT,
-      help='Specify the pex root used in this invocation of pex. [Default: ~/.pex]'
+      help='Specify the pex root used in this invocation of pex. [Default: {}]'.format(
+          (ENV.PEX_ROOT or '~/.pex').replace(os.path.expanduser('~'), '~')),
   )
 
   parser.add_option(
