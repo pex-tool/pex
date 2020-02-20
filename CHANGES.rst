@@ -1,6 +1,25 @@
 Release Notes
 =============
 
+2.1.4
+-----
+
+This release fixes the hermeticity of pip resolver executions when the
+resolver is called via the Pex API in an environment with PYTHONPATH
+set.
+
+* readme: adding a TOC (#900)
+  `PR #900 <https://github.com/pantsbuild/pex/pull/900>`_
+
+* Fix Pex resolver API PYTHONPATH hermeticity. (#895)
+  `PR #895 <https://github.com/pantsbuild/pex/pull/895>`_
+
+* Fixup resolve debug rendering. (#894)
+  `PR #894 <https://github.com/pantsbuild/pex/pull/894>`_
+
+* Convert `bdist_pex` tests to explicit cmdclass. (#897)
+  `PR #897 <https://github.com/pantsbuild/pex/pull/897>`_
+
 2.1.3
 -----
 
