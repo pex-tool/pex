@@ -68,9 +68,9 @@ class DistributionTarget(object):
 
   def __repr__(self):
     if self._platform is None:
-      return 'Target(interpreter={!r})'.format(self.get_interpreter())
+      return '{}(interpreter={!r})'.format(self.__class__.__name__, self.get_interpreter())
     else:
-      return 'Target(platform={!r})'.format(self._platform)
+      return '{}(platform={!r})'.format(self.__class__.__name__, self._platform)
 
   def _tup(self):
     return self._interpreter, self._platform
