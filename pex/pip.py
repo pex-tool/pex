@@ -54,7 +54,7 @@ class Pip(object):
     self._pip_pex_path = pip_pex_path
 
   def _spawn_pip_isolated(self, args, cache=None, interpreter=None):
-    pip_args = ['--disable-pip-version-check', '--isolated', '--exists-action', 'i']
+    pip_args = ['--disable-pip-version-check', '--isolated']
 
     # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor of 3.
     pex_verbosity = ENV.PEX_VERBOSE
@@ -209,7 +209,6 @@ class Pip(object):
                           wheel,
                           install_dir,
                           compile=False,
-                          overwrite=False,
                           cache=None,
                           target=None):
 
@@ -234,8 +233,6 @@ class Pip(object):
       install_cmd.append('--ignore-requires-python')
 
     install_cmd.append('--compile' if compile else '--no-compile')
-    if overwrite:
-      install_cmd.extend(['--upgrade', '--force-reinstall'])
     install_cmd.append(wheel)
     return self._spawn_pip_isolated(install_cmd, cache=cache, interpreter=interpreter)
 

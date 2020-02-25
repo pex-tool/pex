@@ -437,7 +437,6 @@ class ResolveRequest(object):
       wheel=install_request.wheel_path,
       install_dir=install_result.build_chroot,
       compile=self._compile,
-      overwrite=True,
       cache=self._cache,
       target=install_request.target
     )
