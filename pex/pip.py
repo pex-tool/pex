@@ -54,7 +54,7 @@ class Pip(object):
     self._pip_pex_path = pip_pex_path
 
   def _spawn_pip_isolated(self, args, cache=None, interpreter=None):
-    pip_args = ['--disable-pip-version-check', '--isolated', '--exists-action', 'i']
+    pip_args = ['--disable-pip-version-check', '--isolated']
 
     # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor of 3.
     pex_verbosity = ENV.PEX_VERBOSE
