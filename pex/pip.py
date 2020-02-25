@@ -55,7 +55,7 @@ class Pip(object):
 
   def _spawn_pip_isolated(self, args, cache=None, interpreter=None):
     pip_args = [
-      # We vendor the version of pip we wan't so pip should never check for updates.
+      # We vendor the version of pip we want so pip should never check for updates.
       '--disable-pip-version-check',
 
       # Don't read pip configuration files like `~/.config/pip/pip.conf`.
