@@ -54,7 +54,16 @@ class Pip(object):
     self._pip_pex_path = pip_pex_path
 
   def _spawn_pip_isolated(self, args, cache=None, interpreter=None):
-    pip_args = ['--disable-pip-version-check', '--isolated']
+    pip_args = [
+      # We vendor the version of pip we want so pip should never check for updates.
+      '--disable-pip-version-check',
+
+      # Don't read pip configuration files like `~/.config/pip/pip.conf`.
+      '--isolated',
+
+      # If we want to warn about a version of python we support, we should do it, not pip.
+      '--no-python-version-warning'
+    ]
 
     # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor of 3.
     pex_verbosity = ENV.PEX_VERBOSE
