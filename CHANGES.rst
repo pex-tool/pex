@@ -1,6 +1,18 @@
 Release Notes
 =============
 
+2.1.5
+-----
+
+* Silence pip warnings about Python 2.7. (#908)
+  `PR #908 <https://github.com/pantsbuild/pexpull/908>`_
+
+* Kill `Pip.spawn_install_wheel` `overwrite` arg. (#907)
+  `PR #907 <https://github.com/pantsbuild/pexpull/907>`_
+
+* Show pex-root from env as default in help output (#901)
+  `PR #901 <https://github.com/pantsbuild/pexpull/901>`_
+
 2.1.4
 -----
 
