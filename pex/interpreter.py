@@ -319,11 +319,6 @@ class PythonInterpreter(object):
   INTERP_INFO_FILE = 'INTERP-INFO'
 
   @classmethod
-  def clear_cache(cls):
-    interpreter_cache_dir = os.path.join(ENV.PEX_ROOT, 'interpreters')
-    safe_rmtree(interpreter_cache_dir)
-
-  @classmethod
   def _spawn_from_binary_external(cls, binary):
     def create_interpreter(stdout):
       identity = stdout.decode('utf-8').strip()
