@@ -439,10 +439,7 @@ def expose(dists):
   :raise: :class:`ValueError` if any distributions to expose cannot be found.
   :returns: An iterator of exposed vendored distribution chroot paths.
   """
-  from pex.common import safe_delete
-
   for path in VendorImporter.expose(dists, root=isolated()):
-    safe_delete(os.path.join(path, '__init__.py'))
     yield path
 
 
