@@ -82,17 +82,17 @@ class ImportRewriter(object):
     self._packages = packages
 
   def rewrite(self, python_file):
-    modififications = OrderedDict()
+    modifications = OrderedDict()
 
     red_baron = self._parse(python_file)
-    modififications.update(self._modify__import__calls(red_baron))
-    modififications.update(self._modify_import_statements(red_baron))
-    modififications.update(self._modify_from_import_statements(red_baron))
+    modifications.update(self._modify__import__calls(red_baron))
+    modifications.update(self._modify_import_statements(red_baron))
+    modifications.update(self._modify_from_import_statements(red_baron))
 
-    if modififications:
+    if modifications:
       with open(python_file, 'w') as fp:
         fp.write(red_baron.dumps())
-      return modififications
+      return modifications
 
   def _modify__import__calls(self, red_baron):  # noqa: We want __import__ as part of the name.
     for call_node in red_baron.find_all('CallNode'):

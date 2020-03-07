@@ -1,0 +1,39 @@
+Metadata-Version: 2.1
+Name: boolean.py
+Version: 3.7
+Summary: Define boolean algebras, create and parse boolean expressions and create custom boolean DSL.
+Home-page: https://github.com/bastikr/boolean.py
+Author: Sebastian Kraemer
+Author-email: basti.kr@gmail.com
+License: BSD-2-Clause
+Keywords: boolean expression,boolean algebra,logic,expression parser
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: Topic :: Software Development :: Compilers
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Utilities
+
+
+This library helps you deal with boolean expressions and algebra with variables
+and the boolean functions AND, OR, NOT.
+
+You can parse expressions from strings and simplify and compare expressions.
+You can also easily create your custom algreba and mini DSL and create custom
+tokenizers to handle custom expressions.
+
+For extensive documentation look either into the docs directory or view it online, at
+https://booleanpy.readthedocs.org/en/latest/
+
+https://github.com/bastikr/boolean.py
+
+Copyright (c) 2009-2017 Sebastian Kraemer, basti.kr@gmail.com and others
+
+Released under revised BSD license aka. BSD Simplified or BSD-2-Clause.
+
+
