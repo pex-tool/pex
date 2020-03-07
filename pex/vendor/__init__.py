@@ -98,7 +98,8 @@ def iter_vendor_specs():
   yield VendorSpec.pinned('packaging', '19.2')
 
   # We use this to evaluate interpreter compatibility expressions.
-  # TODO: Switch to a published release once https://github.com/bastikr/boolean.py/pull/95 is merged and released:
+  # TODO: Switch to a published release once https://github.com/bastikr/boolean.py/pull/95
+  #  is merged and released:
   #yield VendorSpec.pinned('boolean.py', '3.8')
   yield VendorSpec.vcs('git+https://github.com/benjyw/boolean.py@db41511ea311#egg=boolean')
 

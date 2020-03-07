@@ -6,6 +6,7 @@ import sys
 from textwrap import dedent
 
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import match_interpreter_constraint
 from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.testing import PY27, PY35, PY36, ensure_python_interpreter
 
@@ -14,6 +15,59 @@ def find_interpreters(path, *constraints):
   return [interp.binary for interp in
           iter_compatible_interpreters(path=os.pathsep.join(path),
                                        compatibility_constraints=constraints)]
+
+
+def test_match_interpreter_constraint():
+  def identity(version):
+    return PythonInterpreter.from_binary(ensure_python_interpreter(version)).identity
+  py27 = identity(PY27)
+  py35 = identity(PY35)
+  py36 = identity(PY36)
+
+  expr = 'CPython>=2.7,<3'
+  assert match_interpreter_constraint(py27, expr)
+  assert not match_interpreter_constraint(py35, expr)
+  assert not match_interpreter_constraint(py36, expr)
+
+  expr = 'CPython>=3.5'
+  assert not match_interpreter_constraint(py27, expr)
+  assert match_interpreter_constraint(py35, expr)
+  assert match_interpreter_constraint(py36, expr)
+
+  expr = 'CPython>=3.6'
+  assert not match_interpreter_constraint(py27, expr)
+  assert not match_interpreter_constraint(py35, expr)
+  assert match_interpreter_constraint(py36, expr)
+
+  expr = 'CPython>=2.7,<3 | CPython>=3.5'
+  assert match_interpreter_constraint(py27, expr)
+  assert match_interpreter_constraint(py35, expr)
+  assert match_interpreter_constraint(py36, expr)
+
+  expr = '(CPython>=2.7,<3 | CPython>=3.5) & CPython>=3.6'
+  assert not match_interpreter_constraint(py27, expr)
+  assert not match_interpreter_constraint(py35, expr)
+  assert match_interpreter_constraint(py36, expr)
+
+  expr = '(CPython>=2.7 , <3 | CPython >= 3.5) & ~CPython>=3.6'
+  assert match_interpreter_constraint(py27, expr)
+  assert match_interpreter_constraint(py35, expr)
+  assert not match_interpreter_constraint(py36, expr)
+
+  expr = '(CPython>=2.7,<3 | CPython>=3.5) & (CPython>=3.6 | PyPy>=3.6)'
+  assert not match_interpreter_constraint(py27, expr)
+  assert not match_interpreter_constraint(py35, expr)
+  assert match_interpreter_constraint(py36, expr)
+
+  expr = '>=3.5'
+  assert not match_interpreter_constraint(py27, expr)
+  assert match_interpreter_constraint(py35, expr)
+  assert match_interpreter_constraint(py36, expr)
+
+  expr = '~CPython==3.6.6'
+  assert match_interpreter_constraint(py27, expr)
+  assert match_interpreter_constraint(py35, expr)
+  assert ~match_interpreter_constraint(py36, expr)
 
 
 def test_find_compatible_interpreters():
