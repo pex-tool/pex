@@ -3,7 +3,7 @@ x-linux-shard: &x-linux-shard
   dist: bionic
   language: python
   install: |
-    pip install -U tox
+    pip install -U tox==3.14.1
 
 x-linux-27-shard: &x-linux-27-shard
   <<: *x-linux-shard
@@ -38,7 +38,7 @@ x-osx-shard: &x-osx-shard
     fi
     "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
     "${PYENV}" global ${PYENV_VERSION}
-    pip install -U tox
+    pip install -U tox==3.14.1
 
 x-osx-ssl: &x-osx-ssl >
   CPPFLAGS=-I/usr/local/opt/openssl/include
