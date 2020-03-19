@@ -11,7 +11,7 @@ import sys
 import zipfile
 from collections import OrderedDict, defaultdict
 
-from pex import pex_builder, pex_warnings
+from pex import dist_metadata, pex_builder, pex_warnings
 from pex.bootstrap import Bootstrap
 from pex.common import atomic_directory, die, open_zip
 from pex.interpreter import PythonInterpreter
@@ -224,7 +224,14 @@ class PEXEnvironment(Environment):
     except ValueError:
       return False
 
-    return not self._supported_tags.isdisjoint(tags.parse_tag(wheel_tags))
+    if self._supported_tags.isdisjoint(tags.parse_tag(wheel_tags)):
+      return False
+
+    python_requires = dist_metadata.requires_python(dist)
+    if not python_requires:
+      return True
+
+    return self._interpreter.identity.version_str in python_requires
 
   def activate(self):
     if not self._activated:
@@ -235,20 +242,28 @@ class PEXEnvironment(Environment):
     return self._working_set
 
   def _resolve(self, working_set, reqs):
-    reqs_by_key = OrderedDict((req.key, req) for req in reqs)
-    unresolved_reqs = OrderedDict()
-    resolveds = OrderedSet()
-
     environment = self._target_interpreter_env.copy()
     environment['extra'] = list(set(itertools.chain(*(req.extras for req in reqs))))
 
-    # Resolve them one at a time so that we can figure out which ones we need to elide should
-    # there be an interpreter incompatibility.
-    for req in reqs_by_key.values():
+    reqs_by_key = OrderedDict()
+    for req in reqs:
       if req.marker and not req.marker.evaluate(environment=environment):
         TRACER.log('Skipping activation of `%s` due to environment marker de-selection' % req)
         continue
-      with TRACER.timed('Resolving %s' % req, V=2):
+      reqs_by_key.setdefault(req.key, []).append(req)
+
+    unresolved_reqs = OrderedDict()
+    resolveds = OrderedSet()
+
+    # Resolve them one at a time so that we can figure out which ones we need to elide should
+    # there be an interpreter incompatibility.
+    for key, reqs in reqs_by_key.items():
+      with TRACER.timed('Resolving {} from {}'.format(key, reqs), V=2):
+        # N.B.: We resolve the bare requirement with no version specifiers since the resolve process
+        # used to build this pex already did so. There may be multiple distributions satisfying any
+        # particular key (e.g.: a Python 2 specific version and a Python 3 specific version for a
+        # multi-python PEX) and we want the working set to pick the most appropriate one.
+        req = Requirement.parse(key)
         try:
           resolveds.update(working_set.resolve([req], env=self))
         except DistributionNotFound as e:

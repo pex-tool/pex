@@ -11,6 +11,7 @@ import subprocess
 from collections import OrderedDict, defaultdict, namedtuple
 from textwrap import dedent
 
+from pex import dist_metadata
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import spawn_python_job
@@ -20,6 +21,7 @@ from pex.pex_info import PexInfo
 from pex.pip import get_pip
 from pex.platforms import Platform
 from pex.requirements import local_project_from_requirement, local_projects_from_requirement_file
+from pex.third_party.packaging.markers import Marker
 from pex.third_party.pkg_resources import Distribution, Environment, Requirement
 from pex.tracer import TRACER
 from pex.util import CacheHelper
@@ -95,7 +97,27 @@ class DistributionRequirements(object):
 
   def to_requirement(self, dist):
     req = dist.as_requirement()
-    markers = self._markers_by_requirement_key.get(req.key)
+
+    markers = OrderedSet()
+
+    # Here we map any wheel python requirement to the equivalent environment marker:
+    # See:
+    # + https://www.python.org/dev/peps/pep-0345/#requires-python
+    # + https://www.python.org/dev/peps/pep-0508/#environment-markers
+    python_requires = dist_metadata.requires_python(dist)
+    if python_requires:
+      markers.update(
+        Marker(python_version)
+        for python_version in sorted(
+          'python_version {operator} {version!r}'.format(
+            operator=specifier.operator,
+            version=specifier.version
+          ) for specifier in python_requires
+        )
+      )
+
+    markers.update(self._markers_by_requirement_key.get(req.key, ()))
+
     if not markers:
       return req
 
@@ -104,12 +126,12 @@ class DistributionRequirements(object):
       req.marker = marker
       return req
 
-    # Here we have a resolve with multiple paths to the dependency represented by dist. At least
+    # We may have resolved with multiple paths to the dependency represented by dist and at least
     # two of those paths had (different) conditional requirements for dist based on environment
-    # marker predicates. Since the pip resolve succeeded, the implication is that the environment
-    # markers are compatible; i.e.: their intersection selects the target interpreter. Here we
-    # make that intersection explicit.
-    # See: https://www.python.org/dev/peps/pep-0496/#micro-language
+    # marker predicates. In that case, since the pip resolve succeeded, the implication is that the
+    # environment markers are compatible; i.e.: their intersection selects the target interpreter.
+    # Here we make that intersection explicit.
+    # See: https://www.python.org/dev/peps/pep-0508/#grammar
     marker = ' and '.join('({})'.format(marker) for marker in markers)
     return Requirement.parse('{}; {}'.format(req, marker))
 
