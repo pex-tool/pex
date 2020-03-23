@@ -15,7 +15,10 @@ from textwrap import TextWrapper
 
 from pex.common import die, safe_delete, safe_mkdtemp
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError, validate_constraints
+from pex.interpreter_constraints import (
+    UnsatisfiableInterpreterConstraintsError,
+    validate_constraints
+)
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.pex import PEX
 from pex.pex_bootstrapper import iter_compatible_interpreters
