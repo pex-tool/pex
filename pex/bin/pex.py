@@ -15,7 +15,10 @@ from textwrap import TextWrapper
 
 from pex.common import die, safe_delete, safe_mkdtemp
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import validate_constraints
+from pex.interpreter_constraints import (
+    UnsatisfiableInterpreterConstraintsError,
+    validate_constraints
+)
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.pex import PEX
 from pex.pex_bootstrapper import iter_compatible_interpreters
@@ -528,10 +531,10 @@ def build_pex(reqs, options):
         pex_python_path = rc_variables.get('PEX_PYTHON_PATH', None)
       else:
         pex_python_path = None
-      interpreters = list(iter_compatible_interpreters(pex_python_path, constraints))
-      if not interpreters:
-        die('Could not find compatible interpreter for constraints {}'.format(
-            ' or '.join(constraints)), CANNOT_SETUP_INTERPRETER)
+      try:
+        interpreters = list(iter_compatible_interpreters(pex_python_path, constraints))
+      except UnsatisfiableInterpreterConstraintsError as e:
+        die(e.create_message('Could not find a compatible interpreter.'), CANNOT_SETUP_INTERPRETER)
 
   try:
     with open(options.preamble_file) as preamble_fd:
