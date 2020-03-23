@@ -10,7 +10,10 @@ from pex import pex_warnings
 from pex.common import die
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import matched_interpreters_iter
+from pex.interpreter_constraints import (
+    UnsatisfiableInterpreterConstraints,
+    matched_interpreters_iter
+)
 from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 from pex.variables import ENV
@@ -96,11 +99,11 @@ def _select_pex_python_interpreter(pex_python, compatibility_constraints=None):
     _iter_pex_python(pex_python),
     compatibility_constraints=compatibility_constraints
   )
-  selected = _select_interpreter(compatible_interpreters_iter)
-  if not selected:
-    die('Failed to find a compatible PEX_PYTHON={} for constraints: {}'
-        .format(pex_python, compatibility_constraints))
-  return selected
+  try:
+    return _select_interpreter(compatible_interpreters_iter)
+  except UnsatisfiableInterpreterConstraints as e:
+    die(e.create_message('Failed to find a compatible PEX_PYTHON={pex_python}.'
+                         .format(pex_python=pex_python)))
 
 
 def _select_path_interpreter(path=None, compatibility_constraints=None):
@@ -108,11 +111,11 @@ def _select_path_interpreter(path=None, compatibility_constraints=None):
     path=path,
     compatibility_constraints=compatibility_constraints
   )
-  selected = _select_interpreter(compatible_interpreters_iter)
-  if not selected:
-    die('Failed to find compatible interpreter on path {} for constraints: {}'
-        .format(path or os.getenv('PATH'), compatibility_constraints))
-  return selected
+  try:
+    return _select_interpreter(compatible_interpreters_iter)
+  except UnsatisfiableInterpreterConstraints as e:
+    die(e.create_message('Failed to find compatible interpreter on path {path}.'
+                         .format(path=path or os.getenv('PATH'))))
 
 
 def _select_interpreter(candidate_interpreters_iter):
@@ -132,7 +135,7 @@ def _select_interpreter(candidate_interpreters_iter):
   return min(candidate_interpreters)
 
 
-def maybe_reexec_pex(compatibility_constraints=None):
+def maybe_reexec_pex(pex, compatibility_constraints=None):
   """Handle environment overrides for the Python interpreter to use when executing this pex.
 
   This function supports interpreter filtering based on interpreter constraints stored in PEX-INFO
@@ -236,7 +239,7 @@ def _bootstrap(entry_point):
 
 def bootstrap_pex(entry_point):
   pex_info = _bootstrap(entry_point)
-  maybe_reexec_pex(pex_info.interpreter_constraints)
+  maybe_reexec_pex(entry_point, pex_info.interpreter_constraints)
 
   from . import pex
   pex.PEX(entry_point).execute()
