@@ -8,7 +8,7 @@ from textwrap import dedent
 import pytest
 
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import UnsatisfiableInterpreterConstraints
+from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.testing import PY27, PY35, PY36, ensure_python_interpreter
 
@@ -32,13 +32,13 @@ def test_find_compatible_interpreters():
   assert [py35] == find_interpreters(path, '>{}, <{}'.format(PY27, PY36))
   assert [py36] == find_interpreters(path, '>=3.6')
 
-  with pytest.raises(UnsatisfiableInterpreterConstraints):
+  with pytest.raises(UnsatisfiableInterpreterConstraintsError):
     find_interpreters(path, '<2')
 
-  with pytest.raises(UnsatisfiableInterpreterConstraints):
+  with pytest.raises(UnsatisfiableInterpreterConstraintsError):
     find_interpreters(path, '>4')
 
-  with pytest.raises(UnsatisfiableInterpreterConstraints):
+  with pytest.raises(UnsatisfiableInterpreterConstraintsError):
     find_interpreters(path, '>{}, <{}'.format(PY27, PY35))
 
   # All interpreters on PATH including whatever interpreter is currently running.

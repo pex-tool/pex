@@ -21,19 +21,19 @@ def validate_constraints(constraints):
       die("Compatibility requirements are not formatted properly: %s" % str(e))
 
 
-class UnsatisfiableInterpreterConstraints(Exception):
+class UnsatisfiableInterpreterConstraintsError(Exception):
   """Indicates interpreter constraints could not be satisfied."""
 
   def __init__(self, constraints, candidates):
     """
     :param constraints: The constraints that could not be satisfied.
-    :type constraints: list of str
+    :type constraints: iterable of str
     :param candidates: The python interpreters that were compared against the constraints.
-    :type candidates: :class:`pex.interpreter.PythonInterpreter`
+    :type candidates: iterable of :class:`pex.interpreter.PythonInterpreter`
     """
-    self.constraints = constraints
-    self.candidates = candidates
-    super(UnsatisfiableInterpreterConstraints, self).__init__(self.create_message())
+    self.constraints = tuple(constraints)
+    self.candidates = tuple(candidates)
+    super(UnsatisfiableInterpreterConstraintsError, self).__init__(self.create_message())
 
   def create_message(self, preamble=None):
     """Create a message describing  failure to find matching interpreters with an optional preamble.
@@ -68,8 +68,9 @@ def matched_interpreters_iter(interpreters_iter, constraints):
     requirements agnostic to interpreter class. Multiple requirement strings may be combined
     into a list to OR the constraints, such as ['CPython>=2.7,<3', 'CPython>=3.4'].
   :return: returns a generator that yields compatible interpreters
-  :raises: :class:`UnsatisfiableInterpreterConstraints` if constraints were given and could not be
-           satisfied.
+  :raises: :class:`UnsatisfiableInterpreterConstraintsError` if constraints were given and could
+           not be satisfied. The exception will only be raised when the returned generator is fully
+           consumed.
   """
   candidates = []
   found = False
@@ -85,4 +86,4 @@ def matched_interpreters_iter(interpreters_iter, constraints):
       candidates.append(interpreter)
 
   if not found:
-    raise UnsatisfiableInterpreterConstraints(constraints, candidates)
+    raise UnsatisfiableInterpreterConstraintsError(constraints, candidates)
