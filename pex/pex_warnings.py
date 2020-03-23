@@ -6,15 +6,12 @@ from __future__ import absolute_import
 
 import warnings
 
-from pex.variables import ENV
-
 
 class PEXWarning(Warning):
   """Indicates a warning from PEX about suspect buildtime or runtime configuration."""
 
 
-def configure_warnings(pex_info, env=None):
-  env = env or ENV
+def configure_warnings(pex_info, env):
   if env.PEX_VERBOSE > 0:
     emit_warnings = True
   elif env.PEX_EMIT_WARNINGS is not None:

@@ -79,7 +79,7 @@ class Pip(object):
       pip_args.append('--no-cache-dir')
 
     command = pip_args + args
-    with ENV.strip().patch(PEX_ROOT=ENV.PEX_ROOT, PEX_VERBOSE=str(pex_verbosity)) as env:
+    with ENV.strip().patch(PEX_ROOT=cache or ENV.PEX_ROOT, PEX_VERBOSE=str(pex_verbosity)) as env:
       # Guard against API calls from environment with ambient PYTHONPATH preventing pip PEX
       # bootstrapping. See: https://github.com/pantsbuild/pex/issues/892
       pythonpath = env.pop('PYTHONPATH', None)
