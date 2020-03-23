@@ -15,7 +15,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex.common import safe_copy, safe_open, safe_sleep, temporary_dir
+from pex.common import safe_copy, safe_mkdir, safe_open, safe_sleep, temporary_dir
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
@@ -62,30 +62,60 @@ def test_pex_raise():
   run_simple_pex_test(body, coverage=True)
 
 
+def assert_installed_wheels(label, pex_root):
+  assert 'installed_wheels' in os.listdir(pex_root), (
+    'Expected {label} pex root to be populated with buildtime artifacts.'.format(label=label)
+  )
+
+
 def test_pex_root_build():
-  with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td, output_dir, tmp_home):
+  with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (
+      buildtime_pex_root,
+      output_dir,
+      home
+  ):
     output_path = os.path.join(output_dir, 'pex.pex')
-    args = ['pex', '-o', output_path, '--not-zip-safe']
-    results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1',
-                                                      PEX_ROOT=td))
+    args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={}'.format(buildtime_pex_root)]
+    results = run_pex_command(args=args, env=make_env(HOME=home, PEX_INTERPRETER='1'))
     results.assert_success()
     assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
-    assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'
+    assert [] == os.listdir(home), 'Expected empty home dir.'
+    assert_installed_wheels(label='buildtime', pex_root=buildtime_pex_root)
 
 
 def test_pex_root_run():
-  with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td, output_dir, tmp_home):
+  with nested(temporary_dir(), temporary_dir(), temporary_dir(), temporary_dir()) as (
+      buildtime_pex_root,
+      runtime_pex_root,
+      output_dir,
+      home
+  ):
     output_path = os.path.join(output_dir, 'pex.pex')
-    args = ['pex', '-o', output_path, '--not-zip-safe', '--pex-root={0}'.format(td)]
-    results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1'))
+    args = [
+      'pex',
+      '-o', output_path,
+      '--not-zip-safe',
+      '--pex-root={}'.format(buildtime_pex_root),
+      '--runtime-pex-root={}'.format(runtime_pex_root)
+    ]
+    results = run_pex_command(args=args, env=make_env(HOME=home, PEX_INTERPRETER='1'))
     results.assert_success()
     assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
-    build_pex_root = os.path.join(tmp_home, '.pex')
-    assert 'build' in os.listdir(build_pex_root), 'Expected build directory in temp home dir.'
+    assert [] == os.listdir(home), 'Expected empty home dir.'
+
+    assert_installed_wheels(label='buildtime', pex_root=buildtime_pex_root)
+    safe_mkdir(buildtime_pex_root, clean=True)
+
+    assert [] == os.listdir(runtime_pex_root), (
+      'Expected runtime pex root to be empty prior to any runs.'
+    )
 
     _, rc = run_simple_pex(output_path)
     assert rc == 0
-    assert 'install' in os.listdir(td), 'Expected install directory in tmp pex root.'
+    assert_installed_wheels(label='runtime', pex_root=runtime_pex_root)
+    assert [] == os.listdir(buildtime_pex_root), (
+      'Expected buildtime pex root to be empty after runs using a seperate runtime pex root.'
+    )
 
 
 def test_cache_disable():
@@ -96,9 +126,9 @@ def test_cache_disable():
       '-o', output_path,
       '--not-zip-safe',
       '--disable-cache',
+      '--pex-root={}'.format(td),
     ]
-    results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1',
-                              PEX_ROOT=td))
+    results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER='1'))
     results.assert_success()
     assert ['pex.pex'] == os.listdir(output_dir), 'Expected built pex file.'
     assert [] == os.listdir(tmp_home), 'Expected empty temp home dir.'

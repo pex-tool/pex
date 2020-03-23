@@ -299,7 +299,7 @@ def configure_clp_pex_options(parser):
            'same inputs then the new pex would not be byte-for-byte identical to the original.')
 
   group.add_option(
-      '--runtime=pex-root',
+      '--runtime-pex-root',
       dest='runtime_pex_root',
       default=None,
       help='Specify the pex root to be used in the generated .pex file. [Default: ~/.pex]'
