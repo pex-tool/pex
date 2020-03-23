@@ -135,7 +135,7 @@ def _select_interpreter(candidate_interpreters_iter):
   return min(candidate_interpreters)
 
 
-def maybe_reexec_pex(pex, compatibility_constraints=None):
+def maybe_reexec_pex(compatibility_constraints=None):
   """Handle environment overrides for the Python interpreter to use when executing this pex.
 
   This function supports interpreter filtering based on interpreter constraints stored in PEX-INFO
@@ -239,7 +239,7 @@ def _bootstrap(entry_point):
 
 def bootstrap_pex(entry_point):
   pex_info = _bootstrap(entry_point)
-  maybe_reexec_pex(entry_point, pex_info.interpreter_constraints)
+  maybe_reexec_pex(pex_info.interpreter_constraints)
 
   from . import pex
   pex.PEX(entry_point).execute()
