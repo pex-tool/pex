@@ -530,7 +530,8 @@ def build_pex(reqs, options):
         pex_python_path = None
       interpreters = list(iter_compatible_interpreters(pex_python_path, constraints))
       if not interpreters:
-        die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
+        die('Could not find compatible interpreter for constraints {}'.format(' or '.join(constraints)),
+            CANNOT_SETUP_INTERPRETER)
 
   try:
     with open(options.preamble_file) as preamble_fd:
