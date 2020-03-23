@@ -298,6 +298,13 @@ def configure_clp_pex_options(parser):
            'will not be reproducible, meaning that if you were to run `./pex -o` with the '
            'same inputs then the new pex would not be byte-for-byte identical to the original.')
 
+  group.add_option(
+      '--runtime-pex-root',
+      dest='runtime_pex_root',
+      default=None,
+      help='Specify the pex root to be used in the generated .pex file. [Default: ~/.pex]'
+  )
+
   parser.add_option_group(group)
 
 
@@ -568,6 +575,7 @@ def build_pex(reqs, options):
   pex_info.ignore_errors = options.ignore_errors
   pex_info.emit_warnings = options.emit_warnings
   pex_info.inherit_path = options.inherit_path
+  pex_info.pex_root = options.runtime_pex_root
   if options.interpreter_constraint:
     for ic in options.interpreter_constraint:
       pex_builder.add_interpreter_constraint(ic)
