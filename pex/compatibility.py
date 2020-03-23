@@ -96,10 +96,8 @@ else:
 
 if PY3:
   import urllib.parse as urlparse
-  from urllib.request import pathname2url, url2pathname
 else:
   import urlparse
-  from urllib import pathname2url, url2pathname
 
 
 if PY3:
