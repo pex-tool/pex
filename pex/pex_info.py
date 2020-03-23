@@ -286,7 +286,10 @@ class PexInfo(object):
 
   @pex_root.setter
   def pex_root(self, value):
-    self._pex_info['pex_root'] = value
+    if value is None:
+      self._pex_info.pop('pex_root', None)
+    else:
+      self._pex_info['pex_root'] = value
 
   @property
   def internal_cache(self):
