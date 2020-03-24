@@ -1,10 +1,11 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import os
-from contextlib import contextmanager
 
 import pytest
 
+from pex.testing import environment_as
 from pex.util import named_temporary_file
 from pex.variables import Variables
 
@@ -67,24 +68,6 @@ def test_pex_get_int():
 
   with pytest.raises(SystemExit):
     assert Variables(environ={'HELLO': 'welp'})._get_int('HELLO')
-
-
-@contextmanager
-def environment_as(**kwargs):
-  existing = {key: os.environ.get(key) for key in kwargs}
-
-  def adjust_environment(mapping):
-    for key, value in mapping.items():
-      if value is not None:
-        os.environ[key] = value
-      else:
-        del os.environ[key]
-
-  adjust_environment(kwargs)
-  try:
-    yield
-  finally:
-    adjust_environment(existing)
 
 
 def assert_pex_vars_hermetic():
