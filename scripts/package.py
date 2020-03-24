@@ -34,6 +34,7 @@ def build_pex_pex() -> None:
     '--no-use-system-time',
     '--interpreter-constraint', python_requires(),
     '--python-shebang', '/usr/bin/env python',
+    '--no-strip-pex-env',
     '-o', 'dist/pex',
     '-c', 'pex',
     pex_requirement

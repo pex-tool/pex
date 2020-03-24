@@ -302,8 +302,16 @@ def configure_clp_pex_options(parser):
       '--runtime-pex-root',
       dest='runtime_pex_root',
       default=None,
-      help='Specify the pex root to be used in the generated .pex file. [Default: ~/.pex]'
-  )
+      help='Specify the pex root to be used in the generated .pex file. [Default: ~/.pex]')
+
+  group.add_option(
+      '--strip-pex-env', '--no-strip-pex-env',
+      dest='strip_pex_env',
+      default=True,
+      action='callback',
+      callback=parse_bool,
+      help='Strip all `PEX_*` environment variables used to control the PEX runtime before handing '
+           'off control to the PEX entrypoint. [Default: %default]')
 
   parser.add_option_group(group)
 
@@ -576,6 +584,7 @@ def build_pex(reqs, options):
   pex_info.emit_warnings = options.emit_warnings
   pex_info.inherit_path = options.inherit_path
   pex_info.pex_root = options.runtime_pex_root
+  pex_info.strip_pex_env = options.strip_pex_env
   if options.interpreter_constraint:
     for ic in options.interpreter_constraint:
       pex_builder.add_interpreter_constraint(ic)

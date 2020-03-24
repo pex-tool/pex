@@ -1,6 +1,7 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import json
 import os
 import subprocess
 import sys
@@ -8,6 +9,7 @@ import tempfile
 import textwrap
 from collections import namedtuple
 from contextlib import contextmanager
+from textwrap import dedent
 from types import ModuleType
 
 import pytest
@@ -25,6 +27,7 @@ from pex.testing import (
     WheelBuilder,
     built_wheel,
     ensure_python_interpreter,
+    environment_as,
     make_bdist,
     named_temporary_file,
     run_simple_pex,
@@ -568,6 +571,32 @@ def test_execute_interpreter_file_program():
       assert 0 == process.returncode
       assert '{} one two\n'.format(fp.name).encode('utf-8') == stdout
       assert b'' == stderr
+
+
+def test_pex_run_strip_env():
+  with temporary_dir() as pex_root:
+    pex_env = dict(PEX_MODULE='does_not_exist_in_sub_pex', PEX_ROOT=pex_root)
+    with environment_as(**pex_env), temporary_dir() as pex_chroot:
+      pex_builder = PEXBuilder(path=pex_chroot)
+      with tempfile.NamedTemporaryFile() as fp:
+        fp.write(dedent(b"""
+          import json
+          import os
+
+          print(json.dumps({k: v for k, v in os.environ.items() if k.startswith("PEX_")}))
+        """))
+        fp.flush()
+        pex_builder.set_executable(fp.name, 'print_pex_env.py')
+      pex_builder.freeze()
+
+      stdout, returncode = run_simple_pex(pex_chroot)
+      assert 0 == returncode
+      assert {} == json.loads(stdout), (
+        'Expected the entrypoint environment to be stripped of PEX_ environment variables.'
+      )
+      assert pex_env == {k: v for k, v in os.environ.items() if k.startswith("PEX_")}, (
+        'Expected the parent environment to be left un-stripped.'
+      )
 
 
 def test_pex_run_custom_setuptools_useable():

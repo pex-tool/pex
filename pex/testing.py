@@ -10,10 +10,10 @@ import random
 import subprocess
 import sys
 from collections import namedtuple
+from contextlib import contextmanager
 from textwrap import dedent
 
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, temporary_dir, touch
-from pex.compatibility import PY3, nested
 from pex.distribution_target import DistributionTarget
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
@@ -307,12 +307,11 @@ def run_simple_pex(pex, args=(), interpreter=None, stdin=None, **kwargs):
                   stderr=subprocess.STDOUT,
                   **kwargs)
   stdout, _ = process.communicate(input=stdin)
-  print(stdout.decode('utf-8') if PY3 else stdout)
   return stdout.replace(b'\r', b''), process.returncode
 
 
 def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False, interpreter=None):
-  with nested(temporary_dir(), temporary_dir()) as (td1, td2):
+  with temporary_dir() as td1, temporary_dir() as td2:
     pb = write_simple_pex(td1, body, dists=dists, coverage=coverage, interpreter=interpreter)
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
@@ -380,3 +379,21 @@ def ensure_python_distribution(version):
 def ensure_python_interpreter(version):
   python, _ = ensure_python_distribution(version)
   return python
+
+
+@contextmanager
+def environment_as(**kwargs):
+  existing = {key: os.environ.get(key) for key in kwargs}
+
+  def adjust_environment(mapping):
+    for key, value in mapping.items():
+      if value is not None:
+        os.environ[key] = value
+      else:
+        del os.environ[key]
+
+  adjust_environment(kwargs)
+  try:
+    yield
+  finally:
+    adjust_environment(existing)

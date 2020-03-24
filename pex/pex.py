@@ -43,15 +43,18 @@ class PEX(object):  # noqa: T000
   class InvalidEntryPoint(Error): pass
 
   @classmethod
-  def clean_environment(cls):
+  def _clean_environment(cls, env=None, strip_pex_env=True):
+    env = env or os.environ
+
     try:
-      del os.environ['MACOSX_DEPLOYMENT_TARGET']
+      del env['MACOSX_DEPLOYMENT_TARGET']
     except KeyError:
       pass
-    # Cannot change dictionary size during __iter__
-    filter_keys = [key for key in os.environ if key.startswith('PEX_')]
-    for key in filter_keys:
-      del os.environ[key]
+
+    if strip_pex_env:
+      for key in list(env):
+        if key.startswith('PEX_'):
+          del env[key]
 
   def __init__(self, pex=sys.argv[0], interpreter=None, env=ENV, verify_entry_point=False):
     self._pex = pex
@@ -416,7 +419,7 @@ class PEX(object):  # noqa: T000
   def _execute(self):
     force_interpreter = self._vars.PEX_INTERPRETER
 
-    self.clean_environment()
+    self._clean_environment(strip_pex_env=self._pex_info.strip_pex_env)
 
     if force_interpreter:
       TRACER.log('PEX_INTERPRETER specified, dropping into interpreter')
@@ -560,7 +563,7 @@ class PEX(object):  # noqa: T000
     cmds.extend(args)
     return cmds
 
-  def run(self, args=(), with_chroot=False, blocking=True, setsid=False, **kwargs):
+  def run(self, args=(), with_chroot=False, blocking=True, setsid=False, env=None, **kwargs):
     """Run the PythonEnvironment in an interpreter in a subprocess.
 
     :keyword args: Additional arguments to be passed to the application being invoked by the
@@ -569,10 +572,16 @@ class PEX(object):  # noqa: T000
     :keyword blocking: If true, return the return code of the subprocess.
       If false, return the Popen object of the invoked subprocess.
     :keyword setsid: If true, run the PEX in a separate operating system session.
-
+    :keyword env: An optional environment dict to use as the PEX subprocess environment. If none is
+                  passed, the ambient environment is inherited.
     Remaining keyword arguments are passed directly to subprocess.Popen.
     """
-    self.clean_environment()
+    if env is not None:
+      # If explicit env vars are passed, we don't want clean any of these.
+      env = env.copy()
+    else:
+      env = os.environ.copy()
+      self._clean_environment(env=env)
 
     cmdline = self.cmdline(args)
     TRACER.log('PEX.run invoking %s' % ' '.join(cmdline))
@@ -582,6 +591,7 @@ class PEX(object):  # noqa: T000
                                     stdin=kwargs.pop('stdin', None),
                                     stdout=kwargs.pop('stdout', None),
                                     stderr=kwargs.pop('stderr', None),
+                                    env=env,
                                     **kwargs)
     return process.wait() if blocking else process
 

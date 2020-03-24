@@ -172,6 +172,19 @@ class PexInfo(object):
     self._pex_info['zip_safe'] = bool(value)
 
   @property
+  def strip_pex_env(self):
+    """Whether or not this PEX should strip `PEX_*` env vars before executing its entrypoint.
+
+    You might want to set this to `False` if this PEX executes other PEXes or the Pex CLI itself and
+    you want the executed PEX to be controlled via PEX environment variables.
+    """
+    return self._pex_info.get('strip_pex_env', True)
+
+  @strip_pex_env.setter
+  def strip_pex_env(self, value):
+    self._pex_info['strip_pex_env'] = bool(value)
+
+  @property
   def pex_path(self):
     """A colon separated list of other pex files to merge into the runtime environment.
 
