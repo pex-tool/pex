@@ -1687,42 +1687,43 @@ def test_issues_898():
       )
 
 
-def test_pex_run_strip_env(tmpdir):
-  src_dir = os.path.join(tmpdir, 'src')
-  with safe_open(os.path.join(src_dir, 'print_pex_env.py'), 'w') as fp:
-    fp.write(dedent("""
-      import json
-      import os
+def test_pex_run_strip_env():
+  with temporary_dir() as td:
+    src_dir = os.path.join(td, 'src')
+    with safe_open(os.path.join(src_dir, 'print_pex_env.py'), 'w') as fp:
+      fp.write(dedent("""
+        import json
+        import os
 
-      print(json.dumps({k: v for k, v in os.environ.items() if k.startswith('PEX_')}))
-    """))
+        print(json.dumps({k: v for k, v in os.environ.items() if k.startswith('PEX_')}))
+      """))
 
-  pex_env = dict(PEX_ROOT=os.path.join(tmpdir, 'pex_root'))
-  env = make_env(**pex_env)
+    pex_env = dict(PEX_ROOT=os.path.join(td, 'pex_root'))
+    env = make_env(**pex_env)
 
-  stripped_pex_file = os.path.join(tmpdir, 'stripped.pex')
-  results = run_pex_command(
-    args=[
-      '--sources-directory={}'.format(src_dir),
-      '--entry-point=print_pex_env',
-      '-o', stripped_pex_file
-    ],
-  )
-  results.assert_success()
-  assert {} == json.loads(subprocess.check_output([stripped_pex_file], env=env)), (
-    'Expected the entrypoint environment to be stripped of PEX_ environment variables.'
-  )
+    stripped_pex_file = os.path.join(td, 'stripped.pex')
+    results = run_pex_command(
+      args=[
+        '--sources-directory={}'.format(src_dir),
+        '--entry-point=print_pex_env',
+        '-o', stripped_pex_file
+      ],
+    )
+    results.assert_success()
+    assert {} == json.loads(subprocess.check_output([stripped_pex_file], env=env)), (
+      'Expected the entrypoint environment to be stripped of PEX_ environment variables.'
+    )
 
-  unstripped_pex_file = os.path.join(tmpdir, 'unstripped.pex')
-  results = run_pex_command(
-    args=[
-      '--sources-directory={}'.format(src_dir),
-      '--entry-point=print_pex_env',
-      '--no-strip-pex-env',
-      '-o', unstripped_pex_file
-    ],
-  )
-  results.assert_success()
-  assert pex_env == json.loads(subprocess.check_output([unstripped_pex_file], env=env)), (
-    'Expected the entrypoint environment to be left un-stripped.'
-  )
+    unstripped_pex_file = os.path.join(td, 'unstripped.pex')
+    results = run_pex_command(
+      args=[
+        '--sources-directory={}'.format(src_dir),
+        '--entry-point=print_pex_env',
+        '--no-strip-pex-env',
+        '-o', unstripped_pex_file
+      ],
+    )
+    results.assert_success()
+    assert pex_env == json.loads(subprocess.check_output([unstripped_pex_file], env=env)), (
+      'Expected the entrypoint environment to be left un-stripped.'
+    )

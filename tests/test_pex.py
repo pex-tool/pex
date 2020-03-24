@@ -578,8 +578,8 @@ def test_pex_run_strip_env():
     pex_env = dict(PEX_MODULE='does_not_exist_in_sub_pex', PEX_ROOT=pex_root)
     with environment_as(**pex_env), temporary_dir() as pex_chroot:
       pex_builder = PEXBuilder(path=pex_chroot)
-      with tempfile.NamedTemporaryFile() as fp:
-        fp.write(dedent(b"""
+      with tempfile.NamedTemporaryFile(mode="w") as fp:
+        fp.write(dedent("""
           import json
           import os
 
@@ -591,7 +591,7 @@ def test_pex_run_strip_env():
 
       stdout, returncode = run_simple_pex(pex_chroot)
       assert 0 == returncode
-      assert {} == json.loads(stdout), (
+      assert {} == json.loads(stdout.decode('utf-8')), (
         'Expected the entrypoint environment to be stripped of PEX_ environment variables.'
       )
       assert pex_env == {k: v for k, v in os.environ.items() if k.startswith("PEX_")}, (
