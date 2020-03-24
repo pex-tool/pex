@@ -310,8 +310,10 @@ def configure_clp_pex_options(parser):
       default=True,
       action='callback',
       callback=parse_bool,
-      help='Strip all `PEX_*` environment variables used to control the PEX runtime before handing '
-           'off control to the PEX entrypoint. [Default: %default]')
+      help='Strip all `PEX_*` environment variables used to control the pex runtime before handing '
+           'off control to the pex entrypoint. You might want to set this to `False` if the new '
+           'pex executes other pexes (or the Pex CLI itself and you want the executed pex to be '
+           'controllable via `PEX_*` environment variables. [Default: %default]')
 
   parser.add_option_group(group)
 
