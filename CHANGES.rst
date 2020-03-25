@@ -1,7 +1,45 @@
 Release Notes
 =============
 
-2.1.5
+2.1.7
+-----
+
+This release brings more robust control of the Pex cache (PEX_ROOT).
+
+The `--cache-dir` setting is deprecated in favor of build time control of the cache location with
+`--pex-root` and new support for control of the cache's runtime location with `--runtime-pex-root`
+is added. As in the past, the `PEX_ROOT` environment variable can still be used to control the
+cache's runtime location.
+
+Unlike in the past, the [Pex PEX](https://github.com/pantsbuild/pex/releases/download/v2.1.7/pex)
+we release can now also be controlled via the `PEX_ROOT` environment variable. Consult the CLI help
+for `--no-strip-pex-env` to find out more.
+
+* Sanitize PEX_ROOT handling. (#929)
+  `PR #929 <https://github.com/pantsbuild/pex/pull/929>`_
+
+* Fix `PEX_*` env stripping and allow turning off. (#932)
+  `PR #932 <https://github.com/pantsbuild/pex/pull/932>`_
+
+* Remove second urllib import from compatibility (#931)
+  `PR #931 <https://github.com/pantsbuild/pex/pull/931>`_
+
+* Adding `--runtime-pex-root` option. (#780)
+  `PR #780 <https://github.com/pantsbuild/pex/pull/780>`_
+
+* Improve interpreter not found error messages. (#928)
+  `PR #928 <https://github.com/pantsbuild/pex/pull/928>`_
+
+* Add detail in interpreter selection error message. (#927)
+  `PR #927 <https://github.com/pantsbuild/pex/pull/927>`_
+
+* Respect `Requires-Python` in `PEXEnvironment`. (#923)
+  `PR #923 <https://github.com/pantsbuild/pex/pull/923>`_
+
+* Pin our tox version in CI for stability. (#924)
+  `PR #924 <https://github.com/pantsbuild/pex/pull/924>`_
+
+2.1.6
 -----
 
 * Don't delete the root __init__.py when devendoring. (#915)
