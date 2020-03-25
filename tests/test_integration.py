@@ -15,7 +15,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex.common import safe_copy, safe_mkdir, safe_open, safe_sleep, temporary_dir
+from pex.common import safe_copy, safe_mkdir, safe_open, safe_rmtree, safe_sleep, temporary_dir
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
@@ -39,7 +39,7 @@ from pex.testing import (
     temporary_content
 )
 from pex.third_party import pkg_resources
-from pex.util import named_temporary_file
+from pex.util import DistributionHelper, named_temporary_file
 
 
 def make_env(**kwargs):
@@ -1727,3 +1727,79 @@ def test_pex_run_strip_env():
     assert pex_env == json.loads(subprocess.check_output([unstripped_pex_file], env=env)), (
       'Expected the entrypoint environment to be left un-stripped.'
     )
+
+
+def iter_distributions(pex_root, project_name=None):
+  found = set()
+  for root, dirs, _ in os.walk(pex_root):
+    for d in dirs:
+      if project_name and not d.startswith(project_name):
+        continue
+      if not d.endswith('.whl'):
+        continue
+      wheel_path = os.path.realpath(os.path.join(root, d))
+      if wheel_path in found:
+        continue
+      dist = DistributionHelper.distribution_from_path(wheel_path)
+      if dist.project_name == project_name:
+        found.add(wheel_path)
+        yield dist
+
+
+def test_pex_cache_dir_and_pex_root():
+  python = ensure_python_interpreter(PY36)
+  with temporary_dir() as td:
+    cache_dir = os.path.join(td, 'cache_dir')
+    pex_root = os.path.join(td, 'pex_root')
+
+    # When the options both have the same value it should be accepted.
+    pex_file = os.path.join(td, 'pex_file')
+    run_pex_command(
+      python=python,
+      args=[
+        '--cache-dir', cache_dir,
+        '--pex-root', cache_dir,
+        'p537==1.0.3',
+        '-o', pex_file
+      ]
+    ).assert_success()
+
+    dists = list(iter_distributions(pex_root=cache_dir, project_name='p537'))
+    assert 1 == len(dists), (
+      'Expected to find exactly one distribution, found {}'.format(dists)
+    )
+
+    for directory in cache_dir, pex_root:
+      safe_rmtree(directory)
+
+    # When the options have conflicting values they should be rejected.
+    run_pex_command(
+      python=python,
+      args=[
+        '--cache-dir', cache_dir,
+        '--pex-root', pex_root,
+        'p537==1.0.3',
+        '-o', pex_file
+      ]
+    ).assert_failure()
+
+    assert not os.path.exists(cache_dir)
+    assert not os.path.exists(pex_root)
+
+
+def test_disable_cache():
+  python = ensure_python_interpreter(PY36)
+  with temporary_dir() as td:
+    pex_root = os.path.join(td, 'pex_root')
+    pex_file = os.path.join(td, 'pex_file')
+    run_pex_command(
+      python=python,
+      args=[
+        '--disable-cache',
+        'p537==1.0.3',
+        '-o', pex_file
+      ],
+      env=make_env(PEX_ROOT=pex_root)
+    ).assert_success()
+
+    assert not os.path.exists(pex_root)

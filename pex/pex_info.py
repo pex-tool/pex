@@ -7,7 +7,7 @@ import json
 import os
 
 from pex import pex_warnings
-from pex.common import open_zip
+from pex.common import can_write_dir, open_zip, safe_mkdtemp
 from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
 from pex.orderedset import OrderedSet
@@ -295,7 +295,14 @@ class PexInfo(object):
 
   @property
   def pex_root(self):
-    return os.path.expanduser(self._pex_info.get('pex_root', os.path.join('~', '.pex')))
+    pex_root = os.path.expanduser(self._pex_info.get('pex_root', os.path.join('~', '.pex')))
+    if not can_write_dir(pex_root):
+      tmp_root = safe_mkdtemp()
+      pex_warnings.warn('PEX_ROOT is configured as {pex_root} but that path is un-writeable, '
+                        'falling back to a temporary PEX_ROOT of {tmp_root} which will hurt '
+                        'performance.'.format(pex_root=pex_root, tmp_root=tmp_root))
+      pex_root = self._pex_info['pex_root'] = tmp_root
+    return pex_root
 
   @pex_root.setter
   def pex_root(self, value):

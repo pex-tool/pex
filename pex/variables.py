@@ -10,7 +10,8 @@ import os
 import sys
 from contextlib import contextmanager
 
-from pex.common import die
+from pex import pex_warnings
+from pex.common import can_write_dir, die, safe_mkdtemp
 
 __all__ = ('ENV', 'Variables')
 
@@ -269,7 +270,20 @@ class Variables(object):
     The directory location for PEX to cache any dependencies and code.  PEX must write
     not-zip-safe eggs and all wheels to disk in order to activate them.  Default: ~/.pex
     """
-    return self._get_path('PEX_ROOT', default=os.path.expanduser('~/.pex'))
+    pex_root = self._get_path('PEX_ROOT', default=os.path.expanduser('~/.pex'))
+
+    if pex_root is None:
+      # PEX_ROOT is not set and we're running in stripped_defaults mode.
+      return None
+
+    if not can_write_dir(pex_root):
+      tmp_root = os.path.realpath(safe_mkdtemp())
+      pex_warnings.warn('PEX_ROOT is configured as {pex_root} but that path is un-writeable, '
+                        'falling back to a temporary PEX_ROOT of {tmp_root} which will hurt '
+                        'performance.'.format(pex_root=pex_root, tmp_root=tmp_root))
+      pex_root = self._environ['PEX_ROOT'] = tmp_root
+
+    return pex_root
 
   @property
   def PEX_PATH(self):

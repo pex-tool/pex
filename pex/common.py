@@ -329,6 +329,27 @@ def chmod_plus_w(path):
   os.chmod(path, path_mode)
 
 
+def can_write_dir(path):
+  """Determines if the directory at path can be written to by the current process.
+
+  If the directory doesn't exist, determines if it can be created and thus written to.
+
+  N.B.: This is a best-effort check only that uses permission heuristics and does not actually test
+  that the directory can be written to with and writes.
+
+  :param str path: The directory path to test.
+  :return: `True` if the given path is a directory that can be written to by the current process.
+  :rtype boo:
+  """
+  while not os.access(path, os.F_OK):
+    parent_path = os.path.dirname(path)
+    if not parent_path or (parent_path == path):
+      # We've recursed up to the root without success, which shouldn't happen,
+      return False
+    path = parent_path
+  return os.path.isdir(path) and os.access(path, os.R_OK | os.W_OK | os.X_OK)
+
+
 def touch(file, times=None):
   """Equivalent of unix `touch path`.
 

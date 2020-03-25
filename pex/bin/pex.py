@@ -13,6 +13,7 @@ import sys
 from optparse import OptionGroup, OptionParser, OptionValueError
 from textwrap import TextWrapper
 
+from pex import pex_warnings
 from pex.common import die, safe_delete, safe_mkdtemp
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import (
@@ -170,17 +171,18 @@ def configure_clp_pex_resolution(parser):
 
   group.add_option(
       '--disable-cache',
-      action='callback',
-      dest='cache_dir',
-      callback=process_disable_cache,
+      dest='disable_cache',
+      default=False,
+      action='store_true',
       help='Disable caching in the pex tool entirely.')
 
   group.add_option(
       '--cache-dir',
       dest='cache_dir',
-      default='{pex_root}',
-      help='The local cache directory to use for speeding up requirement '
-           'lookups. [Default: ~/.pex]')
+      default=None,
+      help='DEPRECATED: Use --pex-root instead. '
+           'The local cache directory to use for speeding up requirement '
+           'lookups. [Default: {}]'.format(ENV.PEX_ROOT))
 
   group.add_option(
       '--wheel', '--no-wheel', '--no-use-wheel',
@@ -502,8 +504,9 @@ def configure_clp():
   parser.add_option(
       '--pex-root',
       dest='pex_root',
-      default=ENV.PEX_ROOT,
-      help='Specify the pex root used in this invocation of pex. [Default: %default]')
+      default=None,
+      help='Specify the pex root used in this invocation of pex. '
+           '[Default: {}]'.format(ENV.PEX_ROOT))
 
   parser.add_option(
       '--help-variables',
@@ -523,7 +526,7 @@ def _safe_link(src, dst):
   os.symlink(src, dst)
 
 
-def build_pex(reqs, options):
+def build_pex(reqs, options, cache=None):
   interpreters = None  # Default to the current interpreter.
 
   # NB: options.python and interpreter constraints cannot be used together.
@@ -607,7 +610,7 @@ def build_pex(reqs, options):
                                 platforms=options.platforms,
                                 indexes=indexes,
                                 find_links=options.find_links,
-                                cache=options.cache_dir,
+                                cache=cache,
                                 build=options.build,
                                 use_wheel=options.use_wheel,
                                 compile=options.compile,
@@ -635,11 +638,6 @@ def build_pex(reqs, options):
     pex_builder.set_shebang(options.python_shebang)
 
   return pex_builder
-
-
-def make_relative_to_root(path):
-  """Update options so that defaults are user relative to specified pex_root."""
-  return os.path.normpath(path.format(pex_root=ENV.PEX_ROOT))
 
 
 def transform_legacy_arg(arg):
@@ -670,18 +668,35 @@ def main(args=None):
     args, cmdline = args, []
 
   options, reqs = parser.parse_args(args=args)
+
+  if options.cache_dir:
+    pex_warnings.warn('The --cache-dir option is deprecated, use --pex-root instead.')
+    if options.pex_root and options.cache_dir != options.pex_root:
+      die('Both --cache-dir and --pex-root were passed with conflicting values. '
+          'Just set --pex-root.')
+
+  if options.disable_cache:
+    def warn_ignore_pex_root(set_via):
+      pex_warnings.warn('The pex root has been set via {via} but --disable-cache is also set. '
+                        'Ignoring {via} and disabling caches.'.format(via=set_via))
+
+    if options.cache_dir:
+      warn_ignore_pex_root('--cache-dir')
+    elif options.pex_root:
+      warn_ignore_pex_root('--pex-root')
+    elif os.environ.get('PEX_ROOT'):
+      warn_ignore_pex_root('PEX_ROOT')
+
+    pex_root = safe_mkdtemp()
+  else:
+    pex_root = options.cache_dir or options.pex_root or ENV.PEX_ROOT
+
   if options.python and options.interpreter_constraint:
     die('The "--python" and "--interpreter-constraint" options cannot be used together.')
 
-  with ENV.patch(PEX_VERBOSE=str(options.verbosity),
-                 PEX_ROOT=options.pex_root) as patched_env:
-
-    # Don't alter cache if it is disabled.
-    if options.cache_dir:
-      options.cache_dir = make_relative_to_root(options.cache_dir)
-
+  with ENV.patch(PEX_VERBOSE=str(options.verbosity), PEX_ROOT=pex_root) as patched_env:
     with TRACER.timed('Building pex'):
-      pex_builder = build_pex(reqs, options)
+      pex_builder = build_pex(reqs, options, cache=ENV.PEX_ROOT)
 
     pex_builder.freeze(bytecode_compile=options.compile)
     pex = PEX(pex_builder.path(),
