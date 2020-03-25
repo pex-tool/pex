@@ -273,7 +273,7 @@ class Variables(object):
     pex_root = self._get_path('PEX_ROOT', default=os.path.expanduser('~/.pex'))
 
     if pex_root is None:
-      # PEX_ROOT is no set and we're running in stripped_defaults mode.
+      # PEX_ROOT is not set and we're running in stripped_defaults mode.
       return None
 
     if not can_write_dir(pex_root):
