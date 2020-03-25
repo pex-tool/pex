@@ -157,4 +157,4 @@ def test_pex_root_unwriteable():
     message = log[0].message
     assert isinstance(message, PEXWarning)
     assert pex_root in str(message)
-    assert env.PEX_ROOT in str(message)
+    assert os.path.realpath(env.PEX_ROOT) in str(message)
