@@ -108,6 +108,10 @@ def iter_vendor_specs():
   # We expose this to pip at buildtime for legacy builds.
   yield VendorSpec.pinned('wheel', '0.33.6', rewrite=False)
 
+  # Transitively vendored because pkg_resources depends on them:
+  yield VendorSpec.pinned('six', '1.14.0')
+  yield VendorSpec.pinned('appdirs', '1.4.3')
+
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
   """Includes portions of vendored distributions in a chroot.

@@ -370,7 +370,7 @@ class PEXBuilder(object):
                           # NB: We use pip here in the builder, but that's only at buildtime and
                           # although we don't use pyparsing directly, packaging.markers, which we
                           # do use at runtime, does.
-                          root_module_names=['packaging', 'pkg_resources', 'pyparsing'])
+                          root_module_names=['packaging', 'pkg_resources', 'pyparsing', 'six', 'appdirs'])
 
     source_name = 'pex'
     provider = get_provider(source_name)

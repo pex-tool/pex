@@ -105,13 +105,32 @@ class ImportRewriter(object):
         first_argument = call_node[0]
         raw_value = self._find_literal_node(parent, first_argument)
         if raw_value:
-          value = raw_value.to_python()
+          original_value = raw_value.to_python()
+          value = original_value
           root_package = value.split('.')[0]
           if root_package in self._packages:
-            raw_value.replace('{!r}'.format(self._prefix + '.' + value))
+            value = self._prefix + '.' + value
 
+          value = self._revendor(value)
+          if value != original_value:
+            raw_value.replace('{!r}'.format(value))
             parent.replace(self._modify_import(original, parent))
             yield original, parent
+
+  def _revendor(self, value):
+    """Re-vendors transitively vendored imports to our vendored versions.
+
+    Some of our transitively vendored imports are incredibly expensive to import. Rather than
+    importing multiple versions of them, we canonicalize all of these imports to the version we
+    ourselves vendor, so that we only have to process the imports one time.
+    """
+    return (
+      value
+        .replace("pex.third_party.setuptools.extern", "pex.third_party")
+        .replace('pex.third_party.pkg_resources.extern', 'pex.third_party')
+        # TODO: This shouldn't be necessary, investigate why it is (ideally before merging)
+        .replace('pex.third_party.six', 'pex.vendor._vendored.six.six')
+    )
 
   def _modify_import_statements(self, red_baron):
     for import_node in red_baron.find_all('ImportNode'):
@@ -122,8 +141,6 @@ class ImportRewriter(object):
       original = import_node.copy()
       for index, import_module in enumerate(import_node):
         root_package = import_module[0]
-        if root_package.value not in self._packages:
-          continue
 
         # We need to handle 4 possible cases:
         # 1. a -> pex.third_party.a as a
@@ -143,21 +160,36 @@ class ImportRewriter(object):
         # imported). This ensures the code can traverse from the re-named root - `a` in this
         # example, through middle nodes (`a.b`) all the way to the leaf target (`a.b.c`).
 
-        modified = True
         def prefixed_fullname():
           return '{prefix}.{module}'.format(prefix=self._prefix,
                                             module='.'.join(map(str, import_module)))
 
         if import_module.target:  # Cases 3 and 4.
-          import_module.value = prefixed_fullname()
+          old_value = '.'.join(map(str, import_module))
+          new_value = old_value
+          if root_package.value in self._packages:
+            new_value = prefixed_fullname()
+          new_value = self._revendor(new_value)
+          if old_value != new_value:
+            modified = True
+            import_module.value = new_value
         else:
           if len(import_module) > 1:  # Case 2.
-            import_node.insert(index, prefixed_fullname())
+            if root_package.value in self._packages:
+              to_insert = self._revendor(prefixed_fullname())
+              import_node.insert(index, to_insert)
+              modified = True
 
           # Cases 1 and 2.
-          import_module.value = '{prefix}.{root}'.format(prefix=self._prefix,
-                                                         root=root_package.value)
-          import_module.target = root_package.value
+          old_target = root_package.value
+          new_target = old_target
+          if old_target in self._packages:
+            new_target = '{prefix}.{target}'.format(prefix=self._prefix, target=old_target)
+          new_target = self._revendor(new_target)
+          if old_target != new_target:
+            modified = True
+            import_module.value = new_target
+            import_module.target = root_package.value
 
       if modified:
         import_node.replace(self._modify_import(original, import_node))
@@ -175,10 +207,14 @@ class ImportRewriter(object):
 
       original = from_import_node.copy()
       root_package = from_import_node[0]
+      old_path = '.'.join(map(str, from_import_node))
+      new_path = old_path
       if root_package.value in self._packages:
-        root_package.replace('{prefix}.{root}'.format(prefix=self._prefix,
-                                                      root=root_package.value))
+        new_path = '{prefix}.{new_path}'.format(prefix=self._prefix, new_path=new_path)
 
+      new_path = self._revendor(new_path)
+      if old_path != new_path:
+        from_import_node.value = new_path
         from_import_node.replace(self._modify_import(original, from_import_node))
         yield original, from_import_node
 
