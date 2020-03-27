@@ -7,7 +7,7 @@ import distutils.extension
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves import map  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import map
+  from pex.vendor._vendored.six.six.moves import map
 
 
 from .monkey import get_unpatched

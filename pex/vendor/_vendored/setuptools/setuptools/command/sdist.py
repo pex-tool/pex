@@ -8,7 +8,7 @@ import contextlib
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern import six, ordered_set  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six, ordered_set
+  from pex.third_party import six, ordered_set
 
 
 from .py36compat import sdist_add_defaults

@@ -7,7 +7,7 @@ import functools
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves import urllib, http_client, map, filter  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import urllib, http_client, map, filter
+  from pex.vendor._vendored.six.six.moves import urllib, http_client, map, filter
 
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:

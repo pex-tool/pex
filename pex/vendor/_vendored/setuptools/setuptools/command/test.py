@@ -11,12 +11,12 @@ from unittest import TestLoader
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+  from pex.third_party import six
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves import map, filter  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import map, filter
+  from pex.vendor._vendored.six.six.moves import map, filter
 
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:

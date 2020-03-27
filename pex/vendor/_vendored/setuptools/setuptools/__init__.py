@@ -15,12 +15,12 @@ from ._deprecation_warning import SetuptoolsDeprecationWarning
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six import PY3, string_types  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six import PY3, string_types
+  from pex.vendor._vendored.six.six import PY3, string_types
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves import filter, map  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import filter, map
+  from pex.vendor._vendored.six.six.moves import filter, map
 
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:

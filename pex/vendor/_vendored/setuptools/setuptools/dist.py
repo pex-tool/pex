@@ -28,22 +28,22 @@ from distutils.version import StrictVersion
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+  from pex.third_party import six
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern import packaging  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import packaging
+  from pex.third_party import packaging
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern import ordered_set  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import ordered_set
+  from pex.third_party import ordered_set
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves import map, filter, filterfalse  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import map, filter, filterfalse
+  from pex.vendor._vendored.six.six.moves import map, filter, filterfalse
 
 
 from . import SetuptoolsDeprecationWarning
@@ -77,12 +77,12 @@ else:
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   __import__('setuptools.extern.packaging.specifiers')  # vendor:skip
 else:
-  __import__('pex.third_party.setuptools.extern.packaging.specifiers')
+  __import__('pex.third_party.packaging.specifiers')
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   __import__('setuptools.extern.packaging.version')  # vendor:skip
 else:
-  __import__('pex.third_party.setuptools.extern.packaging.version')
+  __import__('pex.third_party.packaging.version')
 
 
 
@@ -615,7 +615,7 @@ class Distribution(_Distribution):
         if "__PEX_UNVENDORED__" in __import__("os").environ:
           from setuptools.extern.six.moves.configparser import ConfigParser  # vendor:skip
         else:
-          from pex.third_party.setuptools.extern.six.moves.configparser import ConfigParser
+          from pex.vendor._vendored.six.six.moves.configparser import ConfigParser
 
 
         # Ignore install directory options if we have a venv

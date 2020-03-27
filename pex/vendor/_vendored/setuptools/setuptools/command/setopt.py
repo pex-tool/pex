@@ -7,7 +7,7 @@ import os
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves import configparser  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import configparser
+  from pex.vendor._vendored.six.six.moves import configparser
 
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:

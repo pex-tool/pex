@@ -6,7 +6,7 @@ from distutils.command import sdist
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves import filter  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import filter
+  from pex.vendor._vendored.six.six.moves import filter
 
 
 

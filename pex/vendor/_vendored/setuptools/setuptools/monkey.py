@@ -13,7 +13,7 @@ import inspect
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+  from pex.third_party import six
 
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:

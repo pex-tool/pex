@@ -27,17 +27,17 @@ else:
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.packaging.tags import sys_tags  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.packaging.tags import sys_tags
+  from pex.third_party.packaging.tags import sys_tags
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.packaging.utils import canonicalize_name  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.packaging.utils import canonicalize_name
+  from pex.third_party.packaging.utils import canonicalize_name
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six import PY3  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six import PY3
+  from pex.vendor._vendored.six.six import PY3
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.command.egg_info import write_requirements  # vendor:skip

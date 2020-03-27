@@ -14,17 +14,17 @@ from distutils.errors import DistutilsOptionError, DistutilsFileError
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.packaging.version import LegacyVersion, parse  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.packaging.version import LegacyVersion, parse
+  from pex.third_party.packaging.version import LegacyVersion, parse
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.packaging.specifiers import SpecifierSet  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.packaging.specifiers import SpecifierSet
+  from pex.third_party.packaging.specifiers import SpecifierSet
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six import string_types, PY3  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six import string_types, PY3
+  from pex.vendor._vendored.six.six import string_types, PY3
 
 
 

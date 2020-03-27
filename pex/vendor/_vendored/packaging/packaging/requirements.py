@@ -24,7 +24,7 @@ else:
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from six.moves.urllib import parse as urlparse  # vendor:skip
 else:
-  from pex.third_party.six.moves.urllib import parse as urlparse
+  from pex.vendor._vendored.six.six.moves.urllib import parse as urlparse
 
 
 from .markers import MARKER_EXPR, Marker

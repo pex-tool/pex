@@ -57,12 +57,12 @@ except NameError:
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from pkg_resources.extern import six  # vendor:skip
 else:
-  from pex.third_party.pkg_resources.extern import six
+  from pex.third_party import six
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from pkg_resources.extern.six.moves import urllib, map, filter  # vendor:skip
 else:
-  from pex.third_party.pkg_resources.extern.six.moves import urllib, map, filter
+  from pex.vendor._vendored.six.six.moves import urllib, map, filter
 
 
 # capture these to bypass sandboxing
@@ -88,32 +88,32 @@ from . import py31compat
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from pkg_resources.extern import appdirs  # vendor:skip
 else:
-  from pex.third_party.pkg_resources.extern import appdirs
+  from pex.third_party import appdirs
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from pkg_resources.extern import packaging  # vendor:skip
 else:
-  from pex.third_party.pkg_resources.extern import packaging
+  from pex.third_party import packaging
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   __import__('pkg_resources.extern.packaging.version')  # vendor:skip
 else:
-  __import__('pex.third_party.pkg_resources.extern.packaging.version')
+  __import__('pex.third_party.packaging.version')
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   __import__('pkg_resources.extern.packaging.specifiers')  # vendor:skip
 else:
-  __import__('pex.third_party.pkg_resources.extern.packaging.specifiers')
+  __import__('pex.third_party.packaging.specifiers')
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   __import__('pkg_resources.extern.packaging.requirements')  # vendor:skip
 else:
-  __import__('pex.third_party.pkg_resources.extern.packaging.requirements')
+  __import__('pex.third_party.packaging.requirements')
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   __import__('pkg_resources.extern.packaging.markers')  # vendor:skip
 else:
-  __import__('pex.third_party.pkg_resources.extern.packaging.markers')
+  __import__('pex.third_party.packaging.markers')
 
 
 

@@ -52,12 +52,12 @@ else:
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern import six  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern import six
+  from pex.third_party import six
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from setuptools.extern.six.moves import configparser, map  # vendor:skip
 else:
-  from pex.third_party.setuptools.extern.six.moves import configparser, map
+  from pex.vendor._vendored.six.six.moves import configparser, map
 
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
