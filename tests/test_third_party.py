@@ -24,20 +24,27 @@ def temporary_pex_root():
 
 def test_isolated_pex_root():
   with temporary_pex_root() as (pex_root, _):
-    devendored_chroot = os.path.realpath(third_party.isolated())
+    devendored_chroot = os.path.realpath(third_party.isolated().chroot_path)
     assert pex_root == os.path.commonprefix([pex_root, devendored_chroot])
 
 
 def test_isolated_idempotent_inprocess():
   with temporary_pex_root():
-    assert os.path.realpath(third_party.isolated()) == os.path.realpath(third_party.isolated())
+    result1 = third_party.isolated()
+    result2 = third_party.isolated()
+    assert result1.pex_hash == result2.pex_hash
+    assert os.path.realpath(result1.chroot_path) == os.path.realpath(result2.chroot_path)
 
 
 def test_isolated_idempotent_subprocess():
   with temporary_pex_root() as (_, env):
-    devendored_chroot = os.path.realpath(third_party.isolated())
+    devendored_chroot = os.path.realpath(third_party.isolated().chroot_path)
     stdout = subprocess.check_output(
-      args=[sys.executable, '-c', 'from pex.third_party import isolated; print(isolated())'],
+      args=[
+        sys.executable,
+        '-c',
+        'from pex import third_party; print(third_party.isolated().chroot_path)'
+      ],
       env=env
     )
     assert devendored_chroot == os.path.realpath(stdout.decode('utf-8').strip())
