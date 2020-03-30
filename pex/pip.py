@@ -9,46 +9,51 @@ from collections import deque
 from textwrap import dedent
 
 from pex import third_party
+from pex.common import atomic_directory
 from pex.compatibility import urlparse
 from pex.distribution_target import DistributionTarget
 from pex.jobs import Job
+from pex.third_party import isolated
 from pex.tracer import TRACER
 from pex.variables import ENV
 
 
 class Pip(object):
   @classmethod
-  def create(cls, path=None):
+  def create(cls, path):
     """Creates a pip tool with PEX isolation at path.
 
-    :param str path: The path to build the pip tool pex at; a temporary directory by default.
+    :param str path: The path to build the pip tool pex at.
     """
-    from pex.pex_builder import PEXBuilder
+    pip_pex_path = os.path.join(path, isolated().pex_hash)
+    with atomic_directory(pip_pex_path) as chroot:
+      if chroot is not None:
+        from pex.pex_builder import PEXBuilder
 
-    isolated_pip_builder = PEXBuilder(path=path)
-    pythonpath = third_party.expose(['pip', 'setuptools', 'wheel'])
-    isolated_pip_environment = third_party.pkg_resources.Environment(search_path=pythonpath)
-    for dist_name in isolated_pip_environment:
-      for dist in isolated_pip_environment[dist_name]:
-        isolated_pip_builder.add_dist_location(dist=dist.location)
-    with open(os.path.join(isolated_pip_builder.path(), 'run_pip.py'), 'w') as fp:
-      fp.write(dedent("""\
-        import os
-        import runpy
-        import sys
+        isolated_pip_builder = PEXBuilder(path=chroot)
+        pythonpath = third_party.expose(['pip', 'setuptools', 'wheel'])
+        isolated_pip_environment = third_party.pkg_resources.Environment(search_path=pythonpath)
+        for dist_name in isolated_pip_environment:
+          for dist in isolated_pip_environment[dist_name]:
+            isolated_pip_builder.add_dist_location(dist=dist.location)
+        with open(os.path.join(isolated_pip_builder.path(), 'run_pip.py'), 'w') as fp:
+          fp.write(dedent("""\
+            import os
+            import runpy
+            import sys
 
 
-        # Propagate un-vendored setuptools to pip for any legacy setup.py builds it needs to
-        # perform.
-        os.environ['__PEX_UNVENDORED__'] = '1'
-        os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
+            # Propagate un-vendored setuptools to pip for any legacy setup.py builds it needs to
+            # perform.
+            os.environ['__PEX_UNVENDORED__'] = '1'
+            os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
 
-        runpy.run_module('pip', run_name='__main__')
-      """))
-    isolated_pip_builder.set_executable(fp.name)
-    isolated_pip_builder.freeze()
+            runpy.run_module('pip', run_name='__main__')
+          """))
+        isolated_pip_builder.set_executable(fp.name)
+        isolated_pip_builder.freeze()
 
-    return cls(isolated_pip_builder.path())
+    return cls(pip_pex_path)
 
   def __init__(self, pip_pex_path):
     self._pip_pex_path = pip_pex_path
@@ -253,5 +258,5 @@ def get_pip():
   """Returns a lazily instantiated global Pip object that is safe for un-coordinated use."""
   global _PIP
   if _PIP is None:
-    _PIP = Pip.create()
+    _PIP = Pip.create(path=os.path.join(ENV.PEX_ROOT, 'pip.pex'))
   return _PIP

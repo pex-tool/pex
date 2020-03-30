@@ -322,6 +322,10 @@ class VendorImporter(object):
                     importables=self._importables))
 
 
+class IsolationResult(namedtuple('IsolatedPex', ['pex_hash', 'chroot_path'])):
+  """The result of isolating the current pex distribution to a filesystem chroot."""
+
+
 _ISOLATED = None
 
 
@@ -333,8 +337,8 @@ def isolated():
   distributions. An isolated chroot can be used as a ``sys.path`` entry to effect only the exposure
   of pex.
 
-  :return: The path of the chroot.
-  :rtype: str
+  :return: An isolation result.
+  :rtype: :class:`IsolationResult`
   """
   global _ISOLATED
   if _ISOLATED is None:
@@ -358,14 +362,17 @@ def isolated():
             shutil.copyfileobj(resource_stream(module, src_entry), fp)
 
     pex_path = os.path.join(vendor.VendorSpec.ROOT, 'pex')
+    with _tracer().timed('Hashing pex'):
+      dir_hash = CacheHelper.dir_hash(pex_path)
+    isolated_dir = os.path.join(ENV.PEX_ROOT, 'isolated', dir_hash)
+
     with _tracer().timed('Isolating pex'):
-      isolated_dir = os.path.join(ENV.PEX_ROOT, 'isolated', CacheHelper.dir_hash(pex_path))
       with atomic_directory(isolated_dir) as chroot:
         if chroot:
           with _tracer().timed('Extracting pex to {}'.format(isolated_dir)):
             recursive_copy('', os.path.join(chroot, 'pex'))
 
-    _ISOLATED = isolated_dir
+    _ISOLATED = IsolationResult(pex_hash=dir_hash, chroot_path=isolated_dir)
   return _ISOLATED
 
 
@@ -439,7 +446,7 @@ def expose(dists):
   :raise: :class:`ValueError` if any distributions to expose cannot be found.
   :returns: An iterator of exposed vendored distribution chroot paths.
   """
-  for path in VendorImporter.expose(dists, root=isolated()):
+  for path in VendorImporter.expose(dists, root=isolated().chroot_path):
     yield path
 
 
