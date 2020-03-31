@@ -245,9 +245,21 @@ def configure_clp_pex_options(parser):
       default=True,
       action='callback',
       callback=parse_bool,
-      help='Whether or not the sources in the pex file are zip safe.  If they are '
-           'not zip safe, they will be written to disk prior to execution; '
-           'Default: zip safe.')
+      help='Whether or not the sources in the pex file are zip safe.  If they are not zip safe, '
+           'they will be written to disk prior to execution. Also see --unzip which will cause the '
+           'complete pex file, including dependencies, to be unzipped.'
+           '[Default: zip safe.]')
+
+  group.add_option(
+    '--unzip', '--no-unzip',
+    dest='unzip',
+    default=False,
+    action='callback',
+    callback=parse_bool,
+    help='Whether or not the pex file should be unzipped before executing it. If the pex file will '
+         'be run multiple times under a stable runtime PEX_ROOT the unzipping will only be '
+         'performed once and subsequent runs will enjoy lower startup latency. '
+         '[Default: do not unzip.]')
 
   group.add_option(
       '--always-write-cache',
@@ -583,6 +595,7 @@ def build_pex(reqs, options, cache=None):
 
   pex_info = pex_builder.info
   pex_info.zip_safe = options.zip_safe
+  pex_info.unzip = options.unzip
   pex_info.pex_path = options.pex_path
   pex_info.always_write_cache = options.always_write_cache
   pex_info.ignore_errors = options.ignore_errors

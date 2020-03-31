@@ -26,6 +26,33 @@ BOOTSTRAP_ENVIRONMENT = """
 import os
 import sys
 
+
+def __maybe_run_unzipped__(pex_zip):
+  from pex.pex_info import PexInfo
+  pex_info = PexInfo.from_pex(pex_zip)
+  pex_info.update(PexInfo.from_env())
+  if not pex_info.unzip:
+    return
+
+  import hashlib
+  from pex.common import atomic_directory, open_zip
+  from pex.tracer import TRACER
+  from pex.variables import ENV
+
+  with TRACER.timed('Checking extraction for {{}}'.format(pex_zip)):
+    hasher = hashlib.sha1()
+    with open(pex_zip, 'rb') as fp:
+      hasher.update(fp.read())
+  unzip_to = os.path.join(pex_info.pex_root, 'unzipped_pexes', hasher.hexdigest())
+  with atomic_directory(unzip_to) as chroot:
+    if chroot:
+      with TRACER.timed('Extracting {{}} to {{}}'.format(pex_zip, unzip_to)):
+        with open_zip(pex_zip) as zip:
+          zip.extractall(chroot)
+  TRACER.log('Executing unzipped pex for {{}} at {{}}'.format(pex_zip, unzip_to))
+  os.execv(sys.executable, [sys.executable, unzip_to] + sys.argv[1:])
+
+
 __entry_point__ = None
 if '__file__' in locals() and __file__ is not None:
   __entry_point__ = os.path.dirname(__file__)
@@ -42,6 +69,10 @@ if __entry_point__ is None:
 
 sys.path[0] = os.path.abspath(sys.path[0])
 sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, {bootstrap_dir!r})))
+
+import zipfile
+if zipfile.is_zipfile(__entry_point__):
+  __maybe_run_unzipped__(__entry_point__)
 
 from pex.third_party import VendorImporter
 VendorImporter.install(uninstallable=False,
