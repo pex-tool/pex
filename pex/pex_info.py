@@ -172,6 +172,19 @@ class PexInfo(object):
     self._pex_info['zip_safe'] = bool(value)
 
   @property
+  def unzip(self):
+    """Whether or not PEX should be unzipped before it's executed.
+
+    Unzipping a PEX is a operation that can be cached on the 1st run of a given PEX file which can
+    result in lower startup latency in subsequent runs.
+    """
+    return self._pex_info.get('unzip', False)
+
+  @unzip.setter
+  def unzip(self, value):
+    self._pex_info['unzip'] = bool(value)
+
+  @property
   def strip_pex_env(self):
     """Whether or not this PEX should strip `PEX_*` env vars before executing its entrypoint.
 
