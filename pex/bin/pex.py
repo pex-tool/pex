@@ -533,7 +533,7 @@ def build_pex(reqs, options, cache=None):
   if options.python:
     with TRACER.timed('Resolving interpreters', V=2):
       def to_python_interpreter(full_path_or_basename):
-        if os.path.exists(full_path_or_basename):
+        if os.path.isfile(full_path_or_basename):
           return PythonInterpreter.from_binary(full_path_or_basename)
         else:
           interpreter = PythonInterpreter.from_env(full_path_or_basename)
