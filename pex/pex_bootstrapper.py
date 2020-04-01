@@ -233,6 +233,7 @@ def maybe_reexec_pex(compatibility_constraints=None):
 def _bootstrap(entry_point):
   from .pex_info import PexInfo
   pex_info = PexInfo.from_pex(entry_point)
+  pex_info.update(PexInfo.from_env())
   pex_warnings.configure_warnings(pex_info, ENV)
   return pex_info
 

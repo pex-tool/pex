@@ -163,9 +163,21 @@ class Variables(object):
 
     Force this PEX to be not-zip-safe. This forces all code and dependencies to be written into
     $PEX_ROOT prior to invocation.  This is an option for applications with static assets that
-    refer to paths relative to __file__ instead of using pkgutil/pkg_resources.  Default: false.
+    refer to paths relative to __file__ instead of using pkgutil/pkg_resources.  Also see PEX_UNZIP
+    which will cause the complete PEX file to be unzipped and re-executed which can often improve
+    startup latency in addition to providing support for __file__ access.  Default: false.
     """
     return self._get_bool('PEX_FORCE_LOCAL', default=False)
+
+  @property
+  def PEX_UNZIP(self):
+    """Boolean
+
+    Force this PEX to unzip itself to $PEX_ROOT and re-execute from there.  If the pex file will be
+    run multiple times under a stable $PEX_ROOT the unzipping will only be performed once and
+    subsequent runs will enjoy lower startup latency.  Default: false.
+    """
+    return self._get_bool('PEX_UNZIP', default=False)
 
   @property
   def PEX_IGNORE_ERRORS(self):

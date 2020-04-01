@@ -22,6 +22,8 @@ BOOTSTRAP_DIR = '.bootstrap'
 
 LEGACY_BOOSTRAP_PKG = '_pex'
 
+UNZIPPED_DIR = 'unzipped_pexes'
+
 BOOTSTRAP_ENVIRONMENT = """
 import os
 import sys
@@ -43,13 +45,18 @@ def __maybe_run_unzipped__(pex_zip):
     hasher = hashlib.sha1()
     with open(pex_zip, 'rb') as fp:
       hasher.update(fp.read())
-  unzip_to = os.path.join(pex_info.pex_root, 'unzipped_pexes', hasher.hexdigest())
+  unzip_to = os.path.join(pex_info.pex_root, {unzipped_dir!r}, hasher.hexdigest())
   with atomic_directory(unzip_to) as chroot:
     if chroot:
       with TRACER.timed('Extracting {{}} to {{}}'.format(pex_zip, unzip_to)):
         with open_zip(pex_zip) as zip:
           zip.extractall(chroot)
   TRACER.log('Executing unzipped pex for {{}} at {{}}'.format(pex_zip, unzip_to))
+
+  # N.B.: This is read by pex.PEX and used to point sys.argv[0] back to the original pex_zip before
+  # unconditionally scrubbing the env var and handing off to user code.
+  os.environ['__PEX_EXE__'] = pex_zip
+
   os.execv(sys.executable, [sys.executable, unzip_to] + sys.argv[1:])
 
 
@@ -84,7 +91,11 @@ VendorImporter.install(uninstallable=False,
 
 from pex.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)
-""".format(bootstrap_dir=BOOTSTRAP_DIR, legacy_bootstrap_pkg=LEGACY_BOOSTRAP_PKG)
+""".format(
+  unzipped_dir=UNZIPPED_DIR,
+  bootstrap_dir=BOOTSTRAP_DIR,
+  legacy_bootstrap_pkg=LEGACY_BOOSTRAP_PKG
+)
 
 
 class PEXBuilder(object):
