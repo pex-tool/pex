@@ -7,6 +7,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -15,6 +16,7 @@ from zipfile import ZipFile
 
 import pytest
 
+from pex import pex_builder
 from pex.common import safe_copy, safe_mkdir, safe_open, safe_rmtree, safe_sleep, temporary_dir
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.pex_info import PexInfo
@@ -1803,3 +1805,54 @@ def test_disable_cache():
     ).assert_success()
 
     assert not os.path.exists(pex_root)
+
+
+def test_unzip_mode():
+  with temporary_dir() as td:
+    pex_root = os.path.join(td, 'pex_root')
+    pex_file = os.path.join(td, 'pex_file')
+    src_dir = os.path.join(td, 'src')
+    with safe_open(os.path.join(src_dir, 'example.py'), 'w') as fp:
+      fp.write(
+        dedent(
+          """
+          import os
+          import sys
+
+          if 'quit' == sys.argv[-1]:
+              print(os.path.realpath(sys.argv[0]))
+              sys.exit(0)
+
+          print(' '.join(sys.argv[1:]))
+          sys.stdout.flush()
+          os.execv(sys.argv[0], sys.argv[:-1])
+          """
+        )
+      )
+    run_pex_command(
+      args=[
+        '--sources-directory', src_dir,
+        '--entry-point', 'example',
+        '--output-file', pex_file,
+        '--pex-root', pex_root,
+        '--runtime-pex-root', pex_root,
+        '--no-strip-pex-env',
+        '--unzip'
+      ]
+    ).assert_success()
+
+    output1 = subprocess.check_output(
+      args=[pex_file, 'quit', 're-exec'],
+    )
+    assert ['quit re-exec', os.path.realpath(pex_file)] == output1.decode('utf-8').splitlines()
+
+    unzipped_cache = os.path.join(pex_root, pex_builder.UNZIPPED_DIR)
+    assert os.path.isdir(unzipped_cache)
+    shutil.rmtree(unzipped_cache)
+
+    output2 = subprocess.check_output(
+      args=[pex_file, 'quit', 're-exec'],
+      env=make_env(PEX_UNZIP=False)
+    )
+    assert output1 == output2
+    assert not os.path.exists(unzipped_cache)

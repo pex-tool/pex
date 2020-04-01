@@ -435,7 +435,7 @@ def configure_clp():
       '%prog builds a PEX (Python Executable) file based on the given specifications: '
       'sources, requirements, their dependencies and other options.')
 
-  parser = OptionParser(usage=usage, version='%prog {0}'.format(__version__))
+  parser = OptionParser(usage=usage, version='%prog {}'.format(__version__))
   configure_clp_pex_resolution(parser)
   configure_clp_pex_options(parser)
   configure_clp_pex_environment(parser)

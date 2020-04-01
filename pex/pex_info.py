@@ -32,7 +32,8 @@ class PexInfo(object):
   entry_point: string                 # entry point into this pex
   script: string                      # script to execute in this pex environment
                                       # at most one of script/entry_point can be specified
-  zip_safe: True, default False       # is this pex zip safe?
+  zip_safe: bool, default True        # is this pex zip safe?
+  unzip: bool, default False          # should this pex be unzipped and re-executed from there?
   inherit_path: false/fallback/prefer # should this pex inherit site-packages + user site-packages
                                       # + PYTHONPATH?
   ignore_errors: True, default False  # should we ignore inability to resolve dependencies?
@@ -92,11 +93,13 @@ class PexInfo(object):
   def from_env(cls, env=ENV):
     supplied_env = env.strip_defaults()
     zip_safe = None if supplied_env.PEX_FORCE_LOCAL is None else not supplied_env.PEX_FORCE_LOCAL
+    unzip = None if supplied_env.PEX_UNZIP is None else supplied_env.PEX_UNZIP
     pex_info = {
       'pex_root': supplied_env.PEX_ROOT,
       'entry_point': supplied_env.PEX_MODULE,
       'script': supplied_env.PEX_SCRIPT,
       'zip_safe': zip_safe,
+      'unzip': unzip,
       'inherit_path': supplied_env.PEX_INHERIT_PATH,
       'ignore_errors': supplied_env.PEX_IGNORE_ERRORS,
       'always_write_cache': supplied_env.PEX_ALWAYS_CACHE,

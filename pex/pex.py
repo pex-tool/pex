@@ -419,6 +419,12 @@ class PEX(object):  # noqa: T000
   def _execute(self):
     force_interpreter = self._vars.PEX_INTERPRETER
 
+    # N.B.: This is set in `__main__.py` of the executed PEX by `PEXBuilder` when we've been
+    # executed from within a PEX zip file in `--unzip` mode.  We replace `sys.argv[0]` to avoid
+    # confusion and allow the user code we hand off to to provide useful messages and fully valid
+    # re-execs that always re-directed through the PEX file.
+    sys.argv[0] = os.environ.pop('__PEX_EXE__', sys.argv[0])
+
     self._clean_environment(strip_pex_env=self._pex_info.strip_pex_env)
 
     if force_interpreter:

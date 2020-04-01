@@ -35,6 +35,7 @@ def build_pex_pex() -> None:
     '--interpreter-constraint', python_requires(),
     '--python-shebang', '/usr/bin/env python',
     '--no-strip-pex-env',
+    '--unzip',
     '-o', 'dist/pex',
     '-c', 'pex',
     pex_requirement
