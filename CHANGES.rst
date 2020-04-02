@@ -1,6 +1,27 @@
 Release Notes
 =============
 
+2.1.8
+-----
+
+This release brings enhanced performance when using the Pex CLI or API to resolve requirements and
+improved performance for many PEXed applications when specifying the `--unzip` option. PEXes built
+with `--unzip` will first unzip themselves into the Pex cache if not unzipped there already and
+then re-execute themselves from there. This can improve startup latency. Pex itself now uses this
+mode in our [PEX release](https://github.com/pantsbuild/pex/releases/download/v2.1.8/pex).
+
+* Better support unzip mode PEXes. (#941)
+  `PR #941 <https://github.com/pantsbuild/pex/pull/941>`_
+
+* Support an unzip toggle for PEXes. (#939)
+  `PR #939 <https://github.com/pantsbuild/pex/pull/939>`_
+
+* Ensure the interpreter path is a file (#938)
+  `PR #938 <https://github.com/pantsbuild/pex/pull/938>`_
+
+* Cache pip.pex. (#937)
+  `PR #937 <https://github.com/pantsbuild/pex/pull/937>`_
+
 2.1.7
 -----
 
