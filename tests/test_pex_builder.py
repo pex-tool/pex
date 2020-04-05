@@ -178,3 +178,37 @@ def test_pex_builder_deterministic_timestamp():
     pb.build(target, deterministic_timestamp=True)
     with zipfile.ZipFile(target) as zf:
       assert all(zinfo.date_time == (1980, 1, 1, 0, 0, 0) for zinfo in zf.infolist())
+
+
+def test_pex_builder_from_requirements_pex():
+  def build_from_req_pex(path, req_pex):
+    pb = PEXBuilder(path=path)
+    pb.add_from_requirements_pex(req_pex)
+    with open(os.path.join(path, 'exe.py'), 'w') as fp:
+      fp.write(exe_main)
+    pb.set_executable(os.path.join(path, 'exe.py'))
+    pb.freeze()
+    return pb
+
+  def verify(pb):
+    success_txt = os.path.join(pb.path(), 'success.txt')
+    PEX(pb.path(), interpreter=pb.interpreter).run(args=[success_txt])
+    assert os.path.exists(success_txt)
+    with open(success_txt) as fp:
+      assert fp.read() == 'success'
+
+  # Build from pex dir.
+  with temporary_dir() as td2:
+    with nested(temporary_dir(), make_bdist('p1')) as (td1, p1):
+      pb1 = write_pex(td1, dists=[p1])
+      pb2 = build_from_req_pex(td2, pb1.path())
+    verify(pb2)
+
+  # Build from .pex file.
+  with temporary_dir() as td4:
+    with nested(temporary_dir(), make_bdist('p1')) as (td3, p1):
+      pb3 = write_pex(td3, dists=[p1])
+      target = os.path.join(td3, 'foo.pex')
+      pb3.build(target)
+      pb4 = build_from_req_pex(td4, target)
+    verify(pb4)

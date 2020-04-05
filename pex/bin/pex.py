@@ -497,6 +497,16 @@ def configure_clp():
            'times.')
 
   parser.add_option(
+    '--requirements-pex',
+    dest='requirements_pexes',
+    metavar='FILE',
+    default=[],
+    type=str,
+    action='append',
+    help='Add requirements from the given .pex file or unzipped pex directory.  This option can '
+         'be used multiple times.')
+
+  parser.add_option(
       '-v',
       dest='verbosity',
       default=0,
@@ -611,6 +621,9 @@ def build_pex(reqs, options, cache=None):
   indexes = None
   if options.indexes != [_PYPI] and options.indexes is not None:
     indexes = [str(index) for index in options.indexes]
+
+  for requirements_pex in options.requirements_pexes:
+    pex_builder.add_from_requirements_pex(requirements_pex)
 
   with TRACER.timed('Resolving distributions ({})'.format(reqs + options.requirement_files)):
     try:
