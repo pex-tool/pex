@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import logging
 import os
 
-from pex.common import Chroot, chmod_plus_x, safe_mkdir, safe_mkdtemp, temporary_dir
+from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp, temporary_dir
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
 from pex.distribution_target import DistributionTarget
@@ -228,6 +228,35 @@ class PEXBuilder(object):
     """
     self._ensure_unfrozen('Adding an interpreter constraint')
     self._pex_info.add_interpreter_constraint(ic)
+
+  def add_from_requirements_pex(self, pex):
+    """Add requirements from an existing pex.
+
+    :param pex: The path to an existing .pex file or unzipped pex directory.
+    """
+    self._ensure_unfrozen('Adding from pex')
+    pex_info = PexInfo.from_pex(pex)
+
+    def add(location, dname, expected_dhash):
+      dhash = self._add_dist_dir(location, dname)
+      if dhash != expected_dhash:
+        raise self.InvalidDistribution('Distribution {} at {} had hash {}, expected {}'.format(
+          dname, location, dhash, expected_dhash
+        ))
+      self._pex_info.add_distribution(dname, dhash)
+
+    if os.path.isfile(pex):
+      with open_zip(pex) as zf:
+        for dist_name, dist_hash in pex_info.distributions.items():
+          internal_dist_path = '/'.join([pex_info.internal_cache, dist_name])
+          cached_location = os.path.join(pex_info.install_cache, dist_hash, dist_name)
+          CacheHelper.cache_distribution(zf, internal_dist_path, cached_location)
+          add(cached_location, dist_name, dist_hash)
+    else:
+      for dist_name, dist_hash in pex_info.distributions.items():
+        add(os.path.join(pex, pex_info.internal_cache, dist_name), dist_name, dist_hash)
+    for req in pex_info.requirements:
+      self._pex_info.add_requirement(req)
 
   def set_executable(self, filename, env_filename=None):
     """Set the executable for this environment.
