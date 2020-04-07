@@ -503,8 +503,7 @@ def configure_clp():
     default=[],
     type=str,
     action='append',
-    help='Add requirements from the given .pex file or unzipped pex directory.  This option can '
-         'be used multiple times.')
+    help='Add requirements from the given .pex file.  This option can be used multiple times.')
 
   parser.add_option(
       '-v',
