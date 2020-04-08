@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+2.1.9
+-----
+
+This release introduces the ability to copy requirements from an existing PEX into a new one.
+
+This can greatly speed up repeatedly creating a PEX when no requirements have changed.
+A build tool (such as Pants) can create a "requirements PEX" that contains just a static
+set of requirements, and build a final PEX on top of that, without having to re-run pip
+to resolve requirements.
+
+* Support for copying requirements from an existing pex. (#948)
+  `PR #948 <https://github.com/pantsbuild/pex/pull/948>`_
+
+
 2.1.8
 -----
 
