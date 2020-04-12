@@ -22,17 +22,6 @@ from pex.tracer import TRACER
 
 class DistributionHelper(object):
   @classmethod
-  def walk_data(cls, dist, path='/'):
-    """Yields filename, stream for files identified as data in the distribution"""
-    for rel_fn in filter(None, dist.resource_listdir(path)):
-      full_fn = os.path.join(path, rel_fn)
-      if dist.resource_isdir(full_fn):
-        for fn, stream in cls.walk_data(dist, full_fn):
-          yield fn, stream
-      else:
-        yield full_fn[1:], dist.get_resource_stream(dist._provider, full_fn)
-
-  @classmethod
   def access_zipped_assets(cls, static_module_name, static_path, dir_location=None):
     """
     Create a copy of static resource files as we can't serve them from within the pex file.
@@ -115,16 +104,6 @@ class CacheHelper(object):
       with contextlib.closing(stream_factory(name)) as fp:
         cls.update_hash(fp, digest)
     return digest.hexdigest()
-
-  @classmethod
-  def zip_hash(cls, zf, prefix=''):
-    """Return the hash of the contents of a zipfile, comparable with a cls.dir_hash."""
-    prefix_length = len(prefix)
-    names = sorted(name[prefix_length:] for name in zf.namelist()
-        if name.startswith(prefix) and not name.endswith('.pyc') and not name.endswith('/'))
-    def stream_factory(name):
-      return zf.open(prefix + name)
-    return cls._compute_hash(names, stream_factory)
 
   @classmethod
   def _iter_files(cls, directory):

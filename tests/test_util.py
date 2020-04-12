@@ -6,11 +6,10 @@ import subprocess
 from hashlib import sha1
 from textwrap import dedent
 
-from pex.common import open_zip, safe_mkdir, temporary_dir
+from pex.common import safe_mkdir, temporary_dir
 from pex.compatibility import nested, to_bytes
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.testing import temporary_content, write_zipfile
 from pex.util import CacheHelper, DistributionHelper, iter_pth_paths, named_temporary_file
 
 try:
@@ -48,18 +47,6 @@ CONTENT = {
   'twitter/common/python/bar.py': 8000,
   'twitter/common/python/bar.pyc': 6000,
 }
-
-
-def test_hash_consistency():
-  for reverse in (False, True):
-    with temporary_content(CONTENT) as td:
-      dir_hash = CacheHelper.dir_hash(td)
-      with named_temporary_file() as tf:
-        write_zipfile(td, tf.name, reverse=reverse)
-        with open_zip(tf.name, 'r') as zf:
-          zip_hash = CacheHelper.zip_hash(zf)
-          assert zip_hash == dir_hash
-          assert zip_hash != sha1().hexdigest()  # make sure it's not an empty hash
 
 
 try:
