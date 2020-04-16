@@ -10,7 +10,7 @@ from hashlib import sha1
 from site import makepath
 
 from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
-from pex.compatibility import exec_function
+from pex.compatibility import PY2, exec_function
 from pex.third_party.pkg_resources import (
     find_distributions,
     resource_isdir,
@@ -175,9 +175,9 @@ def named_temporary_file(*args, **kwargs):
 
 def iter_pth_paths(filename):
   """Given a .pth file, extract and yield all inner paths without honoring imports. This shadows
-  python's site.py behavior, which is invoked at interpreter startup."""
+  Python's site.py behavior, which is invoked at interpreter startup."""
   try:
-    f = open(filename, 'rU')  # noqa
+    f = open(filename, 'rU' if PY2 else 'r')  # noqa
   except IOError:
     return
 
