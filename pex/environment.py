@@ -270,7 +270,8 @@ class PEXEnvironment(Environment):
           TRACER.log('Failed to resolve a requirement: %s' % e)
           requirers = unresolved_reqs.setdefault(e.req, OrderedSet())
           if e.requirers:
-            requirers.update(reqs_by_key[requirer] for requirer in e.requirers)
+            for requirer in e.requirers:
+              requirers.update(reqs_by_key[requirer])
 
     if unresolved_reqs:
       TRACER.log('Unresolved requirements:')
