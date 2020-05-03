@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 
+import hashlib
+import io
+import os
 import subprocess
 import sys
-from pathlib import Path
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from enum import Enum, unique
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path, PurePath
+from typing import Tuple
 
 import pytoml as toml
 
 PROJECT_METADATA = Path('pyproject.toml')
+DIST_DIR = Path('dist')
 
 
 def python_requires() -> str:
@@ -14,7 +22,7 @@ def python_requires() -> str:
   return project_metadata['tool']['flit']['metadata']['requires-python'].strip()
 
 
-def build_pex_pex() -> None:
+def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
   # NB: We do not include the subprocess extra (which would be spelled: `.[subprocess]`) since we
   # would then produce a pex that would not be consumable by all python interpreters otherwise
   # meeting `python_requires`; ie: we'd need to then come up with a deploy environment / deploy
@@ -27,7 +35,7 @@ def build_pex_pex() -> None:
   args = [
     sys.executable,
     '-m', 'pex',
-    '-v',
+    *['-v' for _ in range(verbosity)],
     '--disable-cache',
     '--no-build',
     '--no-compile',
@@ -36,11 +44,91 @@ def build_pex_pex() -> None:
     '--python-shebang', '/usr/bin/env python',
     '--no-strip-pex-env',
     '--unzip',
-    '-o', 'dist/pex',
+    '-o', str(output_file),
     '-c', 'pex',
     pex_requirement
   ]
   subprocess.run(args, check=True)
+
+
+def describe_git_rev() -> str:
+  git_describe = subprocess.run(
+    ['git', 'describe'],
+    check=True,
+    capture_output=True,
+    encoding='utf-8'
+  )
+  return git_describe.stdout.strip()
+
+
+def describe_file(path: Path) -> Tuple[str, int]:
+  hasher = hashlib.sha256()
+  size = 0
+  with path.open('rb') as fp:
+    for chunk in iter(lambda: fp.read(io.DEFAULT_BUFFER_SIZE), b''):
+      hasher.update(chunk)
+      size += len(chunk)
+
+  return hasher.hexdigest(), size
+
+
+@unique
+class Format(str, Enum):
+  SDIST = "sdist"
+  WHEEL = "wheel"
+
+  __repr__ = __str__ = lambda self: self.value
+
+
+def build_pex_dists(dist_fmt: Format, *additional_dist_fmts: Format, verbose: bool = False) -> None:
+  output = None if verbose else subprocess.DEVNULL
+  subprocess.run(
+    ['flit', 'build', *[f'--format={fmt}' for fmt in [dist_fmt, *additional_dist_fmts]]],
+    stdout=output,
+    stderr=output,
+  )
+
+
+def log(message: str) -> None:
+  print(message)
+
+
+def main(*additional_dist_formats: Format, verbosity: int = 0, serve: bool = False) -> None:
+  pex_output_file = DIST_DIR / 'pex'
+  log(f'Building Pex PEX to `{pex_output_file}` ...')
+  build_pex_pex(pex_output_file, verbosity)
+
+  git_rev = describe_git_rev()
+  sha256, size = describe_file(pex_output_file)
+  log(f'Built Pex PEX @ {git_rev}:')
+  log(f'sha256: {sha256}')
+  log(f'  size: {size}')
+
+  if additional_dist_formats:
+    log(
+      f'Building additional distribution formats to `{DIST_DIR}`: '
+      f'{", ".join(f"{i + 1}.) {fmt}" for i, fmt in enumerate(additional_dist_formats))} ...'
+    )
+    build_pex_dists(*additional_dist_formats, verbose=verbosity > 0)
+    log('Built:')
+    for root, _, files in os.walk(DIST_DIR):
+      root_path = Path(root)
+      for f in files:
+        dist_path = (root_path / f)
+        if dist_path != pex_output_file:
+          log(f'  {dist_path}')
+
+  if serve:
+    server = HTTPServer(('', 0), SimpleHTTPRequestHandler)
+    host, port = server.server_address
+
+    log(f'Serving Pex distributions from `{DIST_DIR}` at http://{host}:{port} ...')
+
+    os.chdir(DIST_DIR)
+    try:
+      server.serve_forever()
+    except KeyboardInterrupt:
+      log(f'Server shut down in response to keyboard interrupt.')
 
 
 if __name__ == '__main__':
@@ -48,4 +136,28 @@ if __name__ == '__main__':
     print('This script must be run from the root of the Pex repo.', file=sys.stderr)
     sys.exit(1)
 
-  build_pex_pex()
+  parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+  parser.add_argument(
+    '-v',
+    dest='verbosity',
+    action='count',
+    default=0,
+    help='Increase output verbosity level.'
+  )
+  parser.add_argument(
+    '--additional-format',
+    dest='additional_formats',
+    choices=list(Format),
+    type=Format,
+    action='append',
+    help='Package Pex in additional formats.'
+  )
+  parser.add_argument(
+    '--serve',
+    default=False,
+    action='store_true',
+    help='After packaging Pex serve up the packages over HTTP.'
+  )
+  args = parser.parse_args()
+
+  main(*(args.additional_formats or ()), verbosity=args.verbosity, serve=args.serve)
