@@ -114,7 +114,7 @@ class PythonIdentity(object):
       supported_tags=[(tag.interpreter, tag.abi, tag.platform) for tag in self._supported_tags],
       env_markers=self._env_markers
     )
-    return json.dumps(values)
+    return json.dumps(values, sort_keys=True)
 
   @property
   def binary(self):
@@ -240,8 +240,8 @@ class PythonInterpreter(object):
     re.compile(r'python[23]$'),
     re.compile(r'python[23].[0-9]$'),
 
-    # Some distributions include a suffix on the in the interpreter name, similar to PEP-3149
-    # E.g. Gentoo has /usr/bin/python3.6m to indicate it was built with pymalloc
+    # Some distributions include a suffix on the in the interpreter name, similar to PEP-3149.
+    # For example, Gentoo has /usr/bin/python3.6m to indicate it was built with pymalloc.
     re.compile(r'python[23].[0-9][a-z]$'),
 
     re.compile(r'pypy$'),
@@ -341,7 +341,16 @@ class PythonInterpreter(object):
         safe_rmtree(interpreter_cache_dir)
 
     interpreter_hash = CacheHelper.hash(binary)
-    cache_dir = os.path.join(os_cache_dir, interpreter_hash)
+
+    # Some distributions include more than one copy of the same interpreter via a hard link (e.g.:
+    # python3.7 is a hardlink to python3.7m). To ensure a deterministic INTERP-INFO file we must
+    # emit a separate INTERP-INFO for each link since INTERP-INFO contains the interpreter path and
+    # would otherwise be unstable.
+    #
+    # See cls._REGEXEN for a related affordance.
+    path_id = binary.replace(os.sep, '.').lstrip('.')
+
+    cache_dir = os.path.join(os_cache_dir, interpreter_hash, path_id)
     cache_file = os.path.join(cache_dir, cls.INTERP_INFO_FILE)
     if os.path.isfile(cache_file):
       try:
