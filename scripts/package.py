@@ -89,46 +89,40 @@ def build_pex_dists(dist_fmt: Format, *additional_dist_fmts: Format, verbose: bo
   )
 
 
-def log(message: str) -> None:
-  print(message)
-
-
 def main(*additional_dist_formats: Format, verbosity: int = 0, serve: bool = False) -> None:
   pex_output_file = DIST_DIR / 'pex'
-  log(f'Building Pex PEX to `{pex_output_file}` ...')
+  print(f'Building Pex PEX to `{pex_output_file}` ...')
   build_pex_pex(pex_output_file, verbosity)
 
   git_rev = describe_git_rev()
   sha256, size = describe_file(pex_output_file)
-  log(f'Built Pex PEX @ {git_rev}:')
-  log(f'sha256: {sha256}')
-  log(f'  size: {size}')
+  print(f'Built Pex PEX @ {git_rev}:')
+  print(f'sha256: {sha256}')
+  print(f'  size: {size}')
 
   if additional_dist_formats:
-    log(
-      f'Building additional distribution formats to `{DIST_DIR}`: '
-      f'{", ".join(f"{i + 1}.) {fmt}" for i, fmt in enumerate(additional_dist_formats))} ...'
-    )
+    print(f'Building additional distribution formats to `{DIST_DIR}`: '
+        f'{", ".join(f"{i + 1}.) {fmt}" for i, fmt in enumerate(additional_dist_formats))} ...')
     build_pex_dists(*additional_dist_formats, verbose=verbosity > 0)
-    log('Built:')
+    print('Built:')
     for root, _, files in os.walk(DIST_DIR):
       root_path = Path(root)
       for f in files:
         dist_path = (root_path / f)
         if dist_path != pex_output_file:
-          log(f'  {dist_path}')
+          print(f'  {dist_path}')
 
   if serve:
     server = HTTPServer(('', 0), SimpleHTTPRequestHandler)
     host, port = server.server_address
 
-    log(f'Serving Pex distributions from `{DIST_DIR}` at http://{host}:{port} ...')
+    print(f'Serving Pex distributions from `{DIST_DIR}` at http://{host}:{port} ...')
 
     os.chdir(DIST_DIR)
     try:
       server.serve_forever()
     except KeyboardInterrupt:
-      log(f'Server shut down in response to keyboard interrupt.')
+      print(f'Server shut down in response to keyboard interrupt.')
 
 
 if __name__ == '__main__':
