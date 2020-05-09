@@ -19,7 +19,6 @@ from pex.orderedset import OrderedSet
 from pex.platforms import Platform
 from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import DistributionNotFound, Environment, Requirement, WorkingSet
-from pex.third_party.setuptools import wheel
 from pex.tracer import TRACER
 from pex.util import CacheHelper, DistributionHelper
 
@@ -221,6 +220,8 @@ class PEXEnvironment(Environment):
       return True
 
     try:
+      from pex.third_party.setuptools import wheel
+
       whl = wheel.Wheel(filename)
       wheel_tags = '-'.join([whl.py_version, whl.abi, whl.platform])
     except ValueError:
