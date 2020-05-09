@@ -105,8 +105,8 @@ def iter_vendor_specs():
   # pex.third_party at runtime in various ways.
   yield VendorSpec.pinned('setuptools', '42.0.2')
 
-  # We expose this to pip at buildtime for legacy builds, and at runtime to parse wheel filenames
-  yield VendorSpec.pinned('wheel', '0.33.6')
+  # We expose this to pip at buildtime for legacy builds.
+  yield VendorSpec.pinned('wheel', '0.33.6', rewrite=False)
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
