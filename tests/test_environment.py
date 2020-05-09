@@ -19,6 +19,7 @@ from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolver import resolve
 from pex.testing import (
+    IS_LINUX,
     PY35,
     WheelBuilder,
     ensure_python_interpreter,
@@ -351,14 +352,25 @@ def test_present_but_empty_namespace_packages_metadata_does_not_warn():
   assert_namespace_packages_warning('pycodestyle', '2.5.0', expected_warning=False)
 
 
-@pytest.mark.parametrize('wheel_filename', [
-  pytest.param('llvmlite-0.29.0-cp35-cp35m-any.whl', id="without_build_tag"),
-  pytest.param('llvmlite-0.29.0-1-cp35-cp35m-any.whl', id="with_build_tag"),
+@pytest.mark.parametrize(('wheel_filename', 'wheel_is_linux'), [
+  pytest.param('llvmlite-0.29.0-cp35-cp35m-linux_x86_64.whl', True,
+               id="without_build_tag_linux"),
+  pytest.param('llvmlite-0.29.0-1-cp35-cp35m-linux_x86_64.whl', True,
+               id="with_build_tag_linux"),
+  pytest.param('llvmlite-0.29.0-cp35-cp35m-macosx_10.9_x86_64.whl', False,
+               id="without_build_tag_osx"),
+  pytest.param('llvmlite-0.29.0-1-cp35-cp35m-macosx_10.9_x86_64.whl', False,
+               id="with_build_tag_osx"),
 ])
-def test_can_add_handles_optional_build_tag_in_wheel(python_35_interpreter, wheel_filename):
+def test_can_add_handles_optional_build_tag_in_wheel(
+  python_35_interpreter,
+  wheel_filename,
+  wheel_is_linux
+):
   pex_environment = PEXEnvironment(
     pex="",
     pex_info=PexInfo.default(python_35_interpreter),
     interpreter=python_35_interpreter
   )
-  assert pex_environment.can_add(Distribution(wheel_filename)) is True
+  native_wheel = IS_LINUX and wheel_is_linux
+  assert pex_environment.can_add(Distribution(wheel_filename)) is native_wheel
