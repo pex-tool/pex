@@ -26,6 +26,7 @@ from pex.testing import (
     temporary_content,
     temporary_filename
 )
+from pex.third_party.pkg_resources import Distribution
 
 
 @contextmanager
@@ -356,4 +357,4 @@ def test_can_add_handles_wheel_with_build_tag():
   pex_info = PexInfo.default(interpreter)
   pex_enviroment = PEXEnvironment("", pex_info)
   wheel_with_build_tag = 'llvmlite-0.29.0-1-cp37-cp37m-manylinux1_x86_64.whl'
-  assert pex_enviroment.can_add(wheel_with_build_tag) in (True, False)
+  assert pex_enviroment.can_add(Distribution(wheel_with_build_tag)) in (True, False)

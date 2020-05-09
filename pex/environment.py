@@ -10,6 +10,7 @@ import site
 import sys
 import zipfile
 from collections import OrderedDict, defaultdict
+from setuptools import wheel
 
 from pex import dist_metadata, pex_builder, pex_warnings
 from pex.bootstrap import Bootstrap
@@ -21,7 +22,6 @@ from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import DistributionNotFound, Environment, Requirement, WorkingSet
 from pex.tracer import TRACER
 from pex.util import CacheHelper, DistributionHelper
-from pex.vendor._vendored.setuptools.setuptools import wheel
 
 
 def _import_pkg_resources():
