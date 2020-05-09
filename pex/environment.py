@@ -10,6 +10,7 @@ import site
 import sys
 import zipfile
 from collections import OrderedDict, defaultdict
+
 from setuptools import wheel
 
 from pex import dist_metadata, pex_builder, pex_warnings
