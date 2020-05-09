@@ -348,3 +348,12 @@ def test_present_non_empty_namespace_packages_metadata_does_warn():
 
 def test_present_but_empty_namespace_packages_metadata_does_not_warn():
   assert_namespace_packages_warning('pycodestyle', '2.5.0', expected_warning=False)
+
+
+def test_can_add_handles_wheel_with_build_tag():
+  # The actual PEXEnviroment is irrelevant; all we need is an instance
+  interpreter = PythonInterpreter.get()
+  pex_info = PexInfo.default(interpreter)
+  pex_enviroment = PEXEnvironment("", pex_info)
+  wheel_with_build_tag = 'llvmlite-0.29.0-1-cp37-cp37m-manylinux1_x86_64.whl'
+  assert pex_enviroment.can_add(wheel_with_build_tag) in (True, False)
