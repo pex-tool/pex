@@ -221,8 +221,8 @@ class PEXEnvironment(Environment):
       return True
 
     try:
-      wheel = wheel.Wheel(filename)
-      wheel_tags = '-'.join([wheel.py_version, wheel.abi, wheel.platform])
+      whl = wheel.Wheel(filename)
+      wheel_tags = '-'.join([whl.py_version, whl.abi, whl.platform])
     except ValueError:
       return False
 
