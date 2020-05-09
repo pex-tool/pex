@@ -19,6 +19,7 @@ from pex.orderedset import OrderedSet
 from pex.platforms import Platform
 from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import DistributionNotFound, Environment, Requirement, WorkingSet
+from pex.third_party.wheel import wheelfile
 from pex.tracer import TRACER
 from pex.util import CacheHelper, DistributionHelper
 
@@ -219,14 +220,11 @@ class PEXEnvironment(Environment):
       # platforms it supports at buildtime and runtime so this is always safe.
       return True
 
-    try:
-      from pex.third_party.setuptools import wheel
-
-      whl = wheel.Wheel(filename)
-      wheel_tags = '-'.join([whl.py_version, whl.abi, whl.platform])
-    except ValueError:
+    wheel_match = wheelfile.WHEEL_INFO_RE(filename)
+    if not wheel_match:
       return False
 
+    wheel_tags = '-'.join([wheel_match['pyver'], wheel_match['abi'], wheel_match['plat']])
     if self._supported_tags.isdisjoint(tags.parse_tag(wheel_tags)):
       return False
 
