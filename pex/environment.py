@@ -22,11 +22,6 @@ from pex.third_party.pkg_resources import DistributionNotFound, Environment, Req
 from pex.tracer import TRACER
 from pex.util import CacheHelper, DistributionHelper
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from setuptools import wheel  # vendor:skip
-else:
-  from pex.third_party.setuptools import wheel
-
 
 def _import_pkg_resources():
   try:
@@ -225,8 +220,10 @@ class PEXEnvironment(Environment):
       return True
 
     try:
-      whl = wheel.Wheel(filename)
-      wheel_tags = '-'.join([whl.py_version, whl.abi, whl.platform])
+      # Wheel filename format from PEP 427: https://www.python.org/dev/peps/pep-0427/#file-name-convention
+      # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
+      wheel_parts = filename[:-4].split('-')
+      wheel_tags = '-'.join(wheel_parts[-3:])  # `{python tag}-{abi tag}-{platform tag}`
     except ValueError:
       return False
 
