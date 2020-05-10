@@ -1,3 +1,6 @@
+x-tox-env: &x-tox-env >
+  TOX_BIN="./tox/bin/tox"
+
 x-tox: &x-tox |
   # Ensure we run tox itself under Python 3.
   python3 -mvenv tox
@@ -5,15 +8,16 @@ x-tox: &x-tox |
   pip install -U tox==3.14.1
   deactivate
 
-x-tox-env: &x-tox-env >
-  TOX_BIN="./tox/bin/tox"
-
 x-linux-shard: &x-linux-shard
   os: linux
   dist: bionic
   language: python
   install: *x-tox
   env: *x-tox-env
+  addons:
+    apt:
+      packages:
+        - python3-venv
 
 x-linux-27-shard: &x-linux-27-shard
   <<: *x-linux-shard
@@ -29,7 +33,7 @@ x-linux-38-shard: &x-linux-38-shard
 
 x-osx-env: &x-osx-env >
   PYENV_ROOT="${HOME}/.pyenv_pex"
-  PATH="${PYENV_ROOT}/shims:${PATH}"
+  PATH="${PYENV_ROOT}/versions/${PYENV_VERSION}/bin:${PATH}"
 
 x-osx-shard: &x-osx-shard
   os: osx
@@ -52,25 +56,19 @@ x-osx-shard: &x-osx-shard
       fi
       "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
 
-x-osx-ssl: &x-osx-ssl >
-  CPPFLAGS=-I/usr/local/opt/openssl/include
-  LDFLAGS=-L/usr/local/opt/openssl/lib
-
 x-osx-27-shard: &x-osx-27-shard
   <<: *x-osx-shard
   env:
     - *x-osx-env
-    - *x-osx-ssl
     - *x-tox-env
-    - PYENV_VERSION=2.7.17
+    - PYENV_VERSION=2.7.18
 
 x-osx-38-shard: &x-osx-38-shard
   <<: *x-osx-shard
   env:
     - *x-osx-env
-    - *x-osx-ssl
     - *x-tox-env
-    - PYENV_VERSION=3.8.0
+    - PYENV_VERSION=3.8.2
 
 # NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
 # use TOXENV and instead pass the toxenv via -e on the command line. This helps ensure we share
