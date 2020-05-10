@@ -3,11 +3,18 @@ x-tox-env: &x-tox-env >
   PATH="${TOX_BIN}:${PATH}"
 
 x-tox: &x-tox |
-  # Ensure we run tox itself under Python 3.
+  # Run tox from a self-contained virtual environment.
   python3 -mvenv ~/.tox-pex
   source ${TOX_BIN}/activate
-  pip install -U pip
-  pip install tox==3.14.1 virtualenv==20.0.4
+  pip install -U pip setuptools wheel
+
+  # N.B.: Pex tests run via tox for Python 2.7 fail starting at virtualenv==20.0.5 so we pin
+  # virtualenv just below that and, correspondingly, tox at the highest version that supports
+  # virtualenv 20.0.4.
+  pip install tox==3.14.5 virtualenv==20.0.4
+
+  # Prove we have the tox we just installed on the PATH.
+  which python
   deactivate
   tox --version
 
@@ -22,9 +29,12 @@ x-linux-shard: &x-linux-shard
       packages:
         - python3-venv
 
+# Pre-built Python distributions available on bionic (Ubuntu 18.04) are listed here:
+#   https://docs.travis-ci.com/user/languages/python/
+
 x-linux-27-shard: &x-linux-27-shard
   <<: *x-linux-shard
-  python: 2.7
+  python: 2.7.18
 
 x-linux-pypy-shard: &x-linux-pypy-shard
   <<: *x-linux-shard
@@ -32,7 +42,7 @@ x-linux-pypy-shard: &x-linux-pypy-shard
 
 x-linux-38-shard: &x-linux-38-shard
   <<: *x-linux-shard
-  python: 3.8
+  python: 3.8.2
 
 x-osx-env: &x-osx-env >
   PYENV_ROOT="${HOME}/.pyenv_pex"
@@ -100,17 +110,17 @@ matrix:
 
     - <<: *x-linux-shard
       name: TOXENV=py35
-      python: 3.5
+      python: 3.5.9
       script: tox -v -e py35
 
     - <<: *x-linux-shard
       name: TOXENV=py36
-      python: 3.6
+      python: 3.6.10
       script: tox -v -e py36
 
     - <<: *x-linux-shard
       name: TOXENV=py37
-      python: 3.7
+      python: 3.7.7
       script: tox -v -e py37
 
     - <<: *x-linux-38-shard
