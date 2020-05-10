@@ -5,7 +5,8 @@ x-tox: &x-tox |
   # Ensure we run tox itself under Python 3.
   python3 -mvenv ~/.tox-pex
   source ~/.tox-pex/bin/activate
-  pip install -U tox==3.14.1
+  pip install -U pip setuptools wheel
+  pip install tox==3.14.1
   deactivate
   ${TOX_BIN} --version
 
