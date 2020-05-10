@@ -1,6 +1,6 @@
 x-tox-env: &x-tox-env >
   TOX_BIN=~/.tox-pex/bin
-  PATH="tox:${PATH}"
+  PATH="${TOX_BIN}:${PATH}"
 
 x-tox: &x-tox |
   # Ensure we run tox itself under Python 3.
@@ -8,6 +8,7 @@ x-tox: &x-tox |
   source ${TOX_BIN}/activate
   pip install -U pip setuptools wheel
   pip install tox==3.14.1
+  tox --version
   deactivate
   tox --version
 
