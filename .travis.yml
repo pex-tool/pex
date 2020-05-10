@@ -1,9 +1,19 @@
+x-tox: &x-tox |
+  # Ensure we run tox itself under Python 3.
+  python3 -mvenv tox
+  source tox/bin/activate
+  pip install -U tox==3.14.1
+  deactivate
+
+x-tox-env: &x-tox-env >
+  TOX_BIN="./tox/bin/tox"
+
 x-linux-shard: &x-linux-shard
   os: linux
   dist: bionic
   language: python
-  install: |
-    pip install -U tox==3.14.1
+  install: *x-tox
+  env: *x-tox-env
 
 x-linux-27-shard: &x-linux-27-shard
   <<: *x-linux-shard
@@ -17,28 +27,30 @@ x-linux-38-shard: &x-linux-38-shard
   <<: *x-linux-shard
   python: 3.8
 
+x-osx-env: &x-osx-env >
+  PYENV_ROOT="${HOME}/.pyenv_pex"
+  PATH="${PYENV_ROOT}/shims:${PATH}"
+
 x-osx-shard: &x-osx-shard
   os: osx
   osx_image: xcode9.4
   language: generic
-  env: &env >
-    PYENV_ROOT="${HOME}/.pyenv_pex"
-    PATH="${PYENV_ROOT}/shims:${PATH}"
   cache:
     # The default is 3 minutes (180).
     timeout: 300
     directories:
       - .pyenv_test
       - "${PYENV_ROOT}"
-  install: |
-    PYENV="${PYENV_ROOT}/bin/pyenv"
-    if [ ! -x "${PYENV}" ]; then
-      rm -rf ${PYENV_ROOT}
-      git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
-    fi
-    "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
-    "${PYENV}" global ${PYENV_VERSION}
-    pip install -U tox==3.14.1
+  install:
+    - *x-tox
+    - |
+      # Ensure we have the targeted Python for tox to find on $PATH
+      PYENV="${PYENV_ROOT}/bin/pyenv"
+      if [ ! -x "${PYENV}" ]; then
+        rm -rf ${PYENV_ROOT}
+        git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
+      fi
+      "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
 
 x-osx-ssl: &x-osx-ssl >
   CPPFLAGS=-I/usr/local/opt/openssl/include
@@ -47,15 +59,17 @@ x-osx-ssl: &x-osx-ssl >
 x-osx-27-shard: &x-osx-27-shard
   <<: *x-osx-shard
   env:
-    - *env
+    - *x-osx-env
     - *x-osx-ssl
+    - *x-tox-env
     - PYENV_VERSION=2.7.17
 
 x-osx-38-shard: &x-osx-38-shard
   <<: *x-osx-shard
   env:
-    - *env
+    - *x-osx-env
     - *x-osx-ssl
+    - *x-tox-env
     - PYENV_VERSION=3.8.0
 
 # NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
@@ -65,71 +79,71 @@ matrix:
   include:
     - <<: *x-linux-27-shard
       name: TOXENV=style
-      script: tox -v -e style
+      script: ${TOX_BIN} -v -e style
 
     - <<: *x-linux-38-shard
       name: TOXENV=isort-check
-      script: tox -v -e isort-check
+      script: ${TOX_BIN} -v -e isort-check
 
     - <<: *x-linux-38-shard
       name: TOXENV=vendor-check
-      script: tox -v -e vendor-check
+      script: ${TOX_BIN} -v -e vendor-check
 
     - <<: *x-linux-27-shard
       name: TOXENV=py27
-      script: tox -v -e py27
+      script: ${TOX_BIN} -v -e py27
 
     - <<: *x-linux-27-shard
       name: TOXENV=py27-subprocess
-      script: tox -v -e py27-subprocess
+      script: ${TOX_BIN} -v -e py27-subprocess
 
     - <<: *x-linux-shard
       name: TOXENV=py35
       python: 3.5
-      script: tox -v -e py35
+      script: ${TOX_BIN} -v -e py35
 
     - <<: *x-linux-shard
       name: TOXENV=py36
       python: 3.6
-      script: tox -v -e py36
+      script: ${TOX_BIN} -v -e py36
 
     - <<: *x-linux-shard
       name: TOXENV=py37
       python: 3.7
-      script: tox -v -e py37
+      script: ${TOX_BIN} -v -e py37
 
     - <<: *x-linux-38-shard
       name: TOXENV=py38
-      script: tox -v -e py38
+      script: ${TOX_BIN} -v -e py38
 
     - <<: *x-linux-pypy-shard
       name: TOXENV=pypy
-      script: tox -v -e pypy
+      script: ${TOX_BIN} -v -e pypy
 
     - <<: *x-linux-27-shard
       name: TOXENV=py27-integration
-      script: tox -v -e py27-integration
+      script: ${TOX_BIN} -v -e py27-integration
 
     - <<: *x-linux-38-shard
       name: TOXENV=py38-integration
-      script: tox -v -e py38-integration
+      script: ${TOX_BIN} -v -e py38-integration
 
     - <<: *x-linux-pypy-shard
       name: TOXENV=pypy-integration
-      script: tox -v -e pypy-integration
+      script: ${TOX_BIN} -v -e pypy-integration
 
     - <<: *x-osx-27-shard
       name: TOXENV=py27
-      script: tox -v -e py27
+      script: ${TOX_BIN} -v -e py27
 
     - <<: *x-osx-38-shard
       name: TOXENV=py38
-      script: tox -v -e py38
+      script: ${TOX_BIN} -v -e py38
 
     - <<: *x-osx-27-shard
       name: TOXENV=py27-integration
-      script: tox -v -e py27-integration
+      script: ${TOX_BIN} -v -e py27-integration
 
     - <<: *x-osx-38-shard
       name: TOXENV=py38-integration
-      script: tox -v -e py38-integration
+      script: ${TOX_BIN} -v -e py38-integration
