@@ -1,12 +1,14 @@
 x-tox-env: &x-tox-env >
-  TOX_BIN="~/.tox-pex/bin/python -mtox"
+  TOX_BIN=~/.tox-pex/bin
+  PATH="tox:${PATH}"
 
 x-tox: &x-tox |
   # Ensure we run tox itself under Python 3.
   python3 -mvenv ~/.tox-pex
-  ~/.tox-pex/bin/pip install -U pip setuptools wheel
-  ~/.tox-pex/bin/pip install tox==3.14.1
-  ~/.tox-pex/bin/python -mtox --version
+  ${TOX_BIN}/activate
+  pip install -U pip setuptools wheel
+  pip install tox==3.14.1
+  tox --version
 
 x-linux-shard: &x-linux-shard
   os: linux
@@ -77,71 +79,71 @@ matrix:
   include:
     - <<: *x-linux-27-shard
       name: TOXENV=style
-      script: ${TOX_BIN} -v -e style
+      script: tox -v -e style
 
     - <<: *x-linux-38-shard
       name: TOXENV=isort-check
-      script: ${TOX_BIN} -v -e isort-check
+      script: tox -v -e isort-check
 
     - <<: *x-linux-38-shard
       name: TOXENV=vendor-check
-      script: ${TOX_BIN} -v -e vendor-check
+      script: tox -v -e vendor-check
 
     - <<: *x-linux-27-shard
       name: TOXENV=py27
-      script: ${TOX_BIN} -v -e py27
+      script: tox -v -e py27
 
     - <<: *x-linux-27-shard
       name: TOXENV=py27-subprocess
-      script: ${TOX_BIN} -v -e py27-subprocess
+      script: tox -v -e py27-subprocess
 
     - <<: *x-linux-shard
       name: TOXENV=py35
       python: 3.5
-      script: ${TOX_BIN} -v -e py35
+      script: tox -v -e py35
 
     - <<: *x-linux-shard
       name: TOXENV=py36
       python: 3.6
-      script: ${TOX_BIN} -v -e py36
+      script: tox -v -e py36
 
     - <<: *x-linux-shard
       name: TOXENV=py37
       python: 3.7
-      script: ${TOX_BIN} -v -e py37
+      script: tox -v -e py37
 
     - <<: *x-linux-38-shard
       name: TOXENV=py38
-      script: ${TOX_BIN} -v -e py38
+      script: tox -v -e py38
 
     - <<: *x-linux-pypy-shard
       name: TOXENV=pypy
-      script: ${TOX_BIN} -v -e pypy
+      script: tox -v -e pypy
 
     - <<: *x-linux-27-shard
       name: TOXENV=py27-integration
-      script: ${TOX_BIN} -v -e py27-integration
+      script: tox -v -e py27-integration
 
     - <<: *x-linux-38-shard
       name: TOXENV=py38-integration
-      script: ${TOX_BIN} -v -e py38-integration
+      script: tox -v -e py38-integration
 
     - <<: *x-linux-pypy-shard
       name: TOXENV=pypy-integration
-      script: ${TOX_BIN} -v -e pypy-integration
+      script: tox -v -e pypy-integration
 
     - <<: *x-osx-27-shard
       name: TOXENV=py27
-      script: ${TOX_BIN} -v -e py27
+      script: tox -v -e py27
 
     - <<: *x-osx-38-shard
       name: TOXENV=py38
-      script: ${TOX_BIN} -v -e py38
+      script: tox -v -e py38
 
     - <<: *x-osx-27-shard
       name: TOXENV=py27-integration
-      script: ${TOX_BIN} -v -e py27-integration
+      script: tox -v -e py27-integration
 
     - <<: *x-osx-38-shard
       name: TOXENV=py38-integration
-      script: ${TOX_BIN} -v -e py38-integration
+      script: tox -v -e py38-integration
