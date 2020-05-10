@@ -6,7 +6,7 @@ x-tox: &x-tox |
   python3 -mvenv ~/.tox-pex
   ~/.tox-pex/bin/pip install -U pip setuptools wheel
   ~/.tox-pex/bin/pip install tox==3.14.1
-  ${TOX_BIN} --version
+  ~/.tox-pex/bin/python -mtox --version
 
 x-linux-shard: &x-linux-shard
   os: linux
