@@ -6,7 +6,7 @@ x-tox: &x-tox |
   # Run tox from a self-contained virtual environment.
   python3 -mvenv ~/.tox-pex
   source ${TOX_BIN}/activate
-  pip install -U pip setuptools wheel
+  pip install -U pip
 
   # N.B.: Pex tests run via tox for Python 2.7 fail starting at virtualenv==20.0.5 so we pin
   # virtualenv just below that and, correspondingly, tox at the highest version that supports
