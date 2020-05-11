@@ -6,6 +6,7 @@ import subprocess
 from contextlib import contextmanager
 from textwrap import dedent
 
+from pex import resolver
 from pex.common import open_zip, temporary_dir
 from pex.interpreter import spawn_python_job
 from pex.testing import WheelBuilder, make_project, temporary_content
@@ -13,6 +14,31 @@ from pex.testing import WheelBuilder, make_project, temporary_content
 
 def pex_project_dir():
   return subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
+
+
+BDIST_PEX_PYTHONPATH = None
+
+
+def bdist_pex_pythonpath():
+  # In order to run the bdist_pex distutils command we need:
+  # 1. setuptools on the PYTHONPATH since the test projects use and test setuptools.setup and its
+  #    additional features above and beyond distutils.core.setup like entry points declaration.
+  # 2. Pex on the PYTHONPATH so its distutils command module(s) can be found.
+  # 3. An indication to distutils of where to look for Pex distutils commands.
+  #
+  # We take care of 1 and 2 here and 3 is taken care of by passing --command-packages to distutils.
+
+  global BDIST_PEX_PYTHONPATH
+  if BDIST_PEX_PYTHONPATH is None:
+    BDIST_PEX_PYTHONPATH = [pex_project_dir()]
+
+    # Although the setuptools version is not important, we pick one so the test can leverage the
+    # pex cache for speed run over run.
+    BDIST_PEX_PYTHONPATH.extend(
+      resolved_distribution.distribution.location
+      for resolved_distribution in resolver.resolve(['setuptools==36.2.7'])
+    )
+  return BDIST_PEX_PYTHONPATH
 
 
 @contextmanager
@@ -26,7 +52,7 @@ def bdist_pex(project_dir, bdist_args=None):
     if bdist_args:
       cmd.extend(bdist_args)
 
-    spawn_python_job(args=cmd, cwd=project_dir, pythonpath=[pex_project_dir()]).wait()
+    spawn_python_job(args=cmd, cwd=project_dir, pythonpath=bdist_pex_pythonpath()).wait()
     dists = os.listdir(dist_dir)
     assert len(dists) == 1
     yield os.path.join(dist_dir, dists[0])

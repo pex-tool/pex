@@ -1,13 +1,36 @@
+x-tox-env: &x-tox-env >
+  TOX_BIN=~/.tox-pex/bin
+  PATH="${TOX_BIN}:${PATH}"
+
+x-tox: &x-tox |
+  # Run tox from a self-contained virtual environment.
+  python3 -mvenv ~/.tox-pex
+  source ${TOX_BIN}/activate
+  pip install -U pip
+  pip install tox==3.14.1
+
+  # Prove we have the tox we just installed on the PATH.
+  which python
+  deactivate
+  tox --version
+
 x-linux-shard: &x-linux-shard
   os: linux
   dist: bionic
   language: python
-  install: |
-    pip install -U tox==3.14.1
+  install: *x-tox
+  env: *x-tox-env
+  addons:
+    apt:
+      packages:
+        - python3-venv
+
+# Pre-built Python distributions available on bionic (Ubuntu 18.04) are listed here:
+#   https://docs.travis-ci.com/user/languages/python/
 
 x-linux-27-shard: &x-linux-27-shard
   <<: *x-linux-shard
-  python: 2.7
+  python: 2.7.18
 
 x-linux-pypy-shard: &x-linux-pypy-shard
   <<: *x-linux-shard
@@ -15,48 +38,46 @@ x-linux-pypy-shard: &x-linux-pypy-shard
 
 x-linux-38-shard: &x-linux-38-shard
   <<: *x-linux-shard
-  python: 3.8
+  python: 3.8.2
+
+x-osx-env: &x-osx-env >
+  PYENV_ROOT="${HOME}/.pyenv_pex"
+  PATH="${PYENV_ROOT}/versions/${PYENV_VERSION}/bin:${PATH}"
 
 x-osx-shard: &x-osx-shard
   os: osx
   osx_image: xcode9.4
   language: generic
-  env: &env >
-    PYENV_ROOT="${HOME}/.pyenv_pex"
-    PATH="${PYENV_ROOT}/shims:${PATH}"
   cache:
     # The default is 3 minutes (180).
     timeout: 300
     directories:
       - .pyenv_test
       - "${PYENV_ROOT}"
-  install: |
-    PYENV="${PYENV_ROOT}/bin/pyenv"
-    if [ ! -x "${PYENV}" ]; then
-      rm -rf ${PYENV_ROOT}
-      git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
-    fi
-    "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
-    "${PYENV}" global ${PYENV_VERSION}
-    pip install -U tox==3.14.1
-
-x-osx-ssl: &x-osx-ssl >
-  CPPFLAGS=-I/usr/local/opt/openssl/include
-  LDFLAGS=-L/usr/local/opt/openssl/lib
+  install:
+    - *x-tox
+    - |
+      # Ensure we have the targeted Python for tox to find on $PATH
+      PYENV="${PYENV_ROOT}/bin/pyenv"
+      if [ ! -x "${PYENV}" ]; then
+        rm -rf ${PYENV_ROOT}
+        git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
+      fi
+      "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
 
 x-osx-27-shard: &x-osx-27-shard
   <<: *x-osx-shard
   env:
-    - *env
-    - *x-osx-ssl
-    - PYENV_VERSION=2.7.17
+    - *x-osx-env
+    - *x-tox-env
+    - PYENV_VERSION=2.7.18
 
 x-osx-38-shard: &x-osx-38-shard
   <<: *x-osx-shard
   env:
-    - *env
-    - *x-osx-ssl
-    - PYENV_VERSION=3.8.0
+    - *x-osx-env
+    - *x-tox-env
+    - PYENV_VERSION=3.8.2
 
 # NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
 # use TOXENV and instead pass the toxenv via -e on the command line. This helps ensure we share
@@ -85,17 +106,17 @@ matrix:
 
     - <<: *x-linux-shard
       name: TOXENV=py35
-      python: 3.5
+      python: 3.5.9
       script: tox -v -e py35
 
     - <<: *x-linux-shard
       name: TOXENV=py36
-      python: 3.6
+      python: 3.6.10
       script: tox -v -e py36
 
     - <<: *x-linux-shard
       name: TOXENV=py37
-      python: 3.7
+      python: 3.7.7
       script: tox -v -e py37
 
     - <<: *x-linux-38-shard
