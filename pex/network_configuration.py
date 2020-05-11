@@ -16,7 +16,7 @@ class NetworkConfiguration(namedtuple('NetworkConfiguration', [
   'cert',
   'client_cert'
 ])):
-  """Configurtion for network requests made by the resolver."""
+  """Configuration for network requests made by the resolver."""
 
   @classmethod
   def create(
