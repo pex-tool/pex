@@ -4,14 +4,24 @@
 import functools
 import os
 import subprocess
+from collections import defaultdict
 from textwrap import dedent
 
+import pkginfo
 import pytest
 
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.compatibility import nested
-from pex.interpreter import PythonInterpreter
-from pex.resolver import resolve_multi
+from pex.distribution_target import DistributionTarget
+from pex.interpreter import PythonInterpreter, spawn_python_job
+from pex.resolver import (
+    IntegrityError,
+    LocalDistribution,
+    Unsatisfiable,
+    download,
+    install,
+    resolve_multi
+)
 from pex.testing import (
     IS_LINUX,
     IS_PYPY,
@@ -21,9 +31,28 @@ from pex.testing import (
     PY_VER,
     built_wheel,
     ensure_python_interpreter,
+    make_project,
     make_source_dir
 )
 from pex.third_party.pkg_resources import Requirement
+
+
+def create_sdist(*args, **kwargs):
+  dist_dir = safe_mkdtemp()
+
+  with make_project(*args, **kwargs) as project_dir:
+    cmd = ['setup.py', 'sdist', '--dist-dir={}'.format(dist_dir)]
+    spawn_python_job(
+      args=cmd,
+      cwd=project_dir,
+      expose=['setuptools'],
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE
+    ).communicate()
+
+  dists = os.listdir(dist_dir)
+  assert len(dists) == 1
+  return os.path.join(dist_dir, dists[0])
 
 
 def build_wheel(*args, **kwargs):
@@ -349,3 +378,87 @@ def test_issues_892():
     {stderr}
     """.format(cmd=cmd, returncode=process.returncode, stderr=stderr.decode('utf8'))
   )
+
+
+def test_download():
+  project1_sdist = create_sdist(name='project1',
+                                version='1.0.0',
+                                extras_require={'foo': ['project2']})
+  project2_wheel = build_wheel(name='project2',
+                               version='2.0.0',
+                               # This is the last version of setuptools compatible with Python 2.7.
+                               install_reqs=['setuptools==44.1.0'])
+
+  downloaded_by_target = defaultdict(list)
+  for local_distribution in download(requirements=['{}[foo]'.format(project1_sdist)],
+                                     find_links=[os.path.dirname(project2_wheel)]):
+    distribution = pkginfo.get_metadata(local_distribution.path)
+    downloaded_by_target[local_distribution.target].append(distribution)
+
+  assert 1 == len(downloaded_by_target)
+
+  target, distributions = downloaded_by_target.popitem()
+  assert DistributionTarget.current() == target
+
+  distributions_by_name = {distribution.name: distribution for distribution in distributions}
+  assert 3 == len(distributions_by_name)
+
+  def assert_dist(project_name, dist_type, version):
+    dist = distributions_by_name[project_name]
+    assert dist_type is type(dist)
+    assert version == dist.version
+
+  assert_dist('project1', pkginfo.SDist, '1.0.0')
+  assert_dist('project2', pkginfo.Wheel, '2.0.0')
+  assert_dist('setuptools', pkginfo.Wheel, '44.1.0')
+
+
+def test_install():
+  project1_sdist = create_sdist(name='project1', version='1.0.0')
+  project2_wheel = build_wheel(name='project2', version='2.0.0')
+
+  installed_by_target = defaultdict(list)
+  for installed_distribution in install([LocalDistribution.create(path=dist)
+                                         for dist in (project1_sdist, project2_wheel)]):
+    installed_by_target[installed_distribution.target].append(installed_distribution.distribution)
+
+  assert 1 == len(installed_by_target)
+
+  target, distributions = installed_by_target.popitem()
+  assert DistributionTarget.current() == target
+
+  distributions_by_name = {distribution.key: distribution for distribution in distributions}
+  assert 2 == len(distributions_by_name)
+  assert '1.0.0' == distributions_by_name['project1'].version
+  assert '2.0.0' == distributions_by_name['project2'].version
+
+  assert 2 == len({distribution.location for distribution in distributions}), (
+    'Expected installed distributions to have independent chroot paths.'
+  )
+
+
+def test_install_unsatisfiable():
+  project1_sdist = create_sdist(name='project1', version='1.0.0')
+  project2_wheel = build_wheel(name='project2', version='2.0.0', install_reqs=['project1==1.0.1'])
+  local_distributions = [
+    LocalDistribution.create(path=dist) for dist in (project1_sdist, project2_wheel)
+  ]
+
+  assert 2 == len(install(local_distributions, ignore_errors=True))
+
+  with pytest.raises(Unsatisfiable):
+    install(local_distributions, ignore_errors=False)
+
+
+def test_install_invalid_local_distribution():
+  project1_sdist = create_sdist(name='project1', version='1.0.0')
+
+  valid_local_sdist = LocalDistribution.create(project1_sdist)
+  assert 1 == len(install([valid_local_sdist]))
+
+  with pytest.raises(IntegrityError):
+    install([LocalDistribution.create(project1_sdist, fingerprint='mismatch')])
+
+  project1_wheel = build_wheel(name='project1', version='1.0.0')
+  with pytest.raises(IntegrityError):
+    install([LocalDistribution.create(project1_wheel, fingerprint=valid_local_sdist.fingerprint)])
