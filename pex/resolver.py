@@ -185,15 +185,13 @@ class DownloadRequest(namedtuple('DownloadRequest', [
           for target in self.targets:
             yield BuildRequest.create(target=target, source_path=local_project)
 
-  def download_distributions(self, workspace=None, max_parallel_jobs=None):
+  def download_distributions(self, dest=None, max_parallel_jobs=None):
     if not self.requirements and not self.requirement_files:
       # Nothing to resolve.
       return None
 
-    workspace = workspace or safe_mkdtemp()
-
-    resolved_dists_dir = os.path.join(workspace, 'resolved_dists')
-    spawn_download = functools.partial(self._spawn_download, resolved_dists_dir)
+    dest = dest or safe_mkdtemp()
+    spawn_download = functools.partial(self._spawn_download, dest)
     with TRACER.timed('Resolving for:\n  {}'.format('\n  '.join(map(str, self.targets)))):
       return list(
         execute_parallel(
@@ -837,7 +835,7 @@ def resolve_multi(requirements=None,
     build=build,
     use_wheel=use_wheel,
     manylinux=manylinux,
-    workspace=workspace,
+    dest=workspace,
     max_parallel_jobs=max_parallel_jobs
   )
 
@@ -879,7 +877,7 @@ def _download_internal(requirements=None,
                        build=True,
                        use_wheel=True,
                        manylinux=None,
-                       workspace=None,
+                       dest=None,
                        max_parallel_jobs=None):
 
   parsed_platforms = [parsed_platform(platform) for platform in platforms] if platforms else []
@@ -920,9 +918,9 @@ def _download_internal(requirements=None,
 
   local_projects = list(download_request.iter_local_projects())
 
-  workspace = workspace or safe_mkdtemp()
+  dest = dest or safe_mkdtemp()
   download_results = download_request.download_distributions(
-    workspace=workspace,
+    dest=dest,
     max_parallel_jobs=max_parallel_jobs
   )
   return local_projects, download_results
@@ -953,6 +951,7 @@ def download(requirements=None,
              build=True,
              use_wheel=True,
              manylinux=None,
+             dest=None,
              max_parallel_jobs=None):
   """Downloads all distributions needed to meet requirements for multiple distribution targets.
 
@@ -989,6 +988,7 @@ def download(requirements=None,
     Defaults to ``True``.
   :keyword str manylinux: The upper bound manylinux standard to support when targeting foreign linux
     platforms. Defaults to ``None``.
+  :keyword str dest: A directory path to download distributions to.
   :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
     building and installing distributions in a resolve. Defaults to the number of CPUs available.
   :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
@@ -1009,6 +1009,7 @@ def download(requirements=None,
     build=build,
     use_wheel=use_wheel,
     manylinux=manylinux,
+    dest=dest,
     max_parallel_jobs=max_parallel_jobs
   )
 
