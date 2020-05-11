@@ -22,7 +22,7 @@ def python_requires() -> str:
   return project_metadata['tool']['flit']['metadata']['requires-python'].strip()
 
 
-def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
+def build_pex_pex(output_file: PurePath, local: bool = False, verbosity: int = 0) -> None:
   # NB: We do not include the subprocess extra (which would be spelled: `.[subprocess]`) since we
   # would then produce a pex that would not be consumable by all python interpreters otherwise
   # meeting `python_requires`; ie: we'd need to then come up with a deploy environment / deploy
@@ -40,7 +40,6 @@ def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
     '--no-build',
     '--no-compile',
     '--no-use-system-time',
-    '--interpreter-constraint', python_requires(),
     '--python-shebang', '/usr/bin/env python',
     '--no-strip-pex-env',
     '--unzip',
@@ -48,6 +47,8 @@ def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
     '-c', 'pex',
     pex_requirement
   ]
+  if not local:
+    args.extend(['--interpreter-constraint', python_requires()])
   subprocess.run(args, check=True)
 
 
@@ -89,10 +90,15 @@ def build_pex_dists(dist_fmt: Format, *additional_dist_fmts: Format, verbose: bo
   )
 
 
-def main(*additional_dist_formats: Format, verbosity: int = 0, serve: bool = False) -> None:
+def main(
+  *additional_dist_formats: Format,
+  verbosity: int = 0,
+  local: bool = False,
+  serve: bool = False
+) -> None:
   pex_output_file = DIST_DIR / 'pex'
   print(f'Building Pex PEX to `{pex_output_file}` ...')
-  build_pex_pex(pex_output_file, verbosity)
+  build_pex_pex(pex_output_file, local, verbosity)
 
   git_rev = describe_git_rev()
   sha256, size = describe_file(pex_output_file)
@@ -147,6 +153,12 @@ if __name__ == '__main__':
     help='Package Pex in additional formats.'
   )
   parser.add_argument(
+    '--local',
+    default=False,
+    action='store_true',
+    help='Build Pex PEX with just a single local interpreter.'
+  )
+  parser.add_argument(
     '--serve',
     default=False,
     action='store_true',
@@ -154,4 +166,9 @@ if __name__ == '__main__':
   )
   args = parser.parse_args()
 
-  main(*(args.additional_formats or ()), verbosity=args.verbosity, serve=args.serve)
+  main(
+    *(args.additional_formats or ()),
+    verbosity=args.verbosity,
+    local=args.local,
+    serve=args.serve
+  )
