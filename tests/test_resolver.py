@@ -386,7 +386,8 @@ def test_download():
                                 extras_require={'foo': ['project2']})
   project2_wheel = build_wheel(name='project2',
                                version='2.0.0',
-                               install_reqs=['setuptools==46.2.0'])
+                               # This is the last version of setuptools compatible with Python 2.7.
+                               install_reqs=['setuptools==44.1.0'])
 
   downloaded_by_target = defaultdict(list)
   for local_distribution in download(requirements=['{}[foo]'.format(project1_sdist)],
@@ -409,7 +410,7 @@ def test_download():
 
   assert_dist('project1', pkginfo.SDist, '1.0.0')
   assert_dist('project2', pkginfo.Wheel, '2.0.0')
-  assert_dist('setuptools', pkginfo.Wheel, '46.2.0')
+  assert_dist('setuptools', pkginfo.Wheel, '44.1.0')
 
 
 def test_install():
