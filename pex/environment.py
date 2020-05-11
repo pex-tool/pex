@@ -219,11 +219,9 @@ class PEXEnvironment(Environment):
       # platforms it supports at buildtime and runtime so this is always safe.
       return True
 
-    try:
-      wheel_name_, wheel_raw_version_, wheel_tags = filename.split('-', 2)
-    except ValueError:
-      return False
-
+    # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
+    # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
+    wheel_tags = '-'.join(filename.split('-')[-3:])  # `{python tag}-{abi tag}-{platform tag}`
     if self._supported_tags.isdisjoint(tags.parse_tag(wheel_tags)):
       return False
 
