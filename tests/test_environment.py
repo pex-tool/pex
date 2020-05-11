@@ -374,3 +374,12 @@ def test_can_add_handles_optional_build_tag_in_wheel(
   )
   native_wheel = IS_LINUX and wheel_is_linux
   assert pex_environment.can_add(Distribution(wheel_filename)) is native_wheel
+
+
+def test_can_add_handles_invalid_wheel_filename(python_35_interpreter):
+  pex_environment = PEXEnvironment(
+    pex="",
+    pex_info=PexInfo.default(python_35_interpreter),
+    interpreter=python_35_interpreter
+  )
+  assert pex_environment.can_add(Distribution('pep427-invalid.whl')) is False
