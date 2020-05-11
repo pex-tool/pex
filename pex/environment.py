@@ -221,7 +221,11 @@ class PEXEnvironment(Environment):
 
     # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
     # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
-    wheel_tags = '-'.join(filename.split('-')[-3:])  # `{python tag}-{abi tag}-{platform tag}`
+    wheel_components = filename.split('-')
+    if len(wheel_components) < 3:
+      return False
+
+    wheel_tags = '-'.join(wheel_components[-3:])  # `{python tag}-{abi tag}-{platform tag}`
     if self._supported_tags.isdisjoint(tags.parse_tag(wheel_tags)):
       return False
 
