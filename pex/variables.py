@@ -339,28 +339,6 @@ class Variables(object):
     """
     return self._get_int('PEX_VERBOSE', default=0)
 
-  # TODO(#94) Remove and push into --flags.
-  @property
-  def PEX_HTTP_RETRIES(self):
-    """Integer
-
-    The number of HTTP retries when performing dependency resolution when building a PEX file.
-    Default: 5.
-    """
-    return self._get_int('PEX_HTTP_RETRIES', default=5)
-
-  # TODO(#94) Remove and push into --flags.
-  @property
-  def PEX_HTTP_TIMEOUT(self):
-    """Integer
-
-    When built with the `requests` HTTP library, a timeout to apply for HTTP connect attempts and
-    read attempts. See the `requests` docs (https://2.python-requests.org/en/master/user/quickstart/#timeouts)
-    for more information.
-    Default: 15.
-    """
-    return self._get_int('PEX_HTTP_TIMEOUT', default=15)
-
   @property
   def PEX_IGNORE_RCFILES(self):
     """Boolean
