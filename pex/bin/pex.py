@@ -21,6 +21,7 @@ from pex.interpreter_constraints import (
     validate_constraints
 )
 from pex.jobs import DEFAULT_MAX_JOBS
+from pex.network_configuration import NetworkConfiguration
 from pex.pex import PEX
 from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.pex_builder import PEXBuilder
@@ -159,6 +160,58 @@ def configure_clp_pex_resolution(parser):
       callback=process_index_url,
       type=str,
       help='Additional cheeseshop indices to use to satisfy requirements.')
+
+  default_net_config = NetworkConfiguration.create()
+
+  group.add_option(
+    '--cache-ttl',
+    metavar='SECS',
+    default=default_net_config.cache_ttl,
+    type=int,
+    help='Set the maximum age of items in the HTTP cache in seconds. [Default: %default]')
+
+  group.add_option(
+    '--retries',
+    default=default_net_config.retries,
+    type=int,
+    help='Maximum number of retries each connection should attempt. [Default: %default]')
+
+  group.add_option(
+    '--timeout',
+    metavar='SECS',
+    default=default_net_config.timeout,
+    type=int,
+    help='Set the socket timeout in seconds. [Default: %default]')
+
+  group.add_option(
+    '-H', '--header',
+    dest='headers',
+    metavar='NAME:VALUE',
+    default=[],
+    type=str,
+    action='append',
+    help='Additional HTTP headers to include in all requests.')
+
+  group.add_option(
+    '--proxy',
+    type=str,
+    default=None,
+    help='Specify a proxy in the form [user:passwd@]proxy.server:port.')
+
+  group.add_option(
+    '--cert',
+    metavar='PATH',
+    type=str,
+    default=None,
+    help='Path to alternate CA bundle.')
+
+  group.add_option(
+    '--client-cert',
+    metavar='PATH',
+    type=str,
+    default=None,
+    help='Path to an SSL client certificate which should be a single file containing the private '
+         'key and the certificate in PEM format.')
 
   group.add_option(
     '--pre', '--no-pre',
@@ -625,6 +678,14 @@ def build_pex(reqs, options, cache=None):
     pex_builder.add_from_requirements_pex(requirements_pex)
 
   with TRACER.timed('Resolving distributions ({})'.format(reqs + options.requirement_files)):
+    network_configuration = NetworkConfiguration.create(cache_ttl=options.cache_ttl,
+                                                        retries=options.retries,
+                                                        timeout=options.timeout,
+                                                        headers=options.headers,
+                                                        proxy=options.proxy,
+                                                        cert=options.cert,
+                                                        client_cert=options.client_cert)
+
     try:
       resolveds = resolve_multi(requirements=reqs,
                                 requirement_files=options.requirement_files,
@@ -635,6 +696,7 @@ def build_pex(reqs, options, cache=None):
                                 platforms=options.platforms,
                                 indexes=indexes,
                                 find_links=options.find_links,
+                                network_configuration=network_configuration,
                                 cache=cache,
                                 build=options.build,
                                 use_wheel=options.use_wheel,

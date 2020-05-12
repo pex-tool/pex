@@ -165,6 +165,7 @@ class DownloadRequest(namedtuple('DownloadRequest', [
   'transitive',
   'indexes',
   'find_links',
+  'network_configuration',
   'cache',
   'build',
   'use_wheel',
@@ -214,6 +215,7 @@ class DownloadRequest(namedtuple('DownloadRequest', [
       target=target,
       indexes=self.indexes,
       find_links=self.find_links,
+      network_configuration=self.network_configuration,
       cache=self.cache,
       build=self.build,
       manylinux=self.manylinux,
@@ -449,6 +451,7 @@ class BuildAndInstallRequest(object):
                install_requests,
                indexes=None,
                find_links=None,
+               network_configuration=None,
                cache=None,
                compile=False):
 
@@ -456,6 +459,7 @@ class BuildAndInstallRequest(object):
     self._install_requests = install_requests
     self._indexes = indexes
     self._find_links = find_links
+    self._network_configuration = network_configuration
     self._cache = cache
     self._compile = compile
 
@@ -481,6 +485,7 @@ class BuildAndInstallRequest(object):
       cache=self._cache,
       indexes=self._indexes,
       find_links=self._find_links,
+      network_configuration=self._network_configuration,
       interpreter=build_request.target.get_interpreter()
     )
     return SpawnedJob.wait(job=build_job, result=build_result)
@@ -655,6 +660,7 @@ def resolve(requirements=None,
             platform=None,
             indexes=None,
             find_links=None,
+            network_configuration=None,
             cache=None,
             build=True,
             use_wheel=True,
@@ -688,6 +694,9 @@ def resolve(requirements=None,
     local html file paths, these are parsed for links to distributions. If a local directory path,
     its listing is used to discover distributons.
   :type find_links: list of str
+  :keyword network_configuration: Configuration for network requests made downloading and building
+    distributions.
+  :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
   :keyword str cache: A directory path to use to cache distributions locally.
   :keyword bool build: Whether to allow building source distributions when no wheel is found.
     Defaults to ``True``.
@@ -716,6 +725,7 @@ def resolve(requirements=None,
                        platforms=None if platform is None else [platform],
                        indexes=indexes,
                        find_links=find_links,
+                       network_configuration=network_configuration,
                        cache=cache,
                        build=build,
                        use_wheel=use_wheel,
@@ -734,6 +744,7 @@ def resolve_multi(requirements=None,
                   platforms=None,
                   indexes=None,
                   find_links=None,
+                  network_configuration=None,
                   cache=None,
                   build=True,
                   use_wheel=True,
@@ -772,6 +783,9 @@ def resolve_multi(requirements=None,
     local html file paths, these are parsed for links to distributions. If a local directory path,
     its listing is used to discover distributons.
   :type find_links: list of str
+  :keyword network_configuration: Configuration for network requests made downloading and building
+    distributions.
+  :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
   :keyword str cache: A directory path to use to cache distributions locally.
   :keyword bool build: Whether to allow building source distributions when no wheel is found.
     Defaults to ``True``.
@@ -831,6 +845,7 @@ def resolve_multi(requirements=None,
     transitive=transitive,
     indexes=indexes,
     find_links=find_links,
+    network_configuration=network_configuration,
     cache=cache,
     build=build,
     use_wheel=use_wheel,
@@ -850,6 +865,7 @@ def resolve_multi(requirements=None,
     install_requests=install_requests,
     indexes=indexes,
     find_links=find_links,
+    network_configuration=network_configuration,
     cache=cache,
     compile=compile
   )
@@ -873,6 +889,7 @@ def _download_internal(requirements=None,
                        platforms=None,
                        indexes=None,
                        find_links=None,
+                       network_configuration=None,
                        cache=None,
                        build=True,
                        use_wheel=True,
@@ -910,6 +927,7 @@ def _download_internal(requirements=None,
     transitive=transitive,
     indexes=indexes,
     find_links=find_links,
+    network_configuration=network_configuration,
     cache=cache,
     build=build,
     use_wheel=use_wheel,
@@ -947,6 +965,7 @@ def download(requirements=None,
              platforms=None,
              indexes=None,
              find_links=None,
+             network_configuration=None,
              cache=None,
              build=True,
              use_wheel=True,
@@ -981,6 +1000,9 @@ def download(requirements=None,
     local html file paths, these are parsed for links to distributions. If a local directory path,
     its listing is used to discover distributons.
   :type find_links: list of str
+  :keyword network_configuration: Configuration for network requests made downloading and building
+    distributions.
+  :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
   :keyword str cache: A directory path to use to cache distributions locally.
   :keyword bool build: Whether to allow building source distributions when no wheel is found.
     Defaults to ``True``.
@@ -1005,6 +1027,7 @@ def download(requirements=None,
     transitive=transitive,
     indexes=indexes,
     find_links=find_links,
+    network_configuration=network_configuration,
     cache=cache,
     build=build,
     use_wheel=use_wheel,
@@ -1037,6 +1060,7 @@ def download(requirements=None,
 def install(local_distributions,
             indexes=None,
             find_links=None,
+            network_configuration=None,
             cache=None,
             compile=False,
             max_parallel_jobs=None,
@@ -1053,6 +1077,9 @@ def install(local_distributions,
     local html file paths, these are parsed for links to distributions. If a local directory path,
     its listing is used to discover distributons.
   :type find_links: list of str
+  :keyword network_configuration: Configuration for network requests made downloading and building
+    distributions.
+  :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
   :keyword str cache: A directory path to use to cache distributions locally.
   :keyword bool compile: Whether to pre-compile resolved distribution python sources.
     Defaults to ``False``.
@@ -1079,6 +1106,7 @@ def install(local_distributions,
     install_requests=install_requests,
     indexes=indexes,
     find_links=find_links,
+    network_configuration=network_configuration,
     cache=cache,
     compile=compile
   )

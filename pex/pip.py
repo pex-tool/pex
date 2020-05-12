@@ -13,6 +13,7 @@ from pex.common import atomic_directory
 from pex.compatibility import urlparse
 from pex.distribution_target import DistributionTarget
 from pex.jobs import Job
+from pex.network_configuration import NetworkConfiguration
 from pex.third_party import isolated
 from pex.tracer import TRACER
 from pex.variables import ENV
@@ -102,14 +103,19 @@ class Pip(object):
         )
       )
 
-  def _calculate_package_index_options(self, indexes=None, find_links=None):
+  def _calculate_package_index_options(
+    self,
+    indexes=None,
+    find_links=None,
+    network_configuration=None
+  ):
     trusted_hosts = []
 
     def maybe_trust_insecure_host(url):
       url_info = urlparse.urlparse(url)
       if 'http' == url_info.scheme:
         # Implicitly trust explicitly asked for http indexes and find_links repos instead of
-        # requiring seperate trust configuration.
+        # requiring separate trust configuration.
         trusted_hosts.append(url_info.netloc)
       return url
 
@@ -135,6 +141,35 @@ class Pip(object):
       yield '--trusted-host'
       yield trusted_host
 
+    network_configuration = network_configuration or NetworkConfiguration.create()
+
+    # N.B.: Pip sends `Cache-Control: max-age=0` by default which turns of HTTP caching as per the
+    # spec:
+    yield '--header'
+    yield 'Cache-Control:max-age={}'.format(network_configuration.cache_ttl)
+
+    for header in network_configuration.headers:
+      yield '--header'
+      yield header
+
+    yield '--retries'
+    yield str(network_configuration.retries)
+
+    yield '--timeout'
+    yield str(network_configuration.timeout)
+
+    if network_configuration.proxy:
+      yield '--proxy'
+      yield network_configuration.proxy
+
+    if network_configuration.cert:
+      yield '--cert'
+      yield network_configuration.cert
+
+    if network_configuration.client_cert:
+      yield '--client-cert'
+      yield network_configuration.client_cert
+
   def spawn_download_distributions(self,
                                    download_dir,
                                    requirements=None,
@@ -145,6 +180,7 @@ class Pip(object):
                                    target=None,
                                    indexes=None,
                                    find_links=None,
+                                   network_configuration=None,
                                    cache=None,
                                    build=True,
                                    manylinux=None,
@@ -164,7 +200,8 @@ class Pip(object):
     download_cmd = ['download', '--dest', download_dir]
     package_index_options = self._calculate_package_index_options(
       indexes=indexes,
-      find_links=find_links
+      find_links=find_links,
+      network_configuration=network_configuration,
     )
     download_cmd.extend(package_index_options)
 
@@ -209,12 +246,18 @@ class Pip(object):
                          interpreter=None,
                          indexes=None,
                          find_links=None,
+                         network_configuration=None,
                          cache=None):
 
     wheel_cmd = ['wheel', '--no-deps', '--wheel-dir', wheel_dir]
 
     # If the build is PEP-517 compliant it may need to resolve build requirements.
-    wheel_cmd.extend(self._calculate_package_index_options(indexes=indexes, find_links=find_links))
+    package_index_options = self._calculate_package_index_options(
+      indexes=indexes,
+      find_links=find_links,
+      network_configuration=network_configuration,
+    )
+    wheel_cmd.extend(package_index_options)
 
     wheel_cmd.extend(distributions)
     return self._spawn_pip_isolated(wheel_cmd, cache=cache, interpreter=interpreter)
