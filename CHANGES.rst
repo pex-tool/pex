@@ -1,6 +1,53 @@
 Release Notes
 =============
 
+2.1.10
+------
+
+This release focuses on the resolver API and resolution performance. Pex 2 resolving using Pip is
+now at least at performance parity with Pex 1 in all studied cases and most often is 5% to 10%
+faster.
+
+As part of the resolution performance work, Pip networking configuration is now exposed via Pex CLI
+options and the ``NetworkConfiguration`` API type / new ``resolver.resolve`` API parameter.
+
+With network configuration now wired up, the ``PEX_HTTP_RETRIES`` and ``PEX_HTTP_TIMEOUT`` env var
+support in Pex 1 that was never wired into Pex 2 is now dropped in favor of passing ``--retries``
+and ``--timeout`` via the CLI (See: `Issue #94 <https://github.com/pantsbuild/pex/issues/94>`_)
+
+* Expose Pip network configuration. (#974)
+  `PR #974 <https://github.com/pantsbuild/pex/pull/974>`_
+
+* Restore handling for bad wheel filenames to ``.can_add()`` (#973)
+  `PR #973 <https://github.com/pantsbuild/pex/pull/973>`_
+
+* Fix wheel filename parsing in PEXEnvironment.can_add (#965)
+  `PR #965 <https://github.com/pantsbuild/pex/pull/965>`_
+
+* Split Pex resolve API. (#970)
+  `PR #970 <https://github.com/pantsbuild/pex/pull/970>`_
+
+* Add a ``--local`` mode for packaging the Pex PEX. (#971)
+  `PR #971 <https://github.com/pantsbuild/pex/pull/971>`_
+
+* Constrain the virtualenv version used by tox. (#968)
+  `PR #968 <https://github.com/pantsbuild/pex/pull/968>`_
+
+* Improve Pex packaging. (#961)
+  `PR #961 <https://github.com/pantsbuild/pex/pull/961>`_
+
+* Make the interpreter cache deterministic. (#960)
+  `PR #960 <https://github.com/pantsbuild/pex/pull/960>`_
+
+* Fix deprecation warning for ``rU`` mode (#956)
+  `PR #956 <https://github.com/pantsbuild/pex/pull/956>`_
+
+* Fix runtime resolve error message generation. (#955)
+  `PR #955 <https://github.com/pantsbuild/pex/pull/955>`_
+
+* Kill dead code. (#954)
+  `PR #954 <https://github.com/pantsbuild/pex/pull/954>`_
+
 2.1.9
 -----
 
