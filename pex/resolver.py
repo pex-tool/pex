@@ -418,7 +418,10 @@ class InstallResult(namedtuple('InstallResult', ['request', 'installation_root',
     runtime_key_dir = os.path.join(self.installation_root, wheel_dir_hash)
     with atomic_directory(runtime_key_dir) as work_dir:
       if work_dir:
-        os.symlink(self.install_chroot, os.path.join(work_dir, self.request.wheel_file))
+        source_path = os.path.join(work_dir, self.request.wheel_file)
+        start_dir = os.path.dirname(source_path)
+        relative_target_path = os.path.relpath(self.install_chroot, start_dir)
+        os.symlink(relative_target_path, source_path)
 
     return self._iter_requirements_requests(install_requests)
 
