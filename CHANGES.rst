@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.11
+------
+
+A patch release to fix a symlink issue in remote execution environments.
+
+* use relative paths within wheel cache (#979)
+  `PR #979 <https://github.com/pantsbuild/pex/pull/979>`_
+
+* Fix Tox not finding Python 3.8 on OSX. (#976)
+  `PR #976 <https://github.com/pantsbuild/pex/pull/976>`_
+
 2.1.10
 ------
 
