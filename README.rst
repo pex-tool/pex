@@ -139,7 +139,7 @@ If you don't have tox, you can generate a pex of tox:
 
     $ pex tox -c tox -o ~/bin/tox
 
-Tox provides many useful commands and options, explained at https://testrun.org/tox/en/latest/.
+Tox provides many useful commands and options, explained at https://tox.readthedocs.io/en/latest/.
 Below, we provide some of the most commonly used commands used when working on Pex, but the
 docs are worth acquainting yourself with to better understand how Tox works and how to do more
 advanced commmands.
