@@ -698,7 +698,7 @@ def resolve(requirements=None,
   :type indexes: list of str
   :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
     local html file paths, these are parsed for links to distributions. If a local directory path,
-    its listing is used to discover distributors.
+    its listing is used to discover distributions.
   :type find_links: list of str
   :keyword network_configuration: Configuration for network requests made downloading and building
     distributions.
@@ -787,7 +787,7 @@ def resolve_multi(requirements=None,
   :type indexes: list of str
   :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
     local html file paths, these are parsed for links to distributions. If a local directory path,
-    its listing is used to discover distributors.
+    its listing is used to discover distributions.
   :type find_links: list of str
   :keyword network_configuration: Configuration for network requests made downloading and building
     distributions.
@@ -1004,7 +1004,7 @@ def download(requirements=None,
   :type indexes: list of str
   :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
     local html file paths, these are parsed for links to distributions. If a local directory path,
-    its listing is used to discover distributors.
+    its listing is used to discover distributions.
   :type find_links: list of str
   :keyword network_configuration: Configuration for network requests made downloading and building
     distributions.
@@ -1081,7 +1081,7 @@ def install(local_distributions,
   :type indexes: list of str
   :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
     local html file paths, these are parsed for links to distributions. If a local directory path,
-    its listing is used to discover distributors.
+    its listing is used to discover distributions.
   :type find_links: list of str
   :keyword network_configuration: Configuration for network requests made downloading and building
     distributions.
