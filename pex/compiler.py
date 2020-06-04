@@ -73,7 +73,7 @@ class Compiler(object):
     """Compiles the given python source files using this compiler's interpreter.
 
     :param string root: The root path all the source files are found under.
-    :param list relpaths: The realtive paths from the `root` of the source files to compile.
+    :param list relpaths: The relative paths from the `root` of the source files to compile.
     :returns: A list of relative paths of the compiled bytecode files.
     :raises: A :class:`Compiler.Error` if there was a problem bytecode compiling any of the files.
     """

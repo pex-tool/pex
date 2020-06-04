@@ -28,7 +28,7 @@ from pex.tracer import TRACER
 from pex.util import CacheHelper
 
 
-class Untranslateable(Exception):
+class Untranslatable(Exception):
   pass
 
 
@@ -551,7 +551,7 @@ class BuildAndInstallRequest(object):
 
         for build_result in execute_parallel(inputs=build_requests,
                                              spawn_func=spawn_wheel_build,
-                                             raise_type=Untranslateable,
+                                             raise_type=Untranslatable,
                                              max_jobs=max_parallel_jobs):
           to_install.extend(build_result.finalize_build())
 
@@ -584,7 +584,7 @@ class BuildAndInstallRequest(object):
 
       for install_result in execute_parallel(inputs=install_requests,
                                              spawn_func=spawn_install,
-                                             raise_type=Untranslateable,
+                                             raise_type=Untranslatable,
                                              max_jobs=max_parallel_jobs):
         add_requirements_requests(install_result)
 
@@ -595,7 +595,7 @@ class BuildAndInstallRequest(object):
         execute_parallel(
           inputs=to_calculate_requirements_for,
           spawn_func=DistributionRequirements.Request.spawn_calculation,
-          raise_type=Untranslateable,
+          raise_type=Untranslatable,
           max_jobs=max_parallel_jobs
         )
       )
@@ -698,7 +698,7 @@ def resolve(requirements=None,
   :type indexes: list of str
   :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
     local html file paths, these are parsed for links to distributions. If a local directory path,
-    its listing is used to discover distributons.
+    its listing is used to discover distributions.
   :type find_links: list of str
   :keyword network_configuration: Configuration for network requests made downloading and building
     distributions.
@@ -717,7 +717,7 @@ def resolve(requirements=None,
   :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
   :returns: List of :class:`ResolvedDistribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
-  :raises Untranslateable: If no compatible distributions could be acquired for
+  :raises Untranslatable: If no compatible distributions could be acquired for
     a particular requirement.
   """
   # TODO(https://github.com/pantsbuild/pex/issues/969): Deprecate resolve with a single interpreter
@@ -787,7 +787,7 @@ def resolve_multi(requirements=None,
   :type indexes: list of str
   :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
     local html file paths, these are parsed for links to distributions. If a local directory path,
-    its listing is used to discover distributons.
+    its listing is used to discover distributions.
   :type find_links: list of str
   :keyword network_configuration: Configuration for network requests made downloading and building
     distributions.
@@ -806,7 +806,7 @@ def resolve_multi(requirements=None,
   :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
   :returns: List of :class:`ResolvedDistribution` instances meeting ``requirements``.
   :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
-  :raises Untranslateable: If no compatible distributions could be acquired for
+  :raises Untranslatable: If no compatible distributions could be acquired for
     a particular requirement.
   """
 
@@ -1004,7 +1004,7 @@ def download(requirements=None,
   :type indexes: list of str
   :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
     local html file paths, these are parsed for links to distributions. If a local directory path,
-    its listing is used to discover distributons.
+    its listing is used to discover distributions.
   :type find_links: list of str
   :keyword network_configuration: Configuration for network requests made downloading and building
     distributions.
@@ -1081,7 +1081,7 @@ def install(local_distributions,
   :type indexes: list of str
   :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
     local html file paths, these are parsed for links to distributions. If a local directory path,
-    its listing is used to discover distributons.
+    its listing is used to discover distributions.
   :type find_links: list of str
   :keyword network_configuration: Configuration for network requests made downloading and building
     distributions.
@@ -1093,7 +1093,7 @@ def install(local_distributions,
     building and installing distributions in a resolve. Defaults to the number of CPUs available.
   :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
   :returns: List of :class:`InstalledDistribution` instances meeting ``requirements``.
-  :raises Untranslateable: If no compatible distributions could be acquired for
+  :raises Untranslatable: If no compatible distributions could be acquired for
     a particular requirement.
   :raises Unsatisfiable: If not ignoring errors and distribution requirements are found to not be
     transitively satisfiable.
