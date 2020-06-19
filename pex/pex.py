@@ -321,6 +321,11 @@ class PEX(object):  # noqa: T000
 
     new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
+    if self._vars.PEX_EXTRA_SYS_PATH:
+      TRACER.log('Adding %s to sys.path' % self._vars.PEX_EXTRA_SYS_PATH)
+      new_sys_path.extend(self._vars.PEX_EXTRA_SYS_PATH.split(':'))
+    TRACER.log('New sys.path: %s' % new_sys_path)
+
     patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
 
   def _wrap_coverage(self, runner, *args):

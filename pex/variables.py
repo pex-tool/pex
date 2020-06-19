@@ -276,6 +276,19 @@ class Variables(object):
     return self._get_string('PEX_PYTHON_PATH', default=None)
 
   @property
+  def PEX_EXTRA_SYS_PATH(self):
+    """String
+
+    A colon-separated string containing paths to add to the runtime sys.path.
+
+    Should be used sparingly, e.g., if you know that code inside this PEX needs to
+    interact with code outside it.
+
+    Ex: "/path/to/lib1:/path/to/lib2"
+    """
+    return self._get_string('PEX_EXTRA_SYS_PATH', default=None)
+
+  @property
   def PEX_ROOT(self):
     """Directory
 
