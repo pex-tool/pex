@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+2.1.12
+------
+
+A patch release to deploy the PEX_EXTRA_SYS_PATH feature.
+
+* A PEX_EXTRA_SYS_PATH runtime variable. (#989)
+  `PR #989 <https://github.com/pantsbuild/pex/pull/989>`_
+
+* Fix typos (#986)
+  `PR #986 <https://github.com/pantsbuild/pex/pull/986>`_
+
+* Update link to avoid a redirect (#982)
+  `PR #982 <https://github.com/pantsbuild/pex/pull/982>`_
+
 2.1.11
 ------
 
