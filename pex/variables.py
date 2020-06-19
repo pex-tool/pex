@@ -201,6 +201,8 @@ class Variables(object):
     Using this option is generally not advised, but can help in situations when certain dependencies
     do not conform to standard packaging practices and thus cannot be bundled into PEX files.
 
+    See also PEX_EXTRA_SYS_PATH for how to *add* to the sys.path.
+
     Default: false.
     """
     return self._get_string('PEX_INHERIT_PATH', default='false')
@@ -285,6 +287,11 @@ class Variables(object):
     interact with code outside it.
 
     Ex: "/path/to/lib1:/path/to/lib2"
+
+    This is distinct from PEX_INHERIT_PATH, which controls how the interpreter's
+    existing sys.path (which you may not have control over) is scrubbed.
+
+    See also PEX_PATH for how to merge packages from other pexes into the current environment.
     """
     return self._get_string('PEX_EXTRA_SYS_PATH', default=None)
 
@@ -319,6 +326,8 @@ class Variables(object):
     containing plugin entry points to be consumed by a main application.  Paths should be
     specified in the same manner as $PATH, e.g. PEX_PATH=/path/to/pex1.pex:/path/to/pex2.pex
     and so forth.
+
+    See also PEX_EXTRA_SYS_PATH for how to add arbitrary entries to the sys.path.
     """
     return self._get_string('PEX_PATH', default='')
 
