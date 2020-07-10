@@ -47,6 +47,10 @@ class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
         The abbreviated platform string is:
           linux-x86_64-cp-37-m
 
+        Some other canonical platform string examples:
+        + OSX CPython: macosx-10.13-x86_64-cp-36-cp36m
+        + Linux PyPy: linux-x86_64-pp-273-pypy_73.
+
         These fields stem from wheel name conventions as outlined in
         https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by
         https://www.python.org/dev/peps/pep-0425.

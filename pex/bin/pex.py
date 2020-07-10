@@ -428,6 +428,7 @@ def configure_clp_pex_environment(parser):
            '#!.  This overrides the default behavior, which picks an environment python '
            'interpreter compatible with the one used to build the PEX file.')
 
+  current_interpreter = PythonInterpreter.get()
   group.add_option(
       '--platform',
       dest='platforms',
@@ -442,7 +443,10 @@ def configure_clp_pex_environment(parser):
            'stem from wheel name conventions as outlined in '
            'https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by '
            'https://www.python.org/dev/peps/pep-0425. For the current interpreter at {} the full '
-           'platform string is {}'.format(PythonInterpreter.get().binary, Platform.current()))
+           'platform string is {}. To find out more, try `{} --platform explain`.'
+           .format(current_interpreter.binary,
+                   Platform.of_interpreter(current_interpreter),
+                   sys.argv[0]))
 
   parser.add_option_group(group)
 
