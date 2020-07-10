@@ -68,7 +68,14 @@ class Pip(object):
       '--isolated',
 
       # If we want to warn about a version of python we support, we should do it, not pip.
-      '--no-python-version-warning'
+      '--no-python-version-warning',
+
+      # If pip encounters a duplicate file path during its operations we don't want it to prompt
+      # and we'd also like to know about this since it should never occur. We leverage the pip
+      # global option:
+      # --exists-action <action>
+      #   Default action when a path already exists: (s)witch, (i)gnore, (w)ipe, (b)ackup, (a)bort.
+      '--exists-action', 'a'
     ]
 
     # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor of 3.

@@ -281,12 +281,22 @@ class BuildRequest(namedtuple('BuildRequest', ['target', 'source_path', 'fingerp
 class BuildResult(namedtuple('BuildResult', ['request', 'atomic_dir'])):
   @classmethod
   def from_request(cls, build_request, dist_root):
+    dist_type = 'sdists' if os.path.isfile(build_request.source_path) else 'local_projects'
+
+    # For the purposes of building a wheel from source, the product should be uniqued by the wheel
+    # name which is unique on the host os up to the python and abi tags. In other words, the product
+    # of a CPython 2.7.6 wheel build and a CPython 2.7.18 wheel build should be functionally
+    # interchangeable if the two CPython interpreters have matching abis.
+    interpreter = build_request.target.get_interpreter()
+    target_tags = '{python_tag}-{abi_tag}'.format(python_tag=interpreter.identity.python_tag,
+                                                  abi_tag=interpreter.identity.abi_tag)
+
     dist_dir = os.path.join(
       dist_root,
-      'sdists' if os.path.isfile(build_request.source_path) else 'local_projects',
+      dist_type,
       os.path.basename(build_request.source_path),
       build_request.fingerprint,
-      build_request.target.id
+      target_tags
     )
     return cls(request=build_request, atomic_dir=AtomicDirectory(dist_dir))
 
@@ -924,8 +934,13 @@ def _download_internal(requirements=None,
           #    were specified).
           yield DistributionTarget.for_platform(platform)
 
+  # Only download for each target once. The download code assumes this unique targets optimization
+  # when spawning parallel downloads.
+  # TODO(John Sirois): centralize the de-deuping in the DownloadRequest constructor when we drop
+  # python 2.7 and move from namedtuples to dataclasses.
+  unique_targets = OrderedSet(iter_targets())
   download_request = DownloadRequest(
-    targets=list(iter_targets()),
+    targets=unique_targets,
     requirements=requirements,
     requirement_files=requirement_files,
     constraint_files=constraint_files,
