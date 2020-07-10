@@ -445,9 +445,7 @@ def configure_clp_pex_environment(parser):
            'https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by '
            'https://www.python.org/dev/peps/pep-0425. For the current interpreter at {} the full '
            'platform string is {}. To find out more, try `{} --platform explain`.'
-           .format(current_interpreter.binary,
-                   Platform.of_interpreter(current_interpreter),
-                   sys.argv[0]))
+           .format(current_interpreter.binary, current_interpreter.platform, sys.argv[0]))
 
   group.add_option(
       '--resolve-local-platforms',
@@ -621,8 +619,8 @@ def build_pex(reqs, options, cache=None):
 
   pex_python_path = None  # Defaults to $PATH
   if options.rc_file or not ENV.PEX_IGNORE_RCFILES:
-    rc_variables = Variables.from_rc(rc=options.rc_file)
-    pex_python_path = rc_variables.get('PEX_PYTHON_PATH', None)
+    rc_variables = Variables(rc=options.rc_file)
+    pex_python_path = rc_variables.PEX_PYTHON_PATH
 
   # NB: options.python and interpreter constraints cannot be used together.
   if options.python:
@@ -651,7 +649,9 @@ def build_pex(reqs, options, cache=None):
   if options.platforms and options.resolve_local_platforms:
     with TRACER.timed('Searching for local interpreters matching {}'
                       .format(', '.join(map(str, platforms)))):
-      for candidate_interpreter in iter_compatible_interpreters(pex_python_path):
+      candidate_interpreters = OrderedSet(iter_compatible_interpreters(pex_python_path))
+      candidate_interpreters.add(PythonInterpreter.get())
+      for candidate_interpreter in candidate_interpreters:
         resolved_platforms = candidate_interpreter.supported_platforms.intersection(platforms)
         if resolved_platforms:
           for resolved_platform in resolved_platforms:

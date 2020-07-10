@@ -1883,7 +1883,7 @@ def test_issues_996():
     results = create_platform_pex(args)
     results.assert_failure()
 
-    # If --platform resolution is enabled however, we should be able to find a corresponsing local
+    # If --platform resolution is enabled however, we should be able to find a corresponding local
     # interpreter to perform a full-featured resolve with.
     results = create_platform_pex(['--resolve-local-platforms'] + args)
     results.assert_success()
