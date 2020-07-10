@@ -19,6 +19,7 @@ from pex.common import safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
 from pex.jobs import Job, SpawnedJob, execute_parallel
+from pex.platforms import Platform
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
@@ -159,6 +160,14 @@ class PythonIdentity(object):
   @property
   def distribution(self):
     return Distribution(project_name=self.interpreter, version=self.version_str)
+
+  def iter_supported_platforms(self):
+    """All platforms supported by the associated interpreter ordered from most specific to least.
+
+    :rtype: iterator of :class:`Platform`
+    """
+    for tags in self._supported_tags:
+      yield Platform.from_tags(platform=tags.platform, python=tags.interpreter, abi=tags.abi)
 
   @classmethod
   def parse_requirement(cls, requirement, default_interpreter='CPython'):
@@ -494,6 +503,8 @@ class PythonInterpreter(object):
     self._identity = identity
     self._binary = self._normalize_path(self.identity.binary)
 
+    self._supported_platforms = None
+
     self._PYTHON_INTERPRETER_BY_NORMALIZED_PATH[self._binary] = self
 
   @property
@@ -515,6 +526,24 @@ class PythonInterpreter(object):
   @property
   def version_string(self):
     return str(self._identity)
+
+  @property
+  def platform(self):
+    """The most specific platform of this interpreter.
+
+    :rtype: :class:`Platform`
+    """
+    return next(self._identity.iter_supported_platforms())
+
+  @property
+  def supported_platforms(self):
+    """All platforms supported by this interpreter.
+
+    :rtype: frozenset of :class:`Platform`
+    """
+    if self._supported_platforms is None:
+      self._supported_platforms = frozenset(self._identity.iter_supported_platforms())
+    return self._supported_platforms
 
   def execute(self, args=None, stdin_payload=None, pythonpath=None, env=None, **kwargs):
     return self._execute(self.binary,

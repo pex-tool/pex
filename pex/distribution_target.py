@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import os
 
 from pex.interpreter import PythonInterpreter
-from pex.platforms import Platform
 
 
 class DistributionTarget(object):
@@ -32,13 +31,13 @@ class DistributionTarget(object):
   def is_foreign(self):
     if self._platform is None:
       return False
-    return self._platform != Platform.of_interpreter(self._interpreter)
+    return self._platform not in self.get_interpreter().supported_platforms
 
   def get_interpreter(self):
     return self._interpreter or PythonInterpreter.get()
 
   def get_platform(self):
-    return self._platform or Platform.current()
+    return self._platform or self.get_interpreter().platform
 
   def requirement_applies(self, requirement):
     """Determines if the given requirement applies to this distribution target.
