@@ -436,13 +436,13 @@ def configure_clp_pex_environment(parser):
       action='callback',
       callback=process_platform,
       help='The platform for which to build the PEX. This option can be passed multiple times '
-           'to create a multi-platform pex. To use wheels for specific interpreter/platform tags'
-           ', you can append them to the platform with hyphens like: PLATFORM-IMPL-PYVER-ABI '
-           '(e.g. "linux_x86_64-cp-27-cp27mu", "macosx_10.12_x86_64-cp-36-cp36m") PLATFORM is '
-           'the host platform e.g. "linux-x86_64", "macosx-10.12-x86_64", etc". IMPL is the '
-           'python implementation abbreviation (e.g. "cp", "pp", "jp"). PYVER is a two-digit '
-           'string representing the python version (e.g. "27", "36"). ABI is the ABI tag '
-           '(e.g. "cp36m", "cp27mu", "abi3", "none"). Default: current platform.')
+           'to create a multi-platform pex. To use the platform corresponding to the current '
+           'interpreter you can pass `current`. To target any other platform you pass a string '
+           'composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. These fields '
+           'stem from wheel name conventions as outlined in '
+           'https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by '
+           'https://www.python.org/dev/peps/pep-0425. For the current interpreter at {} the full '
+           'platform string is {}'.format(PythonInterpreter.get().binary, Platform.current()))
 
   parser.add_option_group(group)
 
