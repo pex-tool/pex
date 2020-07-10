@@ -22,6 +22,7 @@ from pex.interpreter_constraints import (
 )
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.network_configuration import NetworkConfiguration
+from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.pex_builder import PEXBuilder
@@ -444,9 +445,18 @@ def configure_clp_pex_environment(parser):
            'https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by '
            'https://www.python.org/dev/peps/pep-0425. For the current interpreter at {} the full '
            'platform string is {}. To find out more, try `{} --platform explain`.'
-           .format(current_interpreter.binary,
-                   Platform.of_interpreter(current_interpreter),
-                   sys.argv[0]))
+           .format(current_interpreter.binary, current_interpreter.platform, sys.argv[0]))
+
+  group.add_option(
+      '--resolve-local-platforms',
+      dest='resolve_local_platforms',
+      default=False,
+      action='callback',
+      callback=parse_bool,
+      help='When --platforms are specified, attempt to resolve a local interpreter that matches '
+           'each platform specified. If found, use the interpreter to resolve distributions; if '
+           'not, resolve for the platform only allowing matching binary distributions and failing '
+           'if only sdists or non-matching binary distributions can be found.')
 
   parser.add_option_group(group)
 
@@ -607,6 +617,11 @@ def _safe_link(src, dst):
 def build_pex(reqs, options, cache=None):
   interpreters = None  # Default to the current interpreter.
 
+  pex_python_path = None  # Defaults to $PATH
+  if options.rc_file or not ENV.PEX_IGNORE_RCFILES:
+    rc_variables = Variables(rc=options.rc_file)
+    pex_python_path = rc_variables.PEX_PYTHON_PATH
+
   # NB: options.python and interpreter constraints cannot be used together.
   if options.python:
     with TRACER.timed('Resolving interpreters', V=2):
@@ -624,15 +639,36 @@ def build_pex(reqs, options, cache=None):
     with TRACER.timed('Resolving interpreters', V=2):
       constraints = options.interpreter_constraint
       validate_constraints(constraints)
-      if options.rc_file or not ENV.PEX_IGNORE_RCFILES:
-        rc_variables = Variables.from_rc(rc=options.rc_file)
-        pex_python_path = rc_variables.get('PEX_PYTHON_PATH', None)
-      else:
-        pex_python_path = None
       try:
         interpreters = list(iter_compatible_interpreters(pex_python_path, constraints))
       except UnsatisfiableInterpreterConstraintsError as e:
         die(e.create_message('Could not find a compatible interpreter.'), CANNOT_SETUP_INTERPRETER)
+
+  platforms = OrderedSet(options.platforms)
+  interpreters = interpreters or []
+  if options.platforms and options.resolve_local_platforms:
+    with TRACER.timed('Searching for local interpreters matching {}'
+                      .format(', '.join(map(str, platforms)))):
+      candidate_interpreters = OrderedSet(iter_compatible_interpreters(pex_python_path))
+      candidate_interpreters.add(PythonInterpreter.get())
+      for candidate_interpreter in candidate_interpreters:
+        resolved_platforms = candidate_interpreter.supported_platforms.intersection(platforms)
+        if resolved_platforms:
+          for resolved_platform in resolved_platforms:
+            TRACER.log('Resolved {} for platform {}'
+                       .format(candidate_interpreter, resolved_platform))
+            platforms.remove(resolved_platform)
+          interpreters.append(candidate_interpreter)
+    if platforms:
+      TRACER.log(
+        'Could not resolve a local interpreter for {}, will resolve only binary distributions '
+        'for {}.'.format(
+          ', '.join(map(str, platforms)),
+          'this platform' if len(platforms) == 1 else 'these platforms'
+        )
+      )
+
+  interpreter = min(interpreters) if interpreters else None
 
   try:
     with open(options.preamble_file) as preamble_fd:
@@ -640,8 +676,6 @@ def build_pex(reqs, options, cache=None):
   except TypeError:
     # options.preamble_file is None
     preamble = None
-
-  interpreter = min(interpreters) if interpreters else None
 
   pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
@@ -697,7 +731,7 @@ def build_pex(reqs, options, cache=None):
                                 allow_prereleases=options.allow_prereleases,
                                 transitive=options.transitive,
                                 interpreters=interpreters,
-                                platforms=options.platforms,
+                                platforms=list(platforms),
                                 indexes=indexes,
                                 find_links=options.find_links,
                                 network_configuration=network_configuration,
@@ -740,10 +774,11 @@ def transform_legacy_arg(arg):
   return arg
 
 
-def _compatible_with_current_platform(platforms):
+def _compatible_with_current_platform(interpreter, platforms):
   if not platforms:
     return True
-  current_platforms = {None, Platform.current()}
+  current_platforms = set(interpreter.supported_platforms)
+  current_platforms.add(None)
   return current_platforms.intersection(platforms)
 
 
@@ -790,8 +825,9 @@ def main(args=None):
       pex_builder = build_pex(reqs, options, cache=ENV.PEX_ROOT)
 
     pex_builder.freeze(bytecode_compile=options.compile)
+    interpreter = pex_builder.interpreter
     pex = PEX(pex_builder.path(),
-              interpreter=pex_builder.interpreter,
+              interpreter=interpreter,
               verify_entry_point=options.validate_ep)
 
     if options.pex_name is not None:
@@ -805,10 +841,10 @@ def main(args=None):
       )
       os.rename(tmp_name, options.pex_name)
     else:
-      if not _compatible_with_current_platform(options.platforms):
+      if not _compatible_with_current_platform(interpreter, options.platforms):
         log('WARNING: attempting to run PEX with incompatible platforms!', V=1)
         log('Running on platform {} but built for {}'
-            .format(Platform.current(), ', '.join(map(str, options.platforms))), V=1)
+            .format(interpreter.platform, ', '.join(map(str, options.platforms))), V=1)
 
       log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline),
           V=options.verbosity)

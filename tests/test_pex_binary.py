@@ -11,7 +11,7 @@ import pytest
 from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution
 from pex.common import safe_copy, temporary_dir
 from pex.compatibility import nested, to_bytes
-from pex.platforms import Platform
+from pex.interpreter import PythonInterpreter
 from pex.testing import (
     PY27,
     built_wheel,
@@ -209,7 +209,7 @@ def test_run_pex():
   assert incompatible_platforms_warning_msg not in assert_run_pex()
   assert incompatible_platforms_warning_msg not in assert_run_pex(pex_args=['--platform=current'])
   assert incompatible_platforms_warning_msg not in assert_run_pex(
-    pex_args=['--platform={}'.format(Platform.current())]
+    pex_args=['--platform={}'.format(PythonInterpreter.get().platform)]
   )
 
   py27 = ensure_python_interpreter(PY27)

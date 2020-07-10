@@ -5,6 +5,7 @@ import filecmp
 import functools
 import glob
 import json
+import multiprocessing
 import os
 import re
 import shutil
@@ -19,6 +20,7 @@ import pytest
 from pex import pex_builder
 from pex.common import safe_copy, safe_mkdir, safe_open, safe_rmtree, safe_sleep, temporary_dir
 from pex.compatibility import WINDOWS, nested, to_bytes
+from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
 from pex.testing import (
@@ -1856,3 +1858,40 @@ def test_unzip_mode():
     )
     assert output1 == output2
     assert not os.path.exists(unzipped_cache)
+
+
+def test_issues_996():
+  python27 = ensure_python_interpreter(PY27)
+  python36 = ensure_python_interpreter(PY36)
+  pex_python_path = os.pathsep.join((python27, python36))
+
+  def create_platform_pex(args):
+    return run_pex_command(
+      args=['--platform', str(PythonInterpreter.from_binary(python36).platform)] + args,
+      python=python27,
+      env=make_env(PEX_PYTHON_PATH=pex_python_path)
+    )
+
+  with temporary_dir() as td:
+    pex_file = os.path.join(td, 'pex_file')
+
+    # N.B.: We use psutil since only an sdist is available for linux and osx and the distribution
+    # has no dependencies.
+    args = ['psutil==5.7.0', '-o', pex_file]
+
+    # By default, no --platforms are resolved and so distributions must be available in binary form.
+    results = create_platform_pex(args)
+    results.assert_failure()
+
+    # If --platform resolution is enabled however, we should be able to find a corresponding local
+    # interpreter to perform a full-featured resolve with.
+    results = create_platform_pex(['--resolve-local-platforms'] + args)
+    results.assert_success()
+
+    output, returncode = run_simple_pex(
+      pex=pex_file,
+      args=('-c', 'import psutil; print(psutil.cpu_count())'),
+      interpreter=PythonInterpreter.from_binary(python36)
+    )
+    assert 0 == returncode
+    assert int(output.strip()) >= multiprocessing.cpu_count()

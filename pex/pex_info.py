@@ -52,10 +52,9 @@ class PexInfo(object):
   @classmethod
   def make_build_properties(cls, interpreter=None):
     from .interpreter import PythonInterpreter
-    from .platforms import Platform
 
     pi = interpreter or PythonInterpreter.get()
-    plat = Platform.current()
+    plat = pi.platform
     platform_name = plat.platform
     return {
       'pex_version': pex_version,

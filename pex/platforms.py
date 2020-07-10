@@ -6,8 +6,6 @@ from __future__ import absolute_import
 from collections import namedtuple
 from textwrap import dedent
 
-from pex.interpreter import PythonInterpreter
-
 
 class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
   """Represents a target platform and it's extended interpreter compatibility
@@ -78,18 +76,13 @@ class Platform(namedtuple('Platform', ['platform', 'impl', 'version', 'abi'])):
     return super(Platform, cls).__new__(cls, platform, impl, version, abi)
 
   @classmethod
-  def of_interpreter(cls, intepreter=None):
-    intepreter = intepreter or PythonInterpreter.get()
-    identity = intepreter.identity
-    impl, version = identity.python_tag[:2], identity.python_tag[2:]
-    return cls(platform=identity.platform_tag,
-               impl=impl,
-               version=version,
-               abi=identity.abi_tag)
+  def from_tags(cls, platform, python, abi):
+    """Creates a platform corresponding to wheel compatibility tags.
 
-  @classmethod
-  def current(cls):
-    return cls.of_interpreter()
+    See: https://www.python.org/dev/peps/pep-0425/#details
+    """
+    impl, version = python[:2], python[2:]
+    return cls(platform=platform, impl=impl, version=version, abi=abi)
 
   def __str__(self):
     return self.SEP.join(self)

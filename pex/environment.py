@@ -16,7 +16,6 @@ from pex.bootstrap import Bootstrap
 from pex.common import atomic_directory, die, open_zip
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
-from pex.platforms import Platform
 from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import DistributionNotFound, Environment, Requirement, WorkingSet
 from pex.tracer import TRACER
@@ -318,7 +317,7 @@ class PEXEnvironment(Environment):
         die(
           'Failed to execute PEX file. Needed {platform} compatible dependencies for:\n{items}'
           .format(
-            platform=Platform.of_interpreter(self._interpreter),
+            platform=self._interpreter.platform,
             items='\n'.join(items)
           )
         )

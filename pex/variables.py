@@ -270,10 +270,11 @@ class Variables(object):
     """String
 
     A colon-separated string containing paths of blessed Python interpreters
-    for overriding the Python interpreter used to invoke this PEX. Must be absolute paths to the
-    interpreter.
+    for overriding the Python interpreter used to invoke this PEX. Can be absolute paths to
+    interpreters or standard $PATH style directory entries that are searched for child files that
+    are python binaries.
 
-    Ex: "/path/to/python27:/path/to/python36"
+    Ex: "/path/to/python27:/path/to/python36-distribution/bin"
     """
     return self._get_string('PEX_PYTHON_PATH', default=None)
 
