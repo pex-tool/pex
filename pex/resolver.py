@@ -934,8 +934,13 @@ def _download_internal(requirements=None,
           #    were specified).
           yield DistributionTarget.for_platform(platform)
 
+  # Only download for each target once. The download code assumes this unique targets optimization
+  # when spawning parallel downloads.
+  # TODO(John Sirois): centralize the de-deuping in the DownloadRequest constructor when we drop
+  # python 2.7 and move from namedtuples to dataclasses.
+  unique_targets = OrderedSet(iter_targets())
   download_request = DownloadRequest(
-    targets=OrderedSet(iter_targets()),
+    targets=unique_targets,
     requirements=requirements,
     requirement_files=requirement_files,
     constraint_files=constraint_files,
