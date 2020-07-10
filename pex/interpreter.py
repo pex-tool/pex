@@ -529,16 +529,13 @@ class PythonInterpreter(object):
     process = Executor.open_process(cmd, env=env, **kwargs)
     return cmd, process
 
-  def _tup(self):
-    return self._binary, self._identity
-
   def __hash__(self):
-    return hash(self._tup())
+    return hash(self._binary)
 
   def __eq__(self, other):
     if type(other) is not type(self):
       return NotImplemented
-    return self._tup() == other._tup()
+    return self._binary == other._binary
 
   def __lt__(self, other):
     if type(other) is not type(self):

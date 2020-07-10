@@ -3,6 +3,8 @@
 
 from __future__ import absolute_import
 
+import os
+
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 
@@ -55,14 +57,13 @@ class DistributionTarget(object):
 
   @property
   def id(self):
-    """A unique id for a resolve target suitable as a path name component.
+    """A unique id for this distribution target suitable as a path name component.
 
     :rtype: str
     """
     if self._platform is None:
       interpreter = self.get_interpreter()
-      return '{python}-{abi}'.format(python=interpreter.identity.python_tag,
-                                     abi=interpreter.identity.abi_tag)
+      return interpreter.binary.replace(os.sep, '.').lstrip('.')
     else:
       return str(self._platform)
 
