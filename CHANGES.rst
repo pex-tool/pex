@@ -1,6 +1,26 @@
 Release Notes
 =============
 
+2.1.13
+------
+
+The focus of this release is better support of the ``--platform`` CLI
+arg. Platforms are now better documented and can optionally be resolved
+to local interpreters when possible via ``--resolve-local-platforms`` to
+better support creation of multiplatform PEXes.
+
+* Add support for resolving --platform locally. (#1000)
+  `PR #1000 <https://github.com/pantsbuild/pex/pull/1000>`_
+
+* Improve --platform help. (#1002)
+  `PR #1002 <https://github.com/pantsbuild/pex/pull/1002>`_
+
+* Improve and fix --platform help. (#1001)
+  `PR #1001 <https://github.com/pantsbuild/pex/pull/1001>`_
+
+* Ensure pip download dir is uncontended. (#998)
+  `PR #998 <https://github.com/pantsbuild/pex/pull/998>`_
+
 2.1.12
 ------
 
