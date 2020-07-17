@@ -81,8 +81,8 @@ matrix:
       script: ${TOX_CMD} -e style
 
     - <<: *x-linux-38-shard
-      name: TOXENV=isort-check
-      script: ${TOX_CMD} -e isort-check
+      name: TOXENV=format-check
+      script: ${TOX_CMD} -e format-check
 
     - <<: *x-linux-38-shard
       name: TOXENV=vendor-check

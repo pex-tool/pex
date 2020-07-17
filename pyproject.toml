@@ -39,3 +39,22 @@ bdist_pex = "pex.commands.bdist_pex:bdist_pex"
 [tool.flit.sdist]
 include = ["CHANGES.rst"]
 
+[tool.black]
+line-length = 100
+target-version = ["py27"]
+exclude = '''
+/(
+  | \.git
+  | \pex/vendor/_vendored
+  | \.pyenv_test
+)/
+'''
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 100
+default_section = "THIRDPARTY"
+known_first_party = "pex"
