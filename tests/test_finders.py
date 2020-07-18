@@ -14,50 +14,56 @@ from pex.util import DistributionHelper
 #   https://github.com/pantsbuild/pex/issues/443
 #   https://github.com/pantsbuild/pex/issues/551
 def test_get_script_from_distributions(tmpdir):
-  whl_path = './tests/example_packages/aws_cfn_bootstrap-1.4-py2-none-any.whl'
-  install_dir = os.path.join(str(tmpdir), os.path.basename(whl_path))
-  get_pip().spawn_install_wheel(wheel=whl_path, install_dir=install_dir).wait()
+    whl_path = "./tests/example_packages/aws_cfn_bootstrap-1.4-py2-none-any.whl"
+    install_dir = os.path.join(str(tmpdir), os.path.basename(whl_path))
+    get_pip().spawn_install_wheel(wheel=whl_path, install_dir=install_dir).wait()
 
-  dist = DistributionHelper.distribution_from_path(install_dir)
-  assert 'aws-cfn-bootstrap' == dist.project_name
+    dist = DistributionHelper.distribution_from_path(install_dir)
+    assert "aws-cfn-bootstrap" == dist.project_name
 
-  dist_script = get_script_from_distributions('cfn-signal', [dist])
-  assert dist_script.dist is dist
-  assert os.path.join(install_dir, 'bin/cfn-signal') == dist_script.path
-  assert dist_script.read_contents().startswith('#!'), (
-    'Expected a `scripts`-style script w/shebang.'
-  )
+    dist_script = get_script_from_distributions("cfn-signal", [dist])
+    assert dist_script.dist is dist
+    assert os.path.join(install_dir, "bin/cfn-signal") == dist_script.path
+    assert dist_script.read_contents().startswith(
+        "#!"
+    ), "Expected a `scripts`-style script w/shebang."
 
-  assert None is get_script_from_distributions('non_existent_script', [dist])
+    assert None is get_script_from_distributions("non_existent_script", [dist])
 
 
 class FakeDist(object):
-  def __init__(self, key, console_script_entry):
-    self.key = key
-    script = console_script_entry.split('=')[0].strip()
-    self._entry_map = {'console_scripts': {script: console_script_entry}}
+    def __init__(self, key, console_script_entry):
+        self.key = key
+        script = console_script_entry.split("=")[0].strip()
+        self._entry_map = {"console_scripts": {script: console_script_entry}}
 
-  def get_entry_map(self):
-    return self._entry_map
+    def get_entry_map(self):
+        return self._entry_map
 
 
 def test_get_entry_point_from_console_script():
-  dists = [FakeDist(key='fake', console_script_entry='bob= bob.main:run'),
-           FakeDist(key='fake', console_script_entry='bob =bob.main:run')]
+    dists = [
+        FakeDist(key="fake", console_script_entry="bob= bob.main:run"),
+        FakeDist(key="fake", console_script_entry="bob =bob.main:run"),
+    ]
 
-  dist, entrypoint = get_entry_point_from_console_script('bob', dists)
-  assert 'bob.main:run' == entrypoint
-  assert dist in dists
+    dist, entrypoint = get_entry_point_from_console_script("bob", dists)
+    assert "bob.main:run" == entrypoint
+    assert dist in dists
 
 
 def test_get_entry_point_from_console_script_conflict():
-  dists = [FakeDist(key='bob', console_script_entry='bob= bob.main:run'),
-           FakeDist(key='fake', console_script_entry='bob =bob.main:run')]
-  with pytest.raises(RuntimeError):
-    get_entry_point_from_console_script('bob', dists)
+    dists = [
+        FakeDist(key="bob", console_script_entry="bob= bob.main:run"),
+        FakeDist(key="fake", console_script_entry="bob =bob.main:run"),
+    ]
+    with pytest.raises(RuntimeError):
+        get_entry_point_from_console_script("bob", dists)
 
 
 def test_get_entry_point_from_console_script_dne():
-  dists = [FakeDist(key='bob', console_script_entry='bob= bob.main:run'),
-           FakeDist(key='fake', console_script_entry='bob =bob.main:run')]
-  assert (None, None) == get_entry_point_from_console_script('jane', dists)
+    dists = [
+        FakeDist(key="bob", console_script_entry="bob= bob.main:run"),
+        FakeDist(key="fake", console_script_entry="bob =bob.main:run"),
+    ]
+    assert (None, None) == get_entry_point_from_console_script("jane", dists)

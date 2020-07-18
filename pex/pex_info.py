@@ -18,357 +18,367 @@ from pex.version import __version__ as pex_version
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.
 # Issue #92.
 class PexInfo(object):
-  """PEX metadata.
+    """PEX metadata.
 
-  # Build metadata:
-  build_properties: BuildProperties  # (key-value information about the build system)
-  code_hash: str                     # sha1 hash of all names/code in the archive
-  distributions: {dist_name: str}    # map from distribution name (i.e. path in
-                                     # the internal cache) to its cache key (sha1)
-  requirements: list                 # list of requirements for this environment
+    # Build metadata:
+    build_properties: BuildProperties  # (key-value information about the build system)
+    code_hash: str                     # sha1 hash of all names/code in the archive
+    distributions: {dist_name: str}    # map from distribution name (i.e. path in
+                                       # the internal cache) to its cache key (sha1)
+    requirements: list                 # list of requirements for this environment
 
-  # Environment options
-  pex_root: string                    # root of all pex-related files eg: ~/.pex
-  entry_point: string                 # entry point into this pex
-  script: string                      # script to execute in this pex environment
-                                      # at most one of script/entry_point can be specified
-  zip_safe: bool, default True        # is this pex zip safe?
-  unzip: bool, default False          # should this pex be unzipped and re-executed from there?
-  inherit_path: false/fallback/prefer # should this pex inherit site-packages + user site-packages
-                                      # + PYTHONPATH?
-  ignore_errors: True, default False  # should we ignore inability to resolve dependencies?
-  always_write_cache: False           # should we always write the internal cache to disk first?
-                                      # this is useful if you have very large dependencies that
-                                      # do not fit in RAM constrained environments
+    # Environment options
+    pex_root: string                    # root of all pex-related files eg: ~/.pex
+    entry_point: string                 # entry point into this pex
+    script: string                      # script to execute in this pex environment
+                                        # at most one of script/entry_point can be specified
+    zip_safe: bool, default True        # is this pex zip safe?
+    unzip: bool, default False          # should this pex be unzipped and re-executed from there?
+    inherit_path: false/fallback/prefer # should this pex inherit site-packages + user site-packages
+                                        # + PYTHONPATH?
+    ignore_errors: True, default False  # should we ignore inability to resolve dependencies?
+    always_write_cache: False           # should we always write the internal cache to disk first?
+                                        # this is useful if you have very large dependencies that
+                                        # do not fit in RAM constrained environments
 
-  .. versionchanged:: 0.8
-    Removed the ``repositories`` and ``indices`` information, as they were never
-    implemented.
-  """
-
-  PATH = 'PEX-INFO'
-  INSTALL_CACHE = 'installed_wheels'
-
-  @classmethod
-  def make_build_properties(cls, interpreter=None):
-    from .interpreter import PythonInterpreter
-
-    pi = interpreter or PythonInterpreter.get()
-    plat = pi.platform
-    platform_name = plat.platform
-    return {
-      'pex_version': pex_version,
-      'class': pi.identity.interpreter,
-      'version': pi.identity.version,
-      'platform': platform_name,
-    }
-
-  @classmethod
-  def default(cls, interpreter=None):
-    pex_info = {
-      'requirements': [],
-      'distributions': {},
-      'build_properties': cls.make_build_properties(interpreter),
-    }
-    return cls(info=pex_info)
-
-  @classmethod
-  def from_pex(cls, pex):
-    if os.path.isfile(pex):
-      with open_zip(pex) as zf:
-        pex_info = zf.read(cls.PATH)
-    else:
-      with open(os.path.join(pex, cls.PATH)) as fp:
-        pex_info = fp.read()
-    return cls.from_json(pex_info)
-
-  @classmethod
-  def from_json(cls, content):
-    if isinstance(content, bytes):
-      content = content.decode('utf-8')
-    return cls(info=json.loads(content))
-
-  @classmethod
-  def from_env(cls, env=ENV):
-    supplied_env = env.strip_defaults()
-    zip_safe = None if supplied_env.PEX_FORCE_LOCAL is None else not supplied_env.PEX_FORCE_LOCAL
-    unzip = None if supplied_env.PEX_UNZIP is None else supplied_env.PEX_UNZIP
-    pex_info = {
-      'pex_root': supplied_env.PEX_ROOT,
-      'entry_point': supplied_env.PEX_MODULE,
-      'script': supplied_env.PEX_SCRIPT,
-      'zip_safe': zip_safe,
-      'unzip': unzip,
-      'inherit_path': supplied_env.PEX_INHERIT_PATH,
-      'ignore_errors': supplied_env.PEX_IGNORE_ERRORS,
-      'always_write_cache': supplied_env.PEX_ALWAYS_CACHE,
-    }
-    # Filter out empty entries not explicitly set in the environment.
-    return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))
-
-  @classmethod
-  def _parse_requirement_tuple(cls, requirement_tuple):
-    if isinstance(requirement_tuple, (tuple, list)):
-      if len(requirement_tuple) != 3:
-        raise ValueError('Malformed PEX requirement: %r' % (requirement_tuple,))
-      # pre 0.8.x requirement type:
-      pex_warnings.warn('Attempting to use deprecated PEX feature.  Please upgrade past PEX 0.8.x.')
-      return requirement_tuple[0]
-    elif isinstance(requirement_tuple, compatibility_string):
-      return requirement_tuple
-    raise ValueError('Malformed PEX requirement: %r' % (requirement_tuple,))
-
-  def __init__(self, info=None):
-    """Construct a new PexInfo. This should not be used directly."""
-
-    if info is not None and not isinstance(info, dict):
-      raise ValueError('PexInfo can only be seeded with a dict, got: '
-                       '%s of type %s' % (info, type(info)))
-    self._pex_info = info or {}
-    if 'inherit_path' in self._pex_info:
-      self.inherit_path = self._pex_info['inherit_path']
-    self._distributions = self._pex_info.get('distributions', {})
-    # cast as set because pex info from json must store interpreter_constraints as a list
-    self._interpreter_constraints = set(self._pex_info.get('interpreter_constraints', set()))
-    requirements = self._pex_info.get('requirements', [])
-    if not isinstance(requirements, (list, tuple)):
-      raise ValueError('Expected requirements to be a list, got %s' % type(requirements))
-    self._requirements = OrderedSet(self._parse_requirement_tuple(req) for req in requirements)
-
-  def _get_safe(self, key):
-    if key not in self._pex_info:
-      return None
-    value = self._pex_info[key]
-    return value.encode('utf-8') if PY2 else value
-
-  @property
-  def build_properties(self):
-    """Information about the system on which this PEX was generated.
-
-    :returns: A dictionary containing metadata about the environment used to build this PEX.
+    .. versionchanged:: 0.8
+      Removed the ``repositories`` and ``indices`` information, as they were never
+      implemented.
     """
-    return self._pex_info.get('build_properties', {})
 
-  @build_properties.setter
-  def build_properties(self, value):
-    if not isinstance(value, dict):
-      raise TypeError('build_properties must be a dictionary!')
-    self._pex_info['build_properties'] = self.make_build_properties()
-    self._pex_info['build_properties'].update(value)
+    PATH = "PEX-INFO"
+    INSTALL_CACHE = "installed_wheels"
 
-  @property
-  def zip_safe(self):
-    """Whether or not this PEX should be treated as zip-safe.
+    @classmethod
+    def make_build_properties(cls, interpreter=None):
+        from .interpreter import PythonInterpreter
 
-    If set to false and the PEX is zipped, the contents of the PEX will be unpacked into a
-    directory within the PEX_ROOT prior to execution.  This allows code and frameworks depending
-    upon __file__ existing on disk to operate normally.
+        pi = interpreter or PythonInterpreter.get()
+        plat = pi.platform
+        platform_name = plat.platform
+        return {
+            "pex_version": pex_version,
+            "class": pi.identity.interpreter,
+            "version": pi.identity.version,
+            "platform": platform_name,
+        }
 
-    By default zip_safe is True.  May be overridden at runtime by the $PEX_FORCE_LOCAL environment
-    variable.
-    """
-    return self._pex_info.get('zip_safe', True)
+    @classmethod
+    def default(cls, interpreter=None):
+        pex_info = {
+            "requirements": [],
+            "distributions": {},
+            "build_properties": cls.make_build_properties(interpreter),
+        }
+        return cls(info=pex_info)
 
-  @zip_safe.setter
-  def zip_safe(self, value):
-    self._pex_info['zip_safe'] = bool(value)
+    @classmethod
+    def from_pex(cls, pex):
+        if os.path.isfile(pex):
+            with open_zip(pex) as zf:
+                pex_info = zf.read(cls.PATH)
+        else:
+            with open(os.path.join(pex, cls.PATH)) as fp:
+                pex_info = fp.read()
+        return cls.from_json(pex_info)
 
-  @property
-  def unzip(self):
-    """Whether or not PEX should be unzipped before it's executed.
+    @classmethod
+    def from_json(cls, content):
+        if isinstance(content, bytes):
+            content = content.decode("utf-8")
+        return cls(info=json.loads(content))
 
-    Unzipping a PEX is a operation that can be cached on the 1st run of a given PEX file which can
-    result in lower startup latency in subsequent runs.
-    """
-    return self._pex_info.get('unzip', False)
+    @classmethod
+    def from_env(cls, env=ENV):
+        supplied_env = env.strip_defaults()
+        zip_safe = (
+            None if supplied_env.PEX_FORCE_LOCAL is None else not supplied_env.PEX_FORCE_LOCAL
+        )
+        unzip = None if supplied_env.PEX_UNZIP is None else supplied_env.PEX_UNZIP
+        pex_info = {
+            "pex_root": supplied_env.PEX_ROOT,
+            "entry_point": supplied_env.PEX_MODULE,
+            "script": supplied_env.PEX_SCRIPT,
+            "zip_safe": zip_safe,
+            "unzip": unzip,
+            "inherit_path": supplied_env.PEX_INHERIT_PATH,
+            "ignore_errors": supplied_env.PEX_IGNORE_ERRORS,
+            "always_write_cache": supplied_env.PEX_ALWAYS_CACHE,
+        }
+        # Filter out empty entries not explicitly set in the environment.
+        return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))
 
-  @unzip.setter
-  def unzip(self, value):
-    self._pex_info['unzip'] = bool(value)
+    @classmethod
+    def _parse_requirement_tuple(cls, requirement_tuple):
+        if isinstance(requirement_tuple, (tuple, list)):
+            if len(requirement_tuple) != 3:
+                raise ValueError("Malformed PEX requirement: %r" % (requirement_tuple,))
+            # pre 0.8.x requirement type:
+            pex_warnings.warn(
+                "Attempting to use deprecated PEX feature.  Please upgrade past PEX 0.8.x."
+            )
+            return requirement_tuple[0]
+        elif isinstance(requirement_tuple, compatibility_string):
+            return requirement_tuple
+        raise ValueError("Malformed PEX requirement: %r" % (requirement_tuple,))
 
-  @property
-  def strip_pex_env(self):
-    """Whether or not this PEX should strip `PEX_*` env vars before executing its entrypoint.
+    def __init__(self, info=None):
+        """Construct a new PexInfo.
 
-    You might want to set this to `False` if this PEX executes other PEXes or the Pex CLI itself and
-    you want the executed PEX to be controlled via PEX environment variables.
-    """
-    return self._pex_info.get('strip_pex_env', True)
+        This should not be used directly.
+        """
 
-  @strip_pex_env.setter
-  def strip_pex_env(self, value):
-    self._pex_info['strip_pex_env'] = bool(value)
+        if info is not None and not isinstance(info, dict):
+            raise ValueError(
+                "PexInfo can only be seeded with a dict, got: " "%s of type %s" % (info, type(info))
+            )
+        self._pex_info = info or {}
+        if "inherit_path" in self._pex_info:
+            self.inherit_path = self._pex_info["inherit_path"]
+        self._distributions = self._pex_info.get("distributions", {})
+        # cast as set because pex info from json must store interpreter_constraints as a list
+        self._interpreter_constraints = set(self._pex_info.get("interpreter_constraints", set()))
+        requirements = self._pex_info.get("requirements", [])
+        if not isinstance(requirements, (list, tuple)):
+            raise ValueError("Expected requirements to be a list, got %s" % type(requirements))
+        self._requirements = OrderedSet(self._parse_requirement_tuple(req) for req in requirements)
 
-  @property
-  def pex_path(self):
-    """A colon separated list of other pex files to merge into the runtime environment.
+    def _get_safe(self, key):
+        if key not in self._pex_info:
+            return None
+        value = self._pex_info[key]
+        return value.encode("utf-8") if PY2 else value
 
-    This pex info property is used to persist the PEX_PATH environment variable into the pex info
-    metadata for reuse within a built pex.
-    """
-    return self._pex_info.get('pex_path')
+    @property
+    def build_properties(self):
+        """Information about the system on which this PEX was generated.
 
-  @pex_path.setter
-  def pex_path(self, value):
-    self._pex_info['pex_path'] = value
+        :returns: A dictionary containing metadata about the environment used to build this PEX.
+        """
+        return self._pex_info.get("build_properties", {})
 
-  @property
-  def inherit_path(self):
-    """Whether or not this PEX should be allowed to inherit system dependencies.
+    @build_properties.setter
+    def build_properties(self, value):
+        if not isinstance(value, dict):
+            raise TypeError("build_properties must be a dictionary!")
+        self._pex_info["build_properties"] = self.make_build_properties()
+        self._pex_info["build_properties"].update(value)
 
-    By default, PEX environments are scrubbed of all system distributions prior to execution.
-    This means that PEX files cannot rely upon preexisting system libraries.
+    @property
+    def zip_safe(self):
+        """Whether or not this PEX should be treated as zip-safe.
 
-    By default inherit_path is false.  This may be overridden at runtime by the $PEX_INHERIT_PATH
-    environment variable.
-    """
-    return self._pex_info.get('inherit_path', 'false')
+        If set to false and the PEX is zipped, the contents of the PEX will be unpacked into a
+        directory within the PEX_ROOT prior to execution.  This allows code and frameworks depending
+        upon __file__ existing on disk to operate normally.
 
-  @inherit_path.setter
-  def inherit_path(self, value):
-    if value is False:
-      value = 'false'
-    elif value is True:
-      value = 'prefer'
-    self._pex_info['inherit_path'] = value
+        By default zip_safe is True.  May be overridden at runtime by the $PEX_FORCE_LOCAL environment
+        variable.
+        """
+        return self._pex_info.get("zip_safe", True)
 
-  @property
-  def interpreter_constraints(self):
-    """A list of constraints that determine the interpreter compatibility for this
-    pex, using the Requirement-style format, e.g. ``'CPython>=3', or just '>=2.7,<3'``
-    for requirements agnostic to interpreter class.
+    @zip_safe.setter
+    def zip_safe(self, value):
+        self._pex_info["zip_safe"] = bool(value)
 
-    This property will be used at exec time when bootstrapping a pex to search PEX_PYTHON_PATH
-    for a list of compatible interpreters.
-    """
-    return list(self._interpreter_constraints)
+    @property
+    def unzip(self):
+        """Whether or not PEX should be unzipped before it's executed.
 
-  def add_interpreter_constraint(self, value):
-    self._interpreter_constraints.add(str(value))
+        Unzipping a PEX is a operation that can be cached on the 1st run of a given PEX file which
+        can result in lower startup latency in subsequent runs.
+        """
+        return self._pex_info.get("unzip", False)
 
-  @property
-  def ignore_errors(self):
-    return self._pex_info.get('ignore_errors', False)
+    @unzip.setter
+    def unzip(self, value):
+        self._pex_info["unzip"] = bool(value)
 
-  @ignore_errors.setter
-  def ignore_errors(self, value):
-    self._pex_info['ignore_errors'] = bool(value)
+    @property
+    def strip_pex_env(self):
+        """Whether or not this PEX should strip `PEX_*` env vars before executing its entrypoint.
 
-  @property
-  def emit_warnings(self):
-    return self._pex_info.get('emit_warnings', True)
+        You might want to set this to `False` if this PEX executes other PEXes or the Pex CLI itself
+        and you want the executed PEX to be controlled via PEX environment variables.
+        """
+        return self._pex_info.get("strip_pex_env", True)
 
-  @emit_warnings.setter
-  def emit_warnings(self, value):
-    self._pex_info['emit_warnings'] = bool(value)
+    @strip_pex_env.setter
+    def strip_pex_env(self, value):
+        self._pex_info["strip_pex_env"] = bool(value)
 
-  @property
-  def code_hash(self):
-    return self._pex_info.get('code_hash')
+    @property
+    def pex_path(self):
+        """A colon separated list of other pex files to merge into the runtime environment.
 
-  @code_hash.setter
-  def code_hash(self, value):
-    self._pex_info['code_hash'] = value
+        This pex info property is used to persist the PEX_PATH environment variable into the pex
+        info metadata for reuse within a built pex.
+        """
+        return self._pex_info.get("pex_path")
 
-  @property
-  def entry_point(self):
-    return self._get_safe('entry_point')
+    @pex_path.setter
+    def pex_path(self, value):
+        self._pex_info["pex_path"] = value
 
-  @entry_point.setter
-  def entry_point(self, value):
-    self._pex_info['entry_point'] = value
+    @property
+    def inherit_path(self):
+        """Whether or not this PEX should be allowed to inherit system dependencies.
 
-  @property
-  def script(self):
-    return self._get_safe('script')
+        By default, PEX environments are scrubbed of all system distributions prior to execution.
+        This means that PEX files cannot rely upon preexisting system libraries.
 
-  @script.setter
-  def script(self, value):
-    self._pex_info['script'] = value
+        By default inherit_path is false.  This may be overridden at runtime by the $PEX_INHERIT_PATH
+        environment variable.
+        """
+        return self._pex_info.get("inherit_path", "false")
 
-  def add_requirement(self, requirement):
-    self._requirements.add(str(requirement))
+    @inherit_path.setter
+    def inherit_path(self, value):
+        if value is False:
+            value = "false"
+        elif value is True:
+            value = "prefer"
+        self._pex_info["inherit_path"] = value
 
-  @property
-  def requirements(self):
-    return self._requirements
+    @property
+    def interpreter_constraints(self):
+        """A list of constraints that determine the interpreter compatibility for this pex, using
+        the Requirement-style format, e.g. ``'CPython>=3', or just '>=2.7,<3'`` for requirements
+        agnostic to interpreter class.
 
-  def add_distribution(self, location, sha):
-    self._distributions[location] = sha
+        This property will be used at exec time when bootstrapping a pex to search PEX_PYTHON_PATH
+        for a list of compatible interpreters.
+        """
+        return list(self._interpreter_constraints)
 
-  @property
-  def distributions(self):
-    return self._distributions
+    def add_interpreter_constraint(self, value):
+        self._interpreter_constraints.add(str(value))
 
-  @property
-  def always_write_cache(self):
-    return self._pex_info.get('always_write_cache', False)
+    @property
+    def ignore_errors(self):
+        return self._pex_info.get("ignore_errors", False)
 
-  @always_write_cache.setter
-  def always_write_cache(self, value):
-    self._pex_info['always_write_cache'] = bool(value)
+    @ignore_errors.setter
+    def ignore_errors(self, value):
+        self._pex_info["ignore_errors"] = bool(value)
 
-  @property
-  def pex_root(self):
-    pex_root = os.path.expanduser(self._pex_info.get('pex_root', os.path.join('~', '.pex')))
-    if not can_write_dir(pex_root):
-      tmp_root = safe_mkdtemp()
-      pex_warnings.warn('PEX_ROOT is configured as {pex_root} but that path is un-writeable, '
-                        'falling back to a temporary PEX_ROOT of {tmp_root} which will hurt '
-                        'performance.'.format(pex_root=pex_root, tmp_root=tmp_root))
-      pex_root = self._pex_info['pex_root'] = tmp_root
-    return pex_root
+    @property
+    def emit_warnings(self):
+        return self._pex_info.get("emit_warnings", True)
 
-  @pex_root.setter
-  def pex_root(self, value):
-    if value is None:
-      self._pex_info.pop('pex_root', None)
-    else:
-      self._pex_info['pex_root'] = value
+    @emit_warnings.setter
+    def emit_warnings(self, value):
+        self._pex_info["emit_warnings"] = bool(value)
 
-  @property
-  def internal_cache(self):
-    return '.deps'
+    @property
+    def code_hash(self):
+        return self._pex_info.get("code_hash")
 
-  @property
-  def install_cache(self):
-    return os.path.join(self.pex_root, self.INSTALL_CACHE)
+    @code_hash.setter
+    def code_hash(self, value):
+        self._pex_info["code_hash"] = value
 
-  @property
-  def zip_unsafe_cache(self):
-    return os.path.join(self.pex_root, 'code')
+    @property
+    def entry_point(self):
+        return self._get_safe("entry_point")
 
-  def update(self, other):
-    if not isinstance(other, PexInfo):
-      raise TypeError('Cannot merge a %r with PexInfo' % type(other))
-    self._pex_info.update(other._pex_info)
-    self._distributions.update(other.distributions)
-    self._interpreter_constraints.update(other.interpreter_constraints)
-    self._requirements.update(other.requirements)
+    @entry_point.setter
+    def entry_point(self, value):
+        self._pex_info["entry_point"] = value
 
-  def dump(self, **kwargs):
-    pex_info_copy = self._pex_info.copy()
-    pex_info_copy['requirements'] = sorted(self._requirements)
-    pex_info_copy['interpreter_constraints'] = sorted(self._interpreter_constraints)
-    pex_info_copy['distributions'] = self._distributions.copy()
-    return json.dumps(pex_info_copy, **kwargs)
+    @property
+    def script(self):
+        return self._get_safe("script")
 
-  def copy(self):
-    return self.from_json(self.dump())
+    @script.setter
+    def script(self, value):
+        self._pex_info["script"] = value
 
-  @staticmethod
-  def _merge_split(*paths):
-    filtered_paths = filter(None, paths)
-    return [p for p in ':'.join(filtered_paths).split(':') if p]
+    def add_requirement(self, requirement):
+        self._requirements.add(str(requirement))
 
-  def merge_pex_path(self, pex_path):
-    """Merges a new PEX_PATH definition into the existing one (if any).
+    @property
+    def requirements(self):
+        return self._requirements
 
-    :param str pex_path: The PEX_PATH to merge.
-    """
-    if not pex_path:
-      return
-    self.pex_path = ':'.join(self._merge_split(self.pex_path, pex_path))
+    def add_distribution(self, location, sha):
+        self._distributions[location] = sha
 
-  def __repr__(self):
-    return '{}({!r})'.format(type(self).__name__, self._pex_info)
+    @property
+    def distributions(self):
+        return self._distributions
+
+    @property
+    def always_write_cache(self):
+        return self._pex_info.get("always_write_cache", False)
+
+    @always_write_cache.setter
+    def always_write_cache(self, value):
+        self._pex_info["always_write_cache"] = bool(value)
+
+    @property
+    def pex_root(self):
+        pex_root = os.path.expanduser(self._pex_info.get("pex_root", os.path.join("~", ".pex")))
+        if not can_write_dir(pex_root):
+            tmp_root = safe_mkdtemp()
+            pex_warnings.warn(
+                "PEX_ROOT is configured as {pex_root} but that path is un-writeable, "
+                "falling back to a temporary PEX_ROOT of {tmp_root} which will hurt "
+                "performance.".format(pex_root=pex_root, tmp_root=tmp_root)
+            )
+            pex_root = self._pex_info["pex_root"] = tmp_root
+        return pex_root
+
+    @pex_root.setter
+    def pex_root(self, value):
+        if value is None:
+            self._pex_info.pop("pex_root", None)
+        else:
+            self._pex_info["pex_root"] = value
+
+    @property
+    def internal_cache(self):
+        return ".deps"
+
+    @property
+    def install_cache(self):
+        return os.path.join(self.pex_root, self.INSTALL_CACHE)
+
+    @property
+    def zip_unsafe_cache(self):
+        return os.path.join(self.pex_root, "code")
+
+    def update(self, other):
+        if not isinstance(other, PexInfo):
+            raise TypeError("Cannot merge a %r with PexInfo" % type(other))
+        self._pex_info.update(other._pex_info)
+        self._distributions.update(other.distributions)
+        self._interpreter_constraints.update(other.interpreter_constraints)
+        self._requirements.update(other.requirements)
+
+    def dump(self, **kwargs):
+        pex_info_copy = self._pex_info.copy()
+        pex_info_copy["requirements"] = sorted(self._requirements)
+        pex_info_copy["interpreter_constraints"] = sorted(self._interpreter_constraints)
+        pex_info_copy["distributions"] = self._distributions.copy()
+        return json.dumps(pex_info_copy, **kwargs)
+
+    def copy(self):
+        return self.from_json(self.dump())
+
+    @staticmethod
+    def _merge_split(*paths):
+        filtered_paths = filter(None, paths)
+        return [p for p in ":".join(filtered_paths).split(":") if p]
+
+    def merge_pex_path(self, pex_path):
+        """Merges a new PEX_PATH definition into the existing one (if any).
+
+        :param str pex_path: The PEX_PATH to merge.
+        """
+        if not pex_path:
+            return
+        self.pex_path = ":".join(self._merge_split(self.pex_path, pex_path))
+
+    def __repr__(self):
+        return "{}({!r})".format(type(self).__name__, self._pex_info)

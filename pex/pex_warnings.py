@@ -8,20 +8,20 @@ import warnings
 
 
 class PEXWarning(Warning):
-  """Indicates a warning from PEX about suspect buildtime or runtime configuration."""
+    """Indicates a warning from PEX about suspect buildtime or runtime configuration."""
 
 
 def configure_warnings(pex_info, env):
-  if env.PEX_VERBOSE > 0:
-    emit_warnings = True
-  elif env.PEX_EMIT_WARNINGS is not None:
-    emit_warnings = env.PEX_EMIT_WARNINGS
-  else:
-    emit_warnings = pex_info.emit_warnings
+    if env.PEX_VERBOSE > 0:
+        emit_warnings = True
+    elif env.PEX_EMIT_WARNINGS is not None:
+        emit_warnings = env.PEX_EMIT_WARNINGS
+    else:
+        emit_warnings = pex_info.emit_warnings
 
-  action = 'default' if emit_warnings else 'ignore'
-  warnings.filterwarnings(action, category=PEXWarning)
+    action = "default" if emit_warnings else "ignore"
+    warnings.filterwarnings(action, category=PEXWarning)
 
 
 def warn(message):
-  warnings.warn(message, category=PEXWarning, stacklevel=2)
+    warnings.warn(message, category=PEXWarning, stacklevel=2)
