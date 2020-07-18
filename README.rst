@@ -149,7 +149,7 @@ running ``tox --listenvs-all``, then invoke like this:
 
 .. code-block::
 
-    $ tox -e style
+    $ tox -e format-run
 
 All of our tox test environments allow passthrough arguments, which can be helpful to run
 specific tests:

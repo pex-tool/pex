@@ -57,35 +57,41 @@ main(root, relpaths)
 
 
 class Compiler(object):
-  class Error(Exception): pass
-  class CompilationFailure(Error):  # N.B. This subclasses `Error` only for backwards compatibility.
-    """Indicates an error compiling one or more python source files."""
+    class Error(Exception):
+        pass
 
-  def __init__(self, interpreter):
-    """Creates a bytecode compiler for the given `interpreter`.
+    class CompilationFailure(
+        Error
+    ):  # N.B. This subclasses `Error` only for backwards compatibility.
+        """Indicates an error compiling one or more python source files."""
 
-    :param interpreter: The interpreter to use to compile sources with.
-    :type interpreter: :class:`pex.interpreter.PythonInterpreter`
-    """
-    self._interpreter = interpreter
+    def __init__(self, interpreter):
+        """Creates a bytecode compiler for the given `interpreter`.
 
-  def compile(self, root, relpaths):
-    """Compiles the given python source files using this compiler's interpreter.
+        :param interpreter: The interpreter to use to compile sources with.
+        :type interpreter: :class:`pex.interpreter.PythonInterpreter`
+        """
+        self._interpreter = interpreter
 
-    :param string root: The root path all the source files are found under.
-    :param list relpaths: The relative paths from the `root` of the source files to compile.
-    :returns: A list of relative paths of the compiled bytecode files.
-    :raises: A :class:`Compiler.Error` if there was a problem bytecode compiling any of the files.
-    """
-    with named_temporary_file() as fp:
-      fp.write(to_bytes(_COMPILER_MAIN % {'root': root, 'relpaths': relpaths}, encoding='utf-8'))
-      fp.flush()
+    def compile(self, root, relpaths):
+        """Compiles the given python source files using this compiler's interpreter.
 
-      try:
-        _, out, _ = self._interpreter.execute(args=[fp.name])
-      except Executor.NonZeroExit as e:
-        raise self.CompilationFailure(
-          'encountered %r during bytecode compilation.\nstderr was:\n%s\n' % (e, e.stderr)
-        )
+        :param string root: The root path all the source files are found under.
+        :param list relpaths: The relative paths from the `root` of the source files to compile.
+        :returns: A list of relative paths of the compiled bytecode files.
+        :raises: A :class:`Compiler.Error` if there was a problem bytecode compiling any of the files.
+        """
+        with named_temporary_file() as fp:
+            fp.write(
+                to_bytes(_COMPILER_MAIN % {"root": root, "relpaths": relpaths}, encoding="utf-8")
+            )
+            fp.flush()
 
-      return out.splitlines()
+            try:
+                _, out, _ = self._interpreter.execute(args=[fp.name])
+            except Executor.NonZeroExit as e:
+                raise self.CompilationFailure(
+                    "encountered %r during bytecode compilation.\nstderr was:\n%s\n" % (e, e.stderr)
+                )
+
+            return out.splitlines()

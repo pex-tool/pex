@@ -7,48 +7,52 @@ import os
 from collections import namedtuple
 
 
-class DistributionScript(namedtuple('DistributionScript', ['dist', 'path'])):
-  @classmethod
-  def find(cls, dist, name):
-    script_path = os.path.join(dist.location, 'bin', name)
-    return cls(dist=dist, path=script_path) if os.path.isfile(script_path) else None
+class DistributionScript(namedtuple("DistributionScript", ["dist", "path"])):
+    @classmethod
+    def find(cls, dist, name):
+        script_path = os.path.join(dist.location, "bin", name)
+        return cls(dist=dist, path=script_path) if os.path.isfile(script_path) else None
 
-  def read_contents(self):
-    with open(self.path) as fp:
-      return fp.read()
+    def read_contents(self):
+        with open(self.path) as fp:
+            return fp.read()
 
 
 def get_script_from_distributions(name, dists):
-  for dist in dists:
-    distribution_script = DistributionScript.find(dist, name)
-    if distribution_script:
-      return distribution_script
+    for dist in dists:
+        distribution_script = DistributionScript.find(dist, name)
+        if distribution_script:
+            return distribution_script
 
 
 def get_entry_point_from_console_script(script, dists):
-  # Check all distributions for the console_script "script". De-dup by dist key to allow for a
-  # duplicate console script IFF the distribution is platform-specific and this is a multi-platform
-  # pex.
-  def get_entrypoint(dist):
-    script_entry = dist.get_entry_map().get('console_scripts', {}).get(script)
-    if script_entry is not None:
-      # Entry points are of the form 'foo = bar', we just want the 'bar' part.
-      return str(script_entry).split('=')[1].strip()
+    # Check all distributions for the console_script "script". De-dup by dist key to allow for a
+    # duplicate console script IFF the distribution is platform-specific and this is a multi-platform
+    # pex.
+    def get_entrypoint(dist):
+        script_entry = dist.get_entry_map().get("console_scripts", {}).get(script)
+        if script_entry is not None:
+            # Entry points are of the form 'foo = bar', we just want the 'bar' part.
+            return str(script_entry).split("=")[1].strip()
 
-  entries = {}
-  for dist in dists:
-    entry_point = get_entrypoint(dist)
-    if entry_point is not None:
-      entries[dist.key] = (dist, entry_point)
+    entries = {}
+    for dist in dists:
+        entry_point = get_entrypoint(dist)
+        if entry_point is not None:
+            entries[dist.key] = (dist, entry_point)
 
-  if len(entries) > 1:
-    raise RuntimeError(
-        'Ambiguous script specification %s matches multiple entry points:\n\t%s' % (
-            script,
-            '\n\t'.join('%r from %r' % (entry_point, dist)
-                        for dist, entry_point in entries.values())))
+    if len(entries) > 1:
+        raise RuntimeError(
+            "Ambiguous script specification %s matches multiple entry points:\n\t%s"
+            % (
+                script,
+                "\n\t".join(
+                    "%r from %r" % (entry_point, dist) for dist, entry_point in entries.values()
+                ),
+            )
+        )
 
-  dist, entry_point = None, None
-  if entries:
-    dist, entry_point = next(iter(entries.values()))
-  return dist, entry_point
+    dist, entry_point = None, None
+    if entries:
+        dist, entry_point = next(iter(entries.values()))
+    return dist, entry_point
