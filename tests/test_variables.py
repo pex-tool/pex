@@ -21,9 +21,11 @@ def test_process_pydoc():
     assert Variables.process_pydoc(thing.__doc__) == ("Unknown", "Unknown")
 
     def other_thing():
-        """Type.
+        """Type
 
-        Properly      formatted   text.
+        Properly
+                formatted
+            text.
         """
 
     assert Variables.process_pydoc(other_thing.__doc__) == ("Type", "Properly formatted text.")

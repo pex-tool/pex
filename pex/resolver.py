@@ -60,19 +60,19 @@ class DistributionRequirements(object):
 
             program = dedent(
                 """
-        import json
-        import sys
-        from collections import defaultdict
-        from pkg_resources import Environment
-
-
-        env = Environment(search_path={search_path!r})
-        dependency_requirements = []
-        for key in env:
-          for dist in env[key]:
-            dependency_requirements.extend(str(req) for req in dist.requires())
-        json.dump(dependency_requirements, sys.stdout)
-      """.format(
+                import json
+                import sys
+                from collections import defaultdict
+                from pkg_resources import Environment
+        
+        
+                env = Environment(search_path={search_path!r})
+                dependency_requirements = []
+                for key in env:
+                    for dist in env[key]:
+                        dependency_requirements.extend(str(req) for req in dist.requires())
+                json.dump(dependency_requirements, sys.stdout)
+                """.format(
                     search_path=search_path
                 )
             )

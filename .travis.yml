@@ -76,10 +76,6 @@ x-osx-38-shard: &x-osx-38-shard
 # caches as much as possible (eg: all linux python 2.7.15 shards share a cache).
 matrix:
   include:
-    - <<: *x-linux-27-shard
-      name: TOXENV=style
-      script: ${TOX_CMD} -e style
-
     - <<: *x-linux-38-shard
       name: TOXENV=format-check
       script: ${TOX_CMD} -e format-check
