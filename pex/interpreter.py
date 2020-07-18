@@ -378,17 +378,17 @@ class PythonInterpreter(object):
                         """\
                         import os
                         import sys
-                        
+
                         from pex.common import atomic_directory, safe_open
                         from pex.interpreter import PythonIdentity
-                        
-                        
+
+
                         encoded_identity = PythonIdentity.get().encode()
                         sys.stdout.write(encoded_identity)
                         with atomic_directory({cache_dir!r}) as cache_dir:
-                        if cache_dir:
-                          with safe_open(os.path.join(cache_dir, {info_file!r}), 'w') as fp:
-                            fp.write(encoded_identity)
+                            if cache_dir:
+                                with safe_open(os.path.join(cache_dir, {info_file!r}), 'w') as fp:
+                                    fp.write(encoded_identity)
                         """.format(
                             cache_dir=cache_dir, info_file=cls.INTERP_INFO_FILE
                         )
