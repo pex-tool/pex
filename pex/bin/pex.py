@@ -483,7 +483,7 @@ def configure_clp_pex_environment(parser):
         dest="python_shebang",
         default=None,
         help="The exact shebang (#!...) line to add at the top of the PEX file minus the "
-        "#!.  This overrides the default behavior, which picks an environment python "
+        "#!. This overrides the default behavior, which picks an environment Python "
         "interpreter compatible with the one used to build the PEX file.",
     )
 
@@ -517,6 +517,20 @@ def configure_clp_pex_environment(parser):
         "each platform specified. If found, use the interpreter to resolve distributions; if "
         "not, resolve for the platform only allowing matching binary distributions and failing "
         "if only sdists or non-matching binary distributions can be found.",
+    )
+
+    group.add_option(
+        "--use-first-matching-interpreter",
+        dest="use_first_matching_interpreter",
+        default=False,
+        action="callback",
+        callback=parse_bool,
+        help=(
+            "If multiple interpreters are valid, use the first one. Normally, when multiple "
+            "interpreters match, Pex will resolve requirements for each interpreter; this allows "
+            "the resulting Pex to work with more interpreters, such as different Python versions. "
+            "However, resolving for multiple interpreters results in worse performance."
+        ),
     )
 
     parser.add_option_group(group)
@@ -766,6 +780,18 @@ def build_pex(reqs, options, cache=None):
             )
 
     interpreter = min(interpreters) if interpreters else None
+    if options.use_first_matching_interpreter and interpreters:
+        if len(interpreters) > 1:
+            unused_interpreters = set(interpreters) - {interpreter}
+            TRACER.log(
+                "Multiple interpreters resolved, but only using {} because "
+                "`--use-first-matching-interpreter` was used. These interpreters were matched but "
+                "will not be used: {}".format(
+                    interpreter.binary,
+                    ", ".join(interpreter.binary for interpreter in sorted(unused_interpreters)),
+                )
+            )
+        interpreters = [interpreter]
 
     try:
         with open(options.preamble_file) as preamble_fd:
