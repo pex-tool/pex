@@ -526,10 +526,11 @@ def configure_clp_pex_environment(parser):
         action="callback",
         callback=parse_bool,
         help=(
-            "If multiple interpreters are valid, use the first one. Normally, when multiple "
-            "interpreters match, Pex will resolve requirements for each interpreter; this allows "
-            "the resulting Pex to work with more interpreters, such as different Python versions. "
-            "However, resolving for multiple interpreters results in worse performance."
+            "If multiple interpreters are valid, use the first one, which is the minimum "
+            "compatible Python version. Normally, when multiple interpreters match, Pex will "
+            "resolve requirements for each interpreter; this allows the resulting Pex to be "
+            "compatible with more interpreters, such as different Python versions. However, "
+            "resolving for multiple interpreters results in worse performance."
         ),
     )
 

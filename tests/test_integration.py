@@ -592,11 +592,12 @@ def test_use_first_matching_interpreter():
                 "-v",
                 "-o",
                 pex_out_path,
-            ], env=env
+            ],
+            env=env,
         )
         res.assert_success()
-        assert "using {}".format(py35_path) in res.error.decode()
-        assert "will not be used: {}".format(py36_path) in res.error.decode()
+        assert "using {}".format(py35_path) in res.error
+        assert "will not be used: {}".format(py36_path) in res.error
         # We do not attempt to update the PexInfo to solely refer to the chosen interpreter.
         pex_info = PexInfo.from_pex(pex_out_path)
         assert {">=3.5"} == set(pex_info.interpreter_constraints)
