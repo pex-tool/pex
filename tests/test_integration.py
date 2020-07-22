@@ -576,31 +576,49 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
 
 
 def test_use_first_matching_interpreter():
-    with temporary_dir() as output_dir:
-        py35_path = ensure_python_interpreter(PY35)
-        py36_path = ensure_python_interpreter(PY36)
-        env = make_env(
-            PEX_IGNORE_RCFILES="1",
-            PATH=os.pathsep.join([os.path.dirname(py35_path), os.path.dirname(py36_path)]),
-        )
-        pex_out_path = os.path.join(output_dir, "pex_py2.pex")
-        res = run_pex_command(
-            [
+    py35_path = ensure_python_interpreter(PY35)
+    py36_path = ensure_python_interpreter(PY36)
+    env = make_env(PEX_PYTHON_PATH=os.pathsep.join((py35_path, py36_path)))
+
+    def run_pex_with_py36(use_first_matching_flag):
+        with temporary_dir() as output_dir:
+            pex_out_path = os.path.join(output_dir, "first_matching.pex")
+            args = [
                 "--disable-cache",
                 "--interpreter-constraint=>=3.5",
-                "--use-first-matching-interpreter",
-                "-v",
                 "-o",
                 pex_out_path,
-            ],
-            env=env,
-        )
-        res.assert_success()
-        assert "using {}".format(py35_path) in res.error
-        assert "will not be used: {}".format(py36_path) in res.error
-        # We do not attempt to update the PexInfo to solely refer to the chosen interpreter.
-        pex_info = PexInfo.from_pex(pex_out_path)
-        assert {">=3.5"} == set(pex_info.interpreter_constraints)
+                "psutil==5.7.0",
+            ]
+            if use_first_matching_flag:
+                args.append("--use-first-matching-interpreter")
+            res = run_pex_command(args, env=env)
+            res.assert_success()
+
+            # We do not attempt to update the PexInfo, even if `--use-first-matching-interpreter`
+            # is used.
+            pex_info = PexInfo.from_pex(pex_out_path)
+            assert {">=3.5"} == set(pex_info.interpreter_constraints)
+
+            # Running with Python 3.5 should always work because that is the first matching
+            # interpreter.
+            stdin_payload = b"import sys, psutil; print(sys.executable); sys.exit(0)"
+            stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+            assert rc == 0
+            assert py35_path in stdout
+
+            stdout, rc = run_simple_pex(
+                pex_out_path, stdin=stdin_payload, env=make_env(PEX_PYTHON_PATH=py36_path)
+            )
+            return stdout, rc
+
+    without_flag_stdout, without_flag_rc = run_pex_with_py36(use_first_matching_flag=False)
+    assert without_flag_rc == 0
+    assert py36_path in without_flag_stdout
+
+    with_flag_stdout, with_flag_rc = run_pex_with_py36(use_first_matching_flag=True)
+    assert with_flag_rc == 1
+    assert bool(re.search(r"Needed.*cp-36-cp36m", with_flag_stdout))
 
 
 def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
