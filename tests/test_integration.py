@@ -605,7 +605,7 @@ def test_use_first_matching_interpreter():
             stdin_payload = b"import sys, psutil; print(sys.executable); sys.exit(0)"
             stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
             assert rc == 0
-            assert py35_path in stdout
+            assert py35_path in stdout.decode()
 
             stdout, rc = run_simple_pex(
                 pex_out_path, stdin=stdin_payload, env=make_env(PEX_PYTHON_PATH=py36_path)
@@ -614,11 +614,11 @@ def test_use_first_matching_interpreter():
 
     without_flag_stdout, without_flag_rc = run_pex_with_py36(use_first_matching_flag=False)
     assert without_flag_rc == 0
-    assert py36_path in without_flag_stdout
+    assert py36_path in without_flag_stdout.decode()
 
     with_flag_stdout, with_flag_rc = run_pex_with_py36(use_first_matching_flag=True)
     assert with_flag_rc == 1
-    assert bool(re.search(r"Needed.*cp-36-cp36m", with_flag_stdout))
+    assert bool(re.search(r"Needed.*cp-36-cp36m", with_flag_stdout.decode()))
 
 
 def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
