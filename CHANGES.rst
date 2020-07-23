@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.14
+------
+
+This release adds the ``--use-first-matching-interpreter`` flag, which
+can speed up performance when building a Pex at the expense of being
+compatible with fewer interpreters at runtime.
+
+* Add ``--use-first-matching-interpreter``. (#1008)
+  `PR #1008 <https://github.com/pantsbuild/pex/pull/1008>`_
+
+* Autoformat with Black. (#1006)
+  `PR #1006 <https://github.com/pantsbuild/pex/pull/1006>`_
+
 2.1.13
 ------
 
