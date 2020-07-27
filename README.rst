@@ -167,4 +167,4 @@ To run Pex from source, rather than through what is on your PATH, invoke via Pyt
 Contributing
 ============
 
-To contribute, follow these instructions: http://pantsbuild.org/howto_contribute.html
+To contribute, follow these instructions: https://www.pantsbuild.org/docs/contributor-overview
