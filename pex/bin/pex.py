@@ -827,7 +827,17 @@ def build_pex(reqs, options, cache=None):
     pex_info.inherit_path = options.inherit_path
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
-    if options.interpreter_constraint:
+
+    # If we're only building the PEX for the first of many interpreters due to
+    # `--use-first-matching-interpreter` selection, we do not want to enable those same interpreter
+    # constraints at runtime, where they could lead to a different interpreter being selected
+    # leading to a failure to execute the PEX. Instead we rely on the shebang set by that single
+    # interpreter to pick out a similar interpreter at runtime (for a CPython interpreter, the
+    # shebang will be `#!/usr/bin/env pythonX.Y` which should generally be enough to select a
+    # matching interpreter. To be clear though, there are many corners this will not work for
+    # including mismatching abi (python2.7m vs python2.7mu) when the PEX contains platform specific
+    # wheels, etc.
+    if options.interpreter_constraint and not options.use_first_matching_interpreter:
         for ic in options.interpreter_constraint:
             pex_builder.add_interpreter_constraint(ic)
 
