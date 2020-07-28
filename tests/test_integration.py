@@ -595,8 +595,6 @@ def test_use_first_matching_interpreter():
             res = run_pex_command(args, env=env)
             res.assert_success()
 
-            # We do not attempt to update the PexInfo, even if `--use-first-matching-interpreter`
-            # is used.
             pex_info = PexInfo.from_pex(pex_out_path)
             assert (
                 [] if use_first_matching_flag else [">=3.5"]
