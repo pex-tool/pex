@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+2.1.15
+------
+
+A patch release to fix an issue with the ``--use-first-matching-interpreter`` flag.
+
+* Fix --use-first-matching-interpreter at runtime. (#1014)
+  `PR #1014 <https://github.com/pantsbuild/pex/pull/1014>`_
+
 2.1.14
 ------
 
