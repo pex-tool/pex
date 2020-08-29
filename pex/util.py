@@ -32,11 +32,17 @@ class DistributionHelper(object):
         :returns temp_dir: Temporary directory with the zipped assets inside
         :rtype: str
         """
-
         # asset_path is initially a module name that's the same as the static_path, but will be
         # changed to walk the directory tree
+        # TODO(John Sirois): Unify with `pex.third_party.isolated(recursive_copy)`.
         def walk_zipped_assets(static_module_name, static_path, asset_path, temp_dir):
             for asset in resource_listdir(static_module_name, asset_path):
+                if not asset:
+                    # The `resource_listdir` function returns a '' asset for the directory entry
+                    # itself if it is either present on the filesystem or present as an explicit
+                    # zip entry. Since we only care about files and subdirectories at this point,
+                    # skip these assets.
+                    continue
                 asset_target = os.path.normpath(
                     os.path.join(os.path.relpath(asset_path, static_path), asset)
                 )
