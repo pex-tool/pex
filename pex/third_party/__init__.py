@@ -367,10 +367,10 @@ def isolated():
             os.mkdir(dstdir)
             for entry_name in resource_listdir(module, srcdir):
                 if not entry_name:
-                    # The `resource_listdir` function returns a '' asset for the directory entry
-                    # itself if it is either present on the filesystem or present as an explicit
-                    # zip entry. Since we only care about files and subdirectories at this point,
-                    # skip these assets.
+                    # The `resource_listdir` function returns a '' entry name for the directory
+                    # entry itself if it is either present on the filesystem or present as an
+                    # explicit zip entry. Since we only care about files and subdirectories at this
+                    # point, skip these entries.
                     continue
                 # NB: Resource path components are always separated by /, on all systems.
                 src_entry = "{}/{}".format(srcdir, entry_name) if srcdir else entry_name
