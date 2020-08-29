@@ -64,6 +64,11 @@ def test_find_compatible_interpreters():
     )
 
 
+def test_find_compatible_interpreters_none():
+    with pytest.raises(UnsatisfiableInterpreterConstraintsError):
+        find_interpreters([os.path.devnull], ">2")
+
+
 def test_find_compatible_interpreters_bias_current():
     py36 = ensure_python_interpreter(PY36)
     assert [os.path.realpath(sys.executable), py36] == find_interpreters([py36, sys.executable])

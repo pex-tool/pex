@@ -44,6 +44,9 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         :return: A descriptive message useable for display to an end user.
         :rtype: str
         """
+        preamble = "{}\n\n".format(preamble) if preamble else ""
+        if not self.candidates:
+            return "{}No interpreters could be found on the system.".format(preamble)
         binary_column_width = max(len(candidate.binary) for candidate in self.candidates)
         interpreters_format = "{{binary: >{}}} {{requirement}}".format(binary_column_width)
         return (
@@ -51,7 +54,7 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
             "Examined the following interpreters:\n  {interpreters}\n\n"
             "None were compatible with the requested constraints:\n  {constraints}"
         ).format(
-            preamble="{}\n\n".format(preamble) if preamble else "",
+            preamble=preamble,
             interpreters="\n  ".join(
                 interpreters_format.format(
                     binary=candidate.binary, requirement=candidate.identity.requirement
