@@ -1130,6 +1130,34 @@ def test_pex_source_bundling():
             assert stdout == b"hello\n"
 
 
+def test_pex_source_bundling_pep420():
+    with temporary_dir() as output_dir:
+        with temporary_dir() as input_dir:
+            with safe_open(os.path.join(input_dir, "a/b/c.py"), "w") as fh:
+                fh.write("GREETING = 'hello'")
+
+            with open(os.path.join(input_dir, "exe.py"), "w") as fh:
+                fh.write(
+                    dedent(
+                        """
+                        from a.b.c import GREETING
+
+                        print(GREETING)
+                        """
+                    )
+                )
+
+            pex_path = os.path.join(output_dir, "pex1.pex")
+            py36 = ensure_python_interpreter(PY36)
+            res = run_pex_command(["-o", pex_path, "-D", input_dir, "-e", "exe"], python=py36)
+            res.assert_success()
+
+            stdout, rc = run_simple_pex(pex_path, interpreter=PythonInterpreter.from_binary(py36))
+
+            assert rc == 0
+            assert stdout == b"hello\n"
+
+
 def test_pex_resource_bundling():
     with temporary_dir() as output_dir:
         with temporary_dir() as input_dir, temporary_dir() as resources_input_dir:
@@ -1640,11 +1668,11 @@ def assert_reproducible_build(args):
             zf1.extractall(path=unzipped1)
             zf2.extractall(path=unzipped2)
             for member1, member2 in zip(sorted(zf1.namelist()), sorted(zf2.namelist())):
-                assert filecmp.cmp(
-                    os.path.join(unzipped1, member1),
-                    os.path.join(unzipped2, member2),
-                    shallow=False,
-                )
+                member1_path = os.path.join(unzipped1, member1)
+                if os.path.isdir(member1_path):
+                    continue
+                member2_path = os.path.join(unzipped2, member2)
+                assert filecmp.cmp(member1_path, member2_path, shallow=False)
         # Then compare the original .pex files. This is the assertion we truly care about.
         assert filecmp.cmp(pex1, pex2, shallow=False)
 

@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 import zipfile
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
@@ -100,14 +100,17 @@ _MKDTEMP_SINGLETON = MktempTeardownRegistry()
 class PermPreservingZipFile(zipfile.ZipFile, object):
     """A ZipFile that works around https://bugs.python.org/issue15795."""
 
-    @classmethod
-    def zip_info_from_file(cls, filename, arcname=None, date_time=None):
-        """Construct a ZipInfo for a file on the filesystem.
+    class ZipEntry(namedtuple("ZipEntry", ["info", "data"])):
+        pass
 
-        Usually this is provided directly as a method of ZipInfo, but it is not implemented in Python
-        2.7 so we re-implement it here. The main divergance we make from the original is adding a
-        parameter for the datetime (a time.struct_time), which allows us to use a deterministic
-        timestamp. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495.
+    @classmethod
+    def zip_entry_from_file(cls, filename, arcname=None, date_time=None):
+        """Construct a ZipEntry for a file on the filesystem.
+
+        Usually a similar `zip_info_from_file` method is provided by `ZipInfo`, but it is not
+        implemented in Python 2.7 so we re-implement it here to construct the `info` for `ZipEntry`
+        adding the possibility to control the `ZipInfo` date_time separately from the underlying
+        file mtime. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495.
         """
         st = os.stat(filename)
         isdir = stat.S_ISDIR(st.st_mode)
@@ -125,9 +128,14 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
         if isdir:
             zinfo.file_size = 0
             zinfo.external_attr |= 0x10  # MS-DOS directory flag
+            zinfo.compress_type = zipfile.ZIP_STORED
+            data = b""
         else:
             zinfo.file_size = st.st_size
-        return zinfo
+            zinfo.compress_type = zipfile.ZIP_DEFLATED
+            with open(filename, "rb") as fp:
+                data = fp.read()
+        return cls.ZipEntry(info=zinfo, data=data)
 
     def _extract_member(self, member, targetpath, pwd):
         result = super(PermPreservingZipFile, self)._extract_member(member, targetpath, pwd)
@@ -525,15 +533,34 @@ class Chroot(object):
 
     def zip(self, filename, mode="w", deterministic_timestamp=False):
         with open_zip(filename, mode) as zf:
-            for f in sorted(self.files()):
-                full_path = os.path.join(self.chroot, f)
-                zinfo = zf.zip_info_from_file(
+
+            def write_entry(path):
+                full_path = os.path.join(self.chroot, path)
+                zip_entry = zf.zip_entry_from_file(
                     filename=full_path,
-                    arcname=f,
+                    arcname=path,
                     date_time=DETERMINISTIC_DATETIME.timetuple()
                     if deterministic_timestamp
                     else None,
                 )
-                with open(full_path, "rb") as open_f:
-                    data = open_f.read()
-                zf.writestr(zinfo, data, compress_type=zipfile.ZIP_DEFLATED)
+                zf.writestr(zip_entry.info, zip_entry.data)
+
+            def get_parent_dir(path):
+                parent_dir = os.path.normpath(os.path.dirname(path))
+                if parent_dir and parent_dir != os.curdir:
+                    return parent_dir
+                return None
+
+            written_dirs = set()
+
+            def maybe_write_parent_dirs(path):
+                parent_dir = get_parent_dir(path)
+                if parent_dir is None or parent_dir in written_dirs:
+                    return
+                maybe_write_parent_dirs(parent_dir)
+                write_entry(parent_dir)
+                written_dirs.add(parent_dir)
+
+            for f in sorted(self.files()):
+                maybe_write_parent_dirs(f)
+                write_entry(f)

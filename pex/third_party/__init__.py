@@ -362,9 +362,16 @@ def isolated():
 
         module = "pex"
 
+        # TODO(John Sirois): Unify with `pex.util.DistributionHelper.access_zipped_assets`.
         def recursive_copy(srcdir, dstdir):
             os.mkdir(dstdir)
             for entry_name in resource_listdir(module, srcdir):
+                if not entry_name:
+                    # The `resource_listdir` function returns a '' entry name for the directory
+                    # entry itself if it is either present on the filesystem or present as an
+                    # explicit zip entry. Since we only care about files and subdirectories at this
+                    # point, skip these entries.
+                    continue
                 # NB: Resource path components are always separated by /, on all systems.
                 src_entry = "{}/{}".format(srcdir, entry_name) if srcdir else entry_name
                 dst_entry = os.path.join(dstdir, entry_name)

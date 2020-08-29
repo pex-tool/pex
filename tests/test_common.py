@@ -15,6 +15,7 @@ from pex.common import (
     atomic_directory,
     can_write_dir,
     chmod_plus_x,
+    open_zip,
     temporary_dir,
     touch,
 )
@@ -179,6 +180,23 @@ def test_chroot_perms_link_cross_device():
         mock_link.side_effect = OSError(expected_errno, os.strerror(expected_errno))
 
         assert_chroot_perms(Chroot.link)
+
+
+def test_chroot_zip():
+    with temporary_dir() as tmp:
+        chroot = Chroot(os.path.join(tmp, "chroot"))
+        chroot.write(b"data", "directory/subdirectory/file")
+        zip_dst = os.path.join(tmp, "chroot.zip")
+        chroot.zip(zip_dst)
+        with open_zip(zip_dst) as zip:
+            assert [
+                "directory/",
+                "directory/subdirectory/",
+                "directory/subdirectory/file",
+            ] == sorted(zip.namelist())
+            assert b"" == zip.read("directory/")
+            assert b"" == zip.read("directory/subdirectory/")
+            assert b"data" == zip.read("directory/subdirectory/file")
 
 
 def test_can_write_dir_writeable_perms():
