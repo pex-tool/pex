@@ -406,44 +406,44 @@ def import_prefix():
 def install(root=None, expose=None):
     """Installs the default :class:`VendorImporter` for PEX vendored code.
 
-  Any distributions listed in ``expose`` will also be exposed for direct import; ie:
-  ``install(expose=['setuptools'])`` would make both ``setuptools`` and ``wheel`` available for
-  import via ``from  pex.third_party import setuptools, wheel``, but only ``setuptools`` could be
-  directly imported via ``import setuptools``.
+    Any distributions listed in ``expose`` will also be exposed for direct import; ie:
+    ``install(expose=['setuptools'])`` would make both ``setuptools`` and ``wheel`` available for
+    import via ``from  pex.third_party import setuptools, wheel``, but only ``setuptools`` could be
+    directly imported via ``import setuptools``.
 
-  NB: Even when exposed, vendored code is not the same as the same un-vendored code and will
-  properly fail type-tests against un-vendored types. For example, in an interpreter that has
-  ``setuptools`` installed in its site-packages:
+    NB: Even when exposed, vendored code is not the same as the same un-vendored code and will
+    properly fail type-tests against un-vendored types. For example, in an interpreter that has
+    ``setuptools`` installed in its site-packages:
 
-  >>> from pkg_resources import Requirement
-  >>> orig_req = Requirement.parse('wheel==0.31.1')
-  >>> from pex import third_party
-  >>> third_party.install(expose=['setuptools'])
-  >>> import sys
-  >>> sys.modules.pop('pkg_resources')
-  <module 'pkg_resources' from '/home/jsirois/dev/pantsbuild/jsirois-pex/.tox/py27-repl/lib/python2.7/site-packages/pkg_resources/__init__.pyc'>  # noqa
-  >>> from pkg_resources import Requirement
-  >>> new_req = Requirement.parse('wheel==0.31.1')
-  >>> new_req == orig_req
-  False
-  >>> new_req == Requirement.parse('wheel==0.31.1')
-  True
-  >>> type(orig_req)
-  <class 'pkg_resources.Requirement'>
-  >>> type(new_req)
-  <class 'pex.vendor._vendored.setuptools.pkg_resources.Requirement'>
-  >>> from pex.third_party.pkg_resources import Requirement as PrefixedRequirement
-  >>> new_req == PrefixedRequirement.parse('wheel==0.31.1')
-  True
-  >>> sys.modules.pop('pkg_resources')
-  <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>  # noqa
-  >>> sys.modules.pop('pex.third_party.pkg_resources')
-  <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>  # noqa
-  >>>
+    >>> from pkg_resources import Requirement
+    >>> orig_req = Requirement.parse('wheel==0.31.1')
+    >>> from pex import third_party
+    >>> third_party.install(expose=['setuptools'])
+    >>> import sys
+    >>> sys.modules.pop('pkg_resources')
+    <module 'pkg_resources' from '/home/jsirois/dev/pantsbuild/jsirois-pex/.tox/py27-repl/lib/python2.7/site-packages/pkg_resources/__init__.pyc'>  # noqa
+    >>> from pkg_resources import Requirement
+    >>> new_req = Requirement.parse('wheel==0.31.1')
+    >>> new_req == orig_req
+    False
+    >>> new_req == Requirement.parse('wheel==0.31.1')
+    True
+    >>> type(orig_req)
+    <class 'pkg_resources.Requirement'>
+    >>> type(new_req)
+    <class 'pex.vendor._vendored.setuptools.pkg_resources.Requirement'>
+    >>> from pex.third_party.pkg_resources import Requirement as PrefixedRequirement
+    >>> new_req == PrefixedRequirement.parse('wheel==0.31.1')
+    True
+    >>> sys.modules.pop('pkg_resources')
+    <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>  # noqa
+    >>> sys.modules.pop('pex.third_party.pkg_resources')
+    <module 'pex.vendor._vendored.setuptools.pkg_resources' from 'pex/vendor/_vendored/setuptools/pkg_resources/__init__.pyc'>  # noqa
+    >>>
 
-  :param expose: A list of vendored distribution names to expose directly on the ``sys.path``.
-  :type expose: list of str
-  :raise: :class:`ValueError` if any distributions to expose cannot be found.
+    :param expose: A list of vendored distribution names to expose directly on the ``sys.path``.
+    :type expose: list of str
+    :raise: :class:`ValueError` if any distributions to expose cannot be found.
     """
     VendorImporter.install_vendored(prefix=import_prefix(), root=root, expose=expose)
 

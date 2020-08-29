@@ -34,7 +34,12 @@ def test_backwards_incompatible_pex_info():
         make_pex_info([("hello", False)])
 
     # backwards compatibility
-    pi = make_pex_info([["hello==0.1", False, None], ["world==0.2", False, None],])
+    pi = make_pex_info(
+        [
+            ["hello==0.1", False, None],
+            ["world==0.2", False, None],
+        ]
+    )
     assert pi.requirements == OrderedSet(["hello==0.1", "world==0.2"])
 
 

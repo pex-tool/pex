@@ -665,7 +665,11 @@ def test_pex_run_custom_setuptools_useable():
     resolved_dists = resolve(["setuptools==36.2.7"])
     dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
     with temporary_dir() as temp_dir:
-        pex = write_simple_pex(temp_dir, "from setuptools.sandbox import run_setup", dists=dists,)
+        pex = write_simple_pex(
+            temp_dir,
+            "from setuptools.sandbox import run_setup",
+            dists=dists,
+        )
         rc = PEX(pex.path()).run()
         assert rc == 0
 

@@ -213,7 +213,9 @@ class Pip(object):
 
         download_cmd = ["download", "--dest", download_dir]
         package_index_options = self._calculate_package_index_options(
-            indexes=indexes, find_links=find_links, network_configuration=network_configuration,
+            indexes=indexes,
+            find_links=find_links,
+            network_configuration=network_configuration,
         )
         download_cmd.extend(package_index_options)
 
@@ -271,7 +273,9 @@ class Pip(object):
 
         # If the build is PEP-517 compliant it may need to resolve build requirements.
         package_index_options = self._calculate_package_index_options(
-            indexes=indexes, find_links=find_links, network_configuration=network_configuration,
+            indexes=indexes,
+            find_links=find_links,
+            network_configuration=network_configuration,
         )
         wheel_cmd.extend(package_index_options)
 

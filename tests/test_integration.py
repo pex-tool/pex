@@ -525,7 +525,12 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
         pex_out_path = os.path.join(td, "pex.pex")
         env = make_env(
             PEX_IGNORE_RCFILES="1",
-            PATH=os.pathsep.join([os.path.dirname(py35_path), os.path.dirname(py36_path),]),
+            PATH=os.pathsep.join(
+                [
+                    os.path.dirname(py35_path),
+                    os.path.dirname(py36_path),
+                ]
+            ),
         )
         res = run_pex_command(
             ["--disable-cache", "--interpreter-constraint===%s" % PY36, "-o", pex_out_path], env=env
@@ -901,7 +906,11 @@ def inherit_path(inherit_path):
         results.assert_success()
 
         env = make_env(PYTHONPATH="/doesnotexist")
-        stdout, rc = run_simple_pex(pex_path, args=(exe,), env=env,)
+        stdout, rc = run_simple_pex(
+            pex_path,
+            args=(exe,),
+            env=env,
+        )
         assert rc == 0
 
         stdout_lines = stdout.decode().split("\n")
@@ -1103,7 +1112,16 @@ def test_pex_source_bundling():
                 )
 
             pex_path = os.path.join(output_dir, "pex1.pex")
-            res = run_pex_command(["-o", pex_path, "-D", input_dir, "-e", "exe",])
+            res = run_pex_command(
+                [
+                    "-o",
+                    pex_path,
+                    "-D",
+                    input_dir,
+                    "-e",
+                    "exe",
+                ]
+            )
             res.assert_success()
 
             stdout, rc = run_simple_pex(pex_path)
@@ -1279,7 +1297,10 @@ def test_setup_interpreter_constraint():
     interpreter = ensure_python_interpreter(PY27)
     with temporary_dir() as out:
         pex = os.path.join(out, "pex.pex")
-        env = make_env(PEX_IGNORE_RCFILES="1", PATH=os.path.dirname(interpreter),)
+        env = make_env(
+            PEX_IGNORE_RCFILES="1",
+            PATH=os.path.dirname(interpreter),
+        )
         results = run_pex_command(
             [
                 "jsonschema==2.6.0",
@@ -2072,7 +2093,9 @@ def test_unzip_mode():
             ]
         ).assert_success()
 
-        output1 = subprocess.check_output(args=[pex_file, "quit", "re-exec"],)
+        output1 = subprocess.check_output(
+            args=[pex_file, "quit", "re-exec"],
+        )
         assert ["quit re-exec", os.path.realpath(pex_file)] == output1.decode("utf-8").splitlines()
 
         unzipped_cache = os.path.join(pex_root, pex_builder.UNZIPPED_DIR)
