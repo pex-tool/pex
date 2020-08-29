@@ -197,7 +197,11 @@ class PythonIdentity(object):
     def hashbang(self):
         hashbang_string = self.INTERPRETER_NAME_TO_HASHBANG.get(
             self._interpreter_name, "CPython"
-        ) % {"major": self._version[0], "minor": self._version[1], "patch": self._version[2],}
+        ) % {
+            "major": self._version[0],
+            "minor": self._version[1],
+            "patch": self._version[2],
+        }
         return "#!/usr/bin/env %s" % hashbang_string
 
     @property
@@ -217,13 +221,15 @@ class PythonIdentity(object):
         )
 
     def __repr__(self):
-        return "{type}({binary!r}, {python_tag!r}, {abi_tag!r}, {platform_tag!r}, {version!r})".format(
-            type=self.__class__.__name__,
-            binary=self._binary,
-            python_tag=self._python_tag,
-            abi_tag=self._abi_tag,
-            platform_tag=self._platform_tag,
-            version=self._version,
+        return (
+            "{type}({binary!r}, {python_tag!r}, {abi_tag!r}, {platform_tag!r}, {version!r})".format(
+                type=self.__class__.__name__,
+                binary=self._binary,
+                python_tag=self._python_tag,
+                abi_tag=self._abi_tag,
+                platform_tag=self._platform_tag,
+                version=self._version,
+            )
         )
 
     def _tup(self):

@@ -26,11 +26,11 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
 
     def __init__(self, constraints, candidates):
         """
-    :param constraints: The constraints that could not be satisfied.
-    :type constraints: iterable of str
-    :param candidates: The python interpreters that were compared against the constraints.
-    :type candidates: iterable of :class:`pex.interpreter.PythonInterpreter`
-    """
+        :param constraints: The constraints that could not be satisfied.
+        :type constraints: iterable of str
+        :param candidates: The python interpreters that were compared against the constraints.
+        :type candidates: iterable of :class:`pex.interpreter.PythonInterpreter`
+        """
         self.constraints = tuple(constraints)
         self.candidates = tuple(candidates)
         super(UnsatisfiableInterpreterConstraintsError, self).__init__(self.create_message())
