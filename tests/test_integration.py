@@ -1,6 +1,7 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import errno
 import filecmp
 import functools
 import glob
@@ -11,6 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
+import uuid
 from contextlib import contextmanager
 from textwrap import dedent
 from zipfile import ZipFile
@@ -20,6 +22,7 @@ import pytest
 from pex import pex_builder
 from pex.common import safe_copy, safe_mkdir, safe_open, safe_rmtree, safe_sleep, temporary_dir
 from pex.compatibility import WINDOWS, nested, to_bytes
+from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
@@ -1915,6 +1918,61 @@ def test_issues_745_extras_isolation():
 
         subprocess32_location = os.path.realpath(output.decode("utf-8").strip())
         assert subprocess32_location.startswith(pex_root)
+
+
+@pytest.yield_fixture
+def issues_1025_pth():
+    def safe_rm(path):
+        try:
+            os.unlink(path)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise
+
+    cleanups = []
+
+    def write_pth(pth_path, sitedir):
+        cleanups.append(lambda: safe_rm(pth_path))
+        with open(pth_path, "w") as fp:
+            fp.write("import site; site.addsitedir({!r})\n".format(sitedir))
+
+    try:
+        yield write_pth
+    finally:
+        for cleanup in cleanups:
+            cleanup()
+
+
+def test_issues_1025_extras_isolation(issues_1025_pth):
+    python, pip = ensure_python_distribution(PY36)
+    interpreter = PythonInterpreter.from_binary(python)
+    _, stdout, _ = interpreter.execute(args=["-c", "import site; print(site.getsitepackages()[0])"])
+    with temporary_dir() as tmpdir:
+        sitedir = os.path.join(tmpdir, "sitedir")
+        Executor.execute(cmd=[pip, "install", "--target", sitedir, "ansicolors==1.1.8"])
+
+        pth_path = os.path.join(stdout.strip(), "issues_1025.{}.pth".format(uuid.uuid4().hex))
+        issues_1025_pth(pth_path, sitedir)
+
+        pex_file = os.path.join(tmpdir, "isolated.pex")
+        results = run_pex_command(args=["-o", pex_file], python=python)
+        results.assert_success()
+
+        output, returncode = run_simple_pex(
+            pex_file,
+            args=["-c", "import colors"],
+            interpreter=interpreter,
+            env=make_env(PEX_VERBOSE="9"),
+        )
+        assert returncode != 0, output
+
+        output, returncode = run_simple_pex(
+            pex_file,
+            args=["-c", "import colors"],
+            interpreter=interpreter,
+            env=make_env(PEX_VERBOSE="9", PEX_INHERIT_PATH="fallback"),
+        )
+        assert returncode == 0, output
 
 
 def test_trusted_host_handling():
