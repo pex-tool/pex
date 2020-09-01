@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import contextlib
 import os
+import sys
 import tempfile
 from hashlib import sha1
 from site import makepath
@@ -198,21 +199,42 @@ def iter_pth_paths(filename):
     known_paths = set()
 
     with f:
-        for line in f:
+        for i, line in enumerate(f, start=1):
             line = line.rstrip()
             if not line or line.startswith("#"):
                 continue
             elif line.startswith(("import ", "import\t")):
+                # One important side effect of executing import lines can be alteration of the
+                # sys.path directly or indirectly as a programmatic way to add sys.path entries
+                # in contrast to the standard .pth mechanism of including fixed paths as
+                # individual lines in the file. Here we capture all such programmatic attempts
+                # to expand the sys.path and report the additions.
+                original_sys_path = sys.path[:]
                 try:
+                    # N.B.: Setting sys.path to empty is ok since all the .pth files we find and
+                    # execute have already been found and executed by our ambient sys.executable
+                    # when it started up before running this PEX file. As such, all symbols imported
+                    # by the .pth files then will still be available now as cached in sys.modules.
+                    sys.path = []
                     exec_function(line, globals_map={})
-                    continue
-                except Exception:
-                    # NB: import lines are routinely abused with extra code appended using `;` so the class of
-                    # exceptions that might be raised in broader than ImportError. As such we cacth broadly
-                    # here.
+                    for path in sys.path:
+                        yield path
+                except Exception as e:
+                    # NB: import lines are routinely abused with extra code appended using `;` so
+                    # the class of exceptions that might be raised in broader than ImportError. As
+                    # such we catch broadly here.
+                    TRACER.log(
+                        "Error executing line {linenumber} of {pth_file} with content:\n"
+                        "{content}\n"
+                        "Error was:\n"
+                        "{error}".format(linenumber=i, pth_file=filename, content=line, error=e),
+                        V=9,
+                    )
 
                     # Defer error handling to the higher level site.py logic invoked at startup.
                     return
+                finally:
+                    sys.path = original_sys_path
             else:
                 extras_dir, extras_dir_case_insensitive = makepath(dirname, line)
                 if extras_dir_case_insensitive not in known_paths and os.path.exists(extras_dir):
