@@ -3,11 +3,12 @@
 
 # A library of functions for filtering Python interpreters based on compatibility constraints
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
+
+import os
 
 from pex.common import die
 from pex.interpreter import PythonIdentity
-from pex.tracer import TRACER
 
 
 def validate_constraints(constraints):
@@ -24,7 +25,7 @@ def validate_constraints(constraints):
 class UnsatisfiableInterpreterConstraintsError(Exception):
     """Indicates interpreter constraints could not be satisfied."""
 
-    def __init__(self, constraints, candidates):
+    def __init__(self, constraints, candidates, failures):
         """
         :param constraints: The constraints that could not be satisfied.
         :type constraints: iterable of str
@@ -33,6 +34,7 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         """
         self.constraints = tuple(constraints)
         self.candidates = tuple(candidates)
+        self.failures = tuple(failures)
         super(UnsatisfiableInterpreterConstraintsError, self).__init__(self.create_message())
 
     def create_message(self, preamble=None):
@@ -46,53 +48,58 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         """
         preamble = "{}\n\n".format(preamble) if preamble else ""
         if not self.candidates:
+            if self.failures:
+                return (
+                    "{preamble}"
+                    "Interpreters were found but they all appear to be broken:\n  {failures}"
+                ).format(preamble=preamble, failures="\n  ".join(map(str, self.failures)))
             return "{}No interpreters could be found on the system.".format(preamble)
+
         binary_column_width = max(len(candidate.binary) for candidate in self.candidates)
-        interpreters_format = "{{binary: >{}}} {{requirement}}".format(binary_column_width)
+        interpreters_format = "{{index}}.) {{binary: >{}}} {{requirement}}".format(
+            binary_column_width
+        )
+        failures_message = ""
+        if self.failures:
+            seen = set()
+            broken_interpreters = []
+            for python, error in self.failures:
+                canonical_python = os.path.realpath(python)
+                if canonical_python not in seen:
+                    broken_interpreters.append((canonical_python, error))
+                    seen.add(canonical_python)
+
+            failures_message = (
+                "\n"
+                "\n"
+                "Skipped the following broken interpreters:\n"
+                "{}\n"
+                "\n"
+                "(See https://github.com/pantsbuild/pex/issues/1027 for a list of known breaks and "
+                "workarounds.)"
+            ).format(
+                "\n".join(
+                    "{index}.) {binary}:\n{error}".format(index=i, binary=python, error=error)
+                    for i, (python, error) in enumerate(broken_interpreters, start=1)
+                )
+            )
         return (
             "{preamble}"
-            "Examined the following interpreters:\n  {interpreters}\n\n"
-            "None were compatible with the requested constraints:\n  {constraints}"
+            "Examined the following {qualifier}interpreters:\n"
+            "{interpreters}"
+            "{failures_message}\n"
+            "\n"
+            "No {qualifier}interpreter compatible with the requested constraints was found:\n"
+            "  {constraints}"
         ).format(
             preamble=preamble,
+            qualifier="working " if failures_message else "",
             interpreters="\n  ".join(
                 interpreters_format.format(
-                    binary=candidate.binary, requirement=candidate.identity.requirement
+                    index=i, binary=candidate.binary, requirement=candidate.identity.requirement
                 )
-                for candidate in self.candidates
+                for i, candidate in enumerate(self.candidates, start=1)
             ),
             constraints="\n  ".join(self.constraints),
+            failures_message=failures_message,
         )
-
-
-def matched_interpreters_iter(interpreters_iter, constraints):
-    """Given some filters, yield any interpreter that matches at least one of them.
-
-    :param interpreters_iter: A `PythonInterpreter` iterable for filtering.
-    :param constraints: A sequence of strings that constrain the interpreter compatibility for this
-      pex. Each string uses the Requirement-style format, e.g. 'CPython>=3' or '>=2.7,<3' for
-      requirements agnostic to interpreter class. Multiple requirement strings may be combined
-      into a list to OR the constraints, such as ['CPython>=2.7,<3', 'CPython>=3.4'].
-    :return: returns a generator that yields compatible interpreters
-    :raises: :class:`UnsatisfiableInterpreterConstraintsError` if constraints were given and could
-             not be satisfied. The exception will only be raised when the returned generator is fully
-             consumed.
-    """
-    candidates = []
-    found = False
-
-    for interpreter in interpreters_iter:
-        if any(interpreter.identity.matches(filt) for filt in constraints):
-            TRACER.log(
-                "Constraints on interpreters: %s, Matching Interpreter: %s"
-                % (constraints, interpreter.binary),
-                V=3,
-            )
-            found = True
-            yield interpreter
-
-        if not found:
-            candidates.append(interpreter)
-
-    if not found:
-        raise UnsatisfiableInterpreterConstraintsError(constraints, candidates)

@@ -16,7 +16,7 @@ from pex import dist_metadata
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import spawn_python_job
-from pex.jobs import SpawnedJob, execute_parallel
+from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
@@ -208,7 +208,7 @@ class DownloadRequest(
                 execute_parallel(
                     inputs=self.targets,
                     spawn_func=spawn_download,
-                    raise_type=Unsatisfiable,
+                    error_handler=Raise(Unsatisfiable),
                     max_jobs=max_parallel_jobs,
                 )
             )
@@ -586,7 +586,7 @@ class BuildAndInstallRequest(object):
                 for build_result in execute_parallel(
                     inputs=build_requests,
                     spawn_func=spawn_wheel_build,
-                    raise_type=Untranslatable,
+                    error_handler=Raise(Untranslatable),
                     max_jobs=max_parallel_jobs,
                 ):
                     to_install.extend(build_result.finalize_build())
@@ -624,7 +624,7 @@ class BuildAndInstallRequest(object):
             for install_result in execute_parallel(
                 inputs=install_requests,
                 spawn_func=spawn_install,
-                raise_type=Untranslatable,
+                error_handler=Raise(Untranslatable),
                 max_jobs=max_parallel_jobs,
             ):
                 add_requirements_requests(install_result)
@@ -638,7 +638,7 @@ class BuildAndInstallRequest(object):
                 execute_parallel(
                     inputs=to_calculate_requirements_for,
                     spawn_func=DistributionRequirements.Request.spawn_calculation,
-                    raise_type=Untranslatable,
+                    error_handler=Raise(Untranslatable),
                     max_jobs=max_parallel_jobs,
                 )
             )
