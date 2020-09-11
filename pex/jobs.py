@@ -235,7 +235,10 @@ class Raise(ErrorHandler):
     """Re-raises errors encountered spawning or awaiting the result of a `Job`."""
 
     def __init__(self, raise_type):
-        """"""
+        """
+        :param raise_type: The type of exception to raise when a `Job` fails.
+        :type raise_type: An :class:`Exception` subclass.
+        """
         self._raise_type = raise_type
 
     def handle_spawn_error(self, item, exception):

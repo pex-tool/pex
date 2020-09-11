@@ -47,18 +47,7 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         :rtype: str
         """
         preamble = "{}\n\n".format(preamble) if preamble else ""
-        if not self.candidates:
-            if self.failures:
-                return (
-                    "{preamble}"
-                    "Interpreters were found but they all appear to be broken:\n  {failures}"
-                ).format(preamble=preamble, failures="\n  ".join(map(str, self.failures)))
-            return "{}No interpreters could be found on the system.".format(preamble)
 
-        binary_column_width = max(len(candidate.binary) for candidate in self.candidates)
-        interpreters_format = "{{index}}.) {{binary: >{}}} {{requirement}}".format(
-            binary_column_width
-        )
         failures_message = ""
         if self.failures:
             seen = set()
@@ -70,9 +59,6 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
                     seen.add(canonical_python)
 
             failures_message = (
-                "\n"
-                "\n"
-                "Skipped the following broken interpreters:\n"
                 "{}\n"
                 "\n"
                 "(See https://github.com/pantsbuild/pex/issues/1027 for a list of known breaks and "
@@ -83,6 +69,24 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
                     for i, (python, error) in enumerate(broken_interpreters, start=1)
                 )
             )
+
+        if not self.candidates:
+            if failures_message:
+                return (
+                    "{preamble}"
+                    "Interpreters were found but they all appear to be broken:\n"
+                    "{failures}"
+                ).format(preamble=preamble, failures=failures_message)
+            return "{}No interpreters could be found on the system.".format(preamble)
+
+        binary_column_width = max(len(candidate.binary) for candidate in self.candidates)
+        interpreters_format = "{{index}}.) {{binary: >{}}} {{requirement}}".format(
+            binary_column_width
+        )
+        if failures_message:
+            failures_message = (
+                "\n" "\n" "Skipped the following broken interpreters:\n" "{}"
+            ).format(failures_message)
         return (
             "{preamble}"
             "Examined the following {qualifier}interpreters:\n"
@@ -94,7 +98,7 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         ).format(
             preamble=preamble,
             qualifier="working " if failures_message else "",
-            interpreters="\n  ".join(
+            interpreters="\n".join(
                 interpreters_format.format(
                     index=i, binary=candidate.binary, requirement=candidate.identity.requirement
                 )
