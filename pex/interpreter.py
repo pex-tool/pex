@@ -312,7 +312,7 @@ class PythonInterpreter(object):
 
         def iter_interpreters():
             for candidate in cls._find(cls._paths(paths=paths), error_handler=Retain()):
-                if isinstance(candidate, PythonInterpreter):
+                if isinstance(candidate, cls):
                     yield candidate
                 else:
                     python, exception = candidate
