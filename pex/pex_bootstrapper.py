@@ -10,10 +10,7 @@ from pex import pex_warnings
 from pex.common import die
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import (
-    UnsatisfiableInterpreterConstraintsError,
-    matched_interpreters_iter,
-)
+from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 from pex.variables import ENV
@@ -82,7 +79,7 @@ def iter_compatible_interpreters(path=None, compatibility_constraints=None):
             seen.add(current_interpreter)
             yield current_interpreter
 
-        for interp in PythonInterpreter.iter(paths=paths):
+        for interp in PythonInterpreter.iter_candidates(paths=paths):
             if interp not in seen:
                 seen.add(interp)
                 yield interp
@@ -92,9 +89,32 @@ def iter_compatible_interpreters(path=None, compatibility_constraints=None):
     )
 
 
+def _matched_interpreters_iter(interpreters_iter, constraints):
+    candidates = []
+    failures = []
+    found = False
+
+    for interpreter in interpreters_iter:
+        if isinstance(interpreter, PythonInterpreter):
+            candidates.append(interpreter)
+            if any(interpreter.identity.matches(filt) for filt in constraints):
+                TRACER.log(
+                    "Constraints on interpreters: %s, Matching Interpreter: %s"
+                    % (constraints, interpreter.binary),
+                    V=3,
+                )
+                found = True
+                yield interpreter
+        else:
+            failures.append(interpreter)
+
+    if not found:
+        raise UnsatisfiableInterpreterConstraintsError(constraints, candidates, failures)
+
+
 def _compatible_interpreters_iter(interpreters_iter, compatibility_constraints=None):
     if compatibility_constraints:
-        for interpreter in matched_interpreters_iter(interpreters_iter, compatibility_constraints):
+        for interpreter in _matched_interpreters_iter(interpreters_iter, compatibility_constraints):
             yield interpreter
     else:
         for interpreter in interpreters_iter:

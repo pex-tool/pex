@@ -12,13 +12,14 @@ import platform
 import re
 import subprocess
 import sys
+from collections import OrderedDict
 from textwrap import dedent
 
 from pex import third_party
 from pex.common import safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
-from pex.jobs import Job, SpawnedJob, execute_parallel
+from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.platforms import Platform
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
@@ -283,15 +284,55 @@ class PythonInterpreter(object):
 
     @classmethod
     def iter(cls, paths=None):
-        """Iterate all interpreters found in `paths`.
+        """Iterate all valid interpreters found in `paths`.
 
         NB: The paths can either be directories to search for python binaries or the paths of python
         binaries themselves.
 
         :param paths: The paths to look for python interpreters; by default the `PATH`.
         :type paths: list str
+        :return: An iterator of PythonInterpreter.
         """
         return cls._filter(cls._find(cls._paths(paths=paths)))
+
+    @classmethod
+    def iter_candidates(cls, paths=None):
+        """Iterate all likely interpreters found in `paths`.
+
+        NB: The paths can either be directories to search for python binaries or the paths of python
+        binaries themselves.
+
+        :param paths: The paths to look for python interpreters; by default the `PATH`.
+        :type paths: list str
+        :return: A heterogeneous iterator over valid interpreters and (python, error) invalid
+                 python binary tuples.
+        :rtype: A heterogeneous iterator over :class:`PythonInterpreter` and (str, str).
+        """
+        failed_interpreters = OrderedDict()
+
+        def iter_interpreters():
+            for candidate in cls._find(cls._paths(paths=paths), error_handler=Retain()):
+                if isinstance(candidate, cls):
+                    yield candidate
+                else:
+                    python, exception = candidate
+                    if isinstance(exception, Job.Error):
+                        # We spawned a subprocess to identify the interpreter but the interpreter
+                        # could not run our identification code meaning the interpreter is either
+                        # broken or old enough that it either can't parse our identification code
+                        # or else provide stdlib modules we expect. The stderr should indicate the
+                        # broken-ness appropriately.
+                        failed_interpreters[python] = exception.stderr.strip()
+                    else:
+                        # We couldn't even spawn a subprocess to identify the interpreter. The
+                        # likely OSError should help identify the underlying issue.
+                        failed_interpreters[python] = repr(exception)
+
+        for interpreter in cls._filter(iter_interpreters()):
+            yield interpreter
+
+        for python, error in failed_interpreters.items():
+            yield python, error
 
     @classmethod
     def all(cls, paths=None):
@@ -463,22 +504,28 @@ class PythonInterpreter(object):
         return any(matcher.match(basefile) is not None for matcher in cls._REGEXEN)
 
     @classmethod
-    def _find(cls, paths):
+    def _find(cls, paths, error_handler=None):
         """Given a list of files or directories, try to detect python interpreters amongst them.
 
         Returns an iterator over PythonInterpreter objects.
         """
-        return cls._identify_interpreters(filter=cls._matches_binary_name, paths=paths)
+        return cls._identify_interpreters(
+            filter=cls._matches_binary_name, paths=paths, error_handler=error_handler
+        )
 
     @classmethod
-    def _identify_interpreters(cls, filter, paths=None):
+    def _identify_interpreters(cls, filter, paths=None, error_handler=None):
         def iter_candidates():
             for path in cls._paths(paths=paths):
                 for fn in cls._expand_path(path):
                     if filter(fn):
                         yield fn
 
-        return execute_parallel(inputs=list(iter_candidates()), spawn_func=cls._spawn_from_binary)
+        return execute_parallel(
+            inputs=list(iter_candidates()),
+            spawn_func=cls._spawn_from_binary,
+            error_handler=error_handler,
+        )
 
     @classmethod
     def _filter(cls, pythons):
