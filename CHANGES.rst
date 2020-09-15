@@ -1,6 +1,26 @@
 Release Notes
 =============
 
+2.1.16
+------
+
+This release fixes a bug in sys.path scrubbing / hermeticity (#1025)
+and a bug in the ``-D / --sources-directory`` and
+``-R / --resources-directory`` options whereby PEP-420 implicit
+(namespace) packages were not respected (#1021).
+
+* Improve UnsatisfiableInterpreterConstraintsError. (#1028)
+  `PR #1028 <https://github.com/pantsbuild/pants/pull/1028>`_
+
+* Scrub direct sys.path manipulations by .pth files. (#1026)
+  `PR #1026 <https://github.com/pantsbuild/pants/pull/1026>`_
+
+* PEX zips now contain directory entries. (#1022)
+  `PR #1022 <https://github.com/pantsbuild/pants/pull/1022>`_
+
+* Fix UnsatisfiableInterpreterConstraintsError. (#1024)
+  `PR #1024 <https://github.com/pantsbuild/pants/pull/1024>`_
+
 2.1.15
 ------
 
