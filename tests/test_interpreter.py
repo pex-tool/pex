@@ -12,7 +12,7 @@ from pex.testing import PY27, PY35, ensure_python_interpreter
 try:
     from mock import patch
 except ImportError:
-    from unittest.mock import patch
+    from unittest.mock import patch  # type: ignore[misc]
 
 
 def tuple_from_version(version_string):

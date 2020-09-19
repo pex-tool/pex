@@ -259,7 +259,8 @@ class PythonInterpreter(object):
         re.compile(r"pypy-1.[0-9]$"),
     )
 
-    _PYTHON_INTERPRETER_BY_NORMALIZED_PATH = {}
+    # TODO: add annotation once we can vendor typing..
+    _PYTHON_INTERPRETER_BY_NORMALIZED_PATH = {}  # type: ignore[var-annotated]
 
     @staticmethod
     def _normalize_path(path):

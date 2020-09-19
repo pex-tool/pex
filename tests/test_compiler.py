@@ -72,7 +72,7 @@ def test_compile_failure():
         ):
             raise AssertionError("Should not reach here.")
 
-    message = str(e.value)
+    message = str(e.value)  # type: ignore[unreachable]
     assert "a.py" not in message
     assert "b.py" in message
     assert "c/c.py" not in message

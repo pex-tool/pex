@@ -15,7 +15,7 @@ from pex.util import CacheHelper, DistributionHelper, iter_pth_paths, named_temp
 try:
     from unittest import mock
 except ImportError:
-    import mock
+    import mock  # type: ignore[no-redef]
 
 
 def test_hash():
@@ -50,9 +50,9 @@ CONTENT = {
 
 
 try:
-    import __builtin__ as python_builtins
+    import __builtin__ as python_builtins  # type: ignore[import]
 except ImportError:
-    import builtins as python_builtins
+    import builtins as python_builtins  # type: ignore[no-redef]
 
 
 @mock.patch("pex.util.safe_mkdtemp", autospec=True, spec_set=True)
