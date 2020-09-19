@@ -12,10 +12,10 @@ from sys import version_info as sys_version_info
 
 try:
     # Python 3.x
-    from configparser import ConfigParser as ConfigParser
+    from configparser import ConfigParser as ConfigParser  # type: ignore[import]
 except ImportError:
     # Python 2.x
-    from ConfigParser import ConfigParser as ConfigParser # type: ignore[no-redef]
+    from ConfigParser import ConfigParser as ConfigParser  # type: ignore[no-redef]
 
 AbstractClass = ABCMeta("AbstractClass", (object,), {})
 PY2 = sys_version_info[0] == 2
