@@ -86,7 +86,10 @@ if PY3:
 
 
 else:
-    def exec_function(ast, globals_map): pass
+
+    def exec_function(ast, globals_map):
+        pass
+
     eval(compile(_PY3_EXEC_FUNCTION, "<exec_function>", "exec"))
 
 if PY3:
