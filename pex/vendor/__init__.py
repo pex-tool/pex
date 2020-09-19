@@ -126,6 +126,21 @@ def iter_vendor2_specs():
     yield VendorSpec.pinned("typing", "3.7.4.3")
 
 
+def iter_vendor23_specs():
+    """Similar to `iter_vendor_specs()`, but *INCLUDING* the vendored specs needed for python 2.
+
+    This method will *NOT* return vendored specs needed for python 2 if running under a python 3
+    interpreter.
+
+    :return: An iterator over specs of all vendored code.
+    :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
+    """
+    for spec in iter_vendor_specs():
+        yield spec
+    if PY2:
+        for spec in iter_vendor2_specs():
+            yield spec
+
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
     """Includes portions of vendored distributions in a chroot.
@@ -144,7 +159,7 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names):
             the vendored code and added to the chroot.
     """
     vendor_module_names = {root_module_name: False for root_module_name in root_module_names}
-    for spec in iter_vendor_specs():
+    for spec in iter_vendor23_specs():
         for root, dirs, files in os.walk(spec.target_dir):
             if root == spec.target_dir:
                 dirs[:] = [pkg_name for pkg_name in dirs if pkg_name in vendor_module_names]
@@ -183,7 +198,7 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names):
                     module for module, written in vendor_module_names.items() if not written
                 ),
                 specs="\n\t".join(
-                    "{} @ {}".format(spec, spec.target_dir) for spec in iter_vendor_specs()
+                    "{} @ {}".format(spec, spec.target_dir) for spec in iter_vendor23_specs()
                 ),
             )
         )
