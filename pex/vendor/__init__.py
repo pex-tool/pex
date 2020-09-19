@@ -115,6 +115,9 @@ def iter_vendor_specs():
     # We expose this to pip at buildtime for legacy builds.
     yield VendorSpec.pinned("wheel", "0.33.6", rewrite=False)
 
+    # We use this for type hints with Python 2.
+    yield VendorSpec.pinned("typing", "3.7.4.3")
+
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
     """Includes portions of vendored distributions in a chroot.
