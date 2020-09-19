@@ -8,12 +8,12 @@ import sys
 
 from pex import pex_warnings
 from pex.common import die
-# from pex.compatibility import typing
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
+from pex.typing import Any
 from pex.variables import ENV
 
 __all__ = ("bootstrap_pex",)
@@ -291,7 +291,7 @@ def _bootstrap(entry_point):
 
 
 def bootstrap_pex(entry_point):
-    # # type: (str) -> typing.Any
+    # type: (str) -> Any
     pex_info = _bootstrap(entry_point)
     maybe_reexec_pex(pex_info.interpreter_constraints)
 
