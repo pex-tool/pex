@@ -198,7 +198,7 @@ class VendorImporter(object):
         from pex import vendor
 
         root = cls._abs_root(root)
-        vendored_path_items = [spec.relpath for spec in vendor.iter_vendor23_specs()]
+        vendored_path_items = [spec.relpath for spec in vendor.iter_vendor_specs()]
 
         installed = list(cls._iter_installed_vendor_importers(prefix, root, vendored_path_items))
         assert (
@@ -231,7 +231,7 @@ class VendorImporter(object):
 
         def iter_available():
             yield "pex", root  # The pex distribution itself is trivially available to expose.
-            for spec in vendor.iter_vendor23_specs():
+            for spec in vendor.iter_vendor_specs():
                 yield spec.key, spec.relpath
 
         path_by_key = OrderedDict(
