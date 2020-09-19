@@ -116,7 +116,7 @@ def iter_vendor_specs():
     yield VendorSpec.pinned("wheel", "0.33.6", rewrite=False)
 
     # We use this for type hints with Python 2.
-    yield VendorSpec.pinned("typing", "3.7.4.3")
+    yield VendorSpec.pinned("typing", "3.7.4.3", rewrite=False)
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):

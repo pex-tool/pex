@@ -14,7 +14,7 @@ from types import ModuleType
 
 import pytest
 
-from pex.common import safe_open, temporary_dir, safe_mkdir
+from pex.common import safe_mkdir, safe_open, temporary_dir
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
