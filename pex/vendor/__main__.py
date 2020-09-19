@@ -15,7 +15,8 @@ from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
 from pex import third_party
 from pex.common import safe_delete, safe_rmtree
-from pex.vendor import iter_vendor_specs
+from pex.compatibility import PY2
+from pex.vendor import iter_vendor2_specs, iter_vendor_specs
 
 
 class ImportRewriter(object):
@@ -71,7 +72,7 @@ class ImportRewriter(object):
                 'if "__PEX_UNVENDORED__" in __import__("os").environ:',
                 "  {}  # vendor:skip".format(original),
                 "else:",
-                "  {}".format(modified),
+                "  {}  # type: ignore[no-redef]".format(modified),
             )
         )
 
@@ -287,8 +288,9 @@ if __name__ == "__main__":
 
     root_directory = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
     import_prefix = third_party.import_prefix()
+    iter_vendor_specs_method = iter_vendor2_specs if PY2 else iter_vendor_specs
     try:
-        vendorize(root_directory, list(iter_vendor_specs()), import_prefix)
+        vendorize(root_directory, list(iter_vendor_specs_method()), import_prefix)
         sys.exit(0)
     except VendorizeError as e:
         print("Problem encountered vendorizing: {}".format(e), file=sys.stderr)

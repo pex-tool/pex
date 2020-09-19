@@ -7,7 +7,7 @@ import collections
 import os
 
 from pex.common import touch
-from pex.compatibility import urlparse
+from pex.compatibility import PY2, urlparse
 from pex.tracer import TRACER
 
 _PACKAGE_COMPONENTS = __name__.split(".")
@@ -94,9 +94,9 @@ class VendorSpec(
 
 
 def iter_vendor_specs():
-    """Iterate specifications for code vendored by pex.
+    """Iterate specifications for code vendored by pex *NOT* specific to python 2.
 
-    :return: An iterator over specs of all vendored code.
+    :return: An iterator over specs of all vendored code not specific to python 2.
     :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
     """
     # We use this via pex.third_party at runtime to check for compatible wheel tags.
@@ -115,8 +115,16 @@ def iter_vendor_specs():
     # We expose this to pip at buildtime for legacy builds.
     yield VendorSpec.pinned("wheel", "0.33.6", rewrite=False)
 
+
+def iter_vendor2_specs():
+    """Similar to `iter_vendor_specs()`, but all the vendored specs needed *ONLY* for python 2.
+
+    :return: An iterator over specs of all vendored code specific to python 2.
+    :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
+    """
     # We use this for type hints with Python 2.
-    yield VendorSpec.pinned("typing", "3.7.4.3", rewrite=False)
+    yield VendorSpec.pinned("typing", "3.7.4.3")
+
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
