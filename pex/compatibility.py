@@ -11,11 +11,11 @@ from abc import ABCMeta
 from sys import version_info as sys_version_info
 
 try:
-    # Python 2.x
-    from ConfigParser import ConfigParser as ConfigParser  # type: ignore[import]
-except ImportError:
     # Python 3.x
     from configparser import ConfigParser as ConfigParser
+except ImportError:
+    # Python 2.x
+    from ConfigParser import ConfigParser as ConfigParser # type: ignore[no-redef]
 
 AbstractClass = ABCMeta("AbstractClass", (object,), {})
 PY2 = sys_version_info[0] == 2
@@ -86,6 +86,7 @@ if PY3:
 
 
 else:
+    def exec_function(ast, globals_map): pass
     eval(compile(_PY3_EXEC_FUNCTION, "<exec_function>", "exec"))
 
 if PY3:

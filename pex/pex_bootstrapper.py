@@ -8,6 +8,7 @@ import sys
 
 from pex import pex_warnings
 from pex.common import die
+# from pex.compatibility import typing
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
@@ -290,6 +291,7 @@ def _bootstrap(entry_point):
 
 
 def bootstrap_pex(entry_point):
+    # # type: (str) -> typing.Any
     pex_info = _bootstrap(entry_point)
     maybe_reexec_pex(pex_info.interpreter_constraints)
 
