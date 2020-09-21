@@ -13,11 +13,7 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
-from pex.typing import MYPY_CHECK_RUNNING
 from pex.variables import ENV
-
-if MYPY_CHECK_RUNNING:
-    from typing import Any
 
 __all__ = ("bootstrap_pex",)
 
@@ -294,7 +290,6 @@ def _bootstrap(entry_point):
 
 
 def bootstrap_pex(entry_point):
-    # type: (str) -> Any
     pex_info = _bootstrap(entry_point)
     maybe_reexec_pex(pex_info.interpreter_constraints)
 

@@ -10,6 +10,12 @@ import os
 from abc import ABCMeta
 from sys import version_info as sys_version_info
 
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Optional
+
+
 try:
     # Python 3.x
     from configparser import ConfigParser as ConfigParser  # type: ignore[import]
@@ -86,10 +92,7 @@ if PY3:
 
 
 else:
-
-    def exec_function(ast, globals_map):
-        pass
-
+    # This will result in `exec_function` being defined at runtime.
     eval(compile(_PY3_EXEC_FUNCTION, "<exec_function>", "exec"))
 
 if PY3:
@@ -122,9 +125,8 @@ if PY3:
         from os import cpu_count as cpu_count
     else:
 
-        # TODO: add Optional[int] annotation once we can vendor typing..Technically, it's `-> int`,
-        #  but MyPy enforces that all conditional function variants have identical signatures.
-        def cpu_count():  # type: ignore[misc]
+        def cpu_count():
+            # type: () -> Optional[int]
             # The set of CPUs accessible to the current process (pid 0).
             cpu_set = os.sched_getaffinity(0)
             return len(cpu_set)

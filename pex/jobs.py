@@ -172,6 +172,8 @@ class SpawnedJob(object):
         return str(self._job)
 
 
+# If `cpu_count` fails, we default to 2. This is relatively arbitrary, based on what seems to be
+# common in CI.
 _CPU_COUNT = cpu_count() or 2
 _ABSOLUTE_MAX_JOBS = _CPU_COUNT * 2
 
