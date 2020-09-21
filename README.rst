@@ -151,6 +151,12 @@ running ``tox --listenvs-all``, then invoke like this:
 
     $ tox -e format-run
 
+To run MyPy:
+
+.. code-block::
+
+    $ tox -e typecheck
+
 All of our tox test environments allow passthrough arguments, which can be helpful to run
 specific tests:
 
