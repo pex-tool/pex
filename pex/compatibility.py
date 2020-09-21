@@ -17,11 +17,12 @@ if TYPE_CHECKING:
 
 
 try:
-    # Python 3.x
-    from configparser import ConfigParser as ConfigParser  # type: ignore[import]
-except ImportError:
     # Python 2.x
-    from ConfigParser import ConfigParser as ConfigParser  # type: ignore[no-redef]
+    from ConfigParser import ConfigParser as ConfigParser
+except ImportError:
+    # Python 3.x
+    from configparser import ConfigParser as ConfigParser  # type: ignore[import, no-redef]
+
 
 AbstractClass = ABCMeta("AbstractClass", (object,), {})
 PY2 = sys_version_info[0] == 2
