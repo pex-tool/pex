@@ -16,7 +16,7 @@ from pex.tracer import TRACER
 from pex.variables import ENV
 from pex.typing import MYPY_CHECK_RUNNING
 if MYPY_CHECK_RUNNING:
-    from pex.typing import Any
+    from typing import Any
 
 __all__ = ("bootstrap_pex",)
 

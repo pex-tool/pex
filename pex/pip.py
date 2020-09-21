@@ -10,7 +10,7 @@ from textwrap import dedent
 
 from pex import third_party
 from pex.common import atomic_directory
-from pex.compatibility import PY2, urlparse
+from pex.compatibility import urlparse
 from pex.distribution_target import DistributionTarget
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
@@ -32,12 +32,7 @@ class Pip(object):
                 from pex.pex_builder import PEXBuilder
 
                 isolated_pip_builder = PEXBuilder(path=chroot)
-
-                pip_modules = ["pip", "setuptools", "wheel"]
-                if PY2:
-                    pip_modules.append("typing")
-
-                pythonpath = third_party.expose(pip_modules)
+                pythonpath = third_party.expose(["pip", "setuptools", "wheel"])
                 isolated_pip_environment = third_party.pkg_resources.Environment(
                     search_path=pythonpath
                 )

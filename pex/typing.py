@@ -10,7 +10,8 @@ design.
 
 We actually still can't have `typing` imported at runtime, even though all of its entries in the
 module are no-ops, because the process of importing `typing` would cause pex bootstrap time to
-regress, which is a metric we've worked very hard to reduce.
+regress, which is a metric we've worked very hard to reduce. typing is available in python 2 and 3,
+but mypy already contains those stubs for python 3, and for python 2 with the --py2 flag.
 
 To work around this, mypy allows the typing import to be behind a False-y
 optional to prevent it from running at runtime and type-comments can be used
@@ -35,10 +36,7 @@ MYPY_CHECK_RUNNING = False
 
 # mypy: implicit-reexport
 if MYPY_CHECK_RUNNING:
-    try:
-        from typing import *  # vendor:skip
-    except ImportError:
-        from pex.third_party.typing import *
+    from typing import cast
 else:
     # typing's cast() is needed at runtime, but we don't want to import typing.
     # Thus, we use a dummy no-op version, which we tell mypy to ignore.

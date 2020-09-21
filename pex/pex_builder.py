@@ -7,7 +7,7 @@ import logging
 import os
 
 from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp, temporary_dir
-from pex.compatibility import PY2, to_bytes
+from pex.compatibility import to_bytes
 from pex.compiler import Compiler
 from pex.distribution_target import DistributionTarget
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
@@ -460,18 +460,14 @@ class PEXBuilder(object):
     def _prepare_bootstrap(self):
         from . import vendor
 
-        # NB: We use pip here in the builder, but that's only at buildtime and
-        # although we don't use pyparsing directly, packaging.markers, which we
-        # do use at runtime, does.
-        root_module_names = ["packaging", "pkg_resources", "pyparsing"]
-        if PY2:
-            root_module_names.append("typing")
-
         vendor.vendor_runtime(
             chroot=self._chroot,
             dest_basedir=BOOTSTRAP_DIR,
             label="bootstrap",
-            root_module_names=root_module_names,
+            # NB: We use pip here in the builder, but that's only at buildtime and
+            # although we don't use pyparsing directly, packaging.markers, which we
+            # do use at runtime, does.
+            root_module_names=["packaging", "pkg_resources", "pyparsing"],
         )
 
         source_name = "pex"
