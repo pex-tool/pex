@@ -40,5 +40,5 @@ if MYPY_CHECK_RUNNING:
 else:
     # typing's cast() is needed at runtime, but we don't want to import typing.
     # Thus, we use a dummy no-op version, which we tell mypy to ignore.
-    def cast(type_, value):     # type: ignore[no-redef]
+    def cast(type_, value):  # type: ignore[no-redef]
         return value
