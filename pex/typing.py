@@ -1,4 +1,7 @@
-"""Constants to enable safe imports from the `typing` library.
+# Copyright 2020 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+"""Constants to enable safe imports from the `typing` module.
 
 This file needs to exist because Pex still supports running from Python 2. The `typing` stdlib
 module is new to Python 3, so runtime imports of it will fail.
