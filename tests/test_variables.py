@@ -14,6 +14,7 @@ from pex.variables import Variables
 
 
 def test_process_pydoc():
+    # type: () -> None
     def thing():
         # no pydoc
         pass
@@ -32,6 +33,7 @@ def test_process_pydoc():
 
 
 def test_iter_help():
+    # type: () -> None
     for variable_name, variable_type, variable_text in Variables.iter_help():
         assert variable_name.startswith("PEX_")
         assert "\n" not in variable_type
@@ -39,6 +41,7 @@ def test_iter_help():
 
 
 def test_pex_bool_variables():
+    # type: () -> None
     Variables(environ={})._get_bool("NOT_HERE", default=False) is False
     Variables(environ={})._get_bool("NOT_HERE", default=True) is True
 
@@ -57,6 +60,7 @@ def test_pex_bool_variables():
 
 
 def test_pex_string_variables():
+    # type: () -> None
     Variables(environ={})._get_string("NOT_HERE") is None
     Variables(environ={})._get_string("NOT_HERE", default="lolol") == "lolol"
     Variables(environ={"HERE": "stuff"})._get_string("HERE") == "stuff"
@@ -64,6 +68,7 @@ def test_pex_string_variables():
 
 
 def test_pex_get_int():
+    # type: () -> None
     assert Variables()._get_int("HELLO") is None
     assert Variables()._get_int("HELLO", default=42) == 42
     assert Variables(environ={"HELLO": 23})._get_int("HELLO") == 23
@@ -74,6 +79,7 @@ def test_pex_get_int():
 
 
 def assert_pex_vars_hermetic():
+    # type: () -> None
     v = Variables()
     assert os.environ == v.copy()
 
@@ -86,15 +92,18 @@ def assert_pex_vars_hermetic():
 
 
 def test_pex_vars_hermetic_no_pexrc():
+    # type: () -> None
     assert_pex_vars_hermetic()
 
 
 def test_pex_vars_hermetic():
+    # type: () -> None
     with environment_as(PEX_IGNORE_RCFILES="True"):
         assert_pex_vars_hermetic()
 
 
 def test_pex_get_kv():
+    # type: () -> None
     v = Variables(environ={})
     assert v._get_kv("HELLO") is None
     assert v._get_kv("=42") is None
@@ -103,6 +112,7 @@ def test_pex_get_kv():
 
 
 def test_pex_from_rc():
+    # type: () -> None
     with named_temporary_file(mode="w") as pexrc:
         pexrc.write("HELLO=42")
         pexrc.flush()
@@ -111,6 +121,7 @@ def test_pex_from_rc():
 
 
 def test_pexrc_precedence():
+    # type: () -> None
     with named_temporary_file(mode="w") as pexrc:
         pexrc.write("HELLO=FORTYTWO")
         pexrc.flush()
@@ -119,6 +130,7 @@ def test_pexrc_precedence():
 
 
 def test_rc_ignore():
+    # type: () -> None
     with named_temporary_file(mode="w") as pexrc:
         pexrc.write("HELLO=FORTYTWO")
         pexrc.flush()
@@ -127,6 +139,7 @@ def test_rc_ignore():
 
 
 def test_pex_vars_defaults_stripped():
+    # type: () -> None
     v = Variables(environ={})
     stripped = v.strip_defaults()
 
@@ -144,6 +157,7 @@ def test_pex_vars_defaults_stripped():
 
 
 def test_pex_root_unwriteable():
+    # type: () -> None
     with temporary_dir() as td:
         pex_root = os.path.realpath(os.path.join(td, "pex_root"))
         os.mkdir(pex_root, 0o444)

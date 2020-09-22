@@ -13,9 +13,14 @@ from pex.common import safe_open, temporary_dir
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
 from pex.interpreter import PythonInterpreter
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Dict, Iterable, Iterator, List, Text, Tuple
 
 
 def write_source(path, valid=True):
+    # type: (str, bool) -> None
     with safe_open(path, "wb") as fp:
         fp.write(to_bytes("basename = %r\n" % os.path.basename(path)))
         if not valid:
@@ -23,7 +28,8 @@ def write_source(path, valid=True):
 
 
 @contextlib.contextmanager
-def compilation(valid_paths=None, invalid_paths=None, compile_paths=None):
+def compilation(valid_paths, invalid_paths, compile_paths):
+    # type: (Iterable[str], Iterable[str], Iterable[str]) -> Iterator[Tuple[str, List[Text]]]
     with temporary_dir() as root:
         for path in valid_paths:
             write_source(os.path.join(root, path))
@@ -34,6 +40,7 @@ def compilation(valid_paths=None, invalid_paths=None, compile_paths=None):
 
 
 def test_compile_success():
+    # type: () -> None
     with compilation(
         valid_paths=["a.py", "c/c.py"],
         invalid_paths=["b.py", "d/d.py"],
@@ -54,7 +61,7 @@ def test_compile_success():
                 if compatibility.PY3:
                     fp.read(4)  # Skip the size.
                 code = marshal.load(fp)
-            local_symbols = {}
+            local_symbols = {}  # type: Dict[str, str]
             exec (code, {}, local_symbols)
             results[compiled] = local_symbols
 
@@ -64,6 +71,7 @@ def test_compile_success():
 
 
 def test_compile_failure():
+    # type: () -> None
     with pytest.raises(Compiler.Error) as e:
         with compilation(
             valid_paths=["a.py", "c/c.py"],

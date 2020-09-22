@@ -13,15 +13,18 @@ from pex.common import safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
 from pex.testing import run_pex_command
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any, Dict
 
 
-@pytest.fixture(scope="module")
-def pex_project_dir():
-    return subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
-
-
-def test_issues_789_demo(pex_project_dir):
+def test_issues_789_demo():
+    # type: () -> None
     tmpdir = safe_mkdtemp()
+    pex_project_dir = (
+        subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
+    )
 
     # 1. Imagine we've pre-resolved the requirements needed in our wheel house.
     requirements = [
@@ -42,7 +45,7 @@ def test_issues_789_demo(pex_project_dir):
         indexes=[],  # Turn off pypi.
         find_links=[wheelhouse],  # Use our wheel house.
         build=False,  # Use only pre-built wheels.
-    )
+    )  # type: Dict[str, Any]
 
     # 3. That same configuration was used to build a standard pex:
     resolver_args = []
@@ -200,7 +203,7 @@ def test_issues_789_demo(pex_project_dir):
             "--always-write-cache",
             "--pex-root",
             ptex_cache,
-            pex_project_dir,
+            pex_project_dir,  # type: ignore[list-item]  # This is unicode in Py2, whereas everthing else is bytes. That's fine.
             "--sources-directory",
             ptex_code_dir,
             "--sources-directory",

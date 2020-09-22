@@ -19,6 +19,12 @@ from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
 
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
+
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
 DETERMINISTIC_DATETIME = datetime(
@@ -172,12 +178,13 @@ def temporary_dir(cleanup=True):
 
 
 def safe_mkdtemp(**kw):
+    # type: (**Any) -> str
     """Create a temporary directory that is cleaned up on process exit.
 
     Takes the same parameters as tempfile.mkdtemp.
     """
     # proper lock sanitation on fork [issue 6721] would be desirable here.
-    return _MKDTEMP_SINGLETON.register(tempfile.mkdtemp(**kw))
+    return _MKDTEMP_SINGLETON.register(tempfile.mkdtemp(**kw))  # type: ignore[no-any-return]
 
 
 def register_rmtree(directory):

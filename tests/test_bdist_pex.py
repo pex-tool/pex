@@ -10,9 +10,14 @@ from pex import resolver
 from pex.common import open_zip, temporary_dir
 from pex.interpreter import spawn_python_job
 from pex.testing import WheelBuilder, make_project, temporary_content
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Dict, List, Iterator, Iterable, Optional, Text, Union
 
 
 def pex_project_dir():
+    # type: () -> Text
     return subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
 
 
@@ -20,6 +25,7 @@ BDIST_PEX_PYTHONPATH = None
 
 
 def bdist_pex_pythonpath():
+    # type: () -> List[Text]
     # In order to run the bdist_pex distutils command we need:
     # 1. setuptools on the PYTHONPATH since the test projects use and test setuptools.setup and its
     #    additional features above and beyond distutils.core.setup like entry points declaration.
@@ -43,6 +49,7 @@ def bdist_pex_pythonpath():
 
 @contextmanager
 def bdist_pex(project_dir, bdist_args=None):
+    # type: (str, Optional[Iterable[str]]) -> Iterator[str]
     with temporary_dir() as dist_dir:
         cmd = [
             "setup.py",
@@ -61,6 +68,7 @@ def bdist_pex(project_dir, bdist_args=None):
 
 
 def assert_entry_points(entry_points):
+    # type: (Union[str, Dict[str, List[str]]]) -> None
     with make_project(name="my_app", entry_points=entry_points) as project_dir:
         with bdist_pex(project_dir) as my_app_pex:
             process = subprocess.Popen([my_app_pex], stdout=subprocess.PIPE)
@@ -71,6 +79,7 @@ def assert_entry_points(entry_points):
 
 
 def assert_pex_args_shebang(shebang):
+    # type: (str) -> None
     with make_project() as project_dir:
         pex_args = '--pex-args=--python-shebang="{}"'.format(shebang)
         with bdist_pex(project_dir, bdist_args=[pex_args]) as my_app_pex:
@@ -79,10 +88,12 @@ def assert_pex_args_shebang(shebang):
 
 
 def test_entry_points_dict():
+    # type: () -> None
     assert_entry_points({"console_scripts": ["my_app = my_app.my_module:do_something"]})
 
 
 def test_entry_points_ini_string():
+    # type: () -> None
     assert_entry_points(
         dedent(
             """
@@ -94,14 +105,17 @@ def test_entry_points_ini_string():
 
 
 def test_pex_args_shebang_with_spaces():
+    # type: () -> None
     assert_pex_args_shebang("#!/usr/bin/env python")
 
 
 def test_pex_args_shebang_without_spaces():
+    # type: () -> None
     assert_pex_args_shebang("#!/usr/bin/python")
 
 
 def test_unwriteable_contents():
+    # type: () -> None
     my_app_setup_py = dedent(
         """
         from setuptools import setup

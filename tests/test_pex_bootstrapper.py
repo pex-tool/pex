@@ -11,9 +11,14 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.testing import PY27, PY35, PY36, ensure_python_interpreter
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import AnyStr, List
 
 
 def find_interpreters(path, *constraints):
+    # type: (List[str], *str) -> List[AnyStr]
     return [
         interp.binary
         for interp in iter_compatible_interpreters(
@@ -23,6 +28,7 @@ def find_interpreters(path, *constraints):
 
 
 def test_find_compatible_interpreters():
+    # type: () -> None
     py27 = ensure_python_interpreter(PY27)
     py35 = ensure_python_interpreter(PY35)
     py36 = ensure_python_interpreter(PY36)
@@ -65,11 +71,13 @@ def test_find_compatible_interpreters():
 
 
 def test_find_compatible_interpreters_none():
+    # type: () -> None
     with pytest.raises(UnsatisfiableInterpreterConstraintsError):
         find_interpreters([os.path.devnull], ">2")
 
 
 def test_find_compatible_interpreters_bias_current():
+    # type: () -> None
     py36 = ensure_python_interpreter(PY36)
     assert [os.path.realpath(sys.executable), py36] == find_interpreters([py36, sys.executable])
     assert [os.path.realpath(sys.executable), py36] == find_interpreters([sys.executable, py36])

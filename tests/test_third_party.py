@@ -8,11 +8,16 @@ from contextlib import contextmanager
 
 from pex import third_party
 from pex.common import temporary_dir
+from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
+
+if TYPE_CHECKING:
+    from typing import Dict, Iterator, Tuple
 
 
 @contextmanager
 def temporary_pex_root():
+    # type: () -> Iterator[Tuple[str, Dict[str, str]]]
     with temporary_dir() as pex_root, ENV.patch(PEX_ROOT=os.path.realpath(pex_root)) as env:
         original_isolated = third_party._ISOLATED
         try:
@@ -23,12 +28,14 @@ def temporary_pex_root():
 
 
 def test_isolated_pex_root():
+    # type: () -> None
     with temporary_pex_root() as (pex_root, _):
         devendored_chroot = os.path.realpath(third_party.isolated().chroot_path)
         assert pex_root == os.path.commonprefix([pex_root, devendored_chroot])
 
 
 def test_isolated_idempotent_inprocess():
+    # type: () -> None
     with temporary_pex_root():
         result1 = third_party.isolated()
         result2 = third_party.isolated()
@@ -37,6 +44,7 @@ def test_isolated_idempotent_inprocess():
 
 
 def test_isolated_idempotent_subprocess():
+    # type: () -> None
     with temporary_pex_root() as (_, env):
         devendored_chroot = os.path.realpath(third_party.isolated().chroot_path)
         stdout = subprocess.check_output(

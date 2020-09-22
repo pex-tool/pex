@@ -10,6 +10,7 @@ from pex.common import safe_mkdir, temporary_dir
 from pex.compatibility import nested, to_bytes
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper, iter_pth_paths, named_temporary_file
 
 try:
@@ -17,13 +18,17 @@ try:
 except ImportError:
     import mock  # type: ignore[no-redef]
 
+if TYPE_CHECKING:
+    from typing import Any
+
 
 def test_hash():
-    empty_hash = sha1().hexdigest()
+    # type: () -> None
+    empty_hash_digest = sha1().hexdigest()
 
     with named_temporary_file() as fp:
         fp.flush()
-        assert empty_hash == CacheHelper.hash(fp.name)
+        assert empty_hash_digest == CacheHelper.hash(fp.name)
 
     with named_temporary_file() as fp:
         string = b"asdf" * 1024 * sha1().block_size + b"extra padding"
@@ -61,13 +66,13 @@ except ImportError:
 @mock.patch("pex.util.resource_isdir", autospec=True, spec_set=True)
 @mock.patch("pex.util.resource_string", autospec=True, spec_set=True)
 def test_access_zipped_assets(
-    mock_resource_string,
-    mock_resource_isdir,
-    mock_resource_listdir,
-    mock_safe_mkdir,
-    mock_safe_mkdtemp,
+    mock_resource_string,  # type: Any
+    mock_resource_isdir,  # type: Any
+    mock_resource_listdir,  # type: Any
+    mock_safe_mkdir,  # type: Any
+    mock_safe_mkdtemp,  # type: Any
 ):
-
+    # type: (...) -> None
     mock_open = mock.mock_open()
     mock_safe_mkdtemp.side_effect = iter(["tmpJIMMEH", "faketmpDir"])
     mock_resource_listdir.side_effect = iter([["./__init__.py", "./directory/"], ["file.py"]])
@@ -86,6 +91,7 @@ def test_access_zipped_assets(
 
 
 def assert_access_zipped_assets(distribution_helper_import):
+    # type: (str) -> bytes
     test_executable = dedent(
         """
         import os
@@ -121,21 +127,24 @@ def assert_access_zipped_assets(distribution_helper_import):
         stdout, stderr = process.communicate()
         assert process.returncode == 0
         assert b"accessed\n" == stdout
-        return stderr
+        # TODO(#1034): remove once MyPy understands Executor.open_process()
+        return stderr  # type: ignore[no-any-return]
 
 
 def test_access_zipped_assets_integration():
+    # type: () -> None
     stderr = assert_access_zipped_assets("from pex.util import DistributionHelper")
     assert b"" == stderr.strip()
 
 
 def test_access_zipped_assets_integration_deprecated():
+    # type: () -> None
     stderr = assert_access_zipped_assets("from _pex.util import DistributionHelper")
     assert b"`import _pex.util`" in stderr
 
 
 def test_named_temporary_file():
-    name = ""
+    # type: () -> None
     with named_temporary_file() as fp:
         name = fp.name
         fp.write(b"hi")
@@ -149,6 +158,7 @@ def test_named_temporary_file():
 
 @mock.patch("os.path.exists", autospec=True, spec_set=True)
 def test_iter_pth_paths(mock_exists):
+    # type: (Any) -> None
     # Ensure path checking always returns True for dummy paths.
     mock_exists.return_value = True
 

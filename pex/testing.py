@@ -9,7 +9,6 @@ import platform
 import random
 import subprocess
 import sys
-from collections import namedtuple
 from contextlib import contextmanager
 from textwrap import dedent
 
@@ -21,7 +20,11 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pip import get_pip
 from pex.third_party.pkg_resources import Distribution
+from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper, named_temporary_file
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, Iterable, Iterator, List, Optional, Text, Tuple
 
 PY_VER = sys.version_info[:2]
 IS_PYPY = hasattr(sys, "pypy_version_info")
@@ -154,12 +157,14 @@ class WheelBuilder(object):
         pass
 
     def __init__(self, source_dir, interpreter=None, wheel_dir=None):
+        # type: (str, Optional[PythonInterpreter], Optional[str]) -> None
         """Create a wheel from an unpacked source distribution in source_dir."""
         self._source_dir = source_dir
         self._wheel_dir = wheel_dir or safe_mkdtemp()
         self._interpreter = interpreter or PythonInterpreter.get()
 
     def bdist(self):
+        # type: () -> str
         get_pip().spawn_build_wheels(
             distributions=[self._source_dir],
             wheel_dir=self._wheel_dir,
@@ -168,23 +173,22 @@ class WheelBuilder(object):
         dists = os.listdir(self._wheel_dir)
         if len(dists) == 0:
             raise self.BuildFailure("No distributions were produced!")
-        elif len(dists) > 1:
+        if len(dists) > 1:
             raise self.BuildFailure("Ambiguous source distributions found: %s" % (" ".join(dists)))
-        else:
-            return os.path.join(self._wheel_dir, dists[0])
+        return os.path.join(self._wheel_dir, dists[0])
 
 
 @contextlib.contextmanager
 def built_wheel(
-    name="my_project",
-    version="0.0.0",
-    zip_safe=True,
-    install_reqs=None,
-    extras_require=None,
-    interpreter=None,
-    **kwargs
+    name="my_project",  # type: str
+    version="0.0.0",  # type: str
+    zip_safe=True,  # type: bool
+    install_reqs=None,  # type: Optional[List[str]]
+    extras_require=None,  # type: Optional[List[str]]
+    interpreter=None,  # type: Optional[PythonInterpreter]
+    **kwargs  # type: Any
 ):
-
+    # type: (...) -> Iterator[str]
     with make_project(
         name=name,
         version=version,
@@ -278,10 +282,20 @@ def write_simple_pex(
     return pb
 
 
-class IntegResults(namedtuple("results", ["output", "error", "return_code"])):
+# We would normally use a dataclass or NamedTuple, but can't do that with Python 2 in a way
+# understood by MyPy.
+class IntegResults(object):
     """Convenience object to return integration run results."""
 
+    def __init__(self, output, error, return_code):
+        # type: (Text, Text, int) -> None
+        super(IntegResults, self).__init__()
+        self.output = output
+        self.error = error
+        self.return_code = return_code
+
     def assert_success(self):
+        # type: () -> None
         assert (
             self.return_code == 0
         ), "integration test failed: return_code={}, output={}, error={}".format(
@@ -289,10 +303,12 @@ class IntegResults(namedtuple("results", ["output", "error", "return_code"])):
         )
 
     def assert_failure(self):
+        # type: () -> None
         assert self.return_code != 0
 
 
 def run_pex_command(args, env=None, python=None, quiet=False):
+    # type: (Iterable[str], Optional[Dict[str, str]], Optional[str], bool) -> IntegResults
     """Simulate running pex command for integration testing.
 
     This is different from run_simple_pex in that it calls the pex command rather than running a
@@ -365,6 +381,7 @@ _INTERPRETER_SET_FINGERPRINT = "_".join(_VERSIONS) + "_pex_fingerprint"
 
 
 def ensure_python_distribution(version):
+    # type: (str) -> Tuple[str, str]
     if version not in _VERSIONS:
         raise ValueError("Please constrain version to one of {}".format(_VERSIONS))
 
@@ -389,6 +406,7 @@ def ensure_python_distribution(version):
 
 
 def ensure_python_interpreter(version):
+    # type: (str) -> str
     python, _ = ensure_python_distribution(version)
     return python
 

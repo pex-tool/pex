@@ -8,19 +8,25 @@ import pytest
 from pex import interpreter
 from pex.compatibility import PY3
 from pex.testing import PY27, PY35, ensure_python_interpreter
+from pex.typing import TYPE_CHECKING
 
 try:
     from mock import patch
 except ImportError:
     from unittest.mock import patch  # type: ignore[misc,no-redef,import]
 
+if TYPE_CHECKING:
+    from typing import Tuple
+
 
 def tuple_from_version(version_string):
+    # type: (str) -> Tuple[int, ...]
     return tuple(int(component) for component in version_string.split("."))
 
 
 class TestPythonInterpreter(object):
     def test_all_does_not_raise_with_empty_path_envvar(self):
+        # type: () -> None
         """additionally, tests that the module does not raise at import."""
         with patch.dict(os.environ, clear=True):
             if PY3:
@@ -39,17 +45,21 @@ class TestPythonInterpreter(object):
 
     @pytest.fixture
     def test_interpreter1(self):
+        # type: () -> str
         return ensure_python_interpreter(self.TEST_INTERPRETER1_VERSION)
 
     @pytest.fixture
     def test_interpreter2(self):
+        # type: () -> str
         return ensure_python_interpreter(self.TEST_INTERPRETER2_VERSION)
 
     def test_interpreter_versioning(self, test_interpreter1):
+        # type: (str) -> None
         py_interpreter = interpreter.PythonInterpreter.from_binary(test_interpreter1)
         assert py_interpreter.identity.version == self.TEST_INTERPRETER1_VERSION_TUPLE
 
     def test_interpreter_caching(self, test_interpreter1, test_interpreter2):
+        # type: (str, str) -> None
         py_interpreter1 = interpreter.PythonInterpreter.from_binary(test_interpreter1)
         py_interpreter2 = interpreter.PythonInterpreter.from_binary(test_interpreter2)
         assert py_interpreter1 is not py_interpreter2
@@ -59,10 +69,12 @@ class TestPythonInterpreter(object):
         assert py_interpreter1 is py_interpreter3
 
     def test_nonexistent_interpreter(self):
+        # type: () -> None
         with pytest.raises(interpreter.PythonInterpreter.InterpreterNotFound):
             interpreter.PythonInterpreter.from_binary("/nonexistent/path")
 
     def test_binary_name_matching(self):
+        # type: () -> None
         valid_binary_names = (
             "jython",
             "pypy",

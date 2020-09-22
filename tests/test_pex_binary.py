@@ -19,14 +19,20 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
 )
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Iterator, List, Optional, Text
 
 
 @contextmanager
 def option_parser():
+    # type: () -> Iterator[OptionParser]
     yield OptionParser()
 
 
 def test_clp_no_pypi_option():
+    # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
         options, _ = parser.parse_args(args=[])
@@ -36,6 +42,7 @@ def test_clp_no_pypi_option():
 
 
 def test_clp_pypi_option_duplicate():
+    # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
         options, _ = parser.parse_args(args=[])
@@ -46,6 +53,7 @@ def test_clp_pypi_option_duplicate():
 
 
 def test_clp_find_links_option():
+    # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
         options, _ = parser.parse_args(args=["-f", "http://www.example.com"])
@@ -54,6 +62,7 @@ def test_clp_find_links_option():
 
 
 def test_clp_index_option():
+    # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
         options, _ = parser.parse_args(args=[])
@@ -65,6 +74,7 @@ def test_clp_index_option():
 
 
 def test_clp_index_option_render():
+    # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
         options, _ = parser.parse_args(args=["--index", "http://www.example.com"])
@@ -74,6 +84,7 @@ def test_clp_index_option_render():
 
 
 def test_clp_build_precedence():
+    # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
 
@@ -91,18 +102,21 @@ def test_clp_build_precedence():
 
 # Make sure that we're doing append and not replace
 def test_clp_requirements_txt():
+    # type: () -> None
     parser = configure_clp()
     options, _ = parser.parse_args(args="-r requirements1.txt -r requirements2.txt".split())
     assert options.requirement_files == ["requirements1.txt", "requirements2.txt"]
 
 
 def test_clp_constraints_txt():
+    # type: () -> None
     parser = configure_clp()
     options, _ = parser.parse_args(args="--constraint requirements1.txt".split())
     assert options.constraint_files == ["requirements1.txt"]
 
 
 def test_clp_preamble_file():
+    # type: () -> None
     with NamedTemporaryFile() as tmpfile:
         tmpfile.write(to_bytes('print "foo!"'))
         tmpfile.flush()
@@ -116,6 +130,7 @@ def test_clp_preamble_file():
 
 
 def test_clp_prereleases():
+    # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
 
@@ -130,6 +145,7 @@ def test_clp_prereleases():
 
 
 def test_clp_prereleases_resolver():
+    # type: () -> None
     with nested(
         built_wheel(name="prerelease-dep", version="1.2.3b1"),
         built_wheel(name="transitive-dep", install_reqs=["prerelease-dep"]),
@@ -187,6 +203,7 @@ def test_clp_prereleases_resolver():
 
 
 def test_build_pex():
+    # type: () -> None
     with temporary_dir() as sandbox:
         pex_path = os.path.join(sandbox, "pex")
         results = run_pex_command(["ansicolors==1.1.8", "--output-file", pex_path])
@@ -198,20 +215,22 @@ def test_build_pex():
         assert b"black red green yellow blue magenta cyan white" == stdout.strip()
 
 
-def assert_run_pex(python=None, pex_args=None):
-    pex_args = list(pex_args) if pex_args else []
-    results = run_pex_command(
-        python=python,
-        args=pex_args
-        + ["ansicolors==1.1.8", "--", "-c", 'import colors; print(" ".join(colors.COLORS))'],
-        quiet=True,
-    )
-    results.assert_success()
-    assert "black red green yellow blue magenta cyan white" == results.output.strip()
-    return results.error.splitlines()
-
-
 def test_run_pex():
+    # type: () -> None
+
+    def assert_run_pex(python=None, pex_args=None):
+        # type: (Optional[str], Optional[List[str]]) -> List[Text]
+        pex_args = list(pex_args) if pex_args else []
+        results = run_pex_command(
+            python=python,
+            args=pex_args
+            + ["ansicolors==1.1.8", "--", "-c", 'import colors; print(" ".join(colors.COLORS))'],
+            quiet=True,
+        )
+        results.assert_success()
+        assert "black red green yellow blue magenta cyan white" == results.output.strip()
+        return results.error.splitlines()
+
     incompatible_platforms_warning_msg = (
         "WARNING: attempting to run PEX with incompatible platforms!"
     )

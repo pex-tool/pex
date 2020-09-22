@@ -3,28 +3,32 @@
 
 import pytest
 
-from pex.compatibility import to_bytes, to_unicode, unicode_string
+from pex.compatibility import PY3, to_bytes, to_unicode
+
+unicode_string = (str,) if PY3 else (unicode,)  # type: ignore[name-defined]
 
 
 def test_to_bytes():
+    # type: () -> None
     assert isinstance(to_bytes(""), bytes)
     assert isinstance(to_bytes("abc"), bytes)
     assert isinstance(to_bytes(b"abc"), bytes)
     assert isinstance(to_bytes(u"abc"), bytes)
-    assert isinstance(to_bytes(b"abc".decode("latin-1"), encoding="utf-8"), bytes)
+    assert isinstance(to_bytes(b"abc".decode("latin-1"), encoding=u"utf-8"), bytes)
 
     for bad_value in (123, None):
         with pytest.raises(ValueError):
-            to_bytes(bad_value)
+            to_bytes(bad_value)  # type: ignore[type-var]
 
 
 def test_to_unicode():
+    # type: () -> None
     assert isinstance(to_unicode(""), unicode_string)
     assert isinstance(to_unicode("abc"), unicode_string)
     assert isinstance(to_unicode(b"abc"), unicode_string)
     assert isinstance(to_unicode(u"abc"), unicode_string)
-    assert isinstance(to_unicode(u"abc".encode("latin-1"), encoding="latin-1"), unicode_string)
+    assert isinstance(to_unicode(u"abc".encode("latin-1"), encoding=u"latin-1"), unicode_string)
 
     for bad_value in (123, None):
         with pytest.raises(ValueError):
-            to_unicode(bad_value)
+            to_unicode(bad_value)  # type: ignore[type-var]
