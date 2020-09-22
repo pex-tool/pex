@@ -100,5 +100,5 @@ class Compiler(object):
                     "encountered %r during bytecode compilation.\nstderr was:\n%s\n" % (e, e.stderr)
                 )
 
-            # TODO(#1034): remove the ignore once python_interpreter.py is updated.
+            # TODO(#1034): remove the ignore once interpreter.py is updated.
             return out.splitlines()  # type: ignore[no-any-return]
