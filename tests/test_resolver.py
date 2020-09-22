@@ -92,7 +92,6 @@ def test_simple_local_resolve():
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
         resolved_dists = local_resolve_multi(["project"], find_links=[td])
         assert len(resolved_dists) == 1
-        raise ValueError(resolved_dists[0])
 
 
 def test_resolve_cache():

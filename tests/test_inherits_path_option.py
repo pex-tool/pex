@@ -24,7 +24,7 @@ def write_and_run_simple_pex(inheriting):
     with temporary_dir() as td:
         pex_path = os.path.join(td, "show_path.pex")
         with open(os.path.join(td, "exe.py"), "w") as fp:
-            fp.write("")  # No contents, we just want the startup messages
+            fp.write(u"")  # No contents, we just want the startup messages
 
         pb = PEXBuilder(path=td, preamble=None)
         pb.info.inherit_path = inheriting
