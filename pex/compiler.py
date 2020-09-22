@@ -1,7 +1,7 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import
 
 from pex.compatibility import to_bytes
 from pex.executor import Executor
@@ -79,7 +79,7 @@ class Compiler(object):
         self._interpreter = interpreter
 
     def compile(self, root, relpaths):
-        # type: (str, Iterable[Text]) -> List[Text]
+        # type: (str, Iterable[str]) -> List[Text]
         """Compiles the given python source files using this compiler's interpreter.
 
         :param root: The root path all the source files are found under.
