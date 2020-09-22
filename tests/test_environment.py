@@ -320,7 +320,7 @@ def test_osx_platform_intel_issue_523():
                 "STDOUT:\n"
                 "{}\n"
                 "STDERR:\n"
-                "{}".format(stdout, stdout, stderr)
+                "{}".format(stdout, stderr)
             )
 
             returncode, stdout, stderr = run(

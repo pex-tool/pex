@@ -23,7 +23,7 @@ from pex.common import (
 try:
     from unittest import mock
 except ImportError:
-    import mock
+    import mock  # type: ignore[no-redef]
 
 
 @contextmanager
@@ -85,7 +85,7 @@ def test_atomic_directory_empty_workdir_failure():
                 touch(os.path.join(work_dir, "created"))
                 raise SimulatedRuntimeError()
 
-        assert not os.path.exists(work_dir), "The work_dir should always be cleaned up."
+        assert not os.path.exists(work_dir), "The work_dir should always be cleaned up."  # type: ignore[unreachable]
         assert not os.path.exists(
             target_dir
         ), "When the context raises the work_dir it was given should not be moved to the target_dir."

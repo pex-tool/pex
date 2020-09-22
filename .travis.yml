@@ -81,6 +81,10 @@ matrix:
       script: ${TOX_CMD} -e format-check
 
     - <<: *x-linux-38-shard
+      name: TOXENV=typecheck
+      script: ${TOX_CMD} -e typecheck
+
+    - <<: *x-linux-38-shard
       name: TOXENV=vendor-check
       script: ${TOX_CMD} -e vendor-check
 

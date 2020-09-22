@@ -24,8 +24,12 @@ from pex.platforms import Platform
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.variables import ENV
+
+if TYPE_CHECKING:
+    from typing import Dict
 
 
 class PythonIdentity(object):
@@ -259,7 +263,7 @@ class PythonInterpreter(object):
         re.compile(r"pypy-1.[0-9]$"),
     )
 
-    _PYTHON_INTERPRETER_BY_NORMALIZED_PATH = {}
+    _PYTHON_INTERPRETER_BY_NORMALIZED_PATH = {}  # type: Dict
 
     @staticmethod
     def _normalize_path(path):

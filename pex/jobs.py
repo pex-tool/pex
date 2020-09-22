@@ -172,7 +172,9 @@ class SpawnedJob(object):
         return str(self._job)
 
 
-_CPU_COUNT = cpu_count()
+# If `cpu_count` fails, we default to 2. This is relatively arbitrary, based on what seems to be
+# common in CI.
+_CPU_COUNT = cpu_count() or 2
 _ABSOLUTE_MAX_JOBS = _CPU_COUNT * 2
 
 
@@ -188,7 +190,7 @@ def _sanitize_max_jobs(max_jobs=None):
         return min(max_jobs, _ABSOLUTE_MAX_JOBS)
 
 
-class ErrorHandler(AbstractClass):
+class ErrorHandler(AbstractClass):  # type: ignore[valid-type, misc]
     """Handles errors encountered in the context of spawning and awaiting the result of a `Job`."""
 
     @classmethod

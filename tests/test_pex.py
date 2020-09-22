@@ -14,7 +14,7 @@ from types import ModuleType
 
 import pytest
 
-from pex.common import safe_open, temporary_dir
+from pex.common import safe_mkdir, safe_open, temporary_dir
 from pex.compatibility import PY2, WINDOWS, nested, to_bytes
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
@@ -29,18 +29,17 @@ from pex.testing import (
     ensure_python_interpreter,
     environment_as,
     make_bdist,
-    named_temporary_file,
     run_simple_pex,
     run_simple_pex_test,
-    safe_mkdir,
     temporary_content,
     write_simple_pex,
 )
+from pex.util import named_temporary_file
 
 try:
     from unittest import mock
 except ImportError:
-    import mock
+    import mock  # type: ignore[no-redef]
 
 
 def test_pex_uncaught_exceptions():
@@ -165,7 +164,7 @@ def test_minimum_sys_modules():
     # it's a namespace package (https://www.python.org/dev/peps/pep-0420/) where
     # __path__ is a _NamespacePath.
     try:
-        from importlib._bootstrap_external import _NamespacePath
+        from importlib._bootstrap_external import _NamespacePath  # type: ignore
 
         bad_path = _NamespacePath("hello", "world", None)
     except ImportError:

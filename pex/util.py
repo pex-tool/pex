@@ -8,10 +8,13 @@ import os
 import sys
 import tempfile
 from hashlib import sha1
-from site import makepath
+from site import makepath  # type: ignore[attr-defined]
 
 from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
-from pex.compatibility import PY2, exec_function
+from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function` is defined dynamically
+    PY2,
+    exec_function,
+)
 from pex.third_party.pkg_resources import (
     find_distributions,
     resource_isdir,
@@ -167,7 +170,7 @@ class CacheHelper(object):
                             zf.extract(name, target_dir_tmp)
 
         dist = DistributionHelper.distribution_from_path(target_dir)
-        assert dist is not None, "Failed to cache distribution ".format(source)
+        assert dist is not None, "Failed to cache distribution: {} ".format(source)
         return dist
 
 

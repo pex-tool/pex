@@ -9,10 +9,11 @@ import subprocess
 import sys
 from distutils import log
 from distutils.core import Command
+from io import StringIO
 
 from pex.bin.pex import configure_clp
 from pex.common import die
-from pex.compatibility import ConfigParser, StringIO, string, to_unicode
+from pex.compatibility import ConfigParser, string, to_unicode
 from pex.interpreter import PythonInterpreter
 
 

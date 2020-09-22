@@ -12,15 +12,15 @@ from pex.tracer import TRACER
 if os.name == "posix" and PY2:
     try:
         # Use the subprocess backports if they're available for improved robustness.
-        import subprocess32 as subprocess
+        import subprocess32 as subprocess  # type: ignore[import]
     except ImportError:
         TRACER.log(
             "Please build pex with the subprocess32 module for more reliable requirement "
             "installation and interpreter execution."
         )
-        import subprocess
+        import subprocess  # type: ignore[no-redef]
 else:
-    import subprocess
+    import subprocess  # type: ignore[no-redef]
 
 
 class Executor(object):
