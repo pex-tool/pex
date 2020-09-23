@@ -630,6 +630,18 @@ def configure_clp():
     )
 
     parser.add_option(
+        "-w",
+        "--wheel-dist",
+        dest="wheel_dists",
+        metavar="FILE",
+        default=[],
+        type=str,
+        action="append",
+        help="Add a wheel distribution (.whl) from a local path into the generated .pex file."
+        "  This option can be used multiple times.",
+    )
+
+    parser.add_option(
         "-R",
         "--resources-directory",
         dest="resources_directory",
@@ -853,6 +865,9 @@ def build_pex(reqs, options, cache=None):
 
     for requirements_pex in options.requirements_pexes:
         pex_builder.add_from_requirements_pex(requirements_pex)
+
+    for whl_path in options.wheel_dists:
+        pex_builder.add_dist_location(whl_path)
 
     with TRACER.timed("Resolving distributions ({})".format(reqs + options.requirement_files)):
         network_configuration = NetworkConfiguration.create(
