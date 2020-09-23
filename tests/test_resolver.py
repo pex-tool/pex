@@ -15,6 +15,7 @@ from pex.compatibility import nested
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.resolver import (
+    InstalledDistribution,
     IntegrityError,
     LocalDistribution,
     Unsatisfiable,
@@ -35,12 +36,17 @@ from pex.testing import (
     make_source_dir,
 )
 from pex.third_party.pkg_resources import Requirement
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any, List, Union
 
 
-def create_sdist(*args, **kwargs):
+def create_sdist(**kwargs):
+    # type: (**Any) -> str
     dist_dir = safe_mkdtemp()
 
-    with make_project(*args, **kwargs) as project_dir:
+    with make_project(**kwargs) as project_dir:
         cmd = ["setup.py", "sdist", "--dist-dir={}".format(dist_dir)]
         spawn_python_job(
             args=cmd,
@@ -55,18 +61,21 @@ def create_sdist(*args, **kwargs):
     return os.path.join(dist_dir, dists[0])
 
 
-def build_wheel(*args, **kwargs):
-    with built_wheel(*args, **kwargs) as whl:
+def build_wheel(**kwargs):
+    # type: (**Any) -> str
+    with built_wheel(**kwargs) as whl:
         return whl
 
 
 def local_resolve_multi(*args, **kwargs):
+    # type: (*Any, **Any) -> List[InstalledDistribution]
     # Skip remote lookups.
     kwargs["indexes"] = []
     return list(resolve_multi(*args, **kwargs))
 
 
 def test_empty_resolve():
+    # type: () -> None
     empty_resolve_multi = local_resolve_multi([])
     assert empty_resolve_multi == []
 
@@ -76,6 +85,7 @@ def test_empty_resolve():
 
 
 def test_simple_local_resolve():
+    # type: () -> None
     project_wheel = build_wheel(name="project")
 
     with temporary_dir() as td:
@@ -85,6 +95,7 @@ def test_simple_local_resolve():
 
 
 def test_resolve_cache():
+    # type: () -> None
     project_wheel = build_wheel(name="project")
 
     with nested(temporary_dir(), temporary_dir()) as (td, cache):
@@ -108,6 +119,7 @@ def test_resolve_cache():
 
 
 def test_diamond_local_resolve_cached():
+    # type: () -> None
     # This exercises the issue described here: https://github.com/pantsbuild/pex/issues/120
     project1_wheel = build_wheel(name="project1", install_reqs=["project2<1.0.0"])
     project2_wheel = build_wheel(name="project2")
@@ -123,6 +135,7 @@ def test_diamond_local_resolve_cached():
 
 
 def test_cached_dependency_pinned_unpinned_resolution_multi_run():
+    # type: () -> None
     # This exercises the issue described here: https://github.com/pantsbuild/pex/issues/178
     project1_0_0 = build_wheel(name="project", version="1.0.0")
     project1_1_0 = build_wheel(name="project", version="1.1.0")
@@ -144,6 +157,7 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
 
 
 def test_intransitive():
+    # type: () -> None
     foo1_0 = build_wheel(name="foo", version="1.0.0")
     # The nonexistent req ensures that we are actually not acting transitively (as that would fail).
     bar1_0 = build_wheel(name="bar", version="1.0.0", install_reqs=["nonexistent==1.0.0"])
@@ -158,6 +172,7 @@ def test_intransitive():
 
 
 def test_resolve_prereleases():
+    # type: () -> None
     stable_dep = build_wheel(name="dep", version="2.0.0")
     prerelease_dep = build_wheel(name="dep", version="3.0.0rc3")
 
@@ -177,10 +192,14 @@ def test_resolve_prereleases():
 
 
 def _parse_requirement(req):
-    return Requirement.parse(str(req))
+    # type: (Union[str, Requirement]) -> Requirement
+    if isinstance(req, Requirement):
+        req = str(req)
+    return Requirement.parse(req)
 
 
 def test_resolve_extra_setup_py():
+    # type: () -> None
     with make_source_dir(
         name="project1", version="1.0.0", extras_require={"foo": ["project2"]}
     ) as project1_dir:
@@ -195,6 +214,7 @@ def test_resolve_extra_setup_py():
 
 
 def test_resolve_extra_wheel():
+    # type: () -> None
     project1_wheel = build_wheel(
         name="project1", version="1.0.0", extras_require={"foo": ["project2"]}
     )
@@ -210,6 +230,7 @@ def test_resolve_extra_wheel():
 
 
 def resolve_wheel_names(**kwargs):
+    # type: (**Any) -> List[str]
     return [
         os.path.basename(resolved_distribution.distribution.location)
         for resolved_distribution in resolve_multi(**kwargs)
@@ -217,11 +238,13 @@ def resolve_wheel_names(**kwargs):
 
 
 def resolve_p537_wheel_names(**kwargs):
+    # type: (**Any) -> List[str]
     return resolve_wheel_names(requirements=["p537==1.0.4"], transitive=False, **kwargs)
 
 
 @pytest.fixture(scope="module")
 def p537_resolve_cache():
+    # type: () -> str
     return safe_mkdtemp()
 
 
@@ -229,6 +252,7 @@ def p537_resolve_cache():
     PY_VER < (3, 5) or IS_PYPY, reason="The p537 distribution only builds for CPython 3.5+"
 )
 def test_resolve_current_platform(p537_resolve_cache):
+    # type: (str) -> None
     resolve_current = functools.partial(
         resolve_p537_wheel_names, cache=p537_resolve_cache, platforms=["current"]
     )
@@ -255,6 +279,7 @@ def test_resolve_current_platform(p537_resolve_cache):
     PY_VER < (3, 5) or IS_PYPY, reason="The p537 distribution only builds for CPython 3.5+"
 )
 def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
+    # type: (str) -> None
     foreign_platform = "macosx-10.13-x86_64-cp-37-m" if IS_LINUX else "manylinux1_x86_64-cp-37-m"
     resolve_current_and_foreign = functools.partial(
         resolve_p537_wheel_names, cache=p537_resolve_cache, platforms=["current", foreign_platform]
@@ -276,6 +301,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
 
 
 def test_resolve_foreign_abi3():
+    # type: () -> None
     # For version 2.8, cryptography publishes the following abi3 wheels for linux and macosx:
     # cryptography-2.8-cp34-abi3-macosx_10_6_intel.whl
     # cryptography-2.8-cp34-abi3-manylinux1_x86_64.whl
@@ -315,6 +341,7 @@ def test_resolve_foreign_abi3():
 
 
 def test_issues_851():
+    # type: () -> None
     # Previously, the PY36 resolve would fail post-resolution checks for configparser, pathlib2 and
     # contextlib2 which are only required for python_version<3.
 
@@ -341,6 +368,7 @@ def test_issues_851():
 
 
 def test_issues_892():
+    # type: () -> None
     python27 = ensure_python_interpreter(PY27)
     program = dedent(
         """\
@@ -385,6 +413,7 @@ def test_issues_892():
 
 
 def test_download():
+    # type: () -> None
     project1_sdist = create_sdist(
         name="project1", version="1.0.0", extras_require={"foo": ["project2"]}
     )
@@ -422,6 +451,7 @@ def test_download():
 
 
 def test_install():
+    # type: () -> None
     project1_sdist = create_sdist(name="project1", version="1.0.0")
     project2_wheel = build_wheel(name="project2", version="2.0.0")
 
@@ -449,6 +479,7 @@ def test_install():
 
 
 def test_install_unsatisfiable():
+    # type: () -> None
     project1_sdist = create_sdist(name="project1", version="1.0.0")
     project2_wheel = build_wheel(name="project2", version="2.0.0", install_reqs=["project1==1.0.1"])
     local_distributions = [
@@ -462,6 +493,7 @@ def test_install_unsatisfiable():
 
 
 def test_install_invalid_local_distribution():
+    # type: () -> None
     project1_sdist = create_sdist(name="project1", version="1.0.0")
 
     valid_local_sdist = LocalDistribution.create(project1_sdist)

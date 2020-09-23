@@ -125,6 +125,7 @@ def process_platform(option, option_str, option_value, parser):
 
 
 def configure_clp_pex_resolution(parser):
+    # type: (OptionParser) -> None
     group = OptionGroup(
         parser,
         "Resolver options",
@@ -326,6 +327,7 @@ def configure_clp_pex_resolution(parser):
 
 
 def configure_clp_pex_options(parser):
+    # type: (OptionParser) -> None
     group = OptionGroup(
         parser,
         "PEX output options",
@@ -440,6 +442,7 @@ def configure_clp_pex_options(parser):
 
 
 def configure_clp_pex_environment(parser):
+    # type: (OptionParser) -> None
     group = OptionGroup(
         parser,
         "PEX environment options",
@@ -538,6 +541,7 @@ def configure_clp_pex_environment(parser):
 
 
 def configure_clp_pex_entry_points(parser):
+    # type: (OptionParser) -> None
     group = OptionGroup(
         parser,
         "PEX entry point options",
@@ -581,6 +585,7 @@ def configure_clp_pex_entry_points(parser):
 
 
 def configure_clp():
+    # type: () -> OptionParser
     usage = (
         "%prog [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n"
         "%prog builds a PEX (Python Executable) file based on the given specifications: "

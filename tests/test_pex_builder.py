@@ -13,6 +13,10 @@ from pex.pex import PEX
 from pex.pex_builder import BOOTSTRAP_DIR, PEXBuilder
 from pex.testing import make_bdist
 from pex.testing import write_simple_pex as write_pex
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import List
 
 exe_main = """
 import sys
@@ -35,6 +39,7 @@ with open(sys.argv[1], 'w') as fp:
 
 
 def test_pex_builder():
+    # type: () -> None
     # test w/ and w/o zipfile dists
     with nested(temporary_dir(), make_bdist("p1")) as (td, p1):
         pb = write_pex(td, exe_main, dists=[p1])
@@ -57,6 +62,7 @@ def test_pex_builder():
 
 
 def test_pex_builder_wheeldep():
+    # type: () -> None
     """Repeat the pex_builder test, but this time include an import of something from a wheel that
     doesn't come in importable form."""
     with nested(temporary_dir(), make_bdist("p1")) as (td, p1):
@@ -70,7 +76,9 @@ def test_pex_builder_wheeldep():
 
 
 def test_pex_builder_shebang():
+    # type: () -> None
     def builder(shebang):
+        # type: (str) -> PEXBuilder
         pb = PEXBuilder()
         pb.set_shebang(shebang)
         return pb
@@ -86,6 +94,7 @@ def test_pex_builder_shebang():
 
 
 def test_pex_builder_preamble():
+    # type: () -> None
     with temporary_dir() as td:
         target = os.path.join(td, "foo.pex")
         should_create = os.path.join(td, "foo.1")
@@ -108,6 +117,7 @@ def test_pex_builder_preamble():
 
 
 def test_pex_builder_compilation():
+    # type: () -> None
     with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td1, td2, td3):
         src = os.path.join(td1, "src.py")
         with open(src, "w") as fp:
@@ -118,6 +128,7 @@ def test_pex_builder_compilation():
             fp.write(exe_main)
 
         def build_and_check(path, precompile):
+            # type: (str, bool) -> None
             pb = PEXBuilder(path=path)
             pb.add_source(src, "lib/src.py")
             pb.set_executable(exe, "exe.py")
@@ -129,7 +140,7 @@ def test_pex_builder_compilation():
                 else:
                     assert not pyc_exists
             bootstrap_dir = os.path.join(path, BOOTSTRAP_DIR)
-            bootstrap_pycs = []
+            bootstrap_pycs = []  # type: List[str]
             for _, _, files in os.walk(bootstrap_dir):
                 bootstrap_pycs.extend(f for f in files if f.endswith(".pyc"))
             if precompile:
@@ -143,12 +154,14 @@ def test_pex_builder_compilation():
 
 @pytest.mark.skipif(WINDOWS, reason="No hardlinks on windows")
 def test_pex_builder_copy_or_link():
+    # type: () -> None
     with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td1, td2, td3):
         src = os.path.join(td1, "exe.py")
         with open(src, "w") as fp:
             fp.write(exe_main)
 
         def build_and_check(path, copy):
+            # type: (str, bool) -> None
             pb = PEXBuilder(path=path, copy=copy)
             pb.add_source(src, "exe.py")
 
@@ -169,6 +182,7 @@ def test_pex_builder_copy_or_link():
 
 
 def test_pex_builder_deterministic_timestamp():
+    # type: () -> None
     pb = PEXBuilder()
     with temporary_dir() as td:
         target = os.path.join(td, "foo.pex")
@@ -178,7 +192,9 @@ def test_pex_builder_deterministic_timestamp():
 
 
 def test_pex_builder_from_requirements_pex():
+    # type: () -> None
     def build_from_req_pex(path, req_pex):
+        # type: (str, PEXBuilder) -> PEXBuilder
         pb = PEXBuilder(path=path)
         pb.add_from_requirements_pex(req_pex)
         with open(os.path.join(path, "exe.py"), "w") as fp:
@@ -188,6 +204,7 @@ def test_pex_builder_from_requirements_pex():
         return pb
 
     def verify(pb):
+        # type: (PEXBuilder) -> None
         success_txt = os.path.join(pb.path(), "success.txt")
         PEX(pb.path(), interpreter=pb.interpreter).run(args=[success_txt])
         assert os.path.exists(success_txt)

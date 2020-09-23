@@ -13,7 +13,7 @@ from sys import version_info as sys_version_info
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Optional, AnyStr, Text
 
 
 try:
@@ -29,8 +29,6 @@ PY2 = sys_version_info[0] == 2
 PY3 = sys_version_info[0] == 3
 
 string = (str,) if PY3 else (str, unicode)  # type: ignore[name-defined]
-unicode_string = (str,) if PY3 else (unicode,)  # type: ignore[name-defined]
-bytes = (bytes,)  # type: ignore[has-type]
 
 if PY2:
     from collections import Iterable as Iterable
@@ -42,6 +40,7 @@ else:
 if PY2:
 
     def to_bytes(st, encoding="utf-8"):
+        # type: (AnyStr, Text) -> bytes
         if isinstance(st, unicode):
             return st.encode(encoding)
         elif isinstance(st, bytes):
@@ -50,6 +49,7 @@ if PY2:
             raise ValueError("Cannot convert %s to bytes" % type(st))
 
     def to_unicode(st, encoding="utf-8"):
+        # type: (AnyStr, Text) -> Text
         if isinstance(st, unicode):
             return st
         elif isinstance(st, (str, bytes)):
@@ -61,6 +61,7 @@ if PY2:
 else:
 
     def to_bytes(st, encoding="utf-8"):
+        # type: (AnyStr, Text) -> bytes
         if isinstance(st, str):
             return st.encode(encoding)
         elif isinstance(st, bytes):
@@ -69,6 +70,7 @@ else:
             raise ValueError("Cannot convert %s to bytes." % type(st))
 
     def to_unicode(st, encoding="utf-8"):
+        # type: (AnyStr, Text) -> Text
         if isinstance(st, str):
             return st
         elif isinstance(st, bytes):

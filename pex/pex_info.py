@@ -10,9 +10,14 @@ from pex import pex_warnings
 from pex.common import can_write_dir, open_zip, safe_mkdtemp
 from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
+from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
+from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.version import __version__ as pex_version
+
+if TYPE_CHECKING:
+    from typing import Optional
 
 
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.
@@ -51,8 +56,6 @@ class PexInfo(object):
 
     @classmethod
     def make_build_properties(cls, interpreter=None):
-        from .interpreter import PythonInterpreter
-
         pi = interpreter or PythonInterpreter.get()
         plat = pi.platform
         platform_name = plat.platform
@@ -65,6 +68,7 @@ class PexInfo(object):
 
     @classmethod
     def default(cls, interpreter=None):
+        # type: (Optional[PythonInterpreter]) -> PexInfo
         pex_info = {
             "requirements": [],
             "distributions": {},

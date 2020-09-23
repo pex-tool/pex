@@ -494,13 +494,13 @@ class PythonInterpreter(object):
 
     @classmethod
     def from_binary(cls, binary):
+        # type: (str) -> PythonInterpreter
         """Create an interpreter from the given `binary`.
 
-        :param str binary: The path to the python interpreter binary.
+        :param binary: The path to the python interpreter binary.
         :return: an interpreter created from the given `binary`.
-        :rtype: :class:`PythonInterpreter`
         """
-        return cls._spawn_from_binary(binary).await_result()
+        return cls._spawn_from_binary(binary).await_result()  # type: ignore[no-any-return]
 
     @classmethod
     def _matches_binary_name(cls, path):

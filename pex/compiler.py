@@ -5,7 +5,13 @@ from __future__ import absolute_import
 
 from pex.compatibility import to_bytes
 from pex.executor import Executor
+from pex.interpreter import PythonInterpreter
+from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
+
+if TYPE_CHECKING:
+    from typing import Iterable, Text, List
+
 
 _COMPILER_MAIN = """
 from __future__ import print_function
@@ -60,24 +66,24 @@ class Compiler(object):
     class Error(Exception):
         pass
 
-    class CompilationFailure(
-        Error
-    ):  # N.B. This subclasses `Error` only for backwards compatibility.
+    # N.B. This subclasses `Error` only for backwards compatibility.
+    class CompilationFailure(Error):
         """Indicates an error compiling one or more python source files."""
 
     def __init__(self, interpreter):
+        # type: (PythonInterpreter) -> None
         """Creates a bytecode compiler for the given `interpreter`.
 
         :param interpreter: The interpreter to use to compile sources with.
-        :type interpreter: :class:`pex.interpreter.PythonInterpreter`
         """
         self._interpreter = interpreter
 
     def compile(self, root, relpaths):
+        # type: (str, Iterable[str]) -> List[Text]
         """Compiles the given python source files using this compiler's interpreter.
 
-        :param string root: The root path all the source files are found under.
-        :param list relpaths: The relative paths from the `root` of the source files to compile.
+        :param root: The root path all the source files are found under.
+        :param relpaths: The relative paths from the `root` of the source files to compile.
         :returns: A list of relative paths of the compiled bytecode files.
         :raises: A :class:`Compiler.Error` if there was a problem bytecode compiling any of the files.
         """
@@ -94,4 +100,5 @@ class Compiler(object):
                     "encountered %r during bytecode compilation.\nstderr was:\n%s\n" % (e, e.stderr)
                 )
 
-            return out.splitlines()
+            # TODO(#1034): remove the ignore once interpreter.py is updated.
+            return out.splitlines()  # type: ignore[no-any-return]

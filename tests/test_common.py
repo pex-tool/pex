@@ -19,15 +19,20 @@ from pex.common import (
     temporary_dir,
     touch,
 )
+from pex.typing import TYPE_CHECKING
 
 try:
     from unittest import mock
 except ImportError:
     import mock  # type: ignore[no-redef]
 
+if TYPE_CHECKING:
+    from typing import Iterator, Optional, Tuple, Type
+
 
 @contextmanager
 def maybe_raises(exception=None):
+    # type: (Optional[Type[Exception]]) -> Iterator[None]
     @contextmanager
     def noop():
         yield
@@ -37,6 +42,7 @@ def maybe_raises(exception=None):
 
 
 def atomic_directory_finalize_test(errno, expect_raises=None):
+    # type: (int, Optional[Type[Exception]]) -> None
     with mock.patch("os.rename", spec_set=True, autospec=True) as mock_rename:
         mock_rename.side_effect = OSError(errno, os.strerror(errno))
         with maybe_raises(expect_raises):
@@ -44,18 +50,22 @@ def atomic_directory_finalize_test(errno, expect_raises=None):
 
 
 def test_atomic_directory_finalize_eexist():
+    # type: () -> None
     atomic_directory_finalize_test(errno.EEXIST)
 
 
 def test_atomic_directory_finalize_enotempty():
+    # type: () -> None
     atomic_directory_finalize_test(errno.ENOTEMPTY)
 
 
 def test_atomic_directory_finalize_eperm():
+    # type: () -> None
     atomic_directory_finalize_test(errno.EPERM, expect_raises=OSError)
 
 
 def test_atomic_directory_empty_workdir_finalize():
+    # type: () -> None
     with temporary_dir() as sandbox:
         target_dir = os.path.join(sandbox, "target_dir")
         assert not os.path.exists(target_dir)
@@ -75,6 +85,7 @@ def test_atomic_directory_empty_workdir_finalize():
 
 
 def test_atomic_directory_empty_workdir_failure():
+    # type: () -> None
     class SimulatedRuntimeError(RuntimeError):
         pass
 
@@ -92,17 +103,20 @@ def test_atomic_directory_empty_workdir_failure():
 
 
 def test_atomic_directory_empty_workdir_finalized():
+    # type: () -> None
     with temporary_dir() as target_dir:
         with atomic_directory(target_dir) as work_dir:
             assert work_dir is None, "When the target_dir exists no work_dir should be created."
 
 
 def extract_perms(path):
+    # type: (str) -> str
     return oct(os.stat(path).st_mode)
 
 
 @contextlib.contextmanager
 def zip_fixture():
+    # type: () -> Iterator[Tuple[str, str, str, str]]
     with temporary_dir() as target_dir:
         one = os.path.join(target_dir, "one")
         touch(one)
@@ -122,6 +136,7 @@ def zip_fixture():
 
 
 def test_perm_preserving_zipfile_extractall():
+    # type: () -> None
     with zip_fixture() as (zip_file, extract_dir, one, two):
         with contextlib.closing(PermPreservingZipFile(zip_file)) as zf:
             zf.extractall(extract_dir)
@@ -131,6 +146,7 @@ def test_perm_preserving_zipfile_extractall():
 
 
 def test_perm_preserving_zipfile_extract():
+    # type: () -> None
     with zip_fixture() as (zip_file, extract_dir, one, two):
         with contextlib.closing(PermPreservingZipFile(zip_file)) as zf:
             zf.extract("one", path=extract_dir)
@@ -167,14 +183,17 @@ def assert_chroot_perms(copyfn):
 
 
 def test_chroot_perms_copy():
+    # type: () -> None
     assert_chroot_perms(Chroot.copy)
 
 
 def test_chroot_perms_link_same_device():
+    # type: () -> None
     assert_chroot_perms(Chroot.link)
 
 
 def test_chroot_perms_link_cross_device():
+    # type: () -> None
     with mock.patch("os.link", spec_set=True, autospec=True) as mock_link:
         expected_errno = errno.EXDEV
         mock_link.side_effect = OSError(expected_errno, os.strerror(expected_errno))
@@ -183,6 +202,7 @@ def test_chroot_perms_link_cross_device():
 
 
 def test_chroot_zip():
+    # type: () -> None
     with temporary_dir() as tmp:
         chroot = Chroot(os.path.join(tmp, "chroot"))
         chroot.write(b"data", "directory/subdirectory/file")
@@ -200,6 +220,7 @@ def test_chroot_zip():
 
 
 def test_can_write_dir_writeable_perms():
+    # type: () -> None
     with temporary_dir() as writeable:
         assert can_write_dir(writeable)
 
@@ -210,6 +231,7 @@ def test_can_write_dir_writeable_perms():
 
 
 def test_can_write_dir_unwriteable_perms():
+    # type: () -> None
     with temporary_dir() as writeable:
         no_perms_path = os.path.join(writeable, "no_perms")
         os.mkdir(no_perms_path, 0o444)

@@ -8,6 +8,10 @@ import pytest
 
 from pex.common import safe_mkdir, temporary_dir
 from pex.executor import Executor
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Callable, List
 
 TEST_EXECUTABLE = "/a/nonexistent/path/to/nowhere"
 TEST_CMD_LIST = [TEST_EXECUTABLE, "--version"]
@@ -19,12 +23,14 @@ TEST_CODE = 3
 
 
 def test_executor_open_process_wait_return():
+    # type: () -> None
     process = Executor.open_process("exit 8", shell=True)
     exit_code = process.wait()
     assert exit_code == 8
 
 
 def test_executor_open_process_communicate():
+    # type: () -> None
     process = Executor.open_process(
         ["/bin/echo", "-n", "hello"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
@@ -34,6 +40,7 @@ def test_executor_open_process_communicate():
 
 
 def test_executor_execute():
+    # type: () -> None
     assert Executor.execute("/bin/echo -n stdout >&1", shell=True) == ("stdout", "")
     assert Executor.execute("/bin/echo -n stderr >&2", shell=True) == ("", "stderr")
     assert Executor.execute("/bin/echo -n TEST | tee /dev/stderr", shell=True) == ("TEST", "TEST")
@@ -43,11 +50,13 @@ def test_executor_execute():
 
 
 def test_executor_execute_zero():
+    # type: () -> None
     Executor.execute("exit 0", shell=True)
 
 
 @pytest.mark.parametrize("testable", [Executor.open_process, Executor.execute])
 def test_executor_execute_not_found(testable):
+    # type: (Callable) -> None
     with pytest.raises(Executor.ExecutableNotFound) as exc:
         testable(TEST_CMD_LIST)
     assert exc.value.executable == TEST_EXECUTABLE
@@ -56,6 +65,7 @@ def test_executor_execute_not_found(testable):
 
 @pytest.mark.parametrize("exit_code", [1, 127, -1])
 def test_executor_execute_nonzero(exit_code):
+    # type: (int) -> None
     with pytest.raises(Executor.NonZeroExit) as exc:
         Executor.execute("exit %s" % exit_code, shell=True)
 
@@ -65,6 +75,7 @@ def test_executor_execute_nonzero(exit_code):
 
 @pytest.mark.parametrize("cmd", TEST_CMD_PARAMETERS)
 def test_executor_exceptions_executablenotfound(cmd):
+    # type: (List[str]) -> None
     exc_cause = OSError("test")
     exc = Executor.ExecutableNotFound(cmd=cmd, exc=exc_cause)
     assert exc.executable == TEST_EXECUTABLE
@@ -74,6 +85,7 @@ def test_executor_exceptions_executablenotfound(cmd):
 
 @pytest.mark.parametrize("cmd", TEST_CMD_PARAMETERS)
 def test_executor_exceptions_nonzeroexit(cmd):
+    # type: (List[str]) -> None
     exc = Executor.NonZeroExit(cmd=cmd, exit_code=TEST_CODE, stdout=TEST_STDOUT, stderr=TEST_STDERR)
     assert exc.executable == TEST_EXECUTABLE
     assert exc.cmd == cmd
@@ -83,6 +95,7 @@ def test_executor_exceptions_nonzeroexit(cmd):
 
 
 def test_executor_execute_dir():
+    # type: () -> None
     with temporary_dir() as temp_dir:
         test_dir = os.path.realpath(os.path.join(temp_dir, "tmp"))
         safe_mkdir(test_dir)
