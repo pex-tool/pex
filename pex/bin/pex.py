@@ -50,8 +50,12 @@ def increment_verbosity(option, opt_str, _, parser):
     setattr(parser.values, option.dest, verbosity + 1)
 
 
-def process_disable_cache(option, option_str, option_value, parser):
-    setattr(parser.values, option.dest, None)
+def process_explicit_verbosity(option, _, option_value, parser):
+    if option_value < 0:
+        raise OptionValueError(
+            "Please specify a nonnegative integer; ie: >=0. Given {}".format(option_value)
+        )
+    setattr(parser.values, option.dest, option_value)
 
 
 class PyPiSentinel(object):
@@ -681,6 +685,16 @@ def configure_clp():
         action="callback",
         callback=increment_verbosity,
         help="Turn on logging verbosity, may be specified multiple times.",
+    )
+    parser.add_option(
+        "-V",
+        dest="verbosity",
+        default=0,
+        type=int,
+        action="callback",
+        callback=process_explicit_verbosity,
+        help="Set or reset logging verbosity to a specific nonnegative number (>= 0). "
+        "A -v argument after a -V will increment the verbosity further.",
     )
 
     parser.add_option(
