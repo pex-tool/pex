@@ -637,7 +637,7 @@ def configure_clp():
         default=[],
         type=str,
         action="append",
-        help="Add a wheel distribution (.whl) from a local path into the generated .pex file."
+        help="Add a wheel distribution (.whl file) from a local path (relative or absolute) into the generated .pex file."
         "  This option can be used multiple times.",
     )
 
