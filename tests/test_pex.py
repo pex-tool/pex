@@ -34,6 +34,7 @@ from pex.testing import (
     temporary_content,
     write_simple_pex,
 )
+from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 
 try:
@@ -41,15 +42,20 @@ try:
 except ImportError:
     import mock  # type: ignore[no-redef]
 
+if TYPE_CHECKING:
+    from typing import Dict, Iterator, Union
+
 
 def test_pex_uncaught_exceptions():
+    # type: () -> None
     body = "raise Exception('This is an exception')"
     so, rc = run_simple_pex_test(body)
-    assert b"This is an exception" in so, "Standard out was: %s" % so
+    assert b"This is an exception" in so, "Standard out was: %r" % so
     assert rc == 1
 
 
 def test_excepthook_honored():
+    # type: () -> None
     body = textwrap.dedent(
         """
         import sys
@@ -65,11 +71,12 @@ def test_excepthook_honored():
     )
 
     so, rc = run_simple_pex_test(body)
-    assert so == b"Custom hook called with: This is an exception\n", "Standard out was: %s" % so
+    assert so == b"Custom hook called with: This is an exception\n", "Standard out was: %r" % so
     assert rc == 42
 
 
 def _test_sys_exit(arg, expected_output, expected_rc):
+    # type: (Union[str, int], bytes, int) -> None
     body = "import sys; sys.exit({arg})".format(arg=arg)
     so, rc = run_simple_pex_test(body)
     assert so == expected_output, "Should not print SystemExit traceback."
@@ -77,10 +84,12 @@ def _test_sys_exit(arg, expected_output, expected_rc):
 
 
 def test_pex_sys_exit_does_not_print_for_numeric_value():
+    # type: () -> None
     _test_sys_exit(2, b"", 2)
 
 
 def test_pex_sys_exit_prints_non_numeric_value_no_traceback():
+    # type: () -> None
     text = "something went wrong"
 
     sys_exit_arg = '"' + text + '"'
@@ -90,14 +99,17 @@ def test_pex_sys_exit_prints_non_numeric_value_no_traceback():
 
 
 def test_pex_sys_exit_doesnt_print_none():
-    _test_sys_exit("", to_bytes(""), 0)
+    # type: () -> None
+    _test_sys_exit("", b"", 0)
 
 
 def test_pex_sys_exit_prints_objects():
-    _test_sys_exit('Exception("derp")', to_bytes("derp\n"), 1)
+    # type: () -> None
+    _test_sys_exit('Exception("derp")', b"derp\n", 1)
 
 
 def test_pex_atexit_swallowing():
+    # type: () -> None
     body = textwrap.dedent(
         """
         import atexit
@@ -121,6 +133,7 @@ def test_pex_atexit_swallowing():
 
 
 def test_minimum_sys_modules():
+    # type: () -> None
     # tainted modules evict
     tainted_module = ModuleType("tainted_module")
     tainted_module.__file__ = "bad_path"
@@ -142,23 +155,23 @@ def test_minimum_sys_modules():
 
     # tainted packages evict
     tainted_module = ModuleType("tainted_module")
-    tainted_module.__path__ = ["bad_path"]
+    tainted_module.__path__ = ["bad_path"]  # type: ignore[attr-defined]
     modules = {"tainted_module": tainted_module}
     new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
     assert new_modules == modules
     new_modules = PEX.minimum_sys_modules(site_libs=["bad_path"], modules=modules)
     assert new_modules == {}
-    assert tainted_module.__path__ == []
+    assert tainted_module.__path__ == []  # type: ignore[attr-defined]
 
     # tainted packages cleaned
     tainted_module = ModuleType("tainted_module")
-    tainted_module.__path__ = ["bad_path", "good_path"]
+    tainted_module.__path__ = ["bad_path", "good_path"]  # type: ignore[attr-defined]
     modules = {"tainted_module": tainted_module}
     new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
     assert new_modules == modules
     new_modules = PEX.minimum_sys_modules(site_libs=["bad_path"], modules=modules)
     assert new_modules == modules
-    assert tainted_module.__path__ == ["good_path"]
+    assert tainted_module.__path__ == ["good_path"]  # type: ignore[attr-defined]
 
     # If __path__ is not a list the module is removed; typically this implies
     # it's a namespace package (https://www.python.org/dev/peps/pep-0420/) where
@@ -173,21 +186,22 @@ def test_minimum_sys_modules():
     class FakeModule(object):
         pass
 
-    tainted_module = FakeModule()
-    tainted_module.__path__ = bad_path  # Not a list as expected
+    tainted_module = FakeModule()  # type: ignore[assignment]
+    tainted_module.__path__ = bad_path  # type: ignore[attr-defined] # Not a list as expected
     modules = {"tainted_module": tainted_module}
     new_modules = PEX.minimum_sys_modules(site_libs=["bad_path"], modules=modules)
     assert new_modules == {}
 
     # If __file__ is explicitly None we should gracefully proceed to __path__ checks.
     tainted_module = ModuleType("tainted_module")
-    tainted_module.__file__ = None
+    tainted_module.__file__ = None  # type: ignore[assignment]
     modules = {"tainted_module": tainted_module}
     new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
     assert new_modules == modules
 
 
 def test_site_libs():
+    # type: () -> None
     with nested(mock.patch.object(PEX, "_get_site_packages"), temporary_dir()) as (
         mock_site_packages,
         tempdir,
@@ -201,6 +215,7 @@ def test_site_libs():
 
 @pytest.mark.skipif(WINDOWS, reason="No symlinks on windows")
 def test_site_libs_symlink():
+    # type: () -> None
     with nested(mock.patch.object(PEX, "_get_site_packages"), temporary_dir()) as (
         mock_site_packages,
         tempdir,
@@ -217,6 +232,7 @@ def test_site_libs_symlink():
 
 
 def test_site_libs_excludes_prefix():
+    # type: () -> None
     """Windows returns sys.prefix as part of getsitepackages().
 
     Make sure to exclude it.
@@ -237,6 +253,7 @@ def test_site_libs_excludes_prefix():
 @pytest.mark.parametrize("zip_safe", (False, True))
 @pytest.mark.parametrize("project_name", ("my_project", "my-project"))
 def test_pex_script(project_name, zip_safe):
+    # type: (str, bool) -> None
     with built_wheel(name=project_name, zip_safe=zip_safe) as bdist_path:
         env_copy = os.environ.copy()
         env_copy["PEX_SCRIPT"] = "hello_world"
@@ -255,6 +272,7 @@ def test_pex_script(project_name, zip_safe):
 
 
 def test_pex_run():
+    # type: () -> None
     with named_temporary_file() as fake_stdout:
         with temporary_dir() as temp_dir:
             pex = write_simple_pex(
@@ -269,6 +287,7 @@ def test_pex_run():
 
 
 def test_pex_run_extra_sys_path():
+    # type: () -> None
     with named_temporary_file() as fake_stdout:
         with temporary_dir() as temp_dir:
             pex = write_simple_pex(
@@ -293,11 +312,13 @@ class PythonpathIsolationTest(
 ):
     @staticmethod
     def pex_info(inherit_path):
+        # type: (Union[str, bool]) -> PexInfo
         pex_info = PexInfo.default()
         pex_info.inherit_path = inherit_path
         return pex_info
 
     def assert_isolation(self, inherit_path, expected_output):
+        # type: (Union[str, bool], str) -> None
         env = dict(PYTHONPATH=self.pythonpath)
         with named_temporary_file() as fake_stdout:
             with temporary_dir() as temp_dir:
@@ -323,6 +344,7 @@ class PythonpathIsolationTest(
 
 @pytest.fixture(scope="module")
 def pythonpath_isolation_test():
+    # type: () -> Iterator[PythonpathIsolationTest]
     with temporary_dir() as temp_dir:
         pythonpath = os.path.join(temp_dir, "one")
         with safe_open(os.path.join(pythonpath, "foo.py"), "w") as fp:
@@ -373,6 +395,7 @@ def pythonpath_isolation_test():
 
 
 def test_pythonpath_isolation_inherit_path_false(pythonpath_isolation_test):
+    # type: (PythonpathIsolationTest) -> None
     pythonpath_isolation_test.assert_isolation(
         inherit_path="false", expected_output="foo.BAR=137 bar.FOO=None"
     )
@@ -383,12 +406,14 @@ def test_pythonpath_isolation_inherit_path_false(pythonpath_isolation_test):
 
 
 def test_pythonpath_isolation_inherit_path_fallback(pythonpath_isolation_test):
+    # type: (PythonpathIsolationTest) -> None
     pythonpath_isolation_test.assert_isolation(
         inherit_path="fallback", expected_output="foo.BAR=137 bar.FOO=137"
     )
 
 
 def test_pythonpath_isolation_inherit_path_prefer(pythonpath_isolation_test):
+    # type: (PythonpathIsolationTest) -> None
     pythonpath_isolation_test.assert_isolation(
         inherit_path="prefer", expected_output="foo.BAR=42 bar.FOO=137"
     )
@@ -400,6 +425,7 @@ def test_pythonpath_isolation_inherit_path_prefer(pythonpath_isolation_test):
 
 
 def test_pex_executable():
+    # type: () -> None
     # Tests that pex keeps executable permissions
     with temporary_dir() as temp_dir:
         pex_dir = os.path.join(temp_dir, "pex_dir")
@@ -439,7 +465,7 @@ def test_pex_executable():
                 "#!/usr/bin/env bash\n" "echo 'hello world from start.sh!'"
             ),
             "my_package/my_module.py": 'def do_something():\n  print("hello world!")\n',
-        }
+        }  # type: Dict[str, Union[str, int]]
         pex_builder = PEXBuilder(path=pex_dir)
         with temporary_content(project_content, perms=0o755) as project_dir:
             installer = WheelBuilder(project_dir)
@@ -456,6 +482,7 @@ def test_pex_executable():
 
 
 def test_pex_paths():
+    # type: () -> None
     # Tests that PEX_PATH allows importing sources from the referenced pex.
     with named_temporary_file() as fake_stdout:
         with temporary_dir() as temp_dir:
@@ -491,6 +518,7 @@ def test_pex_paths():
 
 @contextmanager
 def _add_test_hello_to_pex(ep):
+    # type: (str) -> Iterator[PEXBuilder]
     with tempfile.NamedTemporaryFile() as tf:
         tf.write(b'def hello(): print("hello")')
         tf.flush()
@@ -503,18 +531,21 @@ def _add_test_hello_to_pex(ep):
 
 
 def test_pex_verify_entry_point_method_should_pass():
+    # type: () -> None
     with _add_test_hello_to_pex("test:hello") as pex_builder:
         # No error should happen here because `test:hello` is correct
         PEX(pex_builder.path(), interpreter=pex_builder.interpreter, verify_entry_point=True)
 
 
 def test_pex_verify_entry_point_module_should_pass():
+    # type: () -> None
     with _add_test_hello_to_pex("test") as pex_builder:
         # No error should happen here because `test` is correct
         PEX(pex_builder.path(), interpreter=pex_builder.interpreter, verify_entry_point=True)
 
 
 def test_pex_verify_entry_point_method_should_fail():
+    # type: () -> None
     with _add_test_hello_to_pex("test:invalid_entry_point") as pex_builder:
         # Expect InvalidEntryPoint due to invalid entry point method
         with pytest.raises(PEX.InvalidEntryPoint):
@@ -522,6 +553,7 @@ def test_pex_verify_entry_point_method_should_fail():
 
 
 def test_pex_verify_entry_point_module_should_fail():
+    # type: () -> None
     with _add_test_hello_to_pex("invalid.module") as pex_builder:
         # Expect InvalidEntryPoint due to invalid entry point module
         with pytest.raises(PEX.InvalidEntryPoint):
@@ -529,6 +561,7 @@ def test_pex_verify_entry_point_module_should_fail():
 
 
 def test_activate_interpreter_different_from_current():
+    # type: () -> None
     with temporary_dir() as pex_root:
         interp_version = PY36 if PY2 else PY27
         custom_interpreter = PythonInterpreter.from_binary(
@@ -553,6 +586,7 @@ def test_activate_interpreter_different_from_current():
 
 
 def test_execute_interpreter_dashc_program():
+    # type: () -> None
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)
         pex_builder.freeze()
@@ -570,6 +604,7 @@ def test_execute_interpreter_dashc_program():
 
 
 def test_execute_interpreter_dashm_module():
+    # type: () -> None
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)
         pex_builder.add_source(None, "foo/__init__.py")
@@ -593,6 +628,7 @@ def test_execute_interpreter_dashm_module():
 
 
 def test_execute_interpreter_stdin_program():
+    # type: () -> None
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)
         pex_builder.freeze()
@@ -611,6 +647,7 @@ def test_execute_interpreter_stdin_program():
 
 
 def test_execute_interpreter_file_program():
+    # type: () -> None
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)
         pex_builder.freeze()
@@ -631,6 +668,7 @@ def test_execute_interpreter_file_program():
 
 
 def test_pex_run_strip_env():
+    # type: () -> None
     with temporary_dir() as pex_root:
         pex_env = dict(PEX_MODULE="does_not_exist_in_sub_pex", PEX_ROOT=pex_root)
         with environment_as(**pex_env), temporary_dir() as pex_chroot:
@@ -661,6 +699,7 @@ def test_pex_run_strip_env():
 
 
 def test_pex_run_custom_setuptools_useable():
+    # type: () -> None
     resolved_dists = resolve(["setuptools==36.2.7"])
     dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
     with temporary_dir() as temp_dir:
@@ -674,6 +713,7 @@ def test_pex_run_custom_setuptools_useable():
 
 
 def test_pex_run_conflicting_custom_setuptools_useable():
+    # type: () -> None
     # Here we use our vendored, newer setuptools to build the pex which has an older setuptools
     # requirement. These setuptools dists have different pkg_resources APIs:
     # $ diff \
@@ -713,6 +753,7 @@ def test_pex_run_conflicting_custom_setuptools_useable():
 
 
 def test_pex_run_custom_pex_useable():
+    # type: () -> None
     old_pex_version = "0.7.0"
     resolved_dists = resolve(["pex=={}".format(old_pex_version), "setuptools==40.6.3"])
     dists = [resolved_dist.distribution for resolved_dist in resolved_dists]

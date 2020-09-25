@@ -18,13 +18,26 @@ from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
+from pex.pex_info import PexInfo
 from pex.pip import get_pip
 from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper, named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Iterator, List, Optional, Text, Tuple
+    from typing import (
+        Any,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Set,
+        Text,
+        Tuple,
+        Union,
+    )
 
 PY_VER = sys.version_info[:2]
 IS_PYPY = hasattr(sys, "pypy_version_info")
@@ -38,6 +51,7 @@ NOT_CPYTHON36_OR_LINUX = NOT_CPYTHON36 or IS_LINUX
 
 @contextlib.contextmanager
 def temporary_filename():
+    # type: () -> Iterator[str]
     """Creates a temporary filename.
 
     This is useful when you need to pass a filename to an API. Windows requires all handles to a
@@ -50,12 +64,14 @@ def temporary_filename():
 
 
 def random_bytes(length):
+    # type: (int) -> bytes
     return "".join(map(chr, (random.randint(ord("a"), ord("z")) for _ in range(length)))).encode(
         "utf-8"
     )
 
 
 def get_dep_dist_names_from_pex(pex_path, match_prefix=""):
+    # type: (str, str) -> Set[str]
     """Given an on-disk pex, extract all of the unique first-level paths under `.deps`."""
     with open_zip(pex_path) as pex_zip:
         dep_gen = (f.split(os.sep)[1] for f in pex_zip.namelist() if f.startswith(".deps/"))
@@ -64,6 +80,7 @@ def get_dep_dist_names_from_pex(pex_path, match_prefix=""):
 
 @contextlib.contextmanager
 def temporary_content(content_map, interp=None, seed=31337, perms=0o644):
+    # type: (Mapping[str, Union[int, str]], Optional[Dict[str, Any]], int, int) -> Iterator[str]
     """Write content to disk where content is map from string => (int, string).
 
     If target is int, write int random bytes.  Otherwise write contents of string.
@@ -83,31 +100,16 @@ def temporary_content(content_map, interp=None, seed=31337, perms=0o644):
         yield td
 
 
-def yield_files(directory):
-    for root, _, files in os.walk(directory):
-        for f in files:
-            filename = os.path.join(root, f)
-            rel_filename = os.path.relpath(filename, directory)
-            yield filename, rel_filename
-
-
-def write_zipfile(directory, dest, reverse=False):
-    with open_zip(dest, "w") as zf:
-        for filename, rel_filename in sorted(yield_files(directory), reverse=reverse):
-            zf.write(filename, arcname=rel_filename)
-    return dest
-
-
 @contextlib.contextmanager
 def make_project(
-    name="my_project",
-    version="0.0.0",
-    zip_safe=True,
-    install_reqs=None,
-    extras_require=None,
-    entry_points=None,
+    name="my_project",  # type: str
+    version="0.0.0",  # type: str
+    zip_safe=True,  # type: bool
+    install_reqs=None,  # type: Optional[List[str]]
+    extras_require=None,  # type: Optional[Dict[str, List[str]]]
+    entry_points=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
 ):
-
+    # type: (...) -> Iterator[str]
     project_content = {
         "setup.py": dedent(
             """
@@ -135,7 +137,7 @@ def make_project(
         os.path.join(name, "my_module.py"): 'def do_something():\n  print("hello world!")\n',
         os.path.join(name, "package_data/resource1.dat"): 1000,
         os.path.join(name, "package_data/resource2.dat"): 1000,
-    }
+    }  # type: Dict[str, Union[str, int]]
 
     interp = {
         "project_name": name,
@@ -184,7 +186,7 @@ def built_wheel(
     version="0.0.0",  # type: str
     zip_safe=True,  # type: bool
     install_reqs=None,  # type: Optional[List[str]]
-    extras_require=None,  # type: Optional[List[str]]
+    extras_require=None,  # type: Optional[Dict[str, List[str]]]
     interpreter=None,  # type: Optional[PythonInterpreter]
     **kwargs  # type: Any
 ):
@@ -201,7 +203,13 @@ def built_wheel(
 
 
 @contextlib.contextmanager
-def make_source_dir(name="my_project", version="0.0.0", install_reqs=None, extras_require=None):
+def make_source_dir(
+    name="my_project",  # type: str
+    version="0.0.0",  # type: str
+    install_reqs=None,  # type: Optional[List[str]]
+    extras_require=None,  # type: Optional[Dict[str, List[str]]]
+):
+    # type: (...) -> Iterator[str]
     with make_project(
         name=name, version=version, install_reqs=install_reqs, extras_require=extras_require
     ) as td:
@@ -209,7 +217,14 @@ def make_source_dir(name="my_project", version="0.0.0", install_reqs=None, extra
 
 
 @contextlib.contextmanager
-def make_bdist(name="my_project", version="0.0.0", zip_safe=True, interpreter=None, **kwargs):
+def make_bdist(
+    name="my_project",  # type: str
+    version="0.0.0",  # type: str
+    zip_safe=True,  # type: bool
+    interpreter=None,  # type: Optional[PythonInterpreter]
+    **kwargs  # type: Any
+):
+    # type: (...) -> Iterator[str]
     with built_wheel(
         name=name, version=version, zip_safe=zip_safe, interpreter=interpreter, **kwargs
     ) as dist_location:
@@ -234,21 +249,24 @@ except ImportError:
 
 
 def write_simple_pex(
-    td, exe_contents=None, dists=None, sources=None, coverage=False, interpreter=None, pex_info=None
+    td,  # type: str
+    exe_contents=None,  # type: Optional[str]
+    dists=None,  # type: Optional[Iterable[Distribution]]
+    sources=None,  # type: Optional[Iterable[Tuple[str, str]]]
+    coverage=False,  # type: bool
+    interpreter=None,  # type: Optional[PythonInterpreter]
+    pex_info=None,  # type: Optional[PexInfo]
 ):
+    # type: (...) -> PEXBuilder
     """Write a pex file that optionally contains an executable entry point.
 
-    :param str td: temporary directory path
-    :param str exe_contents: entry point python file
+    :param td: temporary directory path
+    :param exe_contents: entry point python file
     :param dists: distributions to include, typically sdists or bdists
-    :type: list of :class:`pex.third_party.pkg_resources.Distribution`
     :param sources: sources to include, as a list of pairs (env_filename, contents)
-    :type sources: list of (str, str)
-    :param bool coverage: include coverage header
+    :param coverage: include coverage header
     :param interpreter: a custom interpreter to use to build the pex
-    :type interpreter: :class:`pex.interpreter.PythonInterpreter`
     :param pex_info: a custom PexInfo to use to build the pex.
-    :type pex_info: :class:`pex.pex_info.PexInfo`
     """
     dists = dists or []
     sources = sources or []
@@ -326,7 +344,14 @@ def run_pex_command(args, env=None, python=None, quiet=False):
     return IntegResults(output.decode("utf-8"), error.decode("utf-8"), process.returncode)
 
 
-def run_simple_pex(pex, args=(), interpreter=None, stdin=None, **kwargs):
+def run_simple_pex(
+    pex,  # type: str
+    args=(),  # type: Iterable[str]
+    interpreter=None,  # type: Optional[PythonInterpreter]
+    stdin=None,  # type: Optional[bytes]
+    **kwargs  # type: Any
+):
+    # type: (...) -> Tuple[bytes, int]
     p = PEX(pex, interpreter=interpreter)
     process = p.run(
         args=args,
@@ -340,7 +365,15 @@ def run_simple_pex(pex, args=(), interpreter=None, stdin=None, **kwargs):
     return stdout.replace(b"\r", b""), process.returncode
 
 
-def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False, interpreter=None):
+def run_simple_pex_test(
+    body,  # type: str
+    args=(),  # type: Iterable[str]
+    env=None,  # type: Optional[Mapping[str, str]]
+    dists=None,  # type: Optional[Iterable[Distribution]]
+    coverage=False,  # type: bool
+    interpreter=None,  # type: Optional[PythonInterpreter]
+):
+    # type: (...) -> Tuple[bytes, int]
     with temporary_dir() as td1, temporary_dir() as td2:
         pb = write_simple_pex(td1, body, dists=dists, coverage=coverage, interpreter=interpreter)
         pex = os.path.join(td2, "app.pex")
@@ -349,6 +382,7 @@ def run_simple_pex_test(body, args=(), env=None, dists=None, coverage=False, int
 
 
 def bootstrap_python_installer(dest):
+    # type: (str) -> None
     safe_rmtree(dest)
     for _ in range(3):
         try:
@@ -413,6 +447,7 @@ def ensure_python_interpreter(version):
 
 @contextmanager
 def environment_as(**kwargs):
+    # type: (**str) -> Iterator[None]
     existing = {key: os.environ.get(key) for key in kwargs}
 
     def adjust_environment(mapping):

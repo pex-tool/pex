@@ -22,7 +22,7 @@ from uuid import uuid4
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Iterator, NoReturn, Optional, Tuple, Union
 
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
@@ -33,12 +33,15 @@ DETERMINISTIC_DATETIME = datetime(
 
 
 def die(msg, exit_code=1):
+    # type: (str, int) -> NoReturn
     print(msg, file=sys.stderr)
     sys.exit(exit_code)
 
 
 def safe_copy(source, dest, overwrite=False):
+    # type: (str, str, bool) -> None
     def do_copy():
+        # type: () -> None
         temp_dest = dest + uuid4().hex
         shutil.copy(source, temp_dest)
         os.rename(temp_dest, dest)
@@ -169,6 +172,7 @@ def open_zip(path, *args, **kwargs):
 
 @contextlib.contextmanager
 def temporary_dir(cleanup=True):
+    # type: (bool) -> Iterator[str]
     td = tempfile.mkdtemp()
     try:
         yield td
@@ -193,6 +197,7 @@ def register_rmtree(directory):
 
 
 def safe_mkdir(directory, clean=False):
+    # type: (str, bool) -> None
     """Safely create a directory.
 
     Ensures a directory is present.  If it's not there, it is created.  If it is, it's a no-op. If
@@ -218,6 +223,7 @@ def safe_open(filename, *args, **kwargs):
 
 
 def safe_delete(filename):
+    # type: (str) -> None
     """Delete a file safely.
 
     If it's not present, no-op.
@@ -230,6 +236,7 @@ def safe_delete(filename):
 
 
 def safe_rmtree(directory):
+    # type: (str) -> None
     """Delete a directory if it's present.
 
     If it's not present, no-op.
@@ -239,6 +246,7 @@ def safe_rmtree(directory):
 
 
 def safe_sleep(seconds):
+    # type: (int) -> None
     """Ensure that the thread sleeps at a minimum the requested seconds.
 
     Until Python 3.5, there was no guarantee that time.sleep() would actually sleep the requested
@@ -335,6 +343,7 @@ def atomic_directory(target_dir, source=None):
 
 
 def chmod_plus_x(path):
+    # type: (str) -> None
     """Equivalent of unix `chmod a+x path`"""
     path_mode = os.stat(path).st_mode
     path_mode &= int("777", 8)
@@ -348,6 +357,7 @@ def chmod_plus_x(path):
 
 
 def chmod_plus_w(path):
+    # type: (str) -> None
     """Equivalent of unix `chmod +w path`"""
     path_mode = os.stat(path).st_mode
     path_mode &= int("777", 8)
@@ -356,6 +366,7 @@ def chmod_plus_w(path):
 
 
 def can_write_dir(path):
+    # type: (str) -> bool
     """Determines if the directory at path can be written to by the current process.
 
     If the directory doesn't exist, determines if it can be created and thus written to.
@@ -363,9 +374,8 @@ def can_write_dir(path):
     N.B.: This is a best-effort check only that uses permission heuristics and does not actually test
     that the directory can be written to with and writes.
 
-    :param str path: The directory path to test.
-    :return: `True` if the given path is a directory that can be written to by the current process.
-    :rtype boo:
+    :param path: The directory path to test.
+    :return:`True` if the given path is a directory that can be written to by the current process.
     """
     while not os.access(path, os.F_OK):
         parent_path = os.path.dirname(path)
@@ -376,25 +386,11 @@ def can_write_dir(path):
     return os.path.isdir(path) and os.access(path, os.R_OK | os.W_OK | os.X_OK)
 
 
-def touch(file, times=None):
-    """Equivalent of unix `touch path`.
-
-    :file The file to touch.
-    :times Either a tuple of (atime, mtime) or else a single time to use for both.  If not
-    specified both atime and mtime are updated to the current time.
-    """
-    if times:
-        if len(times) > 2:
-            raise ValueError(
-                "times must either be a tuple of (atime, mtime) or else a single time value "
-                "to use for both."
-            )
-
-        if len(times) == 1:
-            times = (times, times)
-
+def touch(file):
+    # type: (str) -> None
+    """Equivalent of unix `touch path`."""
     with safe_open(file, "a"):
-        os.utime(file, times)
+        os.utime(file, None)
 
 
 class Chroot(object):
