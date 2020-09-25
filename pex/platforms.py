@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 from textwrap import dedent
 
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, Union, Tuple
@@ -115,7 +115,7 @@ class Platform(object):
 
     def __eq__(self, other):
         # type: (Any) -> bool
-        return self._tup() == other  # type: ignore[no-any-return]
+        return cast(bool, self._tup() == other)
 
     def __hash__(self):
         # type: () -> int
