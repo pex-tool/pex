@@ -19,7 +19,7 @@ except ImportError:
     import mock  # type: ignore[no-redef]
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Dict, List
 
 
 def test_hash():
@@ -181,7 +181,7 @@ def test_iter_pth_paths(mock_exists):
             "import nosuchmodule\nfoo": [],
             "import nosuchmodule\n": [],
             "import bad)syntax\n": [],
-        }
+        }  # type: Dict[str, List[str]]
 
         for i, pth_content in enumerate(PTH_TEST_MAPPING):
             pth_tmp_path = os.path.abspath(os.path.join(tmpdir, "test%s.pth" % i))

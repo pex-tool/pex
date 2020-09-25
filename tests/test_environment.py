@@ -28,10 +28,15 @@ from pex.testing import (
     temporary_filename,
 )
 from pex.third_party.pkg_resources import Distribution
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, Iterator, Optional
 
 
 @contextmanager
 def yield_pex_builder(zip_safe=True, interpreter=None):
+    # type: (bool, Optional[PythonInterpreter]) -> Iterator[PEXBuilder]
     with nested(temporary_dir(), make_bdist("p1", zip_safe=zip_safe, interpreter=interpreter)) as (
         td,
         p1,
@@ -42,6 +47,7 @@ def yield_pex_builder(zip_safe=True, interpreter=None):
 
 
 def test_force_local():
+    # type: () -> None
     with nested(yield_pex_builder(), temporary_dir(), temporary_filename()) as (
         pb,
         pex_root,
@@ -64,6 +70,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
     interpreter=None, requirements=(), create_ns_packages=True
 ):
     def create_foo_bar_setup(name, **extra_args):
+        # type: (str, **Any) -> str
         setup_args = dict(name=name, version="0.0.1", packages=["foo", "foo.bar"])
         if create_ns_packages:
             setup_args.update(namespace_packages=["foo", "foo.bar"])
@@ -82,6 +89,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
         )
 
     def with_foo_bar_ns_packages(content):
+        # type: (Dict[str, str]) -> Dict[str, str]
         ns_packages = (
             {
                 os.path.join(
@@ -143,16 +151,19 @@ def assert_force_local_implicit_ns_packages_issues_598(
     )
 
     def add_requirements(builder, cache):
+        # type: (PEXBuilder, str) -> None
         for resolved_dist in resolve(requirements, cache=cache, interpreter=builder.interpreter):
             builder.add_requirement(resolved_dist.requirement)
             builder.add_distribution(resolved_dist.distribution)
 
     def add_wheel(builder, content):
+        # type: (PEXBuilder, Dict[str, str]) -> None
         with temporary_content(content) as project:
             dist = WheelBuilder(project, interpreter=builder.interpreter).bdist()
             builder.add_dist_location(dist)
 
     def add_sources(builder, content):
+        # type: (PEXBuilder, Dict[str, str]) -> None
         with temporary_content(content) as project:
             for path in content.keys():
                 builder.add_source(os.path.join(project, path), path)
@@ -181,6 +192,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
 
 @pytest.fixture
 def setuptools_requirement():
+    # type: () -> str
     # We use a very old version of setuptools to prove the point the user version is what is used
     # here and not the vendored version (when possible). A newer setuptools is needed though to work
     # with python 3.
@@ -188,28 +200,33 @@ def setuptools_requirement():
 
 
 def test_issues_598_explicit_any_interpreter(setuptools_requirement):
+    # type: (str) -> None
     assert_force_local_implicit_ns_packages_issues_598(
         requirements=[setuptools_requirement], create_ns_packages=True
     )
 
 
 def test_issues_598_explicit_missing_requirement():
+    # type: () -> None
     assert_force_local_implicit_ns_packages_issues_598(create_ns_packages=True)
 
 
 @pytest.fixture
 def python_35_interpreter():
+    # type: () -> PythonInterpreter
     # Python 3.5 supports implicit namespace packages.
     return PythonInterpreter.from_binary(ensure_python_interpreter(PY35))
 
 
 def test_issues_598_implicit(python_35_interpreter):
+    # type: (PythonInterpreter) -> None
     assert_force_local_implicit_ns_packages_issues_598(
         interpreter=python_35_interpreter, create_ns_packages=False
     )
 
 
 def test_issues_598_implicit_explicit_mixed(python_35_interpreter, setuptools_requirement):
+    # type: (PythonInterpreter, str) -> None
     assert_force_local_implicit_ns_packages_issues_598(
         interpreter=python_35_interpreter,
         requirements=[setuptools_requirement],
@@ -218,10 +235,12 @@ def test_issues_598_implicit_explicit_mixed(python_35_interpreter, setuptools_re
 
 
 def normalize(path):
+    # type: (str) -> str
     return os.path.normpath(os.path.realpath(path)).lower()
 
 
 def assert_dist_cache(zip_safe):
+    # type: (bool) -> None
     with nested(yield_pex_builder(zip_safe=zip_safe), temporary_dir(), temporary_filename()) as (
         pb,
         pex_root,
@@ -244,6 +263,7 @@ def assert_dist_cache(zip_safe):
 
 
 def test_write_zipped_internal_cache():
+    # type: () -> None
     assert_dist_cache(zip_safe=False)
 
     # Zip_safe pexes still always should have dists written to install cache, only the pex code (
@@ -252,6 +272,7 @@ def test_write_zipped_internal_cache():
 
 
 def test_load_internal_cache_unzipped():
+    # type: () -> None
     # Unzipped pexes should use distributions from the pex internal cache.
     with nested(yield_pex_builder(zip_safe=True), temporary_dir()) as (pb, pex_root):
         pb.info.pex_root = pex_root
@@ -275,7 +296,10 @@ _KNOWN_BAD_APPLE_INTERPRETER = (
     reason="Test requires known bad Apple interpreter {}".format(_KNOWN_BAD_APPLE_INTERPRETER),
 )
 def test_osx_platform_intel_issue_523():
+    # type: () -> None
+
     def bad_interpreter():
+        # type: () -> PythonInterpreter
         return PythonInterpreter.from_binary(_KNOWN_BAD_APPLE_INTERPRETER)
 
     with temporary_dir() as cache:
@@ -339,6 +363,7 @@ def test_osx_platform_intel_issue_523():
 
 
 def test_activate_extras_issue_615():
+    # type: () -> None
     with yield_pex_builder() as pb:
         for resolved_dist in resolver.resolve(["pex[requests]==1.6.3"], interpreter=pb.interpreter):
             pb.add_requirement(resolved_dist.requirement)
@@ -360,6 +385,7 @@ def test_activate_extras_issue_615():
 
 
 def assert_namespace_packages_warning(distribution, version, expected_warning):
+    # type: (str, str, bool) -> None
     requirement = "{}=={}".format(distribution, version)
     pb = PEXBuilder()
     for resolved_dist in resolver.resolve([requirement]):
@@ -382,10 +408,12 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
 
 
 def test_present_non_empty_namespace_packages_metadata_does_warn():
+    # type: () -> None
     assert_namespace_packages_warning("twitter.common.lang", "0.3.11", expected_warning=True)
 
 
 def test_present_but_empty_namespace_packages_metadata_does_not_warn():
+    # type: () -> None
     assert_namespace_packages_warning("pycodestyle", "2.5.0", expected_warning=False)
 
 
@@ -409,6 +437,7 @@ def test_present_but_empty_namespace_packages_metadata_does_not_warn():
 def test_can_add_handles_optional_build_tag_in_wheel(
     python_35_interpreter, wheel_filename, wheel_is_linux
 ):
+    # type: (PythonInterpreter, str, bool) -> None
     pex_environment = PEXEnvironment(
         pex="", pex_info=PexInfo.default(python_35_interpreter), interpreter=python_35_interpreter
     )
@@ -417,6 +446,7 @@ def test_can_add_handles_optional_build_tag_in_wheel(
 
 
 def test_can_add_handles_invalid_wheel_filename(python_35_interpreter):
+    # type: (PythonInterpreter) -> None
     pex_environment = PEXEnvironment(
         pex="", pex_info=PexInfo.default(python_35_interpreter), interpreter=python_35_interpreter
     )
