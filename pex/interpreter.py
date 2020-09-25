@@ -29,7 +29,7 @@ from pex.util import CacheHelper
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Dict
+    from typing import Dict, Iterator
 
 
 class PythonIdentity(object):
@@ -144,6 +144,7 @@ class PythonIdentity(object):
 
     @property
     def version_str(self):
+        # type: () -> str
         return ".".join(map(str, self.version))
 
     @property
@@ -164,14 +165,13 @@ class PythonIdentity(object):
 
     @property
     def distribution(self):
+        # type: () -> Distribution
         return Distribution(project_name=self.interpreter, version=self.version_str)
 
     def iter_supported_platforms(self):
+        # type: () -> Iterator[Platform]
         """All platforms supported by the associated interpreter ordered from most specific to
-        least.
-
-        :rtype: iterator of :class:`Platform`
-        """
+        least."""
         for tags in self._supported_tags:
             yield Platform.from_tags(platform=tags.platform, python=tags.interpreter, abi=tags.abi)
 
@@ -200,6 +200,7 @@ class PythonIdentity(object):
         return self.distribution in requirement
 
     def hashbang(self):
+        # type: () -> str
         hashbang_string = self.INTERPRETER_NAME_TO_HASHBANG.get(
             self._interpreter_name, "CPython"
         ) % {
@@ -211,11 +212,13 @@ class PythonIdentity(object):
 
     @property
     def python(self):
+        # type: () -> str
         # return the python version in the format of the 'python' key for distributions
         # specifically, '2.7', '3.2', etc.
         return "%d.%d" % (self.version[0:2])
 
     def __str__(self):
+        # type: () -> str
         # N.B.: Kept as distinct from __repr__ to support legacy str(identity) used by Pants v1 when
         # forming cache locations.
         return "{interpreter_name}-{major}.{minor}.{patch}".format(
@@ -226,6 +229,7 @@ class PythonIdentity(object):
         )
 
     def __repr__(self):
+        # type: () -> str
         return (
             "{type}({binary!r}, {python_tag!r}, {abi_tag!r}, {platform_tag!r}, {version!r})".format(
                 type=self.__class__.__name__,
@@ -246,6 +250,7 @@ class PythonIdentity(object):
         return self._tup() == other._tup()
 
     def __hash__(self):
+        # type: () -> int
         return hash(self._tup())
 
 

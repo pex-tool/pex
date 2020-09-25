@@ -300,8 +300,7 @@ def write_simple_pex(
     return pb
 
 
-# We would normally use a dataclass or NamedTuple, but can't do that with Python 2 in a way
-# understood by MyPy.
+# TODO(#1041): use `typing.NamedTuple` once we require Python 3.
 class IntegResults(object):
     """Convenience object to return integration run results."""
 

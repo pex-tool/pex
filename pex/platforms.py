@@ -6,7 +6,13 @@ from __future__ import absolute_import
 from collections import namedtuple
 from textwrap import dedent
 
+from pex.typing import TYPE_CHECKING, cast
 
+if TYPE_CHECKING:
+    from typing import Union
+
+
+# TODO(#1041): Use typing.NamedTuple once we require Python 3.
 class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
     """Represents a target platform and it's extended interpreter compatibility tags (e.g.
     implementation, version and ABI)."""
@@ -18,6 +24,7 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
 
     @classmethod
     def create(cls, platform):
+        # type: (Union[str, Platform]) -> Platform
         if isinstance(platform, Platform):
             return platform
 
@@ -62,6 +69,7 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
 
     @staticmethod
     def _maybe_prefix_abi(impl, version, abi):
+        # type: (str, str, str) -> str
         if impl != "cp":
             return abi
         # N.B. This permits CPython users to pass in simpler extended platform
@@ -69,20 +77,9 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
         impl_ver = "".join((impl, version))
         return abi if abi.startswith(impl_ver) else "".join((impl_ver, abi))
 
-    def __new__(cls, platform, impl, version, abi):
-        if not all((platform, impl, version, abi)):
-            raise cls.InvalidPlatformError(
-                "Platform specifiers cannot have blank fields. Given platform={platform!r}, impl={impl!r}, "
-                "version={version!r}, abi={abi!r}".format(
-                    platform=platform, impl=impl, version=version, abi=abi
-                )
-            )
-        platform = platform.replace("-", "_").replace(".", "_")
-        abi = cls._maybe_prefix_abi(impl, version, abi)
-        return super(Platform, cls).__new__(cls, platform, impl, version, abi)
-
     @classmethod
     def from_tags(cls, platform, python, abi):
+        # type: (str, str, str) -> Platform
         """Creates a platform corresponding to wheel compatibility tags.
 
         See: https://www.python.org/dev/peps/pep-0425/#details
@@ -90,5 +87,38 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
         impl, version = python[:2], python[2:]
         return cls(platform=platform, impl=impl, version=version, abi=abi)
 
+    def __new__(cls, platform, impl, version, abi):
+        if not all((platform, impl, version, abi)):
+            raise cls.InvalidPlatformError(
+                "Platform specifiers cannot have blank fields. Given platform={platform!r}, "
+                "impl={impl!r}, version={version!r}, abi={abi!r}".format(
+                    platform=platform, impl=impl, version=version, abi=abi
+                )
+            )
+        platform = platform.replace("-", "_").replace(".", "_")
+        abi = cls._maybe_prefix_abi(impl, version, abi)
+        return super(Platform, cls).__new__(cls, platform, impl, version, abi)
+
+    @property
+    def platform(self):
+        # type: () -> str
+        return cast(str, super(Platform, self).platform)
+
+    @property
+    def impl(self):
+        # type: () -> str
+        return cast(str, super(Platform, self).impl)
+
+    @property
+    def version(self):
+        # type: () -> str
+        return cast(str, super(Platform, self).version)
+
+    @property
+    def abi(self):
+        # type: () -> str
+        return cast(str, super(Platform, self).abi)
+
     def __str__(self):
-        return self.SEP.join(self)
+        # type: () -> str
+        return cast(str, self.SEP.join(self))
