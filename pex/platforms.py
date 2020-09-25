@@ -102,22 +102,22 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
     @property
     def platform(self):
         # type: () -> str
-        return super(Platform, self).platform  # type: ignore[no-any-return]
+        return cast(str, super(Platform, self).platform)
 
     @property
     def impl(self):
         # type: () -> str
-        return super(Platform, self).impl  # type: ignore[no-any-return]
+        return cast(str, super(Platform, self).impl)
 
     @property
     def version(self):
         # type: () -> str
-        return super(Platform, self).version  # type: ignore[no-any-return]
+        return cast(str, super(Platform, self).version)
 
     @property
     def abi(self):
         # type: () -> str
-        return super(Platform, self).abi  # type: ignore[no-any-return]
+        return cast(str, super(Platform, self).abi)
 
     def __str__(self):
         # type: () -> str
