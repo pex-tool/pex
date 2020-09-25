@@ -7,18 +7,21 @@ from __future__ import absolute_import
 import email
 
 from pex.third_party.packaging.specifiers import SpecifierSet
-from pex.third_party.pkg_resources import DistInfoDistribution
+from pex.third_party.pkg_resources import DistInfoDistribution, Distribution
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Optional
 
 
 def requires_python(dist):
+    # type: (Distribution) -> Optional[SpecifierSet]
     """Examines dist for `Python-Requires` metadata and returns version constraints if any.
 
     See: https://www.python.org/dev/peps/pep-0345/#requires-python
 
     :param dist: A distribution to check for `Python-Requires` metadata.
-    :type dist: :class:`pkg_resources.Distribution`
     :return: The required python version specifiers.
-    :rtype: :class:`packaging.specifiers.SpecifierSet` or None
     """
     if not dist.has_metadata(DistInfoDistribution.PKG_INFO):
         return None

@@ -8,10 +8,15 @@ from __future__ import absolute_import, print_function
 import os
 
 from pex.common import die
-from pex.interpreter import PythonIdentity
+from pex.interpreter import PythonIdentity, PythonInterpreter
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Iterable, Optional, Tuple
 
 
 def validate_constraints(constraints):
+    # type: (Iterable[str]) -> None
     # TODO: add check to see if constraints are mutually exclusive (bad) so no time is wasted:
     # https://github.com/pantsbuild/pex/issues/432
     for req in constraints:
@@ -26,11 +31,10 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
     """Indicates interpreter constraints could not be satisfied."""
 
     def __init__(self, constraints, candidates, failures):
+        # type: (Iterable[str], Iterable[PythonInterpreter], Iterable[Tuple[str, str]]) -> None
         """
         :param constraints: The constraints that could not be satisfied.
-        :type constraints: iterable of str
         :param candidates: The python interpreters that were compared against the constraints.
-        :type candidates: iterable of :class:`pex.interpreter.PythonInterpreter`
         """
         self.constraints = tuple(constraints)
         self.candidates = tuple(candidates)
@@ -38,13 +42,13 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         super(UnsatisfiableInterpreterConstraintsError, self).__init__(self.create_message())
 
     def create_message(self, preamble=None):
+        # type: (Optional[str]) -> str
         """Create a message describing  failure to find matching interpreters with an optional
         preamble.
 
-        :param str preamble: An optional preamble to the message that will be displayed above it
+        :param preamble: An optional preamble to the message that will be displayed above it
                              separated by an empty blank line.
         :return: A descriptive message useable for display to an end user.
-        :rtype: str
         """
         preamble = "{}\n\n".format(preamble) if preamble else ""
 

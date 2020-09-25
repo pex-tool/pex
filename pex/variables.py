@@ -12,6 +12,10 @@ from contextlib import contextmanager
 
 from pex import pex_warnings
 from pex.common import can_write_dir, die, safe_mkdtemp
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Dict, Iterator, Optional, Tuple, Union
 
 __all__ = ("ENV", "Variables")
 
@@ -21,15 +25,17 @@ class Variables(object):
 
     @classmethod
     def process_pydoc(cls, pydoc):
+        # type: (Optional[str]) -> Tuple[str, str]
         if pydoc is None:
             return "Unknown", "Unknown"
-        pydoc = pydoc.splitlines()
-        variable_type = pydoc[0]
-        variable_text = " ".join(filter(None, (line.strip() for line in pydoc[2:])))
+        pydoc_lines = pydoc.splitlines()
+        variable_type = pydoc_lines[0]
+        variable_text = " ".join(filter(None, (line.strip() for line in pydoc_lines[2:])))
         return variable_type, variable_text
 
     @classmethod
     def iter_help(cls):
+        # type: () -> Iterator[Tuple[str, str, str]]
         for variable_name, value in sorted(cls.__dict__.items()):
             if not variable_name.startswith("PEX_"):
                 continue
@@ -38,13 +44,13 @@ class Variables(object):
 
     @classmethod
     def from_rc(cls, rc=None):
+        # type: (Optional[str]) -> Dict[str, str]
         """Read pex runtime configuration variables from a pexrc file.
 
         :param rc: an absolute path to a pexrc file.
         :return: A dict of key value pairs found in processed pexrc files.
-        :rtype: dict
         """
-        ret_vars = {}
+        ret_vars = {}  # type: Dict[str, str]
         rc_locations = [
             "/etc/pexrc",
             "~/.pexrc",
@@ -68,40 +74,47 @@ class Variables(object):
             return kv
 
     def __init__(self, environ=None, rc=None, use_defaults=True):
+        # type: (Optional[Dict[str, str]], Optional[str], bool) -> None
         self._use_defaults = use_defaults
-        self._environ = (environ if environ is not None else os.environ).copy()
+        self._environ = environ.copy() if environ is not None else os.environ.copy()
         if not self.PEX_IGNORE_RCFILES:
             rc_values = self.from_rc(rc).copy()
             rc_values.update(self._environ)
             self._environ = rc_values
 
     def copy(self):
+        # type: () -> Dict[str, str]
         return self._environ.copy()
 
+    # TODO(#1041): Use a TypeVar once we require Python 3 to make this more precise.
     def _defaulted(self, default):
+        # type: (Optional[Union[str, int, bool]]) -> Optional[Union[str, int, bool]]
         return default if self._use_defaults else None
 
     def _get_bool(self, variable, default=False):
+        # type: (str, Optional[bool]) -> Optional[bool]
         value = self._environ.get(variable)
-        if value is not None:
-            if value.lower() in ("0", "false"):
-                return False
-            elif value.lower() in ("1", "true"):
-                return True
-            else:
-                die("Invalid value for %s, must be 0/1/false/true, got %r" % (variable, value))
-        else:
-            return self._defaulted(default)
+        if value is None:
+            return self._defaulted(default)  # type: ignore[return-value]
+        if value.lower() in ("0", "false"):
+            return False
+        if value.lower() in ("1", "true"):
+            return True
+        die("Invalid value for %s, must be 0/1/false/true, got %r" % (variable, value))
 
     def _get_string(self, variable, default=None):
-        return self._environ.get(variable, self._defaulted(default))
+        # type: (str, Optional[str]) -> Optional[str]
+        return self._environ.get(variable, self._defaulted(default))  # type: ignore[arg-type]
 
     def _get_path(self, variable, default=None):
+        # type: (str, Optional[str]) -> Optional[str]
         value = self._get_string(variable, default=default)
         if value is not None:
-            return os.path.realpath(os.path.expanduser(value))
+            value = os.path.realpath(os.path.expanduser(value))
+        return value
 
     def _get_int(self, variable, default=None):
+        # type: (str, Optional[int]) -> Optional[int]
         try:
             return int(self._environ[variable])
         except ValueError:
@@ -110,15 +123,17 @@ class Variables(object):
                 % (variable, self._environ[variable])
             )
         except KeyError:
-            return self._defaulted(default)
+            return self._defaulted(default)  # type: ignore[return-value]
 
     def strip(self):
+        # type: () -> Variables
         stripped_environ = {
             k: v for k, v in self.copy().items() if not k.startswith(("PEX_", "__PEX_"))
         }
         return Variables(environ=stripped_environ)
 
     def strip_defaults(self):
+        # type: () -> Variables
         """Returns a copy of these variables but with defaults stripped.
 
         Any variables not explicitly set in the environment will have a value of `None`.
@@ -127,6 +142,7 @@ class Variables(object):
 
     @contextmanager
     def patch(self, **kw):
+        # type: (**str) -> Iterator[Dict[str, str]]
         """Update the environment for the duration of a context."""
         old_environ = self._environ
         self._environ = self._environ.copy()
@@ -136,6 +152,7 @@ class Variables(object):
 
     @property
     def PEX_ALWAYS_CACHE(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Always write PEX dependencies to disk prior to invoking regardless whether or not the
@@ -147,6 +164,7 @@ class Variables(object):
 
     @property
     def PEX_COVERAGE(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Enable coverage reporting for this PEX file.  This requires that the "coverage" module is
@@ -156,6 +174,7 @@ class Variables(object):
 
     @property
     def PEX_COVERAGE_FILENAME(self):
+        # type: () -> Optional[str]
         """Filename.
 
         Write the coverage data to the specified filename.  If PEX_COVERAGE_FILENAME is not
@@ -165,6 +184,7 @@ class Variables(object):
 
     @property
     def PEX_FORCE_LOCAL(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Force this PEX to be not-zip-safe. This forces all code and dependencies to be written into
@@ -178,6 +198,7 @@ class Variables(object):
 
     @property
     def PEX_UNZIP(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Force this PEX to unzip itself to $PEX_ROOT and re-execute from there.  If the pex file will
@@ -188,6 +209,7 @@ class Variables(object):
 
     @property
     def PEX_IGNORE_ERRORS(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Ignore any errors resolving dependencies when invoking the PEX file. This can be useful if
@@ -198,6 +220,7 @@ class Variables(object):
 
     @property
     def PEX_INHERIT_PATH(self):
+        # type: () -> Optional[str]
         """String (false|prefer|fallback)
 
         Allow inheriting packages from site-packages, user site-packages and the PYTHONPATH. By default,
@@ -216,6 +239,7 @@ class Variables(object):
 
     @property
     def PEX_INTERPRETER(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Drop into a REPL instead of invoking the predefined entry point of this PEX. This can be
@@ -228,6 +252,7 @@ class Variables(object):
 
     @property
     def PEX_MODULE(self):
+        # type: () -> Optional[str]
         """String.
 
         Override the entry point into the PEX file.  Can either be a module, e.g.
@@ -237,15 +262,17 @@ class Variables(object):
 
     @property
     def PEX_PROFILE(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Enable application profiling.  If specified and PEX_PROFILE_FILENAME is not specified, PEX
         will print profiling information to stdout.
         """
-        return self._get_path("PEX_PROFILE", default=None)
+        return self._get_bool("PEX_PROFILE", default=False)
 
     @property
     def PEX_PROFILE_FILENAME(self):
+        # type: () -> Optional[str]
         """Filename.
 
         Profile the application and dump a profile into the specified filename in the standard
@@ -255,6 +282,7 @@ class Variables(object):
 
     @property
     def PEX_PROFILE_SORT(self):
+        # type: () -> Optional[str]
         """String.
 
         Toggle the profile sorting algorithm used to print out profile columns.  Default:
@@ -264,6 +292,7 @@ class Variables(object):
 
     @property
     def PEX_PYTHON(self):
+        # type: () -> Optional[str]
         """String.
 
         Override the Python interpreter used to invoke this PEX.  Can be either an absolute path to
@@ -274,6 +303,7 @@ class Variables(object):
 
     @property
     def PEX_PYTHON_PATH(self):
+        # type: () -> Optional[str]
         """String.
 
         A colon-separated string containing paths of blessed Python interpreters
@@ -287,6 +317,7 @@ class Variables(object):
 
     @property
     def PEX_EXTRA_SYS_PATH(self):
+        # type: () -> Optional[str]
         """String.
 
         A colon-separated string containing paths to add to the runtime sys.path.
@@ -305,6 +336,7 @@ class Variables(object):
 
     @property
     def PEX_ROOT(self):
+        # type: () -> Optional[str]
         """Directory.
 
         The directory location for PEX to cache any dependencies and code.  PEX must write not-zip-
@@ -329,6 +361,7 @@ class Variables(object):
 
     @property
     def PEX_PATH(self):
+        # type: () -> Optional[str]
         """A set of one or more PEX files.
 
         Merge the packages from other PEX files into the current environment.  This allows you to
@@ -343,6 +376,7 @@ class Variables(object):
 
     @property
     def PEX_SCRIPT(self):
+        # type: () -> Optional[str]
         """String.
 
         The script name within the PEX environment to execute.  This must either be an entry point
@@ -354,6 +388,7 @@ class Variables(object):
 
     @property
     def PEX_TEARDOWN_VERBOSE(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Enable verbosity for when the interpreter shuts down.  This is mostly only useful for
@@ -363,6 +398,7 @@ class Variables(object):
 
     @property
     def PEX_VERBOSE(self):
+        # type: () -> Optional[int]
         """Integer.
 
         Set the verbosity level of PEX debug logging.  The higher the number, the more logging, with
@@ -373,6 +409,7 @@ class Variables(object):
 
     @property
     def PEX_IGNORE_RCFILES(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Explicitly disable the reading/parsing of pexrc files (~/.pexrc). Default: false.
@@ -381,6 +418,7 @@ class Variables(object):
 
     @property
     def PEX_EMIT_WARNINGS(self):
+        # type: () -> Optional[bool]
         """Boolean.
 
         Emit UserWarnings to stderr. When false, warnings will only be logged at PEX_VERBOSE >= 1.
