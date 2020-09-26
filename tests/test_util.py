@@ -10,7 +10,7 @@ from pex.common import safe_mkdir, temporary_dir
 from pex.compatibility import nested, to_bytes
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper, DistributionHelper, iter_pth_paths, named_temporary_file
 
 try:
@@ -60,36 +60,6 @@ except ImportError:
     import builtins as python_builtins  # type: ignore[no-redef]
 
 
-@mock.patch("pex.util.safe_mkdtemp", autospec=True, spec_set=True)
-@mock.patch("pex.util.safe_mkdir", autospec=True, spec_set=True)
-@mock.patch("pex.util.resource_listdir", autospec=True, spec_set=True)
-@mock.patch("pex.util.resource_isdir", autospec=True, spec_set=True)
-@mock.patch("pex.util.resource_string", autospec=True, spec_set=True)
-def test_access_zipped_assets(
-    mock_resource_string,  # type: Any
-    mock_resource_isdir,  # type: Any
-    mock_resource_listdir,  # type: Any
-    mock_safe_mkdir,  # type: Any
-    mock_safe_mkdtemp,  # type: Any
-):
-    # type: (...) -> None
-    mock_open = mock.mock_open()
-    mock_safe_mkdtemp.side_effect = iter(["tmpJIMMEH", "faketmpDir"])
-    mock_resource_listdir.side_effect = iter([["./__init__.py", "./directory/"], ["file.py"]])
-    mock_resource_isdir.side_effect = iter([False, True, False])
-    mock_resource_string.return_value = "testing"
-
-    with mock.patch("%s.open" % python_builtins.__name__, mock_open, create=True):
-        temp_dir = DistributionHelper.access_zipped_assets("twitter.common", "dirutil")
-        assert mock_resource_listdir.call_count == 2
-        assert mock_open.call_count == 2
-        file_handle = mock_open.return_value.__enter__.return_value
-        assert file_handle.write.call_count == 2
-        assert mock_safe_mkdtemp.mock_calls == [mock.call()]
-        assert temp_dir == "tmpJIMMEH"
-        assert mock_safe_mkdir.mock_calls == [mock.call(os.path.join("tmpJIMMEH", "directory"))]
-
-
 def assert_access_zipped_assets(distribution_helper_import):
     # type: (str) -> bytes
     test_executable = dedent(
@@ -127,8 +97,7 @@ def assert_access_zipped_assets(distribution_helper_import):
         stdout, stderr = process.communicate()
         assert process.returncode == 0
         assert b"accessed\n" == stdout
-        # TODO(#1034): remove once MyPy understands Executor.open_process()
-        return stderr  # type: ignore[no-any-return]
+        return cast(bytes, stderr)
 
 
 def test_access_zipped_assets_integration():

@@ -994,12 +994,18 @@ def test_pex_multi_resolve_2():
             ), "{} was not found in wheel".format(dist_substr)
 
 
+if TYPE_CHECKING:
+    TEST_RESOLVE_FN = Callable[[str, str, str, str, Optional[str]], None]
+    ENSURE_FAILURE_FN = Callable[[str, str, str, str], None]
+
+
 @contextmanager
 def pex_manylinux_and_tag_selection_context():
-    # type: () -> Iterator[Tuple[Callable[[str, str, str, str, Optional[str]], None], Callable[[str, str, str, str], None]]]
+    # type: () -> Iterator[Tuple[TEST_RESOLVE_FN, ENSURE_FAILURE_FN]]
     with temporary_dir() as output_dir:
 
         def do_resolve(req_name, req_version, platform, extra_flags=None):
+            # type: (str, str, str, Optional[str]) -> Tuple[str, IntegResults]
             extra_flags = extra_flags or ""
             pex_path = os.path.join(output_dir, "test.pex")
             results = run_pex_command(
@@ -1007,7 +1013,7 @@ def pex_manylinux_and_tag_selection_context():
                     "--disable-cache",
                     "--no-build",
                     "%s==%s" % (req_name, req_version),
-                    "--platform=%s" % (platform),
+                    "--platform=%s" % platform,
                     "-o",
                     pex_path,
                 ]
@@ -2192,6 +2198,7 @@ def iter_distributions(pex_root, project_name):
             if wheel_path in found:
                 continue
             dist = DistributionHelper.distribution_from_path(wheel_path)
+            assert dist is not None
             if dist.project_name == project_name:
                 found.add(wheel_path)
                 yield dist

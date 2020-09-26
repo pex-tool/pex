@@ -224,7 +224,7 @@ def make_bdist(
     interpreter=None,  # type: Optional[PythonInterpreter]
     **kwargs  # type: Any
 ):
-    # type: (...) -> Iterator[str]
+    # type: (...) -> Iterator[Distribution]
     with built_wheel(
         name=name, version=version, zip_safe=zip_safe, interpreter=interpreter, **kwargs
     ) as dist_location:
@@ -235,7 +235,9 @@ def make_bdist(
             install_dir=install_dir,
             target=DistributionTarget.for_interpreter(interpreter),
         ).wait()
-        yield DistributionHelper.distribution_from_path(install_dir)
+        dist = DistributionHelper.distribution_from_path(install_dir)
+        assert dist is not None
+        yield dist
 
 
 COVERAGE_PREAMBLE = """

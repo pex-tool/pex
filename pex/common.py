@@ -19,10 +19,10 @@ from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
 
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, NoReturn, Optional, Tuple, Union
+    from typing import Any, DefaultDict, Iterator, NoReturn, Optional, Tuple, Set, Union
 
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
@@ -81,23 +81,25 @@ def safe_copy(source, dest, overwrite=False):
 # See http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
 class MktempTeardownRegistry(object):
     def __init__(self):
-        self._registry = defaultdict(set)
-        self._getpid = os.getpid
+        # type: () -> None
+        self._registry = cast("DefaultDict[int, Set[str]]", defaultdict(set))
         self._lock = threading.RLock()
         self._exists = os.path.exists
-        self._getenv = os.getenv
         self._rmtree = shutil.rmtree
         atexit.register(self.teardown)
 
     def __del__(self):
+        # type: () -> None
         self.teardown()
 
     def register(self, path):
+        # type: (str) -> str
         with self._lock:
             self._registry[self._getpid()].add(path)
         return path
 
     def teardown(self):
+        # type: () -> None
         for td in self._registry.pop(self._getpid(), []):
             if self._exists(td):
                 self._rmtree(td)
@@ -188,10 +190,11 @@ def safe_mkdtemp(**kw):
     Takes the same parameters as tempfile.mkdtemp.
     """
     # proper lock sanitation on fork [issue 6721] would be desirable here.
-    return _MKDTEMP_SINGLETON.register(tempfile.mkdtemp(**kw))  # type: ignore[no-any-return]
+    return _MKDTEMP_SINGLETON.register(tempfile.mkdtemp(**kw))
 
 
 def register_rmtree(directory):
+    # type: (str) -> str
     """Register an existing directory to be cleaned up at process exit."""
     return _MKDTEMP_SINGLETON.register(directory)
 

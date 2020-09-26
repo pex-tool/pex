@@ -8,29 +8,36 @@ import threading
 import time
 from contextlib import contextmanager
 
+from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
 
 __all__ = ("TraceLogger",)
+
+if TYPE_CHECKING:
+    from typing import Any, Callable, IO, Iterator, List, Optional
 
 
 class Trace(object):
     __slots__ = ("msg", "verbosity", "parent", "children", "_clock", "_start", "_stop")
 
     def __init__(self, msg, parent=None, verbosity=1, clock=time):
+        # type: (str, Optional[Trace], int, Any) -> None
         self.msg = msg
         self.verbosity = verbosity
         self.parent = parent
         if parent is not None:
-            parent.children.append(self)
-        self.children = []
+            parent.children.append(self)  # type: ignore[has-type]
+        self.children = cast("List[Trace]", [])
         self._clock = clock
-        self._start = self._clock.time()
-        self._stop = None
+        self._start = cast(float, self._clock.time())
+        self._stop = cast("Optional[float]", None)
 
     def stop(self):
+        # type: () -> None
         self._stop = self._clock.time()
 
     def duration(self):
+        # type: () -> float
         assert self._stop is not None
         return self._stop - self._start
 
@@ -39,6 +46,7 @@ class TraceLogger(object):
     """A multi-threaded tracer."""
 
     def __init__(self, predicate=None, output=sys.stderr, clock=time, prefix=""):
+        # type: (Optional[Callable[[int], bool]], IO, Any, str) -> None
         """If predicate specified, it should take a "verbosity" integer and determine whether or not
         to log, e.g.
 
@@ -51,7 +59,7 @@ class TraceLogger(object):
         output defaults to sys.stderr, but can take any file-like object.
         """
         self._predicate = predicate or (lambda verbosity: True)
-        self._length = None
+        self._length = cast("Optional[int]", None)
         self._output = output
         self._isatty = getattr(output, "isatty", False) and output.isatty()
         self._lock = threading.RLock()
@@ -60,9 +68,11 @@ class TraceLogger(object):
         self._prefix = prefix
 
     def should_log(self, V):
+        # type: (int) -> bool
         return self._predicate(V)
 
     def log(self, msg, V=1, end="\n"):
+        # type: (str, int, str) -> None
         if not self.should_log(V):
             return
         if not self._isatty and end == "\r":
@@ -77,6 +87,7 @@ class TraceLogger(object):
             self._length = (len(self._prefix) + len(msg)) if end == "\r" else 0
 
     def print_trace_snippet(self):
+        # type: () -> None
         parent = self._local.parent
         parent_verbosity = parent.verbosity
         if not self.should_log(parent_verbosity):
@@ -89,6 +100,7 @@ class TraceLogger(object):
         self.log(" :: ".join(reversed(traces)), V=parent_verbosity, end="\r")
 
     def print_trace(self, indent=0, node=None):
+        # type: (int, Optional[Trace]) -> None
         node = node or self._local.parent
         with self._lock:
             self.log(
@@ -100,7 +112,8 @@ class TraceLogger(object):
 
     @contextmanager
     def timed(self, msg, V=1):
-        if getattr(self._local, "parent", None) is None:
+        # type: (str, int) -> Iterator[None]
+        if not hasattr(self._local, "parent"):
             self._local.parent = Trace(msg, verbosity=V, clock=self._clock)
         else:
             parent = self._local.parent
@@ -115,4 +128,7 @@ class TraceLogger(object):
             self._local.parent = None
 
 
-TRACER = TraceLogger(predicate=lambda verbosity: verbosity <= ENV.PEX_VERBOSE, prefix="pex: ")
+TRACER = TraceLogger(
+    predicate=lambda verbosity: ENV.PEX_VERBOSE is not None and verbosity <= ENV.PEX_VERBOSE,
+    prefix="pex: ",
+)

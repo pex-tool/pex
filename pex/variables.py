@@ -15,7 +15,9 @@ from pex.common import can_write_dir, die, safe_mkdtemp
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterator, Optional, Tuple, Union
+    from typing import Dict, Iterator, Optional, Tuple, TypeVar
+
+    _T = TypeVar("_T", str, int, bool)
 
 __all__ = ("ENV", "Variables")
 
@@ -86,16 +88,15 @@ class Variables(object):
         # type: () -> Dict[str, str]
         return self._environ.copy()
 
-    # TODO(#1041): Use a TypeVar once we require Python 3 to make this more precise.
     def _defaulted(self, default):
-        # type: (Optional[Union[str, int, bool]]) -> Optional[Union[str, int, bool]]
+        # type: (Optional[_T]) -> Optional[_T]
         return default if self._use_defaults else None
 
     def _get_bool(self, variable, default=False):
         # type: (str, Optional[bool]) -> Optional[bool]
         value = self._environ.get(variable)
         if value is None:
-            return self._defaulted(default)  # type: ignore[return-value]
+            return self._defaulted(default)
         if value.lower() in ("0", "false"):
             return False
         if value.lower() in ("1", "true"):
@@ -104,7 +105,7 @@ class Variables(object):
 
     def _get_string(self, variable, default=None):
         # type: (str, Optional[str]) -> Optional[str]
-        return self._environ.get(variable, self._defaulted(default))  # type: ignore[arg-type]
+        return self._environ.get(variable, self._defaulted(default))
 
     def _get_path(self, variable, default=None):
         # type: (str, Optional[str]) -> Optional[str]
@@ -123,7 +124,7 @@ class Variables(object):
                 % (variable, self._environ[variable])
             )
         except KeyError:
-            return self._defaulted(default)  # type: ignore[return-value]
+            return self._defaulted(default)
 
     def strip(self):
         # type: () -> Variables
