@@ -995,13 +995,13 @@ def test_pex_multi_resolve_2():
 
 
 if TYPE_CHECKING:
-    TEST_RESOLVE_FN = Callable[[str, str, str, str, Optional[str]], None]
-    ENSURE_FAILURE_FN = Callable[[str, str, str, str], None]
+    TestResolveFn = Callable[[str, str, str, str, Optional[str]], None]
+    EnsureFailureFn = Callable[[str, str, str, str], None]
 
 
 @contextmanager
 def pex_manylinux_and_tag_selection_context():
-    # type: () -> Iterator[Tuple[TEST_RESOLVE_FN, ENSURE_FAILURE_FN]]
+    # type: () -> Iterator[Tuple[TestResolveFn, EnsureFailureFn]]
     with temporary_dir() as output_dir:
 
         def do_resolve(req_name, req_version, platform, extra_flags=None):

@@ -26,8 +26,8 @@ class Trace(object):
         self.verbosity = verbosity
         self.parent = parent
         if parent is not None:
-            parent.children.append(self)  # type: ignore[has-type]
-        self.children = cast("List[Trace]", [])
+            parent.children.append(self)
+        self.children = []  # type: List[Trace]
         self._clock = clock
         self._start = cast(float, self._clock.time())
         self._stop = cast("Optional[float]", None)
