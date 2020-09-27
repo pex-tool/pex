@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+from typing import Iterator
 
 import pytest
 
@@ -111,6 +112,7 @@ class TestPythonInterpreter(object):
 
     @pytest.fixture
     def invalid_interpreter(self):
+        # type: () -> Iterator[str]
         with temporary_dir() as bin_dir:
             invalid_interpreter = os.path.join(bin_dir, "python")
             touch(invalid_interpreter)
@@ -150,6 +152,7 @@ class TestPythonInterpreter(object):
         self.assert_error(errors[0], invalid_interpreter)
 
     def test_iter_interpreter_path_filter(self, test_interpreter1, test_interpreter2):
+        # type: (str, str) -> None
         assert [PythonInterpreter.from_binary(test_interpreter2)] == list(
             PythonInterpreter.iter_candidates(
                 paths=[test_interpreter1, test_interpreter2],
@@ -158,6 +161,7 @@ class TestPythonInterpreter(object):
         )
 
     def test_iter_interpreter_path_filter_symlink(self, test_interpreter1, test_interpreter2):
+        # type: (str, str) -> None
         with temporary_dir() as bin_dir:
             os.symlink(test_interpreter2, os.path.join(bin_dir, "jake"))
 
