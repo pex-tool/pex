@@ -24,6 +24,7 @@ def test_get_script_from_distributions(tmpdir):
     get_pip().spawn_install_wheel(wheel=whl_path, install_dir=install_dir).wait()
 
     dist = DistributionHelper.distribution_from_path(install_dir)
+    assert dist is not None
     assert "aws-cfn-bootstrap" == dist.project_name
 
     dist_script = get_script_from_distributions("cfn-signal", [dist])

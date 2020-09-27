@@ -6,7 +6,7 @@ from __future__ import absolute_import
 from pex.compatibility import to_bytes
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
@@ -100,5 +100,4 @@ class Compiler(object):
                     "encountered %r during bytecode compilation.\nstderr was:\n%s\n" % (e, e.stderr)
                 )
 
-            # TODO(#1034): remove the ignore once interpreter.py is updated.
-            return out.splitlines()  # type: ignore[no-any-return]
+            return cast("Text", out).splitlines()

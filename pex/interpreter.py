@@ -24,7 +24,7 @@ from pex.platforms import Platform
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 from pex.variables import ENV
 
@@ -505,7 +505,7 @@ class PythonInterpreter(object):
         :param binary: The path to the python interpreter binary.
         :return: an interpreter created from the given `binary`.
         """
-        return cls._spawn_from_binary(binary).await_result()  # type: ignore[no-any-return]
+        return cast(PythonInterpreter, cls._spawn_from_binary(binary).await_result())
 
     @classmethod
     def _matches_binary_name(cls, path):

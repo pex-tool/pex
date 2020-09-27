@@ -9,6 +9,7 @@ import sys
 import tempfile
 from hashlib import sha1
 from site import makepath  # type: ignore[attr-defined]
+from zipfile import ZipFile
 
 from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
 from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function` is defined dynamically
@@ -16,25 +17,35 @@ from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function`
     exec_function,
 )
 from pex.third_party.pkg_resources import (
+    Distribution,
     find_distributions,
     resource_isdir,
     resource_listdir,
     resource_string,
 )
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    if PY2:
+        from hashlib import _hash as _Hash
+    else:
+        from hashlib import _Hash
+    from typing import Any, Callable, IO, Iterable, Iterator, Optional
 
 
 class DistributionHelper(object):
+    # TODO(#584: This appears unused, but clients might still use it. We cannot remove until we have a deprecation
+    # policy.
     @classmethod
     def access_zipped_assets(cls, static_module_name, static_path, dir_location=None):
+        # type: (str, str, Optional[str]) -> str
         """Create a copy of static resource files as we can't serve them from within the pex file.
 
         :param static_module_name: Module name containing module to cache in a tempdir
-        :type static_module_name: string, for example 'twitter.common.zookeeper' or similar
         :param static_path: Module name, for example 'serverset'
         :param dir_location: create a new temporary directory inside, or None to have one created
         :returns temp_dir: Temporary directory with the zipped assets inside
-        :rtype: str
         """
         # asset_path is initially a module name that's the same as the static_path, but will be
         # changed to walk the directory tree
@@ -72,11 +83,12 @@ class DistributionHelper(object):
 
     @classmethod
     def distribution_from_path(cls, path, name=None):
+        # type: (str, Optional[str]) -> Optional[Distribution]
         """Return a distribution from a path.
 
         If name is provided, find the distribution.  If none is found matching the name, return
-        None.  If name is not provided and there is unambiguously a single distribution, return that
-        distribution otherwise None.
+        None. If name is not provided and there is unambiguously a single distribution, return that
+        distribution. Otherwise, None.
         """
         if name is None:
             distributions = set(find_distributions(path))
@@ -86,11 +98,13 @@ class DistributionHelper(object):
             for dist in find_distributions(path):
                 if dist.project_name == name:
                     return dist
+        return None
 
 
 class CacheHelper(object):
     @classmethod
     def update_hash(cls, filelike, digest):
+        # type: (IO[bytes], _Hash) -> None
         """Update the digest of a single file in a memory-efficient manner."""
         block_size = digest.block_size * 1024
         for chunk in iter(lambda: filelike.read(block_size), b""):
@@ -98,6 +112,7 @@ class CacheHelper(object):
 
     @classmethod
     def hash(cls, path, digest=None, hasher=sha1):
+        # type: (str, Optional[_Hash], Callable) -> str
         """Return the digest of a single file in a memory-efficient manner."""
         if digest is None:
             digest = hasher()
@@ -107,6 +122,7 @@ class CacheHelper(object):
 
     @classmethod
     def _compute_hash(cls, names, stream_factory):
+        # type: (Iterable[str], Callable[[str], IO]) -> str
         digest = sha1()
         # Always use / as the path separator, since that's what zip uses.
         hashed_names = [n.replace(os.sep, "/") for n in names]
@@ -118,6 +134,7 @@ class CacheHelper(object):
 
     @classmethod
     def _iter_files(cls, directory):
+        # type: (str) -> Iterator[str]
         normpath = os.path.realpath(os.path.normpath(directory))
         for root, _, files in os.walk(normpath):
             for f in files:
@@ -125,28 +142,33 @@ class CacheHelper(object):
 
     @classmethod
     def pex_hash(cls, d):
+        # type: (str) -> str
         """Return a reproducible hash of the contents of a directory."""
         names = sorted(
             f for f in cls._iter_files(d) if not (f.endswith(".pyc") or f.startswith("."))
         )
 
         def stream_factory(name):
+            # type: (str) -> IO
             return open(os.path.join(d, name), "rb")  # noqa: T802
 
         return cls._compute_hash(names, stream_factory)
 
     @classmethod
     def dir_hash(cls, d):
+        # type: (str) -> str
         """Return a reproducible hash of the contents of a directory."""
         names = sorted(f for f in cls._iter_files(d) if not f.endswith(".pyc"))
 
         def stream_factory(name):
+            # type: (str) -> IO
             return open(os.path.join(d, name), "rb")  # noqa: T802
 
         return cls._compute_hash(names, stream_factory)
 
     @classmethod
     def cache_distribution(cls, zf, source, target_dir):
+        # type: (ZipFile, str, str) -> Distribution
         """Possibly cache a wheel from within a zipfile into `target_dir`.
 
         Given a zipfile handle and a source path prefix corresponding to a wheel install embedded within
@@ -154,11 +176,9 @@ class CacheHelper(object):
         from the cache.
 
         :param zf: An open zip file (a zipped pex).
-        :type zf: :class:`zipfile.ZipFile`
-        :param str source: The path prefix of a wheel install embedded in the zip file.
-        :param str target_dir: The directory to cache the distribution in if not already cached.
+        :param source: The path prefix of a wheel install embedded in the zip file.
+        :param target_dir: The directory to cache the distribution in if not already cached.
         :returns: The cached distribution.
-        :rtype: :class:`pex.third_party.pkg_resources.Distribution`
         """
         with atomic_directory(target_dir, source=source) as target_dir_tmp:
             if target_dir_tmp is None:
@@ -175,12 +195,13 @@ class CacheHelper(object):
 
 
 @contextlib.contextmanager
-def named_temporary_file(*args, **kwargs):
+def named_temporary_file(**kwargs):
+    # type: (**Any) -> Iterator[IO]
     """Due to a bug in python (https://bugs.python.org/issue14243), we need this to be able to use
     the temporary file without deleting it."""
     assert "delete" not in kwargs
     kwargs["delete"] = False
-    fp = tempfile.NamedTemporaryFile(*args, **kwargs)
+    fp = tempfile.NamedTemporaryFile(**kwargs)
     try:
         with fp:
             yield fp
@@ -189,6 +210,7 @@ def named_temporary_file(*args, **kwargs):
 
 
 def iter_pth_paths(filename):
+    # type: (str) -> Iterator[str]
     """Given a .pth file, extract and yield all inner paths without honoring imports.
 
     This shadows Python's site.py behavior, which is invoked at interpreter startup.
