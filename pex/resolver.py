@@ -737,9 +737,7 @@ def resolve(
       distribution compatibility. Defaults to the current interpreter.
     :type interpreter: :class:`pex.interpreter.PythonInterpreter`
     :keyword str platform: The exact target platform to resolve distributions for. If ``None`` or
-      ``'current'``, resolve for distributions appropriate for `interpreter` instead. If any
-      distributions need to be built, the corresponding interpreter must be provided in the
-      `interpreter` argument, or an exception will be raised.
+      ``'current'``, resolve for distributions appropriate for `interpreter`.
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
       use of all indexes, pass an empty list.
@@ -767,6 +765,8 @@ def resolve(
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
       a particular requirement.
+    :raises ValueError: If a foreign `platform` was provided, and `use_wheel=False`.
+    :raises ValueError: If `build=False` and `use_wheel=False`.
     """
     # TODO(https://github.com/pantsbuild/pex/issues/969): Deprecate resolve with a single interpreter
     #  or platform and rename resolve_multi to resolve for a single API entrypoint to a full resolve.
@@ -829,11 +829,9 @@ def resolve_multi(
     :keyword interpreters: The interpreters to use for building distributions and for testing
       distribution compatibility. Defaults to the current interpreter.
     :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
-    :keyword platforms: An iterable of PEP425-compatible platform strings. If provided,
-      distributions will be resolved for exactly these platforms. If ``None`` (the default) or an
-      empty iterable, resolve for distributions appropriate for `interpreters` instead. If any
-      distributions need to be built, a corresponding interpreter must be provided in
-      `interpreters`, or an exception will be raised.
+    :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
+      for. If ``None`` (the default) or an empty iterable, use the platforms of the given
+      interpreters.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
@@ -862,6 +860,8 @@ def resolve_multi(
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
       a particular requirement.
+    :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
+    :raises ValueError: If `build=False` and `use_wheel=False`.
     """
 
     # A resolve happens in four stages broken into two phases:
@@ -1054,11 +1054,9 @@ def download(
     :keyword interpreters: The interpreters to use for building distributions and for testing
       distribution compatibility. Defaults to the current interpreter.
     :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
-    :keyword platforms: An iterable of PEP425-compatible platform strings. If provided,
-      distributions will be resolved for exactly these platforms. If ``None`` (the default) or an
-      empty iterable, resolve for distributions appropriate for `interpreters` instead. If any
-      distributions need to be built, a corresponding interpreter must be provided in
-      `interpreters`, or an exception will be raised.
+    :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
+      for. If ``None`` (the default) or an empty iterable, use the platforms of the given
+      interpreters.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
@@ -1081,8 +1079,10 @@ def download(
     :keyword str dest: A directory path to download distributions to.
     :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
-    :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
     :returns: List of :class:`LocalDistribution` instances meeting ``requirements``.
+    :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
+    :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
+    :raises ValueError: If `build=False` and `use_wheel=False`.
     """
 
     local_distributions, download_results = _download_internal(
