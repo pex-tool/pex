@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-from typing import Iterator
 
 import pytest
 
@@ -19,7 +18,7 @@ except ImportError:
     from unittest.mock import patch  # type: ignore[misc,no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Tuple, Union
+    from typing import Iterator, Tuple, Union
 
     InterpreterIdentificationError = Tuple[str, str]
     InterpreterOrError = Union[PythonInterpreter, InterpreterIdentificationError]
