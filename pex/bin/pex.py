@@ -748,7 +748,11 @@ def build_pex(reqs, options, cache=None):
             constraints = options.interpreter_constraint
             validate_constraints(constraints)
             try:
-                interpreters = list(iter_compatible_interpreters(pex_python_path, constraints))
+                interpreters = list(
+                    iter_compatible_interpreters(
+                        path=pex_python_path, interpreter_constraints=constraints
+                    )
+                )
             except UnsatisfiableInterpreterConstraintsError as e:
                 die(
                     e.create_message("Could not find a compatible interpreter."),
@@ -761,7 +765,7 @@ def build_pex(reqs, options, cache=None):
         with TRACER.timed(
             "Searching for local interpreters matching {}".format(", ".join(map(str, platforms)))
         ):
-            candidate_interpreters = OrderedSet(iter_compatible_interpreters(pex_python_path))
+            candidate_interpreters = OrderedSet(iter_compatible_interpreters(path=pex_python_path))
             candidate_interpreters.add(PythonInterpreter.get())
             for candidate_interpreter in candidate_interpreters:
                 resolved_platforms = candidate_interpreter.supported_platforms.intersection(

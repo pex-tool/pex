@@ -22,7 +22,7 @@ def find_interpreters(path, *constraints):
     return [
         interp.binary
         for interp in iter_compatible_interpreters(
-            path=os.pathsep.join(path), compatibility_constraints=constraints
+            path=os.pathsep.join(path), interpreter_constraints=constraints
         )
     ]
 
@@ -54,7 +54,7 @@ def test_find_compatible_interpreters():
     all_known_interpreters = set(PythonInterpreter.all())
     all_known_interpreters.add(PythonInterpreter.get())
 
-    interpreters = set(iter_compatible_interpreters(compatibility_constraints=["<3"]))
+    interpreters = set(iter_compatible_interpreters(interpreter_constraints=["<3"]))
     i_rendered = "\n      ".join(sorted(map(repr, interpreters)))
     aki_rendered = "\n      ".join(sorted(map(repr, all_known_interpreters)))
     assert interpreters.issubset(all_known_interpreters), dedent(

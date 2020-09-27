@@ -15,7 +15,8 @@ evaluates to True. This allows us to safely import `typing` without it ever bein
 production.
 
 Note that we only use type comments, rather than normal annotations, which is what allows us to
-never need `typing` at runtime. (Exception for `cast`, see the below binding.)
+never need `typing` at runtime except for `cast` and `overload` which have no-op runtime bindings
+below.
 
 To add type comments, use a conditional import like this:
 
@@ -31,11 +32,22 @@ from __future__ import absolute_import
 
 TYPE_CHECKING = False
 
-# Unlike most type-hints, `cast` gets used at runtime. We define a no-op version for when
-# TYPE_CHECKING is false.
+# Unlike most type-hints, `cast` and `overload` get used at runtime. We define no-op versions for
+# when TYPE_CHECKING is false.
 if TYPE_CHECKING:
     from typing import cast as cast
+    from typing import overload as overload
 else:
 
-    def cast(type_, value):  # type: ignore[no-redef]
+    def cast(_type, value):
         return value
+
+    def overload(_func):
+        def _never_called_since_structurally_shadowed(*_args, **_kwargs):
+            raise NotImplementedError(
+                "You should not call an overloaded function. A series of @overload-decorated "
+                "functions outside a stub module should always be followed by an implementation "
+                "that is not @overload-ed."
+            )
+
+        return _never_called_since_structurally_shadowed

@@ -19,17 +19,27 @@ from pex import third_party
 from pex.common import safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
-from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
+from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
 from pex.platforms import Platform
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast, overload
 from pex.util import CacheHelper
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterator
+    from typing import Callable, Dict, Iterable, Iterator, MutableMapping, Optional, Tuple, Union
+
+    PathFilter = Callable[[str], bool]
+
+    InterpreterIdentificationJobError = Tuple[str, Union[Job.Error, Exception]]
+    InterpreterOrJobError = Union["PythonInterpreter", InterpreterIdentificationJobError]
+
+    # N.B.: We convert InterpreterIdentificationJobErrors that result from spawning interpreter
+    # identification jobs to these end-user InterpreterIdentificationErrors for display.
+    InterpreterIdentificationError = Tuple[str, str]
+    InterpreterOrError = Union["PythonInterpreter", InterpreterIdentificationError]
 
 
 class PythonIdentity(object):
@@ -289,42 +299,44 @@ class PythonInterpreter(object):
 
     @staticmethod
     def _paths(paths=None):
+        # type: (Optional[Iterable[str]]) -> Iterable[str]
         return paths or os.getenv("PATH", "").split(os.pathsep)
 
     @classmethod
     def iter(cls, paths=None):
+        # type: (Optional[Iterable[str]]) -> Iterator[PythonInterpreter]
         """Iterate all valid interpreters found in `paths`.
 
         NB: The paths can either be directories to search for python binaries or the paths of python
         binaries themselves.
 
         :param paths: The paths to look for python interpreters; by default the `PATH`.
-        :type paths: list str
-        :return: An iterator of PythonInterpreter.
         """
         return cls._filter(cls._find(cls._paths(paths=paths)))
 
     @classmethod
-    def iter_candidates(cls, paths=None):
+    def iter_candidates(cls, paths=None, path_filter=None):
+        # type: (Optional[Iterable[str]], Optional[PathFilter]) -> Iterator[InterpreterOrError]
         """Iterate all likely interpreters found in `paths`.
 
         NB: The paths can either be directories to search for python binaries or the paths of python
         binaries themselves.
 
         :param paths: The paths to look for python interpreters; by default the `PATH`.
-        :type paths: list str
         :return: A heterogeneous iterator over valid interpreters and (python, error) invalid
                  python binary tuples.
-        :rtype: A heterogeneous iterator over :class:`PythonInterpreter` and (str, str).
         """
-        failed_interpreters = OrderedDict()
+        failed_interpreters = OrderedDict()  # type: MutableMapping[str, str]
 
         def iter_interpreters():
-            for candidate in cls._find(cls._paths(paths=paths), error_handler=Retain()):
+            # type: () -> Iterator[PythonInterpreter]
+            for candidate in cls._find(
+                cls._paths(paths=paths), path_filter=path_filter, error_handler=Retain()
+            ):
                 if isinstance(candidate, cls):
                     yield candidate
                 else:
-                    python, exception = candidate
+                    python, exception = cast("InterpreterIdentificationJobError", candidate)
                     if isinstance(exception, Job.Error):
                         # We spawned a subprocess to identify the interpreter but the interpreter
                         # could not run our identification code meaning the interpreter is either
@@ -345,6 +357,7 @@ class PythonInterpreter(object):
 
     @classmethod
     def all(cls, paths=None):
+        # type: (Optional[Iterable[str]]) -> Iterable[PythonInterpreter]
         return list(cls.iter(paths=paths))
 
     @classmethod
@@ -509,35 +522,90 @@ class PythonInterpreter(object):
 
     @classmethod
     def _matches_binary_name(cls, path):
+        # type: (str) -> bool
         basefile = os.path.basename(path)
         return any(matcher.match(basefile) is not None for matcher in cls._REGEXEN)
 
+    @overload
     @classmethod
-    def _find(cls, paths, error_handler=None):
+    def _find(cls, paths):
+        # type: (Iterable[str]) -> Iterator[PythonInterpreter]
+        pass
+
+    @overload
+    @classmethod
+    def _find(
+        cls,
+        paths,  # type: Iterable[str]
+        error_handler,  # type: Retain
+        path_filter=None,  # type: Optional[PathFilter]
+    ):
+        # type: (...) -> Iterator[InterpreterOrJobError]
+        pass
+
+    @classmethod
+    def _find(
+        cls,
+        paths,  # type: Iterable[str]
+        error_handler=None,  # type: Optional[ErrorHandler]
+        path_filter=None,  # type: Optional[PathFilter]
+    ):
+        # type: (...) -> Union[Iterator[PythonInterpreter], Iterator[InterpreterOrJobError]]
         """Given a list of files or directories, try to detect python interpreters amongst them.
 
         Returns an iterator over PythonInterpreter objects.
         """
         return cls._identify_interpreters(
-            filter=cls._matches_binary_name, paths=paths, error_handler=error_handler
+            filter=path_filter or cls._matches_binary_name, paths=paths, error_handler=error_handler
         )
 
+    @overload
     @classmethod
-    def _identify_interpreters(cls, filter, paths=None, error_handler=None):
+    def _identify_interpreters(
+        cls,
+        filter,  # type: PathFilter
+        error_handler,  # type: None
+        paths=None,  # type: Optional[Iterable[str]]
+    ):
+        # type: (...) -> Iterator[PythonInterpreter]
+        pass
+
+    @overload
+    @classmethod
+    def _identify_interpreters(
+        cls,
+        filter,  # type: PathFilter
+        error_handler,  # type: Retain
+        paths=None,  # type: Optional[Iterable[str]]
+    ):
+        # type: (...) -> Iterator[InterpreterOrJobError]
+        pass
+
+    @classmethod
+    def _identify_interpreters(
+        cls,
+        filter,  # type: PathFilter
+        error_handler=None,  # type: Optional[ErrorHandler]
+        paths=None,  # type: Optional[Iterable[str]]
+    ):
+        # type: (...) -> Union[Iterator[PythonInterpreter], Iterator[InterpreterOrJobError]]
         def iter_candidates():
+            # type: () -> Iterator[str]
             for path in cls._paths(paths=paths):
                 for fn in cls._expand_path(path):
                     if filter(fn):
                         yield fn
 
-        return execute_parallel(
+        results = execute_parallel(
             inputs=list(iter_candidates()),
             spawn_func=cls._spawn_from_binary,
             error_handler=error_handler,
         )
+        return cast("Union[Iterator[PythonInterpreter], Iterator[InterpreterOrJobError]]", results)
 
     @classmethod
     def _filter(cls, pythons):
+        # type: (Iterable[PythonInterpreter]) -> Iterator[PythonInterpreter]
         """Filters duplicate python interpreters and versions we don't support.
 
         Returns an iterator over PythonInterpreters.
@@ -545,6 +613,7 @@ class PythonInterpreter(object):
         MAJOR, MINOR, SUBMINOR = range(3)
 
         def version_filter(version):
+            # type: (Tuple[int, int, int]) -> bool
             return (
                 version[MAJOR] == 2
                 and version[MINOR] >= 7
