@@ -737,7 +737,9 @@ def resolve(
       distribution compatibility. Defaults to the current interpreter.
     :type interpreter: :class:`pex.interpreter.PythonInterpreter`
     :keyword str platform: The exact target platform to resolve distributions for. If ``None`` or
-      ``'current'``, resolve for distributions appropriate for `interpreter`.
+      ``'current'``, resolve for distributions appropriate for `interpreter` instead. If any
+      distributions need to be built, the corresponding interpreter must be provided in the
+      `interpreter` argument, or an exception will be raised.
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
       use of all indexes, pass an empty list.
@@ -827,9 +829,11 @@ def resolve_multi(
     :keyword interpreters: The interpreters to use for building distributions and for testing
       distribution compatibility. Defaults to the current interpreter.
     :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
-    :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
-      for. If ``None`` (the default) or an empty iterable, use the platforms of the given
-      interpreters.
+    :keyword platforms: An iterable of PEP425-compatible platform strings. If provided,
+      distributions will be resolved for exactly these platforms. If ``None`` (the default) or an
+      empty iterable, resolve for distributions appropriate for `interpreters` instead. If any
+      distributions need to be built, a corresponding interpreter must be provided in
+      `interpreters`, or an exception will be raised.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
@@ -1050,9 +1054,11 @@ def download(
     :keyword interpreters: The interpreters to use for building distributions and for testing
       distribution compatibility. Defaults to the current interpreter.
     :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
-    :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
-      for. If ``None`` (the default) or an empty iterable, use the platforms of the given
-      interpreters.
+    :keyword platforms: An iterable of PEP425-compatible platform strings. If provided,
+      distributions will be resolved for exactly these platforms. If ``None`` (the default) or an
+      empty iterable, resolve for distributions appropriate for `interpreters` instead. If any
+      distributions need to be built, a corresponding interpreter must be provided in
+      `interpreters`, or an exception will be raised.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
