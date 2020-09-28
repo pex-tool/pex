@@ -501,8 +501,8 @@ def configure_clp_pex_environment(parser):
         help="The platform for which to build the PEX. This option can be passed multiple times "
         "to create a multi-platform pex. To use the platform corresponding to the current "
         "interpreter you can pass `current`. To target any other platform you pass a string "
-        "composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. These fields "
-        "stem from wheel name conventions as outlined in "
+        "composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. "
+        "These fields stem from wheel name conventions as outlined in "
         "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
         "https://www.python.org/dev/peps/pep-0425. For the current interpreter at {} the full "
         "platform string is {}. To find out more, try `{} --platform explain`.".format(
@@ -518,8 +518,9 @@ def configure_clp_pex_environment(parser):
         callback=parse_bool,
         help="When --platforms are specified, attempt to resolve a local interpreter that matches "
         "each platform specified. If found, use the interpreter to resolve distributions; if "
-        "not, resolve for the platform only allowing matching binary distributions and failing "
-        "if only sdists or non-matching binary distributions can be found.",
+        "not (or if this option is not specified), resolve for each platform only allowing "
+        "matching binary distributions and failing if only sdists or non-matching binary "
+        "distributions can be found.",
     )
 
     group.add_option(
@@ -533,7 +534,8 @@ def configure_clp_pex_environment(parser):
             "compatible Python version. Normally, when multiple interpreters match, Pex will "
             "resolve requirements for each interpreter; this allows the resulting Pex to be "
             "compatible with more interpreters, such as different Python versions. However, "
-            "resolving for multiple interpreters results in worse performance."
+            "resolving for multiple interpreters will take longer to build, and the resulting PEX "
+            "may be larger."
         ),
     )
 

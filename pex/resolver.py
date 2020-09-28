@@ -733,11 +733,15 @@ def resolve(
       prerelease or development versions will override this setting.
     :keyword bool transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword interpreter: The interpreter to use for building distributions and for testing
-      distribution compatibility. Defaults to the current interpreter.
+    :keyword interpreter: If specified, distributions will be resolved for this interpreter, and
+      non-wheel distributions will be built against this interpreter. If both `interpreter` and
+      `platform` are ``None`` (the default), this defaults to the current interpreter.
     :type interpreter: :class:`pex.interpreter.PythonInterpreter`
-    :keyword str platform: The exact target platform to resolve distributions for. If ``None`` or
-      ``'current'``, resolve for distributions appropriate for `interpreter`.
+    :keyword str platform: The exact PEP425-compatible platform string to resolve distributions for,
+      in addition to the platform of the given interpreter, if provided. If any distributions need
+      to be built, use the interpreter argument instead, providing the corresponding interpreter.
+      However, if the platform matches the current interpreter, the current interpreter will be used
+      to build any non-wheels.
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
       use of all indexes, pass an empty list.
@@ -765,6 +769,8 @@ def resolve(
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
       a particular requirement.
+    :raises ValueError: If a foreign `platform` was provided, and `use_wheel=False`.
+    :raises ValueError: If `build=False` and `use_wheel=False`.
     """
     # TODO(https://github.com/pantsbuild/pex/issues/969): Deprecate resolve with a single interpreter
     #  or platform and rename resolve_multi to resolve for a single API entrypoint to a full resolve.
@@ -824,12 +830,16 @@ def resolve_multi(
       prerelease or development versions will override this setting.
     :keyword bool transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword interpreters: The interpreters to use for building distributions and for testing
-      distribution compatibility. Defaults to the current interpreter.
+    :keyword interpreters: If specified, distributions will be resolved for these interpreters, and
+      non-wheel distributions will be built against each interpreter. If both `interpreters` and
+      `platforms` are ``None`` (the default) or an empty iterable, this defaults to a list
+      containing only the current interpreter.
     :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
     :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
-      for. If ``None`` (the default) or an empty iterable, use the platforms of the given
-      interpreters.
+      for, in addition to the platforms of any given interpreters. If any distributions need to be
+      built, use the interpreters argument instead, providing the corresponding interpreter.
+      However, if any platform matches the current interpreter, the current interpreter will be used
+      to build any non-wheels for that platform.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
@@ -858,6 +868,8 @@ def resolve_multi(
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
       a particular requirement.
+    :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
+    :raises ValueError: If `build=False` and `use_wheel=False`.
     """
 
     # A resolve happens in four stages broken into two phases:
@@ -1047,12 +1059,12 @@ def download(
       prerelease or development versions will override this setting.
     :keyword bool transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword interpreters: The interpreters to use for building distributions and for testing
-      distribution compatibility. Defaults to the current interpreter.
+    :keyword interpreters: If specified, distributions will be resolved for these interpreters.
+      If both `interpreters` and `platforms` are ``None`` (the default) or an empty iterable, this
+      defaults to a list containing only the current interpreter.
     :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
     :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
-      for. If ``None`` (the default) or an empty iterable, use the platforms of the given
-      interpreters.
+      for, in addition to the platforms of any given interpreters.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
@@ -1075,8 +1087,10 @@ def download(
     :keyword str dest: A directory path to download distributions to.
     :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
-    :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
     :returns: List of :class:`LocalDistribution` instances meeting ``requirements``.
+    :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
+    :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
+    :raises ValueError: If `build=False` and `use_wheel=False`.
     """
 
     local_distributions, download_results = _download_internal(
