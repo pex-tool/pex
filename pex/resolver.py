@@ -738,8 +738,8 @@ def resolve(
       `platform` are ``None`` (the default), this defaults to the current interpreter.
     :type interpreter: :class:`pex.interpreter.PythonInterpreter`
     :keyword str platform: The exact PEP425-compatible platform string to resolve distributions for,
-      in addition to the platform of the given interpreter, if provided. The current interpreter
-      will be used to build any non-wheel distributions.
+      in addition to the platform of the given interpreter, if provided. If any distributions need
+      to be built, use the interpreter argument instead, providing the corresponding interpreter.
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
       use of all indexes, pass an empty list.
@@ -834,8 +834,8 @@ def resolve_multi(
       containing only the current interpreter.
     :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
     :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
-      for, in addition to the platforms of any given interpreters. The current interpreter will be
-      used to build any non-wheel distributions.
+      for, in addition to the platforms of any given interpreters. If any distributions need to be
+      built, use the interpreters argument instead, providing the corresponding interpreter.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
