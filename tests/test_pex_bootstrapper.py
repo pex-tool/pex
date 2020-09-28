@@ -14,15 +14,22 @@ from pex.testing import PY27, PY35, PY36, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import AnyStr, List
+    from typing import AnyStr, Iterable, List, Optional
 
 
-def find_interpreters(path, *constraints):
-    # type: (List[str], *str) -> List[AnyStr]
+def basenames(*paths):
+    # type: (*str) -> Iterable[str]
+    return [os.path.basename(p) for p in paths]
+
+
+def find_interpreters(path, valid_basenames=None, constraints=None):
+    # type: (Iterable[str], Optional[Iterable[str]], Optional[Iterable[str]]) -> List[AnyStr]
     return [
         interp.binary
         for interp in iter_compatible_interpreters(
-            path=os.pathsep.join(path), compatibility_constraints=constraints
+            path=os.pathsep.join(path),
+            valid_basenames=valid_basenames,
+            interpreter_constraints=constraints,
         )
     ]
 
@@ -34,27 +41,27 @@ def test_find_compatible_interpreters():
     py36 = ensure_python_interpreter(PY36)
     path = [py27, py35, py36]
 
-    assert [py35, py36] == find_interpreters(path, ">3")
-    assert [py27] == find_interpreters(path, "<3")
+    assert [py35, py36] == find_interpreters(path, constraints=[">3"])
+    assert [py27] == find_interpreters(path, constraints=["<3"])
 
-    assert [py36] == find_interpreters(path, ">{}".format(PY35))
-    assert [py35] == find_interpreters(path, ">{}, <{}".format(PY27, PY36))
-    assert [py36] == find_interpreters(path, ">=3.6")
-
-    with pytest.raises(UnsatisfiableInterpreterConstraintsError):
-        find_interpreters(path, "<2")
+    assert [py36] == find_interpreters(path, constraints=[">{}".format(PY35)])
+    assert [py35] == find_interpreters(path, constraints=[">{}, <{}".format(PY27, PY36)])
+    assert [py36] == find_interpreters(path, constraints=[">=3.6"])
 
     with pytest.raises(UnsatisfiableInterpreterConstraintsError):
-        find_interpreters(path, ">4")
+        find_interpreters(path, constraints=["<2"])
 
     with pytest.raises(UnsatisfiableInterpreterConstraintsError):
-        find_interpreters(path, ">{}, <{}".format(PY27, PY35))
+        find_interpreters(path, constraints=[">4"])
+
+    with pytest.raises(UnsatisfiableInterpreterConstraintsError):
+        find_interpreters(path, constraints=[">{}, <{}".format(PY27, PY35)])
 
     # All interpreters on PATH including whatever interpreter is currently running.
     all_known_interpreters = set(PythonInterpreter.all())
     all_known_interpreters.add(PythonInterpreter.get())
 
-    interpreters = set(iter_compatible_interpreters(compatibility_constraints=["<3"]))
+    interpreters = set(iter_compatible_interpreters(interpreter_constraints=["<3"]))
     i_rendered = "\n      ".join(sorted(map(repr, interpreters)))
     aki_rendered = "\n      ".join(sorted(map(repr, all_known_interpreters)))
     assert interpreters.issubset(all_known_interpreters), dedent(
@@ -72,8 +79,77 @@ def test_find_compatible_interpreters():
 
 def test_find_compatible_interpreters_none():
     # type: () -> None
-    with pytest.raises(UnsatisfiableInterpreterConstraintsError):
-        find_interpreters([os.path.devnull], ">2")
+    assert [] == find_interpreters([os.path.devnull])
+
+
+def test_find_compatible_interpreters_none_with_valid_basenames():
+    # type: () -> None
+    py27 = ensure_python_interpreter(PY27)
+    py35 = ensure_python_interpreter(PY35)
+    path = [py27, py35]
+
+    with pytest.raises(UnsatisfiableInterpreterConstraintsError) as exec_info:
+        find_interpreters(path, valid_basenames=["python3.6"])
+
+    exception_message = str(exec_info.value)
+    assert py27 not in exception_message
+    assert py35 not in exception_message
+
+
+def test_find_compatible_interpreters_none_with_constraints():
+    # type: () -> None
+    py27 = ensure_python_interpreter(PY27)
+    py35 = ensure_python_interpreter(PY35)
+    path = [py27, py35]
+
+    with pytest.raises(UnsatisfiableInterpreterConstraintsError) as exec_info:
+        find_interpreters(path, constraints=[">=3.6"])
+
+    exception_message = str(exec_info.value)
+    assert py27 in exception_message
+    assert py35 in exception_message
+    assert ">=3.6" in exception_message
+
+
+def test_find_compatible_interpreters_none_with_valid_basenames_and_constraints():
+    # type: () -> None
+    py27 = ensure_python_interpreter(PY27)
+    py35 = ensure_python_interpreter(PY35)
+    path = [py27, py35]
+
+    with pytest.raises(UnsatisfiableInterpreterConstraintsError) as exec_info:
+        find_interpreters(path, valid_basenames=basenames(py27), constraints=[">=3.6"])
+
+    exception_message = str(exec_info.value)
+    assert py27 in exception_message
+    assert py35 not in exception_message
+    assert os.path.basename(py27) in exception_message, exception_message
+    assert ">=3.6" in exception_message
+
+
+def test_find_compatible_interpreters_with_valid_basenames():
+    # type: () -> None
+    py27 = ensure_python_interpreter(PY27)
+    py35 = ensure_python_interpreter(PY35)
+    py36 = ensure_python_interpreter(PY36)
+    path = [py27, py35, py36]
+
+    assert [py35] == find_interpreters(path, valid_basenames=basenames(py35))
+    assert [py27, py36] == find_interpreters(
+        path, valid_basenames=basenames(*reversed([py27, py36]))
+    )
+
+
+def test_find_compatible_interpreters_with_valid_basenames_and_constraints():
+    # type: () -> None
+    py27 = ensure_python_interpreter(PY27)
+    py35 = ensure_python_interpreter(PY35)
+    py36 = ensure_python_interpreter(PY36)
+    path = [py27, py35, py36]
+
+    assert [py35] == find_interpreters(
+        path, valid_basenames=basenames(py27, py35), constraints=[">=3"]
+    )
 
 
 def test_find_compatible_interpreters_bias_current():

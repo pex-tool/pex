@@ -1,162 +1,170 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import os
 import sys
 
 from pex import pex_warnings
 from pex.common import die
-from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
+from pex.pex_info import PexInfo
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
 
-__all__ = ("bootstrap_pex",)
+if TYPE_CHECKING:
+    from typing import (
+        Iterable,
+        Iterator,
+        List,
+        MutableSet,
+        NoReturn,
+        Optional,
+        Tuple,
+        Union,
+        Callable,
+    )
+
+    InterpreterIdentificationError = Tuple[str, str]
+    InterpreterOrError = Union[PythonInterpreter, InterpreterIdentificationError]
+    PathFilter = Callable[[str], bool]
 
 
-def _iter_pex_python(pex_python):
-    def try_create(try_path):
-        try:
-            return PythonInterpreter.from_binary(try_path)
-        except Executor.ExecutionError:
-            return None
+# TODO(John Sirois): Move this to interpreter_constraints.py. As things stand, both pex/bin/pex.py
+#  and this file use this function. The Pex CLI should not depend on this file which hosts code
+#  used at PEX runtime.
+def iter_compatible_interpreters(
+    path=None,  # type: Optional[str]
+    valid_basenames=None,  # type: Optional[Iterable[str]]
+    interpreter_constraints=None,  # type: Optional[Iterable[str]]
+):
+    # type: (...) -> Iterator[PythonInterpreter]
+    """Find all compatible interpreters on the system within the supplied constraints.
 
-    interpreter = try_create(pex_python)
-    if interpreter:
-        # If the target interpreter specified in PEX_PYTHON is an existing absolute path - use it.
-        yield interpreter
-    else:
-        # Otherwise scan the PATH for matches:
-        try_paths = OrderedSet(
-            os.path.realpath(os.path.join(directory, pex_python))
-            for directory in os.getenv("PATH", "").split(os.pathsep)
-        )
+    :param path: A PATH-style string with files or directories separated by os.pathsep.
+    :param valid_basenames: Valid basenames for discovered interpreter binaries. If not specified,
+                            Then all typical names are accepted (i.e.: python, python3, python2.7,
+                            pypy, etc.).
+    :param interpreter_constraints: Interpreter type and version constraint strings as described in
+                                    `--interpreter-constraint`.
 
-        # Prefer the current interpreter if present in the `path`.
-        current_interpreter = PythonInterpreter.get()
-        if current_interpreter.binary in try_paths:
-            try_paths.remove(current_interpreter.binary)
-            yield current_interpreter
+    Interpreters are searched for in `path` if specified and $PATH if not.
 
-        for try_path in try_paths:
-            interpreter = try_create(try_path)
-            if interpreter:
-                yield interpreter
-
-
-def iter_compatible_interpreters(path=None, compatibility_constraints=None):
-    """Find all compatible interpreters on the system within the supplied constraints and use path
-    if it is set.
-
-    If not, fall back to interpreters on $PATH.
+    If no interpreters are found and there are no further constraints (neither `valid_basenames` nor
+    `interpreter_constraints` is specified) then the returned iterator will be empty. However, if
+    there are constraints specified, the returned iterator, although emtpy, will raise
+    `UnsatisfiableInterpreterConstraintsError` to provide information about any found interpreters
+    that did not match all the constraints.
     """
 
+    _valid_path = None  # type: Optional[PathFilter]
+    if valid_basenames:
+        _valid_basenames = frozenset(cast("Iterable[str]", valid_basenames))
+        _valid_path = (
+            lambda interpreter_path: os.path.basename(interpreter_path) in _valid_basenames
+        )
+
     def _iter_interpreters():
+        # type: () -> Iterator[InterpreterOrError]
         seen = set()
 
-        paths = None
-        current_interpreter = PythonInterpreter.get()
+        paths = None  # type: Optional[MutableSet[str]]
         if path:
             paths = OrderedSet(os.path.realpath(p) for p in path.split(os.pathsep))
 
-            # Prefer the current interpreter if present on the `path`.
-            candidate_paths = frozenset(
-                (current_interpreter.binary, os.path.dirname(current_interpreter.binary))
-            )
-            candidate_paths_in_path = candidate_paths.intersection(paths)
-            if candidate_paths_in_path:
-                for p in candidate_paths_in_path:
-                    paths.remove(p)
+        current_interpreter = PythonInterpreter.get()
+        if not _valid_path or _valid_path(current_interpreter.binary):
+            if paths:
+                # Prefer the current interpreter if present on the `path`.
+                candidate_paths = frozenset(
+                    (current_interpreter.binary, os.path.dirname(current_interpreter.binary))
+                )
+                candidate_paths_in_path = candidate_paths.intersection(paths)
+                if candidate_paths_in_path:
+                    for p in candidate_paths_in_path:
+                        paths.remove(p)
+                    seen.add(current_interpreter)
+                    yield current_interpreter
+            else:
+                # We may have been invoked with a specific interpreter, make sure our sys.executable is
+                # included as a candidate in this case.
                 seen.add(current_interpreter)
                 yield current_interpreter
-        else:
-            # We may have been invoked with a specific interpreter, make sure our sys.executable is
-            # included as a candidate in this case.
-            seen.add(current_interpreter)
-            yield current_interpreter
 
-        for interp in PythonInterpreter.iter_candidates(paths=paths):
+        for interp in PythonInterpreter.iter_candidates(paths=paths, path_filter=_valid_path):
             if interp not in seen:
                 seen.add(interp)
                 yield interp
 
-    return _compatible_interpreters_iter(
-        _iter_interpreters(), compatibility_constraints=compatibility_constraints
-    )
+    def _valid_interpreter(interp_or_error):
+        # type: (InterpreterOrError) -> bool
+        if not isinstance(interp_or_error, PythonInterpreter):
+            return False
 
+        if not interpreter_constraints:
+            return True
 
-def _matched_interpreters_iter(interpreters_iter, constraints):
-    candidates = []
-    failures = []
+        interp = cast(PythonInterpreter, interp_or_error)
+
+        if any(
+            interp.identity.matches(interpreter_constraint)
+            for interpreter_constraint in interpreter_constraints
+        ):
+            TRACER.log(
+                "Constraints on interpreters: {}, Matching Interpreter: {}".format(
+                    interpreter_constraints, interp.binary
+                ),
+                V=3,
+            )
+            return True
+
+        return False
+
+    candidates = []  # type: List[PythonInterpreter]
+    failures = []  # type: List[InterpreterIdentificationError]
     found = False
 
-    for interpreter in interpreters_iter:
-        if isinstance(interpreter, PythonInterpreter):
+    for interpreter_or_error in _iter_interpreters():
+        if isinstance(interpreter_or_error, PythonInterpreter):
+            interpreter = cast(PythonInterpreter, interpreter_or_error)
             candidates.append(interpreter)
-            if any(interpreter.identity.matches(filt) for filt in constraints):
-                TRACER.log(
-                    "Constraints on interpreters: %s, Matching Interpreter: %s"
-                    % (constraints, interpreter.binary),
-                    V=3,
-                )
+            if _valid_interpreter(interpreter_or_error):
                 found = True
                 yield interpreter
         else:
-            failures.append(interpreter)
+            error = cast("InterpreterIdentificationError", interpreter_or_error)
+            failures.append(error)
 
-    if not found:
+    if not found and (interpreter_constraints or valid_basenames):
+        constraints = []  # type: List[str]
+        if interpreter_constraints:
+            constraints.append("Version matches {}".format(" or ".join(interpreter_constraints)))
+        if valid_basenames:
+            constraints.append("Basename is {}".format(" or ".join(valid_basenames)))
         raise UnsatisfiableInterpreterConstraintsError(constraints, candidates, failures)
 
 
-def _compatible_interpreters_iter(interpreters_iter, compatibility_constraints=None):
-    if compatibility_constraints:
-        for interpreter in _matched_interpreters_iter(interpreters_iter, compatibility_constraints):
-            yield interpreter
-    else:
-        for interpreter in interpreters_iter:
-            yield interpreter
-
-
-def _select_pex_python_interpreter(pex_python, compatibility_constraints=None):
-    compatible_interpreters_iter = _compatible_interpreters_iter(
-        _iter_pex_python(pex_python), compatibility_constraints=compatibility_constraints
+def _select_path_interpreter(
+    path=None,  # type: Optional[str]
+    valid_basenames=None,  # type: Optional[Tuple[str, ...]]
+    compatibility_constraints=None,  # type: Optional[Iterable[str]]
+):
+    # type: (...) -> Optional[PythonInterpreter]
+    candidate_interpreters_iter = iter_compatible_interpreters(
+        path=path,
+        valid_basenames=valid_basenames,
+        interpreter_constraints=compatibility_constraints,
     )
-    try:
-        return _select_interpreter(compatible_interpreters_iter)
-    except UnsatisfiableInterpreterConstraintsError as e:
-        die(
-            e.create_message(
-                "Failed to find a compatible PEX_PYTHON={pex_python}.".format(pex_python=pex_python)
-            )
-        )
-
-
-def _select_path_interpreter(path=None, compatibility_constraints=None):
-    compatible_interpreters_iter = iter_compatible_interpreters(
-        path=path, compatibility_constraints=compatibility_constraints
-    )
-    try:
-        return _select_interpreter(compatible_interpreters_iter)
-    except UnsatisfiableInterpreterConstraintsError as e:
-        die(
-            e.create_message(
-                "Failed to find compatible interpreter on path {path}.".format(
-                    path=path or os.getenv("PATH")
-                )
-            )
-        )
-
-
-def _select_interpreter(candidate_interpreters_iter):
-    current_interpreter = PythonInterpreter.get()
+    current_interpreter = PythonInterpreter.get()  # type: PythonInterpreter
     candidate_interpreters = []
     for interpreter in candidate_interpreters_iter:
         if current_interpreter == interpreter:
-            # Always prefer continuing with the current interpreter when possible.
+            # Always prefer continuing with the current interpreter when possible to avoid re-exec
+            # overhead.
             return current_interpreter
         else:
             candidate_interpreters.append(interpreter)
@@ -169,6 +177,7 @@ def _select_interpreter(candidate_interpreters_iter):
 
 
 def maybe_reexec_pex(compatibility_constraints=None):
+    # type: (Optional[Iterable[str]]) -> Union[None, NoReturn]
     """Handle environment overrides for the Python interpreter to use when executing this pex.
 
     This function supports interpreter filtering based on interpreter constraints stored in PEX-INFO
@@ -187,6 +196,7 @@ def maybe_reexec_pex(compatibility_constraints=None):
     """
 
     current_interpreter = PythonInterpreter.get()
+    target = None  # type: Optional[PythonInterpreter]
 
     # NB: Used only for tests.
     if "_PEX_EXEC_CHAIN" in os.environ:
@@ -198,7 +208,7 @@ def maybe_reexec_pex(compatibility_constraints=None):
     current_interpreter_blessed_env_var = "_PEX_SHOULD_EXIT_BOOTSTRAP_REEXEC"
     if os.environ.pop(current_interpreter_blessed_env_var, None):
         # We've already been here and selected an interpreter. Continue to execution.
-        return
+        return None
 
     from . import pex
 
@@ -217,9 +227,25 @@ def maybe_reexec_pex(compatibility_constraints=None):
                 ),
                 V=3,
             )
-            target = _select_pex_python_interpreter(
-                pex_python=ENV.PEX_PYTHON, compatibility_constraints=compatibility_constraints
-            )
+            try:
+                if os.path.isabs(ENV.PEX_PYTHON):
+                    target = _select_path_interpreter(
+                        path=ENV.PEX_PYTHON,
+                        compatibility_constraints=compatibility_constraints,
+                    )
+                else:
+                    target = _select_path_interpreter(
+                        valid_basenames=(os.path.basename(ENV.PEX_PYTHON),),
+                        compatibility_constraints=compatibility_constraints,
+                    )
+            except UnsatisfiableInterpreterConstraintsError as e:
+                die(
+                    e.create_message(
+                        "Failed to find a compatible PEX_PYTHON={pex_python}.".format(
+                            pex_python=ENV.PEX_PYTHON
+                        )
+                    )
+                )
         elif ENV.PEX_PYTHON_PATH or compatibility_constraints:
             TRACER.log(
                 "Using {path} constrained by {constraints}".format(
@@ -230,18 +256,48 @@ def maybe_reexec_pex(compatibility_constraints=None):
                 ),
                 V=3,
             )
-            target = _select_path_interpreter(
-                path=ENV.PEX_PYTHON_PATH, compatibility_constraints=compatibility_constraints
-            )
+            try:
+                target = _select_path_interpreter(
+                    path=ENV.PEX_PYTHON_PATH, compatibility_constraints=compatibility_constraints
+                )
+            except UnsatisfiableInterpreterConstraintsError as e:
+                die(
+                    e.create_message(
+                        "Failed to find compatible interpreter on path {path}.".format(
+                            path=ENV.PEX_PYTHON_PATH or os.getenv("PATH")
+                        )
+                    )
+                )
         elif pythonpath is None:
             TRACER.log(
                 "Using the current interpreter {} since no constraints have been specified and "
                 "PYTHONPATH is not set.".format(sys.executable),
                 V=3,
             )
-            return
+            return None
         else:
             target = current_interpreter
+
+    if not target:
+        # N.B.: This can only happen when PEX_PYTHON_PATH is set and compatibility_constraints is
+        # not set, but we handle all constraints generally for sanity sake.
+        constraints = []
+        if ENV.PEX_PYTHON:
+            constraints.append("PEX_PYTHON={}".format(ENV.PEX_PYTHON))
+        if ENV.PEX_PYTHON_PATH:
+            constraints.append("PEX_PYTHON_PATH={}".format(ENV.PEX_PYTHON_PATH))
+        if compatibility_constraints:
+            constraints.extend(
+                "--interpreter-constraint={}".format(compatibility_constraint)
+                for compatibility_constraint in compatibility_constraints
+            )
+
+        die(
+            "Failed to find an appropriate Python interpreter.\n"
+            "\n"
+            "Although the current interpreter is {python}, the following constraints exclude it:\n"
+            "  {constraints}".format(python=sys.executable, constraints="\n  ".join(constraints))
+        )
 
     os.environ.pop("PEX_PYTHON", None)
     os.environ.pop("PEX_PYTHON_PATH", None)
@@ -251,7 +307,7 @@ def maybe_reexec_pex(compatibility_constraints=None):
             "Using the current interpreter {} since it matches constraints and "
             "PYTHONPATH is not set.".format(sys.executable)
         )
-        return
+        return None
 
     target_binary = target.binary
     cmdline = [target_binary] + sys.argv
@@ -262,7 +318,7 @@ def maybe_reexec_pex(compatibility_constraints=None):
         "PEX_PYTHON={pex_python!r}, "
         "PEX_PYTHON_PATH={pex_python_path!r}, "
         "COMPATIBILITY_CONSTRAINTS={compatibility_constraints!r}"
-        '{pythonpath}"'.format(
+        "{pythonpath}".format(
             cmdline=" ".join(cmdline),
             python=sys.executable,
             pex_python=ENV.PEX_PYTHON,
@@ -281,15 +337,16 @@ def maybe_reexec_pex(compatibility_constraints=None):
 
 
 def _bootstrap(entry_point):
-    from .pex_info import PexInfo
-
-    pex_info = PexInfo.from_pex(entry_point)
+    # type: (str) -> PexInfo
+    pex_info = PexInfo.from_pex(entry_point)  # type: PexInfo
     pex_info.update(PexInfo.from_env())
     pex_warnings.configure_warnings(pex_info, ENV)
     return pex_info
 
 
+# NB: This helper is used by the PEX bootstrap __main__.py code.
 def bootstrap_pex(entry_point):
+    # type: (str) -> None
     pex_info = _bootstrap(entry_point)
     maybe_reexec_pex(pex_info.interpreter_constraints)
 
@@ -301,14 +358,16 @@ def bootstrap_pex(entry_point):
 # NB: This helper is used by third party libs - namely https://github.com/wickman/lambdex.
 # TODO(John Sirois): Kill once https://github.com/wickman/lambdex/issues/5 is resolved.
 def is_compressed(entry_point):
-    from .pex_info import PexInfo
-
+    # type: (str) -> bool
     return os.path.exists(entry_point) and not os.path.exists(
         os.path.join(entry_point, PexInfo.PATH)
     )
 
 
+# NB: This helper is used by third party libs like https://github.com/wickman/lambdex and
+# https://github.com/kwlzn/pyuwsgi_pex.
 def bootstrap_pex_env(entry_point):
+    # type: (str) -> None
     """Bootstrap the current runtime environment using a given pex."""
     pex_info = _bootstrap(entry_point)
 
