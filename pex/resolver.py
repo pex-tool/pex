@@ -740,6 +740,8 @@ def resolve(
     :keyword str platform: The exact PEP425-compatible platform string to resolve distributions for,
       in addition to the platform of the given interpreter, if provided. If any distributions need
       to be built, use the interpreter argument instead, providing the corresponding interpreter.
+      However, if the platform matches the current interpreter, the current interpreter will be used
+      to build any non-wheels.
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
       use of all indexes, pass an empty list.
@@ -836,6 +838,8 @@ def resolve_multi(
     :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
       for, in addition to the platforms of any given interpreters. If any distributions need to be
       built, use the interpreters argument instead, providing the corresponding interpreter.
+      However, if any platform matches the current interpreter, the current interpreter will be used
+      to build any non-wheels for that platform.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
