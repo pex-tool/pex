@@ -520,9 +520,9 @@ def configure_clp_pex_environment(parser):
         callback=parse_bool,
         help="When --platforms are specified, attempt to resolve a local interpreter that matches "
         "each platform specified. If found, use the interpreter to resolve distributions; if "
-        "not (or if this option is not specified), resolve for the platform only allowing matching "
-        "binary distributions and failing if only sdists or non-matching binary distributions "
-        "can be found.",
+        "not (or if this option is not specified), resolve for each platform only allowing "
+        "matching binary distributions and failing if only sdists or non-matching binary "
+        "distributions can be found.",
     )
 
     group.add_option(
@@ -536,7 +536,8 @@ def configure_clp_pex_environment(parser):
             "compatible Python version. Normally, when multiple interpreters match, Pex will "
             "resolve requirements for each interpreter; this allows the resulting Pex to be "
             "compatible with more interpreters, such as different Python versions. However, "
-            "resolving for multiple interpreters results in worse performance."
+            "resolving for multiple interpreters will take longer to build, and the resulting PEX "
+            "will be larger."
         ),
     )
 
