@@ -500,9 +500,7 @@ def configure_clp_pex_environment(parser):
         callback=process_platform,
         help="The platform for which to build the PEX. This option can be passed multiple times "
         "to create a multi-platform pex. To use the platform corresponding to the current "
-        "interpreter you can pass `current`. If any distributions need to be built, use the "
-        "--python or --interpreter-constraint argument instead, providing the corresponding "
-        "interpreter. To target any other platform you pass a string "
+        "interpreter you can pass `current`. To target any other platform you pass a string "
         "composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. "
         "These fields stem from wheel name conventions as outlined in "
         "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
@@ -537,7 +535,7 @@ def configure_clp_pex_environment(parser):
             "resolve requirements for each interpreter; this allows the resulting Pex to be "
             "compatible with more interpreters, such as different Python versions. However, "
             "resolving for multiple interpreters will take longer to build, and the resulting PEX "
-            "will be larger."
+            "may be larger."
         ),
     )
 
