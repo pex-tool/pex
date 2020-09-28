@@ -733,11 +733,13 @@ def resolve(
       prerelease or development versions will override this setting.
     :keyword bool transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword interpreter: The interpreter to use for building distributions and for testing
-      distribution compatibility. Defaults to the current interpreter.
+    :keyword interpreter: If specified, distributions will be resolved for this interpreter, and
+      non-wheel distributions will be built against this interpreter. If both `interpreter` and
+      `platform` are ``None`` (the default), this defaults to the current interpreter.
     :type interpreter: :class:`pex.interpreter.PythonInterpreter`
-    :keyword str platform: The exact target platform to resolve distributions for. If ``None`` or
-      ``'current'``, resolve for distributions appropriate for `interpreter`.
+    :keyword str platform: The exact PEP425-compatible platform string to resolve distributions for,
+      in addition to the platform of the given interpreter, if provided. The current interpreter
+      will be used to build any non-wheel distributions.
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
       use of all indexes, pass an empty list.
@@ -826,12 +828,14 @@ def resolve_multi(
       prerelease or development versions will override this setting.
     :keyword bool transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword interpreters: The interpreters to use for building distributions and for testing
-      distribution compatibility. Defaults to the current interpreter.
+    :keyword interpreters: If specified, distributions will be resolved for these interpreters, and
+      non-wheel distributions will be built against each interpreter. If both `interpreters` and
+      `platforms` are ``None`` (the default) or an empty iterable, this defaults to a list
+      containing only the current interpreter.
     :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
     :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
-      for. If ``None`` (the default) or an empty iterable, use the platforms of the given
-      interpreters.
+      for, in addition to the platforms of any given interpreters. The current interpreter will be
+      used to build any non-wheel distributions.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
@@ -1051,12 +1055,12 @@ def download(
       prerelease or development versions will override this setting.
     :keyword bool transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword interpreters: The interpreters to use for building distributions and for testing
-      distribution compatibility. Defaults to the current interpreter.
+    :keyword interpreters: If specified, distributions will be resolved for these interpreters.
+      If both `interpreters` and `platforms` are ``None`` (the default) or an empty iterable, this
+      defaults to a list containing only the current interpreter.
     :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
     :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
-      for. If ``None`` (the default) or an empty iterable, use the platforms of the given
-      interpreters.
+      for, in addition to the platforms of any given interpreters.
     :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
