@@ -420,7 +420,7 @@ class PythonInterpreter(object):
             # true, but historically this could be untrue as noted in `PythonIdentity.get`.
             if check_binary and not os.path.exists(interpreter.binary):
                 raise cls.InterpreterNotFound(
-                    "Cached interpreter for {} reports a binary of {} which is not found".format(
+                    "Cached interpreter for {} reports a binary of {}, which could not be found".format(
                         binary, interpreter.binary
                     )
                 )
