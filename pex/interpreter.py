@@ -68,11 +68,22 @@ class PythonIdentity(object):
     }
 
     @classmethod
-    def get(cls):
+    def get(cls, binary=None):
+        # N.B.: We should not need to look past `sys.executable` to learn the current interpreter's
+        # executable path, but on OSX there has been a bug where the `sys.executable` reported is
+        # _not_ the path of the current interpreter executable:
+        # https://bugs.python.org/issue22490#msg283859
+        if binary and binary != sys.executable:
+            TRACER.log(
+                "Identifying interpreter found at {} which reports an incorrect sys.executable of "
+                "{}.".format(binary, sys.executable),
+                V=9,
+            )
+
         supported_tags = tuple(tags.sys_tags())
         preferred_tag = supported_tags[0]
         return cls(
-            binary=sys.executable,
+            binary=binary or sys.executable,
             python_tag=preferred_tag.interpreter,
             abi_tag=preferred_tag.abi,
             platform_tag=preferred_tag.platform,
@@ -400,11 +411,20 @@ class PythonInterpreter(object):
 
     @classmethod
     def _spawn_from_binary_external(cls, binary):
-        def create_interpreter(stdout):
+        def create_interpreter(stdout, check_binary=False):
             identity = stdout.decode("utf-8").strip()
             if not identity:
-                raise cls.IdentificationError("Could not establish identity of %s" % binary)
-            return cls(PythonIdentity.decode(identity))
+                raise cls.IdentificationError("Could not establish identity of {}.".format(binary))
+            interpreter = cls(PythonIdentity.decode(identity))
+            # We should not need to check this since binary == interpreter.binary should always be
+            # true, but historically this could be untrue as noted in `PythonIdentity.get`.
+            if check_binary and not os.path.exists(interpreter.binary):
+                raise cls.InterpreterNotFound(
+                    "Cached interpreter for {} reports a binary of {}, which could not be found".format(
+                        binary, interpreter.binary
+                    )
+                )
+            return interpreter
 
         # Part of the PythonInterpreter data are environment markers that depend on the current OS
         # release. That data can change when the OS is upgraded but (some of) the installed interpreters
@@ -435,7 +455,7 @@ class PythonInterpreter(object):
         if os.path.isfile(cache_file):
             try:
                 with open(cache_file, "rb") as fp:
-                    return SpawnedJob.completed(create_interpreter(fp.read()))
+                    return SpawnedJob.completed(create_interpreter(fp.read(), check_binary=True))
             except (IOError, OSError, cls.Error, PythonIdentity.Error):
                 safe_rmtree(cache_dir)
                 return cls._spawn_from_binary_external(binary)
@@ -454,14 +474,14 @@ class PythonInterpreter(object):
                         from pex.interpreter import PythonIdentity
 
 
-                        encoded_identity = PythonIdentity.get().encode()
+                        encoded_identity = PythonIdentity.get(binary={binary!r}).encode()
                         sys.stdout.write(encoded_identity)
                         with atomic_directory({cache_dir!r}) as cache_dir:
                             if cache_dir:
                                 with safe_open(os.path.join(cache_dir, {info_file!r}), 'w') as fp:
                                     fp.write(encoded_identity)
                         """.format(
-                            cache_dir=cache_dir, info_file=cls.INTERP_INFO_FILE
+                            binary=binary, cache_dir=cache_dir, info_file=cls.INTERP_INFO_FILE
                         )
                     ),
                 ],
