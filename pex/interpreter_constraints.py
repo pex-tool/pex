@@ -3,7 +3,7 @@
 
 # A library of functions for filtering Python interpreters based on compatibility constraints
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import os
 
@@ -13,6 +13,8 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Iterable, Optional, Tuple
+
+    InterpreterIdentificationError = Tuple[str, str]
 
 
 def validate_constraints(constraints):
@@ -30,11 +32,17 @@ def validate_constraints(constraints):
 class UnsatisfiableInterpreterConstraintsError(Exception):
     """Indicates interpreter constraints could not be satisfied."""
 
-    def __init__(self, constraints, candidates, failures):
-        # type: (Iterable[str], Iterable[PythonInterpreter], Iterable[Tuple[str, str]]) -> None
+    def __init__(
+        self,
+        constraints,  # type: Iterable[str]
+        candidates,  # type: Iterable[PythonInterpreter]
+        failures,  # type: Iterable[InterpreterIdentificationError]
+    ):
+        # type: (...) -> None
         """
         :param constraints: The constraints that could not be satisfied.
         :param candidates: The python interpreters that were compared against the constraints.
+        :param failures: Descriptions of the python interpreters that were unidentifiable.
         """
         self.constraints = tuple(constraints)
         self.candidates = tuple(candidates)
@@ -87,27 +95,38 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         interpreters_format = "{{index}}.) {{binary: >{}}} {{requirement}}".format(
             binary_column_width
         )
+
+        qualifier = ""
         if failures_message:
-            failures_message = (
-                "\n" "\n" "Skipped the following broken interpreters:\n" "{}"
-            ).format(failures_message)
+            failures_message = "Skipped the following broken interpreters:\n{}".format(
+                failures_message
+            )
+            qualifier = "working "
+
+        constraints_message = ""
+        if self.constraints:
+            constraints_message = (
+                "No {qualifier}interpreter compatible with the requested constraints was found:\n"
+                "  {constraints}"
+            ).format(qualifier=qualifier, constraints="\n  ".join(self.constraints))
+
+        problems = "\n\n".join(msg for msg in (failures_message, constraints_message) if msg)
+        if problems:
+            problems = "\n\n{}".format(problems)
+
         return (
             "{preamble}"
             "Examined the following {qualifier}interpreters:\n"
             "{interpreters}"
-            "{failures_message}\n"
-            "\n"
-            "No {qualifier}interpreter compatible with the requested constraints was found:\n"
-            "  {constraints}"
+            "{problems}"
         ).format(
             preamble=preamble,
-            qualifier="working " if failures_message else "",
+            qualifier=qualifier,
             interpreters="\n".join(
                 interpreters_format.format(
                     index=i, binary=candidate.binary, requirement=candidate.identity.requirement
                 )
                 for i, candidate in enumerate(self.candidates, start=1)
             ),
-            constraints="\n  ".join(self.constraints),
-            failures_message=failures_message,
+            problems=problems,
         )
