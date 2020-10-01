@@ -11,6 +11,7 @@ import shutil
 import sys
 import zipfile
 from collections import OrderedDict, namedtuple
+from contextlib import closing
 
 
 # NB: All pex imports are performed lazily to play well with the un-imports performed by both the
@@ -379,7 +380,8 @@ def isolated():
                     recursive_copy(src_entry, dst_entry)
                 elif not entry_name.endswith(".pyc"):
                     with open(dst_entry, "wb") as fp:
-                        shutil.copyfileobj(resource_stream(module, src_entry), fp)
+                        with closing(resource_stream(module, src_entry)) as resource:
+                            shutil.copyfileobj(resource, fp)
 
         pex_path = os.path.join(vendor.VendorSpec.ROOT, "pex")
         with _tracer().timed("Hashing pex"):
