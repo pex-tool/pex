@@ -10,13 +10,14 @@ from pex import pex_warnings
 from pex.common import can_write_dir, open_zip, safe_mkdtemp
 from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
-from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:
+    from pex.interpreter import PythonInterpreter
+
     from typing import Optional
 
 
@@ -56,6 +57,15 @@ class PexInfo(object):
 
     @classmethod
     def make_build_properties(cls, interpreter=None):
+        # This lazy import is currently needed for performance reasons. At PEX runtime PexInfo is
+        # read in the bootstrap to see if the PEX should run in `--unzip` mode. If so, it must
+        # re-exec itself to run against its unzipped contents. Since `make_build_properties` is only
+        # used at PEX buildtime and the transitive imports of PythonInterpreter are large and slow,
+        # we avoid this import cost for runtime-only use.
+        #
+        # See: https://github.com/pantsbuild/pex/issues/1054
+        from pex.interpreter import PythonInterpreter
+
         pi = interpreter or PythonInterpreter.get()
         plat = pi.platform
         platform_name = plat.platform
