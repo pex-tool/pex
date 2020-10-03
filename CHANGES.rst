@@ -1,6 +1,46 @@
 Release Notes
 =============
 
+2.1.17
+------
+
+This release fixes a bug in ``--resolve-local-platforms`` handling that made it unusable in 2.1.16
+(#1043) as well as fixing a long standing file handle leak (#1050) and a bug when running under
+macOS framework builds of Python (#1009).
+
+* Fix `--unzip` performance regression. (#1056)
+  `PR #1056 <https://github.com/pantsbuild/pex/pull/1056>`_
+
+* Fix resource leak in Pex self-isolation. (#1052)
+  `PR #1052 <https://github.com/pantsbuild/pex/pull/1052>`_
+
+* Fix use of `iter_compatible_interpreters`. (#1048)
+  `PR #1048 <https://github.com/pantsbuild/pex/pull/1048>`_
+
+* Do not rely on `sys.executable` being accurate. (#1049)
+  `PR #1049 <https://github.com/pantsbuild/pex/pull/1049>`_
+
+* slightly demystify the relationship between platforms and interpreters in the library API and CLI (#1047)
+  `PR #1047 <https://github.com/pantsbuild/pex/pull/1047>`_
+
+* Path filter for PythonInterpreter.iter_candidates. (#1046)
+  `PR #1046 <https://github.com/pantsbuild/pex/pull/1046>`_
+
+* Add type hints to `util.py` and `tracer.py` (#1044)
+  `PR #1044 <https://github.com/pantsbuild/pex/pull/1044>`_
+
+* Add type hints to variables.py and platforms.py (#1042)
+  `PR #1042 <https://github.com/pantsbuild/pex/pull/1042>`_
+
+* Add type hints to the remaining tests (#1040)
+  `PR #1040 <https://github.com/pantsbuild/pex/pull/1040>`_
+
+* Add type hints to most tests (#1036)
+  `PR #1036 <https://github.com/pantsbuild/pex/pull/1036>`_
+
+* Use MyPy via type comments (#1032)
+  `PR #1032 <https://github.com/pantsbuild/pex/pull/1032>`_
+
 2.1.16
 ------
 
