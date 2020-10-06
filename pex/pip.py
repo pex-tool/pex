@@ -12,11 +12,16 @@ from pex import third_party
 from pex.common import atomic_directory
 from pex.compatibility import urlparse
 from pex.distribution_target import DistributionTarget
+from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.third_party import isolated
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
+
+if TYPE_CHECKING:
+    from typing import Iterator, List, Optional, Tuple, Mapping
 
 
 class Pip(object):
@@ -65,7 +70,14 @@ class Pip(object):
     def __init__(self, pip_pex_path):
         self._pip_pex_path = pip_pex_path
 
-    def _spawn_pip_isolated(self, args, cache=None, interpreter=None):
+    def _spawn_pip_isolated(
+        self,
+        args,  # type: List[str]
+        env=None,  # type: Optional[Mapping[str, str]]
+        cache=None,  # type: Optional[str]
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> Job
         pip_args = [
             # We vendor the version of pip we want so pip should never check for updates.
             "--disable-pip-version-check",
@@ -83,7 +95,11 @@ class Pip(object):
         ]
 
         # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor of 3.
-        pex_verbosity = ENV.PEX_VERBOSE
+
+        # We cast to work around the current awkward state of `Variables` which can only return
+        # `None` in a non-production states.
+        # TODO(John Sirois): https://github.com/pantsbuild/pex/issues/1059
+        pex_verbosity = cast(int, ENV.PEX_VERBOSE)
         pip_verbosity = pex_verbosity // 3
         if pip_verbosity > 0:
             pip_args.append("-{}".format("v" * pip_verbosity))
@@ -96,8 +112,13 @@ class Pip(object):
             pip_args.append("--no-cache-dir")
 
         command = pip_args + args
+
+        # We cast to work around the current awkward state of `Variables` which can only return
+        # `None` in a non-production states.
+        # TODO(John Sirois): https://github.com/pantsbuild/pex/issues/1059
+        pex_root = cast(str, ENV.PEX_ROOT)
         with ENV.strip().patch(
-            PEX_ROOT=cache or ENV.PEX_ROOT, PEX_VERBOSE=str(pex_verbosity)
+            PEX_ROOT=cache or pex_root, PEX_VERBOSE=str(pex_verbosity), **(env or {})
         ) as env:
             # Guard against API calls from environment with ambient PYTHONPATH preventing pip PEX
             # bootstrapping. See: https://github.com/pantsbuild/pex/issues/892
@@ -114,9 +135,13 @@ class Pip(object):
                 command=pip.cmdline(command), process=pip.run(args=command, env=env, blocking=False)
             )
 
-    def _calculate_package_index_options(
-        self, indexes=None, find_links=None, network_configuration=None
+    def _calculate_package_index_args(
+        self,
+        indexes=None,  # type: Optional[List[str]]
+        find_links=None,  # type: Optional[List[str]]
+        network_configuration=None,  # type: Optional[NetworkConfiguration]
     ):
+        # type: (...) -> Iterator[str]
         trusted_hosts = []
 
         def maybe_trust_insecure_host(url):
@@ -170,13 +195,20 @@ class Pip(object):
             yield "--proxy"
             yield network_configuration.proxy
 
-        if network_configuration.cert:
-            yield "--cert"
-            yield network_configuration.cert
+        # N.B.: `--cert` is passed via env var to work around:
+        #   https://github.com/pypa/pip/issues/5502
+        # See `_calculate_network_configuration_env`.
 
         if network_configuration.client_cert:
             yield "--client-cert"
             yield network_configuration.client_cert
+
+    def _calculate_network_configuration_env(self, network_configuration=None):
+        # type: (Optional[NetworkConfiguration]) -> Iterator[Tuple[str, str]]
+        network_configuration = network_configuration or NetworkConfiguration.create()
+
+        if network_configuration.cert:
+            yield "PIP_CERT", network_configuration.cert
 
     def spawn_download_distributions(
         self,
@@ -212,12 +244,16 @@ class Pip(object):
                 )
 
         download_cmd = ["download", "--dest", download_dir]
-        package_index_options = self._calculate_package_index_options(
-            indexes=indexes,
-            find_links=find_links,
-            network_configuration=network_configuration,
+        download_cmd.extend(
+            self._calculate_package_index_args(
+                indexes=indexes,
+                find_links=find_links,
+                network_configuration=network_configuration,
+            )
         )
-        download_cmd.extend(package_index_options)
+        env = dict(
+            self._calculate_network_configuration_env(network_configuration=network_configuration)
+        )
 
         if target.is_foreign:
             # We're either resolving for a different host / platform or a different interpreter for the
@@ -255,7 +291,7 @@ class Pip(object):
         download_cmd.extend(requirements)
 
         return self._spawn_pip_isolated(
-            download_cmd, cache=cache, interpreter=target.get_interpreter()
+            download_cmd, env=env, cache=cache, interpreter=target.get_interpreter()
         )
 
     def spawn_build_wheels(
@@ -272,15 +308,19 @@ class Pip(object):
         wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
 
         # If the build is PEP-517 compliant it may need to resolve build requirements.
-        package_index_options = self._calculate_package_index_options(
-            indexes=indexes,
-            find_links=find_links,
-            network_configuration=network_configuration,
+        wheel_cmd.extend(
+            self._calculate_package_index_args(
+                indexes=indexes,
+                find_links=find_links,
+                network_configuration=network_configuration,
+            )
         )
-        wheel_cmd.extend(package_index_options)
+        env = dict(
+            self._calculate_network_configuration_env(network_configuration=network_configuration)
+        )
 
         wheel_cmd.extend(distributions)
-        return self._spawn_pip_isolated(wheel_cmd, cache=cache, interpreter=interpreter)
+        return self._spawn_pip_isolated(wheel_cmd, env=env, cache=cache, interpreter=interpreter)
 
     def spawn_install_wheel(self, wheel, install_dir, compile=False, cache=None, target=None):
 
