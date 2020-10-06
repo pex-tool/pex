@@ -203,7 +203,7 @@ class Pip(object):
             yield "--client-cert"
             yield network_configuration.client_cert
 
-    def calculate_network_configuration_env(self, network_configuration=None):
+    def _calculate_network_configuration_env(self, network_configuration=None):
         # type: (Optional[NetworkConfiguration]) -> Iterator[Tuple[str, str]]
         network_configuration = network_configuration or NetworkConfiguration.create()
 
@@ -252,7 +252,7 @@ class Pip(object):
             )
         )
         env = dict(
-            self.calculate_network_configuration_env(network_configuration=network_configuration)
+            self._calculate_network_configuration_env(network_configuration=network_configuration)
         )
 
         if target.is_foreign:
@@ -316,7 +316,7 @@ class Pip(object):
             )
         )
         env = dict(
-            self.calculate_network_configuration_env(network_configuration=network_configuration)
+            self._calculate_network_configuration_env(network_configuration=network_configuration)
         )
 
         wheel_cmd.extend(distributions)
