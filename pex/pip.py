@@ -17,11 +17,11 @@ from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.third_party import isolated
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Iterator, List, Optional, Tuple, Mapping, cast
+    from typing import Iterator, List, Optional, Tuple, Mapping
 
 
 class Pip(object):
