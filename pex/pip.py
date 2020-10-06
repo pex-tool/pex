@@ -197,7 +197,7 @@ class Pip(object):
 
         # N.B.: `--cert` is passed via env var to work around:
         #   https://github.com/pypa/pip/issues/5502
-        # See `calculate_network_configuration_env`.
+        # See `_calculate_network_configuration_env`.
 
         if network_configuration.client_cert:
             yield "--client-cert"
