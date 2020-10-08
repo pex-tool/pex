@@ -46,7 +46,7 @@ def __maybe_run_unzipped__(pex_zip):
     with open(pex_zip, 'rb') as fp:
       hasher.update(fp.read())
   unzip_to = os.path.join(pex_info.pex_root, {unzipped_dir!r}, hasher.hexdigest())
-  with atomic_directory(unzip_to) as chroot:
+  with atomic_directory(unzip_to, exclusive=True) as chroot:
     if chroot:
       with TRACER.timed('Extracting {{}} to {{}}'.format(pex_zip, unzip_to)):
         with open_zip(pex_zip) as zip:
