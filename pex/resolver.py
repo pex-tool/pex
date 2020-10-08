@@ -19,7 +19,7 @@ from pex.interpreter import spawn_python_job
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
-from pex.pip import get_pip
+from pex.pip import PackageIndexConfiguration, get_pip
 from pex.platforms import Platform
 from pex.requirements import local_project_from_requirement, local_projects_from_requirement_file
 from pex.third_party.packaging.markers import Marker
@@ -172,9 +172,7 @@ class DownloadRequest(
             "constraint_files",
             "allow_prereleases",
             "transitive",
-            "indexes",
-            "find_links",
-            "network_configuration",
+            "package_index_configuration",
             "cache",
             "build",
             "use_wheel",
@@ -223,9 +221,7 @@ class DownloadRequest(
             allow_prereleases=self.allow_prereleases,
             transitive=self.transitive,
             target=target,
-            indexes=self.indexes,
-            find_links=self.find_links,
-            network_configuration=self.network_configuration,
+            package_index_configuration=self.package_index_configuration,
             cache=self.cache,
             build=self.build,
             manylinux=self.manylinux,
@@ -476,18 +472,14 @@ class BuildAndInstallRequest(object):
         self,
         build_requests,
         install_requests,
-        indexes=None,
-        find_links=None,
-        network_configuration=None,
+        package_index_configuration=None,
         cache=None,
         compile=False,
     ):
 
         self._build_requests = build_requests
         self._install_requests = install_requests
-        self._indexes = indexes
-        self._find_links = find_links
-        self._network_configuration = network_configuration
+        self._package_index_configuration = package_index_configuration
         self._cache = cache
         self._compile = compile
 
@@ -516,9 +508,7 @@ class BuildAndInstallRequest(object):
             distributions=[build_request.source_path],
             wheel_dir=build_result.build_dir,
             cache=self._cache,
-            indexes=self._indexes,
-            find_links=self._find_links,
-            network_configuration=self._network_configuration,
+            package_index_configuration=self._package_index_configuration,
             interpreter=build_request.target.get_interpreter(),
         )
         return SpawnedJob.wait(job=build_job, result=build_result)
@@ -903,6 +893,9 @@ def resolve_multi(
 
     workspace = safe_mkdtemp()
 
+    package_index_configuration = PackageIndexConfiguration.create(
+        indexes=indexes, find_links=find_links, network_configuration=network_configuration
+    )
     build_requests, download_results = _download_internal(
         interpreters=interpreters,
         platforms=platforms,
@@ -911,9 +904,7 @@ def resolve_multi(
         constraint_files=constraint_files,
         allow_prereleases=allow_prereleases,
         transitive=transitive,
-        indexes=indexes,
-        find_links=find_links,
-        network_configuration=network_configuration,
+        package_index_configuration=package_index_configuration,
         cache=cache,
         build=build,
         use_wheel=use_wheel,
@@ -931,9 +922,7 @@ def resolve_multi(
     build_and_install_request = BuildAndInstallRequest(
         build_requests=build_requests,
         install_requests=install_requests,
-        indexes=indexes,
-        find_links=find_links,
-        network_configuration=network_configuration,
+        package_index_configuration=package_index_configuration,
         cache=cache,
         compile=compile,
     )
@@ -954,9 +943,7 @@ def _download_internal(
     transitive=True,
     interpreters=None,
     platforms=None,
-    indexes=None,
-    find_links=None,
-    network_configuration=None,
+    package_index_configuration=None,
     cache=None,
     build=True,
     use_wheel=True,
@@ -998,9 +985,7 @@ def _download_internal(
         constraint_files=constraint_files,
         allow_prereleases=allow_prereleases,
         transitive=transitive,
-        indexes=indexes,
-        find_links=find_links,
-        network_configuration=network_configuration,
+        package_index_configuration=package_index_configuration,
         cache=cache,
         build=build,
         use_wheel=use_wheel,
@@ -1093,6 +1078,9 @@ def download(
     :raises ValueError: If `build=False` and `use_wheel=False`.
     """
 
+    package_index_configuration = PackageIndexConfiguration.create(
+        indexes=indexes, find_links=find_links, network_configuration=network_configuration
+    )
     local_distributions, download_results = _download_internal(
         interpreters=interpreters,
         platforms=platforms,
@@ -1101,9 +1089,7 @@ def download(
         constraint_files=constraint_files,
         allow_prereleases=allow_prereleases,
         transitive=transitive,
-        indexes=indexes,
-        find_links=find_links,
-        network_configuration=network_configuration,
+        package_index_configuration=package_index_configuration,
         cache=cache,
         build=build,
         use_wheel=use_wheel,
@@ -1179,12 +1165,13 @@ def install(
         else:
             build_requests.append(BuildRequest.from_local_distribution(local_distribution))
 
+    package_index_configuration = PackageIndexConfiguration.create(
+        indexes=indexes, find_links=find_links, network_configuration=network_configuration
+    )
     build_and_install_request = BuildAndInstallRequest(
         build_requests=build_requests,
         install_requests=install_requests,
-        indexes=indexes,
-        find_links=find_links,
-        network_configuration=network_configuration,
+        package_index_configuration=package_index_configuration,
         cache=cache,
         compile=compile,
     )
