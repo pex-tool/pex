@@ -99,8 +99,8 @@ class PackageIndexConfiguration(object):
         # type: (...) -> Iterator[Tuple[str, str]]
         if network_configuration.cert:
             # We use the backdoor of requests (which is vendored by Pip to handle all network
-            # operations support for REQUESTS_CA_BUNDLE) support for REQUESTS_CA_BUNDLE when
-            # possible to continue to allow Pip to operate in `--isolated` mode.
+            # operations) support for REQUESTS_CA_BUNDLE when possible to continue to allow Pip to
+            # operate in `--isolated` mode.
             yield ("REQUESTS_CA_BUNDLE" if isolated else "PIP_CERT"), network_configuration.cert
 
         if network_configuration.client_cert:
