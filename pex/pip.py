@@ -95,12 +95,7 @@ class Pip(object):
         ]
 
         # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor of 3.
-
-        # We cast to work around the current awkward state of `Variables` which can only return
-        # `None` in a non-production states.
-        # TODO(John Sirois): https://github.com/pantsbuild/pex/issues/1059
-        pex_verbosity = cast(int, ENV.PEX_VERBOSE)
-        pip_verbosity = pex_verbosity // 3
+        pip_verbosity = ENV.PEX_VERBOSE // 3
         if pip_verbosity > 0:
             pip_args.append("-{}".format("v" * pip_verbosity))
         else:
@@ -113,12 +108,8 @@ class Pip(object):
 
         command = pip_args + args
 
-        # We cast to work around the current awkward state of `Variables` which can only return
-        # `None` in a non-production states.
-        # TODO(John Sirois): https://github.com/pantsbuild/pex/issues/1059
-        pex_root = cast(str, ENV.PEX_ROOT)
         with ENV.strip().patch(
-            PEX_ROOT=cache or pex_root, PEX_VERBOSE=str(pex_verbosity), **(env or {})
+            PEX_ROOT=cache or ENV.PEX_ROOT, PEX_VERBOSE=str(ENV.PEX_VERBOSE), **(env or {})
         ) as env:
             # Guard against API calls from environment with ambient PYTHONPATH preventing pip PEX
             # bootstrapping. See: https://github.com/pantsbuild/pex/issues/892

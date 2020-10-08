@@ -12,7 +12,7 @@ from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING
-from pex.variables import ENV
+from pex.variables import ENV, Variables
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:
@@ -104,20 +104,17 @@ class PexInfo(object):
 
     @classmethod
     def from_env(cls, env=ENV):
-        supplied_env = env.strip_defaults()
-        zip_safe = (
-            None if supplied_env.PEX_FORCE_LOCAL is None else not supplied_env.PEX_FORCE_LOCAL
-        )
-        unzip = None if supplied_env.PEX_UNZIP is None else supplied_env.PEX_UNZIP
+        pex_force_local = Variables.PEX_FORCE_LOCAL.strip_default(env)
+        zip_safe = None if pex_force_local is None else not pex_force_local
         pex_info = {
-            "pex_root": supplied_env.PEX_ROOT,
-            "entry_point": supplied_env.PEX_MODULE,
-            "script": supplied_env.PEX_SCRIPT,
+            "pex_root": Variables.PEX_ROOT.strip_default(env),
+            "entry_point": env.PEX_MODULE,
+            "script": env.PEX_SCRIPT,
             "zip_safe": zip_safe,
-            "unzip": unzip,
-            "inherit_path": supplied_env.PEX_INHERIT_PATH,
-            "ignore_errors": supplied_env.PEX_IGNORE_ERRORS,
-            "always_write_cache": supplied_env.PEX_ALWAYS_CACHE,
+            "unzip": Variables.PEX_UNZIP.strip_default(env),
+            "inherit_path": Variables.PEX_INHERIT_PATH.strip_default(env),
+            "ignore_errors": Variables.PEX_IGNORE_ERRORS.strip_default(env),
+            "always_write_cache": Variables.PEX_ALWAYS_CACHE.strip_default(env),
         }
         # Filter out empty entries not explicitly set in the environment.
         return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))

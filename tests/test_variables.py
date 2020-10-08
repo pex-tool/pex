@@ -10,7 +10,7 @@ from pex.common import temporary_dir
 from pex.pex_warnings import PEXWarning
 from pex.testing import environment_as
 from pex.util import named_temporary_file
-from pex.variables import Variables
+from pex.variables import NoValueError, Variables
 
 
 def test_process_pydoc():
@@ -42,15 +42,14 @@ def test_iter_help():
 
 def test_pex_bool_variables():
     # type: () -> None
-    assert Variables(environ={})._get_bool("NOT_HERE", default=False) is False
-    assert Variables(environ={})._get_bool("NOT_HERE", default=True) is True
+    assert Variables(environ={})._maybe_get_bool("NOT_HERE") is None
+    with pytest.raises(NoValueError):
+        Variables(environ={})._get_bool("NOT_HERE")
 
     for value in ("0", "faLsE", "false"):
-        for default in (True, False):
-            assert Variables(environ={"HERE": value})._get_bool("HERE", default=default) is False
+        assert Variables(environ={"HERE": value})._get_bool("HERE") is False
     for value in ("1", "TrUe", "true"):
-        for default in (True, False):
-            assert Variables(environ={"HERE": value})._get_bool("HERE", default=default) is True
+        assert Variables(environ={"HERE": value})._get_bool("HERE") is True
     with pytest.raises(SystemExit):
         Variables(environ={"HERE": "garbage"})._get_bool("HERE")
 
@@ -61,19 +60,17 @@ def test_pex_bool_variables():
 
 def test_pex_string_variables():
     # type: () -> None
-    assert Variables(environ={})._get_string("NOT_HERE") is None
-    assert Variables(environ={})._get_string("NOT_HERE", default="lolol") == "lolol"
+    assert Variables(environ={})._maybe_get_string("NOT_HERE") is None
+    with pytest.raises(NoValueError):
+        Variables(environ={})._get_string("NOT_HERE")
     assert Variables(environ={"HERE": "stuff"})._get_string("HERE") == "stuff"
-    assert Variables(environ={"HERE": "stuff"})._get_string("HERE", default="lolol") == "stuff"
 
 
 def test_pex_get_int():
     # type: () -> None
-    assert Variables()._get_int("HELLO") is None
-    assert Variables()._get_int("HELLO", default=42) == 42
+    with pytest.raises(NoValueError):
+        Variables()._get_int("HELLO")
     assert Variables(environ={"HELLO": "23"})._get_int("HELLO") == 23
-    assert Variables(environ={"HELLO": "23"})._get_int("HELLO", default=42) == 23
-
     with pytest.raises(SystemExit):
         assert Variables(environ={"HELLO": "welp"})._get_int("HELLO")
 
@@ -141,19 +138,18 @@ def test_rc_ignore():
 def test_pex_vars_defaults_stripped():
     # type: () -> None
     v = Variables(environ={})
-    stripped = v.strip_defaults()
 
     # bool
     assert v.PEX_ALWAYS_CACHE is not None
-    assert stripped.PEX_ALWAYS_CACHE is None
+    assert Variables.PEX_ALWAYS_CACHE.strip_default(v) is None
 
     # string
     assert v.PEX_PATH is not None
-    assert stripped.PEX_PATH is None
+    assert Variables.PEX_PATH.strip_default(v) is None
 
     # int
     assert v.PEX_VERBOSE is not None
-    assert stripped.PEX_VERBOSE is None
+    assert Variables.PEX_VERBOSE.strip_default(v) is None
 
 
 def test_pex_root_unwriteable():

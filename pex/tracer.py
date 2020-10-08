@@ -129,6 +129,6 @@ class TraceLogger(object):
 
 
 TRACER = TraceLogger(
-    predicate=lambda verbosity: ENV.PEX_VERBOSE is not None and verbosity <= ENV.PEX_VERBOSE,
+    predicate=lambda verbosity: verbosity <= ENV.PEX_VERBOSE,
     prefix="pex: ",
 )

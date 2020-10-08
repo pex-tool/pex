@@ -194,7 +194,7 @@ def test_pex_builder_deterministic_timestamp():
 def test_pex_builder_from_requirements_pex():
     # type: () -> None
     def build_from_req_pex(path, req_pex):
-        # type: (str, PEXBuilder) -> PEXBuilder
+        # type: (str, str) -> PEXBuilder
         pb = PEXBuilder(path=path)
         pb.add_from_requirements_pex(req_pex)
         with open(os.path.join(path, "exe.py"), "w") as fp:

@@ -37,6 +37,7 @@ TYPE_CHECKING = False
 if TYPE_CHECKING:
     from typing import cast as cast
     from typing import overload as overload
+    from typing import Generic as Generic
 else:
 
     def cast(_type, value):
@@ -51,3 +52,11 @@ else:
             )
 
         return _never_called_since_structurally_shadowed
+
+    class _Generic(object):
+        def __getitem__(self, type_var):
+            return object
+
+    Generic = _Generic()
+
+    del _Generic
