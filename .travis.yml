@@ -15,6 +15,11 @@ x-linux-shard: &x-linux-shard
     apt:
       packages:
         - python3-venv
+  cache:
+    # The default is 3 minutes (180).
+    timeout: 300
+    directories:
+      - .pyenv_test
 
 # Pre-built Python distributions available on bionic (Ubuntu 18.04) are listed here:
 #   https://docs.travis-ci.com/user/languages/python/
@@ -31,9 +36,38 @@ x-linux-38-shard: &x-linux-38-shard
   <<: *x-linux-shard
   python: 3.8.2
 
-x-osx-env: &x-osx-env >
+x-pyenv-env: &x-pyenv-env >
   PYENV_ROOT=~/.pyenv-pex
   PATH="${PYENV_ROOT}/shims:${PATH}"
+
+x-pyenv-install: &x-pyenv-install |
+  # Ensure we have the targeted Python for tox to find on $PATH
+  PYENV="${PYENV_ROOT}/bin/pyenv"
+  if [ ! -x "${PYENV}" ]; then
+    rm -rf ${PYENV_ROOT}
+    git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
+  fi
+  "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
+  "${PYENV}" global ${PYENV_VERSION}
+
+x-pyenv-39-env: &x-pyenv-39-env >
+  PYENV_VERSION=3.9.0
+
+x-linux-3-shard: &x-linux-39-shard
+  <<: *x-linux-shard
+  env:
+    - *x-tox-env
+    - *x-pyenv-env
+    - *x-pyenv-39-env
+  cache:
+    # The default is 3 minutes (180).
+    timeout: 300
+    directories:
+      - .pyenv_test
+      - "${PYENV_ROOT}"
+  install:
+    - *x-tox-install
+    - *x-pyenv-install
 
 x-osx-shard: &x-osx-shard
   os: osx
@@ -47,40 +81,32 @@ x-osx-shard: &x-osx-shard
       - "${PYENV_ROOT}"
   install:
     - *x-tox-install
-    - |
-      # Ensure we have the targeted Python for tox to find on $PATH
-      PYENV="${PYENV_ROOT}/bin/pyenv"
-      if [ ! -x "${PYENV}" ]; then
-        rm -rf ${PYENV_ROOT}
-        git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
-      fi
-      "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
-      "${PYENV}" global ${PYENV_VERSION}
+    - *x-pyenv-install
 
 x-osx-27-shard: &x-osx-27-shard
   <<: *x-osx-shard
   env:
-    - *x-osx-env
     - *x-tox-env
+    - *x-pyenv-env
     - PYENV_VERSION=2.7.18
 
-x-osx-38-shard: &x-osx-38-shard
+x-osx-39-shard: &x-osx-39-shard
   <<: *x-osx-shard
   env:
-    - *x-osx-env
     - *x-tox-env
-    - PYENV_VERSION=3.8.2
+    - *x-pyenv-env
+    - *x-pyenv-39-env
 
 # NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
 # use TOXENV and instead pass the toxenv via -e on the command line. This helps ensure we share
 # caches as much as possible (eg: all linux python 2.7.15 shards share a cache).
 matrix:
   include:
-    - <<: *x-linux-38-shard
+    - <<: *x-linux-shard
       name: TOXENV=format-check
       script: ${TOX_CMD} -e format-check
 
-    - <<: *x-linux-38-shard
+    - <<: *x-linux-shard
       name: TOXENV=typecheck
       script: ${TOX_CMD} -e typecheck
 
@@ -115,6 +141,10 @@ matrix:
       name: TOXENV=py38
       script: ${TOX_CMD} -e py38
 
+    - <<: *x-linux-39-shard
+      name: TOXENV=py39
+      script: ${TOX_CMD} -e py39
+
     - <<: *x-linux-pypy-shard
       name: TOXENV=pypy
       script: ${TOX_CMD} -e pypy
@@ -123,9 +153,9 @@ matrix:
       name: TOXENV=py27-integration
       script: ${TOX_CMD} -e py27-integration
 
-    - <<: *x-linux-38-shard
-      name: TOXENV=py38-integration
-      script: ${TOX_CMD} -e py38-integration
+    - <<: *x-linux-39-shard
+      name: TOXENV=py39-integration
+      script: ${TOX_CMD} -e py39-integration
 
     - <<: *x-linux-pypy-shard
       name: TOXENV=pypy-integration
@@ -135,14 +165,14 @@ matrix:
       name: TOXENV=py27
       script: ${TOX_CMD} -e py27
 
-    - <<: *x-osx-38-shard
-      name: TOXENV=py38
-      script: ${TOX_CMD} -e py38
+    - <<: *x-osx-39-shard
+      name: TOXENV=py39
+      script: ${TOX_CMD} -e py39
 
     - <<: *x-osx-27-shard
       name: TOXENV=py27-integration
       script: ${TOX_CMD} -e py27-integration
 
-    - <<: *x-osx-38-shard
-      name: TOXENV=py38-integration
-      script: ${TOX_CMD} -e py38-integration
+    - <<: *x-osx-39-shard
+      name: TOXENV=py39-integration
+      script: ${TOX_CMD} -e py39-integration
