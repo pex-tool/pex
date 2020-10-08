@@ -32,7 +32,7 @@ class Pip(object):
         :param str path: The path to build the pip tool pex at.
         """
         pip_pex_path = os.path.join(path, isolated().pex_hash)
-        with atomic_directory(pip_pex_path) as chroot:
+        with atomic_directory(pip_pex_path, exclusive=True) as chroot:
             if chroot is not None:
                 from pex.pex_builder import PEXBuilder
 

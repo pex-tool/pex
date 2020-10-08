@@ -70,7 +70,7 @@ def test_atomic_directory_empty_workdir_finalize():
         target_dir = os.path.join(sandbox, "target_dir")
         assert not os.path.exists(target_dir)
 
-        with atomic_directory(target_dir) as work_dir:
+        with atomic_directory(target_dir, exclusive=False) as work_dir:
             assert work_dir is not None
             assert os.path.exists(work_dir)
             assert os.path.isdir(work_dir)
@@ -92,7 +92,8 @@ def test_atomic_directory_empty_workdir_failure():
     with temporary_dir() as sandbox:
         target_dir = os.path.join(sandbox, "target_dir")
         with pytest.raises(SimulatedRuntimeError):
-            with atomic_directory(target_dir) as work_dir:
+            with atomic_directory(target_dir, exclusive=False) as work_dir:
+                assert work_dir is not None
                 touch(os.path.join(work_dir, "created"))
                 raise SimulatedRuntimeError()
 
@@ -105,7 +106,7 @@ def test_atomic_directory_empty_workdir_failure():
 def test_atomic_directory_empty_workdir_finalized():
     # type: () -> None
     with temporary_dir() as target_dir:
-        with atomic_directory(target_dir) as work_dir:
+        with atomic_directory(target_dir, exclusive=False) as work_dir:
             assert work_dir is None, "When the target_dir exists no work_dir should be created."
 
 

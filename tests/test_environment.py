@@ -57,10 +57,17 @@ def test_force_local():
         pb.build(pex_file)
 
         code_cache = PEXEnvironment._force_local(pex_file, pb.info)
+
         assert os.path.exists(pb.info.zip_unsafe_cache)
-        assert len(os.listdir(pb.info.zip_unsafe_cache)) == 1
-        assert [os.path.basename(code_cache)] == os.listdir(pb.info.zip_unsafe_cache)
-        assert set(os.listdir(code_cache)) == set([PexInfo.PATH, "__main__.py", "__main__.pyc"])
+        listing = set(os.listdir(pb.info.zip_unsafe_cache))
+
+        # The code_cache should be a write-locked directory.
+        assert len(listing) == 2
+        listing.remove(os.path.basename(code_cache))
+        lockfile = listing.pop()
+        assert os.path.isfile(os.path.join(pb.info.zip_unsafe_cache, lockfile))
+
+        assert set(os.listdir(code_cache)) == {PexInfo.PATH, "__main__.py", "__main__.pyc"}
 
         # idempotence
         assert PEXEnvironment._force_local(pex_file, pb.info) == code_cache

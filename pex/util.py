@@ -180,7 +180,7 @@ class CacheHelper(object):
         :param target_dir: The directory to cache the distribution in if not already cached.
         :returns: The cached distribution.
         """
-        with atomic_directory(target_dir, source=source) as target_dir_tmp:
+        with atomic_directory(target_dir, source=source, exclusive=True) as target_dir_tmp:
             if target_dir_tmp is None:
                 TRACER.log("Using cached {}".format(target_dir))
             else:

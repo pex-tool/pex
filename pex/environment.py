@@ -107,7 +107,7 @@ class PEXEnvironment(Environment):
             return pex_file
         explode_dir = os.path.join(pex_info.zip_unsafe_cache, pex_info.code_hash)
         TRACER.log("PEX is not zip safe, exploding to %s" % explode_dir)
-        with atomic_directory(explode_dir) as explode_tmp:
+        with atomic_directory(explode_dir, exclusive=True) as explode_tmp:
             if explode_tmp:
                 with TRACER.timed("Unzipping %s" % pex_file):
                     with open_zip(pex_file) as pex_zip:
