@@ -389,7 +389,7 @@ def isolated():
         isolated_dir = os.path.join(ENV.PEX_ROOT, "isolated", dir_hash)
 
         with _tracer().timed("Isolating pex"):
-            with atomic_directory(isolated_dir) as chroot:
+            with atomic_directory(isolated_dir, exclusive=True) as chroot:
                 if chroot:
                     with _tracer().timed("Extracting pex to {}".format(isolated_dir)):
                         recursive_copy("", os.path.join(chroot, "pex"))
