@@ -93,6 +93,7 @@ def test_atomic_directory_empty_workdir_failure():
         target_dir = os.path.join(sandbox, "target_dir")
         with pytest.raises(SimulatedRuntimeError):
             with atomic_directory(target_dir) as work_dir:
+                assert work_dir is not None
                 touch(os.path.join(work_dir, "created"))
                 raise SimulatedRuntimeError()
 
