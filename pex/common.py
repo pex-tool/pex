@@ -319,16 +319,16 @@ class AtomicDirectory(object):
 
 
 @contextmanager
-def atomic_directory(target_dir, source=None, exclusive=False):
-    # type: (str, Optional[str], bool) -> Iterator[Optional[str]]
+def atomic_directory(target_dir, exclusive, source=None):
+    # type: (str, bool, Optional[str]) -> Iterator[Optional[str]]
     """A context manager that yields a new empty work directory path it will move to `target_dir`.
 
     :param target_dir: The target directory to atomically update.
-    :param source: An optional source offset into the work directory to use for the atomic update
-                   of the target directory. By default the whole work directory is used.
     :param exclusive: If `True`, its guaranteed that only one process will be yielded a non `None`
                       workdir; otherwise two or more processes might be yielded unique non-`None`
                       workdirs with the last process to finish "winning".
+    :param source: An optional source offset into the work directory to use for the atomic update
+                   of the target directory. By default the whole work directory is used.
 
     If the `target_dir` already exists the enclosed block will be yielded `None` to signal there is
     no work to do.
