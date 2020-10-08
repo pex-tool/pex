@@ -19,7 +19,7 @@ class PEXWarning(Warning):
 
 def configure_warnings(pex_info, env):
     # type: (PexInfo, Variables) -> None
-    if env.PEX_VERBOSE is not None and env.PEX_VERBOSE > 0:
+    if env.PEX_VERBOSE > 0:
         emit_warnings = True
     elif env.PEX_EMIT_WARNINGS is not None:
         emit_warnings = env.PEX_EMIT_WARNINGS

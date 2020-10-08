@@ -12,14 +12,119 @@ from contextlib import contextmanager
 
 from pex import pex_warnings
 from pex.common import can_write_dir, die, safe_mkdtemp
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, Generic, overload
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterator, Optional, Tuple, TypeVar
+    from typing import Callable, Dict, Iterator, Optional, Tuple, TypeVar, Type, Union
 
-    _T = TypeVar("_T", str, int, bool)
+    _O = TypeVar("_O")
+    _P = TypeVar("_P")
 
-__all__ = ("ENV", "Variables")
+
+class NoValueError(Exception):
+    """Indicates a property has no value set.
+
+    When raised from a method decorated with `@defaulted_property(default)` indicates the default
+    value should be used.
+    """
+
+
+class DefaultedProperty(Generic["_O", "_P"]):
+    """Represents a property with a default value.
+
+    To determine the value of the property without the default value applied, access it through the
+    class and call the `strip_default` method, passing the instance in question.
+    """
+
+    def __init__(
+        self,
+        func,  # type: Callable[[_O], _P]
+        default,  # type: _P
+    ):
+        # type: (...) -> None
+        self._func = func  # type: Callable[[_O], _P]
+        self._default = default  # type: _P
+        self._validator = None  # type: Optional[Callable[[_O, _P], _P]]
+
+    @overload
+    def __get__(
+        self,
+        instance,  # type: None
+        owner_class=None,  # type: Optional[Type[_O]]
+    ):
+        # type: (...) -> DefaultedProperty[_O, _P]
+        pass
+
+    @overload
+    def __get__(
+        self,
+        instance,  # type: _O
+        owner_class=None,  # type: Optional[Type[_O]]
+    ):
+        # type: (...) -> _P
+        pass
+
+    def __get__(
+        self,
+        instance,  # type: Optional[_O]
+        owner_class=None,  # type: Optional[Type[_O]]
+    ):
+        # type: (...) -> Union[DefaultedProperty[_O, _P], _P]
+        if instance is None:  # The descriptor was accessed from the class.
+            return self
+        try:
+            return self._validate(instance, self._func(instance))
+        except NoValueError:
+            return self._validate(instance, self._default)
+
+    def strip_default(self, instance):
+        # type: (_O) -> Optional[_P]
+        """Return the value of this property without the default value applied.
+
+        If the property is not set `None` will be returned and if there is an associated @validator
+        that validator will be skipped.
+
+        :param instance: The instance to check for the non-defaulted property value.
+        :return: The property value or `None` if not set.
+        """
+        try:
+            return self._validate(instance, self._func(instance))
+        except NoValueError:
+            return None
+
+    def validator(self, func):
+        # type: (Callable[[_O, _P], _P]) -> Callable[[_O, _P], _P]
+        """Associate a validation function with this defaulted property.
+
+        The function will be used to validate this property's final computed value.
+
+        :param func: The validation function to associate with this property descriptor.
+        """
+        self._validator = func
+        return func
+
+    def _validate(self, instance, value):
+        # type: (_O, _P) -> _P
+        if self._validator is None:
+            return value
+        return self._validator(instance, value)
+
+
+def defaulted_property(
+    default,  # type: _P
+):
+    # type: (...) -> Callable[[Callable[[_O], _P]], DefaultedProperty[_O, _P]]
+    """Creates a `@property` with a `default` value.
+
+    Accessors decorated with this function should raise `NoValueError` to indicate the `default`
+    value should be used.
+    """
+
+    def wrapped(func):
+        # type: (Callable[[_O], _P]) -> DefaultedProperty[_O, _P]
+        return DefaultedProperty(func, default)
+
+    return wrapped
 
 
 class Variables(object):
@@ -75,10 +180,11 @@ class Variables(object):
         if len(list(filter(None, kv))) == 2:
             return kv
 
-    def __init__(self, environ=None, rc=None, use_defaults=True):
-        # type: (Optional[Dict[str, str]], Optional[str], bool) -> None
-        self._use_defaults = use_defaults
-        self._environ = environ.copy() if environ is not None else os.environ.copy()
+    def __init__(self, environ=None, rc=None):
+        # type: (Optional[Dict[str, str]], Optional[str]) -> None
+        self._environ = (
+            environ.copy() if environ is not None else os.environ.copy()
+        )  # type: Dict[str, str]
         if not self.PEX_IGNORE_RCFILES:
             rc_values = self.from_rc(rc).copy()
             rc_values.update(self._environ)
@@ -88,43 +194,59 @@ class Variables(object):
         # type: () -> Dict[str, str]
         return self._environ.copy()
 
-    def _defaulted(self, default):
-        # type: (Optional[_T]) -> Optional[_T]
-        return default if self._use_defaults else None
+    def _maybe_get_string(self, variable):
+        # type: (str) -> Optional[str]
+        return self._environ.get(variable)
 
-    def _get_bool(self, variable, default=False):
-        # type: (str, Optional[bool]) -> Optional[bool]
-        value = self._environ.get(variable)
+    def _get_string(self, variable):
+        # type: (str) -> str
+        value = self._maybe_get_string(variable)
         if value is None:
-            return self._defaulted(default)
+            raise NoValueError(variable)
+        return value
+
+    def _maybe_get_bool(self, variable):
+        # type: (str) -> Optional[bool]
+        value = self._maybe_get_string(variable)
+        if value is None:
+            return None
         if value.lower() in ("0", "false"):
             return False
         if value.lower() in ("1", "true"):
             return True
         die("Invalid value for %s, must be 0/1/false/true, got %r" % (variable, value))
 
-    def _get_string(self, variable, default=None):
-        # type: (str, Optional[str]) -> Optional[str]
-        return self._environ.get(variable, self._defaulted(default))
-
-    def _get_path(self, variable, default=None):
-        # type: (str, Optional[str]) -> Optional[str]
-        value = self._get_string(variable, default=default)
-        if value is not None:
-            value = os.path.realpath(os.path.expanduser(value))
+    def _get_bool(self, variable):
+        # type: (str) -> bool
+        value = self._maybe_get_bool(variable)
+        if value is None:
+            raise NoValueError(variable)
         return value
 
-    def _get_int(self, variable, default=None):
-        # type: (str, Optional[int]) -> Optional[int]
+    def _maybe_get_path(self, variable):
+        # type: (str) -> Optional[str]
+        value = self._maybe_get_string(variable)
+        if value is None:
+            return None
+        return os.path.realpath(os.path.expanduser(value))
+
+    def _get_path(self, variable):
+        # type: (str) -> str
+        value = self._maybe_get_path(variable)
+        if value is None:
+            raise NoValueError(variable)
+        return value
+
+    def _get_int(self, variable):
+        # type: (str) -> int
+        value = self._get_string(variable)
         try:
-            return int(self._environ[variable])
+            return int(value)
         except ValueError:
             die(
                 "Invalid value for %s, must be an integer, got %r"
                 % (variable, self._environ[variable])
             )
-        except KeyError:
-            return self._defaulted(default)
 
     def strip(self):
         # type: () -> Variables
@@ -132,14 +254,6 @@ class Variables(object):
             k: v for k, v in self.copy().items() if not k.startswith(("PEX_", "__PEX_"))
         }
         return Variables(environ=stripped_environ)
-
-    def strip_defaults(self):
-        # type: () -> Variables
-        """Returns a copy of these variables but with defaults stripped.
-
-        Any variables not explicitly set in the environment will have a value of `None`.
-        """
-        return Variables(environ=self.copy(), use_defaults=False)
 
     @contextmanager
     def patch(self, **kw):
@@ -151,9 +265,9 @@ class Variables(object):
         yield self._environ
         self._environ = old_environ
 
-    @property
+    @defaulted_property(default=False)
     def PEX_ALWAYS_CACHE(self):
-        # type: () -> Optional[bool]
+        # type: () -> bool
         """Boolean.
 
         Always write PEX dependencies to disk prior to invoking regardless whether or not the
@@ -161,17 +275,17 @@ class Variables(object):
         can reduce the RAM necessary to launch the PEX.  The data will be written into $PEX_ROOT,
         which by default is $HOME/.pex.  Default: false.
         """
-        return self._get_bool("PEX_ALWAYS_CACHE", default=False)
+        return self._get_bool("PEX_ALWAYS_CACHE")
 
-    @property
+    @defaulted_property(default=False)
     def PEX_COVERAGE(self):
-        # type: () -> Optional[bool]
+        # type: () -> bool
         """Boolean.
 
         Enable coverage reporting for this PEX file.  This requires that the "coverage" module is
         available in the PEX environment.  Default: false.
         """
-        return self._get_bool("PEX_COVERAGE", default=False)
+        return self._get_bool("PEX_COVERAGE")
 
     @property
     def PEX_COVERAGE_FILENAME(self):
@@ -181,11 +295,11 @@ class Variables(object):
         Write the coverage data to the specified filename.  If PEX_COVERAGE_FILENAME is not
         specified but PEX_COVERAGE is, coverage information will be printed to stdout and not saved.
         """
-        return self._get_path("PEX_COVERAGE_FILENAME", default=None)
+        return self._maybe_get_path("PEX_COVERAGE_FILENAME")
 
-    @property
+    @defaulted_property(default=False)
     def PEX_FORCE_LOCAL(self):
-        # type: () -> Optional[bool]
+        # type: () -> bool
         """Boolean.
 
         Force this PEX to be not-zip-safe. This forces all code and dependencies to be written into
@@ -195,33 +309,33 @@ class Variables(object):
         often improve startup latency in addition to providing support for __file__ access.
         Default: false.
         """
-        return self._get_bool("PEX_FORCE_LOCAL", default=False)
+        return self._get_bool("PEX_FORCE_LOCAL")
 
-    @property
+    @defaulted_property(default=False)
     def PEX_UNZIP(self):
-        # type: () -> Optional[bool]
+        # type: () -> bool
         """Boolean.
 
         Force this PEX to unzip itself to $PEX_ROOT and re-execute from there.  If the pex file will
         be run multiple times under a stable $PEX_ROOT the unzipping will only be performed once and
         subsequent runs will enjoy lower startup latency.  Default: false.
         """
-        return self._get_bool("PEX_UNZIP", default=False)
+        return self._get_bool("PEX_UNZIP")
 
-    @property
+    @defaulted_property(default=False)
     def PEX_IGNORE_ERRORS(self):
-        # type: () -> Optional[bool]
+        # type: () -> bool
         """Boolean.
 
         Ignore any errors resolving dependencies when invoking the PEX file. This can be useful if
         you know that a particular failing dependency is not necessary to run the application.
         Default: false.
         """
-        return self._get_bool("PEX_IGNORE_ERRORS", default=False)
+        return self._get_bool("PEX_IGNORE_ERRORS")
 
-    @property
+    @defaulted_property(default="false")
     def PEX_INHERIT_PATH(self):
-        # type: () -> Optional[str]
+        # type: () -> str
         """String (false|prefer|fallback)
 
         Allow inheriting packages from site-packages, user site-packages and the PYTHONPATH. By default,
@@ -236,11 +350,11 @@ class Variables(object):
 
         Default: false.
         """
-        return self._get_string("PEX_INHERIT_PATH", default="false")
+        return self._get_string("PEX_INHERIT_PATH")
 
-    @property
+    @defaulted_property(default=False)
     def PEX_INTERPRETER(self):
-        # type: () -> Optional[bool]
+        # type: () -> bool
         """Boolean.
 
         Drop into a REPL instead of invoking the predefined entry point of this PEX. This can be
@@ -249,7 +363,7 @@ class Variables(object):
         "PEX_INTERPRETER=1 ./app.pex my_script.py".  Equivalent to setting PEX_MODULE to empty.
         Default: false.
         """
-        return self._get_bool("PEX_INTERPRETER", default=False)
+        return self._get_bool("PEX_INTERPRETER")
 
     @property
     def PEX_MODULE(self):
@@ -259,17 +373,17 @@ class Variables(object):
         Override the entry point into the PEX file.  Can either be a module, e.g.
         'SimpleHTTPServer', or a specific entry point in module:symbol form, e.g.  "myapp.bin:main".
         """
-        return self._get_string("PEX_MODULE", default=None)
+        return self._maybe_get_string("PEX_MODULE")
 
-    @property
+    @defaulted_property(default=False)
     def PEX_PROFILE(self):
-        # type: () -> Optional[bool]
+        # type: () -> bool
         """Boolean.
 
         Enable application profiling.  If specified and PEX_PROFILE_FILENAME is not specified, PEX
         will print profiling information to stdout.
         """
-        return self._get_bool("PEX_PROFILE", default=False)
+        return self._get_bool("PEX_PROFILE")
 
     @property
     def PEX_PROFILE_FILENAME(self):
@@ -279,17 +393,17 @@ class Variables(object):
         Profile the application and dump a profile into the specified filename in the standard
         "profile" module format.
         """
-        return self._get_path("PEX_PROFILE_FILENAME", default=None)
+        return self._maybe_get_path("PEX_PROFILE_FILENAME")
 
-    @property
+    @defaulted_property(default="cumulative")
     def PEX_PROFILE_SORT(self):
-        # type: () -> Optional[str]
+        # type: () -> str
         """String.
 
         Toggle the profile sorting algorithm used to print out profile columns.  Default:
         'cumulative'.
         """
-        return self._get_string("PEX_PROFILE_SORT", default="cumulative")
+        return self._get_string("PEX_PROFILE_SORT")
 
     @property
     def PEX_PYTHON(self):
@@ -300,7 +414,7 @@ class Variables(object):
         an interpreter or a base name e.g.  "python3.3".  If a base name is provided, the $PATH will
         be searched for an appropriate match.
         """
-        return self._get_string("PEX_PYTHON", default=None)
+        return self._maybe_get_string("PEX_PYTHON")
 
     @property
     def PEX_PYTHON_PATH(self):
@@ -314,7 +428,7 @@ class Variables(object):
 
         Ex: "/path/to/python27:/path/to/python36-distribution/bin"
         """
-        return self._get_string("PEX_PYTHON_PATH", default=None)
+        return self._maybe_get_string("PEX_PYTHON_PATH")
 
     @property
     def PEX_EXTRA_SYS_PATH(self):
@@ -333,22 +447,20 @@ class Variables(object):
 
         See also PEX_PATH for how to merge packages from other pexes into the current environment.
         """
-        return self._get_string("PEX_EXTRA_SYS_PATH", default=None)
+        return self._maybe_get_string("PEX_EXTRA_SYS_PATH")
 
-    @property
+    @defaulted_property(default=os.path.expanduser("~/.pex"))
     def PEX_ROOT(self):
-        # type: () -> Optional[str]
+        # type: () -> str
         """Directory.
 
         The directory location for PEX to cache any dependencies and code.  PEX must write not-zip-
         safe eggs and all wheels to disk in order to activate them.  Default: ~/.pex
         """
-        pex_root = self._get_path("PEX_ROOT", default=os.path.expanduser("~/.pex"))
+        return self._get_path("PEX_ROOT")
 
-        if pex_root is None:
-            # PEX_ROOT is not set and we're running in stripped_defaults mode.
-            return None
-
+    @PEX_ROOT.validator
+    def _ensure_writeable_pex_root(self, pex_root):
         if not can_write_dir(pex_root):
             tmp_root = os.path.realpath(safe_mkdtemp())
             pex_warnings.warn(
@@ -357,12 +469,11 @@ class Variables(object):
                 "performance.".format(pex_root=pex_root, tmp_root=tmp_root)
             )
             pex_root = self._environ["PEX_ROOT"] = tmp_root
-
         return pex_root
 
-    @property
+    @defaulted_property(default="")
     def PEX_PATH(self):
-        # type: () -> Optional[str]
+        # type: () -> str
         """A set of one or more PEX files.
 
         Merge the packages from other PEX files into the current environment.  This allows you to
@@ -373,7 +484,7 @@ class Variables(object):
 
         See also PEX_EXTRA_SYS_PATH for how to add arbitrary entries to the sys.path.
         """
-        return self._get_string("PEX_PATH", default="")
+        return self._get_string("PEX_PATH")
 
     @property
     def PEX_SCRIPT(self):
@@ -385,37 +496,37 @@ class Variables(object):
         scripts section.  While Python supports any script including shell scripts, PEX only
         supports invocation of Python scripts in this fashion.
         """
-        return self._get_string("PEX_SCRIPT", default=None)
+        return self._maybe_get_string("PEX_SCRIPT")
 
-    @property
+    @defaulted_property(default=False)
     def PEX_TEARDOWN_VERBOSE(self):
-        # type: () -> Optional[bool]
+        # type: () -> bool
         """Boolean.
 
         Enable verbosity for when the interpreter shuts down.  This is mostly only useful for
         debugging PEX itself.  Default: false.
         """
-        return self._get_bool("PEX_TEARDOWN_VERBOSE", default=False)
+        return self._get_bool("PEX_TEARDOWN_VERBOSE")
 
-    @property
+    @defaulted_property(default=0)
     def PEX_VERBOSE(self):
-        # type: () -> Optional[int]
+        # type: () -> int
         """Integer.
 
         Set the verbosity level of PEX debug logging.  The higher the number, the more logging, with
         0 being disabled.  This environment variable can be extremely useful in debugging PEX
         environment issues.  Default: 0
         """
-        return self._get_int("PEX_VERBOSE", default=0)
+        return self._get_int("PEX_VERBOSE")
 
-    @property
+    @defaulted_property(default=False)
     def PEX_IGNORE_RCFILES(self):
-        # type: () -> Optional[bool]
+        # type: () -> bool
         """Boolean.
 
         Explicitly disable the reading/parsing of pexrc files (~/.pexrc). Default: false.
         """
-        return self._get_bool("PEX_IGNORE_RCFILES", default=False)
+        return self._get_bool("PEX_IGNORE_RCFILES")
 
     @property
     def PEX_EMIT_WARNINGS(self):
@@ -425,7 +536,7 @@ class Variables(object):
         Emit UserWarnings to stderr. When false, warnings will only be logged at PEX_VERBOSE >= 1.
         When unset the build-time value of `--emit-warnings` will be used. Default: unset.
         """
-        return self._get_bool("PEX_EMIT_WARNINGS", default=None)
+        return self._maybe_get_bool("PEX_EMIT_WARNINGS")
 
     def __repr__(self):
         return "{}({!r})".format(type(self).__name__, self._environ)
