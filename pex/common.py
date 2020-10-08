@@ -20,7 +20,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
 
-from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
