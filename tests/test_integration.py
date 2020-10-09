@@ -20,7 +20,15 @@ from zipfile import ZipFile
 import pytest
 
 from pex import pex_builder
-from pex.common import safe_copy, safe_mkdir, safe_open, safe_rmtree, safe_sleep, temporary_dir
+from pex.common import (
+    safe_copy,
+    safe_mkdir,
+    safe_open,
+    safe_rmtree,
+    safe_sleep,
+    temporary_dir,
+    touch,
+)
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
@@ -2342,3 +2350,53 @@ def test_issues_996():
         )
         assert 0 == returncode
         assert int(output.strip()) >= multiprocessing.cpu_count()
+
+
+@pytest.fixture
+def tmp_workdir():
+    # type: () -> Iterator[str]
+    with temporary_dir() as tmpdir:
+        os.chdir(tmpdir)
+        yield tmpdir
+
+
+def test_tmpdir_absolute(tmp_workdir):
+    # type: (str) -> None
+    result = run_pex_command(
+        args=[
+            "--tmpdir",
+            ".",
+            "--",
+            "-c",
+            dedent(
+                """\
+                import os
+                import tempfile
+                
+                print(os.environ["TMPDIR"])
+                print(tempfile.gettempdir())
+                """
+            ),
+        ]
+    )
+    result.assert_success()
+    assert [tmp_workdir, tmp_workdir] == result.output.strip().splitlines()
+
+
+def test_tmpdir_dne(tmp_workdir):
+    # type: (str) -> None
+    tmpdir_dne = os.path.join(tmp_workdir, ".tmp")
+    result = run_pex_command(args=["--tmpdir", ".tmp", "--", "-c", ""])
+    result.assert_failure()
+    assert tmpdir_dne in result.error
+    assert "does not exist" in result.error
+
+
+def test_tmpdir_file(tmp_workdir):
+    # type: (str) -> None
+    tmpdir_file = os.path.join(tmp_workdir, ".tmp")
+    touch(tmpdir_file)
+    result = run_pex_command(args=["--tmpdir", ".tmp", "--", "-c", ""])
+    result.assert_failure()
+    assert tmpdir_file in result.error
+    assert "is not a directory" in result.error

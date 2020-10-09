@@ -10,6 +10,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
+import tempfile
 from optparse import OptionGroup, OptionParser, OptionValueError
 from textwrap import TextWrapper
 
@@ -705,6 +706,14 @@ def configure_clp():
     )
 
     parser.add_option(
+        "--tmpdir",
+        dest="tmpdir",
+        default=tempfile.gettempdir(),
+        help="Specify the temporary directory Pex and its subprocesses should use. "
+        "[Default: %default]",
+    )
+
+    parser.add_option(
         "--help-variables",
         action="callback",
         callback=print_variable_help,
@@ -946,6 +955,15 @@ def main(args=None):
 
     options, reqs = parser.parse_args(args=args)
 
+    # Ensure the TMPDIR is an absolute path (So subprocesses that change CWD can find it) and
+    # that it exists.
+    tmpdir = os.path.realpath(options.tmpdir)
+    if not os.path.exists(tmpdir):
+        die("The specified --tmpdir does not exist: {}".format(tmpdir))
+    if not os.path.isdir(tmpdir):
+        die("The specified --tmpdir is not a directory: {}".format(tmpdir))
+    tempfile.tempdir = os.environ["TMPDIR"] = tmpdir
+
     if options.cache_dir:
         pex_warnings.warn("The --cache-dir option is deprecated, use --pex-root instead.")
         if options.pex_root and options.cache_dir != options.pex_root:
@@ -976,7 +994,9 @@ def main(args=None):
     if options.python and options.interpreter_constraint:
         die('The "--python" and "--interpreter-constraint" options cannot be used together.')
 
-    with ENV.patch(PEX_VERBOSE=str(options.verbosity), PEX_ROOT=pex_root) as patched_env:
+    with ENV.patch(
+        PEX_VERBOSE=str(options.verbosity), PEX_ROOT=pex_root, TMPDIR=tmpdir
+    ) as patched_env:
         with TRACER.timed("Building pex"):
             pex_builder = build_pex(reqs, options, cache=ENV.PEX_ROOT)
 
