@@ -2357,7 +2357,7 @@ def tmp_workdir():
     # type: () -> Iterator[str]
     with temporary_dir() as tmpdir:
         os.chdir(tmpdir)
-        yield tmpdir
+        yield os.path.realpath(tmpdir)
 
 
 def test_tmpdir_absolute(tmp_workdir):
