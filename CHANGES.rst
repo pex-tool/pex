@@ -1,6 +1,34 @@
 Release Notes
 =============
 
+2.1.18
+------
+
+This release brings official support for Python 3.9 and adds a new ``--tmpdir`` option to explicitly
+control the TMPDIR used by Pex and its subprocesses. The latter is useful when building PEXes in
+space-constrained environments in the face of large distributions.
+
+The release also fixes ``--cert`` and ``--client-cert`` so that they work with PEP-518 builds in
+addition to fixing bytecode compilation races in highly parallel environments.
+
+* Add a ``--tmpdir`` option to the Pex CLI. (#1068)
+  `PR #1068 <https://github.com/pantsbuild/pex/pull/1068>`_
+
+* Honor ``sys.executable`` unless macOS Framework. (#1065)
+  `PR #1065 <https://github.com/pantsbuild/pex/pull/1065>`_
+
+* Add Python 3.9 support. (#1064)
+  `PR #1064 <https://github.com/pantsbuild/pex/pull/1064>`_
+
+* Fix handling of ``--cert`` and ``--client-cert``. (#1063)
+  `PR #1063 <https://github.com/pantsbuild/pex/pull/1063>`_
+
+* Add atomic_directory exclusive mode. (#1062)
+  `PR #1062 <https://github.com/pantsbuild/pex/pull/1062>`_
+
+* Fix ``--cert`` for PEP-518 builds. (#1060)
+  `PR #1060 <https://github.com/pantsbuild/pex/pull/1060>`_
+
 2.1.17
 ------
 
