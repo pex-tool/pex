@@ -9,8 +9,16 @@ from pex import interpreter
 from pex.common import temporary_dir, touch
 from pex.compatibility import PY3
 from pex.interpreter import PythonInterpreter
-from pex.testing import PY27, PY35, ensure_python_interpreter
+from pex.testing import (
+    PY27,
+    PY35,
+    PY36,
+    ensure_python_distribution,
+    ensure_python_interpreter,
+    environment_as,
+)
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
 
 try:
     from mock import patch
@@ -176,3 +184,38 @@ class TestPythonInterpreter(object):
                 )
             )
             assert os.path.basename(expected_interpreter.binary) != "jake"
+
+    def test_pyenv_shims(self):
+        # type: () -> None
+        py35, _, run_pyenv = ensure_python_distribution(PY35)
+        py36, _, _ = ensure_python_distribution(PY36)
+
+        pyenv_root = str(run_pyenv(["root"]).strip())
+        pyenv_shims = os.path.join(pyenv_root, "shims")
+
+        def pyenv_global(*versions):
+            run_pyenv(["global"] + list(versions))
+
+        def assert_shim(shim_name, expected_binary_path):
+            python = PythonInterpreter.from_binary(os.path.join(pyenv_shims, shim_name))
+            assert expected_binary_path == python.binary
+
+        with temporary_dir() as pex_root:
+            with ENV.patch(PEX_ROOT=pex_root) as pex_env:
+                with environment_as(PYENV_ROOT=pyenv_root, **pex_env):
+                    pyenv_global(PY35, PY36)
+                    assert_shim("python3", py35)
+
+                    pyenv_global(PY36, PY35)
+                    # The python3 shim is now pointing at python3.6 but the Pex cache has a valid
+                    # entry for the old python3.5 association (the interpreter still exists.)
+                    assert_shim("python3", py35)
+
+                    # The shim pointer is now invalid since python3.5 was uninstalled and so should
+                    # be re-read.
+                    py35_deleted = "{}.uninstalled".format(py35)
+                    os.rename(py35, py35_deleted)
+                    try:
+                        assert_shim("python3", py36)
+                    finally:
+                        os.rename(py35_deleted, py35)

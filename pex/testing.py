@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from textwrap import dedent
 
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, temporary_dir, touch
+from pex.compatibility import to_unicode
 from pex.distribution_target import DistributionTarget
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
@@ -27,6 +28,7 @@ from pex.util import DistributionHelper, named_temporary_file
 if TYPE_CHECKING:
     from typing import (
         Any,
+        Callable,
         Dict,
         Iterable,
         Iterator,
@@ -416,33 +418,41 @@ _INTERPRETER_SET_FINGERPRINT = "_".join(_VERSIONS) + "_pex_fingerprint"
 
 
 def ensure_python_distribution(version):
-    # type: (str) -> Tuple[str, str]
+    # type: (str) -> Tuple[str, str, Callable[[Iterable[str]], Text]]
     if version not in _VERSIONS:
         raise ValueError("Please constrain version to one of {}".format(_VERSIONS))
 
     pyenv_root = os.path.join(os.getcwd(), ".pyenv_test")
     interpreter_location = os.path.join(pyenv_root, "versions", version)
+
     pyenv = os.path.join(pyenv_root, "bin", "pyenv")
+    pyenv_env = os.environ.copy()
+    pyenv_env["PYENV_ROOT"] = pyenv_root
+
     pip = os.path.join(interpreter_location, "bin", "pip")
 
     if not os.path.exists(os.path.join(pyenv_root, _INTERPRETER_SET_FINGERPRINT)):
         bootstrap_python_installer(pyenv_root)
 
     if not os.path.exists(interpreter_location):
-        env = os.environ.copy()
-        env["PYENV_ROOT"] = pyenv_root
+        env = pyenv_env.copy()
         if sys.platform.lower() == "linux":
             env["CONFIGURE_OPTS"] = "--enable-shared"
         subprocess.check_call([pyenv, "install", "--keep", version], env=env)
         subprocess.check_call([pip, "install", "-U", "pip"])
 
     python = os.path.join(interpreter_location, "bin", "python" + version[0:3])
-    return python, pip
+
+    def run_pyenv(args):
+        # type: (Iterable[str]) -> Text
+        return to_unicode(subprocess.check_output([pyenv] + list(args), env=pyenv_env))
+
+    return python, pip, run_pyenv
 
 
 def ensure_python_interpreter(version):
     # type: (str) -> str
-    python, _ = ensure_python_distribution(version)
+    python, _, _ = ensure_python_distribution(version)
     return python
 
 
