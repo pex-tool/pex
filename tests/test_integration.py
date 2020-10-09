@@ -1970,7 +1970,7 @@ def test_issues_745_extras_isolation():
     # type: () -> None
     # Here we ensure one of our extras, `subprocess32`, is properly isolated in the transition from
     # pex bootstrapping where it is imported by `pex.executor` to execution of user code.
-    python, pip = ensure_python_distribution(PY27)
+    python, pip, _ = ensure_python_distribution(PY27)
     subprocess.check_call([pip, "install", "subprocess32"])
     with temporary_dir() as td:
         src_dir = os.path.join(td, "src")
@@ -2046,7 +2046,7 @@ def issues_1025_pth():
 
 
 def test_issues_1025_extras_isolation(issues_1025_pth):
-    python, pip = ensure_python_distribution(PY36)
+    python, pip, _ = ensure_python_distribution(PY36)
     interpreter = PythonInterpreter.from_binary(python)
     _, stdout, _ = interpreter.execute(args=["-c", "import site; print(site.getsitepackages()[0])"])
     with temporary_dir() as tmpdir:
