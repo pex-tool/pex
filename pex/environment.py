@@ -14,12 +14,18 @@ from collections import OrderedDict, defaultdict
 from pex import dist_metadata, pex_builder, pex_warnings
 from pex.bootstrap import Bootstrap
 from pex.common import atomic_directory, die, open_zip
+from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
+from pex.pex_info import PexInfo
 from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import DistributionNotFound, Environment, Requirement, WorkingSet
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
+
+if TYPE_CHECKING:
+    from typing import Optional
 
 
 def _import_pkg_resources():
@@ -191,7 +197,8 @@ class PEXEnvironment(Environment):
                     for dist in cls._write_zipped_internal_cache(zf, pex_info):
                         yield dist
 
-    def __init__(self, pex, pex_info, interpreter=None, **kw):
+    def __init__(self, pex, pex_info, interpreter=None):
+        # type: (str, PexInfo, Optional[PythonInterpreter]) -> None
         self._internal_cache = os.path.join(pex, pex_info.internal_cache)
         self._pex = pex
         self._pex_info = pex_info
@@ -208,9 +215,8 @@ class PEXEnvironment(Environment):
             self._install_pypy_zipimporter_workaround(self._pex)
 
         super(PEXEnvironment, self).__init__(
-            search_path=[] if pex_info.inherit_path == "false" else sys.path,
+            search_path=[] if pex_info.inherit_path == InheritPath.FALSE else sys.path,
             platform=self._interpreter.identity.platform_tag,
-            **kw
         )
         TRACER.log(
             "E: tags for %r x %r -> %s" % (self.platform, self._interpreter, self._supported_tags),
@@ -404,6 +410,7 @@ class PEXEnvironment(Environment):
                 pkg_resources.declare_namespace(pkg)
 
     def _activate(self):
+        # type: () -> WorkingSet
         pex_file = os.path.realpath(self._pex)
 
         self._update_candidate_distributions(self._load_internal_cache(pex_file, self._pex_info))
@@ -432,7 +439,7 @@ class PEXEnvironment(Environment):
             with TRACER.timed("Activating %s" % dist, V=2):
                 working_set.add(dist)
 
-                if self._inherit_path == "fallback":
+                if self._inherit_path == InheritPath.FALLBACK:
                     # Prepend location to sys.path.
                     #
                     # This ensures that bundled versions of libraries will be used before system-installed

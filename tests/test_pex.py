@@ -313,9 +313,7 @@ class PythonpathIsolationTest(
     @staticmethod
     def pex_info(inherit_path):
         # type: (Union[str, bool]) -> PexInfo
-        pex_info = PexInfo.default()
-        pex_info.inherit_path = inherit_path
-        return pex_info
+        return PexInfo.from_json(json.dumps({"inherit_path": inherit_path}))
 
     def assert_isolation(self, inherit_path, expected_output):
         # type: (Union[str, bool], str) -> None

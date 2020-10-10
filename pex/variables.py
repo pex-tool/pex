@@ -12,6 +12,7 @@ from contextlib import contextmanager
 
 from pex import pex_warnings
 from pex.common import can_write_dir, die, safe_mkdtemp
+from pex.inherit_path import InheritPath
 from pex.typing import TYPE_CHECKING, Generic, overload
 
 if TYPE_CHECKING:
@@ -333,24 +334,33 @@ class Variables(object):
         """
         return self._get_bool("PEX_IGNORE_ERRORS")
 
-    @defaulted_property(default="false")
+    @defaulted_property(default=InheritPath.FALSE)
     def PEX_INHERIT_PATH(self):
-        # type: () -> str
-        """String (false|prefer|fallback)
+        # type: () -> InheritPath.Value
+        """String ({choices})
 
-        Allow inheriting packages from site-packages, user site-packages and the PYTHONPATH. By default,
-        PEX scrubs any non stdlib packages from sys.path prior to invoking the application. Using
-        'prefer' causes PEX to shift any non-stdlib packages before the pex environment on sys.path and
-        using 'fallback' shifts them after instead.
+        Allow inheriting packages from site-packages, user site-packages and the PYTHONPATH. By
+        default, PEX scrubs any non stdlib packages from sys.path prior to invoking the application.
+        Using '{prefer}' causes PEX to shift any non-stdlib packages before the pex environment on
+        sys.path and using '{fallback}' shifts them after instead.
 
-        Using this option is generally not advised, but can help in situations when certain dependencies
-        do not conform to standard packaging practices and thus cannot be bundled into PEX files.
+        Using this option is generally not advised, but can help in situations when certain
+        dependencies do not conform to standard packaging practices and thus cannot be bundled into
+        PEX files.
 
         See also PEX_EXTRA_SYS_PATH for how to *add* to the sys.path.
 
-        Default: false.
-        """
-        return self._get_string("PEX_INHERIT_PATH")
+        Default: {false}.
+        """.format(
+            choices="|".join(choice.value for choice in InheritPath.values),
+            prefer=InheritPath.PREFER.value,
+            fallback=InheritPath.FALLBACK.value,
+            false=InheritPath.FALSE.value,
+        )
+        try:
+            return InheritPath.for_value(self._get_string("PEX_INHERIT_PATH"))
+        except ValueError as e:
+            die("Invalid value for PEX_INHERIT_PATH: {}".format(e))
 
     @defaulted_property(default=False)
     def PEX_INTERPRETER(self):
