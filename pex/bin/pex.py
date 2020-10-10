@@ -16,6 +16,7 @@ from textwrap import TextWrapper
 
 from pex import pex_warnings
 from pex.common import die, safe_delete, safe_mkdtemp
+from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import (
     UnsatisfiableInterpreterConstraintsError,
@@ -383,14 +384,15 @@ def configure_clp_pex_options(parser):
     group.add_option(
         "--inherit-path",
         dest="inherit_path",
-        default="false",
-        action="store",
-        choices=["false", "fallback", "prefer"],
+        default=InheritPath.FALSE.value,
+        choices=[choice.value for choice in InheritPath.values],
         help="Inherit the contents of sys.path (including site-packages, user site-packages and "
-        "PYTHONPATH) running the pex. Possible values: false (does not inherit sys.path), "
-        "fallback (inherits sys.path after packaged dependencies), prefer (inherits sys.path "
+        "PYTHONPATH) running the pex. Possible values: {false} (does not inherit sys.path), "
+        "{fallback} (inherits sys.path after packaged dependencies), {prefer} (inherits sys.path "
         "before packaged dependencies), No value (alias for prefer, for backwards "
-        "compatibility). [Default: %default]",
+        "compatibility). [Default: %default]".format(
+            false=InheritPath.FALSE, fallback=InheritPath.FALLBACK, prefer=InheritPath.PREFER
+        ),
     )
 
     group.add_option(
@@ -844,7 +846,7 @@ def build_pex(reqs, options, cache=None):
     pex_info.always_write_cache = options.always_write_cache
     pex_info.ignore_errors = options.ignore_errors
     pex_info.emit_warnings = options.emit_warnings
-    pex_info.inherit_path = options.inherit_path
+    pex_info.inherit_path = InheritPath.for_value(options.inherit_path)
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
 
@@ -926,11 +928,12 @@ def build_pex(reqs, options, cache=None):
 
 
 def transform_legacy_arg(arg):
+    # type: (str) -> str
     # inherit-path used to be a boolean arg (so either was absent, or --inherit-path)
     # Now it takes a string argument, so --inherit-path is invalid.
     # Fix up the args we're about to parse to preserve backwards compatibility.
     if arg == "--inherit-path":
-        return "--inherit-path=prefer"
+        return "--inherit-path={}".format(InheritPath.PREFER.value)
     return arg
 
 
