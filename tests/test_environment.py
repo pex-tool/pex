@@ -13,6 +13,7 @@ from pex import resolver
 from pex.common import open_zip, temporary_dir
 from pex.compatibility import PY2, nested, to_bytes
 from pex.environment import PEXEnvironment
+from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -31,7 +32,7 @@ from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterator, Optional
+    from typing import Any, Dict, Iterable, Iterator, Optional, Tuple
 
 
 @contextmanager
@@ -327,6 +328,7 @@ def test_osx_platform_intel_issue_523():
             pex = PEX(pex_file, interpreter=bad_interpreter())
 
             def run(args, **env):
+                # type: (Iterable[str], **str) -> Tuple[int, str, str]
                 pex_env = os.environ.copy()
                 pex_env["PEX_VERBOSE"] = "1"
                 pex_env.update(**env)
@@ -338,7 +340,7 @@ def test_osx_platform_intel_issue_523():
                     stderr=subprocess.PIPE,
                 )
                 stdout, stderr = process.communicate()
-                return process.returncode, stdout, stderr
+                return process.returncode, stdout.decode("utf-8"), stderr.decode("utf-8")
 
             returncode, _, stderr = run(["-c", "import psutil"])
             assert 0 == returncode, "Process failed with exit code {} and stderr:\n{}".format(
@@ -357,7 +359,7 @@ def test_osx_platform_intel_issue_523():
             returncode, stdout, stderr = run(
                 ["-c", "import pkg_resources; print(pkg_resources.get_supported_platform())"],
                 # Let the bad interpreter site-packages setuptools leak in.
-                PEX_INHERIT_PATH="1",
+                PEX_INHERIT_PATH=InheritPath.for_value(True).value,
             )
             assert 0 == returncode, "Process failed with exit code {} and stderr:\n{}".format(
                 returncode, stderr
@@ -366,7 +368,7 @@ def test_osx_platform_intel_issue_523():
             # Verify this worked along side the previously problematic pkg_resources-reported platform.
             release, _, _ = platform.mac_ver()
             major_minor = ".".join(release.split(".")[:2])
-            assert to_bytes("macosx-{}-intel".format(major_minor)) == stdout.strip()
+            assert "macosx-{}-intel".format(major_minor) == stdout.strip()
 
 
 def test_activate_extras_issue_615():
