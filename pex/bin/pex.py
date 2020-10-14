@@ -458,10 +458,26 @@ def configure_clp_pex_environment(parser):
         default=[],
         type="str",
         action="append",
-        help="The Python interpreter to use to build the pex.  Either specify an explicit "
-        "path to an interpreter, or specify a binary accessible on $PATH. This option "
-        "can be passed multiple times to create a multi-interpreter compatible pex. "
-        "Default: Use current interpreter.",
+        help=(
+            "The Python interpreter to use to build the PEX (default: current interpreter). This "
+            "cannot be used with `--interpreter-constraint`, which will instead cause PEX to "
+            "search for valid interpreters. Either specify an absolute path to an interpreter, or "
+            "specify a binary accessible on $PATH like `python3.7`. This option can be passed "
+            "multiple times to create a multi-interpreter compatible PEX."
+        ),
+    )
+    group.add_option(
+        "--python-path",
+        dest="python_path",
+        default=None,
+        type="str",
+        help=(
+            "The paths used by PEX to find valid interpreters when `--interpreter-constraint` "
+            "and/or `--resolve-local-platforms` are used (default: the $PATH). Specify a "
+            "colon-separated string containing paths of blessed Python interpreters. Can be "
+            "absolute paths to interpreters or standard $PATH style directory entries that are "
+            "searched for child files that are python binaries. "
+        ),
     )
 
     group.add_option(
@@ -470,18 +486,23 @@ def configure_clp_pex_environment(parser):
         default=[],
         type="str",
         action="append",
-        help="Constrain the selected Python interpreter. Specify with Requirement-style syntax, "
-        'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3) '
-        'or "PyPy" (A pypy interpreter of any version). This argument may be repeated multiple '
-        "times to OR the constraints.",
+        help=(
+            "Constrain the selected Python interpreter. Specify with Requirement-style syntax, "
+            'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3) '
+            'or "PyPy" (A pypy interpreter of any version). This argument may be repeated multiple '
+            "times to OR the constraints."
+        ),
     )
 
     group.add_option(
         "--rcfile",
         dest="rc_file",
         default=None,
-        help="An additional path to a pexrc file to read during configuration parsing. "
-        "Used primarily for testing.",
+        help=(
+            "An additional path to a pexrc file to read during configuration parsing, in addition "
+            "to reading `/etc/pexrc` and `~/.pexrc`. If `PEX_IGNORE_RCFILES=true`, then all rc "
+            "files will be ignored."
+        ),
     )
 
     group.add_option(
@@ -721,8 +742,9 @@ def _safe_link(src, dst):
 def build_pex(reqs, options, cache=None):
     interpreters = None  # Default to the current interpreter.
 
-    pex_python_path = None  # Defaults to $PATH
-    if options.rc_file or not ENV.PEX_IGNORE_RCFILES:
+    pex_python_path = options.python_path  # If None, this will result in using $PATH.
+    # TODO(#1075): stop looking at PEX_PYTHON_PATH and solely consult the `--python-path` flag.
+    if not pex_python_path and (options.rc_file or not ENV.PEX_IGNORE_RCFILES):
         rc_variables = Variables(rc=options.rc_file)
         pex_python_path = rc_variables.PEX_PYTHON_PATH
 

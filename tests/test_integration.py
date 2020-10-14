@@ -1379,6 +1379,46 @@ def test_setup_interpreter_constraint():
         assert rc == 0
 
 
+def test_setup_python_path():
+    # type: () -> None
+    """Check that `--python-path` is used rather than the default $PATH."""
+    py27_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY27))
+    py36_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY36))
+    with temporary_dir() as out:
+        pex = os.path.join(out, "pex.pex")
+        # Even though we set $PATH="", we still expect for both interpreters to be used when
+        # building the PEX. Note that `more-itertools` has a distinct Py2 and Py3 wheel.
+        results = run_pex_command(
+            [
+                "more-itertools==5.0.0",
+                "--disable-cache",
+                "--interpreter-constraint=CPython=={}".format(PY27),
+                "--interpreter-constraint=CPython=={}".format(PY36),
+                "--python-path={}".format(
+                    os.pathsep.join([py27_interpreter_dir, py36_interpreter_dir])
+                ),
+                "-o",
+                pex,
+            ],
+            env=make_env(PEX_IGNORE_RCFILES="1", PATH=""),
+        )
+        results.assert_success()
+
+        py27_env = make_env(PEX_IGNORE_RCFILES="1", PATH=py27_interpreter_dir)
+        stdout, rc = run_simple_pex(
+            pex, env=py27_env, stdin=b"import more_itertools, sys; print(sys.version_info[:2])"
+        )
+        assert rc == 0
+        assert b"(2, 7)" in stdout
+
+        py36_env = make_env(PEX_IGNORE_RCFILES="1", PATH=py36_interpreter_dir)
+        stdout, rc = run_simple_pex(
+            pex, env=py36_env, stdin=b"import more_itertools, sys; print(sys.version_info[:2])"
+        )
+        assert rc == 0
+        assert b"(3, 6)" in stdout
+
+
 def test_setup_python_multiple_transitive_markers():
     # type: () -> None
     py27_interpreter = ensure_python_interpreter(PY27)
