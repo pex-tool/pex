@@ -526,22 +526,6 @@ def configure_clp_pex_environment(parser):
         "distributions can be found.",
     )
 
-    group.add_option(
-        "--use-first-matching-interpreter",
-        dest="use_first_matching_interpreter",
-        default=False,
-        action="callback",
-        callback=parse_bool,
-        help=(
-            "If multiple interpreters are valid, use the first one, which is the minimum "
-            "compatible Python version. Normally, when multiple interpreters match, Pex will "
-            "resolve requirements for each interpreter; this allows the resulting Pex to be "
-            "compatible with more interpreters, such as different Python versions. However, "
-            "resolving for multiple interpreters will take longer to build, and the resulting PEX "
-            "may be larger."
-        ),
-    )
-
     parser.add_option_group(group)
 
 
@@ -803,18 +787,6 @@ def build_pex(reqs, options, cache=None):
             )
 
     interpreter = min(interpreters) if interpreters else None
-    if options.use_first_matching_interpreter and interpreters:
-        if len(interpreters) > 1:
-            unused_interpreters = set(interpreters) - {interpreter}
-            TRACER.log(
-                "Multiple interpreters resolved, but only using {} because "
-                "`--use-first-matching-interpreter` was used. These interpreters were matched but "
-                "will not be used: {}".format(
-                    interpreter.binary,
-                    ", ".join(interpreter.binary for interpreter in sorted(unused_interpreters)),
-                )
-            )
-        interpreters = [interpreter]
 
     try:
         with open(options.preamble_file) as preamble_fd:
@@ -850,16 +822,7 @@ def build_pex(reqs, options, cache=None):
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
 
-    # If we're only building the PEX for the first of many interpreters due to
-    # `--use-first-matching-interpreter` selection, we do not want to enable those same interpreter
-    # constraints at runtime, where they could lead to a different interpreter being selected
-    # leading to a failure to execute the PEX. Instead we rely on the shebang set by that single
-    # interpreter to pick out a similar interpreter at runtime (for a CPython interpreter, the
-    # shebang will be `#!/usr/bin/env pythonX.Y` which should generally be enough to select a
-    # matching interpreter. To be clear though, there are many corners this will not work for
-    # including mismatching abi (python2.7m vs python2.7mu) when the PEX contains platform specific
-    # wheels, etc.
-    if options.interpreter_constraint and not options.use_first_matching_interpreter:
+    if options.interpreter_constraint:
         for ic in options.interpreter_constraint:
             pex_builder.add_interpreter_constraint(ic)
 
