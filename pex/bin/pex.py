@@ -472,11 +472,10 @@ def configure_clp_pex_environment(parser):
         default=None,
         type="str",
         help=(
-            "The paths used by PEX to find valid interpreters when `--interpreter-constraint` "
-            "and/or `--resolve-local-platforms` are used (default: the $PATH). Specify a "
-            "colon-separated string containing paths of blessed Python interpreters. Can be "
-            "absolute paths to interpreters or standard $PATH style directory entries that are "
-            "searched for child files that are python binaries. "
+            "Colon-separated paths to search for interpreters when `--interpreter-constraint` "
+            "and/or `--resolve-local-platforms` are specified (default: $PATH). Each element "
+            "can be the absolute path of an interpreter binary or a directory containing "
+            "interpreter binaries."
         ),
     )
 
@@ -744,7 +743,7 @@ def build_pex(reqs, options, cache=None):
 
     pex_python_path = options.python_path  # If None, this will result in using $PATH.
     # TODO(#1075): stop looking at PEX_PYTHON_PATH and solely consult the `--python-path` flag.
-    if not pex_python_path and (options.rc_file or not ENV.PEX_IGNORE_RCFILES):
+    if pex_python_path is None and (options.rc_file or not ENV.PEX_IGNORE_RCFILES):
         rc_variables = Variables(rc=options.rc_file)
         pex_python_path = rc_variables.PEX_PYTHON_PATH
 
