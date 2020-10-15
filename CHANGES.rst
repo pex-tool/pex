@@ -7,9 +7,9 @@ Release Notes
 This release adds the ``--python-path`` option, which allows controlling the
 interpreter search paths when building a PEX.
 
-It also removes ``--use-first-matching-interpreter``, which was a misfeature. If you want to use
-fewer interpreters when building a PEX, use tighter values for ``--interpreter-constraint``,
-``--python-path``, and/or ``--platform``.
+The release also removes ``--use-first-matching-interpreter``, which was a misfeature. If you want to use
+fewer interpreters when building a PEX, use more precise values for ``--interpreter-constraint`` and/or
+``--python-path``, or use ``--python`` or ``--platform``.
 
 * Add ``--python-path`` to change interpreter search paths when building a PEX. (#1077)
   `PR #1077 <https://github.com/pantsbuild/pex/pull/1077>`_
