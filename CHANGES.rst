@@ -1,6 +1,23 @@
 Release Notes
 =============
 
+2.1.19
+------
+
+This release adds the ``--python-path`` option, which allows controlling the
+interpreter search paths when building a PEX.
+
+It also removes ``--use-first-matching-interpreter``, which was a misfeature.
+
+* Add ``--python-path`` to change interpreter search paths when building a PEX. (#1077)
+  `PR #1077 <https://github.com/pantsbuild/pex/pull/1077>`_
+
+* Remove ``--use-first-matching-interpreter`` misfeature. (#1076)
+  `PR #1076 <https://github.com/pantsbuild/pex/pull/1076>`_
+
+* Encapsulate ``--inherit-path`` handling. (#1072)
+  `PR #1072 <https://github.com/pantsbuild/pex/pull/1072>`_
+
 2.1.18
 ------
 
