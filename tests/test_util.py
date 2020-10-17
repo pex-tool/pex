@@ -6,7 +6,7 @@ import subprocess
 from hashlib import sha1
 from textwrap import dedent
 
-from pex.common import safe_mkdir, temporary_dir
+from pex.common import safe_mkdir, safe_open, temporary_dir, touch
 from pex.compatibility import nested, to_bytes
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -74,14 +74,38 @@ def test_hash():
         assert hash_output == empty_hash.hexdigest()
 
 
-CONTENT = {
-    "__main__.py": 200,
-    ".deps/morfgorf": 10000,
-    "twitter/__init__.py": 0,
-    "twitter/common/python/foo.py": 4000,
-    "twitter/common/python/bar.py": 8000,
-    "twitter/common/python/bar.pyc": 6000,
-}
+def test_dir_hash():
+    # type: () -> None
+    with temporary_dir() as tmp_dir:
+        safe_mkdir(os.path.join(tmp_dir, "a", "b"))
+        with safe_open(os.path.join(tmp_dir, "c", "d", "e.py"), "w") as fp:
+            fp.write("contents1")
+        with safe_open(os.path.join(tmp_dir, "f.py"), "w") as fp:
+            fp.write("contents2")
+        hash1 = CacheHelper.dir_hash(tmp_dir)
+
+        os.rename(os.path.join(tmp_dir, "c"), os.path.join(tmp_dir, "c-renamed"))
+        assert hash1 != CacheHelper.dir_hash(tmp_dir)
+
+        os.rename(os.path.join(tmp_dir, "c-renamed"), os.path.join(tmp_dir, "c"))
+        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+
+        touch(os.path.join(tmp_dir, "c", "d", "e.pyc"))
+        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+        touch(os.path.join(tmp_dir, "c", "d", "e.pyc.123456789"))
+        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+
+        pycache_dir = os.path.join(tmp_dir, "__pycache__")
+        safe_mkdir(pycache_dir)
+        touch(os.path.join(pycache_dir, "f.pyc"))
+        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+        touch(os.path.join(pycache_dir, "f.pyc.123456789"))
+        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+
+        touch(os.path.join(pycache_dir, "f.py"))
+        assert hash1 == CacheHelper.dir_hash(
+            tmp_dir
+        ), "All content under __pycache__ directories should be ignored."
 
 
 try:

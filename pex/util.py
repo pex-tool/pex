@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import contextlib
 import os
+import re
 import sys
 import tempfile
 from hashlib import sha1
@@ -133,20 +134,25 @@ class CacheHelper(object):
         return digest.hexdigest()
 
     @classmethod
-    def _iter_files(cls, directory):
+    def _iter_non_pyc_files(cls, directory):
         # type: (str) -> Iterator[str]
         normpath = os.path.realpath(os.path.normpath(directory))
-        for root, _, files in os.walk(normpath):
+        for root, dirs, files in os.walk(normpath):
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
             for f in files:
-                yield os.path.relpath(os.path.join(root, f), normpath)
+                # For Python 2.7, `.pyc` files are compiled as siblings to `.py` files (there is no
+                # __pycache__ dir. We rely on the fact that the temporary files created by CPython
+                # have object id (integer) suffixes to avoid picking up either finished `.pyc` files
+                # or files where Python bytecode compilation is in-flight; i.e.:
+                # `.pyc.0123456789`-style files.
+                if not re.search(r"\.pyc(?:\.[0-9]+)?$", f):
+                    yield os.path.relpath(os.path.join(root, f), normpath)
 
     @classmethod
     def pex_hash(cls, d):
         # type: (str) -> str
-        """Return a reproducible hash of the contents of a directory."""
-        names = sorted(
-            f for f in cls._iter_files(d) if not (f.endswith(".pyc") or f.startswith("."))
-        )
+        """Return a reproducible hash of the contents of a loose PEX; excluding all `.pyc` files."""
+        names = sorted(f for f in cls._iter_non_pyc_files(d) if not f.startswith("."))
 
         def stream_factory(name):
             # type: (str) -> IO
@@ -157,8 +163,8 @@ class CacheHelper(object):
     @classmethod
     def dir_hash(cls, d):
         # type: (str) -> str
-        """Return a reproducible hash of the contents of a directory."""
-        names = sorted(f for f in cls._iter_files(d) if not f.endswith(".pyc"))
+        """Return a reproducible hash of the contents of a directory; excluding all `.pyc` files."""
+        names = sorted(cls._iter_non_pyc_files(d))
 
         def stream_factory(name):
             # type: (str) -> IO
