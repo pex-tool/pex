@@ -33,7 +33,7 @@ configuration can be passed in the same way:
 And there you have it, a fully portable python web service. 
 
 PEX and Proxy settings
-----------------
+----------------------
 
 While building pex files, you may need to fetch dependencies thought a proxy. The easiest way is to use pex cli with the requests extra and environment variables. Following are the steps to do just that:
 

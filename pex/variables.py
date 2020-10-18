@@ -274,7 +274,9 @@ class Variables(object):
         Always write PEX dependencies to disk prior to invoking regardless whether or not the
         dependencies are zip-safe.  For certain dependencies that are very large such as numpy, this
         can reduce the RAM necessary to launch the PEX.  The data will be written into $PEX_ROOT,
-        which by default is $HOME/.pex.  Default: false.
+        which by default is $HOME/.pex.
+
+        Default: false.
         """
         return self._get_bool("PEX_ALWAYS_CACHE")
 
@@ -284,7 +286,9 @@ class Variables(object):
         """Boolean.
 
         Enable coverage reporting for this PEX file.  This requires that the "coverage" module is
-        available in the PEX environment.  Default: false.
+        available in the PEX environment.
+
+        Default: false.
         """
         return self._get_bool("PEX_COVERAGE")
 
@@ -308,6 +312,7 @@ class Variables(object):
         refer to paths relative to __file__ instead of using pkgutil/pkg_resources.  Also see
         PEX_UNZIP which will cause the complete PEX file to be unzipped and re-executed which can
         often improve startup latency in addition to providing support for __file__ access.
+
         Default: false.
         """
         return self._get_bool("PEX_FORCE_LOCAL")
@@ -319,7 +324,9 @@ class Variables(object):
 
         Force this PEX to unzip itself to $PEX_ROOT and re-execute from there.  If the pex file will
         be run multiple times under a stable $PEX_ROOT the unzipping will only be performed once and
-        subsequent runs will enjoy lower startup latency.  Default: false.
+        subsequent runs will enjoy lower startup latency.
+
+        Default: false.
         """
         return self._get_bool("PEX_UNZIP")
 
@@ -330,6 +337,7 @@ class Variables(object):
 
         Ignore any errors resolving dependencies when invoking the PEX file. This can be useful if
         you know that a particular failing dependency is not necessary to run the application.
+
         Default: false.
         """
         return self._get_bool("PEX_IGNORE_ERRORS")
@@ -337,12 +345,12 @@ class Variables(object):
     @defaulted_property(default=InheritPath.FALSE)
     def PEX_INHERIT_PATH(self):
         # type: () -> InheritPath.Value
-        """String ({choices})
+        """String (false|prefer|fallback)
 
         Allow inheriting packages from site-packages, user site-packages and the PYTHONPATH. By
         default, PEX scrubs any non stdlib packages from sys.path prior to invoking the application.
-        Using '{prefer}' causes PEX to shift any non-stdlib packages before the pex environment on
-        sys.path and using '{fallback}' shifts them after instead.
+        Using 'prefer' causes PEX to shift any non-stdlib packages before the pex environment on
+        sys.path and using 'fallback' shifts them after instead.
 
         Using this option is generally not advised, but can help in situations when certain
         dependencies do not conform to standard packaging practices and thus cannot be bundled into
@@ -350,13 +358,8 @@ class Variables(object):
 
         See also PEX_EXTRA_SYS_PATH for how to *add* to the sys.path.
 
-        Default: {false}.
-        """.format(
-            choices="|".join(choice.value for choice in InheritPath.values),
-            prefer=InheritPath.PREFER.value,
-            fallback=InheritPath.FALLBACK.value,
-            false=InheritPath.FALSE.value,
-        )
+        Default: false.
+        """
         try:
             return InheritPath.for_value(self._get_string("PEX_INHERIT_PATH"))
         except ValueError as e:
@@ -371,6 +374,7 @@ class Variables(object):
         useful for inspecting the PEX environment interactively.  It can also be used to treat the PEX
         file as an interpreter in order to execute other scripts in the context of the PEX file, e.g.
         "PEX_INTERPRETER=1 ./app.pex my_script.py".  Equivalent to setting PEX_MODULE to empty.
+
         Default: false.
         """
         return self._get_bool("PEX_INTERPRETER")
@@ -410,8 +414,9 @@ class Variables(object):
         # type: () -> str
         """String.
 
-        Toggle the profile sorting algorithm used to print out profile columns.  Default:
-        'cumulative'.
+        Toggle the profile sorting algorithm used to print out profile columns.
+
+        Default: 'cumulative'.
         """
         return self._get_string("PEX_PROFILE_SORT")
 
@@ -465,7 +470,9 @@ class Variables(object):
         """Directory.
 
         The directory location for PEX to cache any dependencies and code.  PEX must write not-zip-
-        safe eggs and all wheels to disk in order to activate them.  Default: ~/.pex
+        safe eggs and all wheels to disk in order to activate them.
+
+        Default: ~/.pex
         """
         return self._get_path("PEX_ROOT")
 
@@ -514,7 +521,9 @@ class Variables(object):
         """Boolean.
 
         Enable verbosity for when the interpreter shuts down.  This is mostly only useful for
-        debugging PEX itself.  Default: false.
+        debugging PEX itself.
+
+        Default: false.
         """
         return self._get_bool("PEX_TEARDOWN_VERBOSE")
 
@@ -525,7 +534,9 @@ class Variables(object):
 
         Set the verbosity level of PEX debug logging.  The higher the number, the more logging, with
         0 being disabled.  This environment variable can be extremely useful in debugging PEX
-        environment issues.  Default: 0
+        environment issues.
+
+        Default: 0
         """
         return self._get_int("PEX_VERBOSE")
 
@@ -534,7 +545,9 @@ class Variables(object):
         # type: () -> bool
         """Boolean.
 
-        Explicitly disable the reading/parsing of pexrc files (~/.pexrc). Default: false.
+        Explicitly disable the reading/parsing of pexrc files (~/.pexrc).
+
+        Default: false.
         """
         return self._get_bool("PEX_IGNORE_RCFILES")
 
@@ -544,7 +557,9 @@ class Variables(object):
         """Boolean.
 
         Emit UserWarnings to stderr. When false, warnings will only be logged at PEX_VERBOSE >= 1.
-        When unset the build-time value of `--emit-warnings` will be used. Default: unset.
+        When unset the build-time value of `--emit-warnings` will be used.
+
+        Default: unset.
         """
         return self._maybe_get_bool("PEX_EMIT_WARNINGS")
 
