@@ -2,13 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+from argparse import ArgumentParser
 from contextlib import contextmanager
-from optparse import OptionParser
 from tempfile import NamedTemporaryFile
 
 import pytest
 
-from pex.bin.pex import build_pex, configure_clp, configure_clp_pex_resolution
+from pex.bin.pex import build_pex, compute_indexes, configure_clp, configure_clp_pex_resolution
 from pex.common import safe_copy, temporary_dir
 from pex.compatibility import nested, to_bytes
 from pex.interpreter import PythonInterpreter
@@ -27,37 +27,39 @@ if TYPE_CHECKING:
 
 @contextmanager
 def option_parser():
-    # type: () -> Iterator[OptionParser]
-    yield OptionParser()
+    # type: () -> Iterator[ArgumentParser]
+    yield ArgumentParser()
 
 
 def test_clp_no_pypi_option():
     # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
-        options, _ = parser.parse_args(args=[])
-        assert len(options.indexes) == 1
-        options, _ = parser.parse_args(args=["--no-pypi"])
-        assert len(options.indexes) == 0, "--no-pypi should remove the pypi index."
+        options = parser.parse_args(args=[])
+        assert len(compute_indexes(options)) == 1
+        options = parser.parse_args(args=["--no-pypi"])
+        assert len(compute_indexes(options)) == 0, "--no-pypi should remove the pypi index."
 
 
 def test_clp_pypi_option_duplicate():
     # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
-        options, _ = parser.parse_args(args=[])
-        assert len(options.indexes) == 1
-        options2, _ = parser.parse_args(args=["--pypi"])
-        assert len(options2.indexes) == 1
-        assert options.indexes == options2.indexes
+        options = parser.parse_args(args=[])
+        indexes = compute_indexes(options)
+        assert len(indexes) == 1
+        options2 = parser.parse_args(args=["--pypi"])
+        indexes2 = compute_indexes(options2)
+        assert len(indexes2) == 1
+        assert indexes == indexes2
 
 
 def test_clp_find_links_option():
     # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
-        options, _ = parser.parse_args(args=["-f", "http://www.example.com"])
-        assert len(options.indexes) == 1
+        options = parser.parse_args(args=["-f", "http://www.example.com"])
+        assert len(compute_indexes(options)) == 1
         assert len(options.find_links) == 1
 
 
@@ -65,22 +67,22 @@ def test_clp_index_option():
     # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
-        options, _ = parser.parse_args(args=[])
-        assert len(options.indexes) == 1
-        options2, _ = parser.parse_args(args=["-i", "http://www.example.com"])
-        assert len(options.indexes) == 2
-        assert options2.indexes[0] == options.indexes[0]
-        assert options2.indexes[1] == "http://www.example.com"
+        options = parser.parse_args(args=[])
+        indexes = compute_indexes(options)
+        assert len(indexes) == 1
+        options2 = parser.parse_args(args=["-i", "http://www.example.com"])
+        indexes2 = compute_indexes(options2)
+        assert len(indexes2) == 2
+        assert indexes2[0] == indexes[0]
+        assert indexes2[1] == "http://www.example.com"
 
 
 def test_clp_index_option_render():
     # type: () -> None
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
-        options, _ = parser.parse_args(args=["--index", "http://www.example.com"])
-        assert ["https://pypi.org/simple", "http://www.example.com"] == [
-            str(idx) for idx in options.indexes
-        ]
+        options = parser.parse_args(args=["--index", "http://www.example.com"])
+        assert ["https://pypi.org/simple", "http://www.example.com"] == compute_indexes(options)
 
 
 def test_clp_build_precedence():
@@ -88,15 +90,15 @@ def test_clp_build_precedence():
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
 
-        options, _ = parser.parse_args(args=["--no-build"])
+        options = parser.parse_args(args=["--no-build"])
         assert not options.build
-        options, _ = parser.parse_args(args=["--build"])
+        options = parser.parse_args(args=["--build"])
         assert options.build
 
-        options, _ = parser.parse_args(args=["--no-wheel"])
+        options = parser.parse_args(args=["--no-wheel"])
         assert not options.use_wheel
 
-        options, _ = parser.parse_args(args=["--wheel"])
+        options = parser.parse_args(args=["--wheel"])
         assert options.use_wheel
 
 
@@ -104,14 +106,14 @@ def test_clp_build_precedence():
 def test_clp_requirements_txt():
     # type: () -> None
     parser = configure_clp()
-    options, _ = parser.parse_args(args="-r requirements1.txt -r requirements2.txt".split())
+    options = parser.parse_args(args="-r requirements1.txt -r requirements2.txt".split())
     assert options.requirement_files == ["requirements1.txt", "requirements2.txt"]
 
 
 def test_clp_constraints_txt():
     # type: () -> None
     parser = configure_clp()
-    options, _ = parser.parse_args(args="--constraint requirements1.txt".split())
+    options = parser.parse_args(args="--constraint requirements1.txt".split())
     assert options.constraint_files == ["requirements1.txt"]
 
 
@@ -122,10 +124,10 @@ def test_clp_preamble_file():
         tmpfile.flush()
 
         parser = configure_clp()
-        options, reqs = parser.parse_args(args=["--preamble-file", tmpfile.name])
+        options = parser.parse_args(args=["--preamble-file", tmpfile.name])
         assert options.preamble_file == tmpfile.name
 
-        pex_builder = build_pex(reqs, options)
+        pex_builder = build_pex(options.requirements, options)
         assert pex_builder._preamble == 'print "foo!"'
 
 
@@ -134,13 +136,13 @@ def test_clp_prereleases():
     with option_parser() as parser:
         configure_clp_pex_resolution(parser)
 
-        options, _ = parser.parse_args(args=[])
+        options = parser.parse_args(args=[])
         assert not options.allow_prereleases
 
-        options, _ = parser.parse_args(args=["--no-pre"])
+        options = parser.parse_args(args=["--no-pre"])
         assert not options.allow_prereleases
 
-        options, _ = parser.parse_args(args=["--pre"])
+        options = parser.parse_args(args=["--pre"])
         assert options.allow_prereleases
 
 
@@ -159,7 +161,7 @@ def test_clp_prereleases_resolver():
 
         parser = configure_clp()
 
-        options, reqs = parser.parse_args(
+        options = parser.parse_args(
             args=[
                 "--no-index",
                 "--find-links",
@@ -173,10 +175,10 @@ def test_clp_prereleases_resolver():
         assert not options.allow_prereleases
 
         with pytest.raises(SystemExit, message="Should have failed to resolve prerelease dep"):
-            build_pex(reqs, options)
+            build_pex(options.requirements, options)
 
         # When we specify `--pre`, allow_prereleases is True
-        options, reqs = parser.parse_args(
+        options = parser.parse_args(
             args=[
                 "--no-index",
                 "--find-links",
@@ -197,7 +199,7 @@ def test_clp_prereleases_resolver():
         #     dep==1.2.3b1, dep
         #
         # With a correct behavior the assert line is reached and pex_builder object created.
-        pex_builder = build_pex(reqs, options)
+        pex_builder = build_pex(options.requirements, options)
         assert pex_builder is not None
         assert len(pex_builder.info.distributions) == 3, "Should have resolved deps"
 
