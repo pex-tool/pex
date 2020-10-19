@@ -16,11 +16,11 @@ import os
 import sys
 from datetime import datetime
 
-# Note: must come after the sys.path manipulation above.
-from pex.version import __version__ as PEX_VERSION
-
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.append(os.path.abspath("./_ext"))
+
+# Note: must come after the sys.path manipulation above.
+from pex.version import __version__ as PEX_VERSION  # isort:skip
 
 
 # -- General configuration ------------------------------------------------
