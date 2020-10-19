@@ -3,11 +3,10 @@
 Building .pex files
 ===================
 
-The easiest way to build .pex files is with the ``pex`` utility, which is
-made available when you ``pip install pex``.  Do this within a virtualenv, then you can use
-pex to bootstrap itself:
+You can build .pex files using the ``pex`` utility, which is made available when you ``pip install pex``.
+Do this within a virtualenv, then you can use pex to bootstrap itself:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex pex requests -c pex -o ~/bin/pex
 
@@ -19,7 +18,7 @@ virtualenv.
 The second easiest way to build .pex files is using the ``bdist_pex`` setuptools command
 which is available if you ``pip install pex``.  For example, to clone and build pip from source:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ git clone https://github.com/pypa/pip && cd pip
     $ python setup.py bdist_pex
@@ -34,7 +33,7 @@ Invoking the ``pex`` utility
 The ``pex`` utility has no required arguments and by default will construct an empty environment
 and invoke it.  When no entry point is specified, "invocation" means starting an interpreter:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex
     Python 3.6.2 (default, Jul 20 2017, 03:52:27)
@@ -49,7 +48,7 @@ and is garbage collected immediately on exit.
 You can tailor which interpreter is used by specifying ``--python=PATH``.  PATH can be either the
 absolute path of a Python binary or the name of a Python interpreter within the environment, e.g.:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex
     Python 3.6.2 (default, Jul 20 2017, 03:52:27)
@@ -79,7 +78,7 @@ Requirements are specified using the same form as expected by ``pip`` and ``setu
 and any number (including 0) may be specified.  For example, to start an environment with ``flask``
 and ``psutil>1``:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex flask 'psutil>1'
     Python 3.6.2 (default, Jul 20 2017, 03:52:27)
@@ -90,7 +89,7 @@ and ``psutil>1``:
 
 You can then import and manipulate modules like you would otherwise:
 
-.. code-block:: bash
+.. code-block:: console
 
     >>> import flask
     >>> import psutil
@@ -99,7 +98,7 @@ You can then import and manipulate modules like you would otherwise:
 Requirements can also be specified using the requirements.txt format, using ``pex -r``.  This can be a handy
 way to freeze a virtualenv into a PEX file:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex -r <(pip freeze) -o my_application.pex
 
@@ -115,7 +114,7 @@ pex <options> -- script.py
 As mentioned above, if no entry points are specified, the default behavior is to emulate an
 interpreter.  First we create a simple flask application:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ cat <<EOF > flask_hello_world.py
     > from flask import Flask
@@ -130,7 +129,7 @@ interpreter.  First we create a simple flask application:
 
 Then, like an interpreter, if a source file is specified as a parameter to pex, it is invoked:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex flask -- ./flask_hello_world.py
     * Running on http://127.0.0.1:5000/
@@ -142,7 +141,7 @@ Your code may be within the PEX file or it may be some predetermined entry point
 within the standard library.  ``pex -m`` behaves very similarly to ``python -m``.  Consider
 ``python -m pydoc``:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ python -m pydoc
     pydoc - the Python documentation tool
@@ -155,7 +154,7 @@ within the standard library.  ``pex -m`` behaves very similarly to ``python -m``
 
 This can be emulated using the ``pex`` tool using ``-m pydoc``:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex -m pydoc
     pydoc - the Python documentation tool
@@ -169,7 +168,7 @@ This can be emulated using the ``pex`` tool using ``-m pydoc``:
 Arguments will be passed unescaped following ``--`` on the command line.  So in order to
 get pydoc help on the ``flask.app`` package in Flask:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex flask -m pydoc -- flask.app
 
@@ -193,7 +192,7 @@ and Fabric respectively.  This is roughly equivalent to running a script that do
 This can be a powerful way to invoke Python applications without ever having to ``pip install``
 anything, for example a one-off invocation of Sphinx with the readthedocs theme available:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex sphinx sphinx_rtd_theme -e sphinx:main -- --help
     Sphinx v1.2.2
@@ -213,7 +212,7 @@ If you don't know the ``package:target`` for the console scripts of
 your favorite python packages, pex allows you to use ``-c`` to specify a console script as defined
 by the distribution.  For example, Fabric provides the ``fab`` tool when pip installed:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex Fabric -c fab -- --help
     Fatal error: Couldn't find any fabfiles!
@@ -224,7 +223,7 @@ by the distribution.  For example, Fabric provides the ``fab`` tool when pip ins
 
 Even scripts defined by the "scripts" section of a distribution can be used, e.g. with boto:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex boto -c mturk
     usage: mturk [-h] [-P] [--nicknames PATH]
@@ -250,20 +249,20 @@ exist for the duration of the pex command lifetime and immediately garbage colle
 If the ``-o PATH`` option is specified, a PEX file of the environment is saved to disk at ``PATH``.  For example
 we can package a standalone Sphinx as above:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex sphinx sphinx_rtd_theme -c sphinx -o sphinx.pex
 
 Instead of executing the environment, it is saved to disk:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ ls -l sphinx.pex
     -rwxr-xr-x  1 wickman  wheel  4988494 Mar 11 17:48 sphinx.pex
 
 This is an executable environment and can be executed as before:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ ./sphinx.pex --help
     Sphinx v1.2.2
@@ -281,20 +280,20 @@ As before, entry points are not required, and if not specified the PEX will defa
 an interpreter.  If an alternate interpreter is specified with ``--python``, e.g. pypy, it will be the
 default hashbang in the PEX file:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pex --python=pypy flask -o flask-pypy.pex
 
 The hashbang of the PEX file specifies PyPy:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ head -1 flask-pypy.pex
     #!/usr/bin/env pypy
 
 and when invoked uses the environment PyPy:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ ./flask-pypy.pex
     Python 2.7.3 (87aa9de10f9c, Nov 24 2013, 20:57:21)
@@ -306,7 +305,7 @@ and when invoked uses the environment PyPy:
 To specify an explicit Python shebang line (e.g. from a non-standard location or not on $PATH),
 you can use the ``--python-shebang`` option:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ dist/pex --python-shebang='/Users/wickman/Python/CPython-3.4.2/bin/python3.4' -o my.pex
     $ head -1 my.pex
@@ -327,7 +326,7 @@ This may be a directory on disk or a remote simple http server.
 For example, you can delegate artifact fetching and resolution to ``pip wheel`` for whatever
 reason -- perhaps you're running a firewalled mirror -- but continue to package with pex:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ pip wheel -w /tmp/wheelhouse sphinx sphinx_rtd_theme
     $ pex -f /tmp/wheelhouse --no-index -e sphinx:main -o sphinx.pex sphinx sphinx_rtd_theme
@@ -430,7 +429,7 @@ version numbers and the ``.pex`` suffix.  This can be useful if you would like t
 virtually install a Python package somewhere on your ``$PATH`` without doing something
 scary like ``sudo pip install``:
 
-.. code-block:: bash
+.. code-block:: console
 
     $ git clone https://github.com/sphinx-doc/sphinx && cd sphinx
     $ python setup.py bist_pex --bdist-all --bdist-dir=$HOME/bin
@@ -442,9 +441,8 @@ scary like ``sudo pip install``:
     $ sphinx-apidoc --help | head -1
     Usage: sphinx-apidoc [options] -o <output_path> <module_path> [exclude_path, ...]
 
-Other ways to build PEX files
-=============================
+Using Pants
+===========
 
-There are other supported ways to build pex files:
-  * Using pants.  See `Pants Python documentation <http://pantsbuild.github.io/python-readme.html>`_.
-  * Programmatically via the pex API.
+The Pants build system can build pex files. See `here <http://www.pantsbuild.org>`_ for details.
+
