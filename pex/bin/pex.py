@@ -31,8 +31,14 @@ from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.resolver import Unsatisfiable, parsed_platform, resolve_multi
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
 from pex.version import __version__
+
+if TYPE_CHECKING:
+    from typing import Dict, List
+    from argparse import Namespace
+
 
 CANNOT_SETUP_INTERPRETER = 102
 INVALID_OPTIONS = 103
@@ -679,7 +685,7 @@ def compute_indexes(options):
     # type: (Namespace) -> List[str]
 
     indexes = ([_PYPI] if options.pypi else []) + (options.indexes or [])
-    seen = {}
+    seen = {}  # type: Dict[str, str]
     deduped_indexes = [seen.setdefault(x, x) for x in indexes if x not in seen]
     return deduped_indexes
 
