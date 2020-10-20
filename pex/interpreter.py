@@ -323,10 +323,10 @@ class PythonInterpreter(object):
     @staticmethod
     def latest_release_of_min_compatible_version(interps):
         # type: (Sequence[PythonInterpreter]) -> PythonInterpreter
-        """Find the minimum major version, but use the most recent patch version within that minor
+        """Find the minimum major version, but use the most recent micro version within that minor
         version.
 
-        That is, 3.6.1 < 3.6.0 < 3.7.*.
+        That is, prefer 3.6.1 over 3.6.0, and prefer both over 3.7.*.
         """
         assert interps, "No interpreters passed to `PythonInterpreter.safe_min()`"
         return min(
