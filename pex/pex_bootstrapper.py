@@ -173,7 +173,7 @@ def _select_path_interpreter(
 
     # TODO: Allow the selection strategy to be parameterized:
     #   https://github.com/pantsbuild/pex/issues/430
-    return min(candidate_interpreters)
+    return PythonInterpreter.safe_min(candidate_interpreters)
 
 
 def maybe_reexec_pex(compatibility_constraints=None):
