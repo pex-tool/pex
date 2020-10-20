@@ -76,8 +76,7 @@ def iter_compatible_interpreters(
             OrderedSet(os.path.realpath(p) for p in path.split(os.pathsep)) if path else None
         )
 
-        # Check if the current interpreter is valid. If `path` was specified, the current
-        # interpreter must be included in the value; otherwise, we always yield the interpreter.
+        # Prefer the current interpreter, if valid.
         current_interpreter = PythonInterpreter.get()
         if not _valid_path or _valid_path(current_interpreter.binary):
             if normalized_paths:
@@ -94,18 +93,12 @@ def iter_compatible_interpreters(
                 seen.add(current_interpreter)
                 yield current_interpreter
 
-        # NB: We only check for other interpreters if there are remaining candidate interpreters
-        # _or_ if the user left off `path`, meaning to default to looking at $PATH.
-        #
-        # There is a tricky edge case where `path` was specified, but its only entry is the current
-        # interpreter so it was already removed.
-        if normalized_paths or path is None:
-            for interp in PythonInterpreter.iter_candidates(
-                paths=normalized_paths, path_filter=_valid_path
-            ):
-                if interp not in seen:
-                    seen.add(interp)
-                    yield interp
+        for interp in PythonInterpreter.iter_candidates(
+            paths=normalized_paths, path_filter=_valid_path
+        ):
+            if interp not in seen:
+                seen.add(interp)
+                yield interp
 
     def _valid_interpreter(interp_or_error):
         # type: (InterpreterOrError) -> bool
