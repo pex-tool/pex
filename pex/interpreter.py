@@ -175,8 +175,7 @@ class PythonIdentity(object):
         # type: () -> Tuple[int, int, int]
         """The interpreter version as a normalized tuple.
 
-        This assumes that the interpreter uses semantic versioning in the form
-        <major>.<minor>.<patch>, which is used by CPython, PyPy, and Jython.
+        Consistent with `sys.version_info`, the tuple corresponds to `<major>.<minor>.<micro>`.
         """
         return cast("Tuple[int, int, int]", self._version)
 
@@ -322,7 +321,7 @@ class PythonInterpreter(object):
         pass
 
     @staticmethod
-    def safe_min(interps):
+    def latest_release_of_min_compatible_version(interps):
         # type: (Sequence[PythonInterpreter]) -> PythonInterpreter
         """Find the minimum major version, but use the most recent patch version within that minor
         version.
@@ -330,16 +329,9 @@ class PythonInterpreter(object):
         That is, 3.6.1 < 3.6.0 < 3.7.*.
         """
         assert interps, "No interpreters passed to `PythonInterpreter.safe_min()`"
-        result = interps[0]
-        for interp in interps[1:]:
-            result_major, result_minor, result_patch = result.version
-            curr_major, curr_minor, curr_patch = interp.version
-            if (curr_major, curr_minor) < (result_major, result_minor) or (
-                (curr_major, curr_minor) == (result_major, result_minor)
-                and curr_patch > result_patch
-            ):
-                result = interp
-        return result
+        return min(
+            interps, key=lambda interp: (interp.version[0], interp.version[1], -interp.version[2])
+        )
 
     @classmethod
     def get(cls):

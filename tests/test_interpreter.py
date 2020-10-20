@@ -221,21 +221,22 @@ class TestPythonInterpreter(object):
                         os.rename(py35_deleted, py35)
 
 
-def test_safe_min():
+def test_latest_release_of_min_compatible_version():
     # type: () -> None
     def mock_interp(version):
         interp = Mock()
         interp.version = tuple(int(v) for v in version.split("."))
         return interp
 
-    def assert_min(expected_version, other_version):
+    def assert_chosen(expected_version, other_version):
         expected = mock_interp(expected_version)
         other = mock_interp(other_version)
         assert (
-            PythonInterpreter.safe_min([expected, other]) == expected
+            PythonInterpreter.latest_release_of_min_compatible_version([expected, other])
+            == expected
         ), "{} was selected instead of {}".format(other_version, expected_version)
 
     # Note that we don't consider the interpreter name in comparisons.
-    assert_min(expected_version="2.7.0", other_version="3.6.0")
-    assert_min(expected_version="3.5.0", other_version="3.6.0")
-    assert_min(expected_version="3.6.1", other_version="3.6.0")
+    assert_chosen(expected_version="2.7.0", other_version="3.6.0")
+    assert_chosen(expected_version="3.5.0", other_version="3.6.0")
+    assert_chosen(expected_version="3.6.1", other_version="3.6.0")

@@ -807,7 +807,11 @@ def build_pex(reqs, options, cache=None):
                 )
             )
 
-    interpreter = PythonInterpreter.safe_min(interpreters) if interpreters else None
+    interpreter = (
+        PythonInterpreter.latest_release_of_min_compatible_version(interpreters)
+        if interpreters
+        else None
+    )
 
     try:
         with open(options.preamble_file) as preamble_fd:
