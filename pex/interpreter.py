@@ -340,7 +340,8 @@ class PythonInterpreter(object):
     @staticmethod
     def _paths(paths=None):
         # type: (Optional[Iterable[str]]) -> Iterable[str]
-        return paths or os.getenv("PATH", "").split(os.pathsep)
+        # NB: If `paths=[]`, we will not read $PATH.
+        return paths if paths is not None else os.getenv("PATH", "").split(os.pathsep)
 
     @classmethod
     def iter(cls, paths=None):

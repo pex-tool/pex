@@ -117,6 +117,15 @@ class TestPythonInterpreter(object):
         # type: () -> None
         assert [] == list(PythonInterpreter.iter_candidates(paths=[os.devnull]))
 
+    def test_iter_candidates_empty_paths(self, test_interpreter1):
+        # type: (str) -> None
+        # Whereas `paths=None` should inspect $PATH, `paths=[]` means to search nothing.
+        with environment_as(PATH=test_interpreter1):
+            assert [] == list(PythonInterpreter.iter_candidates(paths=[]))
+            assert [PythonInterpreter.from_binary(test_interpreter1)] == list(
+                PythonInterpreter.iter_candidates(paths=None)
+            )
+
     @pytest.fixture
     def invalid_interpreter(self):
         # type: () -> Iterator[str]

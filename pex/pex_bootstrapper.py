@@ -72,30 +72,30 @@ def iter_compatible_interpreters(
         # type: () -> Iterator[InterpreterOrError]
         seen = set()
 
-        paths = None  # type: Optional[MutableSet[str]]
-        if path:
-            paths = OrderedSet(os.path.realpath(p) for p in path.split(os.pathsep))
+        normalized_paths = (
+            OrderedSet(os.path.realpath(p) for p in path.split(os.pathsep)) if path else None
+        )
 
+        # Prefer the current interpreter, if valid.
         current_interpreter = PythonInterpreter.get()
         if not _valid_path or _valid_path(current_interpreter.binary):
-            if paths:
-                # Prefer the current interpreter if present on the `path`.
+            if normalized_paths:
                 candidate_paths = frozenset(
                     (current_interpreter.binary, os.path.dirname(current_interpreter.binary))
                 )
-                candidate_paths_in_path = candidate_paths.intersection(paths)
+                candidate_paths_in_path = candidate_paths.intersection(normalized_paths)
                 if candidate_paths_in_path:
                     for p in candidate_paths_in_path:
-                        paths.remove(p)
+                        normalized_paths.remove(p)
                     seen.add(current_interpreter)
                     yield current_interpreter
             else:
-                # We may have been invoked with a specific interpreter, make sure our sys.executable is
-                # included as a candidate in this case.
                 seen.add(current_interpreter)
                 yield current_interpreter
 
-        for interp in PythonInterpreter.iter_candidates(paths=paths, path_filter=_valid_path):
+        for interp in PythonInterpreter.iter_candidates(
+            paths=normalized_paths, path_filter=_valid_path
+        ):
             if interp not in seen:
                 seen.add(interp)
                 yield interp
