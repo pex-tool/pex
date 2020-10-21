@@ -1,6 +1,27 @@
 Release Notes
 =============
 
+2.1.20
+------
+
+This release improves interpreter discovery to prefer more recent patch versions, e.g. preferring
+Python 3.6.10 over 3.6.8.
+
+We recently regained access to the docsite, and https://pex.readthedocs.io/en/latest/ is now
+up-to-date.
+
+* Prefer more recent patch versions in interpreter discovery. (#1088)
+  `PR #1088 <https://github.com/pantsbuild/pex/pull/1088>`_
+
+* Fix ``--pex-python`` when it's the same as the current interpreter. (#1087)
+  `PR #1087 <https://github.com/pantsbuild/pex/pull/1087>`_
+
+* Fix `dir_hash` vs. bytecode compilation races. (#1080)
+  `PR #1080 <https://github.com/pantsbuild/pex/pull/1080>`_
+
+* Fix readthedocs doc generation. (#1081)
+  `PR #1081 <https://github.com/pantsbuild/pex/pull/1081>`_
+
 2.1.19
 ------
 
