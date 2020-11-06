@@ -6,10 +6,9 @@ from __future__ import absolute_import
 import collections
 import os
 
-from pex.common import touch
+from pex.common import filter_pyc_dirs, filter_pyc_files, touch
 from pex.compatibility import urlparse
 from pex.tracer import TRACER
-from pex.util import filter_pyc_dirs, filter_pyc_files
 
 _PACKAGE_COMPONENTS = __name__.split(".")
 

@@ -5,14 +5,13 @@ from __future__ import absolute_import
 
 import contextlib
 import os
-import re
 import sys
 import tempfile
 from hashlib import sha1
 from site import makepath  # type: ignore[attr-defined]
 from zipfile import ZipFile
 
-from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
+from pex.common import atomic_directory, filter_pyc_dirs, filter_pyc_files, safe_mkdir, safe_mkdtemp
 from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function` is defined dynamically
     PY2,
     exec_function,
@@ -100,27 +99,6 @@ class DistributionHelper(object):
                 if dist.project_name == name:
                     return dist
         return None
-
-
-def filter_pyc_dirs(dirs):
-    # type: (Iterable[str]) -> Iterator[str]
-    """Return an iterator over the input `dirs` filtering out Python bytecode cache directories."""
-    for d in dirs:
-        if d != "__pycache__":
-            yield d
-
-
-def filter_pyc_files(files):
-    # type: (Iterable[str]) -> Iterator[str]
-    """Return an iterator over the input `files` filtering out any Python bytecode files."""
-    for f in files:
-        # For Python 2.7, `.pyc` files are compiled as siblings to `.py` files (there is no
-        # __pycache__ dir). We rely on the fact that the temporary files created by CPython
-        # have object id (integer) suffixes to avoid picking up either finished `.pyc` files
-        # or files where Python bytecode compilation is in-flight; i.e.:
-        # `.pyc.0123456789`-style files.
-        if not re.search(r"\.pyc(?:\.[0-9]+)?$", f):
-            yield f
 
 
 class CacheHelper(object):
