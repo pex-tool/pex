@@ -5,14 +5,13 @@ from __future__ import absolute_import
 
 import contextlib
 import os
-import re
 import sys
 import tempfile
 from hashlib import sha1
 from site import makepath  # type: ignore[attr-defined]
 from zipfile import ZipFile
 
-from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
+from pex.common import atomic_directory, filter_pyc_dirs, filter_pyc_files, safe_mkdir, safe_mkdtemp
 from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function` is defined dynamically
     PY2,
     exec_function,
@@ -138,15 +137,9 @@ class CacheHelper(object):
         # type: (str) -> Iterator[str]
         normpath = os.path.realpath(os.path.normpath(directory))
         for root, dirs, files in os.walk(normpath):
-            dirs[:] = [d for d in dirs if d != "__pycache__"]
-            for f in files:
-                # For Python 2.7, `.pyc` files are compiled as siblings to `.py` files (there is no
-                # __pycache__ dir. We rely on the fact that the temporary files created by CPython
-                # have object id (integer) suffixes to avoid picking up either finished `.pyc` files
-                # or files where Python bytecode compilation is in-flight; i.e.:
-                # `.pyc.0123456789`-style files.
-                if not re.search(r"\.pyc(?:\.[0-9]+)?$", f):
-                    yield os.path.relpath(os.path.join(root, f), normpath)
+            dirs[:] = list(filter_pyc_dirs(dirs))
+            for f in filter_pyc_files(files):
+                yield os.path.relpath(os.path.join(root, f), normpath)
 
     @classmethod
     def pex_hash(cls, d):

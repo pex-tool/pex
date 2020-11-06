@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import collections
 import os
 
-from pex.common import touch
+from pex.common import filter_pyc_dirs, filter_pyc_files, touch
 from pex.compatibility import urlparse
 from pex.tracer import TRACER
 
@@ -157,13 +157,14 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names):
                             "Vendoring {} from {} @ {}".format(name, spec, spec.target_dir), V=3
                         )
 
-            for filename in files:
-                if not filename.endswith(".pyc"):  # Sources and data only.
-                    src = os.path.join(root, filename)
-                    dest = os.path.join(
-                        dest_basedir, spec.relpath, os.path.relpath(src, spec.target_dir)
-                    )
-                    chroot.copy(src, dest, label)
+            # We copy over sources and data only; no pyc files.
+            dirs[:] = filter_pyc_dirs(dirs)
+            for filename in filter_pyc_files(files):
+                src = os.path.join(root, filename)
+                dest = os.path.join(
+                    dest_basedir, spec.relpath, os.path.relpath(src, spec.target_dir)
+                )
+                chroot.copy(src, dest, label)
 
     if not all(vendor_module_names.values()):
         raise ValueError(
