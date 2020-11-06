@@ -160,7 +160,7 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names):
 
             # We copy over sources and data only; no pyc files.
             dirs[:] = filter_pyc_dirs(dirs)
-            for filename in filter_pyc_=files(files):
+            for filename in filter_pyc_files(files):
                 src = os.path.join(root, filename)
                 dest = os.path.join(
                     dest_basedir, spec.relpath, os.path.relpath(src, spec.target_dir)
