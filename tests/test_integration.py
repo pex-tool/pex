@@ -2348,9 +2348,13 @@ def test_issues_996():
 @pytest.fixture
 def tmp_workdir():
     # type: () -> Iterator[str]
+    cwd = os.getcwd()
     with temporary_dir() as tmpdir:
         os.chdir(tmpdir)
-        yield os.path.realpath(tmpdir)
+        try:
+            yield os.path.realpath(tmpdir)
+        finally:
+            os.chdir(cwd)
 
 
 def test_tmpdir_absolute(tmp_workdir):
@@ -2393,3 +2397,19 @@ def test_tmpdir_file(tmp_workdir):
     result.assert_failure()
     assert tmpdir_file in result.error
     assert "is not a directory" in result.error
+
+
+def test_resolve_arbitrary_equality_issues_940():
+    # type: () -> None
+    with temporary_dir() as tmpdir, built_wheel(
+        name="foo",
+        version="1.0.2-fba4511",
+        python_requires=">=2.7,<=3.9,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
+    ) as whl:
+        pex_file = os.path.join(tmpdir, "pex")
+        results = run_pex_command(args=["-o", pex_file, whl])
+        results.assert_success()
+
+        stdout, returncode = run_simple_pex(pex_file, args=["-c", "import foo"])
+        assert returncode == 0
+        assert stdout == b""
