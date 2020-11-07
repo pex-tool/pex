@@ -39,6 +39,12 @@ class VendorSpec(
 
     ROOT = _root()
 
+    _VENDOR_DIR = "_vendored"
+
+    @classmethod
+    def vendor_root(cls):
+        return os.path.join(cls.ROOT, *(_PACKAGE_COMPONENTS + [cls._VENDOR_DIR]))
+
     @classmethod
     def pinned(cls, key, version, rewrite=True):
         return cls(
@@ -61,7 +67,7 @@ class VendorSpec(
 
     @property
     def _subpath_components(self):
-        return ["_vendored", self.key]
+        return [self._VENDOR_DIR, self.key]
 
     @property
     def relpath(self):
