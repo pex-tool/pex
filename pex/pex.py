@@ -4,7 +4,9 @@
 from __future__ import absolute_import, print_function
 
 import os
+import re
 import sys
+import warnings
 from distutils import sysconfig
 from site import USER_SITE
 from types import ModuleType
@@ -13,6 +15,7 @@ import pex.third_party.pkg_resources as pkg_resources
 from pex import third_party
 from pex.bootstrap import Bootstrap
 from pex.common import die
+from pex.compatibility import PY3
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
@@ -461,6 +464,17 @@ class PEX(object):  # noqa: T000
             if not teardown_verbosity:
                 sys.stderr.flush()
                 sys.stderr = open(os.devnull, "w")
+                if PY3:
+                    # Python 3 warns about unclosed resources. In this case we intentionally do not
+                    # close `/dev/null` since we want all stderr to flow there until the latest
+                    # stages of Python interpreter shutdown when the Pythoin runtime will del the
+                    # open file and thus finally close the underlying file descriptor. As such,
+                    # suppress the warning.
+                    warnings.filterwarnings(
+                        action="ignore",
+                        message=r"unclosed file {}".format(re.escape(str(sys.stderr))),
+                        category=ResourceWarning,
+                    )
                 sys.excepthook = lambda *a, **kw: None
 
     def _execute(self):
