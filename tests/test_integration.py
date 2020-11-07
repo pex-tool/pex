@@ -2413,3 +2413,20 @@ def test_resolve_arbitrary_equality_issues_940():
         stdout, returncode = run_simple_pex(pex_file, args=["-c", "import foo"])
         assert returncode == 0
         assert stdout == b""
+
+
+def test_resolve_python_requires_full_version_issues_1017():
+    # type: () -> None
+    python36 = ensure_python_interpreter(PY36)
+    result = run_pex_command(
+        python=python36,
+        args=[
+            "pandas==1.0.5",
+            "--",
+            "-c",
+            "import pandas; print(pandas._version.get_versions()['version'])",
+        ],
+        quiet=True,
+    )
+    result.assert_success()
+    assert "1.0.5" == result.output.strip()
