@@ -467,7 +467,7 @@ class PEX(object):  # noqa: T000
                 if PY3:
                     # Python 3 warns about unclosed resources. In this case we intentionally do not
                     # close `/dev/null` since we want all stderr to flow there until the latest
-                    # stages of Python interpreter shutdown when the Pythoin runtime will del the
+                    # stages of Python interpreter shutdown when the Python runtime will `del` the
                     # open file and thus finally close the underlying file descriptor. As such,
                     # suppress the warning.
                     warnings.filterwarnings(
