@@ -23,6 +23,8 @@ from pex.pip import PackageIndexConfiguration, get_pip
 from pex.platforms import Platform
 from pex.requirements import local_project_from_requirement, local_projects_from_requirement_file
 from pex.third_party.packaging.markers import Marker
+from pex.third_party.packaging.version import Version
+from pex.third_party.packaging.version import parse as parse_version
 from pex.third_party.pkg_resources import Distribution, Environment, Requirement
 from pex.tracer import TRACER
 from pex.util import CacheHelper
@@ -130,11 +132,22 @@ class DistributionRequirements(object):
         # + https://www.python.org/dev/peps/pep-0508/#environment-markers
         python_requires = dist_metadata.requires_python(dist)
         if python_requires:
+
+            def choose_marker(version):
+                # type: (str) -> str
+                parsed_version = parse_version(version)
+                if type(parsed_version) != Version or len(parsed_version.release) > 2:
+                    return "python_full_version"
+                else:
+                    return "python_version"
+
             markers.update(
                 Marker(python_version)
                 for python_version in sorted(
-                    "python_version {operator} {version!r}".format(
-                        operator=specifier.operator, version=specifier.version
+                    "{marker} {operator} {version!r}".format(
+                        marker=choose_marker(specifier.version),
+                        operator=specifier.operator,
+                        version=specifier.version,
                     )
                     for specifier in python_requires
                 )
