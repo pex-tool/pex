@@ -507,3 +507,18 @@ def test_install_invalid_local_distribution():
         install(
             [LocalDistribution.create(project1_wheel, fingerprint=valid_local_sdist.fingerprint)]
         )
+
+
+def test_resolve_arbitrary_equality_issues_940():
+    # type: () -> None
+    dist = create_sdist(
+        name="foo",
+        version="1.0.2-fba4511",
+        python_requires=">=2.7,<=3.9,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
+    )
+    resolved_distributions = local_resolve_multi(requirements=[dist])
+
+    assert len(resolved_distributions) == 1
+    requirement = resolved_distributions[0].requirement
+    assert [("===", "1.0.2-fba4511")] == requirement.specs
+    assert requirement.marker is None

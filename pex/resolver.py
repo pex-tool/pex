@@ -109,6 +109,19 @@ class DistributionRequirements(object):
     def to_requirement(self, dist):
         req = dist.as_requirement()
 
+        # pkg_resources.Distribution.as_requirement returns requirements in one of two forms:
+        # 1.) project_name==version
+        # 2.) project_name===version
+        # The latter form is used whenever the distribution's version is non-standard. In those
+        # cases we cannot append environment markers since `===` indicates a raw version string to
+        # the right that should not be parsed and instead should be compared literally in full.
+        # See:
+        # + https://www.python.org/dev/peps/pep-0440/#arbitrary-equality
+        # + https://github.com/pantsbuild/pex/issues/940
+        operator, _ = req.specs[0]
+        if operator == "===":
+            return req
+
         markers = OrderedSet()
 
         # Here we map any wheel python requirement to the equivalent environment marker:
