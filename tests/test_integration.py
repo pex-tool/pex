@@ -2348,9 +2348,13 @@ def test_issues_996():
 @pytest.fixture
 def tmp_workdir():
     # type: () -> Iterator[str]
+    cwd = os.getcwd()
     with temporary_dir() as tmpdir:
         os.chdir(tmpdir)
-        yield os.path.realpath(tmpdir)
+        try:
+            yield os.path.realpath(tmpdir)
+        finally:
+            os.chdir(cwd)
 
 
 def test_tmpdir_absolute(tmp_workdir):
