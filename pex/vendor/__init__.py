@@ -105,8 +105,9 @@ def iter_vendor_specs():
     :return: An iterator over specs of all vendored code.
     :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
     """
-    # We use this via pex.third_party at runtime to check for compatible wheel tags.
-    yield VendorSpec.pinned("packaging", "19.2")
+    # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
+    # time to implement resolving distributions from a PEX repository.
+    yield VendorSpec.pinned("packaging", "20.4")
 
     # We shell out to pip at buildtime to resolve and install dependencies.
     # N.B.: This is pip 20.0.dev0 with a patch to support foreign download targets more fully.
@@ -116,10 +117,11 @@ def iter_vendor_specs():
 
     # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
     # pex.third_party at runtime in various ways.
-    yield VendorSpec.pinned("setuptools", "42.0.2")
+    # N.B.: 44.0.0 is the last setuptools version compatible with Python 2.
+    yield VendorSpec.pinned("setuptools", "44.0.0")
 
     # We expose this to pip at buildtime for legacy builds.
-    yield VendorSpec.pinned("wheel", "0.33.6", rewrite=False)
+    yield VendorSpec.pinned("wheel", "0.35.1", rewrite=False)
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
