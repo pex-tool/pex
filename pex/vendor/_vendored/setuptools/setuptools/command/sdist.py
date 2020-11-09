@@ -129,19 +129,40 @@ class sdist(sdist_add_defaults, orig.sdist):
     if has_leaky_handle:
         read_template = __read_template_hack
 
+    def _add_defaults_optional(self):
+        if six.PY2:
+            sdist_add_defaults._add_defaults_optional(self)
+        else:
+            super()._add_defaults_optional()
+        if os.path.isfile('pyproject.toml'):
+            self.filelist.append('pyproject.toml')
+
     def _add_defaults_python(self):
         """getting python files"""
         if self.distribution.has_pure_modules():
             build_py = self.get_finalized_command('build_py')
             self.filelist.extend(build_py.get_source_files())
-            # This functionality is incompatible with include_package_data, and
-            # will in fact create an infinite recursion if include_package_data
-            # is True.  Use of include_package_data will imply that
-            # distutils-style automatic handling of package_data is disabled
-            if not self.distribution.include_package_data:
-                for _, src_dir, _, filenames in build_py.data_files:
-                    self.filelist.extend([os.path.join(src_dir, filename)
-                                          for filename in filenames])
+            self._add_data_files(self._safe_data_files(build_py))
+
+    def _safe_data_files(self, build_py):
+        """
+        Extracting data_files from build_py is known to cause
+        infinite recursion errors when `include_package_data`
+        is enabled, so suppress it in that case.
+        """
+        if self.distribution.include_package_data:
+            return ()
+        return build_py.data_files
+
+    def _add_data_files(self, data_files):
+        """
+        Add data files as found in build_py.data_files.
+        """
+        self.filelist.extend(
+            os.path.join(src_dir, name)
+            for _, src_dir, _, filenames in data_files
+            for name in filenames
+        )
 
     def _add_defaults_data_files(self):
         try:

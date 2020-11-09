@@ -25,7 +25,13 @@ else:
   # noqa
 
 from ._compat import string_types
+from ._typing import TYPE_CHECKING
 from .specifiers import Specifier, InvalidSpecifier
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+    Operator = Callable[[str, str], bool]
 
 
 __all__ = [
@@ -58,30 +64,37 @@ class UndefinedEnvironmentName(ValueError):
 
 class Node(object):
     def __init__(self, value):
+        # type: (Any) -> None
         self.value = value
 
     def __str__(self):
+        # type: () -> str
         return str(self.value)
 
     def __repr__(self):
+        # type: () -> str
         return "<{0}({1!r})>".format(self.__class__.__name__, str(self))
 
     def serialize(self):
+        # type: () -> str
         raise NotImplementedError
 
 
 class Variable(Node):
     def serialize(self):
+        # type: () -> str
         return str(self)
 
 
 class Value(Node):
     def serialize(self):
+        # type: () -> str
         return '"{0}"'.format(self)
 
 
 class Op(Node):
     def serialize(self):
+        # type: () -> str
         return str(self)
 
 
@@ -97,13 +110,13 @@ VARIABLE = (
     | L("python_version")
     | L("sys_platform")
     | L("os_name")
-    | L("os.name")
+    | L("os.name")  # PEP-345
     | L("sys.platform")  # PEP-345
     | L("platform.version")  # PEP-345
     | L("platform.machine")  # PEP-345
     | L("platform.python_implementation")  # PEP-345
-    | L("python_implementation")  # PEP-345
-    | L("extra")  # undocumented setuptools legacy
+    | L("python_implementation")  # undocumented setuptools legacy
+    | L("extra")  # PEP-508
 )
 ALIASES = {
     "os.name": "os_name",
@@ -143,6 +156,7 @@ MARKER = stringStart + MARKER_EXPR + stringEnd
 
 
 def _coerce_parse_result(results):
+    # type: (Union[ParseResults, List[Any]]) -> List[Any]
     if isinstance(results, ParseResults):
         return [_coerce_parse_result(i) for i in results]
     else:
@@ -150,6 +164,8 @@ def _coerce_parse_result(results):
 
 
 def _format_marker(marker, first=True):
+    # type: (Union[List[str], Tuple[Node, ...], str], Optional[bool]) -> str
+
     assert isinstance(marker, (list, tuple, string_types))
 
     # Sometimes we have a structure like [[...]] which is a single item list
@@ -184,10 +200,11 @@ _operators = {
     "!=": operator.ne,
     ">=": operator.ge,
     ">": operator.gt,
-}
+}  # type: Dict[str, Operator]
 
 
 def _eval_op(lhs, op, rhs):
+    # type: (str, Op, str) -> bool
     try:
         spec = Specifier("".join([op.serialize(), rhs]))
     except InvalidSpecifier:
@@ -195,7 +212,7 @@ def _eval_op(lhs, op, rhs):
     else:
         return spec.contains(lhs)
 
-    oper = _operators.get(op.serialize())
+    oper = _operators.get(op.serialize())  # type: Optional[Operator]
     if oper is None:
         raise UndefinedComparison(
             "Undefined {0!r} on {1!r} and {2!r}.".format(op, lhs, rhs)
@@ -204,13 +221,18 @@ def _eval_op(lhs, op, rhs):
     return oper(lhs, rhs)
 
 
-_undefined = object()
+class Undefined(object):
+    pass
+
+
+_undefined = Undefined()
 
 
 def _get_env(environment, name):
-    value = environment.get(name, _undefined)
+    # type: (Dict[str, str], str) -> str
+    value = environment.get(name, _undefined)  # type: Union[str, Undefined]
 
-    if value is _undefined:
+    if isinstance(value, Undefined):
         raise UndefinedEnvironmentName(
             "{0!r} does not exist in evaluation environment.".format(name)
         )
@@ -219,7 +241,8 @@ def _get_env(environment, name):
 
 
 def _evaluate_markers(markers, environment):
-    groups = [[]]
+    # type: (List[Any], Dict[str, str]) -> bool
+    groups = [[]]  # type: List[List[bool]]
 
     for marker in markers:
         assert isinstance(marker, (list, tuple, string_types))
@@ -246,6 +269,7 @@ def _evaluate_markers(markers, environment):
 
 
 def format_full_version(info):
+    # type: (sys._version_info) -> str
     version = "{0.major}.{0.minor}.{0.micro}".format(info)
     kind = info.releaselevel
     if kind != "final":
@@ -254,9 +278,13 @@ def format_full_version(info):
 
 
 def default_environment():
+    # type: () -> Dict[str, str]
     if hasattr(sys, "implementation"):
-        iver = format_full_version(sys.implementation.version)
-        implementation_name = sys.implementation.name
+        # Ignoring the `sys.implementation` reference for type checking due to
+        # mypy not liking that the attribute doesn't exist in Python 2.7 when
+        # run with the `--py27` flag.
+        iver = format_full_version(sys.implementation.version)  # type: ignore
+        implementation_name = sys.implementation.name  # type: ignore
     else:
         iver = "0"
         implementation_name = ""
@@ -278,6 +306,7 @@ def default_environment():
 
 class Marker(object):
     def __init__(self, marker):
+        # type: (str) -> None
         try:
             self._markers = _coerce_parse_result(MARKER.parseString(marker))
         except ParseException as e:
@@ -287,12 +316,15 @@ class Marker(object):
             raise InvalidMarker(err_str)
 
     def __str__(self):
+        # type: () -> str
         return _format_marker(self._markers)
 
     def __repr__(self):
+        # type: () -> str
         return "<Marker({0!r})>".format(str(self))
 
     def evaluate(self, environment=None):
+        # type: (Optional[Dict[str, str]]) -> bool
         """Evaluate a marker.
 
         Return the boolean from evaluating the given marker against the
