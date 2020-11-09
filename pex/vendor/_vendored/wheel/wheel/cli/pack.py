@@ -8,6 +8,7 @@ from wheel.cli import WheelError
 from wheel.wheelfile import WheelFile
 
 DIST_INFO_RE = re.compile(r"^(?P<namever>(?P<name>.+?)-(?P<ver>\d.*?))\.dist-info$")
+BUILD_NUM_RE = re.compile(br'Build: (\d\w*)$')
 
 
 def pack(directory, dest_dir, build_number):
@@ -31,16 +32,36 @@ def pack(directory, dest_dir, build_number):
     dist_info_dir = dist_info_dirs[0]
     name_version = DIST_INFO_RE.match(dist_info_dir).group('namever')
 
-    # Add the build number if specific
-    if build_number:
-        name_version += '-' + build_number
+    # Read the tags and the existing build number from .dist-info/WHEEL
+    existing_build_number = None
+    wheel_file_path = os.path.join(directory, dist_info_dir, 'WHEEL')
+    with open(wheel_file_path) as f:
+        tags = []
+        for line in f:
+            if line.startswith('Tag: '):
+                tags.append(line.split(' ')[1].rstrip())
+            elif line.startswith('Build: '):
+                existing_build_number = line.split(' ')[1].rstrip()
 
-    # Read the tags from .dist-info/WHEEL
-    with open(os.path.join(directory, dist_info_dir, 'WHEEL')) as f:
-        tags = [line.split(' ')[1].rstrip() for line in f if line.startswith('Tag: ')]
         if not tags:
             raise WheelError('No tags present in {}/WHEEL; cannot determine target wheel filename'
                              .format(dist_info_dir))
+
+    # Set the wheel file name and add/replace/remove the Build tag in .dist-info/WHEEL
+    build_number = build_number if build_number is not None else existing_build_number
+    if build_number is not None:
+        if build_number:
+            name_version += '-' + build_number
+
+        if build_number != existing_build_number:
+            replacement = ('Build: %s\r\n' % build_number).encode('ascii') if build_number else b''
+            with open(wheel_file_path, 'rb+') as f:
+                wheel_file_content = f.read()
+                if not BUILD_NUM_RE.subn(replacement, wheel_file_content)[1]:
+                    wheel_file_content += replacement
+
+                f.truncate()
+                f.write(wheel_file_content)
 
     # Reassemble the tags for the wheel file
     impls = sorted({tag.split('-')[0] for tag in tags})

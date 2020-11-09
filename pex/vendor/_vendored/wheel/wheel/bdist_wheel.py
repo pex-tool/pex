@@ -4,25 +4,29 @@ Create a wheel (.whl) distribution.
 A wheel is a built archive format.
 """
 
+import distutils
 import os
 import shutil
+import stat
 import sys
 import re
+import warnings
+from collections import OrderedDict
 from email.generator import Generator
 from distutils.core import Command
-from distutils.sysconfig import get_python_version
 from distutils import log as logger
 from glob import iglob
 from shutil import rmtree
-from warnings import warn
+from sysconfig import get_config_var
+from zipfile import ZIP_DEFLATED, ZIP_STORED
 
 import pkg_resources
 
-from .pep425tags import get_abbr_impl, get_impl_ver, get_abi_tag, get_platform
 from .pkginfo import write_pkg_info
+from .macosx_libfile import calculate_macosx_platform_tag
 from .metadata import pkginfo_to_metadata
+from .vendored.packaging import tags
 from .wheelfile import WheelFile
-from . import pep425tags
 from . import __version__ as wheel_version
 
 
@@ -30,6 +34,70 @@ safe_name = pkg_resources.safe_name
 safe_version = pkg_resources.safe_version
 
 PY_LIMITED_API_PATTERN = r'cp3\d'
+
+
+def python_tag():
+    return 'py{}'.format(sys.version_info[0])
+
+
+def get_platform(archive_root):
+    """Return our platform name 'win32', 'linux_x86_64'"""
+    # XXX remove distutils dependency
+    result = distutils.util.get_platform()
+    if result.startswith("macosx") and archive_root is not None:
+        result = calculate_macosx_platform_tag(archive_root, result)
+    if result == "linux_x86_64" and sys.maxsize == 2147483647:
+        # pip pull request #3497
+        result = "linux_i686"
+    return result
+
+
+def get_flag(var, fallback, expected=True, warn=True):
+    """Use a fallback value for determining SOABI flags if the needed config
+    var is unset or unavailable."""
+    val = get_config_var(var)
+    if val is None:
+        if warn:
+            warnings.warn("Config variable '{0}' is unset, Python ABI tag may "
+                          "be incorrect".format(var), RuntimeWarning, 2)
+        return fallback
+    return val == expected
+
+
+def get_abi_tag():
+    """Return the ABI tag based on SOABI (if available) or emulate SOABI
+    (CPython 2, PyPy)."""
+    soabi = get_config_var('SOABI')
+    impl = tags.interpreter_name()
+    if not soabi and impl in ('cp', 'pp') and hasattr(sys, 'maxunicode'):
+        d = ''
+        m = ''
+        u = ''
+        if get_flag('Py_DEBUG',
+                    hasattr(sys, 'gettotalrefcount'),
+                    warn=(impl == 'cp')):
+            d = 'd'
+        if get_flag('WITH_PYMALLOC',
+                    impl == 'cp',
+                    warn=(impl == 'cp' and
+                          sys.version_info < (3, 8))) \
+                and sys.version_info < (3, 8):
+            m = 'm'
+        if get_flag('Py_UNICODE_SIZE',
+                    sys.maxunicode == 0x10ffff,
+                    expected=4,
+                    warn=(impl == 'cp' and
+                          sys.version_info < (3, 3))) \
+                and sys.version_info < (3, 3):
+            u = 'u'
+        abi = '%s%s%s%s%s' % (impl, tags.interpreter_version(), d, m, u)
+    elif soabi and soabi.startswith('cpython-'):
+        abi = 'cp' + soabi.split('-')[1]
+    elif soabi:
+        abi = soabi.replace('.', '_').replace('-', '_')
+    else:
+        abi = None
+    return abi
 
 
 def safer_name(name):
@@ -40,15 +108,26 @@ def safer_version(version):
     return safe_version(version).replace('-', '_')
 
 
+def remove_readonly(func, path, excinfo):
+    print(str(excinfo[1]))
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
 class bdist_wheel(Command):
 
     description = 'create a wheel distribution'
+
+    supported_compressions = OrderedDict([
+        ('stored', ZIP_STORED),
+        ('deflated', ZIP_DEFLATED)
+    ])
 
     user_options = [('bdist-dir=', 'b',
                      "temporary directory for creating the distribution"),
                     ('plat-name=', 'p',
                      "platform name to embed in generated filenames "
-                     "(default: %s)" % get_platform()),
+                     "(default: %s)" % get_platform(None)),
                     ('keep-temp', 'k',
                      "keep the pseudo-installation tree around after " +
                      "creating the distribution archive"),
@@ -68,9 +147,13 @@ class bdist_wheel(Command):
                     ('universal', None,
                      "make a universal wheel"
                      " (default: false)"),
+                    ('compression=', None,
+                     "zipfile compression (one of: {})"
+                     " (default: 'deflated')"
+                     .format(', '.join(supported_compressions))),
                     ('python-tag=', None,
                      "Python implementation compatibility tag"
-                     " (default: py%s)" % get_impl_ver()[0]),
+                     " (default: '%s')" % (python_tag())),
                     ('build-number=', None,
                      "Build number for this particular version. "
                      "As specified in PEP-0427, this must start with a digit. "
@@ -97,7 +180,8 @@ class bdist_wheel(Command):
         self.owner = None
         self.group = None
         self.universal = False
-        self.python_tag = 'py' + get_impl_ver()[0]
+        self.compression = 'deflated'
+        self.python_tag = python_tag()
         self.build_number = None
         self.py_limited_api = False
         self.plat_name_supplied = False
@@ -109,6 +193,11 @@ class bdist_wheel(Command):
 
         self.data_dir = self.wheel_dist_name + '.data'
         self.plat_name_supplied = self.plat_name is not None
+
+        try:
+            self.compression = self.supported_compressions[self.compression]
+        except KeyError:
+            raise ValueError('Unsupported compression: {}'.format(self.compression))
 
         need_options = ('dist_dir', 'plat_name', 'skip_build')
 
@@ -150,10 +239,22 @@ class bdist_wheel(Command):
         elif self.root_is_pure:
             plat_name = 'any'
         else:
-            plat_name = self.plat_name or get_platform()
+            # macosx contains system version in platform name so need special handle
+            if self.plat_name and not self.plat_name.startswith("macosx"):
+                plat_name = self.plat_name
+            else:
+                # on macosx always limit the platform name to comply with any
+                # c-extension modules in bdist_dir, since the user can specify
+                # a higher MACOSX_DEPLOYMENT_TARGET via tools like CMake
+
+                # on other platforms, and on macosx if there are no c-extension
+                # modules, use the default platform name.
+                plat_name = get_platform(self.bdist_dir)
+
             if plat_name in ('linux-x86_64', 'linux_x86_64') and sys.maxsize == 2147483647:
                 plat_name = 'linux_i686'
-        plat_name = plat_name.replace('-', '_').replace('.', '_')
+
+        plat_name = plat_name.lower().replace('-', '_').replace('.', '_')
 
         if self.root_is_pure:
             if self.universal:
@@ -162,8 +263,8 @@ class bdist_wheel(Command):
                 impl = self.python_tag
             tag = (impl, 'none', plat_name)
         else:
-            impl_name = get_abbr_impl()
-            impl_ver = get_impl_ver()
+            impl_name = tags.interpreter_name()
+            impl_ver = tags.interpreter_version()
             impl = impl_name + impl_ver
             # We don't work on CPython 3.1, 3.0.
             if self.py_limited_api and (impl_name + impl_ver).startswith('cp3'):
@@ -172,11 +273,8 @@ class bdist_wheel(Command):
             else:
                 abi_tag = str(get_abi_tag()).lower()
             tag = (impl, abi_tag, plat_name)
-            supported_tags = pep425tags.get_supported(
-                supplied_platform=plat_name if self.plat_name_supplied else None)
-            # XXX switch to this alternate implementation for non-pure:
-            if not self.py_limited_api:
-                assert tag == supported_tags[0], "%s != %s" % (tag, supported_tags[0])
+            supported_tags = [(t.interpreter, t.abi, t.platform)
+                              for t in tags.sys_tags()]
             assert tag in supported_tags, "would build wheel with unsupported tag {}".format(tag)
         return tag
 
@@ -250,17 +348,19 @@ class bdist_wheel(Command):
             os.makedirs(self.dist_dir)
 
         wheel_path = os.path.join(self.dist_dir, archive_basename + '.whl')
-        with WheelFile(wheel_path, 'w') as wf:
+        with WheelFile(wheel_path, 'w', self.compression) as wf:
             wf.write_files(archive_root)
 
         # Add to 'Distribution.dist_files' so that the "upload" command works
         getattr(self.distribution, 'dist_files', []).append(
-            ('bdist_wheel', get_python_version(), wheel_path))
+            ('bdist_wheel',
+             '{}.{}'.format(*sys.version_info[:2]),  # like 3.7
+             wheel_path))
 
         if not self.keep_temp:
             logger.info('removing %s', self.bdist_dir)
             if not self.dry_run:
-                rmtree(self.bdist_dir)
+                rmtree(self.bdist_dir, onerror=remove_readonly)
 
     def write_wheelfile(self, wheelfile_base, generator='bdist_wheel (' + wheel_version + ')'):
         from email.message import Message
@@ -299,8 +399,8 @@ class bdist_wheel(Command):
         })
 
         if 'license_file' in metadata:
-            warn('The "license_file" option is deprecated. Use "license_files" instead.',
-                 DeprecationWarning)
+            warnings.warn('The "license_file" option is deprecated. Use '
+                          '"license_files" instead.', DeprecationWarning)
             files.add(metadata['license_file'][1])
 
         if 'license_file' not in metadata and 'license_files' not in metadata:
@@ -308,6 +408,10 @@ class bdist_wheel(Command):
 
         for pattern in patterns:
             for path in iglob(pattern):
+                if path.endswith('~'):
+                    logger.debug('ignoring license file "%s" as it looks like a backup', path)
+                    continue
+
                 if path not in files and os.path.isfile(path):
                     logger.info('adding license file "%s" (matched pattern "%s")', path, pattern)
                     files.add(path)

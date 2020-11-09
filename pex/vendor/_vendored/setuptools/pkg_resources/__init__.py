@@ -120,8 +120,8 @@ else:
 __metaclass__ = type
 
 
-if (3, 0) < sys.version_info < (3, 4):
-    raise RuntimeError("Python 3.4 or later is required")
+if (3, 0) < sys.version_info < (3, 5):
+    raise RuntimeError("Python 3.5 or later is required")
 
 if six.PY2:
     # Those builtin exceptions are only defined in Python 3
