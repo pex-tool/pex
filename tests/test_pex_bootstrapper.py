@@ -178,6 +178,6 @@ def test_find_compatible_interpreters_siblings_of_current_issues_1109():
         python36 = os.path.join(path_entry, "python3.6")
         shutil.copy(py36, python36)
 
-        assert [python36, python27] == find_interpreters(
+        assert [os.path.realpath(p) for p in (python36, python27)] == find_interpreters(
             path=[path_entry], preferred_interpreter=PythonInterpreter.from_binary(python36)
         )
