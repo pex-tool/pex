@@ -2,11 +2,13 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import shutil
 import sys
 from textwrap import dedent
 
 import pytest
 
+from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.pex_bootstrapper import iter_compatible_interpreters
@@ -22,14 +24,20 @@ def basenames(*paths):
     return [os.path.basename(p) for p in paths]
 
 
-def find_interpreters(path, valid_basenames=None, constraints=None):
-    # type: (Iterable[str], Optional[Iterable[str]], Optional[Iterable[str]]) -> List[AnyStr]
+def find_interpreters(
+    path,  # type: Iterable[str]
+    valid_basenames=None,  # type: Optional[Iterable[str]]
+    constraints=None,  # type: Optional[Iterable[str]]
+    preferred_interpreter=None,  # type: Optional[PythonInterpreter]
+):
+    # type: (...) -> List[AnyStr]
     return [
         interp.binary
         for interp in iter_compatible_interpreters(
             path=os.pathsep.join(path),
             valid_basenames=valid_basenames,
             interpreter_constraints=constraints,
+            preferred_interpreter=preferred_interpreter,
         )
     ]
 
@@ -157,3 +165,19 @@ def test_find_compatible_interpreters_bias_current():
     py36 = ensure_python_interpreter(PY36)
     assert [os.path.realpath(sys.executable), py36] == find_interpreters([py36, sys.executable])
     assert [os.path.realpath(sys.executable), py36] == find_interpreters([sys.executable, py36])
+
+
+def test_find_compatible_interpreters_siblings_of_current_issues_1109():
+    py27 = ensure_python_interpreter(PY27)
+    py36 = ensure_python_interpreter(PY36)
+
+    with temporary_dir() as path_entry:
+        python27 = os.path.join(path_entry, "python2.7")
+        shutil.copy(py27, python27)
+
+        python36 = os.path.join(path_entry, "python3.6")
+        shutil.copy(py36, python36)
+
+        assert [python36, python27] == find_interpreters(
+            path=[path_entry], preferred_interpreter=PythonInterpreter.from_binary(python36)
+        )
