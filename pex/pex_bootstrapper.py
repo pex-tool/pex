@@ -41,6 +41,7 @@ def iter_compatible_interpreters(
     path=None,  # type: Optional[str]
     valid_basenames=None,  # type: Optional[Iterable[str]]
     interpreter_constraints=None,  # type: Optional[Iterable[str]]
+    preferred_interpreter=None,  # type: Optional[PythonInterpreter]
 ):
     # type: (...) -> Iterator[PythonInterpreter]
     """Find all compatible interpreters on the system within the supplied constraints.
@@ -51,6 +52,8 @@ def iter_compatible_interpreters(
                             pypy, etc.).
     :param interpreter_constraints: Interpreter type and version constraint strings as described in
                                     `--interpreter-constraint`.
+    :param preferred_interpreter: For testing - an interpreter to prefer amongst all others.
+                                  Defaults to the current running interpreter.
 
     Interpreters are searched for in `path` if specified and $PATH if not.
 
@@ -77,7 +80,7 @@ def iter_compatible_interpreters(
         )
 
         # Prefer the current interpreter, if valid.
-        current_interpreter = PythonInterpreter.get()
+        current_interpreter = preferred_interpreter or PythonInterpreter.get()
         if not _valid_path or _valid_path(current_interpreter.binary):
             if normalized_paths:
                 candidate_paths = frozenset(
@@ -85,8 +88,10 @@ def iter_compatible_interpreters(
                 )
                 candidate_paths_in_path = candidate_paths.intersection(normalized_paths)
                 if candidate_paths_in_path:
-                    for p in candidate_paths_in_path:
-                        normalized_paths.remove(p)
+                    # In case the full path of the current interpreter binary was in the
+                    # `normalized_paths` we're searching, remove it to prevent identifying it again
+                    # just to then skip it as `seen`.
+                    normalized_paths.discard(current_interpreter.binary)
                     seen.add(current_interpreter)
                     yield current_interpreter
             else:
