@@ -1,6 +1,27 @@
 Release Notes
 =============
 
+2.1.21
+------
+
+* Fix ``iter_compatible_interpreters`` with ``path``. (#1110)
+  `PR #1110 <https://github.com/pantsbuild/pex/pull/1110>`_
+
+* Fix ``Requires-Python`` environment marker mapping. (#1105)
+  `PR #1105 <https://github.com/pantsbuild/pex/pull/1105>`_
+
+* Fix spurious ``InstalledDistribution`` env markers. (#1104)
+  `PR #1104 <https://github.com/pantsbuild/pex/pull/1104>`_
+
+* Deprecate ``-R``/``--resources-directory``. (#1103)
+  `PR #1103 <https://github.com/pantsbuild/pex/pull/1103>`_
+
+* Fix ResourceWarning for unclosed ``/dev/null``. (#1102)
+  `PR #1102 <https://github.com/pantsbuild/pex/pull/1102>`_
+
+* Fix runtime vendoring bytecode compilation races. (#1099)
+  `PR #1099 <https://github.com/pantsbuild/pex/pull/1099>`_
+
 2.1.20
 ------
 
