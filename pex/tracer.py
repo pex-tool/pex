@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
 
-__all__ = ("TraceLogger",)
+__all__ = ("TRACER", "TraceLogger")
 
 if TYPE_CHECKING:
     from typing import Any, Callable, IO, Iterator, List, Optional
