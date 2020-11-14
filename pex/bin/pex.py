@@ -36,7 +36,7 @@ from pex.variables import ENV, Variables
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Dict, List
+    from typing import List
     from argparse import Namespace
 
 
@@ -261,7 +261,7 @@ def configure_clp_pex_resolution(parser):
         type=str,
         default=_DEFAULT_MANYLINUX_STANDARD,
         action=ManylinuxAction,
-        help=("Whether to allow resolution of manylinux wheels for linux target platforms."),
+        help="Whether to allow resolution of manylinux wheels for linux target platforms.",
     )
 
     group.add_argument(
@@ -690,9 +690,7 @@ def compute_indexes(options):
     # type: (Namespace) -> List[str]
 
     indexes = ([_PYPI] if options.pypi else []) + (options.indexes or [])
-    seen = {}  # type: Dict[str, str]
-    deduped_indexes = [seen.setdefault(x, x) for x in indexes if x not in seen]
-    return deduped_indexes
+    return list(OrderedSet(indexes))
 
 
 def build_pex(reqs, options, cache=None):
