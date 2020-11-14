@@ -8,6 +8,7 @@ import contextlib
 import errno
 import fcntl
 import os
+import re
 import shutil
 import stat
 import sys
@@ -20,17 +21,37 @@ from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
 
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, DefaultDict, Iterator, NoReturn, Optional, Set
-
+    from typing import Any, DefaultDict, Iterable, Iterator, NoReturn, Optional, Set
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
 DETERMINISTIC_DATETIME = datetime(
     year=1980, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None
 )
+
+
+def filter_pyc_dirs(dirs):
+    # type: (Iterable[str]) -> Iterator[str]
+    """Return an iterator over the input `dirs` filtering out Python bytecode cache directories."""
+    for d in dirs:
+        if d != "__pycache__":
+            yield d
+
+
+def filter_pyc_files(files):
+    # type: (Iterable[str]) -> Iterator[str]
+    """Return an iterator over the input `files` filtering out any Python bytecode files."""
+    for f in files:
+        # For Python 2.7, `.pyc` files are compiled as siblings to `.py` files (there is no
+        # __pycache__ dir). We rely on the fact that the temporary files created by CPython
+        # have object id (integer) suffixes to avoid picking up either finished `.pyc` files
+        # or files where Python bytecode compilation is in-flight; i.e.:
+        # `.pyc.0123456789`-style files.
+        if not re.search(r"\.pyc(?:\.[0-9]+)?$", f):
+            yield f
 
 
 def die(msg, exit_code=1):
@@ -83,7 +104,7 @@ def safe_copy(source, dest, overwrite=False):
 class MktempTeardownRegistry(object):
     def __init__(self):
         # type: () -> None
-        self._registry = cast("DefaultDict[int, Set[str]]", defaultdict(set))
+        self._registry = defaultdict(set)  # type: DefaultDict[int, Set[str]]
         self._lock = threading.RLock()
         self._getpid = os.getpid
         self._exists = os.path.exists

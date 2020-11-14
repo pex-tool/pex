@@ -29,7 +29,17 @@ from pex.util import CacheHelper
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Callable, Dict, Iterable, Iterator, MutableMapping, Optional, Tuple, Union
+    from typing import (
+        Callable,
+        Dict,
+        Iterable,
+        Iterator,
+        MutableMapping,
+        Optional,
+        Sequence,
+        Tuple,
+        Union,
+    )
 
     PathFilter = Callable[[str], bool]
 
@@ -162,7 +172,12 @@ class PythonIdentity(object):
 
     @property
     def version(self):
-        return self._version
+        # type: () -> Tuple[int, int, int]
+        """The interpreter version as a normalized tuple.
+
+        Consistent with `sys.version_info`, the tuple corresponds to `<major>.<minor>.<micro>`.
+        """
+        return cast("Tuple[int, int, int]", self._version)
 
     @property
     def version_str(self):
@@ -305,6 +320,19 @@ class PythonInterpreter(object):
     class InterpreterNotFound(Error):
         pass
 
+    @staticmethod
+    def latest_release_of_min_compatible_version(interps):
+        # type: (Sequence[PythonInterpreter]) -> PythonInterpreter
+        """Find the minimum major version, but use the most recent micro version within that minor
+        version.
+
+        That is, prefer 3.6.1 over 3.6.0, and prefer both over 3.7.*.
+        """
+        assert interps, "No interpreters passed to `PythonInterpreter.safe_min()`"
+        return min(
+            interps, key=lambda interp: (interp.version[0], interp.version[1], -interp.version[2])
+        )
+
     @classmethod
     def get(cls):
         return cls.from_binary(sys.executable)
@@ -312,7 +340,8 @@ class PythonInterpreter(object):
     @staticmethod
     def _paths(paths=None):
         # type: (Optional[Iterable[str]]) -> Iterable[str]
-        return paths or os.getenv("PATH", "").split(os.pathsep)
+        # NB: If `paths=[]`, we will not read $PATH.
+        return paths if paths is not None else os.getenv("PATH", "").split(os.pathsep)
 
     @classmethod
     def iter(cls, paths=None):
@@ -660,11 +689,10 @@ class PythonInterpreter(object):
         return env_copy
 
     def __init__(self, identity):
+        # type: (PythonIdentity) -> None
         """Construct a PythonInterpreter.
 
         You should probably use `PythonInterpreter.from_binary` instead.
-
-        :param identity: The :class:`PythonIdentity` of the PythonInterpreter.
         """
         self._identity = identity
         self._binary = self._normalize_path(self.identity.binary)
@@ -679,6 +707,7 @@ class PythonInterpreter(object):
 
     @property
     def identity(self):
+        # type: () -> PythonIdentity
         return self._identity
 
     @property
@@ -691,6 +720,7 @@ class PythonInterpreter(object):
 
     @property
     def version_string(self):
+        # type: () -> str
         return str(self._identity)
 
     @property
@@ -733,11 +763,6 @@ class PythonInterpreter(object):
         if type(other) is not type(self):
             return NotImplemented
         return self._binary == other._binary
-
-    def __lt__(self, other):
-        if type(other) is not type(self):
-            return NotImplemented
-        return self.version < other.version
 
     def __repr__(self):
         return "{type}({binary!r}, {identity!r})".format(

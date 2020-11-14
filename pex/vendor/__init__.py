@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import collections
 import os
 
-from pex.common import touch
+from pex.common import filter_pyc_dirs, filter_pyc_files, touch
 from pex.compatibility import urlparse
 from pex.tracer import TRACER
 
@@ -39,6 +39,12 @@ class VendorSpec(
 
     ROOT = _root()
 
+    _VENDOR_DIR = "_vendored"
+
+    @classmethod
+    def vendor_root(cls):
+        return os.path.join(cls.ROOT, *(_PACKAGE_COMPONENTS + [cls._VENDOR_DIR]))
+
     @classmethod
     def pinned(cls, key, version, rewrite=True):
         return cls(
@@ -61,7 +67,7 @@ class VendorSpec(
 
     @property
     def _subpath_components(self):
-        return ["_vendored", self.key]
+        return [self._VENDOR_DIR, self.key]
 
     @property
     def relpath(self):
@@ -99,8 +105,9 @@ def iter_vendor_specs():
     :return: An iterator over specs of all vendored code.
     :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
     """
-    # We use this via pex.third_party at runtime to check for compatible wheel tags.
-    yield VendorSpec.pinned("packaging", "19.2")
+    # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
+    # time to implement resolving distributions from a PEX repository.
+    yield VendorSpec.pinned("packaging", "20.4")
 
     # We shell out to pip at buildtime to resolve and install dependencies.
     # N.B.: This is pip 20.0.dev0 with a patch to support foreign download targets more fully.
@@ -110,10 +117,11 @@ def iter_vendor_specs():
 
     # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
     # pex.third_party at runtime in various ways.
-    yield VendorSpec.pinned("setuptools", "42.0.2")
+    # N.B.: 44.0.0 is the last setuptools version compatible with Python 2.
+    yield VendorSpec.pinned("setuptools", "44.0.0")
 
     # We expose this to pip at buildtime for legacy builds.
-    yield VendorSpec.pinned("wheel", "0.33.6", rewrite=False)
+    yield VendorSpec.pinned("wheel", "0.35.1", rewrite=False)
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
@@ -157,13 +165,14 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names):
                             "Vendoring {} from {} @ {}".format(name, spec, spec.target_dir), V=3
                         )
 
-            for filename in files:
-                if not filename.endswith(".pyc"):  # Sources and data only.
-                    src = os.path.join(root, filename)
-                    dest = os.path.join(
-                        dest_basedir, spec.relpath, os.path.relpath(src, spec.target_dir)
-                    )
-                    chroot.copy(src, dest, label)
+            # We copy over sources and data only; no pyc files.
+            dirs[:] = filter_pyc_dirs(dirs)
+            for filename in filter_pyc_files(files):
+                src = os.path.join(root, filename)
+                dest = os.path.join(
+                    dest_basedir, spec.relpath, os.path.relpath(src, spec.target_dir)
+                )
+                chroot.copy(src, dest, label)
 
     if not all(vendor_module_names.values()):
         raise ValueError(

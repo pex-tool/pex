@@ -9,7 +9,7 @@ if sys.version_info[0] < 3:
     StringIO = io.BytesIO
 
     def native(s, encoding='utf-8'):
-        if isinstance(s, unicode):
+        if isinstance(s, unicode):  # noqa: F821
             return s.encode(encoding)
         return s
 else:

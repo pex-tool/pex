@@ -581,8 +581,10 @@ def configure_clp():
         default=[],
         type=str,
         action="append",
-        help="Add sources directory to be packaged into the generated .pex file."
-        "  This option can be used multiple times.",
+        help=(
+            "Add a directory containing sources and/or resources to be packaged into the generated "
+            ".pex file. This option can be used multiple times."
+        ),
     )
 
     parser.add_argument(
@@ -593,8 +595,11 @@ def configure_clp():
         default=[],
         type=str,
         action="append",
-        help="Add resources directory to be packaged into the generated .pex file."
-        "  This option can be used multiple times.",
+        help=(
+            "Add resources directory to be packaged into the generated .pex file."
+            " This option can be used multiple times. DEPRECATED: Use -D/--sources-directory "
+            "instead."
+        ),
     )
 
     parser.add_argument(
@@ -759,7 +764,11 @@ def build_pex(reqs, options, cache=None):
                 )
             )
 
-    interpreter = min(interpreters) if interpreters else None
+    interpreter = (
+        PythonInterpreter.latest_release_of_min_compatible_version(interpreters)
+        if interpreters
+        else None
+    )
 
     try:
         with open(options.preamble_file) as preamble_fd:
@@ -770,19 +779,19 @@ def build_pex(reqs, options, cache=None):
 
     pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
 
-    def walk_and_do(fn, src_dir):
-        src_dir = os.path.normpath(src_dir)
-        for root, dirs, files in os.walk(src_dir):
+    if options.resources_directory:
+        pex_warnings.warn(
+            "The `-R/--resources-directory` option is deprecated. Resources should be added via "
+            "`-D/--sources-directory` instead."
+        )
+
+    for directory in OrderedSet(options.sources_directory + options.resources_directory):
+        src_dir = os.path.normpath(directory)
+        for root, _, files in os.walk(src_dir):
             for f in files:
                 src_file_path = os.path.join(root, f)
                 dst_path = os.path.relpath(src_file_path, src_dir)
-                fn(src_file_path, dst_path)
-
-    for directory in options.sources_directory:
-        walk_and_do(pex_builder.add_source, directory)
-
-    for directory in options.resources_directory:
-        walk_and_do(pex_builder.add_resource, directory)
+                pex_builder.add_source(src_file_path, dst_path)
 
     pex_info = pex_builder.info
     pex_info.zip_safe = options.zip_safe

@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import logging
 import os
 
+from pex import pex_warnings
 from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp, temporary_dir
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
@@ -215,6 +216,10 @@ class PEXBuilder(object):
         :param env_filename: The destination filename in the PEX.  This path
           must be a relative path.
         """
+        pex_warnings.warn(
+            "The `add_resource` method is deprecated. Resources should be added via the "
+            "`add_source` method instead."
+        )
         self._ensure_unfrozen("Adding a resource")
         self._copy_or_link(filename, env_filename, "resource")
 

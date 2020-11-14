@@ -782,3 +782,18 @@ def test_pex_run_custom_pex_useable():
         assert process.returncode == 0
         assert old_pex_version == stdout.strip().decode("utf-8")
         assert old_pex_version != __version__
+
+
+def test_interpreter_teardown_dev_null_unclosed_resource_warning_suppressed():
+    # type: () -> None
+
+    # See https://github.com/pantsbuild/pex/issues/1101 and
+    # https://github.com/pantsbuild/pants/issues/11058 for the motivating issue.
+    with temporary_dir() as pex_chroot:
+        pex_builder = PEXBuilder(path=pex_chroot)
+        pex_builder.freeze()
+
+        output = subprocess.check_output(
+            args=[sys.executable, "-W" "all", pex_chroot, "-c", ""], stderr=subprocess.STDOUT
+        )
+        assert b"" == output

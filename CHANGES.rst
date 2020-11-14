@@ -1,6 +1,48 @@
 Release Notes
 =============
 
+2.1.21
+------
+
+* Fix ``iter_compatible_interpreters`` with ``path``. (#1110)
+  `PR #1110 <https://github.com/pantsbuild/pex/pull/1110>`_
+
+* Fix ``Requires-Python`` environment marker mapping. (#1105)
+  `PR #1105 <https://github.com/pantsbuild/pex/pull/1105>`_
+
+* Fix spurious ``InstalledDistribution`` env markers. (#1104)
+  `PR #1104 <https://github.com/pantsbuild/pex/pull/1104>`_
+
+* Deprecate ``-R``/``--resources-directory``. (#1103)
+  `PR #1103 <https://github.com/pantsbuild/pex/pull/1103>`_
+
+* Fix ResourceWarning for unclosed ``/dev/null``. (#1102)
+  `PR #1102 <https://github.com/pantsbuild/pex/pull/1102>`_
+
+* Fix runtime vendoring bytecode compilation races. (#1099)
+  `PR #1099 <https://github.com/pantsbuild/pex/pull/1099>`_
+
+2.1.20
+------
+
+This release improves interpreter discovery to prefer more recent patch versions, e.g. preferring
+Python 3.6.10 over 3.6.8.
+
+We recently regained access to the docsite, and https://pex.readthedocs.io/en/latest/ is now
+up-to-date.
+
+* Prefer more recent patch versions in interpreter discovery. (#1088)
+  `PR #1088 <https://github.com/pantsbuild/pex/pull/1088>`_
+
+* Fix ``--pex-python`` when it's the same as the current interpreter. (#1087)
+  `PR #1087 <https://github.com/pantsbuild/pex/pull/1087>`_
+
+* Fix `dir_hash` vs. bytecode compilation races. (#1080)
+  `PR #1080 <https://github.com/pantsbuild/pex/pull/1080>`_
+
+* Fix readthedocs doc generation. (#1081)
+  `PR #1081 <https://github.com/pantsbuild/pex/pull/1081>`_
+
 2.1.19
 ------
 

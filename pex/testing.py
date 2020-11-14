@@ -110,6 +110,7 @@ def make_project(
     install_reqs=None,  # type: Optional[List[str]]
     extras_require=None,  # type: Optional[Dict[str, List[str]]]
     entry_points=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
+    python_requires=None,  # type: Optional[str]
 ):
     # type: (...) -> Iterator[str]
     project_content = {
@@ -130,6 +131,7 @@ def make_project(
             install_requires=%(install_requires)r,
             extras_require=%(extras_require)r,
             entry_points=%(entry_points)r,
+            python_requires=%(python_requires)r,
             )
             """
         ),
@@ -148,6 +150,7 @@ def make_project(
         "install_requires": install_reqs or [],
         "extras_require": extras_require or {},
         "entry_points": entry_points or {},
+        "python_requires": python_requires,
     }
 
     with temporary_content(project_content, interp=interp) as td:
@@ -190,6 +193,7 @@ def built_wheel(
     install_reqs=None,  # type: Optional[List[str]]
     extras_require=None,  # type: Optional[Dict[str, List[str]]]
     interpreter=None,  # type: Optional[PythonInterpreter]
+    python_requires=None,  # type: Optional[str]
     **kwargs  # type: Any
 ):
     # type: (...) -> Iterator[str]
@@ -199,6 +203,7 @@ def built_wheel(
         zip_safe=zip_safe,
         install_reqs=install_reqs,
         extras_require=extras_require,
+        python_requires=python_requires,
     ) as td:
         builder = WheelBuilder(td, interpreter=interpreter, **kwargs)
         yield builder.bdist()

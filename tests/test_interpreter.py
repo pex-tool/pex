@@ -21,9 +21,9 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 try:
-    from mock import patch
+    from mock import Mock, patch
 except ImportError:
-    from unittest.mock import patch  # type: ignore[misc,no-redef,import]
+    from unittest.mock import Mock, patch  # type: ignore[misc,no-redef,import]
 
 if TYPE_CHECKING:
     from typing import Iterator, Tuple, Union
@@ -116,6 +116,15 @@ class TestPythonInterpreter(object):
     def test_iter_interpreter_none(self):
         # type: () -> None
         assert [] == list(PythonInterpreter.iter_candidates(paths=[os.devnull]))
+
+    def test_iter_candidates_empty_paths(self, test_interpreter1):
+        # type: (str) -> None
+        # Whereas `paths=None` should inspect $PATH, `paths=[]` means to search nothing.
+        with environment_as(PATH=test_interpreter1):
+            assert [] == list(PythonInterpreter.iter_candidates(paths=[]))
+            assert [PythonInterpreter.from_binary(test_interpreter1)] == list(
+                PythonInterpreter.iter_candidates(paths=None)
+            )
 
     @pytest.fixture
     def invalid_interpreter(self):
@@ -219,3 +228,24 @@ class TestPythonInterpreter(object):
                         assert_shim("python3", py36)
                     finally:
                         os.rename(py35_deleted, py35)
+
+
+def test_latest_release_of_min_compatible_version():
+    # type: () -> None
+    def mock_interp(version):
+        interp = Mock()
+        interp.version = tuple(int(v) for v in version.split("."))
+        return interp
+
+    def assert_chosen(expected_version, other_version):
+        expected = mock_interp(expected_version)
+        other = mock_interp(other_version)
+        assert (
+            PythonInterpreter.latest_release_of_min_compatible_version([expected, other])
+            == expected
+        ), "{} was selected instead of {}".format(other_version, expected_version)
+
+    # Note that we don't consider the interpreter name in comparisons.
+    assert_chosen(expected_version="2.7.0", other_version="3.6.0")
+    assert_chosen(expected_version="3.5.0", other_version="3.6.0")
+    assert_chosen(expected_version="3.6.1", other_version="3.6.0")
