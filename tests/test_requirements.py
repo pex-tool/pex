@@ -7,6 +7,7 @@ import os
 from textwrap import dedent
 
 import pytest
+from pex.testing import environment_as
 
 from pex.common import safe_open, temporary_dir, touch
 from pex.requirements import (
@@ -190,8 +191,8 @@ def test_parse_requirements_stress(chroot):
 
                 hg+http://hg.example.com/MyProject@da39a3ee5e6b#egg=AnotherProject[extra,more];python_version=="3.9.*"&subdirectory=foo/bar
 
-                ftp://a/Project-1.0.tar.gz
-                http://a/Project-1.0.zip
+                ftp://a/${PROJECT_NAME}-1.0.tar.gz
+                http://a/${PROJECT_NAME}-1.0.zip
                 https://a/numpy-1.9.2-cp34-none-win32.whl
                 """
             )
@@ -248,7 +249,8 @@ def test_parse_requirements_stress(chroot):
         )
     )
     touch("downloads/numpy-1.9.2-cp34-none-win32.whl")
-    results = normalize_results(req_iter)
+    with environment_as(PROJECT_NAME="Project"):
+        results = normalize_results(req_iter)
 
     assert [
         req(project_name="nose"),
