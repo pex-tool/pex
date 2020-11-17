@@ -115,7 +115,7 @@ class URLFetcher(object):
                 ):
                     raise e
                 last_error = e
-            except OSError as e:
+            except (IOError, OSError) as e:
                 # Unfortunately errors are overly broad at this point. We can get either OSError or
                 # URLError (a subclass of OSError) which at times indicates retryable socket level
                 # errors. Since retrying a non-retryable socket level error just wastes local
@@ -220,7 +220,7 @@ class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines
         try:
             with self.from_file(path, is_constraints=is_constraints) as source:
                 yield source
-        except OSError as e:
+        except (IOError, OSError) as e:
             raise create_parse_error(str(e))
 
 
