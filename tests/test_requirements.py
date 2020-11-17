@@ -54,7 +54,7 @@ def test_parse_requirements_failure_bad_include(chroot):
 
 def test_parse_requirements_failure_bad_requirement(chroot):
     # type: (str) -> None
-    other_requirement_file = os.path.join(chroot, "other-requirements.txt")
+    other_requirement_file = os.path.realpath(os.path.join(chroot, "other-requirements.txt"))
     with safe_open(other_requirement_file, "w") as fp:
         fp.write(
             dedent(
