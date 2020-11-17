@@ -194,30 +194,26 @@ class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines
         fetcher=None,  # type: Optional[URLFetcher]
     ):
         # type: (...) -> Iterator[Source]
-        def create_parse_error(exception):
-            # type: (OSError) -> ParseError
+        def create_parse_error(msg):
+            # type: (str) -> ParseError
             return ParseError(
                 line,
                 "Problem resolving {} file: {}".format(
-                    "constraints" if is_constraints else "requirements", exception
+                    "constraints" if is_constraints else "requirements", msg
                 ),
             )
 
         url = urlparse.urlparse(urlparse.urljoin(self.origin, origin))
         if url.scheme and url.netloc:
             if fetcher is None:
-                raise ParseError(
-                    line,
-                    "The {} source {} is a url but no fetcher was supplied to resolve its "
-                    "contents with.".format(
-                        "constraints" if is_constraints else "requirements", origin
-                    ),
+                raise create_parse_error(
+                    "The source is a url but no fetcher was supplied to resolve its contents with."
                 )
             try:
                 with self.from_url(fetcher, origin) as source:
                     yield source
             except OSError as e:
-                raise create_parse_error(e)
+                raise create_parse_error(str(e))
             return
 
         path = url.path if url.scheme == "file" else origin
@@ -225,7 +221,7 @@ class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines
             with self.from_file(path, is_constraints=is_constraints) as source:
                 yield source
         except OSError as e:
-            raise create_parse_error(e)
+            raise create_parse_error(str(e))
 
 
 class ReqInfo(

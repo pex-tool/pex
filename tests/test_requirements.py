@@ -7,7 +7,6 @@ import os
 from textwrap import dedent
 
 import pytest
-from pex.testing import environment_as
 
 from pex.common import safe_open, temporary_dir, touch
 from pex.requirements import (
@@ -16,8 +15,10 @@ from pex.requirements import (
     ParseError,
     ReqInfo,
     Source,
+    URLFetcher,
     parse_requirements,
 )
+from pex.testing import environment_as
 from pex.third_party.packaging.markers import Marker
 from pex.typing import TYPE_CHECKING
 
@@ -306,3 +307,37 @@ def test_parse_requirements_stress(chroot):
         req(project_name="rejected"),
         req(project_name="green"),
     ] == results
+
+
+def test_parse_requirements_from_url():
+    # type: () -> None
+    req_iter = parse_requirements(
+        Source.from_text(
+            "-r https://raw.githubusercontent.com/pantsbuild/example-python/c6052498f25a436f2639ccd0bc846cec1a55d7d5/requirements.txt"
+        ),
+        fetcher=URLFetcher(),
+    )
+    results = normalize_results(req_iter)
+    assert [
+        req(project_name="ansicolors"),
+        req(project_name="setuptools"),
+        req(project_name="translate"),
+        req(project_name="protobuf"),
+    ] == results
+
+
+def test_parse_requirements_from_url_no_fetcher():
+    # type: () -> None
+    req_iter = parse_requirements(
+        Source.from_text(
+            "-r https://raw.githubusercontent.com/pantsbuild/example-python/c6052498f25a436f2639ccd0bc846cec1a55d7d5/requirements.txt"
+        )
+    )
+    with pytest.raises(ParseError) as exec_info:
+        next(req_iter)
+
+    assert (
+        "<string> line 1:\n"
+        "-r https://raw.githubusercontent.com/pantsbuild/example-python/c6052498f25a436f2639ccd0bc846cec1a55d7d5/requirements.txt\n"
+        "Problem resolving requirements file: The source is a url but no fetcher was supplied to resolve its contents with."
+    ) == str(exec_info.value)
