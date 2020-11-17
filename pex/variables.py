@@ -147,6 +147,7 @@ class Variables(object):
         for variable_name, value in sorted(cls.__dict__.items()):
             if not variable_name.startswith("PEX_"):
                 continue
+            value = value._func if isinstance(value, DefaultedProperty) else value
             variable_type, variable_text = cls.process_pydoc(getattr(value, "__doc__"))
             yield variable_name, variable_type, variable_text
 
