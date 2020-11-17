@@ -21,7 +21,7 @@ from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.pip import PackageIndexConfiguration, get_pip
 from pex.platforms import Platform
-from pex.requirements import local_project_from_requirement, local_projects_from_requirement_file
+from pex.requirements import ReqInfo, URLFetcher, parse_requirement_file, parse_requirement_strings
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.version import Version
 from pex.third_party.packaging.version import parse as parse_version
@@ -208,17 +208,25 @@ class DownloadRequest(
 ):
     def iter_local_projects(self):
         if self.requirements:
-            for req in self.requirements:
-                local_project = local_project_from_requirement(req)
-                if local_project:
+            for req in parse_requirement_strings(self.requirements):
+                if req.is_local_project:
                     for target in self.targets:
-                        yield BuildRequest.create(target=target, source_path=local_project)
+                        yield BuildRequest.create(target=target, source_path=req.url)
 
         if self.requirement_files:
+            fetcher = URLFetcher(
+                network_configuration=self.package_index_configuration.network_configuration
+            )
             for requirement_file in self.requirement_files:
-                for local_project in local_projects_from_requirement_file(requirement_file):
-                    for target in self.targets:
-                        yield BuildRequest.create(target=target, source_path=local_project)
+                for req_or_constraint in parse_requirement_file(requirement_file, fetcher=fetcher):
+                    if (
+                        isinstance(req_or_constraint, ReqInfo)
+                        and req_or_constraint.is_local_project
+                    ):
+                        for target in self.targets:
+                            yield BuildRequest.create(
+                                target=target, source_path=req_or_constraint.url
+                            )
 
     def download_distributions(self, dest=None, max_parallel_jobs=None):
         if not self.requirements and not self.requirement_files:

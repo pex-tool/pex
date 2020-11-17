@@ -123,6 +123,7 @@ class PackageIndexConfiguration(object):
         isolated = not network_configuration.client_cert
 
         return cls(
+            network_configuration=network_configuration,
             args=cls._calculate_args(
                 indexes=indexes, find_links=find_links, network_configuration=network_configuration
             ),
@@ -132,11 +133,13 @@ class PackageIndexConfiguration(object):
 
     def __init__(
         self,
+        network_configuration,  # type: NetworkConfiguration
         args,  # type: Iterable[str]
         env,  # type: Iterable[Tuple[str, str]]
         isolated,  # type: bool
     ):
         # type: (...) -> None
+        self.network_configuration = network_configuration  # type: NetworkConfiguration
         self.args = tuple(args)  # type: Iterable[str]
         self.env = dict(env)  # type: Mapping[str, str]
         self.isolated = isolated  # type: bool
