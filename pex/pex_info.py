@@ -310,6 +310,22 @@ class PexInfo(object):
     def script(self, value):
         self._pex_info["script"] = value
 
+    @property
+    def exposed_entry_points(self):
+        return self._get_safe("exposed_entry_points")
+
+    @exposed_entry_points.setter
+    def exposed_entry_points(self, value):
+        self._pex_info["exposed_entry_points"] = value
+
+    @property
+    def exposed_scripts(self):
+        return self._get_safe("exposed_scripts")
+
+    @exposed_scripts.setter
+    def exposed_scripts(self, value):
+        self._pex_info["exposed_scripts"] = value
+
     def add_requirement(self, requirement):
         self._requirements.add(str(requirement))
 

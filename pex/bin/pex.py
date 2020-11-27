@@ -526,6 +526,22 @@ def configure_clp_pex_entry_points(parser):
     )
 
     group.add_argument(
+        "--exposed-entry-points",
+        dest="exposed_entry_points",
+        default=None,
+        metavar="EXPOSED_ENTRY_POINTS",
+        help="TODO"
+    )
+
+    group.add_argument(
+        "--exposed-scripts",
+        dest="exposed_scripts",
+        default=None,
+        metavar="EXPOSED_SCRIPTS",
+        help="TODO"
+    )
+
+    group.add_argument(
         "--validate-entry-point",
         dest="validate_ep",
         default=False,
@@ -860,6 +876,12 @@ def build_pex(reqs, options, cache=None):
         pex_builder.set_entry_point(options.entry_point)
     elif options.script:
         pex_builder.set_script(options.script)
+
+    if options.exposed_entry_points:
+        pex_builder.set_exposed_entry_points(options.exposed_entry_points)
+
+    if options.exposed_scripts:
+        pex_builder.set_exposed_scripts(options.exposed_scripts)
 
     if options.python_shebang:
         pex_builder.set_shebang(options.python_shebang)
