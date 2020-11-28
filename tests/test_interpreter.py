@@ -197,7 +197,7 @@ class TestPythonInterpreter(object):
     def test_pyenv_shims(self):
         # type: () -> None
         py35, _, run_pyenv = ensure_python_distribution(PY35)
-        py36, _, _ = ensure_python_distribution(PY36)
+        py36 = ensure_python_interpreter(PY36)
 
         pyenv_root = str(run_pyenv(["root"]).strip())
         pyenv_shims = os.path.join(pyenv_root, "shims")

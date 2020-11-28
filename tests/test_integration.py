@@ -32,8 +32,16 @@ from pex.common import (
 from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.network_configuration import NetworkConfiguration
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
+from pex.requirements import (
+    LogicalLine,
+    ReqInfo,
+    URLFetcher,
+    parse_requirement_file,
+    parse_requirements,
+)
 from pex.testing import (
     IS_PYPY,
     NOT_CPYTHON27,
@@ -45,8 +53,8 @@ from pex.testing import (
     IntegResults,
     WheelBuilder,
     built_wheel,
-    ensure_python_distribution,
     ensure_python_interpreter,
+    ensure_python_venv,
     get_dep_dist_names_from_pex,
     make_source_dir,
     run_pex_command,
@@ -59,7 +67,17 @@ from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper, named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
+    from typing import (
+        Any,
+        Callable,
+        ContextManager,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Optional,
+        Tuple,
+    )
 
 
 def make_env(**kwargs):
@@ -1971,18 +1989,18 @@ def test_issues_745_extras_isolation():
     # type: () -> None
     # Here we ensure one of our extras, `subprocess32`, is properly isolated in the transition from
     # pex bootstrapping where it is imported by `pex.executor` to execution of user code.
-    python, pip, _ = ensure_python_distribution(PY27)
+    python, pip = ensure_python_venv(PY27)
     subprocess.check_call([pip, "install", "subprocess32"])
     with temporary_dir() as td:
         src_dir = os.path.join(td, "src")
         with safe_open(os.path.join(src_dir, "test_issues_745.py"), "w") as fp:
             fp.write(
                 dedent(
-                    """
+                    """\
                     import subprocess32
 
                     print(subprocess32.__file__)
-      """
+                    """
                 )
             )
 
@@ -2023,7 +2041,7 @@ def test_issues_745_extras_isolation():
         assert subprocess32_location.startswith(pex_root)
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def issues_1025_pth():
     def safe_rm(path):
         try:
@@ -2047,7 +2065,7 @@ def issues_1025_pth():
 
 
 def test_issues_1025_extras_isolation(issues_1025_pth):
-    python, pip, _ = ensure_python_distribution(PY36)
+    python, pip = ensure_python_venv(PY36)
     interpreter = PythonInterpreter.from_binary(python)
     _, stdout, _ = interpreter.execute(args=["-c", "import site; print(site.getsitepackages()[0])"])
     with temporary_dir() as tmpdir:
@@ -2430,3 +2448,103 @@ def test_resolve_python_requires_full_version_issues_1017():
     )
     result.assert_success()
     assert "1.0.5" == result.output.strip()
+
+
+@pytest.fixture(scope="module")
+def mitmdump():
+    # type: () -> Tuple[str, str]
+    python, pip = ensure_python_venv(PY36)
+    subprocess.check_call([pip, "install", "mitmproxy==5.3.0"])
+    mitmdump = os.path.join(os.path.dirname(python), "mitmdump")
+    return mitmdump, os.path.expanduser("~/.mitmproxy/mitmproxy-ca-cert.pem")
+
+
+# class RunProxy(Protocol):
+#     def __enter__(self):
+@pytest.fixture
+def run_proxy(mitmdump, tmp_workdir):
+    # type: (Tuple[str, str], str) -> Callable[[Optional[str]], ContextManager[Tuple[int, str]]]
+    messages = os.path.join(tmp_workdir, "messages")
+    addon = os.path.join(tmp_workdir, "addon.py")
+    with open(addon, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from mitmproxy import ctx
+        
+                class NotifyUp:
+                    def running(self) -> None:
+                        port = ctx.master.server.address[1]
+                        with open({msg_channel!r}, "w") as fp:
+                            print(str(port), file=fp)
+        
+                addons = [NotifyUp()]
+                """.format(
+                    msg_channel=messages
+                )
+            )
+        )
+
+    @contextmanager
+    def _run_proxy(
+        proxy_auth=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Iterator[Tuple[int, str]]
+        os.mkfifo(messages)
+        proxy, ca_cert = mitmdump
+        args = [proxy, "-p", "0", "-s", addon]
+        if proxy_auth:
+            args.extend(["--proxyauth", proxy_auth])
+        proxy_process = subprocess.Popen(args)
+        try:
+            with open(messages, "r") as fp:
+                port = int(fp.readline().strip())
+                yield port, ca_cert
+        finally:
+            proxy_process.kill()
+            os.unlink(messages)
+
+    return _run_proxy
+
+
+def test_requirements_network_configuration(run_proxy, tmp_workdir):
+    # type: (Callable[[Optional[str]], ContextManager[Tuple[int, str]]], str) -> None
+    requirements_file = os.path.join(tmp_workdir, "requirements.txt")
+    requirements_url = (
+        "https://raw.githubusercontent.com/pantsbuild/example-python/"
+        "2a6f66ce8a4557d4867b39accfca171d7262bb76"
+        "/requirements.txt"
+    )
+    with open(requirements_file, "w") as fp:
+        fp.write("-r {}".format(requirements_url))
+
+    def line(
+        contents,  # type: str
+        line_no,  # type: int
+    ):
+        # type: (...) -> LogicalLine
+        return LogicalLine(
+            "{}\n".format(contents),
+            contents,
+            source=requirements_url,
+            start_line=line_no,
+            end_line=line_no,
+        )
+
+    proxy_auth = "jake:jones"
+    with run_proxy(proxy_auth) as (port, ca_cert):
+        reqs = parse_requirement_file(
+            requirements_file,
+            fetcher=URLFetcher(
+                NetworkConfiguration.create(
+                    proxy="{proxy_auth}@localhost:{port}".format(proxy_auth=proxy_auth, port=port),
+                    cert=ca_cert,
+                )
+            ),
+        )
+        assert [
+            ReqInfo.create(line=line("ansicolors>=1.0.2", 4), project_name="ansicolors"),
+            ReqInfo.create(line=line("setuptools>=42.0.0", 5), project_name="setuptools"),
+            ReqInfo.create(line=line("translate>=3.2.1", 6), project_name="translate"),
+            ReqInfo.create(line=line("protobuf>=3.11.3", 7), project_name="protobuf"),
+        ] == list(reqs)

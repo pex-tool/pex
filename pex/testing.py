@@ -414,20 +414,44 @@ PY27 = "2.7.15"
 PY35 = "3.5.6"
 PY36 = "3.6.6"
 
-_VERSIONS = (PY27, PY35, PY36)
+_ALL_PY_VERSIONS = (PY27, PY35, PY36)
+_ALL_PY3_VERSIONS = (PY35, PY36)
+
 # This is the filename of a sentinel file that sits in the pyenv root directory.
 # Its purpose is to indicate whether pyenv has the correct interpreters installed
 # and will be useful for indicating whether we should trigger a reclone to update
 # pyenv.
-_INTERPRETER_SET_FINGERPRINT = "_".join(_VERSIONS) + "_pex_fingerprint"
+_INTERPRETER_SET_FINGERPRINT = "_".join(_ALL_PY_VERSIONS) + "_pex_fingerprint"
+
+
+_ROOT_DIR = None  # type: Optional[str]
+
+
+def root_dir():
+    # type: () -> str
+    global _ROOT_DIR
+    if _ROOT_DIR is None:
+        cwd = os.getcwd()
+        try:
+            os.chdir(os.path.dirname(__file__))
+            _ROOT_DIR = str(
+                os.path.realpath(
+                    subprocess.check_output(["git", "rev-parse", "--show-toplevel"])
+                    .decode("utf-8")
+                    .strip()
+                )
+            )
+        finally:
+            os.chdir(cwd)
+    return _ROOT_DIR
 
 
 def ensure_python_distribution(version):
     # type: (str) -> Tuple[str, str, Callable[[Iterable[str]], Text]]
-    if version not in _VERSIONS:
-        raise ValueError("Please constrain version to one of {}".format(_VERSIONS))
+    if version not in _ALL_PY_VERSIONS:
+        raise ValueError("Please constrain version to one of {}".format(_ALL_PY_VERSIONS))
 
-    pyenv_root = os.path.join(os.getcwd(), ".pyenv_test")
+    pyenv_root = os.path.join(root_dir(), ".pyenv_test")
     interpreter_location = os.path.join(pyenv_root, "versions", version)
 
     pyenv = os.path.join(pyenv_root, "bin", "pyenv")
@@ -453,6 +477,22 @@ def ensure_python_distribution(version):
         return to_unicode(subprocess.check_output([pyenv] + list(args), env=pyenv_env))
 
     return python, pip, run_pyenv
+
+
+def ensure_python_venv(version, latest_pip=True):
+    python, pip, _ = ensure_python_distribution(version)
+    venv = safe_mkdtemp()
+    if version in _ALL_PY3_VERSIONS:
+        subprocess.check_call([python, "-m", "venv", venv])
+    else:
+        subprocess.check_call([pip, "install", "virtualenv==16.7.10"])
+        subprocess.check_call([python, "-m", "virtualenv", venv])
+    python, pip = tuple(
+        os.path.realpath(os.path.join(venv, "bin", exe)) for exe in ("python", "pip")
+    )
+    if latest_pip:
+        subprocess.check_call([pip, "install", "-U", "pip"])
+    return python, pip
 
 
 def ensure_python_interpreter(version):
