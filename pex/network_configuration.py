@@ -47,6 +47,16 @@ class NetworkConfiguration(
         assert cache_ttl >= 0, "The cache_ttl parameter should be >= 0; given: {}".format(cache_ttl)
         assert retries >= 0, "The retries parameter should be >= 0; given: {}".format(retries)
         assert timeout >= 0, "The timeout parameter should be > 0; given: {}".format(timeout)
+        if headers:
+            bad_headers = [header for header in headers if ":" not in header]
+            assert not bad_headers, (
+                "The following headers were malformed:\n"
+                "{bad_headers}\n"
+                "All headers must be of the form NAME:VALUE.".format(
+                    bad_headers="\n".join(bad_headers),
+                )
+            )
+
         return cls(
             cache_ttl=cache_ttl,
             retries=retries,
