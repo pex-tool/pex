@@ -195,6 +195,10 @@ def test_parse_requirements_stress(chroot):
                 ftp://a/${PROJECT_NAME}-1.0.tar.gz
                 http://a/${PROJECT_NAME}-1.0.zip
                 https://a/numpy-1.9.2-cp34-none-win32.whl
+
+                Django@ git+https://github.com/django/django.git
+                Django@git+https://github.com/django/django.git@stable/2.1.x
+                Django@ git+https://github.com/django/django.git@fd209f62f1d83233cc634443cfac5ee4328d98b8
                 """
             )
         )
@@ -296,6 +300,12 @@ def test_parse_requirements_stress(chroot):
         req(project_name="Project", url="ftp://a/Project-1.0.tar.gz"),
         req(project_name="Project", url="http://a/Project-1.0.zip"),
         req(project_name="numpy", url="https://a/numpy-1.9.2-cp34-none-win32.whl"),
+        req(project_name="Django", url="git+https://github.com/django/django.git"),
+        req(project_name="Django", url="git+https://github.com/django/django.git@stable/2.1.x"),
+        req(
+            project_name="Django",
+            url="git+https://github.com/django/django.git@fd209f62f1d83233cc634443cfac5ee4328d98b8",
+        ),
         req(
             project_name="numpy",
             url=os.path.realpath("./downloads/numpy-1.9.2-cp34-none-win32.whl"),
