@@ -487,9 +487,7 @@ def ensure_python_venv(version, latest_pip=True):
     else:
         subprocess.check_call([pip, "install", "virtualenv==16.7.10"])
         subprocess.check_call([python, "-m", "virtualenv", venv])
-    python, pip = tuple(
-        os.path.realpath(os.path.join(venv, "bin", exe)) for exe in ("python", "pip")
-    )
+    python, pip = tuple(os.path.join(venv, "bin", exe) for exe in ("python", "pip"))
     if latest_pip:
         subprocess.check_call([pip, "install", "-U", "pip"])
     return python, pip
