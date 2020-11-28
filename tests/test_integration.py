@@ -2459,8 +2459,6 @@ def mitmdump():
     return mitmdump, os.path.expanduser("~/.mitmproxy/mitmproxy-ca-cert.pem")
 
 
-# class RunProxy(Protocol):
-#     def __enter__(self):
 @pytest.fixture
 def run_proxy(mitmdump, tmp_workdir):
     # type: (Tuple[str, str], str) -> Callable[[Optional[str]], ContextManager[Tuple[int, str]]]
