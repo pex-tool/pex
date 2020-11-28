@@ -116,9 +116,20 @@ else:
 
 if PY3:
     import urllib.parse as urlparse
+
+    from urllib.error import HTTPError as HTTPError
+    from urllib.request import build_opener as build_opener
+    from urllib.request import HTTPSHandler as HTTPSHandler
+    from urllib.request import ProxyHandler as ProxyHandler
+    from urllib.request import Request as Request
 else:
     import urlparse as urlparse
 
+    from urllib2 import build_opener as build_opener
+    from urllib2 import HTTPError as HTTPError
+    from urllib2 import HTTPSHandler as HTTPSHandler
+    from urllib2 import ProxyHandler as ProxyHandler
+    from urllib2 import Request as Request
 
 if PY3:
     from queue import Queue as Queue
