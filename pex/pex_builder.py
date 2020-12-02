@@ -143,6 +143,7 @@ class PEXBuilder(object):
         self._copy = copy
 
         self._shebang = self._interpreter.identity.hashbang()
+        self._pex_info.shebang = self._shebang
         self._logger = logging.getLogger(__name__)
         self._frozen = False
         self._distributions = set()

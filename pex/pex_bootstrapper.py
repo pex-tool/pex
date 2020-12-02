@@ -8,6 +8,7 @@ import sys
 
 from pex import pex_warnings
 from pex.common import die
+from pex.expose_scripts import expose_scripts
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
@@ -353,6 +354,7 @@ def _bootstrap(entry_point):
 def bootstrap_pex(entry_point):
     # type: (str) -> None
     pex_info = _bootstrap(entry_point)
+    expose_scripts(entry_point, pex_info)
     maybe_reexec_pex(pex_info.interpreter_constraints)
 
     from . import pex

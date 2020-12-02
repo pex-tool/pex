@@ -304,15 +304,19 @@ class PexInfo(object):
 
     @property
     def script(self):
-        return self._get_safe("script")
+        value = self._get_safe("script")
 
     @script.setter
     def script(self, value):
         self._pex_info["script"] = value
 
+    # TODO: `_get_safe` should take a default kwarg
     @property
     def exposed_entry_points(self):
-        return self._get_safe("exposed_entry_points")
+        value = self._get_safe("exposed_entry_points")
+        if value is None:
+            value = []
+        return value
 
     @exposed_entry_points.setter
     def exposed_entry_points(self, value):
@@ -320,11 +324,22 @@ class PexInfo(object):
 
     @property
     def exposed_scripts(self):
-        return self._get_safe("exposed_scripts")
+        value = self._get_safe("exposed_scripts")
+        if value is None:
+            value = []
+        return value
 
     @exposed_scripts.setter
     def exposed_scripts(self, value):
         self._pex_info["exposed_scripts"] = value
+
+    @property
+    def shebang(self):
+        return self._get_safe("shebang")
+
+    @shebang.setter
+    def shebang(self, value):
+        self._pex_info["shebang"] = value
 
     def add_requirement(self, requirement):
         self._requirements.add(str(requirement))
