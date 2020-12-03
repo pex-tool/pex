@@ -16,6 +16,7 @@ from pex.common import (
     can_write_dir,
     chmod_plus_x,
     open_zip,
+    safe_open,
     temporary_dir,
     touch,
 )
@@ -244,3 +245,36 @@ def test_can_write_dir_unwriteable_perms():
         os.chmod(no_perms_path, 0o744)
         assert can_write_dir(no_perms_path)
         assert can_write_dir(path_that_does_not_exist_yet)
+
+
+@pytest.fixture
+def temporary_working_dir():
+    # type: () -> Iterator[str]
+    cwd = os.getcwd()
+    try:
+        with temporary_dir() as td:
+            os.chdir(td)
+            yield td
+    finally:
+        os.chdir(cwd)
+
+
+def test_safe_open_abs(temporary_working_dir):
+    # type: (str) -> None
+    abs_path = os.path.join(temporary_working_dir, "path")
+    with safe_open(abs_path, "w") as fp:
+        fp.write("contents")
+
+    with open(abs_path) as fp:
+        assert "contents" == fp.read()
+
+
+def test_safe_open_relative(temporary_working_dir):
+    # type: (str) -> None
+    rel_path = "rel_path"
+    with safe_open(rel_path, "w") as fp:
+        fp.write("contents")
+
+    abs_path = os.path.join(temporary_working_dir, rel_path)
+    with open(abs_path) as fp:
+        assert "contents" == fp.read()

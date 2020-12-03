@@ -244,7 +244,9 @@ def safe_open(filename, *args, **kwargs):
     ``safe_open`` ensures that the directory components leading up the specified file have been
     created first.
     """
-    safe_mkdir(os.path.dirname(filename))
+    parent_dir = os.path.dirname(filename)
+    if parent_dir:
+        safe_mkdir(parent_dir)
     return open(filename, *args, **kwargs)  # noqa: T802
 
 
