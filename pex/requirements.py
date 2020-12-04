@@ -377,15 +377,48 @@ def _try_parse_project_name_from_path(path):
     return None
 
 
-def _try_parse_pip_local_project_marker(path):
-    # type: (str) -> Tuple[str, Optional[Marker]]
+def _try_parse_pip_local_formats(
+    path,  # type: str
+    basepath=None,  # type: Optional[str]
+):
+    # type: (...) -> Tuple[Optional[str], Optional[Marker]]
     project_requirement = os.path.basename(path)
+    match = re.match(
+        r"""
+        ^
+        (?P<directory_name>[^!=<>\[;]+)
+        (?P<requirement_parts>[!=<>\[;].+)?
+        $
+        """,
+        project_requirement,
+        re.VERBOSE,
+    )
+    if not match:
+        return None, None
+
+    directory_name, requirement_parts = match.groups()
+    stripped_path = os.path.join(os.path.dirname(path), directory_name)
+    abs_stripped_path = (
+        os.path.join(basepath, stripped_path) if basepath else os.path.abspath(stripped_path)
+    )
+    if not os.path.exists(abs_stripped_path):
+        return None, None
+
+    if not os.path.isdir(abs_stripped_path):
+        # Maybe a local archive path.
+        return abs_stripped_path, None
+
+    # Maybe a local project path.
+    requirement_parts = match.group("requirement_parts")
+    if not requirement_parts:
+        return abs_stripped_path, None
+
+    project_requirement = "fake_project{}".format(requirement_parts)
     try:
         req = Requirement.parse(project_requirement)
-        stripped_path = os.path.join(os.path.dirname(path), req.name)
-        return stripped_path, req.marker
+        return abs_stripped_path, req.marker
     except (RequirementParseError, ValueError):
-        return path, None
+        return None, None
 
 
 def _split_direct_references(processed_text):
@@ -418,9 +451,8 @@ def _parse_requirement_line(
         )
 
     # Handle local archives and project directories (Pip proprietary).
-    maybe_path, marker = _try_parse_pip_local_project_marker(processed_text)
-    maybe_abs_path = maybe_path if os.path.isabs(maybe_path) else os.path.join(basepath, maybe_path)
-    if any(
+    maybe_abs_path, marker = _try_parse_pip_local_formats(processed_text, basepath=basepath)
+    if maybe_abs_path is not None and any(
         os.path.isfile(os.path.join(maybe_abs_path, *p))
         for p in ((), ("setup.py",), ("pyproject.toml",))
     ):
