@@ -561,18 +561,18 @@ class PythonInterpreter(object):
 
     @classmethod
     def _spawn_from_binary(cls, binary):
-        normalized_binary = cls.canonicalize_path(binary)
-        if not os.path.exists(normalized_binary):
-            raise cls.InterpreterNotFound(normalized_binary)
+        canonicalized_binary = cls.canonicalize_path(binary)
+        if not os.path.exists(canonicalized_binary):
+            raise cls.InterpreterNotFound(canonicalized_binary)
 
         # N.B.: The cache is written as the last step in PythonInterpreter instance initialization.
-        cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(normalized_binary)
+        cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(canonicalized_binary)
         if cached_interpreter is not None:
             return SpawnedJob.completed(cached_interpreter)
-        if normalized_binary == cls.canonicalize_path(sys.executable):
+        if canonicalized_binary == cls.canonicalize_path(sys.executable):
             current_interpreter = cls(PythonIdentity.get())
             return SpawnedJob.completed(current_interpreter)
-        return cls._spawn_from_binary_external(normalized_binary)
+        return cls._spawn_from_binary_external(canonicalized_binary)
 
     @classmethod
     def from_binary(cls, binary):
