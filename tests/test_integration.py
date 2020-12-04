@@ -238,7 +238,7 @@ def test_pex_repl_built():
 def test_pex_python_symlink():
     # type: () -> None
     with temporary_dir() as td:
-        symlink_path = os.path.join(td, "python-symlink")
+        symlink_path = os.path.join(td, "python")
         os.symlink(sys.executable, symlink_path)
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:
@@ -600,7 +600,7 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
         # If the constraints are honored, it will have run python3.6 and not python3.5
         # Without constraints, we would expect it to use python3.5 as it is the minimum interpreter
         # in the PATH.
-        assert str(py36_path).encode() in stdout
+        assert os.path.dirname(py36_path).encode() in stdout
 
 
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
@@ -1922,7 +1922,7 @@ def _assert_exec_chain(
         assert "PEX_PYTHON_PATH" not in final_env
         assert "_PEX_SHOULD_EXIT_BOOTSTRAP_REEXEC" not in final_env
 
-        expected_exec_chain = [os.path.realpath(i) for i in [sys.executable] + (exec_chain or [])]
+        expected_exec_chain = [sys.executable] + (exec_chain or [])
         assert expected_exec_chain == final_env["_PEX_EXEC_CHAIN"].split(os.pathsep)
 
 
@@ -1933,7 +1933,7 @@ def test_pex_no_reexec_no_constraints():
 
 def test_pex_reexec_no_constraints_pythonpath_present():
     # type: () -> None
-    _assert_exec_chain(exec_chain=[os.path.realpath(sys.executable)], pythonpath=["."])
+    _assert_exec_chain(exec_chain=[sys.executable], pythonpath=["."])
 
 
 def test_pex_no_reexec_constraints_match_current():
@@ -1946,7 +1946,7 @@ def test_pex_reexec_constraints_match_current_pythonpath_present():
     # type: () -> None
     current_version = ".".join(str(component) for component in sys.version_info[0:3])
     _assert_exec_chain(
-        exec_chain=[os.path.realpath(sys.executable)],
+        exec_chain=[sys.executable],
         pythonpath=["."],
         interpreter_constraints=["=={}".format(current_version)],
     )

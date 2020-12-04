@@ -21,7 +21,6 @@ if TYPE_CHECKING:
         Iterable,
         Iterator,
         List,
-        MutableSet,
         NoReturn,
         Optional,
         Tuple,
@@ -76,7 +75,9 @@ def iter_compatible_interpreters(
         seen = set()
 
         normalized_paths = (
-            OrderedSet(os.path.realpath(p) for p in path.split(os.pathsep)) if path else None
+            OrderedSet(PythonInterpreter.canonicalize_path(p) for p in path.split(os.pathsep))
+            if path
+            else None
         )
 
         # Prefer the current interpreter, if valid.

@@ -308,8 +308,20 @@ class PythonInterpreter(object):
     _PYTHON_INTERPRETER_BY_NORMALIZED_PATH = {}  # type: Dict
 
     @staticmethod
-    def _normalize_path(path):
-        return os.path.realpath(path)
+    def canonicalize_path(path):
+        # type: (str) -> str
+        """Canonicalizes a potential Python interpreter path.
+
+        This will return a path-equivalent of the given `path` in canonical form for use in cache
+        keys.
+
+        N.B.: If the path is a symlink it will not be de-referenced since virtual environments
+        created with Python 3's `venv` module use symlinks for the python interpreter `bin/`
+        entries by default. For cases where a virtual environment aware interpreter is desired,
+        following the symlink to the underlying system python would incorrectly escape the virtual
+        environment.
+        """
+        return os.path.abspath(path)
 
     class Error(Exception):
         pass
@@ -549,7 +561,7 @@ class PythonInterpreter(object):
 
     @classmethod
     def _spawn_from_binary(cls, binary):
-        normalized_binary = cls._normalize_path(binary)
+        normalized_binary = cls.canonicalize_path(binary)
         if not os.path.exists(normalized_binary):
             raise cls.InterpreterNotFound(normalized_binary)
 
@@ -557,7 +569,7 @@ class PythonInterpreter(object):
         cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(normalized_binary)
         if cached_interpreter is not None:
             return SpawnedJob.completed(cached_interpreter)
-        if normalized_binary == cls._normalize_path(sys.executable):
+        if normalized_binary == cls.canonicalize_path(sys.executable):
             current_interpreter = cls(PythonIdentity.get())
             return SpawnedJob.completed(current_interpreter)
         return cls._spawn_from_binary_external(normalized_binary)
@@ -695,7 +707,7 @@ class PythonInterpreter(object):
         You should probably use `PythonInterpreter.from_binary` instead.
         """
         self._identity = identity
-        self._binary = self._normalize_path(self.identity.binary)
+        self._binary = self.canonicalize_path(self.identity.binary)
 
         self._supported_platforms = None
 

@@ -179,20 +179,19 @@ class TestPythonInterpreter(object):
     def test_iter_interpreter_path_filter_symlink(self, test_interpreter1, test_interpreter2):
         # type: (str, str) -> None
         with temporary_dir() as bin_dir:
-            os.symlink(test_interpreter2, os.path.join(bin_dir, "jake"))
+            jake_symlink = os.path.join(bin_dir, "jake")
+            os.symlink(test_interpreter2, jake_symlink)
 
-            # Verify path filtering happens before interpreter resolution, which os.path.realpaths
-            # the interpreter binary. This supports specifying a path filter like
+            # Verify path filtering works for symlinks. This supports specifying a path filter like
             # "basename is python2" where discovered interpreter binaries are symlinks to more
             # specific interpreter versions, e.g.: /usr/bin/python2 -> /usr/bin/python2.7.
-            expected_interpreter = PythonInterpreter.from_binary(test_interpreter2)
+            expected_interpreter = PythonInterpreter.from_binary(jake_symlink)
             assert [expected_interpreter] == list(
                 PythonInterpreter.iter_candidates(
                     paths=[test_interpreter1, bin_dir],
                     path_filter=lambda path: os.path.basename(path) == "jake",
                 )
             )
-            assert os.path.basename(expected_interpreter.binary) != "jake"
 
     def test_pyenv_shims(self):
         # type: () -> None
@@ -207,7 +206,7 @@ class TestPythonInterpreter(object):
 
         def assert_shim(shim_name, expected_binary_path):
             python = PythonInterpreter.from_binary(os.path.join(pyenv_shims, shim_name))
-            assert expected_binary_path == python.binary
+            assert os.path.realpath(expected_binary_path) == os.path.realpath(python.binary)
 
         with temporary_dir() as pex_root:
             with ENV.patch(PEX_ROOT=pex_root) as pex_env:

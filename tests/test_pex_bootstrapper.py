@@ -163,8 +163,8 @@ def test_find_compatible_interpreters_with_valid_basenames_and_constraints():
 def test_find_compatible_interpreters_bias_current():
     # type: () -> None
     py36 = ensure_python_interpreter(PY36)
-    assert [os.path.realpath(sys.executable), py36] == find_interpreters([py36, sys.executable])
-    assert [os.path.realpath(sys.executable), py36] == find_interpreters([sys.executable, py36])
+    assert [sys.executable, py36] == find_interpreters([py36, sys.executable])
+    assert [sys.executable, py36] == find_interpreters([sys.executable, py36])
 
 
 def test_find_compatible_interpreters_siblings_of_current_issues_1109():
