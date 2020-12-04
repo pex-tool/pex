@@ -425,6 +425,16 @@ def chmod_plus_w(path):
     os.chmod(path, path_mode)
 
 
+def is_exe(path):
+    # type: (str) -> bool
+    """Determines if the given path is a file executable by the current user.
+
+    :param path: The path to check.
+    :return: `True if the given path is an file executable by the current user.
+    """
+    return os.path.isfile(path) and os.access(path, os.R_OK | os.X_OK)
+
+
 def can_write_dir(path):
     # type: (str) -> bool
     """Determines if the directory at path can be written to by the current process.

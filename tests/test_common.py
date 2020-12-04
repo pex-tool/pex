@@ -15,6 +15,7 @@ from pex.common import (
     atomic_directory,
     can_write_dir,
     chmod_plus_x,
+    is_exe,
     open_zip,
     safe_open,
     temporary_dir,
@@ -278,3 +279,21 @@ def test_safe_open_relative(temporary_working_dir):
     abs_path = os.path.join(temporary_working_dir, rel_path)
     with open(abs_path) as fp:
         assert "contents" == fp.read()
+
+
+def test_is_exe(temporary_working_dir):
+    # type: (str) -> None
+    touch("all_exe")
+    chmod_plus_x("all_exe")
+    assert is_exe("all_exe")
+
+    touch("other_exe")
+    os.chmod("other_exe", 0o665)
+    assert not is_exe("other_exe")
+
+    touch("not_exe")
+    assert not is_exe("not_exe")
+
+    os.mkdir("exe_dir")
+    chmod_plus_x("exe_dir")
+    assert not is_exe("exe_dir")
