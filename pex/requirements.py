@@ -396,10 +396,11 @@ def _try_parse_pip_local_formats(
         #   See: https://www.python.org/dev/peps/pep-0508/#environment-markers
         r";",
     )
+    # N.B.: The basename of the current directory (.) is '' and we allow this.
     match = re.match(
         r"""
         ^
-        (?P<directory_name>[^{REQUIREMENT_PARTS_START}]+)
+        (?P<directory_name>[^{REQUIREMENT_PARTS_START}]*)?
         (?P<requirement_parts>.*)?
         $
         """.format(
