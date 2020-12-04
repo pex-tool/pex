@@ -385,21 +385,25 @@ def _try_parse_pip_local_formats(
     project_requirement = os.path.basename(path)
 
     # Requirements strings can optionally include:
-    # + Trailing extras denoted by `[...]`.
-    #   See: https://www.python.org/dev/peps/pep-0508/#extras
-    # + A version specifier denoted by a leading `!=`, `==`, `===`, `>=`, `<=` or `~=`.
-    #   See: https://www.python.org/dev/peps/pep-0508/#grammar
-    # + Environment markers denoted by `;...`
-    #   See: https://www.python.org/dev/peps/pep-0508/#environment-markers
-    REQUIREMENT_PARTS_START = r"!=<>~\[;"
+    REQUIREMENT_PARTS_START = (
+        # + Trailing extras denoted by `[...]`.
+        #   See: https://www.python.org/dev/peps/pep-0508/#extras
+        r"\[",
+        # + A version specifier denoted by a leading `!=`, `==`, `===`, `>=`, `<=` or `~=`.
+        #   See: https://www.python.org/dev/peps/pep-0508/#grammar
+        r"!=><~",
+        # + Environment markers denoted by `;...`
+        #   See: https://www.python.org/dev/peps/pep-0508/#environment-markers
+        r";",
+    )
     match = re.match(
         r"""
         ^
-        (?P<directory_name>[^{req_parts_start}]+)
-        (?P<requirement_parts>[{req_parts_start}].+)?
+        (?P<directory_name>[^{REQUIREMENT_PARTS_START}]+)
+        (?P<requirement_parts>.*)?
         $
         """.format(
-            req_parts_start=REQUIREMENT_PARTS_START
+            REQUIREMENT_PARTS_START="".join(REQUIREMENT_PARTS_START)
         ),
         project_requirement,
         re.VERBOSE,
