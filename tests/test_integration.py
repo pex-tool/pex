@@ -208,9 +208,7 @@ def test_pex_repl_cli():
     with temporary_dir() as output_dir:
         # Create a temporary pex containing just `requests` with no entrypoint.
         pex_path = os.path.join(output_dir, "pex.pex")
-        results = run_pex_command(
-            ["--disable-cache", "requests", "./", "-e", "pex.bin.pex:main", "-o", pex_path]
-        )
+        results = run_pex_command(["requests", "-o", pex_path])
         results.assert_success()
 
         # Test that the REPL is functional.

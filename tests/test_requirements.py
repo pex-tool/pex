@@ -189,6 +189,11 @@ def test_parse_requirements_stress(chroot):
                 a/local/project[foo]; python_full_version == "2.7.8"
                 ./another/local/project;python_version == "2.7.*"
                 ./another/local/project
+                ./
+                # Local projects with basenames that are invalid Python project names (trailing _):
+                tmp/tmpW8tdb_ 
+                tmp/tmpW8tdb_[foo]
+                tmp/tmpW8tdb_[foo];python_version == "3.9"
 
                 hg+http://hg.example.com/MyProject@da39a3ee5e6b#egg=AnotherProject[extra,more];python_version=="3.9.*"&subdirectory=foo/bar
 
@@ -202,8 +207,10 @@ def test_parse_requirements_stress(chroot):
                 """
             )
         )
+    touch("extra/pyproject.toml")
     touch("extra/a/local/project/pyproject.toml")
     touch("extra/another/local/project/setup.py")
+    touch("extra/tmp/tmpW8tdb_/setup.py")
 
     with safe_open(os.path.join(chroot, "subdir", "more-requirements.txt"), "w") as fp:
         fp.write(
@@ -292,6 +299,14 @@ def test_parse_requirements_stress(chroot):
             is_local_project=True,
         ),
         req(url=os.path.realpath("extra/another/local/project"), is_local_project=True),
+        req(url=os.path.realpath("extra"), is_local_project=True),
+        req(url=os.path.realpath("extra/tmp/tmpW8tdb_"), is_local_project=True),
+        req(url=os.path.realpath("extra/tmp/tmpW8tdb_"), is_local_project=True),
+        req(
+            url=os.path.realpath("extra/tmp/tmpW8tdb_"),
+            marker="python_version == '3.9'",
+            is_local_project=True,
+        ),
         req(
             project_name="AnotherProject",
             url="hg+http://hg.example.com/MyProject@da39a3ee5e6b",
