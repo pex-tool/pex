@@ -19,7 +19,6 @@ _PKG_INFO_BY_DIST = {}  # type: Dict[Distribution, Optional[email.message.Messag
 
 def _parse_pkg_info(dist):
     # type: (Distribution) -> Optional[email.message.Message]
-    global _PKG_INFO_BY_DIST
     if dist not in _PKG_INFO_BY_DIST:
         if not dist.has_metadata(DistInfoDistribution.PKG_INFO):
             pkg_info = None
