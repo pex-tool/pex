@@ -349,13 +349,13 @@ class PEXBuilder(object):
         self._pex_info.entry_point = entry_point
 
     def set_exposed_entry_points(self, entry_points):
-        entry_points = entry_points.split(',')
+        entry_points = entry_points.split(",")
         if len(entry_points) > 0:
             self._pex_info.exposed_entry_points = entry_points
 
     # TODO: check if scripts should be handled as entry-points
     def set_exposed_scripts(self, scripts):
-        scripts = scripts.split(',')
+        scripts = scripts.split(",")
         if len(scripts) > 0:
             self._pex_info.exposed_scripts = scripts
 

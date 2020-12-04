@@ -530,7 +530,7 @@ def configure_clp_pex_entry_points(parser):
         dest="exposed_entry_points",
         default=None,
         metavar="EXPOSED_ENTRY_POINTS",
-        help="TODO"
+        help="TODO",
     )
 
     group.add_argument(
@@ -538,7 +538,7 @@ def configure_clp_pex_entry_points(parser):
         dest="exposed_scripts",
         default=None,
         metavar="EXPOSED_SCRIPTS",
-        help="TODO"
+        help="TODO",
     )
 
     group.add_argument(
