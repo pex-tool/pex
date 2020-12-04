@@ -197,15 +197,20 @@ class PEXEnvironment(Environment):
                     for dist in cls._write_zipped_internal_cache(zf, pex_info):
                         yield dist
 
-    def __init__(self, pex, pex_info, interpreter=None):
-        # type: (str, PexInfo, Optional[PythonInterpreter]) -> None
-        self._internal_cache = os.path.join(pex, pex_info.internal_cache)
+    def __init__(
+        self,
+        pex,  # type: str
+        pex_info=None,  # type: Optional[PexInfo]
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> None
         self._pex = pex
-        self._pex_info = pex_info
+        self._pex_info = pex_info or PexInfo.from_pex(pex)
+        self._internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
         self._activated = False
         self._working_set = None
         self._interpreter = interpreter or PythonInterpreter.get()
-        self._inherit_path = pex_info.inherit_path
+        self._inherit_path = self._pex_info.inherit_path
         self._supported_tags = frozenset(self._interpreter.identity.supported_tags)
         self._target_interpreter_env = self._interpreter.identity.env_markers
 
@@ -215,7 +220,7 @@ class PEXEnvironment(Environment):
             self._install_pypy_zipimporter_workaround(self._pex)
 
         super(PEXEnvironment, self).__init__(
-            search_path=[] if pex_info.inherit_path == InheritPath.FALSE else sys.path,
+            search_path=[] if self._pex_info.inherit_path == InheritPath.FALSE else sys.path,
             platform=self._interpreter.identity.platform_tag,
         )
         TRACER.log(
