@@ -426,32 +426,50 @@ def test_present_but_empty_namespace_packages_metadata_does_not_warn():
     assert_namespace_packages_warning("pycodestyle", "2.5.0", expected_warning=False)
 
 
+def create_dist(
+    location,  # type: str
+    version="1.0.0",  # type: Optional[str]
+):
+    # type: (...) -> Distribution
+    # N.B.: version must be set simply so that __hash__ / __eq__ work correctly in the
+    # `pex.dist_metadata` module.
+    return Distribution(location=location, version=version)
+
+
 @pytest.mark.parametrize(
-    ("wheel_filename", "wheel_is_linux"),
+    ("wheel_distribution", "wheel_is_linux"),
     [
         pytest.param(
-            "llvmlite-0.29.0-cp35-cp35m-linux_x86_64.whl", True, id="without_build_tag_linux"
+            create_dist("llvmlite-0.29.0-cp35-cp35m-linux_x86_64.whl", "0.29.0"),
+            True,
+            id="without_build_tag_linux",
         ),
         pytest.param(
-            "llvmlite-0.29.0-1-cp35-cp35m-linux_x86_64.whl", True, id="with_build_tag_linux"
+            create_dist("llvmlite-0.29.0-1-cp35-cp35m-linux_x86_64.whl", "0.29.0"),
+            True,
+            id="with_build_tag_linux",
         ),
         pytest.param(
-            "llvmlite-0.29.0-cp35-cp35m-macosx_10.9_x86_64.whl", False, id="without_build_tag_osx"
+            create_dist("llvmlite-0.29.0-cp35-cp35m-macosx_10.9_x86_64.whl", "0.29.0"),
+            False,
+            id="without_build_tag_osx",
         ),
         pytest.param(
-            "llvmlite-0.29.0-1-cp35-cp35m-macosx_10.9_x86_64.whl", False, id="with_build_tag_osx"
+            create_dist("llvmlite-0.29.0-1-cp35-cp35m-macosx_10.9_x86_64.whl", "0.29.0"),
+            False,
+            id="with_build_tag_osx",
         ),
     ],
 )
 def test_can_add_handles_optional_build_tag_in_wheel(
-    python_35_interpreter, wheel_filename, wheel_is_linux
+    python_35_interpreter, wheel_distribution, wheel_is_linux
 ):
     # type: (PythonInterpreter, str, bool) -> None
     pex_environment = PEXEnvironment(
         pex="", pex_info=PexInfo.default(python_35_interpreter), interpreter=python_35_interpreter
     )
     native_wheel = IS_LINUX and wheel_is_linux
-    assert pex_environment.can_add(Distribution(wheel_filename)) is native_wheel
+    assert pex_environment.can_add(wheel_distribution) is native_wheel
 
 
 def test_can_add_handles_invalid_wheel_filename(python_35_interpreter):
@@ -459,4 +477,4 @@ def test_can_add_handles_invalid_wheel_filename(python_35_interpreter):
     pex_environment = PEXEnvironment(
         pex="", pex_info=PexInfo.default(python_35_interpreter), interpreter=python_35_interpreter
     )
-    assert pex_environment.can_add(Distribution("pep427-invalid.whl")) is False
+    assert pex_environment.can_add(create_dist("pep427-invalid.whl")) is False
