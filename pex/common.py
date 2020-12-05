@@ -371,6 +371,16 @@ def atomic_directory(target_dir, exclusive, source=None):
         return
 
     lock_fd = None  # type: Optional[int]
+
+    def unlock():
+        # type: () -> None
+        if lock_fd is None:
+            return
+        try:
+            fcntl.lockf(lock_fd, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_fd)
+
     if exclusive:
         head, tail = os.path.split(atomic_dir.target_dir)
         if head:
@@ -388,17 +398,18 @@ def atomic_directory(target_dir, exclusive, source=None):
         if atomic_dir.is_finalized:
             # We lost the double-checked locking race and our work was done for us by the race
             # winner so exit early.
-            yield None
+            try:
+                yield None
+            finally:
+                unlock()
             return
 
-    safe_mkdir(atomic_dir.work_dir)
     try:
+        safe_mkdir(atomic_dir.work_dir)
         yield atomic_dir.work_dir
         atomic_dir.finalize(source=source)
     finally:
-        if lock_fd is not None:
-            fcntl.lockf(lock_fd, fcntl.LOCK_UN)
-            os.close(lock_fd)
+        unlock()
         atomic_dir.cleanup()
 
 
