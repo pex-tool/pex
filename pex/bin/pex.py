@@ -296,6 +296,15 @@ def configure_clp_pex_options(parser):
     )
 
     group.add_argument(
+        "--include-tools",
+        dest="include_tools",
+        default=False,
+        action=HandleBoolAction,
+        help="Whether to include runtime tools in the pex file. If included, these can be run by "
+        "exporting PEX_TOOLS=1 and following the usage and --help information.",
+    )
+
+    group.add_argument(
         "--zip-safe",
         "--not-zip-safe",
         dest="zip_safe",
@@ -775,7 +784,12 @@ def build_pex(reqs, options, cache=None):
         # options.preamble_file is None
         preamble = None
 
-    pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
+    pex_builder = PEXBuilder(
+        path=safe_mkdtemp(),
+        interpreter=interpreter,
+        preamble=preamble,
+        include_tools=options.include_tools,
+    )
 
     if options.resources_directory:
         pex_warnings.warn(

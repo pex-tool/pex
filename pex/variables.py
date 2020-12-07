@@ -564,6 +564,17 @@ class Variables(object):
         """
         return self._maybe_get_bool("PEX_EMIT_WARNINGS")
 
+    @defaulted_property(default=False)
+    def PEX_TOOLS(self):
+        # type: () -> bool
+        """Boolean.
+
+        Run the PEX tools.
+
+        Default: false.
+        """
+        return self._get_bool("PEX_TOOLS")
+
     def __repr__(self):
         return "{}({!r})".format(type(self).__name__, self._environ)
 

@@ -12,14 +12,14 @@ from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
 from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:
     from pex.interpreter import PythonInterpreter
 
-    from typing import Any, Mapping, Optional, Text, Union
+    from typing import Any, Dict, Mapping, Optional, Text, Union
 
 
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.
@@ -89,6 +89,7 @@ class PexInfo(object):
 
     @classmethod
     def from_pex(cls, pex):
+        # type: (str) -> PexInfo
         if os.path.isfile(pex):
             with open_zip(pex) as zf:
                 pex_info = zf.read(cls.PATH)
@@ -151,7 +152,7 @@ class PexInfo(object):
             raise ValueError(
                 "PexInfo can only be seeded with a dict, got: " "%s of type %s" % (info, type(info))
             )
-        self._pex_info = dict(info) if info else {}  # type Dict[str, str]
+        self._pex_info = dict(info) if info else {}  # type Dict[str, Any]
         self._distributions = self._pex_info.get("distributions", {})
         # cast as set because pex info from json must store interpreter_constraints as a list
         self._interpreter_constraints = set(self._pex_info.get("interpreter_constraints", set()))
@@ -226,15 +227,17 @@ class PexInfo(object):
 
     @property
     def pex_path(self):
+        # type: () -> Optional[str]
         """A colon separated list of other pex files to merge into the runtime environment.
 
         This pex info property is used to persist the PEX_PATH environment variable into the pex
         info metadata for reuse within a built pex.
         """
-        return self._pex_info.get("pex_path")
+        return cast("Optional[str]", self._pex_info.get("pex_path"))
 
     @pex_path.setter
     def pex_path(self, value):
+        # type: (str) -> None
         self._pex_info["pex_path"] = value
 
     @property
@@ -365,6 +368,7 @@ class PexInfo(object):
         return os.path.join(self.pex_root, "code")
 
     def update(self, other):
+        # type: (PexInfo) -> None
         if not isinstance(other, PexInfo):
             raise TypeError("Cannot merge a %r with PexInfo" % type(other))
         self._pex_info.update(other._pex_info)
@@ -372,17 +376,25 @@ class PexInfo(object):
         self._interpreter_constraints.update(other.interpreter_constraints)
         self._requirements.update(other.requirements)
 
-    def dump(self, sort_keys=False):
-        # type: (bool) -> str
-        pex_info_copy = self._pex_info.copy()
-        pex_info_copy["inherit_path"] = self.inherit_path.value
-        pex_info_copy["requirements"] = sorted(self._requirements)
-        pex_info_copy["interpreter_constraints"] = sorted(self._interpreter_constraints)
-        pex_info_copy["distributions"] = self._distributions.copy()
-        return json.dumps(pex_info_copy, sort_keys=sort_keys)
+    def as_json_dict(self):
+        # type: () -> Dict[str, Any]
+        data = self._pex_info.copy()
+        data["inherit_path"] = self.inherit_path.value
+        data["requirements"] = list(self._requirements)
+        data["interpreter_constraints"] = list(self._interpreter_constraints)
+        data["distributions"] = self._distributions.copy()
+        return data
+
+    def dump(self):
+        # type: (...) -> str
+        data = self.as_json_dict()
+        data["requirements"].sort()
+        data["interpreter_constraints"].sort()
+        return json.dumps(data, sort_keys=True)
 
     def copy(self):
-        return self.from_json(self.dump())
+        # type: () -> PexInfo
+        return PexInfo(self._pex_info)
 
     @staticmethod
     def _merge_split(*paths):

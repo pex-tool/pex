@@ -51,7 +51,7 @@ def test_backwards_incompatible_pex_info():
 
 def assert_same_info(expected, actual):
     # type: (PexInfo, PexInfo) -> None
-    assert expected.dump(sort_keys=True) == actual.dump(sort_keys=True)
+    assert expected.dump() == actual.dump()
 
 
 def test_from_empty_env():
