@@ -1,13 +1,17 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import glob
 import os
+import subprocess
+from collections import defaultdict
 
 import pytest
 
 from pex import interpreter
 from pex.common import temporary_dir, touch
 from pex.compatibility import PY3
+from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.testing import (
     PY27,
@@ -26,7 +30,7 @@ except ImportError:
     from unittest.mock import Mock, patch  # type: ignore[misc,no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Iterator, Tuple, Union
+    from typing import Iterator, Tuple, Union, Any
 
     InterpreterIdentificationError = Tuple[str, str]
     InterpreterOrError = Union[PythonInterpreter, InterpreterIdentificationError]
@@ -249,3 +253,35 @@ def test_latest_release_of_min_compatible_version():
     assert_chosen(expected_version="2.7.0", other_version="3.6.0")
     assert_chosen(expected_version="3.5.0", other_version="3.6.0")
     assert_chosen(expected_version="3.6.1", other_version="3.6.0")
+
+
+def test_pyvenv(tmpdir):
+    # type: (Any) -> None
+    venv = str(tmpdir)
+    py35 = ensure_python_interpreter(PY35)
+    real_interpreter = PythonInterpreter.from_binary(py35)
+    real_interpreter.execute(["-m", "venv", venv])
+    with pytest.raises(Executor.NonZeroExit):
+        real_interpreter.execute(["-c", "import colors"])
+
+    venv_bin_dir = os.path.join(venv, "bin")
+    subprocess.check_call([os.path.join(venv_bin_dir, "pip"), "install", "ansicolors==1.1.8"])
+
+    canonical_to_python = defaultdict(set)
+    for python in glob.glob(os.path.join(venv_bin_dir, "python*")):
+        venv_interpreter = PythonInterpreter.from_binary(python)
+        canonical_to_python[venv_interpreter.binary].add(python)
+        venv_interpreter.execute(["-c", "import colors"])
+
+    assert (
+        len(canonical_to_python) == 1
+    ), "Expected exactly one canonical venv python, found: {}".format(canonical_to_python)
+    canonical, pythons = canonical_to_python.popitem()
+
+    real_python = os.path.realpath(py35)
+    assert canonical != real_python
+    assert os.path.dirname(canonical) == venv_bin_dir
+    assert os.path.realpath(canonical) == real_python
+    assert len(pythons) >= 2, "Expected at least two virtualenv python binaries, found: {}".format(
+        pythons
+    )

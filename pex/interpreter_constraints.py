@@ -65,7 +65,7 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
             seen = set()
             broken_interpreters = []
             for python, error in self.failures:
-                canonical_python = os.path.realpath(python)
+                canonical_python = PythonInterpreter.canonicalize_path(python)
                 if canonical_python not in seen:
                     broken_interpreters.append((canonical_python, error))
                     seen.add(canonical_python)

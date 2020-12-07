@@ -308,8 +308,103 @@ class PythonInterpreter(object):
     _PYTHON_INTERPRETER_BY_NORMALIZED_PATH = {}  # type: Dict
 
     @staticmethod
-    def _normalize_path(path):
-        return os.path.realpath(path)
+    def _read_pyvenv_home(path):
+        # type: (str) -> Optional[str]
+        # See: https://www.python.org/dev/peps/pep-0405/#specification
+        pyvenv_cfg_path = os.path.join(path, "pyvenv.cfg")
+        if os.path.isfile(pyvenv_cfg_path):
+            with open(pyvenv_cfg_path) as fp:
+                for line in fp:
+                    name, _, value = line.partition("=")
+                    if name.strip() == "home":
+                        return value.strip()
+        return None
+
+    @classmethod
+    def _find_pyvenv_home(cls, maybe_venv_python_binary):
+        # type: (str) -> Optional[str]
+        # A pyvenv is identified by a pyvenv.cfg file with a home key in one of the two following
+        # directory layouts:
+        #
+        # 1. <venv dir>/
+        #      bin/
+        #        pyvenv.cfg
+        #        python*
+        #
+        # 2. <venv dir>/
+        #      pyvenv.cfg
+        #      bin/
+        #        python*
+        #
+        # In practice, we see layout 2 in the wild, but layout 1 is also allowed by the spec.
+        #
+        # See: # See: https://www.python.org/dev/peps/pep-0405/#specification
+        maybe_venv_bin_dir = os.path.dirname(maybe_venv_python_binary)
+        home_dir = cls._read_pyvenv_home(maybe_venv_bin_dir)
+        if not home_dir:
+            maybe_venv_dir = os.path.dirname(maybe_venv_bin_dir)
+            home_dir = cls._read_pyvenv_home(maybe_venv_dir)
+        return home_dir
+
+    @classmethod
+    def _resolve_pyvenv_canonical_python_binary(
+        cls,
+        real_binary,  # type: str
+        maybe_venv_python_binary,  # type: str
+    ):
+        # type: (...) -> Optional[str]
+        maybe_venv_python_binary = os.path.abspath(maybe_venv_python_binary)
+        if not os.path.islink(maybe_venv_python_binary):
+            return None
+
+        home_dir = cls._find_pyvenv_home(maybe_venv_python_binary)
+        if os.path.dirname(real_binary) != home_dir:
+            return None
+
+        while os.path.islink(maybe_venv_python_binary):
+            resolved = os.readlink(maybe_venv_python_binary)
+            if not os.path.isabs(resolved):
+                resolved = os.path.abspath(
+                    os.path.join(os.path.dirname(maybe_venv_python_binary), resolved)
+                )
+            if os.path.dirname(resolved) == os.path.dirname(maybe_venv_python_binary):
+                maybe_venv_python_binary = resolved
+            else:
+                # We've escaped the venv bin dir; so the last resolved link was the
+                # canonical venv Python binary.
+                #
+                # For example, for:
+                #   ./venv/bin/
+                #     python -> python3.8
+                #     python3 -> python3.8
+                #     python3.8 -> /usr/bin/python3.8
+                #
+                # We want to resolve each of ./venv/bin/python{,3{,.8}} to the canonical
+                # ./venv/bin/python3.8 which is the symlink that points to the home binary.
+                break
+        return maybe_venv_python_binary
+
+    @classmethod
+    def canonicalize_path(cls, path):
+        # type: (str) -> str
+        """Canonicalize a potential Python interpreter path.
+
+        This will return a path-equivalent of the given `path` in canonical form for use in cache
+        keys.
+
+        N.B.: If the path is a venv symlink it will not be fully de-referenced in order to maintain
+        fidelity with the requested venv Python binary choice.
+        """
+        real_binary = os.path.realpath(path)
+
+        # If the path is a PEP-405 venv interpreter symlink we do not want to resolve outside of the
+        # venv in order to stay faithful to the binary path choice.
+        return (
+            cls._resolve_pyvenv_canonical_python_binary(
+                real_binary=real_binary, maybe_venv_python_binary=path
+            )
+            or real_binary
+        )
 
     class Error(Exception):
         pass
@@ -549,18 +644,18 @@ class PythonInterpreter(object):
 
     @classmethod
     def _spawn_from_binary(cls, binary):
-        normalized_binary = cls._normalize_path(binary)
-        if not os.path.exists(normalized_binary):
-            raise cls.InterpreterNotFound(normalized_binary)
+        canonicalized_binary = cls.canonicalize_path(binary)
+        if not os.path.exists(canonicalized_binary):
+            raise cls.InterpreterNotFound(canonicalized_binary)
 
         # N.B.: The cache is written as the last step in PythonInterpreter instance initialization.
-        cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(normalized_binary)
+        cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(canonicalized_binary)
         if cached_interpreter is not None:
             return SpawnedJob.completed(cached_interpreter)
-        if normalized_binary == cls._normalize_path(sys.executable):
+        if canonicalized_binary == cls.canonicalize_path(sys.executable):
             current_interpreter = cls(PythonIdentity.get())
             return SpawnedJob.completed(current_interpreter)
-        return cls._spawn_from_binary_external(normalized_binary)
+        return cls._spawn_from_binary_external(canonicalized_binary)
 
     @classmethod
     def from_binary(cls, binary):
@@ -695,7 +790,7 @@ class PythonInterpreter(object):
         You should probably use `PythonInterpreter.from_binary` instead.
         """
         self._identity = identity
-        self._binary = self._normalize_path(self.identity.binary)
+        self._binary = self.canonicalize_path(self.identity.binary)
 
         self._supported_platforms = None
 
