@@ -78,8 +78,8 @@ class PEX(object):  # noqa: T000
         self._pex_info = PexInfo.from_pex(self._pex)
         self._pex_info_overrides = PexInfo.from_env(env=env)
         self._vars = env
-        self._envs = []
-        self._working_set = None
+        self._envs = []  # type: List[PEXEnvironment]
+        self._working_set = None  # type: Optional[WorkingSet]
         if verify_entry_point:
             self._do_entry_point_verification()
 
