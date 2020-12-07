@@ -83,14 +83,19 @@ class PEX(object):  # noqa: T000
         if verify_entry_point:
             self._do_entry_point_verification()
 
+    def pex_info(self):
+        # type: () -> PexInfo
+        pex_info = self._pex_info.copy()
+        pex_info.update(self._pex_info_overrides)
+        pex_info.merge_pex_path(self._vars.PEX_PATH)
+        return pex_info
+
     def _activate(self):
         if not self._working_set:
             working_set = WorkingSet([])
 
             # set up the local .pex environment
-            pex_info = self._pex_info.copy()
-            pex_info.update(self._pex_info_overrides)
-            pex_info.merge_pex_path(self._vars.PEX_PATH)
+            pex_info = self.pex_info()
             self._envs.append(PEXEnvironment(self._pex, pex_info, interpreter=self._interpreter))
             # N.B. by this point, `pex_info.pex_path` will contain a single pex path
             # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
@@ -104,14 +109,6 @@ class PEX(object):  # noqa: T000
                     self._envs.append(
                         PEXEnvironment(pex_path, pex_info, interpreter=self._interpreter)
                     )
-
-    def pex_info(self):
-        # type: () -> PexInfo
-        pex_info = self._pex_info.copy()
-        pex_info.update(self._pex_info_overrides)
-        pex_info.merge_pex_path(self._vars.PEX_PATH)
-        return pex_info
-
         return self._working_set
 
     @classmethod
