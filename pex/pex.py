@@ -109,6 +109,17 @@ class PEX(object):  # noqa: T000
                     self._envs.append(
                         PEXEnvironment(pex_path, pex_info, interpreter=self._interpreter)
                     )
+
+            # activate all of them
+            for env in self._envs:
+                for dist in env.activate():
+                    working_set.add(dist)
+
+            # Ensure that pkg_resources is not imported until at least every pex environment
+            # (i.e. PEX_PATH) has been merged into the environment
+            PEXEnvironment.declare_namespace_packages(working_set)
+            self._working_set = working_set
+
         return self._working_set
 
     @classmethod
