@@ -96,35 +96,41 @@ class PEX(object):  # noqa: T000
         return self._interpreter
 
     def _activate(self):
+        # type: () -> WorkingSet
+        working_set = WorkingSet([])
+
+        # set up the local .pex environment
+        pex_info = self.pex_info()
+        self._envs.append(PEXEnvironment(self._pex, pex_info, interpreter=self._interpreter))
+        # N.B. by this point, `pex_info.pex_path` will contain a single pex path
+        # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
+        # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
+        # in the environment.
+        if pex_info.pex_path:
+            # set up other environments as specified in pex_path
+            for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
+                pex_info = PexInfo.from_pex(pex_path)
+                pex_info.update(self._pex_info_overrides)
+                self._envs.append(PEXEnvironment(pex_path, pex_info, interpreter=self._interpreter))
+
+        # activate all of them
+        for env in self._envs:
+            for dist in env.activate():
+                working_set.add(dist)
+
+        # Ensure that pkg_resources is not imported until at least every pex environment
+        # (i.e. PEX_PATH) has been merged into the environment
+        PEXEnvironment.declare_namespace_packages(working_set)
+        self.patch_pkg_resources(working_set)
+        return working_set
+
+    def activate(self):
+        # type: () -> WorkingSet
         if not self._working_set:
-            working_set = WorkingSet([])
-
-            # set up the local .pex environment
-            pex_info = self.pex_info()
-            self._envs.append(PEXEnvironment(self._pex, pex_info, interpreter=self._interpreter))
-            # N.B. by this point, `pex_info.pex_path` will contain a single pex path
-            # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
-            # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
-            # in the environment.
-            if pex_info.pex_path:
-                # set up other environments as specified in pex_path
-                for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
-                    pex_info = PexInfo.from_pex(pex_path)
-                    pex_info.update(self._pex_info_overrides)
-                    self._envs.append(
-                        PEXEnvironment(pex_path, pex_info, interpreter=self._interpreter)
-                    )
-
-            # activate all of them
-            for env in self._envs:
-                for dist in env.activate():
-                    working_set.add(dist)
-
-            # Ensure that pkg_resources is not imported until at least every pex environment
-            # (i.e. PEX_PATH) has been merged into the environment
-            PEXEnvironment.declare_namespace_packages(working_set)
-            self._working_set = working_set
-
+            # 1. Scrub the sys.path to present a minimal Python environment.
+            self.patch_sys()
+            # 2. Activate all code and distributions in the PEX.
+            self._working_set = self._activate()
         return self._working_set
 
     @classmethod
@@ -366,9 +372,12 @@ class PEX(object):  # noqa: T000
 
     # Thar be dragons -- when this function exits, the interpreter is potentially in a wonky state
     # since the patches here (minimum_sys_modules for example) actually mutate global state.
-    def patch_sys(self, inherit_path):
-        # type: (InheritPath.Value) -> None
+    def patch_sys(self):
+        # type: () -> None
         """Patch sys with all site scrubbed."""
+        inherit_path = self._vars.PEX_INHERIT_PATH
+        if inherit_path == InheritPath.FALSE:
+            inherit_path = self._pex_info.inherit_path
 
         def patch_dict(old_value, new_value):
             # type: (Dict[_K, _V], Mapping[_K, _V]) -> None
@@ -462,23 +471,19 @@ class PEX(object):  # noqa: T000
         sys.argv[0] = os.environ.pop("__PEX_EXE__", sys.argv[0])
 
         try:
-            pex_inherit_path = self._vars.PEX_INHERIT_PATH
-            if pex_inherit_path == InheritPath.FALSE:
-                pex_inherit_path = self._pex_info.inherit_path
-            self.patch_sys(pex_inherit_path)
-            working_set = self._activate()
-            self.patch_pkg_resources(working_set)
             if self._vars.PEX_TOOLS:
                 try:
                     from pex.tools import main as tools
                 except ImportError as e:
                     die(
-                        "This PEX was not built with tools (Re-build the PEX file with "
-                        "`pex --include-tools ...`): {}".format(e)
+                        "The PEX_TOOLS environment variable was set, but this PEX was not built "
+                        "with tools (Re-build the PEX file with `pex --include-tools ...`):"
+                        " {}".format(e)
                     )
 
                 exit_code = tools.main(pex=self, pex_prog_path=sys.argv[0])
             else:
+                self.activate()
                 exit_code = self._wrap_coverage(self._wrap_profiling, self._execute)
             if exit_code:
                 sys.exit(exit_code)
@@ -601,7 +606,7 @@ class PEX(object):  # noqa: T000
             code.interact()
 
     def execute_script(self, script_name):
-        dists = list(self._activate())
+        dists = list(self.activate())
 
         dist, entry_point = get_entry_point_from_console_script(script_name, dists)
         if entry_point:
