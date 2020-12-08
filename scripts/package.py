@@ -45,6 +45,7 @@ def build_pex_pex(output_file: PurePath, local: bool = False, verbosity: int = 0
         "/usr/bin/env python",
         "--no-strip-pex-env",
         "--unzip",
+        "--include-tools",
         "-o",
         str(output_file),
         "-c",

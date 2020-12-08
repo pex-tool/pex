@@ -27,7 +27,7 @@ from pex.third_party.pkg_resources import EntryPoint, WorkingSet, find_distribut
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import iter_pth_paths, named_temporary_file
-from pex.variables import ENV
+from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, TypeVar
@@ -65,25 +65,37 @@ class PEX(object):  # noqa: T000
                 if key.startswith("PEX_"):
                     del env[key]
 
-    def __init__(self, pex=sys.argv[0], interpreter=None, env=ENV, verify_entry_point=False):
+    def __init__(
+        self,
+        pex=sys.argv[0],  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+        env=ENV,  # type: Variables
+        verify_entry_point=False,  # type: bool
+    ):
+        # type: (...) -> None
         self._pex = pex
         self._interpreter = interpreter or PythonInterpreter.get()
         self._pex_info = PexInfo.from_pex(self._pex)
         self._pex_info_overrides = PexInfo.from_env(env=env)
         self._vars = env
-        self._envs = []
-        self._working_set = None
+        self._envs = []  # type: List[PEXEnvironment]
+        self._working_set = None  # type: Optional[WorkingSet]
         if verify_entry_point:
             self._do_entry_point_verification()
+
+    def pex_info(self):
+        # type: () -> PexInfo
+        pex_info = self._pex_info.copy()
+        pex_info.update(self._pex_info_overrides)
+        pex_info.merge_pex_path(self._vars.PEX_PATH)
+        return pex_info
 
     def _activate(self):
         if not self._working_set:
             working_set = WorkingSet([])
 
             # set up the local .pex environment
-            pex_info = self._pex_info.copy()
-            pex_info.update(self._pex_info_overrides)
-            pex_info.merge_pex_path(self._vars.PEX_PATH)
+            pex_info = self.pex_info()
             self._envs.append(PEXEnvironment(self._pex, pex_info, interpreter=self._interpreter))
             # N.B. by this point, `pex_info.pex_path` will contain a single pex path
             # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
@@ -426,6 +438,7 @@ class PEX(object):  # noqa: T000
                 profiler.print_stats(sort=pex_profile_sort)
 
     def path(self):
+        # type: () -> str
         """Return the path this PEX was built at."""
         return self._pex
 
@@ -436,6 +449,13 @@ class PEX(object):  # noqa: T000
         This function makes assumptions that it is the last function called by the interpreter.
         """
         teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
+
+        # N.B.: This is set in `__main__.py` of the executed PEX by `PEXBuilder` when we've been
+        # executed from within a PEX zip file in `--unzip` mode.  We replace `sys.argv[0]` to avoid
+        # confusion and allow the user code we hand off to to provide useful messages and fully
+        # valid re-execs that always re-directed through the PEX file.
+        sys.argv[0] = os.environ.pop("__PEX_EXE__", sys.argv[0])
+
         try:
             pex_inherit_path = self._vars.PEX_INHERIT_PATH
             if pex_inherit_path == InheritPath.FALSE:
@@ -443,12 +463,23 @@ class PEX(object):  # noqa: T000
             self.patch_sys(pex_inherit_path)
             working_set = self._activate()
             self.patch_pkg_resources(working_set)
-            exit_code = self._wrap_coverage(self._wrap_profiling, self._execute)
+            if self._vars.PEX_TOOLS:
+                try:
+                    from pex.tools import main as tools
+                except ImportError as e:
+                    die(
+                        "This PEX was not built with tools (Re-build the PEX file with "
+                        "`pex --include-tools ...`): {}".format(e)
+                    )
+
+                exit_code = tools.main(pex=self, pex_prog_path=sys.argv[0])
+            else:
+                exit_code = self._wrap_coverage(self._wrap_profiling, self._execute)
             if exit_code:
                 sys.exit(exit_code)
         except Exception:
-            # Allow the current sys.excepthook to handle this app exception before we tear things down in
-            # finally, then reraise so that the exit status is reflected correctly.
+            # Allow the current sys.excepthook to handle this app exception before we tear things
+            # down in finally, then reraise so that the exit status is reflected correctly.
             sys.excepthook(*sys.exc_info())
             raise
         except SystemExit as se:
@@ -479,12 +510,6 @@ class PEX(object):  # noqa: T000
 
     def _execute(self):
         force_interpreter = self._vars.PEX_INTERPRETER
-
-        # N.B.: This is set in `__main__.py` of the executed PEX by `PEXBuilder` when we've been
-        # executed from within a PEX zip file in `--unzip` mode.  We replace `sys.argv[0]` to avoid
-        # confusion and allow the user code we hand off to to provide useful messages and fully valid
-        # re-execs that always re-directed through the PEX file.
-        sys.argv[0] = os.environ.pop("__PEX_EXE__", sys.argv[0])
 
         self._clean_environment(strip_pex_env=self._pex_info.strip_pex_env)
 
