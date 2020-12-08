@@ -25,7 +25,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Container, Optional
 
 
 def _import_pkg_resources():
@@ -107,6 +107,26 @@ class PEXEnvironment(Environment):
         sys.path_hooks.insert(0, pypy_zipimporter_workaround)
 
     @classmethod
+    def explode_code(
+        cls,
+        pex_file,  # type: str
+        pex_info,  # type: PexInfo
+        dest_dir,  # type: str
+        exclude=(),  # type: Container[str]
+    ):
+        # type: (...) -> None
+        with TRACER.timed("Unzipping {}".format(pex_file)):
+            with open_zip(pex_file) as pex_zip:
+                pex_files = (
+                    name
+                    for name in pex_zip.namelist()
+                    if not name.startswith(pex_builder.BOOTSTRAP_DIR)
+                    and not name.startswith(pex_info.internal_cache)
+                    and name not in exclude
+                )
+                pex_zip.extractall(dest_dir, pex_files)
+
+    @classmethod
     def _force_local(cls, pex_file, pex_info):
         if pex_info.code_hash is None:
             # Do not support force_local if code_hash is not set. (It should always be set.)
@@ -115,15 +135,7 @@ class PEXEnvironment(Environment):
         TRACER.log("PEX is not zip safe, exploding to %s" % explode_dir)
         with atomic_directory(explode_dir, exclusive=True) as explode_tmp:
             if explode_tmp:
-                with TRACER.timed("Unzipping %s" % pex_file):
-                    with open_zip(pex_file) as pex_zip:
-                        pex_files = (
-                            x
-                            for x in pex_zip.namelist()
-                            if not x.startswith(pex_builder.BOOTSTRAP_DIR)
-                            and not x.startswith(pex_info.internal_cache)
-                        )
-                        pex_zip.extractall(explode_tmp, pex_files)
+                cls.explode_code(pex_file, pex_info, explode_tmp)
         return explode_dir
 
     @classmethod
