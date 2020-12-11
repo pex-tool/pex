@@ -5,8 +5,6 @@
 
 from __future__ import absolute_import
 
-import os
-
 from pex.common import die
 from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.typing import TYPE_CHECKING
@@ -37,17 +35,27 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         constraints,  # type: Iterable[str]
         candidates,  # type: Iterable[PythonInterpreter]
         failures,  # type: Iterable[InterpreterIdentificationError]
+        preamble=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         """
         :param constraints: The constraints that could not be satisfied.
         :param candidates: The python interpreters that were compared against the constraints.
         :param failures: Descriptions of the python interpreters that were unidentifiable.
+        :param preamble: An optional preamble for the exception message.
         """
         self.constraints = tuple(constraints)
         self.candidates = tuple(candidates)
         self.failures = tuple(failures)
-        super(UnsatisfiableInterpreterConstraintsError, self).__init__(self.create_message())
+        super(UnsatisfiableInterpreterConstraintsError, self).__init__(
+            self.create_message(preamble=preamble)
+        )
+
+    def with_preamble(self, preamble):
+        # type: (str) -> UnsatisfiableInterpreterConstraintsError
+        return UnsatisfiableInterpreterConstraintsError(
+            self.constraints, self.candidates, self.failures, preamble=preamble
+        )
 
     def create_message(self, preamble=None):
         # type: (Optional[str]) -> str
