@@ -1,10 +1,10 @@
 from __future__ import absolute_import
+
 import re
 from collections import namedtuple
 
 from ..exceptions import LocationParseError
 from ..packages import six
-
 
 url_attrs = ["scheme", "auth", "host", "port", "path", "query", "fragment"]
 
@@ -18,7 +18,7 @@ PERCENT_RE = re.compile(r"%[a-fA-F0-9]{2}")
 SCHEME_RE = re.compile(r"^(?:[a-zA-Z][a-zA-Z0-9+-]*:|/)")
 URI_RE = re.compile(
     r"^(?:([a-zA-Z][a-zA-Z0-9+.-]*):)?"
-    r"(?://([^/?#]*))?"
+    r"(?://([^\\/?#]*))?"
     r"([^?#]*)"
     r"(?:\?([^#]*))?"
     r"(?:#(.*))?$",
@@ -55,7 +55,7 @@ IPV6_PAT = "(?:" + "|".join([x % _subs for x in _variations]) + ")"
 ZONE_ID_PAT = "(?:%25|%)(?:[" + UNRESERVED_PAT + "]|%[a-fA-F0-9]{2})+"
 IPV6_ADDRZ_PAT = r"\[" + IPV6_PAT + r"(?:" + ZONE_ID_PAT + r")?\]"
 REG_NAME_PAT = r"(?:[^\[\]%:/?#]|%[a-fA-F0-9]{2})*"
-TARGET_RE = re.compile(r"^(/[^?]*)(?:\?([^#]+))?(?:#(.*))?$")
+TARGET_RE = re.compile(r"^(/[^?#]*)(?:\?([^#]*))?(?:#.*)?$")
 
 IPV4_RE = re.compile("^" + IPV4_PAT + "$")
 IPV6_RE = re.compile("^" + IPV6_PAT + "$")
@@ -216,18 +216,15 @@ def _encode_invalid_chars(component, allowed_chars, encoding="utf-8"):
 
     component = six.ensure_text(component)
 
+    # Normalize existing percent-encoded bytes.
     # Try to see if the component we're encoding is already percent-encoded
     # so we can skip all '%' characters but still encode all others.
-    percent_encodings = PERCENT_RE.findall(component)
-
-    # Normalize existing percent-encoded bytes.
-    for enc in percent_encodings:
-        if not enc.isupper():
-            component = component.replace(enc, enc.upper())
+    component, percent_encodings = PERCENT_RE.subn(
+        lambda match: match.group(0).upper(), component
+    )
 
     uri_bytes = component.encode("utf-8", "surrogatepass")
-    is_percent_encoded = len(percent_encodings) == uri_bytes.count(b"%")
-
+    is_percent_encoded = percent_encodings == uri_bytes.count(b"%")
     encoded_component = bytearray()
 
     for i in range(0, len(uri_bytes)):
@@ -237,7 +234,7 @@ def _encode_invalid_chars(component, allowed_chars, encoding="utf-8"):
         if (is_percent_encoded and byte == b"%") or (
             byte_ord < 128 and byte.decode() in allowed_chars
         ):
-            encoded_component.extend(byte)
+            encoded_component += byte
             continue
         encoded_component.extend(b"%" + (hex(byte_ord)[2:].encode().zfill(2).upper()))
 
@@ -322,17 +319,11 @@ def _idna_encode(name):
 
 def _encode_target(target):
     """Percent-encodes a request target so that there are no invalid characters"""
-    if not target.startswith("/"):
-        return target
-
-    path, query, fragment = TARGET_RE.match(target).groups()
+    path, query = TARGET_RE.match(target).groups()
     target = _encode_invalid_chars(path, PATH_CHARS)
     query = _encode_invalid_chars(query, QUERY_CHARS)
-    fragment = _encode_invalid_chars(fragment, FRAGMENT_CHARS)
     if query is not None:
         target += "?" + query
-    if fragment is not None:
-        target += "#" + target
     return target
 
 

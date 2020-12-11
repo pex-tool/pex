@@ -29,8 +29,17 @@ from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
 if MYPY_CHECK_RUNNING:
     from typing import (
-        Any, Callable, Dict, Iterable, Iterator, List, Optional, Set, Tuple,
+        Any,
+        Callable,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Optional,
+        Set,
+        Tuple,
     )
+
     from pip._vendor.pkg_resources import Distribution
 
 logger = logging.getLogger(__name__)
@@ -295,7 +304,7 @@ class StashedUninstallPathSet(object):
         # type: () -> None
         """Undoes the uninstall by moving stashed files back."""
         for p in self._moves:
-            logging.info("Moving to %s\n from %s", *p)
+            logger.info("Moving to %s\n from %s", *p)
 
         for new_path, path in self._moves:
             try:
@@ -540,8 +549,9 @@ class UninstallPathSet(object):
             with open(develop_egg_link, 'r') as fh:
                 link_pointer = os.path.normcase(fh.readline().strip())
             assert (link_pointer == dist.location), (
-                'Egg-link %s does not match installed location of %s '
-                '(at %s)' % (link_pointer, dist.project_name, dist.location)
+                'Egg-link {} does not match installed location of {} '
+                '(at {})'.format(
+                    link_pointer, dist.project_name, dist.location)
             )
             paths_to_remove.add(develop_egg_link)
             easy_install_pth = os.path.join(os.path.dirname(develop_egg_link),
@@ -584,10 +594,6 @@ class UninstallPathSet(object):
 class UninstallPthEntries(object):
     def __init__(self, pth_file):
         # type: (str) -> None
-        if not os.path.isfile(pth_file):
-            raise UninstallationError(
-                "Cannot remove entries from nonexistent file %s" % pth_file
-            )
         self.file = pth_file
         self.entries = set()  # type: Set[str]
         self._saved_lines = None  # type: Optional[List[bytes]]
@@ -611,6 +617,13 @@ class UninstallPthEntries(object):
     def remove(self):
         # type: () -> None
         logger.debug('Removing pth entries from %s:', self.file)
+
+        # If the file doesn't exist, log a warning and return
+        if not os.path.isfile(self.file):
+            logger.warning(
+                "Cannot remove entries from nonexistent file %s", self.file
+            )
+            return
         with open(self.file, 'rb') as fh:
             # windows uses '\r\n' with py3k, but uses '\n' with py2.x
             lines = fh.readlines()

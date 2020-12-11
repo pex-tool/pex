@@ -5,6 +5,7 @@ from __future__ import absolute_import, division, print_function
 
 import string
 import re
+import sys
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
   from pyparsing import stringStart, stringEnd, originalTextFor, ParseException  # vendor:skip
@@ -21,15 +22,16 @@ if "__PEX_UNVENDORED__" in __import__("os").environ:
 else:
   from pex.third_party.pyparsing import Literal as L
   # noqa
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from six.moves.urllib import parse as urlparse  # vendor:skip
-else:
-  from pex.third_party.six.moves.urllib import parse as urlparse
-
 
 from ._typing import TYPE_CHECKING
 from .markers import MARKER_EXPR, Marker
 from .specifiers import LegacySpecifier, Specifier, SpecifierSet
+
+if sys.version_info[0] >= 3:
+    from urllib import parse as urlparse  # pragma: no cover
+else:  # pragma: no cover
+    import urlparse
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import List

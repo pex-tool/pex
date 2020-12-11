@@ -7,8 +7,8 @@ import logging
 import os
 import shutil
 import sys
+import uuid
 import zipfile
-from distutils.util import change_root
 
 from pip._vendor import pkg_resources, six
 from pip._vendor.packaging.requirements import Requirement
@@ -17,57 +17,51 @@ from pip._vendor.packaging.version import Version
 from pip._vendor.packaging.version import parse as parse_version
 from pip._vendor.pep517.wrappers import Pep517HookCaller
 
-from pip._internal import pep425tags
 from pip._internal.build_env import NoOpBuildEnvironment
 from pip._internal.exceptions import InstallationError
 from pip._internal.locations import get_scheme
 from pip._internal.models.link import Link
 from pip._internal.operations.build.metadata import generate_metadata
-from pip._internal.operations.build.metadata_legacy import \
-    generate_metadata as generate_metadata_legacy
-from pip._internal.operations.install.editable_legacy import \
-    install as install_editable_legacy
+from pip._internal.operations.build.metadata_legacy import (
+    generate_metadata as generate_metadata_legacy,
+)
+from pip._internal.operations.install.editable_legacy import (
+    install_editable as install_editable_legacy,
+)
+from pip._internal.operations.install.legacy import LegacyInstallFailure
+from pip._internal.operations.install.legacy import install as install_legacy
 from pip._internal.operations.install.wheel import install_wheel
 from pip._internal.pyproject import load_pyproject_toml, make_pyproject_path
 from pip._internal.req.req_uninstall import UninstallPathSet
 from pip._internal.utils.deprecation import deprecated
+from pip._internal.utils.direct_url_helpers import direct_url_from_link
 from pip._internal.utils.hashes import Hashes
 from pip._internal.utils.logging import indent_log
-from pip._internal.utils.marker_files import (
-    PIP_DELETE_MARKER_FILENAME,
-    has_delete_marker_file,
-)
 from pip._internal.utils.misc import (
-    _make_build_dir,
     ask_path_exists,
     backup_dir,
     display_path,
     dist_in_site_packages,
     dist_in_usersite,
-    ensure_dir,
+    get_distribution,
     get_installed_version,
     hide_url,
     redact_auth_from_url,
-    rmtree,
 )
 from pip._internal.utils.packaging import get_metadata
-from pip._internal.utils.setuptools_build import make_setuptools_install_args
-from pip._internal.utils.subprocess import runner_with_spinner_message
-from pip._internal.utils.temp_dir import TempDirectory
+from pip._internal.utils.temp_dir import TempDirectory, tempdir_kinds
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 from pip._internal.utils.virtualenv import running_under_virtualenv
 from pip._internal.vcs import vcs
 
 if MYPY_CHECK_RUNNING:
-    from typing import (
-        Any, Dict, Iterable, List, Optional, Sequence, Union,
-    )
-    from pip._internal.build_env import BuildEnvironment
-    from pip._internal.cache import WheelCache
-    from pip._internal.index.package_finder import PackageFinder
-    from pip._vendor.pkg_resources import Distribution
-    from pip._vendor.packaging.specifiers import SpecifierSet
+    from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
+
     from pip._vendor.packaging.markers import Marker
+    from pip._vendor.packaging.specifiers import SpecifierSet
+    from pip._vendor.pkg_resources import Distribution
+
+    from pip._internal.build_env import BuildEnvironment
 
 
 logger = logging.getLogger(__name__)
@@ -80,17 +74,18 @@ def _get_dist(metadata_directory):
     """
     dist_dir = metadata_directory.rstrip(os.sep)
 
+    # Build a PathMetadata object, from path to metadata. :wink:
+    base_dir, dist_dir_name = os.path.split(dist_dir)
+    metadata = pkg_resources.PathMetadata(base_dir, dist_dir)
+
     # Determine the correct Distribution object type.
     if dist_dir.endswith(".egg-info"):
         dist_cls = pkg_resources.Distribution
+        dist_name = os.path.splitext(dist_dir_name)[0]
     else:
         assert dist_dir.endswith(".dist-info")
         dist_cls = pkg_resources.DistInfoDistribution
-
-    # Build a PathMetadata object, from path to metadata. :wink:
-    base_dir, dist_dir_name = os.path.split(dist_dir)
-    dist_name = os.path.splitext(dist_dir_name)[0]
-    metadata = pkg_resources.PathMetadata(base_dir, dist_dir)
+        dist_name = os.path.splitext(dist_dir_name)[0].split("-")[0]
 
     return dist_cls(
         base_dir,
@@ -110,33 +105,45 @@ class InstallRequirement(object):
         self,
         req,  # type: Optional[Requirement]
         comes_from,  # type: Optional[Union[str, InstallRequirement]]
-        source_dir=None,  # type: Optional[str]
         editable=False,  # type: bool
         link=None,  # type: Optional[Link]
         markers=None,  # type: Optional[Marker]
         use_pep517=None,  # type: Optional[bool]
         isolated=False,  # type: bool
-        options=None,  # type: Optional[Dict[str, Any]]
-        wheel_cache=None,  # type: Optional[WheelCache]
+        install_options=None,  # type: Optional[List[str]]
+        global_options=None,  # type: Optional[List[str]]
+        hash_options=None,  # type: Optional[Dict[str, List[str]]]
         constraint=False,  # type: bool
-        extras=()  # type: Iterable[str]
+        extras=(),  # type: Iterable[str]
+        user_supplied=False,  # type: bool
     ):
         # type: (...) -> None
         assert req is None or isinstance(req, Requirement), req
         self.req = req
         self.comes_from = comes_from
         self.constraint = constraint
-        if source_dir is None:
-            self.source_dir = None  # type: Optional[str]
-        else:
-            self.source_dir = os.path.normpath(os.path.abspath(source_dir))
         self.editable = editable
+        self.legacy_install_reason = None  # type: Optional[int]
 
-        self._wheel_cache = wheel_cache
+        # source_dir is the local directory where the linked requirement is
+        # located, or unpacked. In case unpacking is needed, creating and
+        # populating source_dir is done by the RequirementPreparer. Note this
+        # is not necessarily the directory where pyproject.toml or setup.py is
+        # located - that one is obtained via unpacked_source_directory.
+        self.source_dir = None  # type: Optional[str]
+        if self.editable:
+            assert link
+            if link.is_file:
+                self.source_dir = os.path.normpath(
+                    os.path.abspath(link.file_path)
+                )
+
         if link is None and req and req.url:
             # PEP 508 URL requirement
             link = Link(req.url)
         self.link = self.original_link = link
+        self.original_link_is_in_wheel_cache = False
+
         # Path to any downloaded or already-existing package.
         self.local_file_path = None  # type: Optional[str]
         if self.link and self.link.is_file:
@@ -164,10 +171,16 @@ class InstallRequirement(object):
         self._temp_build_dir = None  # type: Optional[TempDirectory]
         # Set to True after successful installation
         self.install_succeeded = None  # type: Optional[bool]
-        self.options = options if options else {}
+        # Supplied options
+        self.install_options = install_options if install_options else []
+        self.global_options = global_options if global_options else []
+        self.hash_options = hash_options if hash_options else {}
         # Set to True after successful preparation of this requirement
         self.prepared = False
-        self.is_direct = False
+        # User supplied requirement are explicitly requested for installation
+        # by the user via CLI arguments or requirements files, as opposed to,
+        # e.g. dependencies, extras or constraints.
+        self.user_supplied = user_supplied
 
         self.isolated = isolated
         self.build_env = NoOpBuildEnvironment()  # type: BuildEnvironment
@@ -194,30 +207,33 @@ class InstallRequirement(object):
         # but after loading this flag should be treated as read only.
         self.use_pep517 = use_pep517
 
+        # This requirement needs more preparation before it can be built
+        self.needs_more_preparation = False
+
     def __str__(self):
         # type: () -> str
         if self.req:
             s = str(self.req)
             if self.link:
-                s += ' from %s' % redact_auth_from_url(self.link.url)
+                s += ' from {}'.format(redact_auth_from_url(self.link.url))
         elif self.link:
             s = redact_auth_from_url(self.link.url)
         else:
             s = '<InstallRequirement>'
         if self.satisfied_by is not None:
-            s += ' in %s' % display_path(self.satisfied_by.location)
+            s += ' in {}'.format(display_path(self.satisfied_by.location))
         if self.comes_from:
             if isinstance(self.comes_from, six.string_types):
                 comes_from = self.comes_from  # type: Optional[str]
             else:
                 comes_from = self.comes_from.from_path()
             if comes_from:
-                s += ' (from %s)' % comes_from
+                s += ' (from {})'.format(comes_from)
         return s
 
     def __repr__(self):
         # type: () -> str
-        return '<%s object: %s editable=%r>' % (
+        return '<{} object: {} editable={!r}>'.format(
             self.__class__.__name__, str(self), self.editable)
 
     def format_debug(self):
@@ -234,32 +250,6 @@ class InstallRequirement(object):
             name=self.__class__.__name__,
             state=", ".join(state),
         )
-
-    def populate_link(self, finder, upgrade, require_hashes):
-        # type: (PackageFinder, bool, bool) -> None
-        """Ensure that if a link can be found for this, that it is found.
-
-        Note that self.link may still be None - if Upgrade is False and the
-        requirement is already installed.
-
-        If require_hashes is True, don't use the wheel cache, because cached
-        wheels, always built locally, have different hashes than the files
-        downloaded from the index server and thus throw false hash mismatches.
-        Furthermore, cached wheels at present have undeterministic contents due
-        to file modification times.
-        """
-        if self.link is None:
-            self.link = finder.find_requirement(self, upgrade)
-        if self._wheel_cache is not None and not require_hashes:
-            old_link = self.link
-            supported_tags = pep425tags.get_supported()
-            self.link = self._wheel_cache.get(
-                link=self.link,
-                package_name=self.name,
-                supported_tags=supported_tags,
-            )
-            if old_link != self.link:
-                logger.debug('Using cached wheel link: %s', self.link)
 
     # Things that are valid for all kinds of requirements?
     @property
@@ -312,7 +302,7 @@ class InstallRequirement(object):
         URL do not.
 
         """
-        return bool(self.options.get('hashes', {}))
+        return bool(self.hash_options)
 
     def hashes(self, trust_internet=True):
         # type: (bool) -> Hashes
@@ -330,7 +320,7 @@ class InstallRequirement(object):
             downloaded from the internet, as by populate_link()
 
         """
-        good_hashes = self.options.get('hashes', {}).copy()
+        good_hashes = self.hash_options.copy()
         link = self.link if trust_internet else self.original_link
         if link and link.hash:
             good_hashes.setdefault(link.hash_name, []).append(link.hash)
@@ -352,8 +342,8 @@ class InstallRequirement(object):
                 s += '->' + comes_from
         return s
 
-    def ensure_build_location(self, build_dir):
-        # type: (str) -> str
+    def ensure_build_location(self, build_dir, autodelete, parallel_builds):
+        # type: (str, bool, bool) -> str
         assert build_dir is not None
         if self._temp_build_dir is not None:
             assert self._temp_build_dir.path
@@ -362,19 +352,37 @@ class InstallRequirement(object):
             # Some systems have /tmp as a symlink which confuses custom
             # builds (such as numpy). Thus, we ensure that the real path
             # is returned.
-            self._temp_build_dir = TempDirectory(kind="req-build")
+            self._temp_build_dir = TempDirectory(
+                kind=tempdir_kinds.REQ_BUILD, globally_managed=True
+            )
 
             return self._temp_build_dir.path
-        if self.editable:
-            name = self.name.lower()
-        else:
-            name = self.name
+
+        # This is the only remaining place where we manually determine the path
+        # for the temporary directory. It is only needed for editables where
+        # it is the value of the --src option.
+
+        # When parallel builds are enabled, add a UUID to the build directory
+        # name so multiple builds do not interfere with each other.
+        dir_name = canonicalize_name(self.name)
+        if parallel_builds:
+            dir_name = "{}_{}".format(dir_name, uuid.uuid4().hex)
+
         # FIXME: Is there a better place to create the build_dir? (hg and bzr
         # need this)
         if not os.path.exists(build_dir):
             logger.debug('Creating directory %s', build_dir)
-            _make_build_dir(build_dir)
-        return os.path.join(build_dir, name)
+            os.makedirs(build_dir)
+        actual_build_dir = os.path.join(build_dir, dir_name)
+        # `None` indicates that we respect the globally-configured deletion
+        # settings, which is what we actually want when auto-deleting.
+        delete_arg = None if autodelete else False
+        return TempDirectory(
+            path=actual_build_dir,
+            delete=delete_arg,
+            kind=tempdir_kinds.REQ_BUILD,
+            globally_managed=True,
+        ).path
 
     def _set_requirement(self):
         # type: () -> None
@@ -414,19 +422,6 @@ class InstallRequirement(object):
         )
         self.req = Requirement(metadata_name)
 
-    def remove_temporary_source(self):
-        # type: () -> None
-        """Remove the source files from this requirement, if they are marked
-        for deletion"""
-        if self.source_dir and has_delete_marker_file(self.source_dir):
-            logger.debug('Removing source in %s', self.source_dir)
-            rmtree(self.source_dir)
-        self.source_dir = None
-        if self._temp_build_dir:
-            self._temp_build_dir.cleanup()
-            self._temp_build_dir = None
-        self.build_env.cleanup()
-
     def check_if_exists(self, use_user_site):
         # type: (bool) -> None
         """Find an installed distribution that satisfies or conflicts
@@ -435,20 +430,13 @@ class InstallRequirement(object):
         """
         if self.req is None:
             return
-        # get_distribution() will resolve the entire list of requirements
-        # anyway, and we've already determined that we need the requirement
-        # in question, so strip the marker so that we don't try to
-        # evaluate it.
-        no_marker = Requirement(str(self.req))
-        no_marker.marker = None
-        try:
-            self.satisfied_by = pkg_resources.get_distribution(str(no_marker))
-        except pkg_resources.DistributionNotFound:
+        existing_dist = get_distribution(self.req.name)
+        if not existing_dist:
             return
-        except pkg_resources.VersionConflict:
-            existing_dist = pkg_resources.get_distribution(
-                self.req.name
-            )
+
+        existing_version = existing_dist.parsed_version
+        if not self.req.specifier.contains(existing_version, prereleases=True):
+            self.satisfied_by = None
             if use_user_site:
                 if dist_in_usersite(existing_dist):
                     self.should_reinstall = True
@@ -456,17 +444,19 @@ class InstallRequirement(object):
                         dist_in_site_packages(existing_dist)):
                     raise InstallationError(
                         "Will not install to the user site because it will "
-                        "lack sys.path precedence to %s in %s" %
-                        (existing_dist.project_name, existing_dist.location)
+                        "lack sys.path precedence to {} in {}".format(
+                            existing_dist.project_name, existing_dist.location)
                     )
             else:
                 self.should_reinstall = True
         else:
-            if self.editable and self.satisfied_by:
+            if self.editable:
                 self.should_reinstall = True
                 # when installing editables, nothing pre-existing should ever
                 # satisfy
                 self.satisfied_by = None
+            else:
+                self.satisfied_by = existing_dist
 
     # Things valid for wheels
     @property
@@ -487,7 +477,7 @@ class InstallRequirement(object):
     @property
     def setup_py_path(self):
         # type: () -> str
-        assert self.source_dir, "No source dir for %s" % self
+        assert self.source_dir, "No source dir for {}".format(self)
         setup_py = os.path.join(self.unpacked_source_directory, 'setup.py')
 
         # Python2 __file__ should not be unicode
@@ -499,7 +489,7 @@ class InstallRequirement(object):
     @property
     def pyproject_toml_path(self):
         # type: () -> str
-        assert self.source_dir, "No source dir for %s" % self
+        assert self.source_dir, "No source dir for {}".format(self)
         return make_pyproject_path(self.unpacked_source_directory)
 
     def load_pyproject_toml(self):
@@ -541,7 +531,6 @@ class InstallRequirement(object):
                 build_env=self.build_env,
                 setup_py_path=self.setup_py_path,
                 source_dir=self.unpacked_source_directory,
-                editable=self.editable,
                 isolated=self.isolated,
                 details=self.name or "from {}".format(self.link)
             )
@@ -604,8 +593,13 @@ class InstallRequirement(object):
             )
 
     # For both source distributions and editables
-    def ensure_has_source_dir(self, parent_dir):
-        # type: (str) -> None
+    def ensure_has_source_dir(
+        self,
+        parent_dir,
+        autodelete=False,
+        parallel_builds=False,
+    ):
+        # type: (str, bool, bool) -> None
         """Ensure that a source_dir is set.
 
         This will create a temporary build dir if the name of the requirement
@@ -616,7 +610,11 @@ class InstallRequirement(object):
         :return: self.source_dir
         """
         if self.source_dir is None:
-            self.source_dir = self.ensure_build_location(parent_dir)
+            self.source_dir = self.ensure_build_location(
+                parent_dir,
+                autodelete=autodelete,
+                parallel_builds=parallel_builds,
+            )
 
     # For editable installations
     def update_editable(self, obtain=True):
@@ -633,10 +631,25 @@ class InstallRequirement(object):
         if self.link.scheme == 'file':
             # Static paths don't get updated
             return
-        assert '+' in self.link.url, "bad url: %r" % self.link.url
+        assert '+' in self.link.url, \
+            "bad url: {self.link.url!r}".format(**locals())
         vc_type, url = self.link.url.split('+', 1)
         vcs_backend = vcs.get_backend(vc_type)
         if vcs_backend:
+            if not self.link.is_vcs:
+                reason = (
+                    "This form of VCS requirement is being deprecated: {}."
+                ).format(
+                    self.link.url
+                )
+                replacement = None
+                if self.link.url.startswith("git+git@"):
+                    replacement = (
+                        "git+https://git@example.com/..., "
+                        "git+ssh://git@example.com/..., "
+                        "or the insecure git+git://git@example.com/..."
+                    )
+                deprecated(reason, replacement, gone_in="21.0", issue=7554)
             hidden_url = hide_url(self.link.url)
             if obtain:
                 vcs_backend.obtain(self.source_dir, url=hidden_url)
@@ -644,8 +657,8 @@ class InstallRequirement(object):
                 vcs_backend.export(self.source_dir, url=hidden_url)
         else:
             assert 0, (
-                'Unexpected version control type (in %s): %s'
-                % (self.link, vc_type))
+                'Unexpected version control type (in {}): {}'.format(
+                    self.link, vc_type))
 
     # Top-level Actions
     def uninstall(self, auto_confirm=False, verbose=False):
@@ -663,13 +676,11 @@ class InstallRequirement(object):
 
         """
         assert self.req
-        try:
-            dist = pkg_resources.get_distribution(self.req.name)
-        except pkg_resources.DistributionNotFound:
+        dist = get_distribution(self.req.name)
+        if not dist:
             logger.warning("Skipping %s as it is not installed.", self.name)
             return None
-        else:
-            logger.info('Found existing installation: %s', dist)
+        logger.info('Found existing installation: %s', dist)
 
         uninstalled_pathset = UninstallPathSet.from_dist(dist)
         uninstalled_pathset.remove(auto_confirm, verbose)
@@ -681,7 +692,8 @@ class InstallRequirement(object):
         def _clean_zip_name(name, prefix):
             # type: (str, str) -> str
             assert name.startswith(prefix + os.path.sep), (
-                "name %r doesn't start with prefix %r" % (name, prefix)
+                "name {name!r} doesn't start with prefix {prefix!r}"
+                .format(**locals())
             )
             name = name[len(prefix) + 1:]
             name = name.replace(os.path.sep, '/')
@@ -692,21 +704,25 @@ class InstallRequirement(object):
         return self.name + '/' + name
 
     def archive(self, build_dir):
-        # type: (str) -> None
+        # type: (Optional[str]) -> None
         """Saves archive to provided build_dir.
 
         Used for saving downloaded VCS requirements as part of `pip download`.
         """
         assert self.source_dir
+        if build_dir is None:
+            return
 
         create_archive = True
-        archive_name = '%s-%s.zip' % (self.name, self.metadata["version"])
+        archive_name = '{}-{}.zip'.format(self.name, self.metadata["version"])
         archive_path = os.path.join(build_dir, archive_name)
 
         if os.path.exists(archive_path):
             response = ask_path_exists(
-                'The file %s exists. (i)gnore, (w)ipe, (b)ackup, (a)bort ' %
-                display_path(archive_path), ('i', 'w', 'b', 'a'))
+                'The file {} exists. (i)gnore, (w)ipe, '
+                '(b)ackup, (a)bort '.format(
+                    display_path(archive_path)),
+                ('i', 'w', 'b', 'a'))
             if response == 'i':
                 create_archive = False
             elif response == 'w':
@@ -734,8 +750,6 @@ class InstallRequirement(object):
                 os.path.abspath(self.unpacked_source_directory)
             )
             for dirpath, dirnames, filenames in os.walk(dir):
-                if 'pip-egg-info' in dirnames:
-                    dirnames.remove('pip-egg-info')
                 for dirname in dirnames:
                     dir_arcname = self._get_archive_name(
                         dirname, parentdir=dirpath, rootdir=dir,
@@ -744,8 +758,6 @@ class InstallRequirement(object):
                     zipdir.external_attr = 0x1ED << 16  # 0o755
                     zip_output.writestr(zipdir, '')
                 for filename in filenames:
-                    if filename == PIP_DELETE_MARKER_FILENAME:
-                        continue
                     file_arcname = self._get_archive_name(
                         filename, parentdir=dirpath, rootdir=dir,
                     )
@@ -794,6 +806,13 @@ class InstallRequirement(object):
 
         if self.is_wheel:
             assert self.local_file_path
+            direct_url = None
+            if self.original_link:
+                direct_url = direct_url_from_link(
+                    self.original_link,
+                    self.source_dir,
+                    self.original_link_is_in_wheel_cache,
+                )
             install_wheel(
                 self.name,
                 self.local_file_path,
@@ -801,99 +820,88 @@ class InstallRequirement(object):
                 req_description=str(self.req),
                 pycompile=pycompile,
                 warn_script_location=warn_script_location,
+                direct_url=direct_url,
+                requested=self.user_supplied,
             )
             self.install_succeeded = True
             return
+
+        # TODO: Why don't we do this for editable installs?
 
         # Extend the list of global and install options passed on to
         # the setup.py call with the ones from the requirements file.
         # Options specified in requirements file override those
         # specified on the command line, since the last option given
         # to setup.py is the one that is used.
-        global_options = list(global_options) + \
-            self.options.get('global_options', [])
-        install_options = list(install_options) + \
-            self.options.get('install_options', [])
+        global_options = list(global_options) + self.global_options
+        install_options = list(install_options) + self.install_options
 
-        header_dir = scheme.headers
-
-        with TempDirectory(kind="record") as temp_dir:
-            record_filename = os.path.join(temp_dir.path, 'install-record.txt')
-            install_args = make_setuptools_install_args(
-                self.setup_py_path,
-                global_options=global_options,
+        try:
+            success = install_legacy(
                 install_options=install_options,
-                record_filename=record_filename,
+                global_options=global_options,
                 root=root,
-                prefix=prefix,
-                header_dir=header_dir,
                 home=home,
+                prefix=prefix,
                 use_user_site=use_user_site,
-                no_user_config=self.isolated,
                 pycompile=pycompile,
+                scheme=scheme,
+                setup_py_path=self.setup_py_path,
+                isolated=self.isolated,
+                req_name=self.name,
+                build_env=self.build_env,
+                unpacked_source_directory=self.unpacked_source_directory,
+                req_description=str(self.req),
             )
-
-            runner = runner_with_spinner_message(
-                "Running setup.py install for {}".format(self.name)
-            )
-            with indent_log(), self.build_env:
-                runner(
-                    cmd=install_args,
-                    cwd=self.unpacked_source_directory,
-                )
-
-            if not os.path.exists(record_filename):
-                logger.debug('Record file %s not found', record_filename)
-                return
+        except LegacyInstallFailure as exc:
+            self.install_succeeded = False
+            six.reraise(*exc.parent)
+        except Exception:
             self.install_succeeded = True
+            raise
 
-            # We intentionally do not use any encoding to read the file because
-            # setuptools writes the file using distutils.file_util.write_file,
-            # which does not specify an encoding.
-            with open(record_filename) as f:
-                record_lines = f.read().splitlines()
+        self.install_succeeded = success
 
-        def prepend_root(path):
-            # type: (str) -> str
-            if root is None or not os.path.isabs(path):
-                return path
-            else:
-                return change_root(root, path)
-
-        for line in record_lines:
-            directory = os.path.dirname(line)
-            if directory.endswith('.egg-info'):
-                egg_info_dir = prepend_root(directory)
-                break
-        else:
+        if success and self.legacy_install_reason == 8368:
             deprecated(
                 reason=(
-                    "{} did not indicate that it installed an "
-                    ".egg-info directory. Only setup.py projects "
-                    "generating .egg-info directories are supported."
-                ).format(self),
-                replacement=(
-                    "for maintainers: updating the setup.py of {0}. "
-                    "For users: contact the maintainers of {0} to let "
-                    "them know to update their setup.py.".format(
-                        self.name
-                    )
+                    "{} was installed using the legacy 'setup.py install' "
+                    "method, because a wheel could not be built for it.".
+                    format(self.name)
                 ),
-                gone_in="20.2",
-                issue=6998,
+                replacement="to fix the wheel build issue reported above",
+                gone_in="21.0",
+                issue=8368,
             )
-            # FIXME: put the record somewhere
-            return
-        new_lines = []
-        for line in record_lines:
-            filename = line.strip()
-            if os.path.isdir(filename):
-                filename += os.path.sep
-            new_lines.append(
-                os.path.relpath(prepend_root(filename), egg_info_dir)
-            )
-        new_lines.sort()
-        ensure_dir(egg_info_dir)
-        inst_files_path = os.path.join(egg_info_dir, 'installed-files.txt')
-        with open(inst_files_path, 'w') as f:
-            f.write('\n'.join(new_lines) + '\n')
+
+
+def check_invalid_constraint_type(req):
+    # type: (InstallRequirement) -> str
+
+    # Check for unsupported forms
+    problem = ""
+    if not req.name:
+        problem = "Unnamed requirements are not allowed as constraints"
+    elif req.link:
+        problem = "Links are not allowed as constraints"
+    elif req.extras:
+        problem = "Constraints cannot have extras"
+
+    if problem:
+        deprecated(
+            reason=(
+                "Constraints are only allowed to take the form of a package "
+                "name and a version specifier. Other forms were originally "
+                "permitted as an accident of the implementation, but were "
+                "undocumented. The new implementation of the resolver no "
+                "longer supports these forms."
+            ),
+            replacement=(
+                "replacing the constraint with a requirement."
+            ),
+            # No plan yet for when the new resolver becomes default
+            gone_in=None,
+            issue=8210
+        )
+
+    return problem

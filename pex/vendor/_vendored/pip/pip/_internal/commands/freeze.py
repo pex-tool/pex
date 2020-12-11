@@ -1,6 +1,3 @@
-# The following comment should be removed at some point in the future.
-# mypy: disallow-untyped-defs=False
-
 from __future__ import absolute_import
 
 import sys
@@ -8,11 +5,18 @@ import sys
 from pip._internal.cache import WheelCache
 from pip._internal.cli import cmdoptions
 from pip._internal.cli.base_command import Command
+from pip._internal.cli.status_codes import SUCCESS
 from pip._internal.models.format_control import FormatControl
 from pip._internal.operations.freeze import freeze
 from pip._internal.utils.compat import stdlib_pkgs
+from pip._internal.utils.deprecation import deprecated
+from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
 DEV_PKGS = {'pip', 'setuptools', 'distribute', 'wheel'}
+
+if MYPY_CHECK_RUNNING:
+    from optparse import Values
+    from typing import List
 
 
 class FreezeCommand(Command):
@@ -26,9 +30,8 @@ class FreezeCommand(Command):
       %prog [options]"""
     log_streams = ("ext://sys.stderr", "ext://sys.stderr")
 
-    def __init__(self, *args, **kw):
-        super(FreezeCommand, self).__init__(*args, **kw)
-
+    def add_options(self):
+        # type: () -> None
         self.cmd_opts.add_option(
             '-r', '--requirement',
             dest='requirements',
@@ -65,23 +68,36 @@ class FreezeCommand(Command):
             dest='freeze_all',
             action='store_true',
             help='Do not skip these packages in the output:'
-                 ' %s' % ', '.join(DEV_PKGS))
+                 ' {}'.format(', '.join(DEV_PKGS)))
         self.cmd_opts.add_option(
             '--exclude-editable',
             dest='exclude_editable',
             action='store_true',
             help='Exclude editable package from output.')
+        self.cmd_opts.add_option(cmdoptions.list_exclude())
 
         self.parser.insert_option_group(0, self.cmd_opts)
 
     def run(self, options, args):
+        # type: (Values, List[str]) -> int
         format_control = FormatControl(set(), set())
         wheel_cache = WheelCache(options.cache_dir, format_control)
         skip = set(stdlib_pkgs)
         if not options.freeze_all:
             skip.update(DEV_PKGS)
 
+        if options.excludes:
+            skip.update(options.excludes)
+
         cmdoptions.check_list_path_option(options)
+
+        if options.find_links:
+            deprecated(
+                "--find-links option in pip freeze is deprecated.",
+                replacement=None,
+                gone_in="21.2",
+                issue=9069,
+            )
 
         freeze_kwargs = dict(
             requirement=options.requirements,
@@ -89,15 +105,12 @@ class FreezeCommand(Command):
             local_only=options.local,
             user_only=options.user,
             paths=options.path,
-            skip_regex=options.skip_requirements_regex,
             isolated=options.isolated_mode,
             wheel_cache=wheel_cache,
             skip=skip,
             exclude_editable=options.exclude_editable,
         )
 
-        try:
-            for line in freeze(**freeze_kwargs):
-                sys.stdout.write(line + '\n')
-        finally:
-            wheel_cache.cleanup()
+        for line in freeze(**freeze_kwargs):
+            sys.stdout.write(line + '\n')
+        return SUCCESS

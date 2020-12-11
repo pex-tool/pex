@@ -16,30 +16,23 @@ import shutil
 import stat
 import sys
 from collections import deque
+from itertools import tee
 
 from pip._vendor import pkg_resources
+from pip._vendor.packaging.utils import canonicalize_name
+
 # NOTE: retrying is not annotated in typeshed as on 2017-07-17, which is
 #       why we ignore the type on this import.
 from pip._vendor.retrying import retry  # type: ignore
 from pip._vendor.six import PY2, text_type
-from pip._vendor.six.moves import input
+from pip._vendor.six.moves import filter, filterfalse, input, map, zip_longest
 from pip._vendor.six.moves.urllib import parse as urllib_parse
 from pip._vendor.six.moves.urllib.parse import unquote as urllib_unquote
 
 from pip import __version__
 from pip._internal.exceptions import CommandError
-from pip._internal.locations import (
-    get_major_minor_version,
-    site_packages,
-    user_site,
-)
-from pip._internal.utils.compat import (
-    WINDOWS,
-    expanduser,
-    stdlib_pkgs,
-    str_to_display,
-)
-from pip._internal.utils.marker_files import write_delete_marker_file
+from pip._internal.locations import get_major_minor_version, site_packages, user_site
+from pip._internal.utils.compat import WINDOWS, expanduser, stdlib_pkgs, str_to_display
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING, cast
 from pip._internal.utils.virtualenv import (
     running_under_virtualenv,
@@ -53,12 +46,24 @@ else:
 
 if MYPY_CHECK_RUNNING:
     from typing import (
-        Any, AnyStr, Container, Iterable, List, Optional, Text,
-        Tuple, Union,
+        Any,
+        AnyStr,
+        Callable,
+        Container,
+        Iterable,
+        Iterator,
+        List,
+        Optional,
+        Text,
+        Tuple,
+        TypeVar,
+        Union,
     )
+
     from pip._vendor.pkg_resources import Distribution
 
     VersionInfo = Tuple[int, int, int]
+    T = TypeVar("T")
 
 
 __all__ = ['rmtree', 'display_path', 'backup_dir',
@@ -121,7 +126,7 @@ def get_prog():
     try:
         prog = os.path.basename(sys.argv[0])
         if prog in ('__main__.py', '-c'):
-            return "%s -m pip" % sys.executable
+            return "{} -m pip".format(sys.executable)
         else:
             return prog
     except (AttributeError, TypeError, IndexError):
@@ -132,7 +137,7 @@ def get_prog():
 # Retry every half second for up to 3 seconds
 @retry(stop_max_delay=3000, wait_fixed=500)
 def rmtree(dir, ignore_errors=False):
-    # type: (str, bool) -> None
+    # type: (AnyStr, bool) -> None
     shutil.rmtree(dir, ignore_errors=ignore_errors,
                   onerror=rmtree_errorhandler)
 
@@ -229,8 +234,8 @@ def _check_no_input(message):
     """Raise an error if no input is allowed."""
     if os.environ.get('PIP_NO_INPUT'):
         raise Exception(
-            'No input was expected ($PIP_NO_INPUT set); question: %s' %
-            message
+            'No input was expected ($PIP_NO_INPUT set); question: {}'.format(
+                message)
         )
 
 
@@ -243,8 +248,8 @@ def ask(message, options):
         response = response.strip().lower()
         if response not in options:
             print(
-                'Your response (%r) was not one of the expected responses: '
-                '%s' % (response, ', '.join(options))
+                'Your response ({!r}) was not one of the expected responses: '
+                '{}'.format(response, ', '.join(options))
             )
         else:
             return response
@@ -267,13 +272,28 @@ def ask_password(message):
 def format_size(bytes):
     # type: (float) -> str
     if bytes > 1000 * 1000:
-        return '%.1f MB' % (bytes / 1000.0 / 1000)
+        return '{:.1f} MB'.format(bytes / 1000.0 / 1000)
     elif bytes > 10 * 1000:
-        return '%i kB' % (bytes / 1000)
+        return '{} kB'.format(int(bytes / 1000))
     elif bytes > 1000:
-        return '%.1f kB' % (bytes / 1000.0)
+        return '{:.1f} kB'.format(bytes / 1000.0)
     else:
-        return '%i bytes' % bytes
+        return '{} bytes'.format(int(bytes))
+
+
+def tabulate(rows):
+    # type: (Iterable[Iterable[Any]]) -> Tuple[List[str], List[int]]
+    """Return a list of formatted rows and a list of column sizes.
+
+    For example::
+
+    >>> tabulate([['foobar', 2000], [0xdeadbeef]])
+    (['foobar     2000', '3735928559'], [10, 4])
+    """
+    rows = [tuple(map(str, row)) for row in rows]
+    sizes = [max(map(len, col)) for col in zip_longest(*rows, fillvalue='')]
+    table = [" ".join(map(str.ljust, row, sizes)).rstrip() for row in rows]
+    return table, sizes
 
 
 def is_installable_dir(path):
@@ -466,6 +486,57 @@ def get_installed_distributions(
             ]
 
 
+def _search_distribution(req_name):
+    # type: (str) -> Optional[Distribution]
+    """Find a distribution matching the ``req_name`` in the environment.
+
+    This searches from *all* distributions available in the environment, to
+    match the behavior of ``pkg_resources.get_distribution()``.
+    """
+    # Canonicalize the name before searching in the list of
+    # installed distributions and also while creating the package
+    # dictionary to get the Distribution object
+    req_name = canonicalize_name(req_name)
+    packages = get_installed_distributions(
+        local_only=False,
+        skip=(),
+        include_editables=True,
+        editables_only=False,
+        user_only=False,
+        paths=None,
+    )
+    pkg_dict = {canonicalize_name(p.key): p for p in packages}
+    return pkg_dict.get(req_name)
+
+
+def get_distribution(req_name):
+    # type: (str) -> Optional[Distribution]
+    """Given a requirement name, return the installed Distribution object.
+
+    This searches from *all* distributions available in the environment, to
+    match the behavior of ``pkg_resources.get_distribution()``.
+    """
+
+    # Search the distribution by looking through the working set
+    dist = _search_distribution(req_name)
+
+    # If distribution could not be found, call working_set.require
+    # to update the working set, and try to find the distribution
+    # again.
+    # This might happen for e.g. when you install a package
+    # twice, once using setup.py develop and again using setup.py install.
+    # Now when run pip uninstall twice, the package gets removed
+    # from the working set in the first uninstall, so we have to populate
+    # the working set again so that pip knows about it and the packages
+    # gets picked up and is successfully uninstalled the second time too.
+    if not dist:
+        try:
+            pkg_resources.working_set.require(req_name)
+        except pkg_resources.DistributionNotFound:
+            return None
+    return _search_distribution(req_name)
+
+
 def egg_link_path(dist):
     # type: (Distribution) -> Optional[str]
     """
@@ -519,27 +590,19 @@ def dist_location(dist):
 
 
 def write_output(msg, *args):
-    # type: (str, str) -> None
+    # type: (Any, Any) -> None
     logger.info(msg, *args)
-
-
-def _make_build_dir(build_dir):
-    os.makedirs(build_dir)
-    write_delete_marker_file(build_dir)
 
 
 class FakeFile(object):
     """Wrap a list of lines in an object with readline() to make
     ConfigParser happy."""
     def __init__(self, lines):
-        self._gen = (l for l in lines)
+        self._gen = iter(lines)
 
     def readline(self):
         try:
-            try:
-                return next(self._gen)
-            except NameError:
-                return self._gen.next()
+            return next(self._gen)
         except StopIteration:
             return ''
 
@@ -592,26 +655,6 @@ def captured_stderr():
     See captured_stdout().
     """
     return captured_output('stderr')
-
-
-class cached_property(object):
-    """A property that is only computed once per instance and then replaces
-       itself with an ordinary attribute. Deleting the attribute resets the
-       property.
-
-       Source: https://github.com/bottlepy/bottle/blob/0.11.5/bottle.py#L175
-    """
-
-    def __init__(self, func):
-        self.__doc__ = getattr(func, '__doc__')
-        self.func = func
-
-    def __get__(self, obj, cls):
-        if obj is None:
-            # We're being accessed from the class itself, not from an object
-            return self
-        value = obj.__dict__[self.func.__name__] = self.func(obj)
-        return value
 
 
 def get_installed_version(dist_name, working_set=None):
@@ -836,11 +879,11 @@ def protect_pip_from_modification_on_windows(modifying_pip):
     On Windows, any operation modifying pip should be run as:
         python -m pip ...
     """
-    pip_names = set()
-    for ext in ('', '.exe'):
-        pip_names.add('pip{ext}'.format(ext=ext))
-        pip_names.add('pip{}{ext}'.format(sys.version_info[0], ext=ext))
-        pip_names.add('pip{}.{}{ext}'.format(*sys.version_info[:2], ext=ext))
+    pip_names = [
+        "pip.exe",
+        "pip{}.exe".format(sys.version_info[0]),
+        "pip{}.{}.exe".format(*sys.version_info[:2])
+    ]
 
     # See https://github.com/pypa/pip/issues/1299 for more discussion
     should_show_use_python_msg = (
@@ -867,7 +910,7 @@ def is_console_interactive():
 
 
 def hash_file(path, blocksize=1 << 20):
-    # type: (str, int) -> Tuple[Any, int]
+    # type: (Text, int) -> Tuple[Any, int]
     """Return (hash, length) for path using hashlib.sha256()
     """
 
@@ -878,3 +921,42 @@ def hash_file(path, blocksize=1 << 20):
             length += len(block)
             h.update(block)
     return h, length
+
+
+def is_wheel_installed():
+    """
+    Return whether the wheel package is installed.
+    """
+    try:
+        import wheel  # noqa: F401
+    except ImportError:
+        return False
+
+    return True
+
+
+def pairwise(iterable):
+    # type: (Iterable[Any]) -> Iterator[Tuple[Any, Any]]
+    """
+    Return paired elements.
+
+    For example:
+        s -> (s0, s1), (s2, s3), (s4, s5), ...
+    """
+    iterable = iter(iterable)
+    return zip_longest(iterable, iterable)
+
+
+def partition(
+    pred,  # type: Callable[[T], bool]
+    iterable,  # type: Iterable[T]
+):
+    # type: (...) -> Tuple[Iterable[T], Iterable[T]]
+    """
+    Use a predicate to partition entries into false entries and true entries,
+    like
+
+        partition(is_odd, range(10)) --> 0 2 4 6 8   and  1 3 5 7 9
+    """
+    t1, t2 = tee(iterable)
+    return filterfalse(pred, t1), filter(pred, t2)

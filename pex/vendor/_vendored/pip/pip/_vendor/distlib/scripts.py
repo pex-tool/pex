@@ -48,7 +48,7 @@ if __name__ == '__main__':
 '''
 
 
-def _enquote_executable(executable):
+def enquote_executable(executable):
     if ' ' in executable:
         # make sure we quote only the executable in case of env
         # for example /usr/bin/env "/dir with spaces/bin/jython"
@@ -63,6 +63,8 @@ def _enquote_executable(executable):
                 executable = '"%s"' % executable
     return executable
 
+# Keep the old name around (for now), as there is at least one project using it!
+_enquote_executable = enquote_executable
 
 class ScriptMaker(object):
     """
@@ -88,6 +90,7 @@ class ScriptMaker(object):
 
         self._is_nt = os.name == 'nt' or (
             os.name == 'java' and os._name == 'nt')
+        self.version_info = sys.version_info
 
     def _get_alternate_executable(self, executable, options):
         if options.get('gui', False) and self._is_nt:  # pragma: no cover
@@ -172,12 +175,20 @@ class ScriptMaker(object):
 
         if sys.platform.startswith('java'):  # pragma: no cover
             executable = self._fix_jython_executable(executable)
-        # Normalise case for Windows
-        executable = os.path.normcase(executable)
+
+        # Normalise case for Windows - COMMENTED OUT
+        # executable = os.path.normcase(executable)
+        # N.B. The normalising operation above has been commented out: See
+        # issue #124. Although paths in Windows are generally case-insensitive,
+        # they aren't always. For example, a path containing a ẞ (which is a
+        # LATIN CAPITAL LETTER SHARP S - U+1E9E) is normcased to ß (which is a
+        # LATIN SMALL LETTER SHARP S' - U+00DF). The two are not considered by
+        # Windows as equivalent in path names.
+
         # If the user didn't specify an executable, it may be necessary to
         # cater for executable paths with spaces (not uncommon on Windows)
         if enquote:
-            executable = _enquote_executable(executable)
+            executable = enquote_executable(executable)
         # Issue #51: don't use fsencode, since we later try to
         # check that the shebang is decodable using utf-8.
         executable = executable.encode('utf-8')
@@ -285,9 +296,10 @@ class ScriptMaker(object):
         if '' in self.variants:
             scriptnames.add(name)
         if 'X' in self.variants:
-            scriptnames.add('%s%s' % (name, sys.version[0]))
+            scriptnames.add('%s%s' % (name, self.version_info[0]))
         if 'X.Y' in self.variants:
-            scriptnames.add('%s-%s' % (name, sys.version[:3]))
+            scriptnames.add('%s-%s.%s' % (name, self.version_info[0],
+                                          self.version_info[1]))
         if options and options.get('gui', False):
             ext = 'pyw'
         else:
@@ -367,8 +379,12 @@ class ScriptMaker(object):
             # Issue 31: don't hardcode an absolute package name, but
             # determine it relative to the current package
             distlib_package = __name__.rsplit('.', 1)[0]
-            result = finder(distlib_package).find(name).bytes
-            return result
+            resource = finder(distlib_package).find(name)
+            if not resource:
+                msg = ('Unable to find resource %s in package %s' % (name,
+                       distlib_package))
+                raise ValueError(msg)
+            return resource.bytes
 
     # Public API follows
 

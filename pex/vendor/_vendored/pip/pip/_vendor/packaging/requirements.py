@@ -5,14 +5,24 @@ from __future__ import absolute_import, division, print_function
 
 import string
 import re
+import sys
 
 from pip._vendor.pyparsing import stringStart, stringEnd, originalTextFor, ParseException
 from pip._vendor.pyparsing import ZeroOrMore, Word, Optional, Regex, Combine
 from pip._vendor.pyparsing import Literal as L  # noqa
-from pip._vendor.six.moves.urllib import parse as urlparse
 
+from ._typing import TYPE_CHECKING
 from .markers import MARKER_EXPR, Marker
 from .specifiers import LegacySpecifier, Specifier, SpecifierSet
+
+if sys.version_info[0] >= 3:
+    from urllib import parse as urlparse  # pragma: no cover
+else:  # pragma: no cover
+    import urlparse
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import List
 
 
 class InvalidRequirement(ValueError):
@@ -89,6 +99,7 @@ class Requirement(object):
     # TODO: Can we normalize the name and extra name?
 
     def __init__(self, requirement_string):
+        # type: (str) -> None
         try:
             req = REQUIREMENT.parseString(requirement_string)
         except ParseException as e:
@@ -116,7 +127,8 @@ class Requirement(object):
         self.marker = req.marker if req.marker else None
 
     def __str__(self):
-        parts = [self.name]
+        # type: () -> str
+        parts = [self.name]  # type: List[str]
 
         if self.extras:
             parts.append("[{0}]".format(",".join(sorted(self.extras))))
@@ -135,4 +147,5 @@ class Requirement(object):
         return "".join(parts)
 
     def __repr__(self):
+        # type: () -> str
         return "<Requirement({0!r})>".format(str(self))

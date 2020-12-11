@@ -16,6 +16,7 @@ from pip._internal.utils.urls import path_to_url, url_to_path
 
 if MYPY_CHECK_RUNNING:
     from typing import Optional, Text, Tuple, Union
+
     from pip._internal.index.collector import HTMLPage
     from pip._internal.utils.hashes import Hashes
 
@@ -24,12 +25,22 @@ class Link(KeyBasedCompareMixin):
     """Represents a parsed link from a Package Index's simple URL
     """
 
+    __slots__ = [
+        "_parsed_url",
+        "_url",
+        "comes_from",
+        "requires_python",
+        "yanked_reason",
+        "cache_link_parsing",
+    ]
+
     def __init__(
         self,
         url,                   # type: str
         comes_from=None,       # type: Optional[Union[str, HTMLPage]]
         requires_python=None,  # type: Optional[str]
         yanked_reason=None,    # type: Optional[Text]
+        cache_link_parsing=True,  # type: bool
     ):
         # type: (...) -> None
         """
@@ -46,6 +57,11 @@ class Link(KeyBasedCompareMixin):
             a simple repository HTML link. If the file has been yanked but
             no reason was provided, this should be the empty string. See
             PEP 592 for more information and the specification.
+        :param cache_link_parsing: A flag that is used elsewhere to determine
+                                   whether resources retrieved from this link
+                                   should be cached. PyPI index urls should
+                                   generally have this set to False, for
+                                   example.
         """
 
         # url can be a UNC windows share
@@ -63,21 +79,23 @@ class Link(KeyBasedCompareMixin):
 
         super(Link, self).__init__(key=url, defining_class=Link)
 
+        self.cache_link_parsing = cache_link_parsing
+
     def __str__(self):
         # type: () -> str
         if self.requires_python:
-            rp = ' (requires-python:%s)' % self.requires_python
+            rp = ' (requires-python:{})'.format(self.requires_python)
         else:
             rp = ''
         if self.comes_from:
-            return '%s (from %s)%s' % (redact_auth_from_url(self._url),
-                                       self.comes_from, rp)
+            return '{} (from {}){}'.format(
+                redact_auth_from_url(self._url), self.comes_from, rp)
         else:
             return redact_auth_from_url(str(self._url))
 
     def __repr__(self):
         # type: () -> str
-        return '<Link %s>' % self
+        return '<Link {}>'.format(self)
 
     @property
     def url(self):
@@ -96,7 +114,8 @@ class Link(KeyBasedCompareMixin):
             return netloc
 
         name = urllib_parse.unquote(name)
-        assert name, ('URL %r produced no filename' % self._url)
+        assert name, (
+            'URL {self._url!r} produced no filename'.format(**locals()))
         return name
 
     @property

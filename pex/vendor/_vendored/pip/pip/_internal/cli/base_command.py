@@ -10,16 +10,14 @@ import platform
 import sys
 import traceback
 
+from pip._vendor.six import PY2
+
 from pip._internal.cli import cmdoptions
 from pip._internal.cli.command_context import CommandContextMixIn
-from pip._internal.cli.parser import (
-    ConfigOptionParser,
-    UpdatingDefaultsHelpFormatter,
-)
+from pip._internal.cli.parser import ConfigOptionParser, UpdatingDefaultsHelpFormatter
 from pip._internal.cli.status_codes import (
     ERROR,
     PREVIOUS_BUILD_DIR_ERROR,
-    SUCCESS,
     UNKNOWN_ERROR,
     VIRTUALENV_NOT_FOUND,
 )
@@ -27,19 +25,26 @@ from pip._internal.exceptions import (
     BadCommand,
     CommandError,
     InstallationError,
+    NetworkConnectionError,
     PreviousBuildDirError,
+    SubProcessError,
     UninstallationError,
 )
 from pip._internal.utils.deprecation import deprecated
+from pip._internal.utils.filesystem import check_path_owner
 from pip._internal.utils.logging import BrokenStdoutLoggingError, setup_logging
-from pip._internal.utils.misc import get_prog
-from pip._internal.utils.temp_dir import global_tempdir_manager
+from pip._internal.utils.misc import get_prog, normalize_path
+from pip._internal.utils.temp_dir import global_tempdir_manager, tempdir_registry
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 from pip._internal.utils.virtualenv import running_under_virtualenv
 
 if MYPY_CHECK_RUNNING:
-    from typing import List, Tuple, Any
     from optparse import Values
+    from typing import Any, List, Optional, Tuple
+
+    from pip._internal.utils.temp_dir import (
+        TempDirectoryTypeRegistry as TempDirRegistry,
+    )
 
 __all__ = ['Command']
 
@@ -55,7 +60,7 @@ class Command(CommandContextMixIn):
         super(Command, self).__init__()
         parser_kw = {
             'usage': self.usage,
-            'prog': '%s %s' % (get_prog(), name),
+            'prog': '{} {}'.format(get_prog(), name),
             'formatter': UpdatingDefaultsHelpFormatter(),
             'add_help_option': False,
             'name': name,
@@ -67,8 +72,10 @@ class Command(CommandContextMixIn):
         self.summary = summary
         self.parser = ConfigOptionParser(**parser_kw)
 
+        self.tempdir_registry = None  # type: Optional[TempDirRegistry]
+
         # Commands should add options to this option group
-        optgroup_name = '%s Options' % self.name.capitalize()
+        optgroup_name = '{} Options'.format(self.name.capitalize())
         self.cmd_opts = optparse.OptionGroup(self.parser, optgroup_name)
 
         # Add the general options
@@ -77,6 +84,12 @@ class Command(CommandContextMixIn):
             self.parser,
         )
         self.parser.add_option_group(gen_opts)
+
+        self.add_options()
+
+    def add_options(self):
+        # type: () -> None
+        pass
 
     def handle_pip_version_check(self, options):
         # type: (Values) -> None
@@ -89,7 +102,7 @@ class Command(CommandContextMixIn):
         assert not hasattr(options, 'no_index')
 
     def run(self, options, args):
-        # type: (Values, List[Any]) -> Any
+        # type: (Values, List[Any]) -> int
         raise NotImplementedError
 
     def parse_args(self, args):
@@ -107,6 +120,10 @@ class Command(CommandContextMixIn):
 
     def _main(self, args):
         # type: (List[str]) -> int
+        # We must initialize this before the tempdir manager, otherwise the
+        # configuration would not be accessible by the time we clean up the
+        # tempdir manager.
+        self.tempdir_registry = self.enter_context(tempdir_registry())
         # Intentionally set as early as possible so globally-managed temporary
         # directories are available to the rest of the code.
         self.enter_context(global_tempdir_manager())
@@ -127,8 +144,8 @@ class Command(CommandContextMixIn):
             not options.no_python_version_warning
         ):
             message = (
-                "A future version of pip will drop support for Python 2.7. "
-                "More details about Python 2 support in pip, can be found at "
+                "pip 21.0 will drop support for Python 2.7 in January 2021. "
+                "More details about Python 2 support in pip can be found at "
                 "https://pip.pypa.io/en/latest/development/release-process/#python-2-support"  # noqa
             )
             if platform.python_implementation() == "CPython":
@@ -137,18 +154,19 @@ class Command(CommandContextMixIn):
                     "1st, 2020. Please upgrade your Python as Python 2.7 "
                     "is no longer maintained. "
                 ) + message
-            deprecated(message, replacement=None, gone_in=None)
+            deprecated(message, replacement=None, gone_in="21.0")
 
-        if options.skip_requirements_regex:
-            deprecated(
-                "--skip-requirements-regex is unsupported and will be removed",
-                replacement=(
-                    "manage requirements/constraints files explicitly, "
-                    "possibly generating them from metadata"
-                ),
-                gone_in="20.1",
-                issue=7297,
+        if (
+            sys.version_info[:2] == (3, 5) and
+            not options.no_python_version_warning
+        ):
+            message = (
+                "Python 3.5 reached the end of its life on September "
+                "13th, 2020. Please upgrade your Python as Python 3.5 "
+                "is no longer maintained. pip 21.0 will drop support "
+                "for Python 3.5 in January 2021."
             )
+            deprecated(message, replacement=None, gone_in="21.0")
 
         # TODO: Try to get these passing down from the command?
         #       without resorting to os.environ to hold these.
@@ -168,18 +186,51 @@ class Command(CommandContextMixIn):
                 )
                 sys.exit(VIRTUALENV_NOT_FOUND)
 
+        if options.cache_dir:
+            options.cache_dir = normalize_path(options.cache_dir)
+            if not check_path_owner(options.cache_dir):
+                logger.warning(
+                    "The directory '%s' or its parent directory is not owned "
+                    "or is not writable by the current user. The cache "
+                    "has been disabled. Check the permissions and owner of "
+                    "that directory. If executing pip with sudo, you may want "
+                    "sudo's -H flag.",
+                    options.cache_dir,
+                )
+                options.cache_dir = None
+
+        if getattr(options, "build_dir", None):
+            deprecated(
+                reason=(
+                    "The -b/--build/--build-dir/--build-directory "
+                    "option is deprecated and has no effect anymore."
+                ),
+                replacement=(
+                    "use the TMPDIR/TEMP/TMP environment variable, "
+                    "possibly combined with --no-clean"
+                ),
+                gone_in="21.1",
+                issue=8333,
+            )
+
+        if '2020-resolver' in options.features_enabled and not PY2:
+            logger.warning(
+                "--use-feature=2020-resolver no longer has any effect, "
+                "since it is now the default dependency resolver in pip. "
+                "This will become an error in pip 21.0."
+            )
+
         try:
             status = self.run(options, args)
-            # FIXME: all commands should return an exit status
-            # and when it is done, isinstance is not needed anymore
-            if isinstance(status, int):
-                return status
+            assert isinstance(status, int)
+            return status
         except PreviousBuildDirError as exc:
             logger.critical(str(exc))
             logger.debug('Exception information:', exc_info=True)
 
             return PREVIOUS_BUILD_DIR_ERROR
-        except (InstallationError, UninstallationError, BadCommand) as exc:
+        except (InstallationError, UninstallationError, BadCommand,
+                SubProcessError, NetworkConnectionError) as exc:
             logger.critical(str(exc))
             logger.debug('Exception information:', exc_info=True)
 
@@ -208,5 +259,3 @@ class Command(CommandContextMixIn):
             return UNKNOWN_ERROR
         finally:
             self.handle_pip_version_check(options)
-
-        return SUCCESS

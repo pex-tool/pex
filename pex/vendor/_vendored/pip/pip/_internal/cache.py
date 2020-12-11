@@ -1,29 +1,27 @@
 """Cache Management
 """
 
-# The following comment should be removed at some point in the future.
-# mypy: strict-optional=False
-
 import hashlib
 import json
 import logging
 import os
 
+from pip._vendor.packaging.tags import interpreter_name, interpreter_version
 from pip._vendor.packaging.utils import canonicalize_name
 
 from pip._internal.exceptions import InvalidWheelFilename
 from pip._internal.models.link import Link
 from pip._internal.models.wheel import Wheel
-from pip._internal.pep425tags import interpreter_name, interpreter_version
-from pip._internal.utils.compat import expanduser
-from pip._internal.utils.temp_dir import TempDirectory
+from pip._internal.utils.temp_dir import TempDirectory, tempdir_kinds
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 from pip._internal.utils.urls import path_to_url
 
 if MYPY_CHECK_RUNNING:
-    from typing import Optional, Set, List, Any, Dict
+    from typing import Any, Dict, List, Optional, Set
+
+    from pip._vendor.packaging.tags import Tag
+
     from pip._internal.models.format_control import FormatControl
-    from pip._internal.pep425tags import Pep425Tag
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +47,8 @@ class Cache(object):
     def __init__(self, cache_dir, format_control, allowed_formats):
         # type: (str, FormatControl, Set[str]) -> None
         super(Cache, self).__init__()
-        self.cache_dir = expanduser(cache_dir) if cache_dir else None
+        assert not cache_dir or os.path.isabs(cache_dir)
+        self.cache_dir = cache_dir or None
         self.format_control = format_control
         self.allowed_formats = allowed_formats
 
@@ -120,7 +119,7 @@ class Cache(object):
         return parts
 
     def _get_candidates(self, link, canonical_package_name):
-        # type: (Link, Optional[str]) -> List[Any]
+        # type: (Link, str) -> List[Any]
         can_not_cache = (
             not self.cache_dir or
             not canonical_package_name or
@@ -161,17 +160,13 @@ class Cache(object):
         self,
         link,            # type: Link
         package_name,    # type: Optional[str]
-        supported_tags,  # type: List[Pep425Tag]
+        supported_tags,  # type: List[Tag]
     ):
         # type: (...) -> Link
         """Returns a link to a cached item if it exists, otherwise returns the
         passed link.
         """
         raise NotImplementedError()
-
-    def cleanup(self):
-        # type: () -> None
-        pass
 
 
 class SimpleWheelCache(Cache):
@@ -187,6 +182,7 @@ class SimpleWheelCache(Cache):
     def get_path_for_link_legacy(self, link):
         # type: (Link) -> str
         parts = self._get_cache_path_parts_legacy(link)
+        assert self.cache_dir
         return os.path.join(self.cache_dir, "wheels", *parts)
 
     def get_path_for_link(self, link):
@@ -206,7 +202,7 @@ class SimpleWheelCache(Cache):
         :param link: The link of the sdist for which this will cache wheels.
         """
         parts = self._get_cache_path_parts(link)
-
+        assert self.cache_dir
         # Store wheels within the root cache_dir
         return os.path.join(self.cache_dir, "wheels", *parts)
 
@@ -214,7 +210,7 @@ class SimpleWheelCache(Cache):
         self,
         link,            # type: Link
         package_name,    # type: Optional[str]
-        supported_tags,  # type: List[Pep425Tag]
+        supported_tags,  # type: List[Tag]
     ):
         # type: (...) -> Link
         candidates = []
@@ -232,10 +228,9 @@ class SimpleWheelCache(Cache):
                 continue
             if canonicalize_name(wheel.name) != canonical_package_name:
                 logger.debug(
-                    "Ignoring cached wheel {} for {} as it "
-                    "does not match the expected distribution name {}.".format(
-                        wheel_name, link, package_name
-                    )
+                    "Ignoring cached wheel %s for %s as it "
+                    "does not match the expected distribution name %s.",
+                    wheel_name, link, package_name,
                 )
                 continue
             if not wheel.supported(supported_tags):
@@ -262,15 +257,24 @@ class EphemWheelCache(SimpleWheelCache):
 
     def __init__(self, format_control):
         # type: (FormatControl) -> None
-        self._temp_dir = TempDirectory(kind="ephem-wheel-cache")
+        self._temp_dir = TempDirectory(
+            kind=tempdir_kinds.EPHEM_WHEEL_CACHE,
+            globally_managed=True,
+        )
 
         super(EphemWheelCache, self).__init__(
             self._temp_dir.path, format_control
         )
 
-    def cleanup(self):
-        # type: () -> None
-        self._temp_dir.cleanup()
+
+class CacheEntry(object):
+    def __init__(
+        self,
+        link,  # type: Link
+        persistent,  # type: bool
+    ):
+        self.link = link
+        self.persistent = persistent
 
 
 class WheelCache(Cache):
@@ -304,24 +308,39 @@ class WheelCache(Cache):
         self,
         link,            # type: Link
         package_name,    # type: Optional[str]
-        supported_tags,  # type: List[Pep425Tag]
+        supported_tags,  # type: List[Tag]
     ):
         # type: (...) -> Link
+        cache_entry = self.get_cache_entry(link, package_name, supported_tags)
+        if cache_entry is None:
+            return link
+        return cache_entry.link
+
+    def get_cache_entry(
+        self,
+        link,            # type: Link
+        package_name,    # type: Optional[str]
+        supported_tags,  # type: List[Tag]
+    ):
+        # type: (...) -> Optional[CacheEntry]
+        """Returns a CacheEntry with a link to a cached item if it exists or
+        None. The cache entry indicates if the item was found in the persistent
+        or ephemeral cache.
+        """
         retval = self._wheel_cache.get(
             link=link,
             package_name=package_name,
             supported_tags=supported_tags,
         )
         if retval is not link:
-            return retval
+            return CacheEntry(retval, persistent=True)
 
-        return self._ephem_cache.get(
+        retval = self._ephem_cache.get(
             link=link,
             package_name=package_name,
             supported_tags=supported_tags,
         )
+        if retval is not link:
+            return CacheEntry(retval, persistent=False)
 
-    def cleanup(self):
-        # type: () -> None
-        self._wheel_cache.cleanup()
-        self._ephem_cache.cleanup()
+        return None
