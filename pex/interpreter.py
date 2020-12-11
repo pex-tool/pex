@@ -891,7 +891,7 @@ class PythonInterpreter(object):
         suffixes = ("{}.{}".format(version[0], version[1]), str(version[0]), "")
         candidate_binaries = tuple("{}{}".format(prefix, suffix) for suffix in suffixes)
 
-        def iter_base_candidate_binariy_paths(interpreter):
+        def iter_base_candidate_binary_paths(interpreter):
             # type: (PythonInterpreter) -> Iterator[str]
             bin_dir = os.path.join(interpreter._identity.base_prefix, "bin")
             for candidate_binary in candidate_binaries:
@@ -908,7 +908,7 @@ class PythonInterpreter(object):
         base_interpreter = self
         while base_interpreter.is_venv:
             resolved = None  # type: Optional[PythonInterpreter]
-            for candidate_path in iter_base_candidate_binariy_paths(base_interpreter):
+            for candidate_path in iter_base_candidate_binary_paths(base_interpreter):
                 resolved_interpreter = self.from_binary(candidate_path)
                 if is_same_interpreter(resolved_interpreter):
                     resolved = resolved_interpreter
