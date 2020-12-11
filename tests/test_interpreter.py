@@ -9,7 +9,7 @@ from collections import defaultdict
 import pytest
 
 from pex import interpreter
-from pex.common import temporary_dir, touch
+from pex.common import safe_mkdtemp, temporary_dir, touch
 from pex.compatibility import PY3
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
@@ -17,6 +17,7 @@ from pex.testing import (
     PY27,
     PY35,
     PY36,
+    PY_VER,
     ensure_python_distribution,
     ensure_python_interpreter,
     environment_as,
@@ -30,7 +31,7 @@ except ImportError:
     from unittest.mock import Mock, patch  # type: ignore[misc,no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Iterator, Tuple, Union, Any
+    from typing import Iterator, Tuple, Union, Any, List
 
     InterpreterIdentificationError = Tuple[str, str]
     InterpreterOrError = Union[PythonInterpreter, InterpreterIdentificationError]
@@ -255,7 +256,7 @@ def test_latest_release_of_min_compatible_version():
     assert_chosen(expected_version="3.6.1", other_version="3.6.0")
 
 
-def test_pyvenv(tmpdir):
+def test_detect_pyvenv(tmpdir):
     # type: (Any) -> None
     venv = str(tmpdir)
     py35 = ensure_python_interpreter(PY35)
@@ -285,3 +286,48 @@ def test_pyvenv(tmpdir):
     assert len(pythons) >= 2, "Expected at least two virtualenv python binaries, found: {}".format(
         pythons
     )
+
+
+def check_resolve_venv(real_interpreter):
+    # type: (PythonInterpreter) -> None
+    tmpdir = safe_mkdtemp()
+
+    def create_venv(
+        interpreter,  # type: PythonInterpreter
+        rel_path,  # type: str
+    ):
+        # type: (...) -> List[str]
+        venv_dir = os.path.join(tmpdir, rel_path)
+        interpreter.execute(["-m", "venv", venv_dir])
+        return glob.glob(os.path.join(venv_dir, "bin", "python*"))
+
+    assert not real_interpreter.is_venv
+    assert real_interpreter is real_interpreter.resolve_base_interpreter()
+
+    for index, python in enumerate(create_venv(real_interpreter, "first-level")):
+        venv_interpreter = PythonInterpreter.from_binary(python)
+        assert venv_interpreter.is_venv
+        assert venv_interpreter != real_interpreter.binary
+        assert real_interpreter == venv_interpreter.resolve_base_interpreter()
+
+        for nested_python in create_venv(venv_interpreter, "second-level{}".format(index)):
+            nested_venv_interpreter = PythonInterpreter.from_binary(nested_python)
+            assert nested_venv_interpreter.is_venv
+            assert nested_venv_interpreter != venv_interpreter
+            assert nested_venv_interpreter != real_interpreter
+            assert real_interpreter == nested_venv_interpreter.resolve_base_interpreter()
+
+
+def test_resolve_venv():
+    # type: () -> None
+    real_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY35))
+    check_resolve_venv(real_interpreter)
+
+
+@pytest.mark.skipif(
+    PY_VER < (3, 0), reason="Test requires the venv module which is not present in Python 2."
+)
+def test_resolve_venv_ambient():
+    # type: () -> None
+    ambient_real_interpreter = PythonInterpreter.get().resolve_base_interpreter()
+    check_resolve_venv(ambient_real_interpreter)
