@@ -9,7 +9,9 @@ import os
 import sys
 from argparse import ArgumentParser, Namespace
 
+from pex import pex_bootstrapper
 from pex.pex import PEX
+from pex.pex_info import PexInfo
 from pex.tools import commands
 from pex.tools.command import Result
 from pex.tracer import TRACER
@@ -84,7 +86,14 @@ def main(
             command_parser.set_defaults(func=command.run)
 
         options = parser.parse_args()
-        pex = pex or PEX(options.pex[0])
+        if pex is None:
+            pex_info = PexInfo.from_pex(options.pex[0])
+            pex_info.update(PexInfo.from_env())
+            interpreter = pex_bootstrapper.find_compatible_interpreter(
+                interpreter_constraints=pex_info.interpreter_constraints
+            )
+            pex = PEX(options.pex[0], interpreter=interpreter)
+
         func = cast("CommandFunc", options.func)
         result = func(pex, options)
         result.maybe_display()

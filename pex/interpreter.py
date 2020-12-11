@@ -20,6 +20,7 @@ from pex.common import is_exe, safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
 from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
+from pex.orderedset import OrderedSet
 from pex.platforms import Platform
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
@@ -469,7 +470,7 @@ class PythonInterpreter(object):
     def _paths(paths=None):
         # type: (Optional[Iterable[str]]) -> Iterable[str]
         # NB: If `paths=[]`, we will not read $PATH.
-        return paths if paths is not None else os.getenv("PATH", "").split(os.pathsep)
+        return OrderedSet(paths if paths is not None else os.getenv("PATH", "").split(os.pathsep))
 
     @classmethod
     def iter(cls, paths=None):
@@ -804,8 +805,9 @@ class PythonInterpreter(object):
         seen = set()
         for interp in pythons:
             version = interp.identity.version
-            if version not in seen and version_filter(version):
-                seen.add(version)
+            identity = version, interp.identity.abi_tag
+            if identity not in seen and version_filter(version):
+                seen.add(identity)
                 yield interp
 
     @classmethod

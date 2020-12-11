@@ -90,6 +90,11 @@ class PEX(object):  # noqa: T000
         pex_info.merge_pex_path(self._vars.PEX_PATH)
         return pex_info
 
+    @property
+    def interpreter(self):
+        # type: () -> PythonInterpreter
+        return self._interpreter
+
     def _activate(self):
         if not self._working_set:
             working_set = WorkingSet([])
