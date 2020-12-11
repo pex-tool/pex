@@ -1,6 +1,8 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import, print_function
+
 import errno
 import filecmp
 import functools
@@ -33,15 +35,10 @@ from pex.compatibility import WINDOWS, nested, to_bytes
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.network_configuration import NetworkConfiguration
+from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
-from pex.requirements import (
-    LogicalLine,
-    ReqInfo,
-    URLFetcher,
-    parse_requirement_file,
-    parse_requirements,
-)
+from pex.requirements import LogicalLine, ReqInfo, URLFetcher, parse_requirement_file
 from pex.testing import (
     IS_PYPY,
     NOT_CPYTHON27,
@@ -75,6 +72,7 @@ if TYPE_CHECKING:
         Iterable,
         Iterator,
         List,
+        MutableSet,
         Optional,
         Tuple,
     )
@@ -639,16 +637,16 @@ def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
     # type: () -> None
     with temporary_dir() as td:
         pex_out_path = os.path.join(td, "pex.pex")
-        env = make_env(
-            PEX_IGNORE_RCFILES="1", PATH=os.path.dirname(os.path.realpath(sys.executable))
-        )
+        env = make_env(PEX_IGNORE_RCFILES="1")
         res = run_pex_command(["--disable-cache", "-o", pex_out_path], env=env)
         res.assert_success()
 
-        stdin_payload = b"import os, sys; print(os.path.realpath(sys.executable)); sys.exit(0)"
+        stdin_payload = b"import os, sys; print(sys.executable); sys.exit(0)"
         stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
         assert rc == 0
-        assert os.path.realpath(sys.executable).encode() in stdout
+        assert (
+            PythonInterpreter.get().resolve_base_interpreter().binary.encode() in stdout
+        ), "Expected the current interpreter to be used when no constraints were supplied."
 
 
 def test_pex_exec_with_pex_python_path_only():
@@ -1907,9 +1905,10 @@ def _assert_exec_chain(
             PYTHONPATH=os.pathsep.join(pythonpath) if pythonpath else None,
         )
 
+        initial_interpreter = PythonInterpreter.get()
         output = subprocess.check_output(
             [
-                sys.executable,
+                initial_interpreter.binary,
                 test_pex,
                 "-c",
                 "import json, os; print(json.dumps(os.environ.copy()))",
@@ -1922,10 +1921,25 @@ def _assert_exec_chain(
         assert "PEX_PYTHON_PATH" not in final_env
         assert "_PEX_SHOULD_EXIT_BOOTSTRAP_REEXEC" not in final_env
 
-        expected_exec_chain = [
-            PythonInterpreter.from_binary(i).binary for i in [sys.executable] + (exec_chain or [])
-        ]
-        assert expected_exec_chain == final_env["_PEX_EXEC_CHAIN"].split(os.pathsep)
+        expected_exec_interpreters = [initial_interpreter]
+        if exec_chain:
+            expected_exec_interpreters.extend(PythonInterpreter.from_binary(b) for b in exec_chain)
+        final_interpreter = expected_exec_interpreters[-1]
+        if final_interpreter.is_venv:
+            # If the last interpreter in the chain is in a virtual environment, it should be fully
+            # resolved and re-exec'd against in order to escape the virtual environment since we're
+            # not setting PEX_INHERIT_PATH in these tests.
+            resolved = final_interpreter.resolve_base_interpreter()
+            if exec_chain:
+                # There is already an expected reason to re-exec; so no extra exec step is needed.
+                expected_exec_interpreters[-1] = resolved
+            else:
+                # The expected exec chain is just the initial_interpreter, but it turned out to be a
+                # venv which forces a re-exec.
+                expected_exec_interpreters.append(resolved)
+        expected_exec_chain = [i.binary for i in expected_exec_interpreters]
+        actual_exec_chain = final_env["_PEX_EXEC_CHAIN"].split(os.pathsep)
+        assert expected_exec_chain == actual_exec_chain
 
 
 def test_pex_no_reexec_no_constraints():
@@ -1940,17 +1954,15 @@ def test_pex_reexec_no_constraints_pythonpath_present():
 
 def test_pex_no_reexec_constraints_match_current():
     # type: () -> None
-    current_version = ".".join(str(component) for component in sys.version_info[0:3])
-    _assert_exec_chain(interpreter_constraints=["=={}".format(current_version)])
+    _assert_exec_chain(interpreter_constraints=[PythonInterpreter.get().identity.requirement])
 
 
 def test_pex_reexec_constraints_match_current_pythonpath_present():
     # type: () -> None
-    current_version = ".".join(str(component) for component in sys.version_info[0:3])
     _assert_exec_chain(
         exec_chain=[sys.executable],
         pythonpath=["."],
-        interpreter_constraints=["=={}".format(current_version)],
+        interpreter_constraints=[PythonInterpreter.get().identity.requirement],
     )
 
 
@@ -2546,3 +2558,76 @@ def test_requirements_network_configuration(run_proxy, tmp_workdir):
             ReqInfo.create(line=line("translate>=3.2.1", 6), project_name="translate"),
             ReqInfo.create(line=line("protobuf>=3.11.3", 7), project_name="protobuf"),
         ] == list(reqs)
+
+
+@pytest.mark.parametrize(
+    "py_version",
+    [
+        pytest.param(PY27, id="virtualenv-16.7.10"),
+        pytest.param(PY36, id="pyvenv"),
+    ],
+)
+def test_issues_1031(py_version):
+    # type: (str) -> None
+    system_site_packages_venv, _ = ensure_python_venv(
+        py_version, latest_pip=False, system_site_packages=True
+    )
+    standard_venv, _ = ensure_python_venv(py_version, latest_pip=False, system_site_packages=False)
+
+    print_sys_path_code = "import os, sys; print('\\n'.join(map(os.path.realpath, sys.path)))"
+
+    def get_sys_path(python):
+        # type: (str) -> MutableSet[str]
+        _, stdout, _ = PythonInterpreter.from_binary(python).execute(
+            args=["-c", print_sys_path_code]
+        )
+        return OrderedSet(stdout.strip().splitlines())
+
+    system_site_packages_venv_sys_path = get_sys_path(system_site_packages_venv)
+    standard_venv_sys_path = get_sys_path(standard_venv)
+
+    def venv_dir(python):
+        # type: (str) -> str
+        bin_dir = os.path.dirname(python)
+        venv_dir = os.path.dirname(bin_dir)
+        return os.path.realpath(venv_dir)
+
+    system_site_packages = {
+        p
+        for p in (system_site_packages_venv_sys_path - standard_venv_sys_path)
+        if not p.startswith((venv_dir(system_site_packages_venv), venv_dir(standard_venv)))
+    }
+    assert len(system_site_packages) == 1, (
+        "system_site_packages_venv_sys_path:\n"
+        "\t{}\n"
+        "standard_venv_sys_path:\n"
+        "\t{}\n"
+        "difference:\n"
+        "\t{}".format(
+            "\n\t".join(system_site_packages_venv_sys_path),
+            "\n\t".join(standard_venv_sys_path),
+            "\n\t".join(system_site_packages),
+        )
+    )
+    system_site_packages_path = system_site_packages.pop()
+
+    def get_system_site_packages_pex_sys_path(**env):
+        # type: (**Any) -> MutableSet[str]
+        output, returncode = run_simple_pex_test(
+            body=print_sys_path_code,
+            interpreter=PythonInterpreter.from_binary(system_site_packages_venv),
+            env=make_env(**env),
+        )
+        assert returncode == 0
+        return OrderedSet(output.decode("utf-8").strip().splitlines())
+
+    assert system_site_packages_path not in get_system_site_packages_pex_sys_path()
+    assert system_site_packages_path not in get_system_site_packages_pex_sys_path(
+        PEX_INHERIT_PATH="false"
+    )
+    assert system_site_packages_path in get_system_site_packages_pex_sys_path(
+        PEX_INHERIT_PATH="prefer"
+    )
+    assert system_site_packages_path in get_system_site_packages_pex_sys_path(
+        PEX_INHERIT_PATH="fallback"
+    )

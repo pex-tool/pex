@@ -479,17 +479,23 @@ def ensure_python_distribution(version):
     return python, pip, run_pyenv
 
 
-def ensure_python_venv(version, latest_pip=True):
+def ensure_python_venv(version, latest_pip=True, system_site_packages=False):
     python, pip, _ = ensure_python_distribution(version)
     venv = safe_mkdtemp()
     if version in _ALL_PY3_VERSIONS:
-        subprocess.check_call([python, "-m", "venv", venv])
+        args = [python, "-m", "venv", venv]
+        if system_site_packages:
+            args.append("--system-site-packages")
+        subprocess.check_call(args=args)
     else:
-        subprocess.check_call([pip, "install", "virtualenv==16.7.10"])
-        subprocess.check_call([python, "-m", "virtualenv", venv])
+        subprocess.check_call(args=[pip, "install", "virtualenv==16.7.10"])
+        args = [python, "-m", "virtualenv", venv, "-q"]
+        if system_site_packages:
+            args.append("--system-site-packages")
+        subprocess.check_call(args=args)
     python, pip = tuple(os.path.join(venv, "bin", exe) for exe in ("python", "pip"))
     if latest_pip:
-        subprocess.check_call([pip, "install", "-U", "pip"])
+        subprocess.check_call(args=[pip, "install", "-U", "pip"])
     return python, pip
 
 
