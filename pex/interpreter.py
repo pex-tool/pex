@@ -16,7 +16,7 @@ from collections import OrderedDict
 from textwrap import dedent
 
 from pex import third_party
-from pex.common import safe_rmtree
+from pex.common import is_exe, safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
 from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
@@ -34,6 +34,7 @@ if TYPE_CHECKING:
         Dict,
         Iterable,
         Iterator,
+        List,
         MutableMapping,
         Optional,
         Sequence,
@@ -95,6 +96,14 @@ class PythonIdentity(object):
         preferred_tag = supported_tags[0]
         return cls(
             binary=binary or sys.executable,
+            prefix=sys.prefix,
+            base_prefix=(
+                # Old virtualenv (16 series and lower) sets `sys.real_prefix` in all cases.
+                getattr(sys, "real_prefix", None)
+                # Both pyvenv and virtualenv 20+ set `sys.base_prefix` as per
+                # https://www.python.org/dev/peps/pep-0405/.
+                or getattr(sys, "base_prefix", sys.prefix)
+            ),
             python_tag=preferred_tag.interpreter,
             abi_tag=preferred_tag.abi,
             platform_tag=preferred_tag.platform,
@@ -107,7 +116,7 @@ class PythonIdentity(object):
     def decode(cls, encoded):
         TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
         values = json.loads(encoded)
-        if len(values) != 7:
+        if len(values) != 9:
             raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
 
         supported_tags = values.pop("supported_tags")
@@ -126,13 +135,25 @@ class PythonIdentity(object):
         raise ValueError("Unknown interpreter: {}".format(python_tag))
 
     def __init__(
-        self, binary, python_tag, abi_tag, platform_tag, version, supported_tags, env_markers
+        self,
+        binary,  # type: str
+        prefix,  # type: str
+        base_prefix,  # type: str
+        python_tag,  # type: str
+        abi_tag,  # type: str
+        platform_tag,  # type: str
+        version,  # type: Iterable[int]
+        supported_tags,  # type: Iterable[tags.Tag]
+        env_markers,  # type: Dict[str, str]
     ):
+        # type: (...) -> None
         # N.B.: We keep this mapping to support historical values for `distribution` and `requirement`
         # properties.
         self._interpreter_name = self._find_interpreter_name(python_tag)
 
         self._binary = binary
+        self._prefix = prefix
+        self._base_prefix = base_prefix
         self._python_tag = python_tag
         self._abi_tag = abi_tag
         self._platform_tag = platform_tag
@@ -143,6 +164,8 @@ class PythonIdentity(object):
     def encode(self):
         values = dict(
             binary=self._binary,
+            prefix=self._prefix,
+            base_prefix=self._base_prefix,
             python_tag=self._python_tag,
             abi_tag=self._abi_tag,
             platform_tag=self._platform_tag,
@@ -157,6 +180,16 @@ class PythonIdentity(object):
     @property
     def binary(self):
         return self._binary
+
+    @property
+    def prefix(self):
+        # type: () -> str
+        return self._prefix
+
+    @property
+    def base_prefix(self):
+        # type: () -> str
+        return self._base_prefix
 
     @property
     def python_tag(self):
@@ -308,7 +341,7 @@ class PythonInterpreter(object):
     _PYTHON_INTERPRETER_BY_NORMALIZED_PATH = {}  # type: Dict
 
     @staticmethod
-    def _read_pyvenv_home(path):
+    def _get_pyvenv_cfg(path):
         # type: (str) -> Optional[str]
         # See: https://www.python.org/dev/peps/pep-0405/#specification
         pyvenv_cfg_path = os.path.join(path, "pyvenv.cfg")
@@ -317,11 +350,11 @@ class PythonInterpreter(object):
                 for line in fp:
                     name, _, value = line.partition("=")
                     if name.strip() == "home":
-                        return value.strip()
+                        return pyvenv_cfg_path
         return None
 
     @classmethod
-    def _find_pyvenv_home(cls, maybe_venv_python_binary):
+    def _find_pyvenv_cfg(cls, maybe_venv_python_binary):
         # type: (str) -> Optional[str]
         # A pyvenv is identified by a pyvenv.cfg file with a home key in one of the two following
         # directory layouts:
@@ -340,11 +373,11 @@ class PythonInterpreter(object):
         #
         # See: # See: https://www.python.org/dev/peps/pep-0405/#specification
         maybe_venv_bin_dir = os.path.dirname(maybe_venv_python_binary)
-        home_dir = cls._read_pyvenv_home(maybe_venv_bin_dir)
-        if not home_dir:
+        pyvenv_cfg = cls._get_pyvenv_cfg(maybe_venv_bin_dir)
+        if not pyvenv_cfg:
             maybe_venv_dir = os.path.dirname(maybe_venv_bin_dir)
-            home_dir = cls._read_pyvenv_home(maybe_venv_dir)
-        return home_dir
+            pyvenv_cfg = cls._get_pyvenv_cfg(maybe_venv_dir)
+        return pyvenv_cfg
 
     @classmethod
     def _resolve_pyvenv_canonical_python_binary(
@@ -357,8 +390,8 @@ class PythonInterpreter(object):
         if not os.path.islink(maybe_venv_python_binary):
             return None
 
-        home_dir = cls._find_pyvenv_home(maybe_venv_python_binary)
-        if os.path.dirname(real_binary) != home_dir:
+        pyvenv_cfg = cls._find_pyvenv_cfg(maybe_venv_python_binary)
+        if pyvenv_cfg is None:
             return None
 
         while os.path.islink(maybe_venv_python_binary):
@@ -798,7 +831,108 @@ class PythonInterpreter(object):
 
     @property
     def binary(self):
+        # type: () -> str
         return self._binary
+
+    @property
+    def is_venv(self):
+        # type: () -> bool
+        """Return `True` if this interpreter is homed in a virtual environment."""
+        return self._identity.prefix != self._identity.base_prefix
+
+    @property
+    def prefix(self):
+        # type: () -> str
+        """Return the `sys.prefix` of this interpreter.
+
+        For virtual environments, this will be the virtual environment directory itself.
+        """
+        return self._identity.prefix
+
+    class BaseInterpreterResolutionError(Exception):
+        """Indicates the base interpreter for a virtual environment could not be resolved."""
+
+    def resolve_base_interpreter(self):
+        # type: () -> PythonInterpreter
+        """Finds the base system interpreter used to create a virtual environment.
+
+        If this interpreter is not homed in a virtual environment, returns itself.
+        """
+        if not self.is_venv:
+            return self
+
+        # In the case of PyPy, the <base_prefix> dir might contain one of the following:
+        #
+        # 1. On a system with PyPy 2.7 series and one PyPy 3.x series
+        # bin/
+        #   pypy
+        #   pypy3
+        #
+        # 2. On a system with PyPy 2.7 series and more than one PyPy 3.x series
+        # bin/
+        #   pypy
+        #   pypy3
+        #   pypy3.6
+        #   pypy3.7
+        #
+        # In both cases, bin/pypy is a 2.7 series interpreter. In case 2 bin/pypy3 could be either
+        # PyPy 3.6 series or PyPy 3.7 series. In order to ensure we pick the correct base executable
+        # of a PyPy virtual environment, we always try to resolve the most specific basename first
+        # to the least specific basename last and we also verify that, if the basename resolves, it
+        # resolves to an equivalent interpreter. We employ the same strategy for CPython, but only
+        # for uniformity in the algorithm. It appears to always be the case for CPython that
+        # python<major>.<minor> is present in any given <prefix>/bin/ directory; so the algorithm
+        # gets a hit on 1st try for CPython binaries incurring ~no extra overhead.
+
+        version = self._identity.version
+        abi_tag = self._identity.abi_tag
+
+        prefix = "pypy" if self._identity.interpreter == "PyPy" else "python"
+        suffixes = ("{}.{}".format(version[0], version[1]), str(version[0]), "")
+        candidate_binaries = tuple("{}{}".format(prefix, suffix) for suffix in suffixes)
+
+        def iter_base_candidate_binary_paths(interpreter):
+            # type: (PythonInterpreter) -> Iterator[str]
+            bin_dir = os.path.join(interpreter._identity.base_prefix, "bin")
+            for candidate_binary in candidate_binaries:
+                candidate_binary_path = os.path.join(bin_dir, candidate_binary)
+                if is_exe(candidate_binary_path):
+                    yield candidate_binary_path
+
+        def is_same_interpreter(interpreter):
+            # type: (PythonInterpreter) -> bool
+            identity = interpreter._identity
+            return identity.version == version and identity.abi_tag == abi_tag
+
+        resolution_path = []  # type: List[str]
+        base_interpreter = self
+        while base_interpreter.is_venv:
+            resolved = None  # type: Optional[PythonInterpreter]
+            for candidate_path in iter_base_candidate_binary_paths(base_interpreter):
+                resolved_interpreter = self.from_binary(candidate_path)
+                if is_same_interpreter(resolved_interpreter):
+                    resolved = resolved_interpreter
+                    break
+            if resolved is None:
+                message = [
+                    "Failed to resolve the base interpreter for the virtual environment at "
+                    "{venv_dir}.".format(venv_dir=self._identity.prefix)
+                ]
+                if resolution_path:
+                    message.append(
+                        "Resolved through {path}".format(
+                            path=" -> ".join(binary for binary in resolution_path)
+                        )
+                    )
+                message.append(
+                    "Search of base_prefix {} found no equivalent interpreter for {}".format(
+                        base_interpreter._identity.base_prefix, base_interpreter._binary
+                    )
+                )
+                raise self.BaseInterpreterResolutionError("\n".join(message))
+            base_interpreter = resolved_interpreter
+            resolution_path.append(base_interpreter.binary)
+        return base_interpreter
 
     @property
     def identity(self):

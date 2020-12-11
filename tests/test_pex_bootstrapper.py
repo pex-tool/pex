@@ -30,7 +30,7 @@ def find_interpreters(
     constraints=None,  # type: Optional[Iterable[str]]
     preferred_interpreter=None,  # type: Optional[PythonInterpreter]
 ):
-    # type: (...) -> List[AnyStr]
+    # type: (...) -> List[str]
     return [
         interp.binary
         for interp in iter_compatible_interpreters(
@@ -163,8 +163,9 @@ def test_find_compatible_interpreters_with_valid_basenames_and_constraints():
 def test_find_compatible_interpreters_bias_current():
     # type: () -> None
     py36 = ensure_python_interpreter(PY36)
-    assert [os.path.realpath(sys.executable), py36] == find_interpreters([py36, sys.executable])
-    assert [os.path.realpath(sys.executable), py36] == find_interpreters([sys.executable, py36])
+    current_interpreter = PythonInterpreter.get()
+    assert [current_interpreter.binary, py36] == find_interpreters([py36, sys.executable])
+    assert [current_interpreter.binary, py36] == find_interpreters([sys.executable, py36])
 
 
 def test_find_compatible_interpreters_siblings_of_current_issues_1109():

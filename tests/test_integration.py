@@ -1922,7 +1922,9 @@ def _assert_exec_chain(
         assert "PEX_PYTHON_PATH" not in final_env
         assert "_PEX_SHOULD_EXIT_BOOTSTRAP_REEXEC" not in final_env
 
-        expected_exec_chain = [os.path.realpath(i) for i in [sys.executable] + (exec_chain or [])]
+        expected_exec_chain = [
+            PythonInterpreter.from_binary(i).binary for i in [sys.executable] + (exec_chain or [])
+        ]
         assert expected_exec_chain == final_env["_PEX_EXEC_CHAIN"].split(os.pathsep)
 
 
@@ -1933,7 +1935,7 @@ def test_pex_no_reexec_no_constraints():
 
 def test_pex_reexec_no_constraints_pythonpath_present():
     # type: () -> None
-    _assert_exec_chain(exec_chain=[os.path.realpath(sys.executable)], pythonpath=["."])
+    _assert_exec_chain(exec_chain=[sys.executable], pythonpath=["."])
 
 
 def test_pex_no_reexec_constraints_match_current():
@@ -1946,7 +1948,7 @@ def test_pex_reexec_constraints_match_current_pythonpath_present():
     # type: () -> None
     current_version = ".".join(str(component) for component in sys.version_info[0:3])
     _assert_exec_chain(
-        exec_chain=[os.path.realpath(sys.executable)],
+        exec_chain=[sys.executable],
         pythonpath=["."],
         interpreter_constraints=["=={}".format(current_version)],
     )
