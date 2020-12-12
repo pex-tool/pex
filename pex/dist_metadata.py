@@ -4,7 +4,8 @@
 
 from __future__ import absolute_import
 
-import email
+from email.message import Message
+from email.parser import Parser
 
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import DistInfoDistribution, Distribution, Requirement
@@ -14,17 +15,17 @@ if TYPE_CHECKING:
     from typing import Dict, Iterator, Optional
 
 
-_PKG_INFO_BY_DIST = {}  # type: Dict[Distribution, Optional[email.message.Message]]
+_PKG_INFO_BY_DIST = {}  # type: Dict[Distribution, Optional[Message]]
 
 
 def _parse_pkg_info(dist):
-    # type: (Distribution) -> Optional[email.message.Message]
+    # type: (Distribution) -> Optional[Message]
     if dist not in _PKG_INFO_BY_DIST:
         if not dist.has_metadata(DistInfoDistribution.PKG_INFO):
             pkg_info = None
         else:
             metadata = dist.get_metadata(DistInfoDistribution.PKG_INFO)
-            pkg_info = email.parser.Parser().parsestr(metadata)
+            pkg_info = Parser().parsestr(metadata)
         _PKG_INFO_BY_DIST[dist] = pkg_info
     return _PKG_INFO_BY_DIST[dist]
 
