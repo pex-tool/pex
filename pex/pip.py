@@ -24,6 +24,39 @@ if TYPE_CHECKING:
     from typing import Iterable, Iterator, List, Mapping, Optional, Tuple
 
 
+class ResolverVersion(object):
+    class Value(object):
+        def __init__(
+            self,
+            value,  # type: str
+            pip_args=None,  # type: Optional[Iterable[str]]
+        ):
+            # type: (...) -> None
+            self.value = value
+            self.pip_args = tuple(pip_args) if pip_args else ()  # type: Tuple[str, ...]
+
+        def __repr__(self):
+            # type: () -> str
+            return repr(self.value)
+
+    PIP_LEGACY = Value("pip-legacy-resolver", pip_args=("--use-deprecated", "legacy-resolver"))
+    PIP_2020 = Value("pip-2020-resolver")
+
+    values = PIP_LEGACY, PIP_2020
+
+    @classmethod
+    def for_value(cls, value):
+        # type: (str) -> ResolverVersion.Value
+        for v in cls.values:
+            if v.value == value:
+                return v
+        raise ValueError(
+            "{!r} of type {} must be one of {}".format(
+                value, type(value), ", ".join(map(repr, cls.values))
+            )
+        )
+
+
 class PackageIndexConfiguration(object):
     @staticmethod
     def _calculate_args(
@@ -72,15 +105,6 @@ class PackageIndexConfiguration(object):
 
         network_configuration = network_configuration or NetworkConfiguration.create()
 
-        # N.B.: Pip sends `Cache-Control: max-age=0` by default which turns of HTTP caching as per
-        # the spec:
-        yield "--header"
-        yield "Cache-Control:max-age={}".format(network_configuration.cache_ttl)
-
-        for header in network_configuration.headers:
-            yield "--header"
-            yield header
-
         yield "--retries"
         yield str(network_configuration.retries)
 
@@ -110,11 +134,13 @@ class PackageIndexConfiguration(object):
     @classmethod
     def create(
         cls,
+        resolver_version=None,  # type: Optional[ResolverVersion.Value]
         indexes=None,  # type: Optional[List[str]]
         find_links=None,  # type: Optional[List[str]]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
     ):
         # type: (...) -> PackageIndexConfiguration
+        resolver_version = resolver_version or ResolverVersion.PIP_LEGACY
         network_configuration = network_configuration or NetworkConfiguration.create()
 
         # We must pass `--client-cert` via PIP_CLIENT_CERT to work around
@@ -123,6 +149,7 @@ class PackageIndexConfiguration(object):
         isolated = not network_configuration.client_cert
 
         return cls(
+            resolver_version=resolver_version,
             network_configuration=network_configuration,
             args=cls._calculate_args(
                 indexes=indexes, find_links=find_links, network_configuration=network_configuration
@@ -133,12 +160,14 @@ class PackageIndexConfiguration(object):
 
     def __init__(
         self,
+        resolver_version,  # type: ResolverVersion.Value
         network_configuration,  # type: NetworkConfiguration
         args,  # type: Iterable[str]
         env,  # type: Iterable[Tuple[str, str]]
         isolated,  # type: bool
     ):
         # type: (...) -> None
+        self.resolver_version = resolver_version  # type: ResolverVersion.Value
         self.network_configuration = network_configuration  # type: NetworkConfiguration
         self.args = tuple(args)  # type: Iterable[str]
         self.env = dict(env)  # type: Mapping[str, str]
@@ -175,8 +204,8 @@ class Pip(object):
                             import sys
                             
                             
-                            # Propagate un-vendored setuptools to pip for any legacy setup.py builds it needs to
-                            # perform.
+                            # Propagate un-vendored setuptools to pip for any legacy setup.py builds
+                            # it needs to perform.
                             os.environ['__PEX_UNVENDORED__'] = '1'
                             os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
                             
@@ -215,6 +244,12 @@ class Pip(object):
             "--exists-action",
             "a",
         ]
+        resolver_version = (
+            package_index_configuration.resolver_version
+            if package_index_configuration
+            else ResolverVersion.PIP_LEGACY
+        )
+        pip_args.extend(resolver_version.pip_args)
         if not package_index_configuration or package_index_configuration.isolated:
             # Don't read PIP_ environment variables or pip configuration files like
             # `~/.config/pip/pip.conf`.
@@ -386,8 +421,33 @@ class Pip(object):
 
             # We're installing a wheel for a foreign platform. This is just an unpacking operation
             # though; so we don't actually need to perform it with a target platform compatible
-            # interpreter.
+            # interpreter (except for scripts - see below).
             install_cmd.append("--ignore-requires-python")
+
+            # The new Pip 2020-resolver rightly refuses to install foreign wheels since they may
+            # contain python scripts that request a shebang re-write (see
+            # https://docs.python.org/3/distutils/setupscript.html#installing-scripts) in which case
+            # Pip would not be able to perform the re-write, leaving an un-runnable script. Since we
+            # only expose scripts via the Pex Venv tool and that tool re-writes shebangs anyhow, we
+            # trick Pip here by re-naming the wheel to look compatible with the current interpreter.
+
+            # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
+            # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
+            wheel_basename = os.path.basename(wheel)
+            wheel_name, extension = os.path.splitext(wheel_basename)
+            prefix, python_tag, abi_tag, platform_tag = wheel_name.rsplit("-", 3)
+            target_tags = PythonInterpreter.get().identity.supported_tags[0]
+            renamed_wheel = os.path.join(
+                os.path.dirname(wheel),
+                "{prefix}-{target_tags}{extension}".format(
+                    prefix=prefix, target_tags=target_tags, extension=extension
+                ),
+            )
+            os.symlink(wheel_basename, renamed_wheel)
+            TRACER.log(
+                "Re-named {} to {} to perform foreign wheel install.".format(wheel, renamed_wheel)
+            )
+            wheel = renamed_wheel
 
         install_cmd.append("--compile" if compile else "--no-compile")
         install_cmd.append(wheel)

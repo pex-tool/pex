@@ -28,6 +28,7 @@ from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_bootstrapper import iter_compatible_interpreters
 from pex.pex_builder import PEXBuilder
+from pex.pip import ResolverVersion
 from pex.platforms import Platform
 from pex.resolver import Unsatisfiable, parsed_platform, resolve_multi
 from pex.tracer import TRACER
@@ -113,6 +114,15 @@ def configure_clp_pex_resolution(parser):
     )
 
     group.add_argument(
+        "--resolver-version",
+        dest="resolver_version",
+        default=ResolverVersion.PIP_LEGACY.value,
+        choices=[choice.value for choice in ResolverVersion.values],
+        help="The dependency resolver version to use. Read more at "
+        "https://pip.pypa.io/en/stable/user_guide/#resolver-changes-2020",
+    )
+
+    group.add_argument(
         "--pypi",
         "--no-pypi",
         "--no-index",
@@ -157,10 +167,10 @@ def configure_clp_pex_resolution(parser):
 
     group.add_argument(
         "--cache-ttl",
-        metavar="SECS",
-        default=default_net_config.cache_ttl,
+        metavar="DEPRECATED",
+        default=None,
         type=int,
-        help="Set the maximum age of items in the HTTP cache in seconds.",
+        help="Deprecated: No longer used.",
     )
 
     group.add_argument(
@@ -182,11 +192,11 @@ def configure_clp_pex_resolution(parser):
         "-H",
         "--header",
         dest="headers",
-        metavar="NAME:VALUE",
-        default=[],
+        metavar="DEPRECATED",
+        default=None,
         type=str,
         action="append",
-        help="Additional HTTP headers to include in all requests.",
+        help="Deprecated: No longer used.",
     )
 
     group.add_argument(
@@ -826,11 +836,14 @@ def build_pex(reqs, options, cache=None):
         pex_builder.add_from_requirements_pex(requirements_pex)
 
     with TRACER.timed("Resolving distributions ({})".format(reqs + options.requirement_files)):
+        if options.cache_ttl:
+            pex_warnings.warn("The --cache-ttl option is deprecated and no longer has any effect.")
+        if options.headers:
+            pex_warnings.warn("The --header option is deprecated and no longer has any effect.")
+
         network_configuration = NetworkConfiguration.create(
-            cache_ttl=options.cache_ttl,
             retries=options.retries,
             timeout=options.timeout,
-            headers=options.headers,
             proxy=options.proxy,
             cert=options.cert,
             client_cert=options.client_cert,
@@ -847,6 +860,7 @@ def build_pex(reqs, options, cache=None):
                 platforms=list(platforms),
                 indexes=indexes,
                 find_links=options.find_links,
+                resolver_version=ResolverVersion.for_value(options.resolver_version),
                 network_configuration=network_configuration,
                 cache=cache,
                 build=options.build,
