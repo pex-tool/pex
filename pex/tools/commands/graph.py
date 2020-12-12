@@ -30,8 +30,16 @@ class Graph(OutputMixin, Command):
 
     @staticmethod
     def _create_dependency_graph(pex):
-        graph = DiGraph(pex.path(), fontsize="14")
-        marker_environment = PythonInterpreter.get().identity.env_markers.copy()
+        # type: (PEX) -> DiGraph
+        graph = DiGraph(
+            pex.path(),
+            fontsize="14",
+            labelloc="t",
+            label="Dependency graph of {} for interpreter {} ({})".format(
+                pex.path(), pex.interpreter.binary, pex.interpreter.identity.requirement
+            ),
+        )
+        marker_environment = pex.interpreter.identity.env_markers.copy()
         marker_environment["extra"] = []
         present_dists = frozenset(dist.project_name for dist in pex.activate())
         for dist in pex.activate():
@@ -41,6 +49,7 @@ class Graph(OutputMixin, Command):
                 URL="https://pypi.org/project/{name}/{version}".format(
                     name=dist.project_name, version=dist.version
                 ),
+                target="_blank",
             )
             for req in requires_dists(dist):
                 if (
@@ -54,6 +63,7 @@ class Graph(OutputMixin, Command):
                         style="filled",
                         tooltip="inactive requirement",
                         URL="https://pypi.org/project/{name}".format(name=req.project_name),
+                        target="_blank",
                     )
                 graph.add_edge(
                     start=dist.project_name,
