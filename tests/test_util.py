@@ -160,12 +160,6 @@ def test_access_zipped_assets_integration():
     assert b"" == stderr.strip()
 
 
-def test_access_zipped_assets_integration_deprecated():
-    # type: () -> None
-    stderr = assert_access_zipped_assets("from _pex.util import DistributionHelper")
-    assert b"`import _pex.util`" in stderr
-
-
 def test_named_temporary_file():
     # type: () -> None
     with named_temporary_file() as fp:
