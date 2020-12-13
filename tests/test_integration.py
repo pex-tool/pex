@@ -21,7 +21,6 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex import pex_builder
 from pex.common import (
     safe_copy,
     safe_mkdir,
@@ -62,6 +61,7 @@ from pex.testing import (
 from pex.third_party import pkg_resources
 from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper, named_temporary_file
+from pex.variables import unzip_dir
 
 if TYPE_CHECKING:
     from typing import (
@@ -2325,7 +2325,9 @@ def test_unzip_mode():
         )
         assert ["quit re-exec", os.path.realpath(pex_file)] == output1.decode("utf-8").splitlines()
 
-        unzipped_cache = os.path.join(pex_root, pex_builder.UNZIPPED_DIR)
+        pex_hash = PexInfo.from_pex(pex_file).pex_hash
+        assert pex_hash is not None
+        unzipped_cache = unzip_dir(pex_root, pex_hash)
         assert os.path.isdir(unzipped_cache)
         shutil.rmtree(unzipped_cache)
 

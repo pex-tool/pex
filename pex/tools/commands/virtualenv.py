@@ -91,7 +91,7 @@ class Virtualenv(object):
             interpreter.execute(args=["-m", "venv", "--without-pip", venv_dir])
         else:
             virtualenv_py = resource_string(__name__, "virtualenv_16.7.10_py")
-            with named_temporary_file(mode="w") as fp:
+            with named_temporary_file(mode="wb") as fp:
                 fp.write(virtualenv_py)
                 fp.close()
                 interpreter.execute(
@@ -156,8 +156,12 @@ class Virtualenv(object):
         # type: () -> Iterator[str]
         return _iter_executables(self._bin_dir)
 
-    def rewrite_scripts(self, python_args=None):
-        # type: (Optional[str]) -> Iterator[str]
+    def rewrite_scripts(
+        self,
+        python=None,  # type: Optional[str]
+        python_args=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Iterator[str]
         python_scripts = []
         for executable in self.iter_executables():
             if executable in self._base_executables:
@@ -172,7 +176,7 @@ class Virtualenv(object):
                 # which is has moved aside.
                 for line in fi:
                     if fi.isfirstline():
-                        shebang = [self._interpreter.binary]
+                        shebang = [python or self._interpreter.binary]
                         if python_args:
                             shebang.append(python_args)
                         print("#!{shebang}".format(shebang=" ".join(shebang)))

@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import json
 import os
 
-from pex import pex_warnings
+from pex import pex_warnings, variables
 from pex.common import can_write_dir, open_zip, safe_mkdtemp
 from pex.compatibility import PY2
 from pex.compatibility import string as compatibility_string
@@ -14,6 +14,7 @@ from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
+from pex.venv_bin_path import BinPath
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:
@@ -32,6 +33,7 @@ class PexInfo(object):
     code_hash: str                     # sha1 hash of all names/code in the archive
     distributions: {dist_name: str}    # map from distribution name (i.e. path in
                                        # the internal cache) to its cache key (sha1)
+    pex_hash: str                      # sha1 hash of all names/code and distributions in the pex
     requirements: list                 # list of requirements for this environment
 
     # Environment options
@@ -120,6 +122,7 @@ class PexInfo(object):
             "script": env.PEX_SCRIPT,
             "zip_safe": zip_safe,
             "unzip": Variables.PEX_UNZIP.strip_default(env),
+            "venv": Variables.PEX_VENV.strip_default(env),
             "inherit_path": inherit_path,
             "ignore_errors": Variables.PEX_IGNORE_ERRORS.strip_default(env),
             "always_write_cache": Variables.PEX_ALWAYS_CACHE.strip_default(env),
@@ -213,6 +216,50 @@ class PexInfo(object):
         self._pex_info["unzip"] = bool(value)
 
     @property
+    def unzip_dir(self):
+        # type: () -> Optional[str]
+        if not self.unzip:
+            return None
+        if self.pex_hash is None:
+            raise ValueError("The unzip_dir was requested but no pex_hash was set.")
+        return variables.unzip_dir(self.pex_root, self.pex_hash)
+
+    @property
+    def venv(self):
+        # type: () -> bool
+        """Whether or not PEX should be converted to a venv before it's executed.
+
+        Creating a venv from a PEX is a operation that can be cached on the 1st run of a given PEX
+        file which results in lower startup latency in subsequent runs.
+        """
+        return self._pex_info.get("venv", False)
+
+    @venv.setter
+    def venv(self, value):
+        # type: (bool) -> None
+        self._pex_info["venv"] = bool(value)
+
+    @property
+    def venv_bin_path(self):
+        # type: () -> BinPath.Value
+        """When run as a venv, whether or not to include `bin/` scripts on the PATH."""
+        return BinPath.for_value(self._pex_info.get("venv_bin_path", BinPath.FALSE.value))
+
+    @venv_bin_path.setter
+    def venv_bin_path(self, value):
+        # type: (BinPath.Value) -> None
+        self._pex_info["venv_bin_path"] = str(value)
+
+    @property
+    def venv_dir(self):
+        # type: () -> Optional[str]
+        if not self.venv:
+            return None
+        if self.pex_hash is None:
+            raise ValueError("The venv_dir was requested but no pex_hash was set.")
+        return variables.venv_dir(self.pex_root, self.pex_hash, self.interpreter_constraints)
+
+    @property
     def strip_pex_env(self):
         """Whether or not this PEX should strip `PEX_*` env vars before executing its entrypoint.
 
@@ -291,11 +338,23 @@ class PexInfo(object):
 
     @property
     def code_hash(self):
+        # type: () -> Optional[str]
         return self._pex_info.get("code_hash")
 
     @code_hash.setter
     def code_hash(self, value):
+        # type: (str) -> None
         self._pex_info["code_hash"] = value
+
+    @property
+    def pex_hash(self):
+        # type: () -> Optional[str]
+        return self._pex_info.get("pex_hash")
+
+    @pex_hash.setter
+    def pex_hash(self, value):
+        # type: (str) -> None
+        self._pex_info["pex_hash"] = value
 
     @property
     def entry_point(self):
@@ -336,8 +395,14 @@ class PexInfo(object):
         self._pex_info["always_write_cache"] = bool(value)
 
     @property
+    def raw_pex_root(self):
+        # type: () -> str
+        return cast(str, self._pex_info.get("pex_root", os.path.join("~", ".pex")))
+
+    @property
     def pex_root(self):
-        pex_root = os.path.expanduser(self._pex_info.get("pex_root", os.path.join("~", ".pex")))
+        # type: () -> str
+        pex_root = os.path.expanduser(self.raw_pex_root)
         if not can_write_dir(pex_root):
             tmp_root = safe_mkdtemp()
             pex_warnings.warn(
@@ -350,6 +415,7 @@ class PexInfo(object):
 
     @pex_root.setter
     def pex_root(self, value):
+        # type: (Optional[str]) -> None
         if value is None:
             self._pex_info.pop("pex_root", None)
         else:
@@ -365,6 +431,7 @@ class PexInfo(object):
 
     @property
     def zip_unsafe_cache(self):
+        #: type: () -> str
         return os.path.join(self.pex_root, "code")
 
     def update(self, other):

@@ -142,7 +142,7 @@ class CacheHelper(object):
                 yield os.path.relpath(os.path.join(root, f), normpath)
 
     @classmethod
-    def pex_hash(cls, d):
+    def pex_code_hash(cls, d):
         # type: (str) -> str
         """Return a reproducible hash of the contents of a loose PEX; excluding all `.pyc` files."""
         names = sorted(f for f in cls._iter_non_pyc_files(d) if not f.startswith("."))

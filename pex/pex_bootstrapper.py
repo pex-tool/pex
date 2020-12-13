@@ -7,7 +7,7 @@ import os
 import sys
 
 from pex import pex_warnings
-from pex.common import die
+from pex.common import atomic_directory, die
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
@@ -28,6 +28,8 @@ if TYPE_CHECKING:
         Union,
         Callable,
     )
+
+    from pex.pex import PEX
 
     InterpreterIdentificationError = Tuple[str, str]
     InterpreterOrError = Union[PythonInterpreter, InterpreterIdentificationError]
@@ -361,15 +363,51 @@ def _bootstrap(entry_point):
     return pex_info
 
 
+def ensure_venv(pex):
+    # type: (PEX) -> str
+    pex_info = pex.pex_info()
+    venv_dir = pex_info.venv_dir
+    if venv_dir is None:
+        raise AssertionError(
+            "Expected PEX-INFO for {} to have the components of a venv directory".format(pex.path())
+        )
+    with atomic_directory(venv_dir, exclusive=True) as venv:
+        if venv:
+            from .tools.commands.venv import populate_venv_with_pex
+            from .tools.commands.virtualenv import Virtualenv
+
+            virtualenv = Virtualenv.create(venv_dir=venv, interpreter=pex.interpreter)
+            populate_venv_with_pex(
+                virtualenv,
+                pex,
+                bin_path=pex_info.venv_bin_path,
+                python=os.path.join(venv_dir, "bin", os.path.basename(pex.interpreter.binary)),
+                collisions_ok=True,
+            )
+    return os.path.join(venv_dir, "pex")
+
+
 # NB: This helper is used by the PEX bootstrap __main__.py code.
 def bootstrap_pex(entry_point):
     # type: (str) -> None
     pex_info = _bootstrap(entry_point)
-    maybe_reexec_pex(pex_info.interpreter_constraints)
 
-    from . import pex
+    if not ENV.PEX_TOOLS and pex_info.venv:
+        try:
+            target = find_compatible_interpreter(
+                interpreter_constraints=pex_info.interpreter_constraints,
+            )
+        except UnsatisfiableInterpreterConstraintsError as e:
+            die(str(e))
+        from . import pex
 
-    pex.PEX(entry_point).execute()
+        venv_pex = ensure_venv(pex.PEX(entry_point, interpreter=target))
+        os.execv(venv_pex, [venv_pex] + sys.argv[1:])
+    else:
+        maybe_reexec_pex(pex_info.interpreter_constraints)
+        from . import pex
+
+        pex.PEX(entry_point).execute()
 
 
 # NB: This helper is used by third party libs - namely https://github.com/wickman/lambdex.

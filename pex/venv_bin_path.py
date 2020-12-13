@@ -3,35 +3,30 @@
 
 from __future__ import absolute_import
 
-from pex.typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from typing import Union
-
-
-class InheritPath(object):
+class BinPath(object):
     class Value(object):
         def __init__(self, value):
             # type: (str) -> None
             self.value = value
+
+        def __str__(self):
+            # type: () -> str
+            return str(self.value)
 
         def __repr__(self):
             # type: () -> str
             return repr(self.value)
 
     FALSE = Value("false")
-    PREFER = Value("prefer")
-    FALLBACK = Value("fallback")
+    PREPEND = Value("prepend")
+    APPEND = Value("append")
 
-    values = FALSE, PREFER, FALLBACK
+    values = FALSE, PREPEND, APPEND
 
     @classmethod
     def for_value(cls, value):
-        # type: (Union[str, bool]) -> InheritPath.Value
-        if value is False:
-            return InheritPath.FALSE
-        elif value is True:
-            return InheritPath.PREFER
+        # type: (str) -> BinPath.Value
         for v in cls.values:
             if v.value == value:
                 return v

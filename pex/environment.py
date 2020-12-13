@@ -25,7 +25,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
-    from typing import Container, Optional
+    from typing import Container, Iterator, Optional, Tuple, Iterable
 
 
 def _import_pkg_resources():
@@ -114,7 +114,7 @@ class PEXEnvironment(Environment):
         dest_dir,  # type: str
         exclude=(),  # type: Container[str]
     ):
-        # type: (...) -> None
+        # type: (...) -> Iterable[Tuple[str, str]]
         with TRACER.timed("Unzipping {}".format(pex_file)):
             with open_zip(pex_file) as pex_zip:
                 pex_files = (
@@ -125,6 +125,13 @@ class PEXEnvironment(Environment):
                     and name not in exclude
                 )
                 pex_zip.extractall(dest_dir, pex_files)
+                return [
+                    (
+                        "{pex_file}:{zip_path}".format(pex_file=pex_file, zip_path=f),
+                        os.path.join(dest_dir, f),
+                    )
+                    for f in pex_files
+                ]
 
     @classmethod
     def _force_local(cls, pex_file, pex_info):

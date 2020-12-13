@@ -24,7 +24,7 @@ from uuid import uuid4
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, DefaultDict, Iterable, Iterator, NoReturn, Optional, Set
+    from typing import Any, DefaultDict, Iterable, Iterator, NoReturn, Optional, Set, Sized
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
@@ -58,6 +58,22 @@ def die(msg, exit_code=1):
     # type: (str, int) -> NoReturn
     print(msg, file=sys.stderr)
     sys.exit(exit_code)
+
+
+def pluralize(
+    subject,  # type: Sized
+    noun,  # type: str
+):
+    # type: (...) -> str
+    if noun == "":
+        return ""
+    count = len(subject)
+    if count == 1:
+        return noun
+    if noun[-1] in ("s", "x", "z") or noun[-2:] in ("sh", "ch"):
+        return noun + "es"
+    else:
+        return noun + "s"
 
 
 def safe_copy(source, dest, overwrite=False):

@@ -117,15 +117,6 @@ def test_merge_split():
     assert result == ["/pex/path/3", "/pex/path/4"]
 
 
-def test_pex_root_set_none():
-    # type: () -> None
-    pex_info = PexInfo.default()
-    pex_info.pex_root = None
-
-    assert PexInfo.default().pex_root == pex_info.pex_root
-    assert os.path.expanduser("~/.pex") == pex_info.pex_root
-
-
 def test_pex_root_set_unwriteable():
     # type: () -> None
     with temporary_dir() as td:
