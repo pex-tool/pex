@@ -1,6 +1,76 @@
 Release Notes
 =============
 
+2.1.22
+------
+
+This release fixes a deadlock that could be experienced when building
+PEX files in highly concurrent environments in addition to fixing
+`pex --help-variables` output.
+
+A new suite of PEX tools is now available in Pex itself and any PEXes
+built with the new `--include-tools` option. Use 
+`PEX_TOOLS=1 pex --help` to find out more about the available tools and 
+their usage.
+
+Finally, the long deprecated exposure of the Pex APIs through `_pex` has
+been removed. To use the Pex APIs you must include pex as a dependency
+in your PEX file.
+
+* Add a dependency graph tool. (#1132)
+  `PR #1132 <https://github.com/pantsbuild/pex/pull/1132>`_
+
+* Add a venv tool. (#1128)
+  `PR #1128 <https://github.com/pantsbuild/pex/pull/1128>`_
+
+* Remove long deprecated support for _pex module. (#1135)
+  `PR #1135 <https://github.com/pantsbuild/pex/pull/1135>`_
+
+* Add an interpreter tool. (#1131)
+  `PR #1131 <https://github.com/pantsbuild/pex/pull/1131>`_
+
+* Escape venvs unless PEX_INHERIT_PATH is requested. (#1130)
+  `PR #1130 <https://github.com/pantsbuild/pex/pull/1130>`_
+
+* Improve `PythonInterpreter` venv support. (#1129)
+  `PR #1129 <https://github.com/pantsbuild/pex/pull/1129>`_
+
+* Add support for PEX runtime tools & an info tool. (#1127)
+  `PR #1127 <https://github.com/pantsbuild/pex/pull/1127>`_
+
+* Exclusive atomic_directory always unlocks. (#1126)
+  `PR #1126 <https://github.com/pantsbuild/pex/pull/1126>`_
+
+* Fix `PythonInterpreter` binary normalization. (#1125)
+  `PR #1125 <https://github.com/pantsbuild/pex/pull/1125>`_
+
+* Add a `requires_dists` function. (#1122)
+  `PR #1122 <https://github.com/pantsbuild/pex/pull/1122>`_
+
+* Add an `is_exe` helper. (#1123)
+  `PR #1123 <https://github.com/pantsbuild/pex/pull/1123>`_
+
+* Fix req parsing for local archives & projects. (#1121)
+  `PR #1121 <https://github.com/pantsbuild/pex/pull/1121>`_
+
+* Improve PEXEnvironment constructor ergonomics. (#1120)
+  `PR #1120 <https://github.com/pantsbuild/pex/pull/1120>`_
+
+* Fix `safe_open` for single element relative paths. (#1118)
+  `PR #1118 <https://github.com/pantsbuild/pex/pull/1118>`_
+
+* Add URLFetcher IT. (#1116)
+  `PR #1116 <https://github.com/pantsbuild/pex/pull/1116>`_
+
+* Implement full featured requirment parsing. (#1114)
+  `PR #1114 <https://github.com/pantsbuild/pex/pull/1114>`_
+
+* Fix `--help-variables` docs. (#1113)
+  `PR #1113 <https://github.com/pantsbuild/pex/pull/1113>`_
+
+* Switch from optparse to argparse. (#1083)
+  `PR #1083 <https://github.com/pantsbuild/pex/pull/1083>`_
+
 2.1.21
 ------
 
