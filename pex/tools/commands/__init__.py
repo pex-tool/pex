@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from pex.tools.command import Command
+from pex.tools.commands.graph import Graph
 from pex.tools.commands.info import Info
 from pex.tools.commands.interpreter import Interpreter
 from pex.tools.commands.venv import Venv
@@ -13,4 +14,4 @@ if TYPE_CHECKING:
 
 def all_commands():
     # type: () -> Iterable[Command]
-    return Info(), Interpreter(), Venv()
+    return Info(), Interpreter(), Graph(), Venv()
