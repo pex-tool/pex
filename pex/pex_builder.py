@@ -21,8 +21,6 @@ from pex.util import CacheHelper, DistributionHelper
 
 BOOTSTRAP_DIR = ".bootstrap"
 
-LEGACY_BOOSTRAP_PKG = "_pex"
-
 UNZIPPED_DIR = "unzipped_pexes"
 
 BOOTSTRAP_ENVIRONMENT = """
@@ -82,18 +80,10 @@ import zipfile
 if zipfile.is_zipfile(__entry_point__):
   __maybe_run_unzipped__(__entry_point__)
 
-from pex.third_party import VendorImporter
-VendorImporter.install(uninstallable=False,
-                       prefix={legacy_bootstrap_pkg!r},
-                       path_items=['pex'],
-                       warning='Runtime pex API access through the `{legacy_bootstrap_pkg}` '
-                               'package is deprecated and will be removed in pex 2.0.0. Please '
-                               'switch to the `pex` package for runtime API access.')
-
 from pex.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)
 """.format(
-    unzipped_dir=UNZIPPED_DIR, bootstrap_dir=BOOTSTRAP_DIR, legacy_bootstrap_pkg=LEGACY_BOOSTRAP_PKG
+    unzipped_dir=UNZIPPED_DIR, bootstrap_dir=BOOTSTRAP_DIR
 )
 
 
@@ -501,12 +491,6 @@ class PEXBuilder(object):
                         os.path.join(BOOTSTRAP_DIR, source_name, rel_path),
                         "bootstrap",
                     )
-
-        # Setup a re-director package to support the legacy pex runtime `_pex` APIs through a
-        # VendorImporter.
-        self._chroot.touch(
-            os.path.join(BOOTSTRAP_DIR, LEGACY_BOOSTRAP_PKG, "__init__.py"), "bootstrap"
-        )
 
     def freeze(self, bytecode_compile=True):
         """Freeze the PEX.
