@@ -11,6 +11,7 @@ from __future__ import absolute_import, print_function
 import os
 import sys
 import tempfile
+import zipfile
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser, ArgumentTypeError
 from textwrap import TextWrapper
 
@@ -438,6 +439,17 @@ def configure_clp_pex_environment(parser):
         ),
     )
 
+    current_interpreter = PythonInterpreter.get()
+    program = sys.argv[0]
+    singe_interpreter_info_cmd = (
+        "PEX_TOOLS=1 {current_interpreter} {program} interpreter --verbose --indent 4".format(
+            current_interpreter=current_interpreter.binary, program=program
+        )
+    )
+    all_interpreters_info_cmd = (
+        "PEX_TOOLS=1 {program} interpreter --all --verbose --indent 4".format(program=program)
+    )
+
     group.add_argument(
         "--interpreter-constraint",
         dest="interpreter_constraint",
@@ -446,9 +458,16 @@ def configure_clp_pex_environment(parser):
         action="append",
         help=(
             "Constrain the selected Python interpreter. Specify with Requirement-style syntax, "
-            'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3) '
-            'or "PyPy" (A pypy interpreter of any version). This argument may be repeated multiple '
-            "times to OR the constraints."
+            'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3), '
+            '">=2.7,<3" (Any Python interpreter with version >=2.7 AND version <3) or "PyPy" (A '
+            "PyPy interpreter of any version). This argument may be repeated multiple times to OR "
+            "the constraints. Try `{singe_interpreter_info_cmd}` to find the exact interpreter "
+            "constraints of {current_interpreter} and `{all_interpreters_info_cmd}` to find out "
+            "the interpreter constraints of all Python interpreters on the $PATH.".format(
+                current_interpreter=current_interpreter.binary,
+                singe_interpreter_info_cmd=singe_interpreter_info_cmd,
+                all_interpreters_info_cmd=all_interpreters_info_cmd,
+            )
         ),
     )
 
@@ -472,22 +491,29 @@ def configure_clp_pex_environment(parser):
         "interpreter compatible with the one used to build the PEX file.",
     )
 
-    current_interpreter = PythonInterpreter.get()
     group.add_argument(
         "--platform",
         dest="platforms",
         default=[],
         type=process_platform,
         action="append",
-        help="The platform for which to build the PEX. This option can be passed multiple times "
-        "to create a multi-platform pex. To use the platform corresponding to the current "
-        "interpreter you can pass `current`. To target any other platform you pass a string "
-        "composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. "
-        "These fields stem from wheel name conventions as outlined in "
-        "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
-        "https://www.python.org/dev/peps/pep-0425. For the current interpreter at {} the full "
-        "platform string is {}. To find out more, try `{} --platform explain`.".format(
-            current_interpreter.binary, current_interpreter.platform, sys.argv[0]
+        help=(
+            "The platform for which to build the PEX. This option can be passed multiple times "
+            "to create a multi-platform pex. To use the platform corresponding to the current "
+            "interpreter you can pass `current`. To target any other platform you pass a string "
+            "composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. "
+            "These fields stem from wheel name conventions as outlined in "
+            "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
+            "https://www.python.org/dev/peps/pep-0425. For the current interpreter at "
+            "{current_interpreter} the full platform string is {current_platform}. To find out "
+            "more, try `{all_interpreters_info_cmd}` to print out the platform for all "
+            "interpreters on the $PATH or `{singe_interpreter_info_cmd}` to inspect the single "
+            "interpreter {current_interpreter}.".format(
+                current_interpreter=current_interpreter.binary,
+                current_platform=current_interpreter.platform,
+                singe_interpreter_info_cmd=singe_interpreter_info_cmd,
+                all_interpreters_info_cmd=all_interpreters_info_cmd,
+            )
         ),
     )
 
