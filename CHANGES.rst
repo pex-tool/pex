@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+2.1.23
+------
+
+This release upgrades Pex to the latest Pip which includes support for
+the new 2020-resolver (see:
+https://pip.pypa.io/en/stable/user_guide/#resolver-changes-2020) as well
+as support for macOS BigSur. Although this release defaults to the
+legacy resolver behavior, the next release will deprecate the legacy
+resolver and support for the legacy resolver will later be removed to
+allow continuing Pip upgrades going forward. To switch to the new
+resolver, use: `--resolver-version pip-2020-resolver`.
+
+* Upgrade Pex to Pip 20.3.1. (#1133)
+  `PR #1133 <https://github.com/pantsbuild/pex/pull/1133>`_
+
 2.1.22
 ------
 
