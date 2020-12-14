@@ -2,15 +2,18 @@ from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
 if MYPY_CHECK_RUNNING:
     from typing import Optional
+
     from pip._internal.models.format_control import FormatControl
 
 
 class SelectionPreferences(object):
-
     """
     Encapsulates the candidate selection preferences for downloading
     and installing files.
     """
+
+    __slots__ = ['allow_yanked', 'allow_all_prereleases', 'format_control',
+                 'prefer_binary', 'ignore_requires_python']
 
     # Don't include an allow_yanked default value to make sure each call
     # site considers whether yanked releases are allowed. This also causes

@@ -6,11 +6,11 @@ Issue #10, see: http://code.google.com/p/urllib3/issues/detail?id=10
 from __future__ import absolute_import
 
 from logging import getLogger
+
 from ntlm import ntlm
 
 from .. import HTTPSConnectionPool
 from ..packages.six.moves.http_client import HTTPSConnection
-
 
 log = getLogger(__name__)
 
@@ -96,9 +96,7 @@ class NTLMConnectionPool(HTTPSConnectionPool):
         log.debug("Response data: %s [...]", res.read()[:100])
         if res.status != 200:
             if res.status == 401:
-                raise Exception(
-                    "Server rejected request: wrong " "username or password"
-                )
+                raise Exception("Server rejected request: wrong username or password")
             raise Exception("Wrong server response: %s %s" % (res.status, res.reason))
 
         res.fp = None

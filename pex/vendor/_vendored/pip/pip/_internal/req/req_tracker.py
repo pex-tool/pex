@@ -1,6 +1,3 @@
-# The following comment should be removed at some point in the future.
-# mypy: strict-optional=False
-
 from __future__ import absolute_import
 
 import contextlib
@@ -17,8 +14,9 @@ from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 if MYPY_CHECK_RUNNING:
     from types import TracebackType
     from typing import Dict, Iterator, Optional, Set, Type, Union
-    from pip._internal.req.req_install import InstallRequirement
+
     from pip._internal.models.link import Link
+    from pip._internal.req.req_install import InstallRequirement
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +96,7 @@ class RequirementTracker(object):
         """Add an InstallRequirement to build tracking.
         """
 
+        assert req.link
         # Get the file to write information about this requirement.
         entry_path = self._entry_path(req.link)
 
@@ -111,7 +110,8 @@ class RequirementTracker(object):
             if e.errno != errno.ENOENT:
                 raise
         else:
-            message = '%s is already being built: %s' % (req.link, contents)
+            message = '{} is already being built: {}'.format(
+                req.link, contents)
             raise LookupError(message)
 
         # If we're here, req should really not be building already.
@@ -129,6 +129,7 @@ class RequirementTracker(object):
         """Remove an InstallRequirement from build tracking.
         """
 
+        assert req.link
         # Delete the created file and the corresponding entries.
         os.unlink(self._entry_path(req.link))
         self._entries.remove(req)

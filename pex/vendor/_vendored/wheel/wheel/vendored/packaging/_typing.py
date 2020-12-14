@@ -1,5 +1,3 @@
-# Vendored from packaging v20.4.
-
 """For neatly implementing static typing in packaging.
 
 `mypy` - the static type analysis tool we use - uses the `typing` module, which

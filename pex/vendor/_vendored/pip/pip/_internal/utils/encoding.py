@@ -1,6 +1,3 @@
-# The following comment should be removed at some point in the future.
-# mypy: strict-optional=False
-
 import codecs
 import locale
 import re
@@ -9,7 +6,7 @@ import sys
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
 if MYPY_CHECK_RUNNING:
-    from typing import List, Tuple, Text
+    from typing import List, Text, Tuple
 
 BOMS = [
     (codecs.BOM_UTF8, 'utf-8'),
@@ -35,7 +32,9 @@ def auto_decode(data):
     # Lets check the first two lines as in PEP263
     for line in data.split(b'\n')[:2]:
         if line[0:1] == b'#' and ENCODING_RE.search(line):
-            encoding = ENCODING_RE.search(line).groups()[0].decode('ascii')
+            result = ENCODING_RE.search(line)
+            assert result is not None
+            encoding = result.groups()[0].decode('ascii')
             return data.decode(encoding)
     return data.decode(
         locale.getpreferredencoding(False) or sys.getdefaultencoding(),

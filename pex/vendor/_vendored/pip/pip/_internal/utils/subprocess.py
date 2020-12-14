@@ -1,6 +1,3 @@
-# The following comment should be removed at some point in the future.
-# mypy: strict-optional=False
-
 from __future__ import absolute_import
 
 import logging
@@ -9,18 +6,15 @@ import subprocess
 
 from pip._vendor.six.moves import shlex_quote
 
+from pip._internal.cli.spinners import SpinnerInterface, open_spinner
 from pip._internal.exceptions import InstallationError
 from pip._internal.utils.compat import console_to_str, str_to_display
 from pip._internal.utils.logging import subprocess_logger
 from pip._internal.utils.misc import HiddenText, path_to_display
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
-from pip._internal.utils.ui import open_spinner
 
 if MYPY_CHECK_RUNNING:
-    from typing import (
-        Any, Callable, Iterable, List, Mapping, Optional, Text, Union,
-    )
-    from pip._internal.utils.ui import SpinnerInterface
+    from typing import Any, Callable, Iterable, List, Mapping, Optional, Text, Union
 
     CommandArgs = List[Union[str, HiddenText]]
 
@@ -189,6 +183,8 @@ def call_subprocess(
             stderr=subprocess.STDOUT, stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, cwd=cwd, env=env,
         )
+        assert proc.stdin
+        assert proc.stdout
         proc.stdin.close()
     except Exception as exc:
         if log_failed_cmd:
@@ -209,6 +205,7 @@ def call_subprocess(
         log_subprocess(line)
         # Update the spinner.
         if use_spinner:
+            assert spinner
             spinner.spin()
     try:
         proc.wait()
@@ -219,6 +216,7 @@ def call_subprocess(
         proc.returncode and proc.returncode not in extra_ok_returncodes
     )
     if use_spinner:
+        assert spinner
         if proc_had_error:
             spinner.finish("error")
         else:
@@ -243,13 +241,15 @@ def call_subprocess(
         elif on_returncode == 'warn':
             subprocess_logger.warning(
                 'Command "%s" had error code %s in %s',
-                command_desc, proc.returncode, cwd,
+                command_desc,
+                proc.returncode,
+                cwd,
             )
         elif on_returncode == 'ignore':
             pass
         else:
-            raise ValueError('Invalid value: on_returncode=%s' %
-                             repr(on_returncode))
+            raise ValueError('Invalid value: on_returncode={!r}'.format(
+                             on_returncode))
     return ''.join(all_output)
 
 

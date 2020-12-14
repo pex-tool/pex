@@ -829,6 +829,7 @@ def resolve_multi(
     platforms=None,
     indexes=None,
     find_links=None,
+    resolver_version=None,
     network_configuration=None,
     cache=None,
     build=True,
@@ -873,6 +874,8 @@ def resolve_multi(
       local html file paths, these are parsed for links to distributions. If a local directory path,
       its listing is used to discover distributions.
     :type find_links: list of str
+    :keyword resolver_version: The resolver version to use.
+    :type resolver_version: :class:`ResolverVersion`
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
     :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
@@ -928,7 +931,10 @@ def resolve_multi(
     workspace = safe_mkdtemp()
 
     package_index_configuration = PackageIndexConfiguration.create(
-        indexes=indexes, find_links=find_links, network_configuration=network_configuration
+        resolver_version=resolver_version,
+        indexes=indexes,
+        find_links=find_links,
+        network_configuration=network_configuration,
     )
     build_requests, download_results = _download_internal(
         interpreters=interpreters,
@@ -1057,6 +1063,7 @@ def download(
     platforms=None,
     indexes=None,
     find_links=None,
+    resolver_version=None,
     network_configuration=None,
     cache=None,
     build=True,
@@ -1093,6 +1100,8 @@ def download(
       local html file paths, these are parsed for links to distributions. If a local directory path,
       its listing is used to discover distributions.
     :type find_links: list of str
+    :keyword resolver_version: The resolver version to use.
+    :type resolver_version: :class:`ResolverVersion`
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
     :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
@@ -1113,7 +1122,10 @@ def download(
     """
 
     package_index_configuration = PackageIndexConfiguration.create(
-        indexes=indexes, find_links=find_links, network_configuration=network_configuration
+        resolver_version=resolver_version,
+        indexes=indexes,
+        find_links=find_links,
+        network_configuration=network_configuration,
     )
     local_distributions, download_results = _download_internal(
         interpreters=interpreters,
@@ -1157,6 +1169,7 @@ def install(
     local_distributions,
     indexes=None,
     find_links=None,
+    resolver_version=None,
     network_configuration=None,
     cache=None,
     compile=False,
@@ -1175,6 +1188,8 @@ def install(
       local html file paths, these are parsed for links to distributions. If a local directory path,
       its listing is used to discover distributions.
     :type find_links: list of str
+    :keyword resolver_version: The resolver version to use.
+    :type resolver_version: :class:`ResolverVersion`
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
     :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
@@ -1200,7 +1215,10 @@ def install(
             build_requests.append(BuildRequest.from_local_distribution(local_distribution))
 
     package_index_configuration = PackageIndexConfiguration.create(
-        indexes=indexes, find_links=find_links, network_configuration=network_configuration
+        resolver_version=resolver_version,
+        indexes=indexes,
+        find_links=find_links,
+        network_configuration=network_configuration,
     )
     build_and_install_request = BuildAndInstallRequest(
         build_requests=build_requests,

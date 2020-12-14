@@ -8,17 +8,28 @@ import tempfile
 from contextlib import contextmanager
 
 from pip._vendor.contextlib2 import ExitStack
+from pip._vendor.six import ensure_text
 
-from pip._internal.utils.misc import rmtree
+from pip._internal.utils.compat import WINDOWS
+from pip._internal.utils.misc import enum, rmtree
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
 if MYPY_CHECK_RUNNING:
-    from typing import Any, Iterator, Optional, TypeVar
+    from typing import Any, Dict, Iterator, Optional, TypeVar, Union
 
     _T = TypeVar('_T', bound='TempDirectory')
 
 
 logger = logging.getLogger(__name__)
+
+
+# Kinds of temporary directories. Only needed for ones that are
+# globally-managed.
+tempdir_kinds = enum(
+    BUILD_ENV="build-env",
+    EPHEM_WHEEL_CACHE="ephem-wheel-cache",
+    REQ_BUILD="req-build",
+)
 
 
 _tempdir_manager = None  # type: Optional[ExitStack]
@@ -34,6 +45,54 @@ def global_tempdir_manager():
             yield
         finally:
             _tempdir_manager = old_tempdir_manager
+
+
+class TempDirectoryTypeRegistry(object):
+    """Manages temp directory behavior
+    """
+
+    def __init__(self):
+        # type: () -> None
+        self._should_delete = {}  # type: Dict[str, bool]
+
+    def set_delete(self, kind, value):
+        # type: (str, bool) -> None
+        """Indicate whether a TempDirectory of the given kind should be
+        auto-deleted.
+        """
+        self._should_delete[kind] = value
+
+    def get_delete(self, kind):
+        # type: (str) -> bool
+        """Get configured auto-delete flag for a given TempDirectory type,
+        default True.
+        """
+        return self._should_delete.get(kind, True)
+
+
+_tempdir_registry = None  # type: Optional[TempDirectoryTypeRegistry]
+
+
+@contextmanager
+def tempdir_registry():
+    # type: () -> Iterator[TempDirectoryTypeRegistry]
+    """Provides a scoped global tempdir registry that can be used to dictate
+    whether directories should be deleted.
+    """
+    global _tempdir_registry
+    old_tempdir_registry = _tempdir_registry
+    _tempdir_registry = TempDirectoryTypeRegistry()
+    try:
+        yield _tempdir_registry
+    finally:
+        _tempdir_registry = old_tempdir_registry
+
+
+class _Default(object):
+    pass
+
+
+_default = _Default()
 
 
 class TempDirectory(object):
@@ -60,17 +119,24 @@ class TempDirectory(object):
     def __init__(
         self,
         path=None,    # type: Optional[str]
-        delete=None,  # type: Optional[bool]
+        delete=_default,  # type: Union[bool, None, _Default]
         kind="temp",  # type: str
         globally_managed=False,  # type: bool
     ):
         super(TempDirectory, self).__init__()
 
-        if path is None and delete is None:
-            # If we were not given an explicit directory, and we were not given
-            # an explicit delete option, then we'll default to deleting.
-            delete = True
+        if delete is _default:
+            if path is not None:
+                # If we were given an explicit directory, resolve delete option
+                # now.
+                delete = False
+            else:
+                # Otherwise, we wait until cleanup and see what
+                # tempdir_registry says.
+                delete = None
 
+        # The only time we specify path is in for editables where it
+        # is the value of the --src option.
         if path is None:
             path = self._create(kind)
 
@@ -101,7 +167,14 @@ class TempDirectory(object):
 
     def __exit__(self, exc, value, tb):
         # type: (Any, Any, Any) -> None
-        if self.delete:
+        if self.delete is not None:
+            delete = self.delete
+        elif _tempdir_registry:
+            delete = _tempdir_registry.get_delete(self.kind)
+        else:
+            delete = True
+
+        if delete:
             self.cleanup()
 
     def _create(self, kind):
@@ -115,7 +188,7 @@ class TempDirectory(object):
         path = os.path.realpath(
             tempfile.mkdtemp(prefix="pip-{}-".format(kind))
         )
-        logger.debug("Created temporary directory: {}".format(path))
+        logger.debug("Created temporary directory: %s", path)
         return path
 
     def cleanup(self):
@@ -123,7 +196,16 @@ class TempDirectory(object):
         """Remove the temporary directory created and reset state
         """
         self._deleted = True
-        if os.path.exists(self._path):
+        if not os.path.exists(self._path):
+            return
+        # Make sure to pass unicode on Python 2 to make the contents also
+        # use unicode, ensuring non-ASCII names and can be represented.
+        # This is only done on Windows because POSIX platforms use bytes
+        # natively for paths, and the bytes-text conversion omission avoids
+        # errors caused by the environment configuring encodings incorrectly.
+        if WINDOWS:
+            rmtree(ensure_text(self._path))
+        else:
             rmtree(self._path)
 
 
@@ -198,5 +280,5 @@ class AdjacentTempDirectory(TempDirectory):
                 tempfile.mkdtemp(prefix="pip-{}-".format(kind))
             )
 
-        logger.debug("Created temporary directory: {}".format(path))
+        logger.debug("Created temporary directory: %s", path)
         return path

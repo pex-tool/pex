@@ -14,7 +14,6 @@ from pex.compatibility import (
     HTTPError,
     HTTPSHandler,
     ProxyHandler,
-    Request,
     build_opener,
     to_unicode,
     urlparse,
@@ -70,7 +69,6 @@ class URLFetcher(object):
 
         self._timeout = network_configuration.timeout
         self._max_retries = network_configuration.retries
-        self._headers = network_configuration.headers_as_dict()
 
         ssl_context = ssl.create_default_context(cafile=network_configuration.cert)
         if network_configuration.client_cert:
@@ -96,9 +94,8 @@ class URLFetcher(object):
                 retry_delay_secs *= 2
 
             opener = build_opener(*self._handlers)
-            request = Request(url, headers=self._headers)
             try:
-                with closing(opener.open(request, timeout=self._timeout)) as fp:
+                with closing(opener.open(url, timeout=self._timeout)) as fp:
                     # The fp is typed as Optional[...] for Python 2 only in the typeshed. A `None`
                     # can only be returned if a faulty custom handler is installed and we only
                     # install stdlib handlers.

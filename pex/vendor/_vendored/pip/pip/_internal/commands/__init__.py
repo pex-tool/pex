@@ -4,6 +4,10 @@ Package containing all pip commands
 
 # The following comment should be removed at some point in the future.
 # mypy: disallow-untyped-defs=False
+# There is currently a bug in python/typeshed mentioned at
+# https://github.com/python/typeshed/issues/3906 which causes the
+# return type of difflib.get_close_matches to be reported
+# as List[Sequence[str]] whereas it should have been List[str]
 
 from __future__ import absolute_import
 
@@ -14,6 +18,7 @@ from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
 if MYPY_CHECK_RUNNING:
     from typing import Any
+
     from pip._internal.cli.base_command import Command
 
 
@@ -63,6 +68,10 @@ commands_dict = OrderedDict([
     ('search', CommandInfo(
         'pip._internal.commands.search', 'SearchCommand',
         'Search PyPI for packages.',
+    )),
+    ('cache', CommandInfo(
+        'pip._internal.commands.cache', 'CacheCommand',
+        "Inspect and manage pip's wheel cache.",
     )),
     ('wheel', CommandInfo(
         'pip._internal.commands.wheel', 'WheelCommand',
