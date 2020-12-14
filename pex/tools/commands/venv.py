@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from typing import Tuple
 
 
+# N.B.: We can't use shutil.copytree since we copy from multiple source locations to the same site
+# packages directory destination. Since we're forced to stray from the stdlib here, support for
+# hardlinks is added to provide a measurable speed up and disk space savings when possible.
 def _copytree(
     src,  # type: str
     dst,  # type: str
@@ -115,6 +118,7 @@ class Venv(Command):
     ):
         # type: (...) -> Result
 
+        # 0. Create an empty virtual environment to populate with the PEX code and dependencies.
         venv = Virtualenv.create(options.venv[0], interpreter=pex.interpreter, force=options.force)
 
         # 1. Populate the venv with the PEX contents.
@@ -186,7 +190,7 @@ class Venv(Command):
                 os.execv(script_path, [script_path] + sys.argv[1:])
 
             # TODO(John Sirois): Support `-c`, `-m` and `-` special modes when PEX_INTERPRETER is
-            # activated like PEX files do.
+            # activated like PEX files do: https://github.com/pantsbuild/pex/issues/1136
             pex_interpreter = pex_overrides.get("PEX_INTERPRETER", "").lower()
             entry_point = (
                 "code:interact"
