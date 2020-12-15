@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+2.1.24
+------
+
+This release upgrades Pip to 20.3.3 + a patch to fix Pex resolves using
+the ``pip-legacy-resolver`` and ``--constraints``. The Pex package is
+also fixed to install for Python 3.9.1+.
+
+* Upgrade to a patched Pip 20.3.3. (#1143)
+  `Issue #9283 <https://github.com/pypa/pip/issues/9283>`_
+  `PR #1143 <https://github.com/pantsbuild/pants/pex/pull/1143>`_
+
+* Fix python requirement to include full 3.9 series. (#1142)
+  `PR #1142 <https://github.com/pantsbuild/pants/pex/pull/1142>`_
+
 2.1.23
 ------
 
