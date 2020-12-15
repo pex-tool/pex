@@ -30,6 +30,16 @@ if MYPY_CHECK_RUNNING:
 
 
 class PipProvider(AbstractProvider):
+    """Pip's provider implementation for resolvelib.
+
+    :params constraints: A mapping of constraints specified by the user. Keys
+        are canonicalized project names.
+    :params ignore_dependencies: Whether the user specified ``--no-deps``.
+    :params upgrade_strategy: The user-specified upgrade strategy.
+    :params user_requested: A set of canonicalized package names that the user
+        supplied for pip to install/upgrade.
+    """
+
     def __init__(
         self,
         factory,  # type: Factory
@@ -56,15 +66,75 @@ class PipProvider(AbstractProvider):
         information  # type: Sequence[Tuple[Requirement, Candidate]]
     ):
         # type: (...) -> Any
+        """Produce a sort key for given requirement based on preference.
+
+        The lower the return value is, the more preferred this group of
+        arguments is.
+
+        Currently pip considers the followings in order:
+
+        * Prefer if any of the known requirements points to an explicit URL.
+        * If equal, prefer if any requirements contain ``===`` and ``==``.
+        * If equal, prefer if requirements include version constraints, e.g.
+          ``>=`` and ``<``.
+        * If equal, prefer user-specified (non-transitive) requirements.
+        * If equal, order alphabetically for consistency (helps debuggability).
+        """
+
+        def _get_restrictive_rating(requirements):
+            # type: (Iterable[Requirement]) -> int
+            """Rate how restrictive a set of requirements are.
+
+            ``Requirement.get_candidate_lookup()`` returns a 2-tuple for
+            lookup. The first element is ``Optional[Candidate]`` and the
+            second ``Optional[InstallRequirement]``.
+
+            * If the requirement is an explicit one, the explicitly-required
+              candidate is returned as the first element.
+            * If the requirement is based on a PEP 508 specifier, the backing
+              ``InstallRequirement`` is returned as the second element.
+
+            We use the first element to check whether there is an explicit
+            requirement, and the second for equality operator.
+            """
+            lookups = (r.get_candidate_lookup() for r in requirements)
+            cands, ireqs = zip(*lookups)
+            if any(cand is not None for cand in cands):
+                return 0
+            spec_sets = (ireq.specifier for ireq in ireqs if ireq)
+            operators = [
+                specifier.operator
+                for spec_set in spec_sets
+                for specifier in spec_set
+            ]
+            if any(op in ("==", "===") for op in operators):
+                return 1
+            if operators:
+                return 2
+            # A "bare" requirement without any version requirements.
+            return 3
+
+        restrictive = _get_restrictive_rating(req for req, _ in information)
         transitive = all(parent is not None for _, parent in information)
         key = next(iter(candidates)).name if candidates else ""
-        return (transitive, key)
+
+        # HACK: Setuptools have a very long and solid backward compatibility
+        # track record, and extremely few projects would request a narrow,
+        # non-recent version range of it since that would break a lot things.
+        # (Most projects specify it only to request for an installer feature,
+        # which does not work, but that's another topic.) Intentionally
+        # delaying Setuptools helps reduce branches the resolver has to check.
+        # This serves as a temporary fix for issues like "apache-airlfow[all]"
+        # while we work on "proper" branch pruning techniques.
+        delay_this = (key == "setuptools")
+
+        return (delay_this, restrictive, transitive, key)
 
     def find_matches(self, requirements):
         # type: (Sequence[Requirement]) -> Iterable[Candidate]
         if not requirements:
             return []
-        name = requirements[0].name
+        name = requirements[0].project_name
 
         def _eligible_for_upgrade(name):
             # type: (str) -> bool

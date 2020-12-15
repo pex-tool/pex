@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: wheel
-Version: 0.36.1
+Version: 0.36.2
 Summary: A built-package format for Python
 Home-page: https://github.com/pypa/wheel
 Author: Daniel Holth

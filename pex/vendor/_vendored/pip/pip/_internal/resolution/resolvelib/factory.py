@@ -96,6 +96,8 @@ class Factory(object):
 
         self._link_candidate_cache = {}  # type: Cache[LinkCandidate]
         self._editable_candidate_cache = {}  # type: Cache[EditableCandidate]
+        self._installed_candidate_cache = {
+        }  # type: Dict[str, AlreadyInstalledCandidate]
 
         if not ignore_installed:
             self._installed_dists = {
@@ -117,7 +119,11 @@ class Factory(object):
         template,  # type: InstallRequirement
     ):
         # type: (...) -> Candidate
-        base = AlreadyInstalledCandidate(dist, template, factory=self)
+        try:
+            base = self._installed_candidate_cache[dist.key]
+        except KeyError:
+            base = AlreadyInstalledCandidate(dist, template, factory=self)
+            self._installed_candidate_cache[dist.key] = base
         if extras:
             return ExtrasCandidate(base, extras)
         return base
@@ -193,8 +199,17 @@ class Factory(object):
                 specifier=specifier,
                 hashes=hashes,
             )
+            icans = list(result.iter_applicable())
+
+            # PEP 592: Yanked releases must be ignored unless only yanked
+            # releases can satisfy the version range. So if this is false,
+            # all yanked icans need to be skipped.
+            all_yanked = all(ican.link.is_yanked for ican in icans)
+
             # PackageFinder returns earlier versions first, so we reverse.
-            for ican in reversed(list(result.iter_applicable())):
+            for ican in reversed(icans):
+                if not all_yanked and ican.link.is_yanked:
+                    continue
                 yield self._make_candidate_from_link(
                     link=ican.link,
                     extras=extras,
