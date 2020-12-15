@@ -68,7 +68,12 @@ class Graph(OutputMixin, Command):
                 graph.add_edge(
                     start=dist.project_name,
                     end=req.project_name,
-                    label=str(req) if (req.specifier or req.marker) else None,
+                    label="{specifier}{marker}".format(
+                        specifier=req.specifier if req.specifier else "",
+                        marker="; {}".format(req.marker) if req.marker else "",
+                    )
+                    if (req.specifier or req.marker)
+                    else None,
                     fontsize="10",
                 )
         return graph
