@@ -107,10 +107,18 @@ def iter_vendor_specs():
     """
     # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
     # time to implement resolving distributions from a PEX repository.
-    yield VendorSpec.pinned("packaging", "20.7")
+    yield VendorSpec.pinned("packaging", "20.8")
 
     # We shell out to pip at buildtime to resolve and install dependencies.
-    yield VendorSpec.pinned("pip", "20.3.1", rewrite=False)
+    # N.B.: We're currently using a patched version of Pip 20.3.3 housed at
+    # https://github.com/pantsbuild/pip/tree/pex/patches/generation-2. The patch works around a bug
+    # in `pip download --constraint...` tracked at https://github.com/pypa/pip/issues/9283 and fixed
+    # by https://github.com/pypa/pip/pull/9301 there and https://github.com/pantsbuild/pip/pull/8 in
+    # our fork.
+    yield VendorSpec.vcs(
+        "git+https://github.com/pantsbuild/pip@06f462537c981116c763c1ba40cf40e9dd461bcf#egg=pip",
+        rewrite=False,
+    )
 
     # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
     # pex.third_party at runtime in various ways.
@@ -118,7 +126,7 @@ def iter_vendor_specs():
     yield VendorSpec.pinned("setuptools", "44.0.0")
 
     # We expose this to pip at buildtime for legacy builds.
-    yield VendorSpec.pinned("wheel", "0.36.1", rewrite=False)
+    yield VendorSpec.pinned("wheel", "0.36.2", rewrite=False)
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names):
