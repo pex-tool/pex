@@ -57,7 +57,7 @@ def test_requires_python():
     # type: () -> None
     with resolved_distribution("pex==2.1.21") as dist:
         assert SpecifierSet(
-            ">=2.7,<=3.9,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
+            ">=2.7,<3.10,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
         ) == requires_python(dist)
 
 
