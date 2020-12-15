@@ -514,7 +514,7 @@ def test_resolve_arbitrary_equality_issues_940():
     dist = create_sdist(
         name="foo",
         version="1.0.2-fba4511",
-        python_requires=">=2.7,<=3.9,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
+        python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
     )
     resolved_distributions = local_resolve_multi(requirements=[dist])
 

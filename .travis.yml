@@ -47,11 +47,12 @@ x-pyenv-install: &x-pyenv-install |
     rm -rf ${PYENV_ROOT}
     git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
   fi
+  GIT_DIR="${PYENV_ROOT}/.git" git pull --ff-only
   "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
   "${PYENV}" global ${PYENV_VERSION}
 
 x-pyenv-39-env: &x-pyenv-39-env >
-  PYENV_VERSION=3.9.0
+  PYENV_VERSION=3.9.1
 
 x-linux-3-shard: &x-linux-39-shard
   <<: *x-linux-shard
