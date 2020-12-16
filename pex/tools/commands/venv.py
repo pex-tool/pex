@@ -189,14 +189,47 @@ class Venv(Command):
                 script_path = os.path.join(bin_dir, pex_script)
                 os.execv(script_path, [script_path] + sys.argv[1:])
 
-            # TODO(John Sirois): Support `-c`, `-m` and `-` special modes when PEX_INTERPRETER is
-            # activated like PEX files do: https://github.com/pantsbuild/pex/issues/1136
-            pex_interpreter = pex_overrides.get("PEX_INTERPRETER", "").lower()
+            pex_interpreter = pex_overrides.get("PEX_INTERPRETER", "").lower() in ("1", "true")
+            PEX_INTERPRETER_ENTRYPOINT = "code:interact"
             entry_point = (
-                "code:interact"
-                if pex_interpreter in ("1", "true")
-                else pex_overrides.get("PEX_MODULE", {entry_point!r} or "code:interact")
+                PEX_INTERPRETER_ENTRYPOINT
+                if pex_interpreter
+                else pex_overrides.get("PEX_MODULE", {entry_point!r} or PEX_INTERPRETER_ENTRYPOINT)
             )
+            if entry_point == PEX_INTERPRETER_ENTRYPOINT and len(sys.argv) > 1:
+                args = sys.argv[1:]
+                arg = args[0]
+                if arg == "-m":
+                    if len(args) < 2:
+                        sys.stderr.write("Argument expected for the -m option\\n")
+                        sys.exit(2)
+                    entry_point = module = args[1]
+                    sys.argv = args[1:]
+                    # Fall through to entry_point handling below.
+                else:
+                    filename = arg
+                    sys.argv = args
+                    if arg == "-c":
+                        if len(args) < 2:
+                            sys.stderr.write("Argument expected for the -c option\\n")
+                            sys.exit(2)
+                        filename = "-c <cmd>"
+                        content = args[1]
+                        sys.argv = ["-c"] + args[2:]
+                    elif arg == "-":
+                        content = sys.stdin.read()
+                    else:
+                        with open(arg) as fp:
+                            content = fp.read()
+                    
+                    ast = compile(content, filename, "exec", flags=0, dont_inherit=1)
+                    globals_map = globals().copy()
+                    globals_map["__name__"] = "__main__"
+                    globals_map["__file__"] = filename
+                    locals_map = globals_map
+                    {exec_ast}
+                    sys.exit(0)
+
             module_name, _, function = entry_point.partition(":")
             if not function:
                 import runpy
@@ -217,6 +250,11 @@ class Venv(Command):
                 venv_dir=venv.venv_dir,
                 venv_bin_dir=venv.bin_dir,
                 entry_point=pex_info.entry_point,
+                exec_ast=(
+                    "exec ast in globals_map, locals_map"
+                    if venv.interpreter.version[0] == 2
+                    else "exec(ast, globals_map, locals_map)"
+                ),
             )
         )
         with open(venv.join_path("__main__.py"), "w") as fp:
