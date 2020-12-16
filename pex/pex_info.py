@@ -394,7 +394,7 @@ class PexInfo(object):
 
     def copy(self):
         # type: () -> PexInfo
-        return PexInfo(self._pex_info)
+        return PexInfo(self.as_json_dict())
 
     @staticmethod
     def _merge_split(*paths):

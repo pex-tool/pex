@@ -7,6 +7,7 @@ import warnings
 import pytest
 
 from pex.common import temporary_dir
+from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.pex_warnings import PEXWarning
@@ -142,3 +143,31 @@ def test_pex_root_set_unwriteable():
         assert isinstance(message, PEXWarning)
         assert pex_root in str(message)
         assert pex_info.pex_root in str(message)
+
+
+def test_copy():
+    # type: () -> None
+    default_info = PexInfo.default()
+    default_info_copy = default_info.copy()
+    assert default_info is not default_info_copy
+    assert default_info.dump() == default_info_copy.dump()
+
+    info = PexInfo.default()
+    info.unzip = True
+    info.code_hash = "foo"
+    info.inherit_path = InheritPath.FALLBACK
+    info.add_requirement("bar==1")
+    info.add_requirement("baz==2")
+    info.add_distribution("bar.whl", "bar-sha")
+    info.add_distribution("baz.whl", "baz-sha")
+    info.add_interpreter_constraint(">=2.7.18")
+    info.add_interpreter_constraint("CPython==2.7.9")
+    info_copy = info.copy()
+
+    assert info_copy.unzip is True
+    assert "foo" == info_copy.code_hash
+    assert InheritPath.FALLBACK == info_copy.inherit_path
+    assert OrderedSet(["bar==1", "baz==2"]) == info_copy.requirements
+    assert {"bar.whl": "bar-sha", "baz.whl": "baz-sha"} == info_copy.distributions
+    assert [">=2.7.18", "CPython==2.7.9"] == info_copy.interpreter_constraints
+    assert info.dump() == info_copy.dump()
