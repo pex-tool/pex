@@ -169,5 +169,5 @@ def test_copy():
     assert InheritPath.FALLBACK == info_copy.inherit_path
     assert OrderedSet(["bar==1", "baz==2"]) == info_copy.requirements
     assert {"bar.whl": "bar-sha", "baz.whl": "baz-sha"} == info_copy.distributions
-    assert [">=2.7.18", "CPython==2.7.9"] == info_copy.interpreter_constraints
+    assert {">=2.7.18", "CPython==2.7.9"} == set(info_copy.interpreter_constraints)
     assert info.dump() == info_copy.dump()
