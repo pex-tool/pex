@@ -23,8 +23,7 @@ from pex.pip import PackageIndexConfiguration, get_pip
 from pex.platforms import Platform
 from pex.requirements import ReqInfo, URLFetcher, parse_requirement_file, parse_requirement_strings
 from pex.third_party.packaging.markers import Marker
-from pex.third_party.packaging.version import Version
-from pex.third_party.packaging.version import parse as parse_version
+from pex.third_party.packaging.version import InvalidVersion, Version
 from pex.third_party.pkg_resources import Distribution, Environment, Requirement
 from pex.tracer import TRACER
 from pex.util import CacheHelper
@@ -135,11 +134,17 @@ class DistributionRequirements(object):
 
             def choose_marker(version):
                 # type: (str) -> str
-                parsed_version = parse_version(version)
-                if type(parsed_version) != Version or len(parsed_version.release) > 2:
+                try:
+                    parsed_version = Version(version)
+                    if len(parsed_version.release) > 2:
+                        return "python_full_version"
+                    else:
+                        return "python_version"
+                except InvalidVersion:
+                    # Versions in a version specifier can be globs like `2.7.*` which do not parse
+                    # as valid Versions and should be matched with python_full_version.
+                    # See: https://www.python.org/dev/peps/pep-0440/#version-matching.
                     return "python_full_version"
-                else:
-                    return "python_version"
 
             markers.update(
                 Marker(python_version)
