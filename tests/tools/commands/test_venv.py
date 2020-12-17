@@ -16,9 +16,10 @@ from pex.executor import Executor
 from pex.testing import run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
+from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Callable, Tuple, Any, Dict
+    from typing import Callable, Tuple, Any, Dict, Optional, Iterable
 
     CreatePexVenv = Callable[[Tuple[str, ...]], Virtualenv]
 
@@ -97,19 +98,39 @@ def test_force(create_pex_venv):
 
 def execute_venv_pex_interpreter(
     venv,  # type: Virtualenv
-    code,  # type: str
+    code=None,  # type: Optional[str]
+    extra_args=(),  # type: Iterable[str]
     **extra_env  # type: Any
 ):
     # type: (...) -> Tuple[int, str, str]
     process = subprocess.Popen(
-        args=[venv.join_path("pex")],
+        args=[venv.join_path("pex")] + list(extra_args),
         env=make_env(PEX_INTERPRETER=True, **extra_env),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.PIPE,
     )
-    stdout, stderr = process.communicate(input=code.encode())
+    stdout, stderr = process.communicate(input=None if code is None else code.encode())
     return process.returncode, stdout.decode("utf-8"), stderr.decode("utf-8")
+
+
+def expected_file_path(
+    venv,  # type: Virtualenv
+    package,  # type: str
+):
+    # type: (...) -> str
+    return os.path.realpath(
+        os.path.join(
+            venv.site_packages_dir,
+            os.path.sep.join(package.split(".")),
+            "__init__.{ext}".format(ext="pyc" if venv.interpreter.version[0] == 2 else "py"),
+        )
+    )
+
+
+def parse_fabric_version_output(output):
+    # type: (str) -> Dict[str, str]
+    return dict(line.split(" ", 1) for line in output.splitlines())
 
 
 def test_venv_pex(create_pex_venv):
@@ -124,7 +145,7 @@ def test_venv_pex(create_pex_venv):
     # Fabric 2.5.0
     # Paramiko 2.7.2
     # Invoke 1.4.1
-    versions = dict(line.split(" ", 1) for line in fabric_output.decode("utf-8").splitlines())
+    versions = parse_fabric_version_output(fabric_output.decode("utf-8"))
     assert FABRIC_VERSION == versions["Fabric"]
 
     invoke_version = "Invoke {}".format(versions["Invoke"])
@@ -140,17 +161,6 @@ def test_venv_pex(create_pex_venv):
     assert invoke_version == invoke_entry_point_output.decode("utf-8").strip()
 
     pex_extra_sys_path = ["/dev/null", "Bob"]
-
-    def expected_file_path(package):
-        # type: (str) -> str
-        return os.path.realpath(
-            os.path.join(
-                venv.site_packages_dir,
-                os.path.sep.join(package.split(".")),
-                "__init__.{ext}".format(ext="pyc" if venv.interpreter.version[0] == 2 else "py"),
-            )
-        )
-
     returncode, _, stderr = execute_venv_pex_interpreter(
         venv,
         code=dedent(
@@ -179,8 +189,8 @@ def test_venv_pex(create_pex_venv):
             assert_equal(3, {user_package!r}, os.path.realpath(user.package.__file__))
             """.format(
                 pex_extra_sys_path=pex_extra_sys_path,
-                fabric=expected_file_path("fabric"),
-                user_package=expected_file_path("user.package"),
+                fabric=expected_file_path(venv, "fabric"),
+                user_package=expected_file_path(venv, "user.package"),
             )
         ),
         PEX_EXTRA_SYS_PATH=os.pathsep.join(pex_extra_sys_path),
@@ -228,3 +238,51 @@ def test_binary_path(create_pex_venv):
         venv_bin_path, code=code, PATH=tempfile.gettempdir()
     )
     assert 0 == returncode
+
+
+def test_venv_pex_interpreter_special_modes(create_pex_venv):
+    # type: (CreatePexVenv) -> None
+    venv = create_pex_venv()
+
+    # special mode execute module: -m module
+    returncode, stdout, stderr = execute_venv_pex_interpreter(venv, extra_args=["-m"])
+    assert 2 == returncode, stderr
+    assert "" == stdout
+
+    returncode, stdout, stderr = execute_venv_pex_interpreter(
+        venv, extra_args=["-m", "fabric", "--version"]
+    )
+    assert 0 == returncode, stderr
+    versions = parse_fabric_version_output(stdout)
+    assert FABRIC_VERSION == versions["Fabric"]
+
+    # special mode execute code string: -c <str>
+    returncode, stdout, stderr = execute_venv_pex_interpreter(venv, extra_args=["-c"])
+    assert 2 == returncode, stderr
+    assert "" == stdout
+
+    fabric_file_code = "import fabric, os; print(os.path.realpath(fabric.__file__))"
+    expected_fabric_file_path = expected_file_path(venv, "fabric")
+
+    returncode, stdout, stderr = execute_venv_pex_interpreter(
+        venv, extra_args=["-c", fabric_file_code]
+    )
+    assert 0 == returncode, stderr
+    assert expected_fabric_file_path == stdout.strip()
+
+    # special mode execute stdin: -
+    returncode, stdout, stderr = execute_venv_pex_interpreter(
+        venv, code=fabric_file_code, extra_args=["-"]
+    )
+    assert 0 == returncode, stderr
+    assert expected_fabric_file_path == stdout.strip()
+
+    # special mode execute python file: <py file name>
+    with named_temporary_file(prefix="code", suffix=".py", mode="w") as fp:
+        fp.write(fabric_file_code)
+        fp.close()
+        returncode, stdout, stderr = execute_venv_pex_interpreter(
+            venv, code=fabric_file_code, extra_args=[fp.name]
+        )
+        assert 0 == returncode, stderr
+        assert expected_fabric_file_path == stdout.strip()
