@@ -2669,11 +2669,13 @@ def test_venv_mode(
     def run_isort_pex(**env):
         # type: (**Any) -> str
         pex_root = str(tmpdir)
-        stdout, _ = Executor.execute(
-            [pex_file, "-c", "import sys; print(sys.executable)"],
+        stdout, returncode = run_simple_pex(
+            pex_file,
+            args=["-c", "import sys; print(sys.executable)"],
             env=make_env(PEX_ROOT=pex_root, PEX_INTERPRETER=1, **env),
         )
-        pex_interpreter = cast(str, stdout.strip())
+        assert returncode == 0, stdout
+        pex_interpreter = cast(str, stdout.decode("utf-8").strip())
         with ENV.patch(**env):
             pex_info = PexInfo.from_pex(pex_file)
             pex_hash = pex_info.pex_hash
