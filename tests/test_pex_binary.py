@@ -8,7 +8,13 @@ from tempfile import NamedTemporaryFile
 
 import pytest
 
-from pex.bin.pex import build_pex, compute_indexes, configure_clp, configure_clp_pex_resolution
+from pex.bin.pex import (
+    build_pex,
+    compute_indexes,
+    configure_clp,
+    configure_clp_pex_options,
+    configure_clp_pex_resolution,
+)
 from pex.common import safe_copy, temporary_dir
 from pex.compatibility import nested, to_bytes
 from pex.interpreter import PythonInterpreter
@@ -20,6 +26,7 @@ from pex.testing import (
     run_simple_pex,
 )
 from pex.typing import TYPE_CHECKING
+from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
     from typing import Iterator, List, Optional, Text
@@ -204,6 +211,23 @@ def test_clp_prereleases_resolver():
         assert len(pex_builder.info.distributions) == 3, "Should have resolved deps"
 
 
+def test_clp_pex_options():
+    with option_parser() as parser:
+        configure_clp_pex_options(parser)
+
+        options = parser.parse_args(args=[])
+        assert options.venv == False
+
+        options = parser.parse_args(args=["--venv"])
+        assert options.venv == BinPath.FALSE
+
+        options = parser.parse_args(args=["--venv", "append"])
+        assert options.venv == BinPath.APPEND
+
+        options = parser.parse_args(args=["--venv", "prepend"])
+        assert options.venv == BinPath.PREPEND
+
+
 def test_build_pex():
     # type: () -> None
     with temporary_dir() as sandbox:
@@ -221,7 +245,7 @@ def test_run_pex():
     # type: () -> None
 
     def assert_run_pex(python=None, pex_args=None):
-        # type: (Optional[str], Optional[List[str]]) -> List[Text]
+        # type: (Optional[str], Optional[List[str]]) -> List[str]
         pex_args = list(pex_args) if pex_args else []
         results = run_pex_command(
             python=python,
