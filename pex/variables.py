@@ -103,7 +103,7 @@ class DefaultedProperty(Generic["_O", "_P"]):
         # type: (...) -> _P
         """Return the value of this property without the default value applied or else the fallback.
 
-        If the property is not set `fallback` will be validated and returned.
+        If the property is not set, `fallback` will be validated and returned.
 
         :param instance: The instance to check for the non-defaulted property value.
         :return: The property value or `fallback` if not set.

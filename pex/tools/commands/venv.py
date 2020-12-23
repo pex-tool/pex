@@ -170,9 +170,9 @@ def populate_venv_with_pex(
             os.environ["PATH"] = os.pathsep.join(PATH)
 
         PEX_EXEC_OVERRIDE_KEYS = ("PEX_INTERPRETER", "PEX_SCRIPT", "PEX_MODULE")
-        pex_overrides = dict(
-            (key, os.environ.pop(key)) for key in PEX_EXEC_OVERRIDE_KEYS if key in os.environ
-        )
+        pex_overrides = {{
+            key: os.environ.pop(key) for key in PEX_EXEC_OVERRIDE_KEYS if key in os.environ
+        }}
         if len(pex_overrides) > 1:
             sys.stderr.write(
                 "Can only specify one of {{overrides}}; found: {{found}}\\n".format(

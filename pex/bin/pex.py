@@ -337,7 +337,8 @@ def configure_clp_pex_options(parser):
         "complete pex file, including dependencies, to be unzipped.",
     )
 
-    group.add_argument(
+    runtime_mode = group.add_mutually_exclusive_group()
+    runtime_mode.add_argument(
         "--unzip",
         "--no-unzip",
         dest="unzip",
@@ -347,18 +348,17 @@ def configure_clp_pex_options(parser):
         "be run multiple times under a stable runtime PEX_ROOT the unzipping will only be "
         "performed once and subsequent runs will enjoy lower startup latency.",
     )
-
-    group.add_argument(
+    runtime_mode.add_argument(
         "--venv",
         dest="venv",
         metavar="{prepend,append}",
         default=False,
         action=HandleVenvAction,
         help="Convert the pex file to a venv before executing it. If 'prepend' or 'append' is "
-        "specified then all scripts and console scripts provided by distributions in the pex file "
-        "will be added to the PATH. If the the pex file will be run multiple times under a stable "
-        "runtime PEX_ROOT the venv creation will only be done once and subsequent runs will enjoy "
-        "lower startup latency.",
+        "specified, then all scripts and console scripts provided by distributions in the pex file "
+        "will be added to the PATH in the corresponding position. If the the pex file will be run "
+        "multiple times under a stable runtime PEX_ROOT, the venv creation will only be done once "
+        "and subsequent runs will enjoy lower startup latency.",
     )
 
     group.add_argument(
