@@ -12,6 +12,7 @@ import os
 import sys
 import tempfile
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser, ArgumentTypeError
+from shlex import shlex
 from textwrap import TextWrapper
 
 from pex import pex_warnings
@@ -38,7 +39,7 @@ from pex.venv_bin_path import BinPath
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import List
+    from typing import List, Iterable
     from argparse import Namespace
 
 
@@ -1047,25 +1048,8 @@ def main(args=None):
                 deterministic_timestamp=not options.use_system_time,
             )
             if options.seed:
-                pex_path = pex.path()
-                with TRACER.timed("Seeding local caches for {}".format(pex_path)):
-                    if options.unzip:
-                        unzip_dir = pex.pex_info().unzip_dir
-                        with atomic_directory(unzip_dir, exclusive=True) as chroot:
-                            if chroot:
-                                with TRACER.timed("Extracting {}".format(pex_path)):
-                                    with open_zip(options.pex_name) as pex_zip:
-                                        pex_zip.extractall(chroot)
-                        print("{} {}".format(pex.interpreter.binary, unzip_dir))
-                    elif options.venv:
-                        with TRACER.timed("Creating venv from {}".format(pex_path)):
-                            print(ensure_venv(pex))
-                    else:
-                        with TRACER.timed(
-                            "Extracting code and distributions for {}".format(pex_path)
-                        ):
-                            pex.activate()
-                        print(os.path.abspath(options.pex_name))
+                execute_cached_args = seed_cache(options, pex)
+                print(" ".join(execute_cached_args))
         else:
             if not _compatible_with_current_platform(interpreter, options.platforms):
                 log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
@@ -1081,6 +1065,37 @@ def main(args=None):
                 V=options.verbosity,
             )
             sys.exit(pex.run(args=list(cmdline), env=patched_env))
+
+
+def seed_cache(
+    options,  # type: Namespace
+    pex,  # type: PEX
+):
+    # type: (...) -> Iterable[str]
+    pex_path = pex.path()
+    with TRACER.timed("Seeding local caches for {}".format(pex_path)):
+        if options.unzip:
+            unzip_dir = pex.pex_info().unzip_dir
+            if unzip_dir is None:
+                raise AssertionError(
+                    "Expected PEX-INFO for {} to have the components of an unzip directory".format(
+                        pex_path
+                    )
+                )
+            with atomic_directory(unzip_dir, exclusive=True) as chroot:
+                if chroot:
+                    with TRACER.timed("Extracting {}".format(pex_path)):
+                        with open_zip(options.pex_name) as pex_zip:
+                            pex_zip.extractall(chroot)
+            return [pex.interpreter.binary, unzip_dir]
+        elif options.venv:
+            with TRACER.timed("Creating venv from {}".format(pex_path)):
+                venv_pex = ensure_venv(pex)
+                return [venv_pex]
+        else:
+            with TRACER.timed("Extracting code and distributions for {}".format(pex_path)):
+                pex.activate()
+            return [os.path.abspath(options.pex_name)]
 
 
 if __name__ == "__main__":

@@ -609,7 +609,7 @@ class PythonInterpreter(object):
         # See cls._REGEXEN for a related affordance.
         #
         # N.B.: The path for --venv mode interpreters can be quite long; so we just used a fixed
-        # length hash of the interpreter binary path to ensure uniqeness and not run afoul of file
+        # length hash of the interpreter binary path to ensure uniqueness and not run afoul of file
         # name length limits.
         path_id = hashlib.sha1(binary.encode("utf-8")).hexdigest()
 
