@@ -11,6 +11,7 @@ import json
 import multiprocessing
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -21,7 +22,6 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex import pex_builder
 from pex.common import (
     safe_copy,
     safe_mkdir,
@@ -60,8 +60,9 @@ from pex.testing import (
     temporary_content,
 )
 from pex.third_party import pkg_resources
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import DistributionHelper, named_temporary_file
+from pex.variables import ENV, unzip_dir, venv_dir
 
 if TYPE_CHECKING:
     from typing import (
@@ -2325,7 +2326,9 @@ def test_unzip_mode():
         )
         assert ["quit re-exec", os.path.realpath(pex_file)] == output1.decode("utf-8").splitlines()
 
-        unzipped_cache = os.path.join(pex_root, pex_builder.UNZIPPED_DIR)
+        pex_hash = PexInfo.from_pex(pex_file).pex_hash
+        assert pex_hash is not None
+        unzipped_cache = unzip_dir(pex_root, pex_hash)
         assert os.path.isdir(unzipped_cache)
         shutil.rmtree(unzipped_cache)
 
@@ -2631,3 +2634,85 @@ def test_issues_1031(py_version):
     assert system_site_packages_path in get_system_site_packages_pex_sys_path(
         PEX_INHERIT_PATH="fallback"
     )
+
+
+@pytest.fixture
+def isort_pex_args(tmpdir):
+    # type: (Any) -> Tuple[str, List[str]]
+    pex_file = os.path.join(str(tmpdir), "pex")
+
+    requirements = [
+        # For Python 2.7 and Python 3.5:
+        "isort==4.3.21; python_version<'3.6'",
+        "setuptools==44.1.1; python_version<'3.6'",
+        # For Python 3.6+:
+        "isort==5.6.4; python_version>='3.6'",
+    ]
+    return pex_file, requirements + ["-c", "isort", "-o", pex_file]
+
+
+def test_venv_mode(
+    tmpdir,  # type: Any
+    isort_pex_args,  # type: Tuple[str, List[str]]
+):
+    # type: (...) -> None
+    other_interpreter_version = PY36 if sys.version_info[0] == 2 else PY27
+    other_interpreter = ensure_python_interpreter(other_interpreter_version)
+
+    pex_file, args = isort_pex_args
+    results = run_pex_command(
+        args=args + ["--python", sys.executable, "--python", other_interpreter, "--venv"],
+        quiet=True,
+    )
+    results.assert_success()
+
+    def run_isort_pex(**env):
+        # type: (**Any) -> str
+        pex_root = str(tmpdir)
+        stdout, returncode = run_simple_pex(
+            pex_file,
+            args=["-c", "import sys; print(sys.executable)"],
+            env=make_env(PEX_ROOT=pex_root, PEX_INTERPRETER=1, **env),
+        )
+        assert returncode == 0, stdout
+        pex_interpreter = cast(str, stdout.decode("utf-8").strip())
+        with ENV.patch(**env):
+            pex_info = PexInfo.from_pex(pex_file)
+            pex_hash = pex_info.pex_hash
+            assert pex_hash is not None
+            expected_venv_home = venv_dir(pex_root, pex_hash, interpreter_constraints=[])
+        assert expected_venv_home == os.path.commonprefix([pex_interpreter, expected_venv_home])
+        return pex_interpreter
+
+    isort_pex_interpreter1 = run_isort_pex()
+    assert isort_pex_interpreter1 == run_isort_pex()
+
+    isort_pex_interpreter2 = run_isort_pex(PEX_PYTHON=other_interpreter)
+    assert other_interpreter != isort_pex_interpreter2
+    assert isort_pex_interpreter1 != isort_pex_interpreter2
+    assert isort_pex_interpreter2 == run_isort_pex(PEX_PYTHON=other_interpreter)
+
+
+@pytest.mark.parametrize(
+    "mode_args",
+    [
+        pytest.param([], id="PEX"),
+        pytest.param(["--unzip"], id="unzip"),
+        pytest.param(["--venv"], id="venv"),
+    ],
+)
+def test_seed(
+    isort_pex_args,  # type: Tuple[str, List[str]]
+    mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+    pex_file, args = isort_pex_args
+    results = run_pex_command(args=args + mode_args + ["--seed"], quiet=True)
+    results.assert_success()
+
+    seed_argv = shlex.split(results.output)
+    isort_args = ["--version"]
+    seed_stdout, seed_stderr = Executor.execute(seed_argv + isort_args)
+    pex_stdout, pex_stderr = Executor.execute([pex_file] + isort_args)
+    assert pex_stdout == seed_stdout
+    assert pex_stderr == seed_stderr

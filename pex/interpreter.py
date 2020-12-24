@@ -607,7 +607,11 @@ class PythonInterpreter(object):
         # would otherwise be unstable.
         #
         # See cls._REGEXEN for a related affordance.
-        path_id = binary.replace(os.sep, ".").lstrip(".")
+        #
+        # N.B.: The path for --venv mode interpreters can be quite long; so we just used a fixed
+        # length hash of the interpreter binary path to ensure uniqueness and not run afoul of file
+        # name length limits.
+        path_id = hashlib.sha1(binary.encode("utf-8")).hexdigest()
 
         cache_dir = os.path.join(os_cache_dir, interpreter_hash, path_id)
         cache_file = os.path.join(cache_dir, cls.INTERP_INFO_FILE)

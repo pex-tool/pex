@@ -9,8 +9,12 @@ import pytest
 from pex.common import temporary_dir
 from pex.pex_warnings import PEXWarning
 from pex.testing import environment_as
+from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.variables import NoValueError, Variables
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 def test_process_pydoc():
@@ -173,3 +177,20 @@ def test_pex_root_unwriteable():
         assert (
             env.PEX_ROOT == env.PEX_ROOT
         ), "When an ephemeral PEX_ROOT is materialized it should be stable."
+
+
+def test_pex_vars_value_or(tmpdir):
+    # type: (Any) -> None
+    v = Variables(environ={})
+
+    assert v.PEX_ROOT is not None, "Expected PEX_ROOT to be a defaulted variable."
+
+    pex_root = str(tmpdir)
+    assert pex_root == Variables.PEX_ROOT.value_or(v, pex_root)
+
+    unwriteable_pex_root = os.path.join(pex_root, "unwriteable")
+    os.mkdir(unwriteable_pex_root, 0o444)
+    assert unwriteable_pex_root != Variables.PEX_ROOT.value_or(v, unwriteable_pex_root), (
+        "Expected the fallback to be validated, and in the case of PEX_ROOT, replaced with a "
+        "writeable tmp dir"
+    )

@@ -3,11 +3,12 @@
 
 from __future__ import absolute_import
 
+import hashlib
 import logging
 import os
 
 from pex import pex_warnings
-from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdir, safe_mkdtemp, temporary_dir
+from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdtemp, safe_open, temporary_dir
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
 from pex.distribution_target import DistributionTarget
@@ -21,30 +22,17 @@ from pex.util import CacheHelper, DistributionHelper
 
 BOOTSTRAP_DIR = ".bootstrap"
 
-UNZIPPED_DIR = "unzipped_pexes"
-
-BOOTSTRAP_ENVIRONMENT = """
+BOOTSTRAP_ENVIRONMENT = """\
 import os
 import sys
 
 
 def __maybe_run_unzipped__(pex_zip):
-  from pex.pex_info import PexInfo
-  pex_info = PexInfo.from_pex(pex_zip)
-  pex_info.update(PexInfo.from_env())
-  if not pex_info.unzip:
-    return
-
-  import hashlib
   from pex.common import atomic_directory, open_zip
   from pex.tracer import TRACER
-  from pex.variables import ENV
+  from pex.variables import unzip_dir
 
-  with TRACER.timed('Checking extraction for {{}}'.format(pex_zip)):
-    hasher = hashlib.sha1()
-    with open(pex_zip, 'rb') as fp:
-      hasher.update(fp.read())
-  unzip_to = os.path.join(pex_info.pex_root, {unzipped_dir!r}, hasher.hexdigest())
+  unzip_to = unzip_dir({pex_root!r}, {pex_hash!r})
   with atomic_directory(unzip_to, exclusive=True) as chroot:
     if chroot:
       with TRACER.timed('Extracting {{}} to {{}}'.format(pex_zip, unzip_to)):
@@ -57,6 +45,26 @@ def __maybe_run_unzipped__(pex_zip):
   os.environ['__PEX_EXE__'] = pex_zip
 
   os.execv(sys.executable, [sys.executable, unzip_to] + sys.argv[1:])
+
+
+def __maybe_run_venv__(pex):
+  from pex.common import is_exe
+  from pex.tracer import TRACER
+  from pex.variables import venv_dir
+
+  venv_home = venv_dir({pex_root!r}, {pex_hash!r}, {interpreter_constraints!r})
+  venv_pex = os.path.join(venv_home, 'pex')
+  if not is_exe(venv_pex):
+    # Code in bootstrap_pex will (re)create the venv after selecting the correct interpreter. 
+    return
+
+  TRACER.log('Executing pex venv for {{}} at {{}}'.format(pex, venv_pex))
+  
+  # N.B.: This is read by pex.PEX and used to point sys.argv[0] back to the original pex before
+  # unconditionally scrubbing the env var and handing off to user code.
+  os.environ['__PEX_EXE__'] = pex
+
+  os.execv(venv_pex, [venv_pex] + sys.argv[1:])
 
 
 __entry_point__ = None
@@ -76,15 +84,24 @@ if __entry_point__ is None:
 sys.path[0] = os.path.abspath(sys.path[0])
 sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, {bootstrap_dir!r})))
 
-import zipfile
-if zipfile.is_zipfile(__entry_point__):
-  __maybe_run_unzipped__(__entry_point__)
+from pex.variables import ENV, Variables
+if Variables.PEX_VENV.value_or(ENV, {is_venv!r}):
+  if not {is_venv!r}:
+    from pex.common import die
+    die(
+      "The PEX_VENV environment variable was set, but this PEX was not built with venv support "
+      "(Re-build the PEX file with `pex --venv ...`):"
+    )
+  if not ENV.PEX_TOOLS:  # We need to run from the PEX for access to tools.
+    __maybe_run_venv__(__entry_point__)
+elif Variables.PEX_UNZIP.value_or(ENV, {is_unzip!r}):
+  import zipfile
+  if zipfile.is_zipfile(__entry_point__):
+    __maybe_run_unzipped__(__entry_point__)
 
 from pex.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)
-""".format(
-    unzipped_dir=UNZIPPED_DIR, bootstrap_dir=BOOTSTRAP_DIR
-)
+"""
 
 
 class PEXBuilder(object):
@@ -377,9 +394,6 @@ class PEXBuilder(object):
             ).wait()
             return self._add_dist_dir(install_dir, dist_name)
 
-    def _prepare_code_hash(self):
-        self._pex_info.code_hash = CacheHelper.pex_hash(self._chroot.path())
-
     def add_distribution(self, dist, dist_name=None):
         """Add a :class:`pkg_resources.Distribution` from its handle.
 
@@ -444,13 +458,26 @@ class PEXBuilder(object):
         for compiled in compiled_relpaths:
             self._chroot.touch(compiled, label="bytecode")
 
-    def _prepare_manifest(self):
+    def _prepare_code(self):
+        self._pex_info.code_hash = CacheHelper.pex_code_hash(self._chroot.path())
+
+        hasher = hashlib.sha1()
+        hasher.update("code:{}".format(self._pex_info.code_hash).encode("utf-8"))
+        for location, sha in sorted(self._pex_info.distributions.items()):
+            hasher.update("{}:{}".format(location, sha).encode("utf-8"))
+        self._pex_info.pex_hash = hasher.hexdigest()
+
         self._chroot.write(self._pex_info.dump().encode("utf-8"), PexInfo.PATH, label="manifest")
 
-    def _prepare_main(self):
-        self._chroot.write(
-            to_bytes(self._preamble + "\n" + BOOTSTRAP_ENVIRONMENT), "__main__.py", label="main"
+        bootstrap = BOOTSTRAP_ENVIRONMENT.format(
+            bootstrap_dir=BOOTSTRAP_DIR,
+            pex_root=self._pex_info.raw_pex_root,
+            pex_hash=self._pex_info.pex_hash,
+            interpreter_constraints=self._pex_info.interpreter_constraints,
+            is_unzip=self._pex_info.unzip,
+            is_venv=self._pex_info.venv,
         )
+        self._chroot.write(to_bytes(self._preamble + "\n" + bootstrap), "__main__.py", label="main")
 
     def _copy_or_link(self, src, dst, label=None):
         if src is None:
@@ -501,10 +528,8 @@ class PEXBuilder(object):
         only be called once and renders the PEXBuilder immutable.
         """
         self._ensure_unfrozen("Freezing the environment")
-        self._prepare_code_hash()
-        self._prepare_manifest()
         self._prepare_bootstrap()
-        self._prepare_main()
+        self._prepare_code()
         if bytecode_compile:
             self._precompile_source()
         self._frozen = True
@@ -521,21 +546,20 @@ class PEXBuilder(object):
         """
         if not self._frozen:
             self.freeze(bytecode_compile=bytecode_compile)
+        tmp_zip = filename + "~"
         try:
-            os.unlink(filename + "~")
+            os.unlink(tmp_zip)
             self._logger.warning(
-                "Previous binary unexpectedly exists, cleaning: %s" % (filename + "~")
+                "Previous binary unexpectedly exists, cleaning: {}".format(tmp_zip)
             )
         except OSError:
             # The expectation is that the file does not exist, so continue
             pass
-        if os.path.dirname(filename):
-            safe_mkdir(os.path.dirname(filename))
-        with open(filename + "~", "ab") as pexfile:
+        with safe_open(tmp_zip, "ab") as pexfile:
             assert os.path.getsize(pexfile.name) == 0
-            pexfile.write(to_bytes("%s\n" % self._shebang))
-        self._chroot.zip(filename + "~", mode="a", deterministic_timestamp=deterministic_timestamp)
+            pexfile.write(to_bytes("{}\n".format(self._shebang)))
+        self._chroot.zip(tmp_zip, mode="a", deterministic_timestamp=deterministic_timestamp)
         if os.path.exists(filename):
             os.unlink(filename)
-        os.rename(filename + "~", filename)
+        os.rename(tmp_zip, filename)
         chmod_plus_x(filename)

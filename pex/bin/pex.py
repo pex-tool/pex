@@ -11,12 +11,12 @@ from __future__ import absolute_import, print_function
 import os
 import sys
 import tempfile
-import zipfile
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser, ArgumentTypeError
+from shlex import shlex
 from textwrap import TextWrapper
 
 from pex import pex_warnings
-from pex.common import die, safe_delete, safe_mkdtemp
+from pex.common import atomic_directory, die, open_zip, safe_mkdtemp
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import (
@@ -27,7 +27,7 @@ from pex.jobs import DEFAULT_MAX_JOBS
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
-from pex.pex_bootstrapper import iter_compatible_interpreters
+from pex.pex_bootstrapper import ensure_venv, iter_compatible_interpreters
 from pex.pex_builder import PEXBuilder
 from pex.pip import ResolverVersion
 from pex.platforms import Platform
@@ -35,10 +35,11 @@ from pex.resolver import Unsatisfiable, parsed_platform, resolve_multi
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
+from pex.venv_bin_path import BinPath
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import List
+    from typing import List, Iterable
     from argparse import Namespace
 
 
@@ -86,6 +87,17 @@ class HandleTransitiveAction(Action):
 
     def __call__(self, parser, namespace, value, option_str=None):
         setattr(namespace, self.dest, option_str == "--transitive")
+
+
+class HandleVenvAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        kwargs["choices"] = (BinPath.PREPEND.value, BinPath.APPEND.value)
+        super(HandleVenvAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        bin_path = BinPath.FALSE if value is None else BinPath.for_value(value)
+        setattr(namespace, self.dest, bin_path)
 
 
 class PrintVariableHelpAction(Action):
@@ -326,7 +338,8 @@ def configure_clp_pex_options(parser):
         "complete pex file, including dependencies, to be unzipped.",
     )
 
-    group.add_argument(
+    runtime_mode = group.add_mutually_exclusive_group()
+    runtime_mode.add_argument(
         "--unzip",
         "--no-unzip",
         dest="unzip",
@@ -335,6 +348,18 @@ def configure_clp_pex_options(parser):
         help="Whether or not the pex file should be unzipped before executing it. If the pex file will "
         "be run multiple times under a stable runtime PEX_ROOT the unzipping will only be "
         "performed once and subsequent runs will enjoy lower startup latency.",
+    )
+    runtime_mode.add_argument(
+        "--venv",
+        dest="venv",
+        metavar="{prepend,append}",
+        default=False,
+        action=HandleVenvAction,
+        help="Convert the pex file to a venv before executing it. If 'prepend' or 'append' is "
+        "specified, then all scripts and console scripts provided by distributions in the pex file "
+        "will be added to the PATH in the corresponding position. If the the pex file will be run "
+        "multiple times under a stable runtime PEX_ROOT, the venv creation will only be done once "
+        "and subsequent runs will enjoy lower startup latency.",
     )
 
     group.add_argument(
@@ -713,6 +738,16 @@ def configure_clp():
     )
 
     parser.add_argument(
+        "--seed",
+        "--no-seed",
+        dest="seed",
+        action=HandleBoolAction,
+        default=False,
+        help="Seed local Pex caches for the generated PEX and print out the command line to run "
+        "directly from the seed with.",
+    )
+
+    parser.add_argument(
         "--help-variables",
         action=PrintVariableHelpAction,
         nargs=0,
@@ -824,7 +859,7 @@ def build_pex(reqs, options, cache=None):
         path=safe_mkdtemp(),
         interpreter=interpreter,
         preamble=preamble,
-        include_tools=options.include_tools,
+        include_tools=options.include_tools or options.venv,
     )
 
     if options.resources_directory:
@@ -844,6 +879,8 @@ def build_pex(reqs, options, cache=None):
     pex_info = pex_builder.info
     pex_info.zip_safe = options.zip_safe
     pex_info.unzip = options.unzip
+    pex_info.venv = bool(options.venv)
+    pex_info.venv_bin_path = options.venv
     pex_info.pex_path = options.pex_path
     pex_info.always_write_cache = options.always_write_cache
     pex_info.ignore_errors = options.ignore_errors
@@ -1005,14 +1042,14 @@ def main(args=None):
 
         if options.pex_name is not None:
             log("Saving PEX file to %s" % options.pex_name, V=options.verbosity)
-            tmp_name = options.pex_name + "~"
-            safe_delete(tmp_name)
             pex_builder.build(
-                tmp_name,
+                options.pex_name,
                 bytecode_compile=options.compile,
                 deterministic_timestamp=not options.use_system_time,
             )
-            os.rename(tmp_name, options.pex_name)
+            if options.seed:
+                execute_cached_args = seed_cache(options, pex)
+                print(" ".join(execute_cached_args))
         else:
             if not _compatible_with_current_platform(interpreter, options.platforms):
                 log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
@@ -1028,6 +1065,37 @@ def main(args=None):
                 V=options.verbosity,
             )
             sys.exit(pex.run(args=list(cmdline), env=patched_env))
+
+
+def seed_cache(
+    options,  # type: Namespace
+    pex,  # type: PEX
+):
+    # type: (...) -> Iterable[str]
+    pex_path = pex.path()
+    with TRACER.timed("Seeding local caches for {}".format(pex_path)):
+        if options.unzip:
+            unzip_dir = pex.pex_info().unzip_dir
+            if unzip_dir is None:
+                raise AssertionError(
+                    "Expected PEX-INFO for {} to have the components of an unzip directory".format(
+                        pex_path
+                    )
+                )
+            with atomic_directory(unzip_dir, exclusive=True) as chroot:
+                if chroot:
+                    with TRACER.timed("Extracting {}".format(pex_path)):
+                        with open_zip(options.pex_name) as pex_zip:
+                            pex_zip.extractall(chroot)
+            return [pex.interpreter.binary, unzip_dir]
+        elif options.venv:
+            with TRACER.timed("Creating venv from {}".format(pex_path)):
+                venv_pex = ensure_venv(pex)
+                return [venv_pex]
+        else:
+            with TRACER.timed("Extracting code and distributions for {}".format(pex_path)):
+                pex.activate()
+            return [os.path.abspath(options.pex_name)]
 
 
 if __name__ == "__main__":

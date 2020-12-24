@@ -314,7 +314,7 @@ class IntegResults(object):
     """Convenience object to return integration run results."""
 
     def __init__(self, output, error, return_code):
-        # type: (Text, Text, int) -> None
+        # type: (str, str, int) -> None
         super(IntegResults, self).__init__()
         self.output = output
         self.error = error

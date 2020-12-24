@@ -12,7 +12,6 @@ from contextlib import contextmanager
 
 from pex.common import safe_mkdir
 from pex.dist_metadata import requires_dists
-from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.tools.command import Command, Ok, OutputMixin, Result, try_open_file, try_run_program
 from pex.tools.commands.digraph import DiGraph
