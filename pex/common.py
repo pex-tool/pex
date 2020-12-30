@@ -6,7 +6,6 @@ from __future__ import absolute_import, print_function
 import atexit
 import contextlib
 import errno
-import fcntl
 import os
 import re
 import shutil
@@ -21,7 +20,13 @@ from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
 
+from pex.compatibility import WINDOWS
 from pex.typing import TYPE_CHECKING
+
+if WINDOWS:
+    import msvcrt
+else:
+    import fcntl
 
 if TYPE_CHECKING:
     from typing import Any, DefaultDict, Iterable, Iterator, NoReturn, Optional, Set, Sized
@@ -393,7 +398,10 @@ def atomic_directory(target_dir, exclusive, source=None):
         if lock_fd is None:
             return
         try:
-            fcntl.lockf(lock_fd, fcntl.LOCK_UN)
+            if WINDOWS:
+                msvcrt.locking(lock_fd, msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.lockf(lock_fd, fcntl.LOCK_UN)
         finally:
             os.close(lock_fd)
 
@@ -410,7 +418,18 @@ def atomic_directory(target_dir, exclusive, source=None):
         # N.B.: Since lockf operates on an open file descriptor and these are guaranteed to be
         # closed by the operating system when the owning process exits, this lock is immune to
         # staleness.
-        fcntl.lockf(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
+        if WINDOWS:
+            while True:
+                # Force the non-blocking lock to be blocking. LK_LOCK is msvcrt's implementation of
+                # a blocking lock, but it only tries 10 times, once per second before rasing an
+                # OSError.
+                try:
+                    msvcrt.locking(lock_fd, msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    safe_sleep(1)
+        else:
+            fcntl.lockf(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
         if atomic_dir.is_finalized:
             # We lost the double-checked locking race and our work was done for us by the race
             # winner so exit early.
