@@ -424,9 +424,12 @@ def atomic_directory(target_dir, exclusive, source=None):
                 # a blocking lock, but it only tries 10 times, once per second before rasing an
                 # OSError.
                 try:
-                    msvcrt.locking(lock_fd, msvcrt.LK_NBLCK, 1)
+                    msvcrt.locking(lock_fd, msvcrt.LK_LOCK, 1)
                     break
-                except OSError:
+                except OSError as ex:
+                    # Deadlock error is raised after failing to lock the file
+                    if ex.errno != errno.EDEADLOCK:
+                        raise
                     safe_sleep(1)
         else:
             fcntl.lockf(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
