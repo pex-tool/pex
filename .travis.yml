@@ -51,6 +51,9 @@ x-pyenv-install: &x-pyenv-install |
   "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
   "${PYENV}" global ${PYENV_VERSION}
 
+x-pyenv-27-env: &x-pyenv-27-env >
+  PYENV_VERSION=2.7.18
+
 x-pyenv-39-env: &x-pyenv-39-env >
   PYENV_VERSION=3.9.1
 
@@ -89,11 +92,46 @@ x-osx-27-shard: &x-osx-27-shard
   env:
     - *x-tox-env
     - *x-pyenv-env
-    - PYENV_VERSION=2.7.18
+    - *x-pyenv-27-env
 
 x-osx-39-shard: &x-osx-39-shard
   <<: *x-osx-shard
   env:
+    - *x-tox-env
+    - *x-pyenv-env
+    - *x-pyenv-39-env
+
+x-windows-shard: &x-windows-shard
+  os: windows
+  language: shell
+  cache:
+    # The default is 3 minutes (180).
+    timeout: 300
+    directories:
+      - .pyenv_test
+      - "${PYENV_ROOT}"
+  install:
+    - *x-tox-install
+    - *x-pyenv-install
+
+x-windows-27-shard: &x-windows-27-shard
+  <<: *x-windows-shard
+  before_install:
+  - choco install python2
+  - python -m pip install --upgrade pip
+  env:
+    - PATH=/c/Python27:/c/Python27/Scripts:$PATH
+    - *x-tox-env
+    - *x-pyenv-env
+    - *x-pyenv-27-env
+
+x-windows-39-shard: &x-windows-39-shard
+  <<: *x-windows-shard
+  before_install:
+  - choco install python --version 3.9.0
+  - python -m pip install --upgrade pip
+  env:
+    - PATH=/c/Python39:/c/Python39/Scripts:$PATH
     - *x-tox-env
     - *x-pyenv-env
     - *x-pyenv-39-env
@@ -175,5 +213,21 @@ matrix:
       script: ${TOX_CMD} -e py27-integration
 
     - <<: *x-osx-39-shard
+      name: TOXENV=py39-integration
+      script: ${TOX_CMD} -e py39-integration
+
+    - <<: *x-windows-27-shard
+      name: TOXENV=py27
+      script: ${TOX_CMD} -e py27
+
+    - <<: *x-windows-39-shard
+      name: TOXENV=py39
+      script: ${TOX_CMD} -e py39
+
+    - <<: *x-windows-27-shard
+      name: TOXENV=py27-integration
+      script: ${TOX_CMD} -e py27-integration
+
+    - <<: *x-windows-39-shard
       name: TOXENV=py39-integration
       script: ${TOX_CMD} -e py39-integration
