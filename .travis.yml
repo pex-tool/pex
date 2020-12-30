@@ -41,8 +41,10 @@ x-pyenv-env: &x-pyenv-env >
   PATH="${PYENV_ROOT}/shims:${PATH}"
 
 x-pyenv-install: &x-pyenv-install |
-  # Ensure we have the targeted Python for tox to find on $PATH
-  PYENV="${PYENV_ROOT}/bin/pyenv"
+  # Ensure we have the targeted Python for tox to find on $PATH.
+  # Relative symlinks don't work on Git Bash, which is why
+  # "${PYENV_ROOT}/bin/pyenv" isn't used.
+  PYENV="${PYENV_ROOT}/libexec/pyenv"
   if [ ! -x "${PYENV}" ]; then
     rm -rf ${PYENV_ROOT}
     git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
