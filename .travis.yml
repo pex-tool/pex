@@ -1,5 +1,5 @@
 x-tox-env: &x-tox-env >
-  TOX_CMD="tox --skip-missing-interpreters=false -v"
+  TOX_CMD="${TOX_PATH:-tox} --skip-missing-interpreters=false -v"
 
 x-tox-install: &x-tox-install |
   ${PIP_PATH:-pip} install -U pip
@@ -116,6 +116,7 @@ x-windows-27-shard: &x-windows-27-shard
   - choco install python2
   env:
     - PIP_PATH="C:\Python27\python.exe -m pip"
+    - TOX_PATH="C:\Python27\Scripts\tox"
     - *x-tox-env
 
 x-windows-39-shard: &x-windows-39-shard
@@ -124,6 +125,7 @@ x-windows-39-shard: &x-windows-39-shard
   - choco install python --version 3.9.1
   env:
     - PIP_PATH="C:\Python39\python.exe -m pip"
+    - TOX_PATH="C:\Python39\Scripts\tox"
     - *x-tox-env
 
 # NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
