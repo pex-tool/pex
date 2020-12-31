@@ -115,7 +115,7 @@ x-windows-27-shard: &x-windows-27-shard
   before_install:
   - choco install python2
   env:
-    - PIP_PATH="C:\Python27 -m pip"
+    - PIP_PATH="C:\Python27\python.exe -m pip"
     - *x-tox-env
 
 x-windows-39-shard: &x-windows-39-shard
@@ -123,7 +123,7 @@ x-windows-39-shard: &x-windows-39-shard
   before_install:
   - choco install python --version 3.9.1
   env:
-    - PIP_PATH="C:\Python39 -m pip"
+    - PIP_PATH="C:\Python39\python.exe -m pip"
     - *x-tox-env
 
 # NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
