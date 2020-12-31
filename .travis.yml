@@ -40,18 +40,23 @@ x-pyenv-env: &x-pyenv-env >
   PYENV_ROOT=~/.pyenv-pex
   PATH="${PYENV_ROOT}/shims:${PATH}"
 
+x-pyenv-unix-env: &x-pyenv-unix-env >
+  PYENV_CMD="${PYENV_ROOT}/bin/pyenv"
+  PYENV_REPO=https://github.com/pyenv/pyenv
+
+x-pyenv-windows-env: &x-pyenv-windows-env >
+  PYENV_CMD="${PYENV_ROOT}/pyenv-win/bin/pyenv"
+  PYENV_REPO=https://github.com/pyenv-win/pyenv-win
+
 x-pyenv-install: &x-pyenv-install |
-  # Ensure we have the targeted Python for tox to find on $PATH.
-  # Relative symlinks don't work on Git Bash, which is why
-  # "${PYENV_ROOT}/bin/pyenv" isn't used.
-  PYENV="${PYENV_ROOT}/libexec/pyenv"
+  # Ensure we have the targeted Python for tox to find on $PATH
   if [ ! -x "${PYENV}" ]; then
     rm -rf ${PYENV_ROOT}
-    git clone https://github.com/pyenv/pyenv "${PYENV_ROOT}";
+    git clone "${PYENV_REPO}" "${PYENV_ROOT}";
   fi
   GIT_DIR="${PYENV_ROOT}/.git" git pull --ff-only
-  "${PYENV}" install --keep --skip-existing ${PYENV_VERSION}
-  "${PYENV}" global ${PYENV_VERSION}
+  ./"${PYENV_CMD}" install --keep --skip-existing ${PYENV_VERSION}
+  ./"${PYENV_CMD}" global ${PYENV_VERSION}
 
 x-pyenv-27-env: &x-pyenv-27-env >
   PYENV_VERSION=2.7.18
@@ -94,6 +99,7 @@ x-osx-27-shard: &x-osx-27-shard
   env:
     - *x-tox-env
     - *x-pyenv-env
+    - *x-pyenv-unix-env
     - *x-pyenv-27-env
 
 x-osx-39-shard: &x-osx-39-shard
@@ -101,6 +107,7 @@ x-osx-39-shard: &x-osx-39-shard
   env:
     - *x-tox-env
     - *x-pyenv-env
+    - *x-pyenv-unix-env
     - *x-pyenv-39-env
 
 x-windows-shard: &x-windows-shard
@@ -125,7 +132,9 @@ x-windows-27-shard: &x-windows-27-shard
     - PATH=/c/Python27:/c/Python27/Scripts:$PATH
     - *x-tox-env
     - *x-pyenv-env
-    - *x-pyenv-27-env
+    - *x-pyenv-windows-env
+    # TODO: Use *x-pyenv-27-env when the pyenv-windows 2.7.18 image is available
+    - PYENV_VERSION=2.7.17
 
 x-windows-39-shard: &x-windows-39-shard
   <<: *x-windows-shard
@@ -136,7 +145,9 @@ x-windows-39-shard: &x-windows-39-shard
     - PATH=/c/Python39:/c/Python39/Scripts:$PATH
     - *x-tox-env
     - *x-pyenv-env
-    - *x-pyenv-39-env
+    - *x-pyenv-windows-env
+    # TODO: Use *x-pyenv-39-env when the pyenv-windows 3.9.1 image is available
+    - PYENV_VERSION=3.9.0a4
 
 # NB: Travis partitions caches using a combination of os, language amd env vars. As such, we do not
 # use TOXENV and instead pass the toxenv via -e on the command line. This helps ensure we share
