@@ -43,6 +43,7 @@ x-pyenv-env: &x-pyenv-env >
 x-pyenv-unix-env: &x-pyenv-unix-env >
   PYENV_CMD="${PYENV_ROOT}/bin/pyenv"
   PYENV_REPO=https://github.com/pyenv/pyenv
+  PYENV_INSTALL_FLAGS="--keep --skip-existing"
 
 x-pyenv-windows-env: &x-pyenv-windows-env >
   PYENV_CMD="${PYENV_ROOT}/pyenv-win/bin/pyenv"
@@ -55,7 +56,7 @@ x-pyenv-install: &x-pyenv-install |
     git clone "${PYENV_REPO}" "${PYENV_ROOT}";
   fi
   GIT_DIR="${PYENV_ROOT}/.git" git pull --ff-only
-  ./"${PYENV_CMD}" install --keep --skip-existing ${PYENV_VERSION}
+  ./"${PYENV_CMD}" install ${PYENV_INSTALL_FLAGS} ${PYENV_VERSION}
   ./"${PYENV_CMD}" global ${PYENV_VERSION}
 
 x-pyenv-27-env: &x-pyenv-27-env >
