@@ -133,80 +133,80 @@ x-windows-39-shard: &x-windows-39-shard
 # caches as much as possible (eg: all linux python 2.7.15 shards share a cache).
 matrix:
   include:
-    # - <<: *x-linux-shard
-    #   name: TOXENV=format-check
-    #   script: ${TOX_CMD} -e format-check
+    - <<: *x-linux-shard
+      name: TOXENV=format-check
+      script: ${TOX_CMD} -e format-check
 
-    # - <<: *x-linux-shard
-    #   name: TOXENV=typecheck
-    #   script: ${TOX_CMD} -e typecheck
+    - <<: *x-linux-shard
+      name: TOXENV=typecheck
+      script: ${TOX_CMD} -e typecheck
 
-    # - <<: *x-linux-38-shard
-    #   name: TOXENV=vendor-check
-    #   script: ${TOX_CMD} -e vendor-check
+    - <<: *x-linux-38-shard
+      name: TOXENV=vendor-check
+      script: ${TOX_CMD} -e vendor-check
 
-    # - <<: *x-linux-27-shard
-    #   name: TOXENV=py27
-    #   script: ${TOX_CMD} -e py27
+    - <<: *x-linux-27-shard
+      name: TOXENV=py27
+      script: ${TOX_CMD} -e py27
 
-    # - <<: *x-linux-27-shard
-    #   name: TOXENV=py27-subprocess
-    #   script: ${TOX_CMD} -e py27-subprocess
+    - <<: *x-linux-27-shard
+      name: TOXENV=py27-subprocess
+      script: ${TOX_CMD} -e py27-subprocess
 
-    # - <<: *x-linux-shard
-    #   name: TOXENV=py35
-    #   python: 3.5.9
-    #   script: ${TOX_CMD} -e py35
+    - <<: *x-linux-shard
+      name: TOXENV=py35
+      python: 3.5.9
+      script: ${TOX_CMD} -e py35
 
-    # - <<: *x-linux-shard
-    #   name: TOXENV=py36
-    #   python: 3.6.10
-    #   script: ${TOX_CMD} -e py36
+    - <<: *x-linux-shard
+      name: TOXENV=py36
+      python: 3.6.10
+      script: ${TOX_CMD} -e py36
 
-    # - <<: *x-linux-shard
-    #   name: TOXENV=py37
-    #   python: 3.7.7
-    #   script: ${TOX_CMD} -e py37
+    - <<: *x-linux-shard
+      name: TOXENV=py37
+      python: 3.7.7
+      script: ${TOX_CMD} -e py37
 
-    # - <<: *x-linux-38-shard
-    #   name: TOXENV=py38
-    #   script: ${TOX_CMD} -e py38
+    - <<: *x-linux-38-shard
+      name: TOXENV=py38
+      script: ${TOX_CMD} -e py38
 
-    # - <<: *x-linux-39-shard
-    #   name: TOXENV=py39
-    #   script: ${TOX_CMD} -e py39
+    - <<: *x-linux-39-shard
+      name: TOXENV=py39
+      script: ${TOX_CMD} -e py39
 
-    # - <<: *x-linux-pypy-shard
-    #   name: TOXENV=pypy
-    #   script: ${TOX_CMD} -e pypy
+    - <<: *x-linux-pypy-shard
+      name: TOXENV=pypy
+      script: ${TOX_CMD} -e pypy
 
-    # - <<: *x-linux-27-shard
-    #   name: TOXENV=py27-integration
-    #   script: ${TOX_CMD} -e py27-integration
+    - <<: *x-linux-27-shard
+      name: TOXENV=py27-integration
+      script: ${TOX_CMD} -e py27-integration
 
-    # - <<: *x-linux-39-shard
-    #   name: TOXENV=py39-integration
-    #   script: ${TOX_CMD} -e py39-integration
+    - <<: *x-linux-39-shard
+      name: TOXENV=py39-integration
+      script: ${TOX_CMD} -e py39-integration
 
-    # - <<: *x-linux-pypy-shard
-    #   name: TOXENV=pypy-integration
-    #   script: ${TOX_CMD} -e pypy-integration
+    - <<: *x-linux-pypy-shard
+      name: TOXENV=pypy-integration
+      script: ${TOX_CMD} -e pypy-integration
 
-    # - <<: *x-osx-27-shard
-    #   name: TOXENV=py27
-    #   script: ${TOX_CMD} -e py27
+    - <<: *x-osx-27-shard
+      name: TOXENV=py27
+      script: ${TOX_CMD} -e py27
 
-    # - <<: *x-osx-39-shard
-    #   name: TOXENV=py39
-    #   script: ${TOX_CMD} -e py39
+    - <<: *x-osx-39-shard
+      name: TOXENV=py39
+      script: ${TOX_CMD} -e py39
 
-    # - <<: *x-osx-27-shard
-    #   name: TOXENV=py27-integration
-    #   script: ${TOX_CMD} -e py27-integration
+    - <<: *x-osx-27-shard
+      name: TOXENV=py27-integration
+      script: ${TOX_CMD} -e py27-integration
 
-    # - <<: *x-osx-39-shard
-    #   name: TOXENV=py39-integration
-    #   script: ${TOX_CMD} -e py39-integration
+    - <<: *x-osx-39-shard
+      name: TOXENV=py39-integration
+      script: ${TOX_CMD} -e py39-integration
 
     - <<: *x-windows-27-shard
       name: TOXENV=py27
