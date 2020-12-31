@@ -114,15 +114,15 @@ x-windows-27-shard: &x-windows-27-shard
   <<: *x-windows-shard
   before_install:
   - choco install python2
-  - python -m pip install --upgrade pip
+  - python -m ensurepip --upgrade
   env:
     - *x-tox-env
 
 x-windows-39-shard: &x-windows-39-shard
   <<: *x-windows-shard
   before_install:
-  - choco install python --version 3.9.0
-  - python -m pip install --upgrade pip
+  - choco install python --version 3.9.1
+  - python -m ensurepip --upgrade
   env:
     - *x-tox-env
 
