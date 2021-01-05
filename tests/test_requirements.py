@@ -20,6 +20,7 @@ from pex.requirements import (
 )
 from pex.testing import environment_as
 from pex.third_party.packaging.markers import Marker
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -114,6 +115,8 @@ class MarkerWithEq(Marker):
 def req(
     project_name=None,  # type: Optional[str]
     url=None,  # type: Optional[str]
+    extras=None,  # type: Optional[Iterable[str]]
+    specifier=None,  # type: Optional[str]
     marker=None,  # type: Optional[str]
     editable=False,  # type: bool
     is_local_project=False,  # type: bool
@@ -123,6 +126,8 @@ def req(
         line=None,
         project_name=project_name,
         url=url,
+        extras=frozenset(extras or ()),
+        specifier=SpecifierSet(specifiers=specifier or ""),
         marker=MarkerWithEq.wrap(marker),
         editable=editable,
         is_local_project=is_local_project,
@@ -132,7 +137,15 @@ def req(
 def normalize_results(req_infos):
     # type: (Iterable[Union[Constraint, ReqInfo]]) -> List[Union[Constraint, ReqInfo]]
     def normalize_req_info(req_info):
-        return req_info._replace(line=None)._replace(marker=MarkerWithEq.wrap(req_info.marker))
+        return (
+            req_info._replace(line=None)
+            ._replace(
+                specifier=SpecifierSet(
+                    specifiers=str(req_info.specifier) if req_info.specifier else ""
+                )
+            )
+            ._replace(marker=MarkerWithEq.wrap(req_info.marker))
+        )
 
     return [
         normalize_req_info(req_info)
@@ -268,19 +281,19 @@ def test_parse_requirements_stress(chroot):
         req(project_name="nose"),
         req(project_name="nose-cov"),
         req(project_name="beautifulsoup4"),
-        req(project_name="docopt"),
-        req(project_name="keyring"),
-        req(project_name="coverage"),
-        req(project_name="Mopidy-Dirble"),
+        req(project_name="docopt", specifier="==0.6.1"),
+        req(project_name="keyring", specifier=">=4.1.1"),
+        req(project_name="coverage", specifier="!=3.5"),
+        req(project_name="Mopidy-Dirble", specifier="~=1.1"),
         req(project_name="SomeProject"),
-        req(project_name="SomeProject"),
-        req(project_name="SomeProject"),
-        req(project_name="SomeProject"),
-        req(project_name="SomeProject"),
-        req(project_name="SomeProject", marker="python_version < '2.7'"),
+        req(project_name="SomeProject", specifier="==1.3"),
+        req(project_name="SomeProject", specifier=">=1.2,<2.0"),
+        req(project_name="SomeProject", extras=["foo", "bar"]),
+        req(project_name="SomeProject", specifier="~=1.4.2"),
+        req(project_name="SomeProject", specifier="==5.4", marker="python_version < '2.7'"),
         req(project_name="SomeProject", marker="sys_platform == 'win32'"),
         req(project_name="SomeProject", url="file:///somewhere/over/here"),
-        req(project_name="FooProject"),
+        req(project_name="FooProject", specifier=">=1.2"),
         req(
             project_name="MyProject",
             url="git+https://git.example.com/MyProject.git@da39a3ee5e6b4b0d3255bfef95601890afd80709",
@@ -290,6 +303,7 @@ def test_parse_requirements_stress(chroot):
         Constraint(req(project_name="AnotherProject")),
         req(
             url=os.path.realpath("extra/a/local/project"),
+            extras=["foo"],
             marker="python_full_version == '2.7.8'",
             is_local_project=True,
         ),
@@ -301,20 +315,26 @@ def test_parse_requirements_stress(chroot):
         req(url=os.path.realpath("extra/another/local/project"), is_local_project=True),
         req(url=os.path.realpath("extra"), is_local_project=True),
         req(url=os.path.realpath("extra/tmp/tmpW8tdb_"), is_local_project=True),
-        req(url=os.path.realpath("extra/tmp/tmpW8tdb_"), is_local_project=True),
+        req(url=os.path.realpath("extra/tmp/tmpW8tdb_"), extras=["foo"], is_local_project=True),
         req(
             url=os.path.realpath("extra/tmp/tmpW8tdb_"),
+            extras=["foo"],
             marker="python_version == '3.9'",
             is_local_project=True,
         ),
         req(
             project_name="AnotherProject",
             url="hg+http://hg.example.com/MyProject@da39a3ee5e6b",
+            extras=["more", "extra"],
             marker="python_version == '3.9.*'",
         ),
-        req(project_name="Project", url="ftp://a/Project-1.0.tar.gz"),
-        req(project_name="Project", url="http://a/Project-1.0.zip"),
-        req(project_name="numpy", url="https://a/numpy-1.9.2-cp34-none-win32.whl"),
+        req(project_name="Project", url="ftp://a/Project-1.0.tar.gz", specifier="==1.0"),
+        req(project_name="Project", url="http://a/Project-1.0.zip", specifier="==1.0"),
+        req(
+            project_name="numpy",
+            url="https://a/numpy-1.9.2-cp34-none-win32.whl",
+            specifier="==1.9.2",
+        ),
         req(project_name="Django", url="git+https://github.com/django/django.git"),
         req(project_name="Django", url="git+https://github.com/django/django.git@stable/2.1.x"),
         req(
@@ -324,10 +344,12 @@ def test_parse_requirements_stress(chroot):
         req(
             project_name="numpy",
             url=os.path.realpath("./downloads/numpy-1.9.2-cp34-none-win32.whl"),
+            specifier="==1.9.2",
         ),
         req(
             project_name="wxPython_Phoenix",
             url="http://wxpython.org/Phoenix/snapshot-builds/wxPython_Phoenix-3.0.3.dev1820+49a8884-cp34-none-win_amd64.whl",
+            specifier="==3.0.3.dev1820+49a8884",
         ),
         req(project_name="rejected"),
         req(project_name="green"),
@@ -344,10 +366,10 @@ def test_parse_requirements_from_url():
     )
     results = normalize_results(req_iter)
     assert [
-        req(project_name="ansicolors"),
-        req(project_name="setuptools"),
-        req(project_name="translate"),
-        req(project_name="protobuf"),
+        req(project_name="ansicolors", specifier=">=1.0.2"),
+        req(project_name="setuptools", specifier=">=42.0.0"),
+        req(project_name="translate", specifier=">=3.2.1"),
+        req(project_name="protobuf", specifier=">=3.11.3"),
     ] == results
 
 
