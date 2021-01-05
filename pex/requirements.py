@@ -722,8 +722,9 @@ def parse_requirement_file(
                     "with."
                 )
             return Source.from_url(fetcher=fetcher, url=location, is_constraints=is_constraints)
-        else:
-            return Source.from_file(path=location, is_constraints=is_constraints)
+
+        path = url.path if url.scheme == "file" else location
+        return Source.from_file(path=path, is_constraints=is_constraints)
 
     with open_source() as source:
         for req_info in parse_requirements(source, fetcher=fetcher):
