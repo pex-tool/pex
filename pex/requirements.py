@@ -222,7 +222,7 @@ class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines
                     "The source is a url but no fetcher was supplied to resolve its contents with."
                 )
             try:
-                with self.from_url(fetcher, origin) as source:
+                with self.from_url(fetcher, origin, is_constraints=is_constraints) as source:
                     yield source
             except OSError as e:
                 raise create_parse_error(str(e))
@@ -708,12 +708,25 @@ def parse_requirements(
 
 
 def parse_requirement_file(
-    path,  # type: str
+    location,  # type: str
     is_constraints=False,  # type: bool
     fetcher=None,  # type: Optional[URLFetcher]
 ):
     # type: (...) -> Iterator[Union[ReqInfo, Constraint]]
-    with Source.from_file(path, is_constraints=is_constraints) as source:
+    def open_source():
+        url = urlparse.urlparse(location)
+        if url.scheme and url.netloc:
+            if fetcher is None:
+                raise ValueError(
+                    "The location is a url but no fetcher was supplied to resolve its contents "
+                    "with."
+                )
+            return Source.from_url(fetcher=fetcher, url=location, is_constraints=is_constraints)
+
+        path = url.path if url.scheme == "file" else location
+        return Source.from_file(path=path, is_constraints=is_constraints)
+
+    with open_source() as source:
         for req_info in parse_requirements(source, fetcher=fetcher):
             yield req_info
 

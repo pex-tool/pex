@@ -2520,17 +2520,15 @@ def run_proxy(mitmdump, tmp_workdir):
     return _run_proxy
 
 
+EXAMPLE_PYTHON_REQUIREMENTS_URL = (
+    "https://raw.githubusercontent.com/pantsbuild/example-python/"
+    "c6052498f25a436f2639ccd0bc846cec1a55d7d5"
+    "/requirements.txt"
+)
+
+
 def test_requirements_network_configuration(run_proxy, tmp_workdir):
     # type: (Callable[[Optional[str]], ContextManager[Tuple[int, str]]], str) -> None
-    requirements_file = os.path.join(tmp_workdir, "requirements.txt")
-    requirements_url = (
-        "https://raw.githubusercontent.com/pantsbuild/example-python/"
-        "2a6f66ce8a4557d4867b39accfca171d7262bb76"
-        "/requirements.txt"
-    )
-    with open(requirements_file, "w") as fp:
-        fp.write("-r {}".format(requirements_url))
-
     def line(
         contents,  # type: str
         line_no,  # type: int
@@ -2539,7 +2537,7 @@ def test_requirements_network_configuration(run_proxy, tmp_workdir):
         return LogicalLine(
             "{}\n".format(contents),
             contents,
-            source=requirements_url,
+            source=EXAMPLE_PYTHON_REQUIREMENTS_URL,
             start_line=line_no,
             end_line=line_no,
         )
@@ -2547,7 +2545,7 @@ def test_requirements_network_configuration(run_proxy, tmp_workdir):
     proxy_auth = "jake:jones"
     with run_proxy(proxy_auth) as (port, ca_cert):
         reqs = parse_requirement_file(
-            requirements_file,
+            EXAMPLE_PYTHON_REQUIREMENTS_URL,
             fetcher=URLFetcher(
                 NetworkConfiguration.create(
                     proxy="{proxy_auth}@localhost:{port}".format(proxy_auth=proxy_auth, port=port),
@@ -2760,3 +2758,55 @@ def test_pip_issues_9420_workaround():
             """
         ).strip()
     )
+
+
+def test_requirement_file_from_url(tmpdir):
+    # type: (Any) -> None
+    pex_file = os.path.join(str(tmpdir), "pex")
+    results = run_pex_command(args=["-r", EXAMPLE_PYTHON_REQUIREMENTS_URL, "-o", pex_file])
+    results.assert_success()
+    output, returncode = run_simple_pex(
+        pex_file, args=["-c", "import colors, google.protobuf, setuptools, translate"]
+    )
+    assert 0 == returncode, output
+    assert b"" == output
+
+
+def test_constraint_file_from_url(tmpdir):
+    # type: (Any) -> None
+
+    # N.B.: The fasteners library requires Python >=3.6.
+    python = ensure_python_interpreter(PY36)
+
+    pex_file = os.path.join(str(tmpdir), "pex")
+
+    # N.B.: This requirements file has fasteners==0.15.0 but fasteners 0.16.0 is available.
+    # N.B.: This requirements file has 28 requirements in addition to fasteners.
+    pants_requirements_url = (
+        "https://raw.githubusercontent.com/pantsbuild/pants/"
+        "b0fbb76112dcb61b3004c2caf3a59d3f03e3f182"
+        "/3rdparty/python/requirements.txt"
+    )
+    results = run_pex_command(
+        args=["fasteners", "--constraints", pants_requirements_url, "-o", pex_file], python=python
+    )
+    results.assert_success()
+    output, returncode = run_simple_pex(
+        pex_file,
+        args=["-c", "from fasteners.version import version_string; print(version_string())"],
+        interpreter=PythonInterpreter.from_binary(python),
+    )
+    assert 0 == returncode, output
+
+    # Strange but true: https://github.com/harlowja/fasteners/blob/0.15/fasteners/version.py
+    assert (
+        b"0.14.1" == output.strip()
+    ), "Fasteners 0.15.0 is expected to report its version as 0.14.1"
+
+    # N.B.: Fasteners 0.15.0 depends on six and monotonic>=0.1; neither of which are constrained by
+    # `pants_requirements_url`.
+    dist_paths = set(PexInfo.from_pex(pex_file).distributions.keys())
+    assert len(dist_paths) == 3
+    dist_paths.remove("fasteners-0.15-py2.py3-none-any.whl")
+    for dist_path in dist_paths:
+        assert dist_path.startswith(("six-", "monotonic-")) and dist_path.endswith(".whl")

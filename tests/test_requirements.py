@@ -16,6 +16,7 @@ from pex.requirements import (
     ReqInfo,
     Source,
     URLFetcher,
+    parse_requirement_file,
     parse_requirements,
 )
 from pex.testing import environment_as
@@ -24,7 +25,7 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterator, Iterable, List, Optional, Union
+    from typing import Any, Iterable, Iterator, List, Optional, Union
 
 
 @pytest.fixture
@@ -197,7 +198,7 @@ def test_parse_requirements_stress(chroot):
             # https://pip.pypa.io/en/stable/reference/pip_install/#requirements-file-format.
             dedent(
                 """\
-                -c subdir/more-requirements.txt
+                -c file:subdir/more-requirements.txt
 
                 a/local/project[foo]; python_full_version == "2.7.8"
                 ./another/local/project;python_version == "2.7.*"
@@ -356,35 +357,80 @@ def test_parse_requirements_stress(chroot):
     ] == results
 
 
+EXAMPLE_PYTHON_REQUIREMENTS_URL = (
+    "https://raw.githubusercontent.com/pantsbuild/example-python/"
+    "c6052498f25a436f2639ccd0bc846cec1a55d7d5"
+    "/requirements.txt"
+)
+
+EXPECTED_EXAMPLE_PYTHON_REQ_INFOS = [
+    req(project_name="ansicolors", specifier=">=1.0.2"),
+    req(project_name="setuptools", specifier=">=42.0.0"),
+    req(project_name="translate", specifier=">=3.2.1"),
+    req(project_name="protobuf", specifier=">=3.11.3"),
+]
+
+
 def test_parse_requirements_from_url():
     # type: () -> None
     req_iter = parse_requirements(
-        Source.from_text(
-            "-r https://raw.githubusercontent.com/pantsbuild/example-python/c6052498f25a436f2639ccd0bc846cec1a55d7d5/requirements.txt"
-        ),
+        Source.from_text("-r {}".format(EXAMPLE_PYTHON_REQUIREMENTS_URL)),
         fetcher=URLFetcher(),
     )
     results = normalize_results(req_iter)
-    assert [
-        req(project_name="ansicolors", specifier=">=1.0.2"),
-        req(project_name="setuptools", specifier=">=42.0.0"),
-        req(project_name="translate", specifier=">=3.2.1"),
-        req(project_name="protobuf", specifier=">=3.11.3"),
-    ] == results
+    assert EXPECTED_EXAMPLE_PYTHON_REQ_INFOS == results
+
+
+def test_parse_constraints_from_url():
+    # type: () -> None
+    req_iter = parse_requirements(
+        Source.from_text("-c {}".format(EXAMPLE_PYTHON_REQUIREMENTS_URL)),
+        fetcher=URLFetcher(),
+    )
+    results = normalize_results(req_iter)
+    assert [Constraint(req) for req in EXPECTED_EXAMPLE_PYTHON_REQ_INFOS] == results
+
+
+def test_parse_requirement_file_from_url():
+    # type: () -> None
+    req_iter = parse_requirement_file(EXAMPLE_PYTHON_REQUIREMENTS_URL, fetcher=URLFetcher())
+    results = normalize_results(req_iter)
+    assert EXPECTED_EXAMPLE_PYTHON_REQ_INFOS == results
+
+
+def test_parse_requirement_file_from_file_url(tmpdir):
+    # type: (Any) -> None
+    requirements_file = os.path.join(str(tmpdir), "requirements.txt")
+    with open(requirements_file, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                foo==1.0.0
+                bar>3
+                """
+            )
+        )
+
+    req_iter = parse_requirement_file(requirements_file)
+    expected = normalize_results(req_iter)
+
+    req_iter = parse_requirement_file("file:{}".format(requirements_file))
+    results = normalize_results(req_iter)
+    assert expected == results
+    req_iter = parse_requirement_file("file://{}".format(requirements_file))
+    results = normalize_results(req_iter)
+    assert expected == results
 
 
 def test_parse_requirements_from_url_no_fetcher():
     # type: () -> None
-    req_iter = parse_requirements(
-        Source.from_text(
-            "-r https://raw.githubusercontent.com/pantsbuild/example-python/c6052498f25a436f2639ccd0bc846cec1a55d7d5/requirements.txt"
-        )
-    )
+    req_iter = parse_requirements(Source.from_text("-r {}".format(EXAMPLE_PYTHON_REQUIREMENTS_URL)))
     with pytest.raises(ParseError) as exec_info:
         next(req_iter)
 
     assert (
         "<string> line 1:\n"
-        "-r https://raw.githubusercontent.com/pantsbuild/example-python/c6052498f25a436f2639ccd0bc846cec1a55d7d5/requirements.txt\n"
-        "Problem resolving requirements file: The source is a url but no fetcher was supplied to resolve its contents with."
+        "-r {}\n"
+        "Problem resolving requirements file: The source is a url but no fetcher was supplied to "
+        "resolve its contents with.".format(EXAMPLE_PYTHON_REQUIREMENTS_URL)
     ) == str(exec_info.value)
