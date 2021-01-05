@@ -676,7 +676,7 @@ def configure_clp():
         "-r",
         "--requirement",
         dest="requirement_files",
-        metavar="FILE",
+        metavar="FILE or URL",
         default=[],
         type=str,
         action="append",
@@ -687,7 +687,7 @@ def configure_clp():
     parser.add_argument(
         "--constraints",
         dest="constraint_files",
-        metavar="FILE",
+        metavar="FILE or URL",
         default=[],
         type=str,
         action="append",
