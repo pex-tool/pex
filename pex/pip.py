@@ -5,11 +5,13 @@
 from __future__ import absolute_import, print_function
 
 import os
+import re
+import subprocess
 from collections import deque
 from textwrap import dedent
 
 from pex import third_party
-from pex.common import atomic_directory
+from pex.common import atomic_directory, safe_mkdtemp
 from pex.compatibility import urlparse
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
@@ -222,6 +224,15 @@ class Pip(object):
         # type: (str) -> None
         self._pip_pex_path = pip_pex_path  # type: str
 
+    @staticmethod
+    def _calculate_resolver_version(package_index_configuration=None):
+        # type: (Optional[PackageIndexConfiguration]) -> ResolverVersion.Value
+        return (
+            package_index_configuration.resolver_version
+            if package_index_configuration
+            else ResolverVersion.PIP_LEGACY
+        )
+
     def _spawn_pip_isolated(
         self,
         args,  # type: Iterable[str]
@@ -229,7 +240,7 @@ class Pip(object):
         cache=None,  # type: Optional[str]
         interpreter=None,  # type: Optional[PythonInterpreter]
     ):
-        # type: (...) -> Job
+        # type: (...) -> Tuple[List[str], subprocess.Popen]
         pip_args = [
             # We vendor the version of pip we want so pip should never check for updates.
             "--disable-pip-version-check",
@@ -244,12 +255,7 @@ class Pip(object):
             "--exists-action",
             "a",
         ]
-        resolver_version = (
-            package_index_configuration.resolver_version
-            if package_index_configuration
-            else ResolverVersion.PIP_LEGACY
-        )
-        pip_args.extend(resolver_version.pip_args)
+        pip_args.extend(self._calculate_resolver_version(package_index_configuration).pip_args)
         if not package_index_configuration or package_index_configuration.isolated:
             # Don't read PIP_ environment variables or pip configuration files like
             # `~/.config/pip/pip.conf`.
@@ -291,9 +297,23 @@ class Pip(object):
             from pex.pex import PEX
 
             pip = PEX(pex=self._pip_pex_path, interpreter=interpreter)
-            return Job(
-                command=pip.cmdline(command), process=pip.run(args=command, env=env, blocking=False)
-            )
+            return pip.cmdline(command), pip.run(args=command, env=env, blocking=False)
+
+    def _spawn_pip_isolated_job(
+        self,
+        args,  # type: Iterable[str]
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+        cache=None,  # type: Optional[str]
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> Job
+        command, process = self._spawn_pip_isolated(
+            args,
+            package_index_configuration=package_index_configuration,
+            cache=cache,
+            interpreter=interpreter,
+        )
+        return Job(command=command, process=process)
 
     def spawn_download_distributions(
         self,
@@ -363,12 +383,60 @@ class Pip(object):
         if requirements:
             download_cmd.extend(requirements)
 
-        return self._spawn_pip_isolated(
+        # The Pip 2020 resolver hides useful dependency conflict information in stdout interspersed
+        # with other information we want to suppress. We jump though some hoops here to get at that
+        # information and surface it on stderr. See: https://github.com/pypa/pip/issues/9420.
+        log = None
+        if (
+            self._calculate_resolver_version(package_index_configuration)
+            == ResolverVersion.PIP_2020
+        ):
+            log = os.path.join(safe_mkdtemp(), "pip.log")
+            download_cmd = ["--log", log] + download_cmd
+
+        command, process = self._spawn_pip_isolated(
             download_cmd,
             package_index_configuration=package_index_configuration,
             cache=cache,
             interpreter=target.get_interpreter(),
         )
+        return self._Issue9420Job(command, process, log) if log else Job(command, process)
+
+    class _Issue9420Job(Job):
+        def __init__(self, command, process, log):
+            self._log = log
+            super(Pip._Issue9420Job, self).__init__(command, process)
+
+        def _check_returncode(self, stderr=None):
+            # N.B.: Pip --log output looks like:
+            # 2021-01-04T16:12:01,119 ERROR: Cannot install pantsbuild-pants==1.24.0.dev2 and wheel==0.33.6 because these package versions have conflicting dependencies.
+            # 2021-01-04T16:12:01,119
+            # 2021-01-04T16:12:01,119 The conflict is caused by:
+            # 2021-01-04T16:12:01,119     The user requested wheel==0.33.6
+            # 2021-01-04T16:12:01,119     pantsbuild-pants 1.24.0.dev2 depends on wheel==0.31.1
+            # 2021-01-04T16:12:01,119
+            # 2021-01-04T16:12:01,119 To fix this you could try to:
+            # 2021-01-04T16:12:01,119 1. loosen the range of package versions you've specified
+            # 2021-01-04T16:12:01,119 2. remove package versions to allow pip attempt to solve the dependency conflict
+            # 2021-01-04T16:12:01,119 ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/user_guide/#fixing-conflicting-dependencies
+            if self._process.returncode != 0:
+                strip = None
+                collected = []
+                with open(self._log, "r") as fp:
+                    for line in fp:
+                        if not strip:
+                            match = re.match(r"^(?P<timestamp>[^ ]+) ERROR: Cannot install ", line)
+                            if match:
+                                strip = len(match.group("timestamp"))
+                        else:
+                            match = re.match(r"^[^ ]+ ERROR: ResolutionImpossible: ", line)
+                            if match:
+                                break
+                            else:
+                                collected.append(line[strip:].encode("utf-8"))
+                os.unlink(self._log)
+                stderr = (stderr or b"") + b"".join(collected)
+            super(Pip._Issue9420Job, self)._check_returncode(stderr=stderr)
 
     def spawn_build_wheels(
         self,
@@ -382,7 +450,7 @@ class Pip(object):
         wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
         wheel_cmd.extend(distributions)
 
-        return self._spawn_pip_isolated(
+        return self._spawn_pip_isolated_job(
             wheel_cmd,
             # If the build leverages PEP-518 it will need to resolve build requirements.
             package_index_configuration=package_index_configuration,
@@ -451,7 +519,7 @@ class Pip(object):
 
         install_cmd.append("--compile" if compile else "--no-compile")
         install_cmd.append(wheel)
-        return self._spawn_pip_isolated(install_cmd, cache=cache, interpreter=interpreter)
+        return self._spawn_pip_isolated_job(install_cmd, cache=cache, interpreter=interpreter)
 
 
 _PIP = None

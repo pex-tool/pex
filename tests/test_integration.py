@@ -2724,3 +2724,39 @@ def test_seed(
     pex_stdout, pex_stderr = Executor.execute([pex_file] + isort_args)
     assert pex_stdout == seed_stdout
     assert pex_stderr == seed_stderr
+
+
+def test_pip_issues_9420_workaround():
+    # type: () -> None
+
+    # N.B.: isort 5.7.0 needs Python >=3.6
+    python = ensure_python_interpreter(PY36)
+
+    results = run_pex_command(
+        args=["--resolver-version", "pip-2020-resolver", "isort[colors]==5.7.0", "colorama==0.4.1"],
+        python=python,
+        quiet=True,
+    )
+    results.assert_failure()
+    normalized_stderr = "\n".join(line.strip() for line in results.error.strip().splitlines())
+    assert normalized_stderr.startswith(
+        dedent(
+            """\
+            ERROR: Cannot install colorama==0.4.1 and isort[colors]==5.7.0 because these package versions have conflicting dependencies.
+            ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/user_guide/#fixing-conflicting-dependencies
+            """
+        )
+    )
+    assert normalized_stderr.endswith(
+        dedent(
+            """\
+            The conflict is caused by:
+            The user requested colorama==0.4.1
+            isort[colors] 5.7.0 depends on colorama<0.5.0 and >=0.4.3; extra == "colors"
+
+            To fix this you could try to:
+            1. loosen the range of package versions you've specified
+            2. remove package versions to allow pip attempt to solve the dependency conflict
+            """
+        ).strip()
+    )
