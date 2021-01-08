@@ -411,7 +411,7 @@ class PEXEnvironment(object):
         # We want to pick one requirement for each key (required project) to then resolve
         # recursively.
 
-        # First, the selected requirement clearly needs to be applicable (it's environment markers
+        # First, the selected requirement clearly needs to be applicable (its environment markers
         # must apply to our interpreter). For example, for a Python 3.6 interpreter this would
         # select just "isort==5.6.4; python_version>='3.6'" from the input set:
         # {
@@ -467,8 +467,6 @@ class PEXEnvironment(object):
         unresolved_reqs = OrderedDict()  # type: OrderedDict[Requirement, OrderedSet]
         resolveds = OrderedSet()
 
-        # Resolve them one at a time so that we can figure out which ones we need to elide should
-        # there be an interpreter incompatibility.
         for req in self._root_requirements_iter(reqs):
             with TRACER.timed("Resolving {}".format(req), V=2):
                 for dependency in self._resolve_requirement(req):
