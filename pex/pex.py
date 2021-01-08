@@ -11,7 +11,6 @@ from distutils import sysconfig
 from site import USER_SITE
 from types import ModuleType
 
-import pex.third_party.pkg_resources as pkg_resources
 from pex import third_party
 from pex.bootstrap import Bootstrap
 from pex.common import die
@@ -23,7 +22,7 @@ from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
-from pex.third_party.pkg_resources import EntryPoint, WorkingSet, find_distributions
+from pex.third_party.pkg_resources import Distribution, EntryPoint, find_distributions
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import iter_pth_paths, named_temporary_file
@@ -79,7 +78,7 @@ class PEX(object):  # noqa: T000
         self._pex_info_overrides = PexInfo.from_env(env=env)
         self._vars = env
         self._envs = []  # type: List[PEXEnvironment]
-        self._working_set = None  # type: Optional[WorkingSet]
+        self._activated_dists = None  # type: Optional[Iterable[Distribution]]
         if verify_entry_point:
             self._do_entry_point_verification()
 
@@ -96,8 +95,7 @@ class PEX(object):  # noqa: T000
         return self._interpreter
 
     def _activate(self):
-        # type: () -> WorkingSet
-        working_set = WorkingSet([])
+        # type: () -> Iterable[Distribution]
 
         # set up the local .pex environment
         pex_info = self.pex_info()
@@ -114,24 +112,23 @@ class PEX(object):  # noqa: T000
                 self._envs.append(PEXEnvironment(pex_path, pex_info, interpreter=self._interpreter))
 
         # activate all of them
+        activated_dists = []  # type: List[Distribution]
         for env in self._envs:
-            for dist in env.activate():
-                working_set.add(dist)
+            activated_dists.extend(env.activate())
 
         # Ensure that pkg_resources is not imported until at least every pex environment
         # (i.e. PEX_PATH) has been merged into the environment
-        PEXEnvironment.declare_namespace_packages(working_set)
-        self.patch_pkg_resources(working_set)
-        return working_set
+        PEXEnvironment._declare_namespace_packages(activated_dists)
+        return activated_dists
 
     def activate(self):
-        # type: () -> WorkingSet
-        if not self._working_set:
+        # type: () -> Iterable[Distribution]
+        if self._activated_dists is None:
             # 1. Scrub the sys.path to present a minimal Python environment.
             self.patch_sys()
             # 2. Activate all code and distributions in the PEX.
-            self._working_set = self._activate()
-        return self._working_set
+            self._activated_dists = self._activate()
+        return self._activated_dists
 
     @classmethod
     def _extras_paths(cls):
@@ -360,15 +357,6 @@ class PEX(object):  # noqa: T000
         sys_modules = cls.minimum_sys_modules(site_libs)
 
         return sys_path, sys_path_importer_cache, sys_modules
-
-    @classmethod
-    def patch_pkg_resources(cls, working_set):
-        """Patch pkg_resources given a new working set."""
-        pkg_resources.working_set = working_set
-        pkg_resources.require = working_set.require
-        pkg_resources.iter_entry_points = working_set.iter_entry_points
-        pkg_resources.run_script = pkg_resources.run_main = working_set.run_script
-        pkg_resources.add_activation_listener = working_set.subscribe
 
     # Thar be dragons -- when this function exits, the interpreter is potentially in a wonky state
     # since the patches here (minimum_sys_modules for example) actually mutate global state.

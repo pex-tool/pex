@@ -12,7 +12,7 @@ import pytest
 from pex import resolver
 from pex.common import open_zip, temporary_dir
 from pex.compatibility import PY2, nested, to_bytes
-from pex.environment import PEXEnvironment
+from pex.environment import PEXEnvironment, _RankedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
@@ -32,7 +32,7 @@ from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Iterator, Optional, Tuple
+    from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Tuple
 
 
 @contextmanager
@@ -436,6 +436,13 @@ def create_dist(
     return Distribution(location=location, version=version)
 
 
+@pytest.fixture
+def cpython_35_environment(python_35_interpreter):
+    return PEXEnvironment(
+        pex="", pex_info=PexInfo.default(python_35_interpreter), interpreter=python_35_interpreter
+    )
+
+
 @pytest.mark.parametrize(
     ("wheel_distribution", "wheel_is_linux"),
     [
@@ -462,19 +469,71 @@ def create_dist(
     ],
 )
 def test_can_add_handles_optional_build_tag_in_wheel(
-    python_35_interpreter, wheel_distribution, wheel_is_linux
+    cpython_35_environment, wheel_distribution, wheel_is_linux
 ):
-    # type: (PythonInterpreter, str, bool) -> None
-    pex_environment = PEXEnvironment(
-        pex="", pex_info=PexInfo.default(python_35_interpreter), interpreter=python_35_interpreter
-    )
+    # type: (PEXEnvironment, str, bool) -> None
     native_wheel = IS_LINUX and wheel_is_linux
-    assert pex_environment.can_add(wheel_distribution) is native_wheel
+    added = cpython_35_environment._can_add(wheel_distribution) is not None
+    assert added is native_wheel
 
 
-def test_can_add_handles_invalid_wheel_filename(python_35_interpreter):
-    # type: (PythonInterpreter) -> None
-    pex_environment = PEXEnvironment(
-        pex="", pex_info=PexInfo.default(python_35_interpreter), interpreter=python_35_interpreter
+def test_can_add_handles_invalid_wheel_filename(cpython_35_environment):
+    # type: (PEXEnvironment) -> None
+    assert cpython_35_environment._can_add(create_dist("pep427-invalid.whl")) is None
+
+
+@pytest.fixture
+def assert_cpython_35_environment_can_add(cpython_35_environment):
+    # type: (PEXEnvironment) -> Callable[[Distribution], _RankedDistribution]
+    def assert_can_add(dist):
+        # type: (Distribution) -> _RankedDistribution
+        rank = cpython_35_environment._can_add(dist)
+        assert rank is not None
+        return rank
+
+    return assert_can_add
+
+
+def test_can_add_ranking_platform_tag_more_specific(assert_cpython_35_environment_can_add):
+    # type: (Callable[[Distribution], _RankedDistribution]) -> None
+    ranked_specific = assert_cpython_35_environment_can_add(
+        create_dist("foo-1.0.0-cp35-cp35m-linux_x86_64.whl", "1.0.0")
     )
-    assert pex_environment.can_add(create_dist("pep427-invalid.whl")) is False
+    ranked_universal = assert_cpython_35_environment_can_add(
+        create_dist("foo-2.0.0-py2.py3-none-any.whl", "2.0.0")
+    )
+    assert ranked_specific > ranked_universal
+
+    ranked_almost_py3universal = assert_cpython_35_environment_can_add(
+        create_dist("foo-2.0.0-py3-none-any.whl", "2.0.0")
+    )
+    assert ranked_universal.rank == ranked_almost_py3universal.rank, (
+        "Expected the 'universal' compressed tag set to be expanded into two tags and the more "
+        "specific tag picked from those two for ranking."
+    )
+
+
+def test_can_add_ranking_version_newer_tie_break(assert_cpython_35_environment_can_add):
+    # type: (Callable[[Distribution], _RankedDistribution]) -> None
+    ranked_v1 = assert_cpython_35_environment_can_add(
+        create_dist("foo-1.0.0-cp35-cp35m-linux_x86_64.whl", "1.0.0")
+    )
+    ranked_v2 = assert_cpython_35_environment_can_add(
+        create_dist("foo-2.0.0-cp35-cp35m-linux_x86_64.whl", "2.0.0")
+    )
+    assert ranked_v2 > ranked_v1
+
+
+def test_ranking_platform_tag_maximum(cpython_35_environment):
+    # type: (PEXEnvironment) -> None
+    dist = create_dist("foo-1.0.0-cp35-cp35m-linux_x86_64.whl", "1.0.0")
+
+    minimum_tag_rank = min(cpython_35_environment._supported_tags_to_rank.values())
+    maximum_tag_rank = max(cpython_35_environment._supported_tags_to_rank.values())
+    assert maximum_tag_rank > minimum_tag_rank
+
+    maximum_rank = _RankedDistribution.maximum(dist)
+    bigger_than_naturally_possible_rank = _RankedDistribution(
+        rank=maximum_tag_rank + 1, distribution=dist
+    )
+    assert maximum_rank > bigger_than_naturally_possible_rank

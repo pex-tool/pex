@@ -1529,10 +1529,10 @@ def test_setup_python_multiple_direct_markers():
                 stderr=subprocess.STDOUT,
                 env=make_env(PATH=os.path.dirname(py36_interpreter)),
             )
-        # TODO: Is the intention of this test that this should fail on platform incompatibility?
-        #  Or should we be working around the platform issue so that the error we see here is
-        #  b"ModuleNotFoundError: No module named 'subprocess32'" ?
-        assert re.search(b"Needed .* compatible dependencies", err.value.output) is not None
+        assert (
+            re.search(b"ModuleNotFoundError: No module named 'subprocess32'", err.value.output)
+            is not None
+        )
 
         subprocess.check_call(
             py2_only_program, env=make_env(PATH=os.path.dirname(py27_interpreter))

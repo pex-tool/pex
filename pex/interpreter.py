@@ -220,6 +220,7 @@ class PythonIdentity(object):
 
     @property
     def supported_tags(self):
+        # type: () -> Tuple[tags.Tag, ...]
         return self._supported_tags
 
     @property
