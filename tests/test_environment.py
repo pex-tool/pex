@@ -497,7 +497,7 @@ def assert_cpython_35_environment_can_add(cpython_35_environment):
 def test_can_add_ranking_platform_tag_more_specific(assert_cpython_35_environment_can_add):
     # type: (Callable[[Distribution], _RankedDistribution]) -> None
     ranked_specific = assert_cpython_35_environment_can_add(
-        create_dist("foo-1.0.0-cp35-cp35m-linux_x86_64.whl", "1.0.0")
+        create_dist("foo-1.0.0-cp35-cp35m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
     )
     ranked_universal = assert_cpython_35_environment_can_add(
         create_dist("foo-2.0.0-py2.py3-none-any.whl", "2.0.0")
@@ -516,17 +516,17 @@ def test_can_add_ranking_platform_tag_more_specific(assert_cpython_35_environmen
 def test_can_add_ranking_version_newer_tie_break(assert_cpython_35_environment_can_add):
     # type: (Callable[[Distribution], _RankedDistribution]) -> None
     ranked_v1 = assert_cpython_35_environment_can_add(
-        create_dist("foo-1.0.0-cp35-cp35m-linux_x86_64.whl", "1.0.0")
+        create_dist("foo-1.0.0-cp35-cp35m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
     )
     ranked_v2 = assert_cpython_35_environment_can_add(
-        create_dist("foo-2.0.0-cp35-cp35m-linux_x86_64.whl", "2.0.0")
+        create_dist("foo-2.0.0-cp35-cp35m-macosx_10_9_x86_64.linux_x86_64.whl", "2.0.0")
     )
     assert ranked_v2 > ranked_v1
 
 
 def test_ranking_platform_tag_maximum(cpython_35_environment):
     # type: (PEXEnvironment) -> None
-    dist = create_dist("foo-1.0.0-cp35-cp35m-linux_x86_64.whl", "1.0.0")
+    dist = create_dist("foo-1.0.0-cp35-cp35m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
 
     minimum_tag_rank = min(cpython_35_environment._supported_tags_to_rank.values())
     maximum_tag_rank = max(cpython_35_environment._supported_tags_to_rank.values())
