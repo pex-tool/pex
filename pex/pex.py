@@ -269,9 +269,9 @@ class PEX(object):  # noqa: T000
     @classmethod
     def minimum_sys_path(cls, site_libs, inherit_path):
         # type: (Iterable[str], InheritPath.Value) -> Tuple[List[str], Mapping[str, Any]]
-        scrub_paths = OrderedSet()
-        site_distributions = OrderedSet()
-        user_site_distributions = OrderedSet()
+        scrub_paths = OrderedSet()  # type: OrderedSet[str]
+        site_distributions = OrderedSet()  # type: OrderedSet[str]
+        user_site_distributions = OrderedSet()  # type: OrderedSet[str]
 
         def all_distribution_paths(path):
             # type: (Optional[str]) -> Iterable[str]

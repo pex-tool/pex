@@ -465,7 +465,7 @@ class PEXEnvironment(object):
         # type: (Iterable[Requirement]) -> Iterable[Distribution]
 
         unresolved_reqs = OrderedDict()  # type: OrderedDict[Requirement, OrderedSet]
-        resolveds = OrderedSet()
+        resolveds = OrderedSet()  # type: OrderedSet[Distribution]
 
         for req in self._root_requirements_iter(reqs):
             with TRACER.timed("Resolving {}".format(req), V=2):
