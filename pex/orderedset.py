@@ -10,71 +10,70 @@
 
 from __future__ import absolute_import
 
+from collections import OrderedDict
+
 from pex.compatibility import MutableSet
+from pex.typing import TYPE_CHECKING, Generic
+
+if TYPE_CHECKING:
+    from typing import Any, Iterable, Iterator, Optional, TypeVar, Union
+
+    _I = TypeVar("_I")
 
 
-class OrderedSet(MutableSet):
-    KEY, PREV, NEXT = range(3)
-
+class OrderedSet(MutableSet, Generic["_I"]):
     def __init__(self, iterable=None):
-        self.end = end = []
-        end += [None, end, end]  # sentinel node for doubly linked list
-        self.map = {}  # key --> [key, prev, next]
+        # type: (Optional[Iterable[_I]]) -> None
+        self._data = OrderedDict()  # type: OrderedDict[_I, None]
         if iterable is not None:
-            self |= iterable
+            self.update(iterable)
 
     def __len__(self):
-        return len(self.map)
+        # type: () -> int
+        return len(self._data)
 
     def __contains__(self, key):
-        return key in self.map
+        # type: (Any) -> bool
+        return key in self._data
 
     def add(self, key):
-        if key not in self.map:
-            end = self.end
-            curr = end[self.PREV]
-            curr[self.NEXT] = end[self.PREV] = self.map[key] = [key, curr, end]
+        # type: (_I) -> None
+        self._data[key] = None
 
     def update(self, iterable):
+        # type: (Iterable[_I]) -> None
         for key in iterable:
             self.add(key)
 
     def discard(self, key):
-        if key in self.map:
-            key, prev, next = self.map.pop(key)
-            prev[self.NEXT] = next
-            next[self.PREV] = prev
+        # type: (_I) -> None
+        self._data.pop(key, None)
 
     def __iter__(self):
-        end = self.end
-        curr = end[self.NEXT]
-        while curr is not end:
-            yield curr[self.KEY]
-            curr = curr[self.NEXT]
+        # type: () -> Iterator[_I]
+        return iter(self._data)
 
     def __reversed__(self):
-        end = self.end
-        curr = end[self.PREV]
-        while curr is not end:
-            yield curr[self.KEY]
-            curr = curr[self.PREV]
+        # type: () -> Iterator[_I]
+        return reversed(self._data)
 
     def pop(self, last=True):
+        # type: (bool) -> _I
         if not self:
             raise KeyError("set is empty")
-        key = next(reversed(self)) if last else next(iter(self))
-        self.discard(key)
+        key, _ = self._data.popitem(last=last)
         return key
 
     def __repr__(self):
+        # type: () -> str
         if not self:
-            return "%s()" % (self.__class__.__name__,)
-        return "%s(%r)" % (self.__class__.__name__, list(self))
+            return "{}()".format(
+                self.__class__.__name__,
+            )
+        return "{}({!r})".format(self.__class__.__name__, list(self))
 
     def __eq__(self, other):
-        if isinstance(other, OrderedSet):
-            return len(self) == len(other) and list(self) == list(other)
-        return set(self) == set(other)
-
-    def __del__(self):
-        self.clear()  # remove circular references
+        # type: (Any) -> Union[bool, NotImplemented]
+        if type(other) != type(self):
+            return NotImplemented
+        return self._data == other._data
