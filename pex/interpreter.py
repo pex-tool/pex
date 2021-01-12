@@ -39,6 +39,7 @@ if TYPE_CHECKING:
         MutableMapping,
         Optional,
         Sequence,
+        Text,
         Tuple,
         Union,
     )
@@ -50,7 +51,7 @@ if TYPE_CHECKING:
 
     # N.B.: We convert InterpreterIdentificationJobErrors that result from spawning interpreter
     # identification jobs to these end-user InterpreterIdentificationErrors for display.
-    InterpreterIdentificationError = Tuple[str, str]
+    InterpreterIdentificationError = Tuple[str, Text]
     InterpreterOrError = Union["PythonInterpreter", InterpreterIdentificationError]
 
 
@@ -499,7 +500,7 @@ class PythonInterpreter(object):
         :return: A heterogeneous iterator over valid interpreters and (python, error) invalid
                  python binary tuples.
         """
-        failed_interpreters = OrderedDict()  # type: MutableMapping[str, str]
+        failed_interpreters = OrderedDict()  # type: MutableMapping[str, Text]
 
         def iter_interpreters():
             # type: () -> Iterator[PythonInterpreter]
@@ -510,7 +511,7 @@ class PythonInterpreter(object):
                     yield candidate
                 else:
                     python, exception = cast("InterpreterIdentificationJobError", candidate)
-                    if isinstance(exception, Job.Error):
+                    if isinstance(exception, Job.Error) and exception.stderr:
                         # We spawned a subprocess to identify the interpreter but the interpreter
                         # could not run our identification code meaning the interpreter is either
                         # broken or old enough that it either can't parse our identification code

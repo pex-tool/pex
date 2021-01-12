@@ -31,10 +31,9 @@ except ImportError:
     from unittest.mock import Mock, patch  # type: ignore[misc,no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Iterator, Tuple, Union, Any, List
+    from typing import Any, Iterator, List, Tuple
 
-    InterpreterIdentificationError = Tuple[str, str]
-    InterpreterOrError = Union[PythonInterpreter, InterpreterIdentificationError]
+    from pex.interpreter import InterpreterOrError
 
 
 def tuple_from_version(version_string):

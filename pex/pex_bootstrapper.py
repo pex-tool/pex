@@ -26,14 +26,10 @@ if TYPE_CHECKING:
         Optional,
         Tuple,
         Union,
-        Callable,
     )
 
+    from pex.interpreter import InterpreterIdentificationError, InterpreterOrError, PathFilter
     from pex.pex import PEX
-
-    InterpreterIdentificationError = Tuple[str, str]
-    InterpreterOrError = Union[PythonInterpreter, InterpreterIdentificationError]
-    PathFilter = Callable[[str], bool]
 
 
 # TODO(John Sirois): Move this to interpreter_constraints.py. As things stand, both pex/bin/pex.py
