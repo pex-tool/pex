@@ -26,7 +26,11 @@ from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.version import InvalidVersion, Version
 from pex.third_party.pkg_resources import Distribution, Environment, Requirement
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
+
+if TYPE_CHECKING:
+    from typing import Iterable, Iterator, List, Optional, Tuple
 
 
 class Untranslatable(Exception):
@@ -296,23 +300,31 @@ class IntegrityError(Exception):
 
 
 def fingerprint_path(path):
-    hasher = CacheHelper.dir_hash if os.path.isdir(path) else CacheHelper.hash
-    return hasher(path)
+    # type: (str) -> str
+    if os.path.isdir(path):
+        return CacheHelper.dir_hash(path)
+    return CacheHelper.hash(path)
 
 
-class BuildRequest(namedtuple("BuildRequest", ["target", "source_path", "fingerprint"])):
+class BuildRequest(object):
     @classmethod
-    def create(cls, target, source_path):
+    def create(
+        cls,
+        target,  # type: DistributionTarget
+        source_path,  # type: str
+    ):
+        # type: (...) -> BuildRequest
         fingerprint = fingerprint_path(source_path)
         return cls(target=target, source_path=source_path, fingerprint=fingerprint)
 
     @classmethod
     def from_local_distribution(cls, local_distribution):
+        # type: (LocalDistribution) -> BuildRequest
         request = cls.create(target=local_distribution.target, source_path=local_distribution.path)
         if local_distribution.fingerprint and request.fingerprint != local_distribution.fingerprint:
             raise IntegrityError(
-                "Source at {source_path} was expected to have fingerprint {expected_fingerprint} but found "
-                "to have fingerprint {actual_fingerprint}.".format(
+                "Source at {source_path} was expected to have fingerprint {expected_fingerprint} "
+                "but found to have fingerprint {actual_fingerprint}.".format(
                     source_path=request.source_path,
                     expected_fingerprint=local_distribution.fingerprint,
                     actual_fingerprint=request.fingerprint,
@@ -320,13 +332,30 @@ class BuildRequest(namedtuple("BuildRequest", ["target", "source_path", "fingerp
             )
         return request
 
+    def __init__(
+        self,
+        target,  # type: DistributionTarget
+        source_path,  # type: str
+        fingerprint,  # type: str
+    ):
+        # type: (...) -> None
+        self.target = target
+        self.source_path = source_path
+        self.fingerprint = fingerprint
+
     def result(self, dist_root):
+        # type: (str) -> BuildResult
         return BuildResult.from_request(self, dist_root=dist_root)
 
 
-class BuildResult(namedtuple("BuildResult", ["request", "atomic_dir"])):
+class BuildResult(object):
     @classmethod
-    def from_request(cls, build_request, dist_root):
+    def from_request(
+        cls,
+        build_request,  # type: BuildRequest
+        dist_root,  # type: str
+    ):
+        # type: (...) -> BuildResult
         dist_type = "sdists" if os.path.isfile(build_request.source_path) else "local_projects"
 
         # For the purposes of building a wheel from source, the product should be uniqued by the wheel
@@ -347,32 +376,46 @@ class BuildResult(namedtuple("BuildResult", ["request", "atomic_dir"])):
         )
         return cls(request=build_request, atomic_dir=AtomicDirectory(dist_dir))
 
+    def __init__(
+        self,
+        request,  # type: BuildRequest
+        atomic_dir,  # type: AtomicDirectory
+    ):
+        # type: (...) -> None
+        self.request = request
+        self._atomic_dir = atomic_dir
+
     @property
     def is_built(self):
-        return self.atomic_dir.is_finalized
+        # type: () -> bool
+        return self._atomic_dir.is_finalized
 
     @property
     def build_dir(self):
-        return self.atomic_dir.work_dir
+        # type: () -> str
+        return self._atomic_dir.work_dir
 
     @property
     def dist_dir(self):
-        return self.atomic_dir.target_dir
+        # type: () -> str
+        return self._atomic_dir.target_dir
 
     def finalize_build(self):
-        self.atomic_dir.finalize()
+        # type: () -> Iterator[InstallRequest]
+        self._atomic_dir.finalize()
         for wheel in os.listdir(self.dist_dir):
             yield InstallRequest.create(self.request.target, os.path.join(self.dist_dir, wheel))
 
 
-class InstallRequest(namedtuple("InstallRequest", ["target", "wheel_path", "fingerprint"])):
+class InstallRequest(object):
     @classmethod
     def from_local_distribution(cls, local_distribution):
+        # type: (LocalDistribution) -> InstallRequest
         request = cls.create(target=local_distribution.target, wheel_path=local_distribution.path)
         if local_distribution.fingerprint and request.fingerprint != local_distribution.fingerprint:
             raise IntegrityError(
-                "Wheel at {wheel_path} was expected to have fingerprint {expected_fingerprint} but found "
-                "to have fingerprint {actual_fingerprint}.".format(
+                "Wheel at {wheel_path} was expected to have fingerprint {expected_fingerprint} "
+                "but found to have fingerprint {actual_fingerprint}.".format(
                     wheel_path=request.wheel_path,
                     expected_fingerprint=local_distribution.fingerprint,
                     actual_fingerprint=request.fingerprint,
@@ -381,21 +424,44 @@ class InstallRequest(namedtuple("InstallRequest", ["target", "wheel_path", "fing
         return request
 
     @classmethod
-    def create(cls, target, wheel_path):
+    def create(
+        cls,
+        target,  # type: DistributionTarget
+        wheel_path,  # type: str
+    ):
+        # type: (...) -> InstallRequest
         fingerprint = fingerprint_path(wheel_path)
         return cls(target=target, wheel_path=wheel_path, fingerprint=fingerprint)
 
+    def __init__(
+        self,
+        target,  # type: DistributionTarget
+        wheel_path,  # type: str
+        fingerprint,  # type: str
+    ):
+        # type: (...) -> None
+        self.target = target
+        self.wheel_path = wheel_path
+        self.fingerprint = fingerprint
+
     @property
     def wheel_file(self):
+        # type: () -> str
         return os.path.basename(self.wheel_path)
 
     def result(self, installation_root):
+        # type: (str) -> InstallResult
         return InstallResult.from_request(self, installation_root=installation_root)
 
 
-class InstallResult(namedtuple("InstallResult", ["request", "installation_root", "atomic_dir"])):
+class InstallResult(object):
     @classmethod
-    def from_request(cls, install_request, installation_root):
+    def from_request(
+        cls,
+        install_request,  # type: InstallRequest
+        installation_root,  # type: str
+    ):
+        # type: (...) -> InstallResult
         install_chroot = os.path.join(
             installation_root, install_request.fingerprint, install_request.wheel_file
         )
@@ -405,25 +471,41 @@ class InstallResult(namedtuple("InstallResult", ["request", "installation_root",
             atomic_dir=AtomicDirectory(install_chroot),
         )
 
+    def __init__(
+        self,
+        request,  # type: InstallRequest
+        installation_root,  # type: str
+        atomic_dir,  # type: AtomicDirectory
+    ):
+        # type: (...) -> None
+        self.request = request
+        self._installation_root = installation_root
+        self._atomic_dir = atomic_dir
+
     @property
     def is_installed(self):
-        return self.atomic_dir.is_finalized
+        # type: () -> bool
+        return self._atomic_dir.is_finalized
 
     @property
     def build_chroot(self):
-        return self.atomic_dir.work_dir
+        # type: () -> str
+        return self._atomic_dir.work_dir
 
     @property
     def install_chroot(self):
-        return self.atomic_dir.target_dir
+        # type: () -> str
+        return self._atomic_dir.target_dir
 
     def finalize_install(self, install_requests):
-        self.atomic_dir.finalize()
+        # type: (Iterable[InstallRequest]) -> Iterator[DistributionRequirements.Request]
+        self._atomic_dir.finalize()
 
-        # The install_chroot is keyed by the hash of the wheel file (zip) we installed. Here we add a
-        # key by the hash of the exploded wheel dir (the install_chroot). This latter key is used by
-        # zipped PEXes at runtime to explode their wheel chroots to the filesystem. By adding the key
-        # here we short-circuit the explode process for PEXes created and run on the same machine.
+        # The install_chroot is keyed by the hash of the wheel file (zip) we installed. Here we add
+        # a key by the hash of the exploded wheel dir (the install_chroot). This latter key is used
+        # by zipped PEXes at runtime to explode their wheel chroots to the filesystem. By adding
+        # the key here we short-circuit the explode process for PEXes created and run on the same
+        # machine.
         #
         # From a clean cache after building a simple pex this looks like:
         # $ rm -rf ~/.pex
@@ -431,15 +513,15 @@ class InstallResult(namedtuple("InstallResult", ["request", "installation_root",
         # $ tree -L 4 ~/.pex/
         # /home/jsirois/.pex/
         # ├── built_wheels
-        # │   └── 1003685de2c3604dc6daab9540a66201c1d1f718
-        # │       └── cp-38-cp38
-        # │           └── pex-2.0.2-py2.py3-none-any.whl
+        # │ └── 1003685de2c3604dc6daab9540a66201c1d1f718
+        # │     └── cp-38-cp38
+        # │         └── pex-2.0.2-py2.py3-none-any.whl
         # └── installed_wheels
         #     ├── 2a594cef34d2e9109bad847358d57ac4615f81f4
-        #     │   └── pex-2.0.2-py2.py3-none-any.whl
-        #     │       ├── bin
-        #     │       ├── pex
-        #     │       └── pex-2.0.2.dist-info
+        #     │ └── pex-2.0.2-py2.py3-none-any.whl
+        #     │     ├── bin
+        #     │     ├── pex
+        #     │     └── pex-2.0.2.dist-info
         #     └── ae13cba3a8e50262f4d730699a11a5b79536e3e1
         #         └── pex-2.0.2-py2.py3-none-any.whl -> /home/jsirois/.pex/installed_wheels/2a594cef34d2e9109bad847358d57ac4615f81f4/pex-2.0.2-py2.py3-none-any.whl  # noqa
         #
@@ -451,8 +533,8 @@ class InstallResult(namedtuple("InstallResult", ["request", "installation_root",
         #   "pex-2.0.2-py2.py3-none-any.whl": "ae13cba3a8e50262f4d730699a11a5b79536e3e1"
         # }
         #
-        # When the pex is run, the runtime key is followed to the build time key, avoiding re-unpacking
-        # the wheel:
+        # When the pex is run, the runtime key is followed to the build time key, avoiding
+        # re-unpacking the wheel:
         # $ PEX_VERBOSE=1 /tmp/pex.pex --version
         # pex: Found site-library: /usr/lib/python3.8/site-packages
         # pex: Tainted path element: /usr/lib/python3.8/site-packages
@@ -471,12 +553,12 @@ class InstallResult(namedtuple("InstallResult", ["request", "installation_root",
         # pex.pex 2.0.2
         #
         wheel_dir_hash = CacheHelper.dir_hash(self.install_chroot)
-        runtime_key_dir = os.path.join(self.installation_root, wheel_dir_hash)
+        runtime_key_dir = os.path.join(self._installation_root, wheel_dir_hash)
         with atomic_directory(runtime_key_dir, exclusive=False) as work_dir:
             if work_dir:
-                # Note: Create a relative path symlink between the two directories so that the PEX_ROOT
-                # can be used within a chroot environment where the prefix of the path may change
-                # between programs running inside and outside of the chroot.
+                # Note: Create a relative path symlink between the two directories so that the
+                # PEX_ROOT can be used within a chroot environment where the prefix of the path may
+                # change between programs running inside and outside of the chroot.
                 source_path = os.path.join(work_dir, self.request.wheel_file)
                 start_dir = os.path.dirname(source_path)
                 relative_target_path = os.path.relpath(self.install_chroot, start_dir)
@@ -485,6 +567,7 @@ class InstallResult(namedtuple("InstallResult", ["request", "installation_root",
         return self._iter_requirements_requests(install_requests)
 
     def _iter_requirements_requests(self, install_requests):
+        # type: (Iterable[InstallRequest]) -> Iterator[DistributionRequirements.Request]
         if self.is_installed:
             # N.B.: Direct snip from the Environment docs:
             #
@@ -492,8 +575,8 @@ class InstallResult(namedtuple("InstallResult", ["request", "installation_root",
             #  wish to map *all* distributions, not just those compatible with the
             #  running platform or Python version.
             #
-            # Since our requested target may be foreign, we make sure find all distributions installed by
-            # explicitly setting both `python` and `platform` to `None`.
+            # Since our requested target may be foreign, we make sure find all distributions
+            # installed by explicitly setting both `python` and `platform` to `None`.
             environment = Environment(search_path=[self.install_chroot], python=None, platform=None)
 
             distributions = []
@@ -509,11 +592,11 @@ class InstallResult(namedtuple("InstallResult", ["request", "installation_root",
 class BuildAndInstallRequest(object):
     def __init__(
         self,
-        build_requests,
-        install_requests,
-        package_index_configuration=None,
-        cache=None,
-        compile=False,
+        build_requests,  # type: Iterable[BuildRequest]
+        install_requests,  # type: Iterable[InstallRequest]
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+        cache=None,  # type: Optional[str]
+        compile=False,  # type: bool
     ):
 
         self._build_requests = build_requests
@@ -522,9 +605,14 @@ class BuildAndInstallRequest(object):
         self._cache = cache
         self._compile = compile
 
-    def _categorize_build_requests(self, build_requests, dist_root):
+    def _categorize_build_requests(
+        self,
+        build_requests,  # type: Iterable[BuildRequest]
+        dist_root,  # type: str
+    ):
+        # type: (...) -> Tuple[Iterable[BuildRequest], Iterable[InstallRequest]]
         unsatisfied_build_requests = []
-        install_requests = []
+        install_requests = []  # type: List[InstallRequest]
         for build_request in build_requests:
             build_result = build_request.result(dist_root)
             if not build_result.is_built:
@@ -541,7 +629,12 @@ class BuildAndInstallRequest(object):
                 install_requests.extend(build_result.finalize_build())
         return unsatisfied_build_requests, install_requests
 
-    def _spawn_wheel_build(self, built_wheels_dir, build_request):
+    def _spawn_wheel_build(
+        self,
+        built_wheels_dir,  # type: str
+        build_request,  # type: BuildRequest
+    ):
+        # type: (...) -> SpawnedJob[BuildResult]
         build_result = build_request.result(built_wheels_dir)
         build_job = get_pip().spawn_build_wheels(
             distributions=[build_request.source_path],
@@ -552,7 +645,12 @@ class BuildAndInstallRequest(object):
         )
         return SpawnedJob.wait(job=build_job, result=build_result)
 
-    def _categorize_install_requests(self, install_requests, installed_wheels_dir):
+    def _categorize_install_requests(
+        self,
+        install_requests,  # type: Iterable[InstallRequest]
+        installed_wheels_dir,  # type: str
+    ):
+        # type: (...) -> Tuple[Iterable[InstallRequest], Iterable[InstallResult]]
         unsatisfied_install_requests = []
         install_results = []
         for install_request in install_requests:
@@ -573,7 +671,12 @@ class BuildAndInstallRequest(object):
                 install_results.append(install_result)
         return unsatisfied_install_requests, install_results
 
-    def _spawn_install(self, installed_wheels_dir, install_request):
+    def _spawn_install(
+        self,
+        installed_wheels_dir,  # type: str
+        install_request,  # type: InstallRequest
+    ):
+        # type: (...) -> SpawnedJob[InstallResult]
         install_result = install_request.result(installed_wheels_dir)
         install_job = get_pip().spawn_install_wheel(
             wheel=install_request.wheel_path,
@@ -584,10 +687,16 @@ class BuildAndInstallRequest(object):
         )
         return SpawnedJob.wait(job=install_job, result=install_result)
 
-    def install_distributions(self, ignore_errors=False, workspace=None, max_parallel_jobs=None):
+    def install_distributions(
+        self,
+        ignore_errors=False,  # type: bool
+        workspace=None,  # type: Optional[str]
+        max_parallel_jobs=None,  # type: Optional[int]
+    ):
+        # type: (...) -> Iterable[InstalledDistribution]
         if not any((self._build_requests, self._install_requests)):
             # Nothing to build or install.
-            return []
+            return ()
 
         cache = self._cache or workspace or safe_mkdtemp()
 
@@ -597,7 +706,7 @@ class BuildAndInstallRequest(object):
         installed_wheels_dir = os.path.join(cache, PexInfo.INSTALL_CACHE)
         spawn_install = functools.partial(self._spawn_install, installed_wheels_dir)
 
-        to_install = self._install_requests[:]
+        to_install = list(self._install_requests)
         to_calculate_requirements_for = []
 
         # 1. Build local projects and sdists.
@@ -624,7 +733,9 @@ class BuildAndInstallRequest(object):
 
         # Dedup by wheel name; e.g.: only install universal wheels once even though they'll get
         # downloaded / built for each interpreter or platform.
-        install_requests_by_wheel_file = OrderedDict()
+        install_requests_by_wheel_file = (
+            OrderedDict()
+        )  # type: OrderedDict[str, List[InstallRequest]]
         for install_request in to_install:
             install_requests = install_requests_by_wheel_file.setdefault(
                 install_request.wheel_file, []
@@ -672,7 +783,7 @@ class BuildAndInstallRequest(object):
                 )
             )
 
-        installed_distributions = OrderedSet()
+        installed_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
         for requirements_request in to_calculate_requirements_for:
             for distribution in requirements_request.distributions:
                 installed_distributions.add(
@@ -688,6 +799,7 @@ class BuildAndInstallRequest(object):
         return installed_distributions
 
     def _check_install(self, installed_distributions):
+        # type: (Iterable[InstalledDistribution]) -> None
         installed_distribution_by_key = OrderedDict(
             (resolved_distribution.requirement.key, resolved_distribution)
             for resolved_distribution in installed_distributions
