@@ -10,9 +10,9 @@ from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional, Tuple
+    from typing import Iterable, Optional
 
-    InterpreterIdentificationError = Tuple[str, str]
+    from pex.interpreter import InterpreterIdentificationError
 
 
 def validate_constraints(constraints):
