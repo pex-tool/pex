@@ -347,6 +347,19 @@ class BuildRequest(object):
         # type: (str) -> BuildResult
         return BuildResult.from_request(self, dist_root=dist_root)
 
+    def __repr__(self):
+        # type: () -> str
+        return (
+            "{class_name}("
+            "target={target!r}, source_path={source_path!r}, fingerprint={fingerprint!r}"
+            ")"
+        ).format(
+            class_name=self.__class__.__name__,
+            target=self.target,
+            source_path=self.source_path,
+            fingerprint=self.fingerprint,
+        )
+
 
 class BuildResult(object):
     @classmethod
@@ -452,6 +465,19 @@ class InstallRequest(object):
     def result(self, installation_root):
         # type: (str) -> InstallResult
         return InstallResult.from_request(self, installation_root=installation_root)
+
+    def __repr__(self):
+        # type: () -> str
+        return (
+            "{class_name}("
+            "target={target!r}, wheel_path={wheel_path!r}, fingerprint={fingerprint!r}"
+            ")"
+        ).format(
+            class_name=self.__class__.__name__,
+            target=self.target,
+            wheel_path=self.wheel_path,
+            fingerprint=self.fingerprint,
+        )
 
 
 class InstallResult(object):
