@@ -308,26 +308,31 @@ def safe_sleep(seconds):
 
 class AtomicDirectory(object):
     def __init__(self, target_dir):
+        # type: (str) -> None
         self._target_dir = target_dir
         self._work_dir = "{}.{}".format(target_dir, uuid4().hex)
 
     @property
     def work_dir(self):
+        # type: () -> str
         return self._work_dir
 
     @property
     def target_dir(self):
+        # type: () -> str
         return self._target_dir
 
     @property
     def is_finalized(self):
+        # type: () -> bool
         return os.path.exists(self._target_dir)
 
     def finalize(self, source=None):
+        # type: (Optional[str]) -> None
         """Rename `work_dir` to `target_dir` using `os.rename()`.
 
-        :param str source: An optional source offset into the `work_dir`` to use for the atomic
-                           update of `target_dir`. By default the whole `work_dir` is used.
+        :param source: An optional source offset into the `work_dir`` to use for the atomic update
+                       of `target_dir`. By default the whole `work_dir` is used.
 
         If a race is lost and `target_dir` already exists, the `target_dir` dir is left unchanged and
         the `work_dir` directory will simply be removed.
@@ -354,6 +359,7 @@ class AtomicDirectory(object):
             self.cleanup()
 
     def cleanup(self):
+        # type: () -> None
         safe_rmtree(self._work_dir)
 
 
