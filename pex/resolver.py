@@ -11,26 +11,27 @@ from collections import OrderedDict, defaultdict, namedtuple
 
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
+from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
+from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.pip import PackageIndexConfiguration, get_pip
 from pex.platforms import Platform
 from pex.requirements import (
+    Constraint,
     LocalProjectRequirement,
     URLFetcher,
     parse_requirement_file,
     parse_requirement_strings,
 )
-from pex.third_party.packaging.markers import Marker
-from pex.third_party.packaging.version import InvalidVersion, Version
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, Optional, Tuple, DefaultDict
+    from typing import DefaultDict, Iterable, Iterator, List, Optional, Tuple, Union
 
     from pex.requirements import ParsedRequirement
 
@@ -93,6 +94,7 @@ ResolvedDistribution = InstalledDistribution
 
 
 def parsed_platform(platform=None):
+    # type: (Optional[Union[str, Platform]]) -> Optional[Platform]
     """Parse the given platform into a `Platform` object.
 
     Unlike `Platform.create`, this function supports the special platform of 'current' or `None`. This
@@ -100,54 +102,53 @@ def parsed_platform(platform=None):
 
     :param platform: The platform string to parse. If `None` or 'current', return `None`. If already a
                      `Platform` object, return it.
-    :type platform: str or :class:`Platform`
     :return: The parsed platform or `None` for the current platform.
-    :rtype: :class:`Platform` or :class:`NoneType`
     """
     return Platform.create(platform) if platform and platform != "current" else None
 
 
-class DownloadRequest(
-    namedtuple(
-        "DownloadRequest",
-        [
-            "targets",
-            "requirements",
-            "requirement_files",
-            "constraint_files",
-            "allow_prereleases",
-            "transitive",
-            "package_index_configuration",
-            "cache",
-            "build",
-            "use_wheel",
-            "manylinux",
-        ],
-    )
-):
-    def iter_local_projects(self):
-        if self.requirements:
-            for req in parse_requirement_strings(self.requirements):
-                if isinstance(req, LocalProjectRequirement):
-                    for target in self.targets:
-                        yield BuildRequest.create(target=target, source_path=req.path)
+class DownloadRequest(object):
+    def __init__(
+        self,
+        targets,  # type: Iterable[DistributionTarget]
+        direct_requirements,  # type: Iterable[ParsedRequirement]
+        requirements=None,  # type: Optional[Iterable[str]]
+        requirement_files=None,  # type: Optional[Iterable[str]]
+        constraint_files=None,  # type: Optional[Iterable[str]]
+        allow_prereleases=False,  # type: bool
+        transitive=True,  # type: bool
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+        cache=None,  # type: Optional[str]
+        build=True,  # type: bool
+        use_wheel=True,  # type: bool
+        manylinux=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
+        self.targets = targets
+        self.direct_requirements = direct_requirements
+        self.requirements = requirements
+        self.requirement_files = requirement_files
+        self.constraint_files = constraint_files
+        self.allow_prereleases = allow_prereleases
+        self.transitive = transitive
+        self.package_index_configuration = package_index_configuration
+        self.cache = cache
+        self.build = build
+        self.use_wheel = use_wheel
+        self.manylinux = manylinux
 
-        if self.requirement_files:
-            fetcher = URLFetcher(
-                network_configuration=self.package_index_configuration.network_configuration
-            )
-            for requirement_file in self.requirement_files:
-                for req_or_constraint in parse_requirement_file(requirement_file, fetcher=fetcher):
-                    if isinstance(req_or_constraint, LocalProjectRequirement):
-                        for target in self.targets:
-                            yield BuildRequest.create(
-                                target=target, source_path=req_or_constraint.path
-                            )
+    def iter_local_projects(self):
+        # type: () -> Iterator[BuildRequest]
+        for requirement in self.direct_requirements:
+            if isinstance(requirement, LocalProjectRequirement):
+                for target in self.targets:
+                    yield BuildRequest.create(target=target, source_path=requirement.path)
 
     def download_distributions(self, dest=None, max_parallel_jobs=None):
+        # type: (...) -> List[DownloadResult]
         if not self.requirements and not self.requirement_files:
             # Nothing to resolve.
-            return None
+            return []
 
         dest = dest or safe_mkdtemp()
         spawn_download = functools.partial(self._spawn_download, dest)
@@ -161,7 +162,12 @@ class DownloadRequest(
                 )
             )
 
-    def _spawn_download(self, resolved_dists_dir, target):
+    def _spawn_download(
+        self,
+        resolved_dists_dir,  # type: str
+        target,  # type: DistributionTarget
+    ):
+        # type: (...) -> SpawnedJob[DownloadResult]
         download_dir = os.path.join(resolved_dists_dir, target.id)
         download_job = get_pip().spawn_download_distributions(
             download_dir=download_dir,
@@ -180,23 +186,36 @@ class DownloadRequest(
         return SpawnedJob.wait(job=download_job, result=DownloadResult(target, download_dir))
 
 
-class DownloadResult(namedtuple("DownloadResult", ["target", "download_dir"])):
+class DownloadResult(object):
     @staticmethod
     def _is_wheel(path):
+        # type: (str) -> bool
         return os.path.isfile(path) and path.endswith(".whl")
 
+    def __init__(
+        self,
+        target,  # type: DistributionTarget
+        download_dir,  # type: str
+    ):
+        # type: (...) -> None
+        self.target = target
+        self.download_dir = download_dir
+
     def _iter_distribution_paths(self):
+        # type: () -> Iterator[str]
         if not os.path.exists(self.download_dir):
             return
         for distribution in os.listdir(self.download_dir):
             yield os.path.join(self.download_dir, distribution)
 
     def build_requests(self):
+        # type: () -> Iterator[BuildRequest]
         for distribution_path in self._iter_distribution_paths():
             if not self._is_wheel(distribution_path):
                 yield BuildRequest.create(target=self.target, source_path=distribution_path)
 
     def install_requests(self):
+        # type: () -> Iterator[InstallRequest]
         for distribution_path in self._iter_distribution_paths():
             if self._is_wheel(distribution_path):
                 yield InstallRequest.create(target=self.target, wheel_path=distribution_path)
@@ -916,6 +935,28 @@ def resolve(
     )
 
 
+def _parse_reqs(
+    requirements=None,  # type: Optional[Iterable[str]]
+    requirement_files=None,  # type: Optional[Iterable[str]]
+    network_configuration=None,  # type: Optional[NetworkConfiguration]
+):
+    # type: (...) -> Iterable[ParsedRequirement]
+    parsed_requirements = []  # type: List[ParsedRequirement]
+    if requirements:
+        parsed_requirements.extend(parse_requirement_strings(requirements))
+    if requirement_files:
+        fetcher = URLFetcher(network_configuration=network_configuration)
+        for requirement_file in requirement_files:
+            parsed_requirements.extend(
+                requirement_or_constraint
+                for requirement_or_constraint in parse_requirement_file(
+                    requirement_file, is_constraints=False, fetcher=fetcher
+                )
+                if not isinstance(requirement_or_constraint, Constraint)
+            )
+    return parsed_requirements
+
+
 def resolve_multi(
     requirements=None,
     requirement_files=None,
@@ -1025,18 +1066,8 @@ def resolve_multi(
     # resolved along with any environment markers that control which runtime environments the
     # requirement should be activated in.
 
-    direct_requirements = []  # type: List[ReqInfo]
-    if requirements:
-        direct_requirements.extend(parse_requirement_strings(requirements))
-    if requirement_files:
-        fetcher = URLFetcher(network_configuration=network_configuration)
-        for requirement_file in requirement_files:
-            direct_requirements.extend(
-                parse_requirement_file(requirement_file, is_constraints=False, fetcher=fetcher)
-            )
-
+    direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
     workspace = safe_mkdtemp()
-
     package_index_configuration = PackageIndexConfiguration.create(
         resolver_version=resolver_version,
         indexes=indexes,
@@ -1046,6 +1077,7 @@ def resolve_multi(
     build_requests, download_results = _download_internal(
         interpreters=interpreters,
         platforms=platforms,
+        direct_requirements=direct_requirements,
         requirements=requirements,
         requirement_files=requirement_files,
         constraint_files=constraint_files,
@@ -1061,10 +1093,9 @@ def resolve_multi(
     )
 
     install_requests = []
-    if download_results is not None:
-        for download_result in download_results:
-            build_requests.extend(download_result.build_requests())
-            install_requests.extend(download_result.install_requests())
+    for download_result in download_results:
+        build_requests.extend(download_result.build_requests())
+        install_requests.extend(download_result.install_requests())
 
     build_and_install_request = BuildAndInstallRequest(
         build_requests=build_requests,
@@ -1084,22 +1115,23 @@ def resolve_multi(
 
 
 def _download_internal(
-    requirements=None,
-    requirement_files=None,
-    constraint_files=None,
-    allow_prereleases=False,
-    transitive=True,
-    interpreters=None,
-    platforms=None,
-    package_index_configuration=None,
-    cache=None,
-    build=True,
-    use_wheel=True,
-    manylinux=None,
-    dest=None,
-    max_parallel_jobs=None,
+    direct_requirements,  # type: Iterable[ParsedRequirement]
+    requirements=None,  # type: Optional[Iterable[str]]
+    requirement_files=None,  # type: Optional[Iterable[str]]
+    constraint_files=None,  # type: Optional[Iterable[str]]
+    allow_prereleases=False,  # type: bool
+    transitive=True,  # type: bool
+    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
+    platforms=None,  # type: Optional[Iterable[str]]
+    package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+    cache=None,  # type: Optional[str]
+    build=True,  # type: bool
+    use_wheel=True,  # type: bool
+    manylinux=None,  # type: Optional[str]
+    dest=None,  # type: Optional[str]
+    max_parallel_jobs=None,  # type: Optional[int]
 ):
-
+    # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
     parsed_platforms = [parsed_platform(platform) for platform in platforms] if platforms else []
 
     def iter_targets():
@@ -1125,9 +1157,10 @@ def _download_internal(
     # when spawning parallel downloads.
     # TODO(John Sirois): centralize the de-deuping in the DownloadRequest constructor when we drop
     # python 2.7 and move from namedtuples to dataclasses.
-    unique_targets = OrderedSet(iter_targets())
+    unique_targets = OrderedSet(iter_targets())  # type: Iterable[DistributionTarget]
     download_request = DownloadRequest(
         targets=unique_targets,
+        direct_requirements=direct_requirements,
         requirements=requirements,
         requirement_files=requirement_files,
         constraint_files=constraint_files,
@@ -1228,16 +1261,17 @@ def download(
     :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
     :raises ValueError: If `build=False` and `use_wheel=False`.
     """
-
+    direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
     package_index_configuration = PackageIndexConfiguration.create(
         resolver_version=resolver_version,
         indexes=indexes,
         find_links=find_links,
         network_configuration=network_configuration,
     )
-    local_distributions, download_results = _download_internal(
+    build_requests, download_results = _download_internal(
         interpreters=interpreters,
         platforms=platforms,
+        direct_requirements=direct_requirements,
         requirements=requirements,
         requirement_files=requirement_files,
         constraint_files=constraint_files,
@@ -1252,15 +1286,22 @@ def download(
         max_parallel_jobs=max_parallel_jobs,
     )
 
-    for download_result in download_results:
-        for build_request in download_result.build_requests():
+    local_distributions = []
+
+    def add_build_requests(requests):
+        # type: (Iterable[BuildRequest]) -> None
+        for request in requests:
             local_distributions.append(
                 LocalDistribution(
-                    target=build_request.target,
-                    path=build_request.source_path,
-                    fingerprint=build_request.fingerprint,
+                    target=request.target,
+                    path=request.source_path,
+                    fingerprint=request.fingerprint,
                 )
             )
+
+    add_build_requests(build_requests)
+    for download_result in download_results:
+        add_build_requests(download_result.build_requests())
         for install_request in download_result.install_requests():
             local_distributions.append(
                 LocalDistribution(
