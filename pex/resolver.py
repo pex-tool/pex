@@ -21,7 +21,12 @@ from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.pip import PackageIndexConfiguration, get_pip
 from pex.platforms import Platform
-from pex.requirements import ReqInfo, URLFetcher, parse_requirement_file, parse_requirement_strings
+from pex.requirements import (
+    LocalProjectRequirement,
+    URLFetcher,
+    parse_requirement_file,
+    parse_requirement_strings,
+)
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.version import InvalidVersion, Version
 from pex.third_party.pkg_resources import Distribution, Environment, Requirement
@@ -218,9 +223,9 @@ class DownloadRequest(
     def iter_local_projects(self):
         if self.requirements:
             for req in parse_requirement_strings(self.requirements):
-                if req.is_local_project:
+                if isinstance(req, LocalProjectRequirement):
                     for target in self.targets:
-                        yield BuildRequest.create(target=target, source_path=req.url)
+                        yield BuildRequest.create(target=target, source_path=req.path)
 
         if self.requirement_files:
             fetcher = URLFetcher(
@@ -228,13 +233,10 @@ class DownloadRequest(
             )
             for requirement_file in self.requirement_files:
                 for req_or_constraint in parse_requirement_file(requirement_file, fetcher=fetcher):
-                    if (
-                        isinstance(req_or_constraint, ReqInfo)
-                        and req_or_constraint.is_local_project
-                    ):
+                    if isinstance(req_or_constraint, LocalProjectRequirement):
                         for target in self.targets:
                             yield BuildRequest.create(
-                                target=target, source_path=req_or_constraint.url
+                                target=target, source_path=req_or_constraint.path
                             )
 
     def download_distributions(self, dest=None, max_parallel_jobs=None):

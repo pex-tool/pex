@@ -31,14 +31,13 @@ if TYPE_CHECKING:
     from typing import (
         BinaryIO,
         Dict,
-        FrozenSet,
+        Iterable,
         Iterator,
         Match,
         Optional,
         Text,
         Tuple,
         Union,
-        Iterable,
     )
 
 
@@ -236,91 +235,120 @@ class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines
             raise create_parse_error(str(e))
 
 
-class ReqInfo(
-    namedtuple(
-        "ReqInfo",
-        [
-            "line",
-            "project_name",
-            "url",
-            "extras",
-            "specifier",
-            "marker",
-            "editable",
-            "is_local_project",
-        ],
-    )
-):
+class PyPIRequirement(namedtuple("PyPIRequirement", ["line", "requirement", "editable"])):
+    """A requirement realized through a package index or find links repository."""
+
     @classmethod
     def create(
         cls,
         line,  # type: LogicalLine
-        project_name=None,  # type: Optional[str]
-        url=None,  # type: Optional[str]
+        requirement,  # type: Requirement
+        editable=False,  # type: bool
+    ):
+        # type: (...) -> PyPIRequirement
+        return cls(line, requirement, editable=editable)
+
+    @property
+    def requirement(self):
+        # type: () -> Requirement
+        return cast(Requirement, super(PyPIRequirement, self).requirement)
+
+
+class URLRequirement(namedtuple("URLRequirement", ["line", "url", "requirement", "editable"])):
+    """A requirement realized through an distribution archive at a fixed URL."""
+
+    @classmethod
+    def create(
+        cls,
+        line,  # type: LogicalLine
+        url,  # type: str
+        requirement,  # type: Requirement
+        editable=False,  # type: bool
+    ):
+        # type: (...) -> URLRequirement
+        return cls(line, url, requirement, editable=editable)
+
+    @property
+    def requirement(self):
+        # type: () -> Requirement
+        return cast(Requirement, super(URLRequirement, self).requirement)
+
+
+def parse_requirement_from_project_name_and_specifier(
+    project_name,  # type: str
+    extras=None,  # type: Optional[Iterable[str]]
+    specifier=None,  # type: Optional[SpecifierSet]
+    marker=None,  # type: Optional[Marker]
+):
+    # type: (...) -> Requirement
+    requirement_string = "{project_name}{extras}{specifier}".format(
+        project_name=project_name,
+        extras="[{extras}]".format(extras=", ".join(extras)) if extras else "",
+        specifier=specifier or SpecifierSet(),
+    )
+    if marker:
+        requirement_string += ";" + str(marker)
+    return Requirement.parse(requirement_string)
+
+
+def parse_requirement_from_dist(
+    dist,  # type: str
+    extras=None,  # type: Optional[Iterable[str]]
+    marker=None,  # type: Optional[Marker]
+):
+    # type: (...) -> Requirement
+    project_name_and_version = dist_metadata.project_name_and_version(dist)
+    if project_name_and_version is None:
+        raise ValueError(
+            "Failed to find a project name and version from the given wheel path: "
+            "{wheel}".format(wheel=dist)
+        )
+    return parse_requirement_from_project_name_and_specifier(
+        project_name_and_version.project_name,
+        extras=extras,
+        specifier=SpecifierSet("=={}".format(project_name_and_version.version)),
+        marker=marker,
+    )
+
+
+class LocalProjectRequirement(
+    namedtuple("LocalProjectRequirement", ["line", "path", "extras", "marker", "editable"])
+):
+    """A requirement realized by building a distribution from local sources."""
+
+    @classmethod
+    def create(
+        cls,
+        line,  # type: LogicalLine
+        path,  # type: str
         extras=None,  # type: Optional[Iterable[str]]
-        specifier=None,  # type: Optional[SpecifierSet]
         marker=None,  # type: Optional[Marker]
         editable=False,  # type: bool
-        is_local_project=False,  # type: bool
     ):
-        # type: (...) -> ReqInfo
+        # type: (...) -> LocalProjectRequirement
         return cls(
             line=line,
-            project_name=project_name,
-            url=url,
-            extras=frozenset(extras or ()),
-            specifier=specifier,
+            path=path,
+            extras=tuple(extras or ()),
             marker=marker,
             editable=editable,
-            is_local_project=is_local_project,
         )
 
-    @property
-    def line(self):
-        # type: () -> LogicalLine
-        return cast(LogicalLine, super(ReqInfo, self).line)
-
-    @property
-    def project_name(self):
-        # type: () -> Optional[str]
-        return cast("Optional[str]", super(ReqInfo, self).project_name)
-
-    @property
-    def url(self):
-        # type: () -> Optional[str]
-        return cast("Optional[str]", super(ReqInfo, self).url)
-
-    @property
-    def extras(self):
-        # type: () -> FrozenSet[str]
-        return cast("FrozenSet[str]", super(ReqInfo, self).extras)
-
-    @property
-    def specifier(self):
-        # type: () -> Optional[SpecifierSet]
-        return cast("Optional[SpecifierSet]", super(ReqInfo, self).specifier)
-
-    @property
-    def marker(self):
-        # type: () -> Optional[Marker]
-        return cast("Optional[Marker]", super(ReqInfo, self).marker)
-
-    @property
-    def editable(self):
-        # type: () -> bool
-        return cast(bool, super(ReqInfo, self).editable)
-
-    @property
-    def is_local_project(self):
-        # type: () -> bool
-        return cast(bool, super(ReqInfo, self).is_local_project)
+    def as_requirement(self, dist):
+        # type: (str) -> Requirement
+        """Create a requirement given a distribution that was built from this local project."""
+        return parse_requirement_from_dist(dist, self.extras, self.marker)
 
 
-class Constraint(namedtuple("Constraint", ["req_info"])):
+if TYPE_CHECKING:
+    ParsedRequirement = Union[PyPIRequirement, URLRequirement, LocalProjectRequirement]
+
+
+class Constraint(namedtuple("Constraint", ["line", "requirement"])):
     @property
-    def req_info(self):
-        # type: () -> ReqInfo
-        return cast(ReqInfo, super(Constraint, self).req_info)
+    def requirement(self):
+        # type: () -> Requirement
+        return cast(Requirement, super(Constraint, self).requirement)
 
 
 class ParseError(Exception):
@@ -349,15 +377,14 @@ def _strip_requirement_options(line):
     return editable, re.sub(r"\s--(global-option|install-option|hash).*$", "", processed_text)
 
 
-def _is_recognized_pip_url_scheme(scheme):
+def _is_recognized_non_local_pip_url_scheme(scheme):
     # type: (str) -> bool
     return bool(
         re.match(
             r"""
             (
                 # Archives
-                  file
-                | ftp
+                  ftp
                 | https?
 
                 # VCSs: https://pip.pypa.io/en/stable/reference/pip_install/#vcs-support
@@ -423,22 +450,14 @@ class ProjectNameAndSpecifier(namedtuple("ProjectNameAndSpecifier", ["project_na
         )
 
 
-def _try_parse_project_name_and_specifier_from_path(
-    path,  # type: str
-    try_read_metadata=False,  # type:bool
-):
-    # type: (...) -> Optional[ProjectNameAndSpecifier]
+def _try_parse_project_name_and_specifier_from_path(path):
+    # type: (str) -> Optional[ProjectNameAndSpecifier]
     try:
-        project_name_and_version = (
-            dist_metadata.project_name_and_version(path, fallback_to_filename=True)
-            if try_read_metadata
-            else ProjectNameAndVersion.from_filename(path)
+        return ProjectNameAndSpecifier.from_project_name_and_version(
+            ProjectNameAndVersion.from_filename(path)
         )
-        if project_name_and_version is not None:
-            return ProjectNameAndSpecifier.from_project_name_and_version(project_name_and_version)
     except MetadataError:
-        pass
-    return None
+        return None
 
 
 def _try_parse_pip_local_formats(
@@ -484,11 +503,7 @@ def _try_parse_pip_local_formats(
     if not os.path.exists(abs_stripped_path):
         return None
 
-    if not os.path.isdir(abs_stripped_path):
-        # Maybe a local archive path.
-        return ProjectNameExtrasAndMarker.create(abs_stripped_path)
-
-    # Maybe a local project path.
+    # Maybe a local archive or project path.
     requirement_parts = match.group("requirement_parts")
     if not requirement_parts:
         return ProjectNameExtrasAndMarker.create(abs_stripped_path)
@@ -504,101 +519,108 @@ def _try_parse_pip_local_formats(
 
 
 def _split_direct_references(processed_text):
-    # type: (str) -> Tuple[str, Optional[str]]
-    parts = processed_text.split("@", 1)
-    if len(parts) == 1:
-        return processed_text, None
-    return parts[0].strip(), parts[1].strip()
+    # type: (str) -> Union[Tuple[str, str], Tuple[None, None]]
+    match = re.match(
+        r"""
+        ^
+        (?P<requirement>[a-zA-Z0-9]+(?:[-_.]+[a-zA-Z0-9]+)*)
+        \s*
+        @
+        \s*
+        (?P<url>.+)?
+        $
+        """,
+        processed_text,
+        re.VERBOSE,
+    )
+    if not match:
+        return None, None
+    project_name, url = match.groups()
+    return project_name, url
 
 
 def _parse_requirement_line(
     line,  # type: LogicalLine
     basepath=None,  # type: Optional[str]
 ):
-    # type: (...) -> ReqInfo
+    # type: (...) -> ParsedRequirement
 
     basepath = basepath or os.getcwd()
 
     editable, processed_text = _strip_requirement_options(line)
+    project_name, direct_reference_url = _split_direct_references(processed_text)
+    parsed_url = urlparse.urlparse(direct_reference_url or processed_text)
 
-    # Handle urls (Pip proprietary).
-    parsed_url = urlparse.urlparse(processed_text)
-    if _is_recognized_pip_url_scheme(parsed_url.scheme):
+    # Handle non local URLs (Pip proprietary).
+    if _is_recognized_non_local_pip_url_scheme(parsed_url.scheme):
         project_name_extras_and_marker = _try_parse_fragment_project_name_and_marker(
             parsed_url.fragment
         )
         project_name, extras, marker = (
-            project_name_extras_and_marker if project_name_extras_and_marker else (None, None, None)
+            project_name_extras_and_marker
+            if project_name_extras_and_marker
+            else (project_name, None, None)
         )
         specifier = None  # type: Optional[SpecifierSet]
         if not project_name:
-            is_local_file = parsed_url.scheme == "file"
             project_name_and_specifier = _try_parse_project_name_and_specifier_from_path(
-                parsed_url.path, try_read_metadata=is_local_file
+                parsed_url.path
             )
             if project_name_and_specifier is not None:
                 project_name = project_name_and_specifier.project_name
                 specifier = project_name_and_specifier.specifier
+        if project_name is None:
+            raise ParseError(
+                line,
+                (
+                    "Could not determine a project name for URL requirement {}, consider using "
+                    "#egg=<project name>."
+                ),
+            )
         url = parsed_url._replace(fragment="").geturl()
-        return ReqInfo.create(
-            line,
-            project_name=project_name,
-            url=url,
+        requirement = parse_requirement_from_project_name_and_specifier(
+            project_name,
             extras=extras,
             specifier=specifier,
             marker=marker,
-            editable=editable,
         )
+        return URLRequirement.create(line, url, requirement, editable=editable)
 
-    # Handle local archives and project directories (Pip proprietary).
-    project_name_extras_and_marker = _try_parse_pip_local_formats(processed_text, basepath=basepath)
+    # Handle local archives and project directories via path or file URL (Pip proprietary).
+    local_requirement = parsed_url._replace(scheme="").geturl()
+    project_name_extras_and_marker = _try_parse_pip_local_formats(
+        local_requirement, basepath=basepath
+    )
     maybe_abs_path, extras, marker = (
-        project_name_extras_and_marker if project_name_extras_and_marker else (None, None, None)
+        project_name_extras_and_marker
+        if project_name_extras_and_marker
+        else (project_name, None, None)
     )
     if maybe_abs_path is not None and any(
         os.path.isfile(os.path.join(maybe_abs_path, *p))
         for p in ((), ("setup.py",), ("pyproject.toml",))
     ):
         archive_or_project_path = os.path.realpath(maybe_abs_path)
-        is_local_project = os.path.isdir(archive_or_project_path)
-        project_name_and_specifier = (
-            None
-            if is_local_project
-            else _try_parse_project_name_and_specifier_from_path(
-                archive_or_project_path, try_read_metadata=True
+        if os.path.isdir(archive_or_project_path):
+            return LocalProjectRequirement.create(
+                line,
+                archive_or_project_path,
+                extras=extras,
+                marker=marker,
+                editable=editable,
             )
+        requirement = parse_requirement_from_dist(
+            archive_or_project_path, extras=extras, marker=marker
         )
-        project_name, specifier = (
-            project_name_and_specifier if project_name_and_specifier else (None, None)
-        )
-        return ReqInfo.create(
-            line,
-            project_name=project_name,
-            url=archive_or_project_path,
-            extras=extras,
-            specifier=specifier,
-            marker=marker,
-            editable=editable,
-            is_local_project=is_local_project,
-        )
+        return URLRequirement.create(line, archive_or_project_path, requirement, editable=editable)
 
     # Handle PEP-440. See: https://www.python.org/dev/peps/pep-0440.
     #
     # The `pkg_resources.Requirement.parse` method does all of this for us (via
     # `packaging.requirements.Requirement`) except for the handling of PEP-440 direct url
-    # references; so we strip those urls out first.
-    requirement, direct_reference_url = _split_direct_references(processed_text)
+    # references; which we handled above and won't encounter here.
     try:
-        req = Requirement.parse(requirement)
-        return ReqInfo.create(
-            line,
-            project_name=req.name,
-            url=direct_reference_url or req.url,
-            extras=req.extras,
-            specifier=req.specifier,
-            marker=req.marker,
-            editable=editable,
-        )
+        return PyPIRequirement.create(line, Requirement.parse(processed_text), editable=editable)
     except RequirementParseError as e:
         raise ParseError(
             line, "Problem parsing {!r} as a requirement: {}".format(processed_text, e)
@@ -640,7 +662,7 @@ def parse_requirements(
     source,  # type: Source
     fetcher=None,  # type: Optional[URLFetcher]
 ):
-    # type: (...) -> Iterator[Union[ReqInfo, Constraint]]
+    # type: (...) -> Iterator[Union[ParsedRequirement, Constraint]]
 
     # For the format specification, see:
     #   https://pip.pypa.io/en/stable/reference/pip_install/#requirements-file-format
@@ -688,8 +710,8 @@ def parse_requirements(
                     is_constraints=constraint_file,
                     fetcher=fetcher,
                 ) as other_source:
-                    for req_info in parse_requirements(other_source, fetcher=fetcher):
-                        yield req_info
+                    for requirement in parse_requirements(other_source, fetcher=fetcher):
+                        yield requirement
                 continue
 
             # Skip empty lines, comment lines and all other Pip options.
@@ -697,10 +719,22 @@ def parse_requirements(
                 continue
 
             # Only requirement lines remain.
-            req_info = _parse_requirement_line(
+            requirement = _parse_requirement_line(
                 logical_line, basepath=os.path.dirname(source.origin) if source.is_file else None
             )
-            yield Constraint(req_info) if source.is_constraints else req_info
+            if source.is_constraints:
+                if not isinstance(requirement, PyPIRequirement) or requirement.requirement.extras:
+                    raise ParseError(
+                        logical_line,
+                        "Constraint files do not support VCS, URL or local project requirements"
+                        "and they do not support requirements with extras. Search for 'We are also "
+                        "changing our support for Constraints Files' here: "
+                        "https://pip.pypa.io/en/stable/user_guide/"
+                        "#changes-to-the-pip-dependency-resolver-in-20-3-2020.",
+                    )
+                yield Constraint(line, requirement.requirement)
+            else:
+                yield requirement
         finally:
             start_line = 0
             del line_buffer[:]
@@ -712,7 +746,7 @@ def parse_requirement_file(
     is_constraints=False,  # type: bool
     fetcher=None,  # type: Optional[URLFetcher]
 ):
-    # type: (...) -> Iterator[Union[ReqInfo, Constraint]]
+    # type: (...) -> Iterator[Union[ParsedRequirement, Constraint]]
     def open_source():
         url = urlparse.urlparse(location)
         if url.scheme and url.netloc:
@@ -732,12 +766,12 @@ def parse_requirement_file(
 
 
 def parse_requirement_strings(requirements):
-    # type: (Iterable[str]) -> Iterator[ReqInfo]
+    # type: (Iterable[str]) -> Iterator[ParsedRequirement]
     for requirement in requirements:
         yield _parse_requirement_line(
             LogicalLine(
                 raw_text=requirement,
-                processed_text=requirement,
+                processed_text=requirement.strip(),
                 source="<string>",
                 start_line=1,
                 end_line=1,

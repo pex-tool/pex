@@ -38,7 +38,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
-from pex.requirements import LogicalLine, ReqInfo, URLFetcher, parse_requirement_file
+from pex.requirements import LogicalLine, PyPIRequirement, URLFetcher, parse_requirement_file
 from pex.testing import (
     IS_PYPY,
     NOT_CPYTHON27,
@@ -60,6 +60,7 @@ from pex.testing import (
     temporary_content,
 )
 from pex.third_party import pkg_resources
+from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import DistributionHelper, named_temporary_file
 from pex.variables import ENV, unzip_dir, venv_dir
@@ -2529,17 +2530,19 @@ EXAMPLE_PYTHON_REQUIREMENTS_URL = (
 
 def test_requirements_network_configuration(run_proxy, tmp_workdir):
     # type: (Callable[[Optional[str]], ContextManager[Tuple[int, str]]], str) -> None
-    def line(
+    def req(
         contents,  # type: str
         line_no,  # type: int
     ):
-        # type: (...) -> LogicalLine
-        return LogicalLine(
-            "{}\n".format(contents),
-            contents,
-            source=EXAMPLE_PYTHON_REQUIREMENTS_URL,
-            start_line=line_no,
-            end_line=line_no,
+        return PyPIRequirement.create(
+            LogicalLine(
+                "{}\n".format(contents),
+                contents,
+                source=EXAMPLE_PYTHON_REQUIREMENTS_URL,
+                start_line=line_no,
+                end_line=line_no,
+            ),
+            Requirement.parse(contents),
         )
 
     proxy_auth = "jake:jones"
@@ -2554,18 +2557,10 @@ def test_requirements_network_configuration(run_proxy, tmp_workdir):
             ),
         )
         assert [
-            ReqInfo.create(
-                line=line("ansicolors>=1.0.2", 4), project_name="ansicolors", specifier=">=1.0.2"
-            ),
-            ReqInfo.create(
-                line=line("setuptools>=42.0.0", 5), project_name="setuptools", specifier=">=42.0.0"
-            ),
-            ReqInfo.create(
-                line=line("translate>=3.2.1", 6), project_name="translate", specifier=">=3.2.1"
-            ),
-            ReqInfo.create(
-                line=line("protobuf>=3.11.3", 7), project_name="protobuf", specifier=">=3.11.3"
-            ),
+            req("ansicolors>=1.0.2", 4),
+            req("setuptools>=42.0.0", 5),
+            req("translate>=3.2.1", 6),
+            req("protobuf>=3.11.3", 7),
         ] == list(reqs)
 
 
