@@ -107,7 +107,7 @@ def test_resolve_cache():
         assert resolved_dists1 != resolved_dists2
         assert len(resolved_dists1) == 1
         assert len(resolved_dists2) == 1
-        assert resolved_dists1[0].requirement == resolved_dists2[0].requirement
+        assert resolved_dists1[0].direct_requirement == resolved_dists2[0].direct_requirement
         assert resolved_dists1[0].distribution.location != resolved_dists2[0].distribution.location
 
         # With a cache, each resolve should be identical.
@@ -209,7 +209,8 @@ def test_resolve_extra_setup_py():
 
             resolved_dists = local_resolve_multi(["{}[foo]".format(project1_dir)], find_links=[td])
             assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
-                _parse_requirement(resolved_dist.requirement) for resolved_dist in resolved_dists
+                _parse_requirement(resolved_dist.distribution.as_requirement())
+                for resolved_dist in resolved_dists
             }
 
 
@@ -225,7 +226,8 @@ def test_resolve_extra_wheel():
 
         resolved_dists = local_resolve_multi(["project1[foo]"], find_links=[td])
         assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
-            _parse_requirement(resolved_dist.requirement) for resolved_dist in resolved_dists
+            _parse_requirement(resolved_dist.distribution.as_requirement())
+            for resolved_dist in resolved_dists
         }
 
 
@@ -350,7 +352,7 @@ def test_issues_851():
         resolved_dists = resolve_multi(
             interpreters=[interpreter], requirements=["pytest=={}".format(pytest_version)]
         )
-        project_to_version = {rd.requirement.key: rd.distribution.version for rd in resolved_dists}
+        project_to_version = {rd.distribution.key: rd.distribution.version for rd in resolved_dists}
         assert project_to_version["pytest"] == pytest_version
         return project_to_version
 
@@ -519,6 +521,10 @@ def test_resolve_arbitrary_equality_issues_940():
     resolved_distributions = local_resolve_multi(requirements=[dist])
 
     assert len(resolved_distributions) == 1
-    requirement = resolved_distributions[0].requirement
+    requirement = resolved_distributions[0].direct_requirement
+    assert requirement is not None, (
+        "The foo requirement was direct; so the resulting resolved distribution should carry the "
+        "associated requirement."
+    )
     assert [("===", "1.0.2-fba4511")] == requirement.specs
     assert requirement.marker is None

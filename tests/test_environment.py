@@ -161,8 +161,9 @@ def assert_force_local_implicit_ns_packages_issues_598(
     def add_requirements(builder, cache):
         # type: (PEXBuilder, str) -> None
         for resolved_dist in resolve(requirements, cache=cache, interpreter=builder.interpreter):
-            builder.add_requirement(resolved_dist.requirement)
             builder.add_distribution(resolved_dist.distribution)
+            if resolved_dist.direct_requirement:
+                builder.add_requirement(resolved_dist.direct_requirement)
 
     def add_wheel(builder, content):
         # type: (PEXBuilder, Dict[str, str]) -> None
@@ -375,7 +376,8 @@ def test_activate_extras_issue_615():
     # type: () -> None
     with yield_pex_builder() as pb:
         for resolved_dist in resolver.resolve(["pex[requests]==1.6.3"], interpreter=pb.interpreter):
-            pb.add_requirement(resolved_dist.requirement)
+            if resolved_dist.direct_requirement:
+                pb.add_requirement(resolved_dist.direct_requirement)
             pb.add_dist_location(resolved_dist.distribution.location)
         pb.set_script("pex")
         pb.freeze()

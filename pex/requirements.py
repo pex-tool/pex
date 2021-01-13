@@ -303,10 +303,13 @@ def parse_requirement_from_dist(
             "Failed to find a project name and version from the given wheel path: "
             "{wheel}".format(wheel=dist)
         )
+    project_name_and_specifier = ProjectNameAndSpecifier.from_project_name_and_version(
+        project_name_and_version
+    )
     return parse_requirement_from_project_name_and_specifier(
-        project_name_and_version.project_name,
+        project_name_and_specifier.project_name,
         extras=extras,
-        specifier=SpecifierSet("=={}".format(project_name_and_version.version)),
+        specifier=project_name_and_specifier.specifier,
         marker=marker,
     )
 
