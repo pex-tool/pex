@@ -13,7 +13,7 @@ from collections import OrderedDict, defaultdict, namedtuple
 
 from pex import dist_metadata, pex_builder, pex_warnings
 from pex.bootstrap import Bootstrap
-from pex.common import atomic_directory, die, open_zip
+from pex.common import atomic_directory, open_zip
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
@@ -82,6 +82,10 @@ class _DistributionNotFound(namedtuple("_DistributionNotFound", ["requirement", 
     ):
         # type: (...) -> _DistributionNotFound
         return cls(requirement=requirement, required_by=required_by)
+
+
+class ResolveError(Exception):
+    """Indicates an error resolving requirements for a PEX."""
 
 
 class PEXEnvironment(object):
@@ -434,12 +438,11 @@ class PEXEnvironment(object):
         for key, requirements in reqs_by_key.items():
             ranked_dists = self._available_ranked_dists_by_key.get(key)
             if ranked_dists is None:
-                # This can only happen in a multi-platform PEX where the original requirement had
-                # an environment marker and this environment does not satisfy that marker.
-                TRACER.log(
-                    "A distribution for {} will not be resolved in this environment.".format(key)
+                # We've winnowed down reqs_by_key to just those requirements whose environment
+                # markers apply; so, we should always have an available distribution.
+                raise ResolveError(
+                    "A distribution for {} could not be resolved in this environment.".format(key)
                 )
-                continue
             candidates = [
                 (ranked_dist, requirement)
                 for requirement in requirements
@@ -519,7 +522,7 @@ class PEXEnvironment(object):
                         )
                     )
 
-                die(
+                raise ResolveError(
                     "Failed to execute PEX file. Needed {platform} compatible dependencies for:\n"
                     "{items}".format(platform=self._interpreter.platform, items="\n".join(items))
                 )

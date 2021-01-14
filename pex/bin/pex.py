@@ -12,7 +12,6 @@ import os
 import sys
 import tempfile
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser, ArgumentTypeError
-from shlex import shlex
 from textwrap import TextWrapper
 
 from pex import pex_warnings
@@ -935,12 +934,9 @@ def build_pex(reqs, options, cache=None):
             )
 
             for resolved_dist in resolveds:
-                log(
-                    "  %s -> %s" % (resolved_dist.requirement, resolved_dist.distribution),
-                    V=options.verbosity,
-                )
                 pex_builder.add_distribution(resolved_dist.distribution)
-                pex_builder.add_requirement(resolved_dist.requirement)
+                if resolved_dist.direct_requirement:
+                    pex_builder.add_requirement(resolved_dist.direct_requirement)
         except Unsatisfiable as e:
             die(str(e))
 
