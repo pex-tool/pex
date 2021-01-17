@@ -9,6 +9,7 @@ import re
 from collections import namedtuple
 from textwrap import dedent
 
+from pex import compatibility
 from pex.common import atomic_directory, safe_open, safe_rmtree
 from pex.third_party.packaging import tags
 from pex.tracer import TRACER
@@ -260,7 +261,9 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
             tag,  # type: List[Any]
         ):
             # type: (...) -> tags.Tag
-            if len(tag) != 3 or not all(isinstance(component, str) for component in tag):
+            if len(tag) != 3 or not all(
+                isinstance(component, compatibility.string) for component in tag
+            ):
                 raise ValueError(
                     "Serialized platform tags should be lists of three strings. Tag {index} of "
                     "{count} was: {tag!r}.".format(index=index, count=count, tag=tag)
