@@ -23,7 +23,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, Mapping, Optional, Tuple
+    from typing import Any, Iterable, Iterator, List, Mapping, Optional, Tuple
 
 
 class ResolverVersion(object):
@@ -239,6 +239,8 @@ class Pip(object):
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         cache=None,  # type: Optional[str]
         interpreter=None,  # type: Optional[PythonInterpreter]
+        pip_verbosity=0,  # type: int
+        **popen_kwargs  # type: Any
     ):
         # type: (...) -> Tuple[List[str], subprocess.Popen]
         pip_args = [
@@ -263,7 +265,7 @@ class Pip(object):
 
         # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor
         # of 3.
-        pip_verbosity = ENV.PEX_VERBOSE // 3
+        pip_verbosity = pip_verbosity or (ENV.PEX_VERBOSE // 3)
         if pip_verbosity > 0:
             pip_args.append("-{}".format("v" * pip_verbosity))
         else:
@@ -297,7 +299,9 @@ class Pip(object):
             from pex.pex import PEX
 
             pip = PEX(pex=self._pip_pex_path, interpreter=interpreter)
-            return pip.cmdline(command), pip.run(args=command, env=env, blocking=False)
+            return pip.cmdline(command), pip.run(
+                args=command, env=env, blocking=False, **popen_kwargs
+            )
 
     def _spawn_pip_isolated_job(
         self,
@@ -305,6 +309,8 @@ class Pip(object):
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         cache=None,  # type: Optional[str]
         interpreter=None,  # type: Optional[PythonInterpreter]
+        pip_verbosity=0,  # type: int
+        **popen_kwargs  # type: Any
     ):
         # type: (...) -> Job
         command, process = self._spawn_pip_isolated(
@@ -312,8 +318,51 @@ class Pip(object):
             package_index_configuration=package_index_configuration,
             cache=cache,
             interpreter=interpreter,
+            pip_verbosity=pip_verbosity,
+            **popen_kwargs
         )
         return Job(command=command, process=process)
+
+    def _iter_platform_args(
+        self,
+        platform,  # type: str
+        impl,  # type: str
+        version,  # type: str
+        abi,  # type: str
+        manylinux=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Iterator[str]
+
+        # N.B.: Pip supports passing multiple --platform and --abi. We pass multiple --platform to
+        # support the following use case 1st surfaced by Twitter in 2018:
+        #
+        # An organization has its own index or find-links repository where it publishes wheels built
+        # for linux machines it runs. Critically, all those machines present uniform kernel and
+        # library ABIs for the purposes of python code that organization runs on those machines.
+        # As such, the organization can build non-manylinux-compliant wheels and serve these wheels
+        # from its private index / find-links repository with confidence these wheels will work on
+        # the machines it controls. This is in contrast to the public PyPI index which does not
+        # allow non-manylinux-compliant wheels to be uploaded at all since the wheels it serves can
+        # be used on unknown target linux machines (for background on this, see:
+        # https://www.python.org/dev/peps/pep-0513/#rationale). If that organization wishes to
+        # consume both its own custom-built wheels as well as other manylinux-compliant wheels in
+        # the same application, it needs to advertise that the target machine supports both
+        # `linux_x86_64` wheels and `manylinux2014_x86_64` wheels (for example).
+        if manylinux and platform.startswith("linux"):
+            yield "--platform"
+            yield platform.replace("linux", manylinux, 1)
+
+        yield "--platform"
+        yield platform
+
+        yield "--implementation"
+        yield impl
+
+        yield "--python-version"
+        yield version
+
+        yield "--abi"
+        yield abi
 
     def spawn_download_distributions(
         self,
@@ -351,14 +400,15 @@ class Pip(object):
             # We're either resolving for a different host / platform or a different interpreter for
             # the current platform that we have no access to; so we need to let pip know and not
             # otherwise pickup platform info from the interpreter we execute pip with.
-            if manylinux and platform.platform.startswith("linux"):
-                download_cmd.extend(
-                    ["--platform", platform.platform.replace("linux", manylinux, 1)]
+            download_cmd.extend(
+                self._iter_platform_args(
+                    platform=platform.platform,
+                    impl=platform.impl,
+                    version=platform.version,
+                    abi=platform.abi,
+                    manylinux=manylinux,
                 )
-            download_cmd.extend(["--platform", platform.platform])
-            download_cmd.extend(["--implementation", platform.impl])
-            download_cmd.extend(["--python-version", platform.version])
-            download_cmd.extend(["--abi", platform.abi])
+            )
 
         if target.is_foreign or not build:
             download_cmd.extend(["--only-binary", ":all:"])
@@ -520,6 +570,31 @@ class Pip(object):
         install_cmd.append("--compile" if compile else "--no-compile")
         install_cmd.append(wheel)
         return self._spawn_pip_isolated_job(install_cmd, cache=cache, interpreter=interpreter)
+
+    def spawn_debug(
+        self,
+        platform,  # type: str
+        impl,  # type: str
+        version,  # type: str
+        abi,  # type: str
+        manylinux=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Job
+        # N.B.: Pip gives fair warning:
+        #   WARNING: This command is only meant for debugging. Do not use this with automation for
+        #   parsing and getting these details, since the output and options of this command may
+        #   change without notice.
+        debug_command = ["debug"]
+        debug_command.extend(
+            self._iter_platform_args(
+                platform=platform,
+                impl=impl,
+                version=version,
+                abi=abi,
+                manylinux=manylinux,
+            )
+        )
+        return self._spawn_pip_isolated_job(debug_command, pip_verbosity=1, stdout=subprocess.PIPE)
 
 
 _PIP = None

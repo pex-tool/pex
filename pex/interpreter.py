@@ -245,8 +245,8 @@ class PythonIdentity(object):
         # type: () -> Iterator[Platform]
         """All platforms supported by the associated interpreter ordered from most specific to
         least."""
-        for tags in self._supported_tags:
-            yield Platform.from_tags(platform=tags.platform, python=tags.interpreter, abi=tags.abi)
+        for tag in self._supported_tags:
+            yield Platform.from_tag(tag)
 
     @classmethod
     def parse_requirement(cls, requirement, default_interpreter="CPython"):
