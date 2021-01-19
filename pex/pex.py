@@ -15,6 +15,7 @@ from pex import third_party
 from pex.bootstrap import Bootstrap
 from pex.common import die
 from pex.compatibility import PY3
+from pex.distribution_target import DistributionTarget
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
@@ -99,7 +100,8 @@ class PEX(object):  # noqa: T000
 
         # set up the local .pex environment
         pex_info = self.pex_info()
-        self._envs.append(PEXEnvironment(self._pex, pex_info, interpreter=self._interpreter))
+        target = DistributionTarget.for_interpreter(self._interpreter)
+        self._envs.append(PEXEnvironment(self._pex, pex_info, target=target))
         # N.B. by this point, `pex_info.pex_path` will contain a single pex path
         # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
         # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
@@ -109,7 +111,7 @@ class PEX(object):  # noqa: T000
             for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
                 pex_info = PexInfo.from_pex(pex_path)
                 pex_info.update(self._pex_info_overrides)
-                self._envs.append(PEXEnvironment(pex_path, pex_info, interpreter=self._interpreter))
+                self._envs.append(PEXEnvironment(pex_path, pex_info, target=target))
 
         # activate all of them
         activated_dists = []  # type: List[Distribution]

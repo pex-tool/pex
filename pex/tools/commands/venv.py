@@ -95,8 +95,8 @@ def populate_venv_with_pex(
     pex_info = pex.pex_info()
     if zipfile.is_zipfile(pex.path()):
         record_provenance(
-            PEXEnvironment.explode_code(
-                pex.path(), pex_info, venv.site_packages_dir, exclude=("__main__.py",)
+            PEXEnvironment(pex.path()).explode_code(
+                venv.site_packages_dir, exclude=("__main__.py",)
             )
         )
     else:

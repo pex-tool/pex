@@ -12,6 +12,7 @@ import pytest
 from pex import resolver
 from pex.common import open_zip, temporary_dir
 from pex.compatibility import PY2, nested, to_bytes
+from pex.distribution_target import DistributionTarget
 from pex.environment import PEXEnvironment, _RankedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
@@ -57,7 +58,7 @@ def test_force_local():
         pb.info.pex_root = pex_root
         pb.build(pex_file)
 
-        code_cache = PEXEnvironment._force_local(pex_file, pb.info)
+        code_cache = PEXEnvironment(pex_file)._force_local()
 
         assert os.path.exists(pb.info.zip_unsafe_cache)
         listing = set(os.listdir(pb.info.zip_unsafe_cache))
@@ -71,7 +72,7 @@ def test_force_local():
         assert set(os.listdir(code_cache)) == {PexInfo.PATH, "__main__.py", "__main__.pyc"}
 
         # idempotence
-        assert PEXEnvironment._force_local(pex_file, pb.info) == code_cache
+        assert PEXEnvironment(pex_file)._force_local() == code_cache
 
 
 def assert_force_local_implicit_ns_packages_issues_598(
@@ -260,13 +261,13 @@ def assert_dist_cache(zip_safe):
         pb.build(pex_file)
 
         with open_zip(pex_file) as zf:
-            dists = PEXEnvironment._write_zipped_internal_cache(zf=zf, pex_info=pb.info)
+            dists = PEXEnvironment(pex_file)._write_zipped_internal_cache(zf=zf)
             assert len(dists) == 1
             original_location = normalize(dists[0].location)
             assert original_location.startswith(normalize(pb.info.install_cache))
 
         # Call a second time to validate idempotence of caching.
-        dists = PEXEnvironment._write_zipped_internal_cache(zf=None, pex_info=pb.info)
+        dists = PEXEnvironment(pex_file)._write_zipped_internal_cache(zf=None)
         assert len(dists) == 1
         assert normalize(dists[0].location) == original_location
 
@@ -287,7 +288,7 @@ def test_load_internal_cache_unzipped():
         pb.info.pex_root = pex_root
         pb.freeze()
 
-        dists = list(PEXEnvironment._load_internal_cache(pb.path(), pb.info))
+        dists = list(PEXEnvironment(pb.path())._load_internal_cache())
         assert len(dists) == 1
         assert normalize(dists[0].location).startswith(
             normalize(os.path.join(pb.path(), pb.info.internal_cache))
@@ -441,7 +442,9 @@ def create_dist(
 @pytest.fixture
 def cpython_35_environment(python_35_interpreter):
     return PEXEnvironment(
-        pex="", pex_info=PexInfo.default(python_35_interpreter), interpreter=python_35_interpreter
+        pex="",
+        pex_info=PexInfo.default(python_35_interpreter),
+        target=DistributionTarget.for_interpreter(python_35_interpreter),
     )
 
 
