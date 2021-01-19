@@ -28,20 +28,15 @@ if TYPE_CHECKING:
 
 class ResolverVersion(object):
     class Value(object):
-        def __init__(
-            self,
-            value,  # type: str
-            pip_args=None,  # type: Optional[Iterable[str]]
-        ):
-            # type: (...) -> None
+        def __init__(self, value):
+            # type: (str) -> None
             self.value = value
-            self.pip_args = tuple(pip_args) if pip_args else ()  # type: Tuple[str, ...]
 
         def __repr__(self):
             # type: () -> str
             return repr(self.value)
 
-    PIP_LEGACY = Value("pip-legacy-resolver", pip_args=("--use-deprecated", "legacy-resolver"))
+    PIP_LEGACY = Value("pip-legacy-resolver")
     PIP_2020 = Value("pip-2020-resolver")
 
     values = PIP_LEGACY, PIP_2020
@@ -233,6 +228,28 @@ class Pip(object):
             else ResolverVersion.PIP_LEGACY
         )
 
+    @classmethod
+    def _calculate_resolver_version_args(
+        cls,
+        interpreter,  # type: PythonInterpreter
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+    ):
+        # type: (...) -> Iterator[str]
+        resolver_version = cls._calculate_resolver_version(
+            package_index_configuration=package_index_configuration
+        )
+        # N.B.: The pip default resolver depends on the python it is invoked with. For Python 2.7
+        # Pip defaults to the legacy resolver and for Python 3 Pip defaults to the 2020 resolver.
+        # Further, the Pip warns when you do not use the default resolver version for the
+        # interpreter in-play. To both avoid warnings and set the correct resolver version, we need
+        # to only set the resolver version when it's not the default for the interpreter in-play:
+        if resolver_version == ResolverVersion.PIP_2020 and interpreter.version[0] == 2:
+            yield "--use-feature"
+            yield "2020-resolver"
+        elif resolver_version == ResolverVersion.PIP_LEGACY and interpreter.version[0] == 3:
+            yield "--use-deprecated"
+            yield "legacy-resolver"
+
     def _spawn_pip_isolated(
         self,
         args,  # type: Iterable[str]
@@ -257,7 +274,12 @@ class Pip(object):
             "--exists-action",
             "a",
         ]
-        pip_args.extend(self._calculate_resolver_version(package_index_configuration).pip_args)
+        python_interpreter = interpreter or PythonInterpreter.get()
+        pip_args.extend(
+            self._calculate_resolver_version_args(
+                python_interpreter, package_index_configuration=package_index_configuration
+            )
+        )
         if not package_index_configuration or package_index_configuration.isolated:
             # Don't read PIP_ environment variables or pip configuration files like
             # `~/.config/pip/pip.conf`.
@@ -298,7 +320,7 @@ class Pip(object):
 
             from pex.pex import PEX
 
-            pip = PEX(pex=self._pip_pex_path, interpreter=interpreter)
+            pip = PEX(pex=self._pip_pex_path, interpreter=python_interpreter)
             return pip.cmdline(command), pip.run(
                 args=command, env=env, blocking=False, **popen_kwargs
             )
@@ -438,7 +460,9 @@ class Pip(object):
         # information and surface it on stderr. See: https://github.com/pypa/pip/issues/9420.
         log = None
         if (
-            self._calculate_resolver_version(package_index_configuration)
+            self._calculate_resolver_version(
+                package_index_configuration=package_index_configuration
+            )
             == ResolverVersion.PIP_2020
         ):
             log = os.path.join(safe_mkdtemp(), "pip.log")
