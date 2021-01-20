@@ -672,7 +672,7 @@ def test_resolve_from_pex(
     assert "cryptography" in distribution_locations_by_key
     assert 3 == len(distribution_locations_by_key["cryptography"]), (
         "The cryptography requirement of the security extra is platform specific; so we expect a "
-        "unique distribution to be resolved for each of the three distributin targets"
+        "unique distribution to be resolved for each of the three distribution targets"
     )
 
 
