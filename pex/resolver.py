@@ -121,7 +121,6 @@ class DownloadRequest(object):
         cache=None,  # type: Optional[str]
         build=True,  # type: bool
         use_wheel=True,  # type: bool
-        manylinux=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self.targets = targets
@@ -135,7 +134,6 @@ class DownloadRequest(object):
         self.cache = cache
         self.build = build
         self.use_wheel = use_wheel
-        self.manylinux = manylinux
 
     def iter_local_projects(self):
         # type: () -> Iterator[BuildRequest]
@@ -180,7 +178,6 @@ class DownloadRequest(object):
             package_index_configuration=self.package_index_configuration,
             cache=self.cache,
             build=self.build,
-            manylinux=self.manylinux,
             use_wheel=self.use_wheel,
         )
         return SpawnedJob.wait(job=download_job, result=DownloadResult(target, download_dir))
@@ -1135,8 +1132,10 @@ def _download_internal(
     parsed_platforms = [parsed_platform(platform) for platform in platforms] if platforms else []
 
     def iter_targets():
+        # type: () -> Iterator[DistributionTarget]
         if not interpreters and not parsed_platforms:
-            # No specified targets, so just build for the current interpreter (on the current platform).
+            # No specified targets, so just build for the current interpreter (on the current
+            # platform).
             yield DistributionTarget.current()
             return
 
@@ -1147,11 +1146,13 @@ def _download_internal(
 
         if parsed_platforms:
             for platform in parsed_platforms:
-                if platform is not None or not interpreters:
-                    # 1. Build for specific platforms.
-                    # 2. Build for the current platform (None) only if not done already (ie: no intepreters
-                    #    were specified).
-                    yield DistributionTarget.for_platform(platform)
+                if platform is None and not interpreters:
+                    # Build for the current platform (None) only if not done already (ie: no
+                    # intepreters were specified).
+                    yield DistributionTarget.current()
+                elif platform is not None:
+                    # Build for specific platforms.
+                    yield DistributionTarget.for_platform(platform, manylinux=manylinux)
 
     # Only download for each target once. The download code assumes this unique targets optimization
     # when spawning parallel downloads.
@@ -1170,7 +1171,6 @@ def _download_internal(
         cache=cache,
         build=build,
         use_wheel=use_wheel,
-        manylinux=manylinux,
     )
 
     local_projects = list(download_request.iter_local_projects())

@@ -398,13 +398,12 @@ class Pip(object):
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         cache=None,  # type: Optional[str]
         build=True,  # type: bool
-        manylinux=None,  # type: Optional[str]
         use_wheel=True,  # type: bool
     ):
         # type: (...) -> Job
         target = target or DistributionTarget.current()
 
-        platform = target.get_platform()
+        platform, manylinux = target.get_platform()
         if not use_wheel:
             if not build:
                 raise ValueError(

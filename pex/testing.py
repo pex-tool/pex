@@ -240,7 +240,7 @@ def make_bdist(
         get_pip().spawn_install_wheel(
             wheel=dist_location,
             install_dir=install_dir,
-            target=DistributionTarget.for_interpreter(interpreter),
+            target=DistributionTarget(interpreter=interpreter),
         ).wait()
         dist = DistributionHelper.distribution_from_path(install_dir)
         assert dist is not None
