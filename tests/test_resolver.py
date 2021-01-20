@@ -556,7 +556,7 @@ def create_pex_repository(
         if resolved_dist.direct_requirement:
             pex_builder.add_requirement(resolved_dist.direct_requirement)
     pex_builder.freeze()
-    return cast(str, pex_builder.path())
+    return os.path.realpath(cast(str, pex_builder.path()))
 
 
 def create_constraints_file(*requirements):
