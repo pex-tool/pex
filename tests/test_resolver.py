@@ -540,6 +540,7 @@ def create_pex_repository(
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
+    manylinux=None,  # type: Optional[str]
 ):
     # type: (...) -> str
     pex_builder = PEXBuilder()
@@ -549,6 +550,7 @@ def create_pex_repository(
         requirements=requirements,
         requirement_files=requirement_files,
         constraint_files=constraint_files,
+        manylinux=manylinux,
     ):
         pex_builder.add_distribution(resolved_dist.distribution)
         if resolved_dist.direct_requirement:
@@ -591,6 +593,12 @@ def linux():
 
 
 @pytest.fixture(scope="module")
+def manylinux():
+    # type: () -> Optional[str]
+    return None if IS_LINUX else "manylinux2014"
+
+
+@pytest.fixture(scope="module")
 def foreign_platform(
     macosx,  # type: Platform
     linux,  # type: Platform
@@ -600,7 +608,7 @@ def foreign_platform(
 
 
 @pytest.fixture(scope="module")
-def pex_repository(py27, py36, foreign_platform):
+def pex_repository(py27, py36, foreign_platform, manylinux):
     # type () -> str
 
     # N.B.: requests 2.25.1 constrains urllib3 to <1.27,>=1.21.1 and pick 1.26.2 on its own as of
@@ -612,6 +620,7 @@ def pex_repository(py27, py36, foreign_platform):
         platforms=[foreign_platform],
         requirements=["requests[security,socks]==2.25.1"],
         constraint_files=[constraints_file],
+        manylinux=manylinux,
     )
 
 
@@ -620,6 +629,7 @@ def test_resolve_from_pex(
     py27,  # type: PythonInterpreter
     py36,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
+    manylinux,  # type: Optional[str]
 ):
     # type: (...) -> None
     pex_info = PexInfo.from_pex(pex_repository)
@@ -631,6 +641,7 @@ def test_resolve_from_pex(
         requirements=direct_requirements,
         interpreters=[py27, py36],
         platforms=[foreign_platform],
+        manylinux=manylinux,
     )
 
     distribution_locations_by_key = defaultdict(set)  # type: DefaultDict[str, Set[str]]
@@ -668,6 +679,7 @@ def test_resolve_from_pex(
 def test_resolve_from_pex_subset(
     pex_repository,  # type: str
     foreign_platform,  # type: Platform
+    manylinux,  # type: Optional[str]
 ):
     # type: (...) -> None
 
@@ -675,6 +687,7 @@ def test_resolve_from_pex_subset(
         pex=pex_repository,
         requirements=["cffi"],
         platforms=[foreign_platform],
+        manylinux=manylinux,
     )
 
     assert {"cffi", "pycparser"} == {
@@ -719,6 +732,7 @@ def test_resolve_from_pex_intransitive(
     py27,  # type: PythonInterpreter
     py36,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
+    manylinux,  # type: Optional[str]
 ):
     # type: (...) -> None
 
@@ -728,6 +742,7 @@ def test_resolve_from_pex_intransitive(
         transitive=False,
         interpreters=[py27, py36],
         platforms=[foreign_platform],
+        manylinux=manylinux,
     )
     assert 3 == len(
         resolved_distributions
