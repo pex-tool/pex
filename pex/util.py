@@ -181,7 +181,7 @@ class CacheHelper(object):
         """
         with atomic_directory(target_dir, source=source, exclusive=True) as target_dir_tmp:
             if target_dir_tmp is None:
-                TRACER.log("Using cached {}".format(target_dir))
+                TRACER.log("Using cached {}".format(target_dir), V=3)
             else:
                 with TRACER.timed("Caching {}:{} in {}".format(zf.filename, source, target_dir)):
                     for name in zf.namelist():

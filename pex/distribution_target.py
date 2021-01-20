@@ -94,17 +94,21 @@ class DistributionTarget(object):
         requirement,  # type: Requirement
         extras=None,  # type: Optional[Tuple[str, ...]]
     ):
-        # type: (...) -> bool
+        # type: (...) -> Optional[bool]
         """Determines if the given requirement applies to this distribution target.
 
         :param requirement: The requirement to evaluate.
         :param extras: Optional active extras.
+        :returns: `True` if the requirement definitely applies, `False` if it definitely does not
+                  and `None` if it might apply but not enough information is at hand to determine
+                  if it does apply.
         """
         if requirement.marker is None:
             return True
 
         if self._platform is not None:
-            return True
+            # We can have no opinion for foreign platforms.
+            return None
 
         if not extras:
             # Provide an empty extra to safely evaluate the markers without matching any extra.

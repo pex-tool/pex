@@ -5,12 +5,14 @@
 from __future__ import absolute_import
 
 import functools
+import itertools
 import os
 import zipfile
 from collections import OrderedDict, defaultdict, namedtuple
 
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
+from pex.environment import PEXEnvironment, ResolveError
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
@@ -110,7 +112,7 @@ def parsed_platform(platform=None):
 class DownloadRequest(object):
     def __init__(
         self,
-        targets,  # type: Iterable[DistributionTarget]
+        targets,  # type: OrderedSet[DistributionTarget]
         direct_requirements,  # type: Iterable[ParsedRequirement]
         requirements=None,  # type: Optional[Iterable[str]]
         requirement_files=None,  # type: Optional[Iterable[str]]
@@ -123,7 +125,7 @@ class DownloadRequest(object):
         use_wheel=True,  # type: bool
     ):
         # type: (...) -> None
-        self.targets = targets
+        self.targets = tuple(targets)
         self.direct_requirements = direct_requirements
         self.requirements = requirements
         self.requirement_files = requirement_files
@@ -1111,24 +1113,12 @@ def resolve_multi(
     )
 
 
-def _download_internal(
-    direct_requirements,  # type: Iterable[ParsedRequirement]
-    requirements=None,  # type: Optional[Iterable[str]]
-    requirement_files=None,  # type: Optional[Iterable[str]]
-    constraint_files=None,  # type: Optional[Iterable[str]]
-    allow_prereleases=False,  # type: bool
-    transitive=True,  # type: bool
+def _unique_targets(
     interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
-    platforms=None,  # type: Optional[Iterable[str]]
-    package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-    cache=None,  # type: Optional[str]
-    build=True,  # type: bool
-    use_wheel=True,  # type: bool
+    platforms=None,  # type: Optional[Iterable[Union[str, Platform]]]
     manylinux=None,  # type: Optional[str]
-    dest=None,  # type: Optional[str]
-    max_parallel_jobs=None,  # type: Optional[int]
 ):
-    # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
+    # type: (...) -> OrderedSet[DistributionTarget]
     parsed_platforms = [parsed_platform(platform) for platform in platforms] if platforms else []
 
     def iter_targets():
@@ -1154,11 +1144,31 @@ def _download_internal(
                     # Build for specific platforms.
                     yield DistributionTarget.for_platform(platform, manylinux=manylinux)
 
-    # Only download for each target once. The download code assumes this unique targets optimization
-    # when spawning parallel downloads.
-    # TODO(John Sirois): centralize the de-deuping in the DownloadRequest constructor when we drop
-    # python 2.7 and move from namedtuples to dataclasses.
-    unique_targets = OrderedSet(iter_targets())  # type: Iterable[DistributionTarget]
+    return OrderedSet(iter_targets())
+
+
+def _download_internal(
+    direct_requirements,  # type: Iterable[ParsedRequirement]
+    requirements=None,  # type: Optional[Iterable[str]]
+    requirement_files=None,  # type: Optional[Iterable[str]]
+    constraint_files=None,  # type: Optional[Iterable[str]]
+    allow_prereleases=False,  # type: bool
+    transitive=True,  # type: bool
+    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
+    platforms=None,  # type: Optional[Iterable[Union[str, Platform]]]
+    package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+    cache=None,  # type: Optional[str]
+    build=True,  # type: bool
+    use_wheel=True,  # type: bool
+    manylinux=None,  # type: Optional[str]
+    dest=None,  # type: Optional[str]
+    max_parallel_jobs=None,  # type: Optional[int]
+):
+    # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
+
+    unique_targets = _unique_targets(
+        interpreters=interpreters, platforms=platforms, manylinux=manylinux
+    )
     download_request = DownloadRequest(
         targets=unique_targets,
         direct_requirements=direct_requirements,
@@ -1382,3 +1392,83 @@ def install(
             ignore_errors=ignore_errors, max_parallel_jobs=max_parallel_jobs
         )
     )
+
+
+def resolve_from_pex(
+    pex,  # type: str
+    requirements=None,  # type: Optional[Iterable[str]]
+    requirement_files=None,  # type: Optional[Iterable[str]]
+    constraint_files=None,  # type: Optional[Iterable[str]]
+    network_configuration=None,  # type: Optional[NetworkConfiguration]
+    transitive=True,  # type: bool
+    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
+    platforms=None,  # type: Optional[Iterable[Union[str, Platform]]]
+    manylinux=None,  # type: Optional[str]
+    ignore_errors=False,  # type: bool
+):
+    # type: (...) -> List[ResolvedDistribution]
+
+    direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
+    direct_requirements_by_key = OrderedDict()
+    for direct_requirement in direct_requirements:
+        if isinstance(direct_requirement, LocalProjectRequirement):
+            raise Untranslatable(
+                "Cannot resolve local project {path} from the PEX repository {pex}.".format(
+                    path=direct_requirement.path, pex=pex
+                )
+            )
+        direct_requirements_by_key[
+            direct_requirement.requirement.key
+        ] = direct_requirement.requirement
+
+    constraints_by_key = defaultdict(list)  # type: DefaultDict[str, List[Constraint]]
+    if not ignore_errors and (requirement_files or constraint_files):
+        fetcher = URLFetcher(network_configuration=network_configuration)
+        for location, is_constraints in itertools.chain(
+            ((requirement_file, False) for requirement_file in requirement_files or ()),
+            ((constraint_file, True) for constraint_file in constraint_files or ()),
+        ):
+            for parsed_item in parse_requirement_file(
+                location, is_constraints=is_constraints, fetcher=fetcher
+            ):
+                if isinstance(parsed_item, Constraint):
+                    constraints_by_key[parsed_item.requirement.key].append(parsed_item)
+
+    all_reqs = direct_requirements_by_key.values()
+    unique_targets = _unique_targets(
+        interpreters=interpreters, platforms=platforms, manylinux=manylinux
+    )
+    resolved_distributions = OrderedSet()  # type: OrderedSet[ResolvedDistribution]
+    for target in unique_targets:
+        pex_env = PEXEnvironment(pex, target=target)
+        try:
+            distributions = pex_env.resolve(all_reqs)
+        except ResolveError as e:
+            raise Unsatisfiable(str(e))
+
+        for distribution in distributions:
+            direct_requirement = direct_requirements_by_key.get(distribution.key, None)
+            if not transitive and not direct_requirement:
+                continue
+
+            unmet_constraints = [
+                constraint
+                for constraint in constraints_by_key.get(distribution.key, ())
+                if distribution not in constraint.requirement
+            ]
+            if unmet_constraints:
+                raise Unsatisfiable(
+                    "The following constraints were not satisfied by {dist} resolved from "
+                    "{pex}:\n{constraints}".format(
+                        dist=distribution.location,
+                        pex=pex,
+                        constraints="\n".join(map(str, unmet_constraints)),
+                    )
+                )
+
+            resolved_distributions.add(
+                ResolvedDistribution.create(
+                    target, distribution, direct_requirement=direct_requirement
+                )
+            )
+    return list(resolved_distributions)

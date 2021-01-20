@@ -14,6 +14,9 @@ from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.compatibility import nested
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter, spawn_python_job
+from pex.pex_builder import PEXBuilder
+from pex.pex_info import PexInfo
+from pex.platforms import Platform
 from pex.resolver import (
     InstalledDistribution,
     IntegrityError,
@@ -21,6 +24,7 @@ from pex.resolver import (
     Unsatisfiable,
     download,
     install,
+    resolve_from_pex,
     resolve_multi,
 )
 from pex.testing import (
@@ -36,10 +40,10 @@ from pex.testing import (
     make_source_dir,
 )
 from pex.third_party.pkg_resources import Requirement
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, List, Union
+    from typing import Any, DefaultDict, Iterable, List, Optional, Set, Union
 
 
 def create_sdist(**kwargs):
@@ -528,3 +532,260 @@ def test_resolve_arbitrary_equality_issues_940():
     )
     assert [("===", "1.0.2-fba4511")] == requirement.specs
     assert requirement.marker is None
+
+
+def create_pex_repository(
+    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
+    platforms=None,  # type: Optional[Iterable[Platform]]
+    requirements=None,  # type: Optional[Iterable[str]]
+    requirement_files=None,  # type: Optional[Iterable[str]]
+    constraint_files=None,  # type: Optional[Iterable[str]]
+):
+    # type: (...) -> str
+    pex_builder = PEXBuilder()
+    for resolved_dist in resolve_multi(
+        interpreters=interpreters,
+        platforms=platforms,
+        requirements=requirements,
+        requirement_files=requirement_files,
+        constraint_files=constraint_files,
+    ):
+        pex_builder.add_distribution(resolved_dist.distribution)
+        if resolved_dist.direct_requirement:
+            pex_builder.add_requirement(resolved_dist.direct_requirement)
+    pex_builder.freeze()
+    return cast(str, pex_builder.path())
+
+
+def create_constraints_file(*requirements):
+    # type: (*str) -> str
+    constraints_file = os.path.join(safe_mkdtemp(), "constraints.txt")
+    with open(constraints_file, "w") as fp:
+        for requirement in requirements:
+            fp.write(requirement + os.linesep)
+    return constraints_file
+
+
+@pytest.fixture(scope="module")
+def py27():
+    # type: () -> PythonInterpreter
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY27))
+
+
+@pytest.fixture(scope="module")
+def py36():
+    # type: () -> PythonInterpreter
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY36))
+
+
+@pytest.fixture(scope="module")
+def macosx():
+    # type: () -> Platform
+    return Platform.create("macosx-10.13-x86_64-cp-36-m")
+
+
+@pytest.fixture(scope="module")
+def linux():
+    # type: () -> Platform
+    return Platform.create("linux-x86_64-cp-36-m")
+
+
+@pytest.fixture(scope="module")
+def foreign_platform(
+    macosx,  # type: Platform
+    linux,  # type: Platform
+):
+    # type: (...) -> Platform
+    return macosx if IS_LINUX else linux
+
+
+@pytest.fixture(scope="module")
+def pex_repository(py27, py36, foreign_platform):
+    # type () -> str
+
+    # N.B.: requests 2.25.1 constrains urllib3 to <1.27,>=1.21.1 and pick 1.26.2 on its own as of
+    # this writing.
+    constraints_file = create_constraints_file("urllib3==1.26.1")
+
+    return create_pex_repository(
+        interpreters=[py27, py36],
+        platforms=[foreign_platform],
+        requirements=["requests[security,socks]==2.25.1"],
+        constraint_files=[constraints_file],
+    )
+
+
+def test_resolve_from_pex(
+    pex_repository,  # type: str
+    py27,  # type: PythonInterpreter
+    py36,  # type: PythonInterpreter
+    foreign_platform,  # type: Platform
+):
+    # type: (...) -> None
+    pex_info = PexInfo.from_pex(pex_repository)
+    direct_requirements = pex_info.requirements
+    assert 1 == len(direct_requirements)
+
+    resolved_distributions = resolve_from_pex(
+        pex=pex_repository,
+        requirements=direct_requirements,
+        interpreters=[py27, py36],
+        platforms=[foreign_platform],
+    )
+
+    distribution_locations_by_key = defaultdict(set)  # type: DefaultDict[str, Set[str]]
+    for resolved_distribution in resolved_distributions:
+        distribution_locations_by_key[resolved_distribution.distribution.key].add(
+            resolved_distribution.distribution.location
+        )
+
+    assert {
+        os.path.basename(location)
+        for locations in distribution_locations_by_key.values()
+        for location in locations
+    } == set(pex_info.distributions.keys()), (
+        "Expected to resolve the same full set of distributions from the pex repository as make "
+        "it up when using the same requirements."
+    )
+
+    assert "requests" in distribution_locations_by_key
+    assert 1 == len(distribution_locations_by_key["requests"])
+
+    assert "pysocks" in distribution_locations_by_key
+    assert 2 == len(distribution_locations_by_key["pysocks"]), (
+        "PySocks has a non-platform-specific Python 2.7 distribution and a non-platform-specific "
+        "Python 3 distribution; so we expect to resolve two distributions - one covering "
+        "Python 2.7 and one covering local Python 3.6 and our cp36 foreign platform."
+    )
+
+    assert "cryptography" in distribution_locations_by_key
+    assert 3 == len(distribution_locations_by_key["cryptography"]), (
+        "The cryptography requirement of the security extra is platform specific; so we expect a "
+        "unique distribution to be resolved for each of the three distributin targets"
+    )
+
+
+def test_resolve_from_pex_subset(
+    pex_repository,  # type: str
+    foreign_platform,  # type: Platform
+):
+    # type: (...) -> None
+
+    resolved_distributions = resolve_from_pex(
+        pex=pex_repository,
+        requirements=["cffi"],
+        platforms=[foreign_platform],
+    )
+
+    assert {"cffi", "pycparser"} == {
+        resolved_distribution.distribution.key for resolved_distribution in resolved_distributions
+    }
+
+
+def test_resolve_from_pex_not_found(
+    pex_repository,  # type: str
+    py36,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    with pytest.raises(Unsatisfiable) as exec_info:
+        resolve_from_pex(
+            pex=pex_repository,
+            requirements=["pex"],
+            interpreters=[py36],
+        )
+    assert "A distribution for pex could not be resolved in this environment." in str(
+        exec_info.value
+    )
+
+    with pytest.raises(Unsatisfiable) as exec_info:
+        resolve_from_pex(
+            pex=pex_repository,
+            requirements=["requests==1.0.0"],
+            interpreters=[py36],
+        )
+    message = str(exec_info.value)
+    assert (
+        "Failed to resolve requirements from PEX environment @ {}".format(pex_repository) in message
+    )
+    assert "Needed {} compatible dependencies for:".format(py36.platform) in message
+    assert "1: requests==1.0.0" in message
+    assert "But this pex only contains:" in message
+    assert "requests-2.25.1-py2.py3-none-any.whl" in message
+
+
+def test_resolve_from_pex_intransitive(
+    pex_repository,  # type: str
+    py27,  # type: PythonInterpreter
+    py36,  # type: PythonInterpreter
+    foreign_platform,  # type: Platform
+):
+    # type: (...) -> None
+
+    resolved_distributions = resolve_from_pex(
+        pex=pex_repository,
+        requirements=["requests"],
+        transitive=False,
+        interpreters=[py27, py36],
+        platforms=[foreign_platform],
+    )
+    assert 3 == len(
+        resolved_distributions
+    ), "Expected one resolved distribution per distribution target."
+    assert 1 == len(
+        frozenset(
+            resolved_distribution.distribution.location
+            for resolved_distribution in resolved_distributions
+        )
+    ), (
+        "Expected one underlying resolved universal distribution usable on Linux and macOs by "
+        "both Python 2.7 and Python 3.6."
+    )
+    for resolved_distribution in resolved_distributions:
+        assert (
+            Requirement.parse("requests==2.25.1")
+            == resolved_distribution.distribution.as_requirement()
+        )
+        assert Requirement.parse("requests") == resolved_distribution.direct_requirement
+
+
+def test_resolve_from_pex_constraints(
+    pex_repository,  # type: str
+    py27,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    with pytest.raises(Unsatisfiable) as exec_info:
+        resolve_from_pex(
+            pex=pex_repository,
+            requirements=["requests"],
+            constraint_files=[create_constraints_file("urllib3==1.26.2")],
+            interpreters=[py27],
+        )
+    message = str(exec_info.value)
+    assert "The following constraints were not satisfied by " in message
+    assert " resolved from {}:".format(pex_repository) in message
+    assert "urllib3==1.26.2" in message
+
+
+def test_resolve_from_pex_ignore_errors(
+    pex_repository,  # type: str
+    py27,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+
+    # See test_resolve_from_pex_constraints above for the failure this would otherwise cause.
+    resolved_distributions = resolve_from_pex(
+        pex=pex_repository,
+        requirements=["requests"],
+        constraint_files=[create_constraints_file("urllib3==1.26.2")],
+        interpreters=[py27],
+        ignore_errors=True,
+    )
+    resolved_distributions_by_key = {
+        resolved_distribution.distribution.key: resolved_distribution.distribution.as_requirement()
+        for resolved_distribution in resolved_distributions
+    }
+    assert len(resolved_distributions_by_key) > 1, "We should resolve at least requests and urllib3"
+    assert "requests" in resolved_distributions_by_key
+    assert Requirement.parse("urllib3==1.26.1") == resolved_distributions_by_key["urllib3"]

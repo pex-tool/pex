@@ -31,6 +31,7 @@ if TYPE_CHECKING:
         Iterable,
         Iterator,
         List,
+        MutableMapping,
         Optional,
         Tuple,
         Union,
@@ -73,6 +74,31 @@ class _RankedDistribution(namedtuple("_RankedDistribution", ["rank", "distributi
         return self.distribution in requirement
 
 
+class _QualifiedRequirement(namedtuple("_QualifiedRequirement", ["requirement", "required"])):
+    @classmethod
+    def create(
+        cls,
+        requirement,  # type: Requirement
+        required=True,  # type: Optional[bool]
+    ):
+        # type: (...) -> _QualifiedRequirement
+        return cls(requirement=requirement, required=required)
+
+    @property
+    def requirement(self):
+        # type: () -> Requirement
+        return cast(Requirement, super(_QualifiedRequirement, self).requirement)
+
+    @property
+    def required(self):
+        # type: () -> Optional[bool]
+        return cast("Optional[bool]", super(_QualifiedRequirement, self).required)
+
+
+if TYPE_CHECKING:
+    QualifiedRequirementOrNotFound = Union[_QualifiedRequirement, _DistributionNotFound]
+
+
 class _DistributionNotFound(namedtuple("_DistributionNotFound", ["requirement", "required_by"])):
     @classmethod
     def create(
@@ -86,6 +112,28 @@ class _DistributionNotFound(namedtuple("_DistributionNotFound", ["requirement", 
 
 class ResolveError(Exception):
     """Indicates an error resolving requirements for a PEX."""
+
+
+class _RequirementKey(namedtuple("_RequirementKey", ["key", "extras"])):
+    @classmethod
+    def create(cls, requirement):
+        # type: (Requirement) -> _RequirementKey
+        return cls(requirement.key, frozenset(requirement.extras))
+
+    def satisfied_keys(self):
+        # type: () -> Iterator[_RequirementKey]
+
+        # If we resolve a requirement with extras then we've satisfied resolves for the powerset of
+        # the extras.
+        # For example, if we resolve `cake[birthday,wedding]` then we satisfy resolves for:
+        # `cake[]`
+        # `cake[birthday]`
+        # `cake[wedding]`
+        # `cake[birthday,wedding]`
+        items = list(self.extras)
+        for size in range(len(items) + 1):
+            for combination_of_size in itertools.combinations(items, size):
+                yield _RequirementKey(self.key, frozenset(combination_of_size))
 
 
 class PEXEnvironment(object):
@@ -335,29 +383,37 @@ class PEXEnvironment(object):
         requirement,  # type: Requirement
         extras=None,  # type: Optional[Tuple[str, ...]]
     ):
-        # type: (...) -> bool
+        # type: (...) -> Optional[bool]
         applies = self._target.requirement_applies(requirement, extras=extras)
-        if not applies:
+        if applies is False:
             TRACER.log(
                 "Skipping activation of `{}` due to environment marker de-selection".format(
                     requirement
-                )
+                ),
+                V=3,
             )
         return applies
 
     def _resolve_requirement(
         self,
         requirement,  # type: Requirement
+        resolved_dists_by_key,  # type: MutableMapping[Distribution, _RequirementKey]
+        required,  # type: Optional[bool]
         required_by=None,  # type: Optional[Distribution]
     ):
-        # type: (...) -> Iterator[Union[Distribution, _DistributionNotFound]]
+        # type: (...) -> Iterator[_DistributionNotFound]
+        requirement_key = _RequirementKey.create(requirement)
+        if requirement_key in resolved_dists_by_key:
+            return
+
         available_distributions = [
             ranked_dist
             for ranked_dist in self._available_ranked_dists_by_key.get(requirement.key, [])
             if ranked_dist.satisfies(requirement)
         ]
         if not available_distributions:
-            yield _DistributionNotFound.create(requirement, required_by=required_by)
+            if required is True:
+                yield _DistributionNotFound.create(requirement, required_by=required_by)
             return
 
         resolved_distribution = sorted(available_distributions, reverse=True)[0].distribution
@@ -373,7 +429,6 @@ class PEXEnvironment(object):
                 V=9,
             )
 
-        yield resolved_distribution
         for dep_requirement in dist_metadata.requires_dists(resolved_distribution):
             # A note regarding extras and why they're passed down one level (we don't pass / use
             # dep_requirement.extras for example):
@@ -391,16 +446,24 @@ class PEXEnvironment(object):
             # We want to recurse and resolve all standard requests requirements but also those that
             # are part of the 'security' extra. In order to resolve the latter we need to include
             # the 'security' extra environment marker.
-            if not self._evaluate_marker(dep_requirement, extras=requirement.extras):
+            required = self._evaluate_marker(dep_requirement, extras=requirement.extras)
+            if required is False:
                 continue
 
-            for dependency in self._resolve_requirement(
-                dep_requirement, required_by=resolved_distribution
+            for not_found in self._resolve_requirement(
+                dep_requirement,
+                resolved_dists_by_key,
+                required,
+                required_by=resolved_distribution,
             ):
-                yield dependency
+                yield not_found
+
+        resolved_dists_by_key.update(
+            (key, resolved_distribution) for key in requirement_key.satisfied_keys()
+        )
 
     def _root_requirements_iter(self, reqs):
-        # type: (Iterable[Requirement]) -> (Iterator[Union[Requirement, _DistributionNotFound]])
+        # type: (Iterable[Requirement]) -> Iterator[QualifiedRequirementOrNotFound]
 
         # We want to pick one requirement for each key (required project) to then resolve
         # recursively.
@@ -413,19 +476,20 @@ class PEXEnvironment(object):
         #   "setuptools==44.1.1; python_version<'3.6'",
         #   "isort==5.6.4; python_version>='3.6'",
         # }
-        reqs_by_key = OrderedDict()  # type: OrderedDict[str, List[Requirement]]
+        qualified_reqs_by_key = OrderedDict()  # type: OrderedDict[str, List[_QualifiedRequirement]]
         for req in reqs:
-            if not self._evaluate_marker(req):
+            required = self._evaluate_marker(req)
+            if required is False:
                 continue
-            requirements = reqs_by_key.get(req.key)
+            requirements = qualified_reqs_by_key.get(req.key)
             if requirements is None:
-                reqs_by_key[req.key] = requirements = []
-            requirements.append(req)
+                qualified_reqs_by_key[req.key] = requirements = []
+            requirements.append(_QualifiedRequirement.create(req, required=required))
 
         # Next, from among the remaining applicable requirements for a given project, we want to
         # select the most tailored (highest ranked) available distribution. That distribution's
         # transitive requirements will later fill in the full resolve.
-        for key, requirements in reqs_by_key.items():
+        for key, qualified_requirements in qualified_reqs_by_key.items():
             ranked_dists = self._available_ranked_dists_by_key.get(key)
             if ranked_dists is None:
                 # We've winnowed down reqs_by_key to just those requirements whose environment
@@ -434,30 +498,34 @@ class PEXEnvironment(object):
                     "A distribution for {} could not be resolved in this environment.".format(key)
                 )
             candidates = [
-                (ranked_dist, requirement)
-                for requirement in requirements
+                (ranked_dist, qualified_requirement)
+                for qualified_requirement in qualified_requirements
                 for ranked_dist in ranked_dists
-                if ranked_dist.satisfies(requirement)
+                if ranked_dist.satisfies(qualified_requirement.requirement)
             ]
             if not candidates:
-                for requirement in requirements:
-                    yield _DistributionNotFound.create(requirement)
+                for qualified_requirement in qualified_requirements:
+                    yield _DistributionNotFound.create(qualified_requirement.requirement)
                 continue
 
-            ranked_dist, requirement = sorted(candidates, key=lambda tup: tup[0], reverse=True)[0]
+            ranked_dist, qualified_requirement = sorted(
+                candidates, key=lambda tup: tup[0], reverse=True
+            )[0]
             if len(candidates) > 1:
                 TRACER.log(
                     "Selected {dist} via {req} and discarded {discarded}.".format(
-                        req=requirement,
+                        req=qualified_requirement.requirement,
                         dist=ranked_dist.distribution,
                         discarded=", ".join(
-                            "{dist} via {req}".format(req=req, dist=ranked_dist.distribution)
-                            for ranked_dist, req in candidates[1:]
+                            "{dist} via {req}".format(
+                                req=qualified_req.requirement, dist=ranked_dist.distribution
+                            )
+                            for ranked_dist, qualified_req in candidates[1:]
                         ),
                     ),
                     V=9,
                 )
-            yield requirement
+            yield qualified_requirement
 
     def resolve(self, reqs):
         # type: (Iterable[Requirement]) -> Iterable[Distribution]
@@ -476,20 +544,19 @@ class PEXEnvironment(object):
             if dist_not_found.required_by:
                 requirers.add(dist_not_found.required_by)
 
-        resolveds = OrderedSet()  # type: OrderedSet[Distribution]
-
-        for req_or_not_found in self._root_requirements_iter(reqs):
-            if isinstance(req_or_not_found, _DistributionNotFound):
-                record_unresolved(req_or_not_found)
+        resolved_dists_by_key = OrderedDict()  # type: OrderedDict[_RequirementKey, Distribution]
+        for qualified_req_or_not_found in self._root_requirements_iter(reqs):
+            if isinstance(qualified_req_or_not_found, _DistributionNotFound):
+                record_unresolved(qualified_req_or_not_found)
                 continue
 
-            with TRACER.timed("Resolving {}".format(req_or_not_found), V=2):
-                for dist_or_not_found in self._resolve_requirement(req_or_not_found):
-                    if isinstance(dist_or_not_found, _DistributionNotFound):
-                        record_unresolved(dist_or_not_found)
-                        continue
-
-                    resolveds.add(dist_or_not_found)
+            with TRACER.timed("Resolving {}".format(qualified_req_or_not_found.requirement), V=2):
+                for not_found in self._resolve_requirement(
+                    requirement=qualified_req_or_not_found.requirement,
+                    required=qualified_req_or_not_found.required,
+                    resolved_dists_by_key=resolved_dists_by_key,
+                ):
+                    record_unresolved(not_found)
 
         if unresolved_reqs:
             TRACER.log("Unresolved requirements:")
@@ -545,7 +612,7 @@ class PEXEnvironment(object):
                     "{items}".format(pex=self._pex, platform=self._platform, items="\n".join(items))
                 )
 
-        return resolveds
+        return OrderedSet(resolved_dists_by_key.values())
 
     _NAMESPACE_PACKAGE_METADATA_RESOURCE = "namespace_packages.txt"
 
