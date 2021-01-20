@@ -30,7 +30,7 @@ from pex.pex_bootstrapper import ensure_venv, iter_compatible_interpreters
 from pex.pex_builder import PEXBuilder
 from pex.pip import ResolverVersion
 from pex.platforms import Platform
-from pex.resolver import Unsatisfiable, parsed_platform, resolve_multi
+from pex.resolver import Unsatisfiable, parsed_platform, resolve_from_pex, resolve_multi
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
@@ -173,6 +173,18 @@ def configure_clp_pex_resolution(parser):
         dest="indexes",
         type=str,
         help="Additional cheeseshop indices to use to satisfy requirements.",
+    )
+
+    parser.add_argument(
+        "--pex-repository",
+        dest="pex_repository",
+        metavar="FILE",
+        default=None,
+        type=str,
+        help=(
+            "Resolve requirements from the given PEX file instead of from --index servers or "
+            "--find-links repos."
+        ),
     )
 
     default_net_config = NetworkConfiguration.create()
@@ -912,26 +924,44 @@ def build_pex(reqs, options, cache=None):
         )
 
         try:
-            resolveds = resolve_multi(
-                requirements=reqs,
-                requirement_files=options.requirement_files,
-                constraint_files=options.constraint_files,
-                allow_prereleases=options.allow_prereleases,
-                transitive=options.transitive,
-                interpreters=interpreters,
-                platforms=list(platforms),
-                indexes=indexes,
-                find_links=options.find_links,
-                resolver_version=ResolverVersion.for_value(options.resolver_version),
-                network_configuration=network_configuration,
-                cache=cache,
-                build=options.build,
-                use_wheel=options.use_wheel,
-                compile=options.compile,
-                manylinux=options.manylinux,
-                max_parallel_jobs=options.max_parallel_jobs,
-                ignore_errors=options.ignore_errors,
-            )
+            if options.pex_repository:
+                with TRACER.timed(
+                    "Resolving requirements from PEX {}.".format(options.pex_repository)
+                ):
+                    resolveds = resolve_from_pex(
+                        pex=options.pex_repository,
+                        requirements=reqs,
+                        requirement_files=options.requirement_files,
+                        constraint_files=options.constraint_files,
+                        network_configuration=network_configuration,
+                        transitive=options.transitive,
+                        interpreters=interpreters,
+                        platforms=list(platforms),
+                        manylinux=options.manylinux,
+                        ignore_errors=options.ignore_errors,
+                    )
+            else:
+                with TRACER.timed("Resolving requirements."):
+                    resolveds = resolve_multi(
+                        requirements=reqs,
+                        requirement_files=options.requirement_files,
+                        constraint_files=options.constraint_files,
+                        allow_prereleases=options.allow_prereleases,
+                        transitive=options.transitive,
+                        interpreters=interpreters,
+                        platforms=list(platforms),
+                        indexes=indexes,
+                        find_links=options.find_links,
+                        resolver_version=ResolverVersion.for_value(options.resolver_version),
+                        network_configuration=network_configuration,
+                        cache=cache,
+                        build=options.build,
+                        use_wheel=options.use_wheel,
+                        compile=options.compile,
+                        manylinux=options.manylinux,
+                        max_parallel_jobs=options.max_parallel_jobs,
+                        ignore_errors=options.ignore_errors,
+                    )
 
             for resolved_dist in resolveds:
                 pex_builder.add_distribution(resolved_dist.distribution)
@@ -1023,6 +1053,12 @@ def main(args=None):
 
     if options.python and options.interpreter_constraint:
         die('The "--python" and "--interpreter-constraint" options cannot be used together.')
+
+    if options.pex_repository and (options.indexes or options.find_links):
+        die(
+            'The "--pex-repository" option cannot be used together with the "--index" or '
+            '"--find-links" options.'
+        )
 
     with ENV.patch(
         PEX_VERBOSE=str(options.verbosity), PEX_ROOT=pex_root, TMPDIR=tmpdir
