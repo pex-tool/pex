@@ -16,9 +16,43 @@ from pex.finders import get_entry_point_from_console_script, get_script_from_dis
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
-from pex.third_party.pkg_resources import DefaultProvider, ZipProvider, get_provider
+from pex.third_party.pkg_resources import DefaultProvider, Distribution, ZipProvider, get_provider
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
+
+if TYPE_CHECKING:
+    from typing import Optional, Dict
+
+
+class CopyMode(object):
+    class Value(object):
+        def __init__(self, value):
+            # type: (str) -> None
+            self.value = value
+
+        def __repr__(self):
+            # type: () -> str
+            return repr(self.value)
+
+    COPY = Value("copy")
+    LINK = Value("link")
+    SYMLINK = Value("symlink")
+
+    values = COPY, LINK, SYMLINK
+
+    @classmethod
+    def for_value(cls, value):
+        # type: (str) -> CopyMode.Value
+        for v in cls.values:
+            if v.value == value:
+                return v
+        raise ValueError(
+            "{!r} of type {} must be one of {}".format(
+                value, type(value), ", ".join(map(repr, cls.values))
+            )
+        )
+
 
 BOOTSTRAP_DIR = ".bootstrap"
 
@@ -124,14 +158,15 @@ class PEXBuilder(object):
 
     def __init__(
         self,
-        path=None,
-        interpreter=None,
-        chroot=None,
-        pex_info=None,
-        preamble=None,
-        copy=False,
-        include_tools=False,
+        path=None,  # type: Optional[str]
+        interpreter=None,  # type: Optional[PythonInterpreter]
+        chroot=None,  # type: Optional[Chroot]
+        pex_info=None,  # type: Optional[PexInfo]
+        preamble=None,  # type: Optional[str]
+        copy_mode=CopyMode.LINK,  # type: CopyMode.Value
+        include_tools=False,  # type: bool
     ):
+        # type: (...) -> None
         """Initialize a pex builder.
 
         :keyword path: The path to write the PEX as it is built.  If ``None`` is specified,
@@ -142,9 +177,7 @@ class PEXBuilder(object):
         :keyword pex_info: A preexisting PexInfo to use to build the PEX.
         :keyword preamble: If supplied, execute this code prior to bootstrapping this PEX
           environment.
-        :type preamble: str
-        :keyword copy: If False, attempt to create the pex environment via hard-linking, falling
-                       back to copying across devices. If True, always copy.
+        :keyword copy_mode: Create the pex environment using the given copy mode.
         :keyword include_tools: If True, include runtime tools which can be executed by exporting
                                 `PEX_TOOLS=1`.
 
@@ -156,13 +189,13 @@ class PEXBuilder(object):
         self._chroot = chroot or Chroot(path or safe_mkdtemp())
         self._pex_info = pex_info or PexInfo.default(self._interpreter)
         self._preamble = preamble or ""
-        self._copy = copy
+        self._copy_mode = copy_mode
         self._include_tools = include_tools
 
         self._shebang = self._interpreter.identity.hashbang()
         self._logger = logging.getLogger(__name__)
         self._frozen = False
-        self._distributions = set()
+        self._distributions = {}  # type: Dict[str, Distribution]
 
     def _ensure_unfrozen(self, name="Operation"):
         if self._frozen:
@@ -194,7 +227,7 @@ class PEXBuilder(object):
             interpreter=self._interpreter,
             pex_info=self._pex_info.copy(),
             preamble=self._preamble,
-            copy=self._copy,
+            copy_mode=self._copy_mode,
         )
         clone.set_shebang(self._shebang)
         clone._distributions = self._distributions.copy()
@@ -326,14 +359,16 @@ class PEXBuilder(object):
         """
 
         # check if 'script' is a console_script
-        dist, entry_point = get_entry_point_from_console_script(script, self._distributions)
+        dist, entry_point = get_entry_point_from_console_script(
+            script, self._distributions.values()
+        )
         if entry_point:
             self.set_entry_point(entry_point)
             TRACER.log("Set entrypoint to console_script %r in %r" % (entry_point, dist))
             return
 
         # check if 'script' is an ordinary script
-        dist_script = get_script_from_distributions(script, self._distributions)
+        dist_script = get_script_from_distributions(script, self._distributions.values())
         if dist_script:
             if self._pex_info.entry_point:
                 raise self.InvalidExecutableSpecification(
@@ -345,7 +380,7 @@ class PEXBuilder(object):
 
         raise self.InvalidExecutableSpecification(
             "Could not find script %r in any distribution %s within PEX!"
-            % (script, ", ".join(str(d) for d in self._distributions))
+            % (script, ", ".join(str(d) for d in self._distributions.values()))
         )
 
     def set_entry_point(self, entry_point):
@@ -377,12 +412,16 @@ class PEXBuilder(object):
         self._shebang = "#!%s" % shebang if not shebang.startswith("#!") else shebang
 
     def _add_dist_dir(self, path, dist_name):
-        for root, _, files in os.walk(path):
-            for f in files:
-                filename = os.path.join(root, f)
-                relpath = os.path.relpath(filename, path)
-                target = os.path.join(self._pex_info.internal_cache, dist_name, relpath)
-                self._copy_or_link(filename, target)
+        target_dir = os.path.join(self._pex_info.internal_cache, dist_name)
+        if self._copy_mode == CopyMode.SYMLINK:
+            self._copy_or_link(path, target_dir)
+        else:
+            for root, _, files in os.walk(path):
+                for f in files:
+                    filename = os.path.join(root, f)
+                    relpath = os.path.relpath(filename, path)
+                    target = os.path.join(target_dir, relpath)
+                    self._copy_or_link(filename, target)
         return CacheHelper.dir_hash(path)
 
     def _add_dist_wheel_file(self, path, dist_name):
@@ -402,9 +441,14 @@ class PEXBuilder(object):
           this will be inferred from the distribution itself should it be formatted in a standard way.
         :type dist: :class:`pkg_resources.Distribution`
         """
+        if dist.location in self._distributions:
+            TRACER.log(
+                "Skipping adding {} - already added from {}".format(dist, dist.location), V=9
+            )
+            return
         self._ensure_unfrozen("Adding a distribution")
         dist_name = dist_name or os.path.basename(dist.location)
-        self._distributions.add(dist)
+        self._distributions[dist.location] = dist
 
         if os.path.isdir(dist.location):
             dist_hash = self._add_dist_dir(dist.location, dist_name)
@@ -482,8 +526,10 @@ class PEXBuilder(object):
     def _copy_or_link(self, src, dst, label=None):
         if src is None:
             self._chroot.touch(dst, label)
-        elif self._copy:
+        elif self._copy_mode == CopyMode.COPY:
             self._chroot.copy(src, dst, label)
+        elif self._copy_mode == CopyMode.SYMLINK:
+            self._chroot.symlink(src, dst, label)
         else:
             self._chroot.link(src, dst, label)
 
@@ -558,7 +604,8 @@ class PEXBuilder(object):
         with safe_open(tmp_zip, "ab") as pexfile:
             assert os.path.getsize(pexfile.name) == 0
             pexfile.write(to_bytes("{}\n".format(self._shebang)))
-        self._chroot.zip(tmp_zip, mode="a", deterministic_timestamp=deterministic_timestamp)
+        with TRACER.timed("Zipping PEX file."):
+            self._chroot.zip(tmp_zip, mode="a", deterministic_timestamp=deterministic_timestamp)
         if os.path.exists(filename):
             os.unlink(filename)
         os.rename(tmp_zip, filename)

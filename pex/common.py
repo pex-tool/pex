@@ -594,6 +594,20 @@ class Chroot(object):
         safe_copy(abs_src, abs_dst, overwrite=False)
         # TODO: Ensure the target and dest are the same if the file already exists.
 
+    def symlink(
+        self,
+        src,  # type: str
+        dst,  # type: str
+        label=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
+        dst = self._normalize(dst)
+        self._tag(dst, label)
+        self._ensure_parent(dst)
+        abs_src = src
+        abs_dst = os.path.join(self.chroot, dst)
+        os.symlink(abs_src, abs_dst)
+
     def write(self, data, dst, label=None, mode="wb"):
         """Write data to ``chroot/dst`` with optional label.
 
@@ -640,11 +654,10 @@ class Chroot(object):
     def zip(self, filename, mode="w", deterministic_timestamp=False):
         with open_zip(filename, mode) as zf:
 
-            def write_entry(path):
-                full_path = os.path.join(self.chroot, path)
+            def write_entry(filename, arcname):
                 zip_entry = zf.zip_entry_from_file(
-                    filename=full_path,
-                    arcname=path,
+                    filename=filename,
+                    arcname=arcname,
                     date_time=DETERMINISTIC_DATETIME.timetuple()
                     if deterministic_timestamp
                     else None,
@@ -664,9 +677,21 @@ class Chroot(object):
                 if parent_dir is None or parent_dir in written_dirs:
                     return
                 maybe_write_parent_dirs(parent_dir)
-                write_entry(parent_dir)
+                write_entry(filename=os.path.join(self.chroot, parent_dir), arcname=parent_dir)
                 written_dirs.add(parent_dir)
 
-            for f in sorted(self.files()):
-                maybe_write_parent_dirs(f)
-                write_entry(f)
+            def iter_files():
+                for path in sorted(self.files()):
+                    full_path = os.path.join(self.chroot, path)
+                    if os.path.isfile(full_path):
+                        yield full_path, path
+                        continue
+                    for root, _, files in os.walk(full_path):
+                        for f in files:
+                            abs_path = os.path.join(root, f)
+                            rel_path = os.path.join(path, os.path.relpath(abs_path, full_path))
+                            yield abs_path, rel_path
+
+            for filename, arcname in iter_files():
+                maybe_write_parent_dirs(arcname)
+                write_entry(filename, arcname)

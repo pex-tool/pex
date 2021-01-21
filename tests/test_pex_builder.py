@@ -10,7 +10,7 @@ import pytest
 from pex.common import temporary_dir
 from pex.compatibility import WINDOWS, nested
 from pex.pex import PEX
-from pex.pex_builder import BOOTSTRAP_DIR, PEXBuilder
+from pex.pex_builder import BOOTSTRAP_DIR, CopyMode, PEXBuilder
 from pex.testing import make_bdist
 from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
@@ -155,14 +155,19 @@ def test_pex_builder_compilation():
 @pytest.mark.skipif(WINDOWS, reason="No hardlinks on windows")
 def test_pex_builder_copy_or_link():
     # type: () -> None
-    with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td1, td2, td3):
+    with nested(temporary_dir(), temporary_dir(), temporary_dir(), temporary_dir()) as (
+        td1,
+        td2,
+        td3,
+        td4,
+    ):
         src = os.path.join(td1, "exe.py")
         with open(src, "w") as fp:
             fp.write(exe_main)
 
-        def build_and_check(path, copy):
-            # type: (str, bool) -> None
-            pb = PEXBuilder(path=path, copy=copy)
+        def build_and_check(path, copy_mode):
+            # type: (str, CopyMode.Value) -> None
+            pb = PEXBuilder(path=path, copy_mode=copy_mode)
             pb.add_source(src, "exe.py")
 
             path_clone = os.path.join(path, "__clone")
@@ -172,13 +177,14 @@ def test_pex_builder_copy_or_link():
                 s1 = os.stat(src)
                 s2 = os.stat(os.path.join(root, "exe.py"))
                 is_link = (s1[stat.ST_INO], s1[stat.ST_DEV]) == (s2[stat.ST_INO], s2[stat.ST_DEV])
-                if copy:
+                if copy_mode == CopyMode.COPY:
                     assert not is_link
-                else:
+                elif copy_mode == CopyMode.LINK:
                     assert is_link
 
-        build_and_check(td2, False)
-        build_and_check(td3, True)
+        build_and_check(td2, CopyMode.LINK)
+        build_and_check(td3, CopyMode.COPY)
+        build_and_check(td4, CopyMode.SYMLINK)
 
 
 def test_pex_builder_deterministic_timestamp():

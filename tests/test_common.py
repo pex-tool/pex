@@ -222,6 +222,39 @@ def test_chroot_zip():
             assert b"data" == zip.read("directory/subdirectory/file")
 
 
+def test_chroot_zip_symlink():
+    # type: () -> None
+    with temporary_dir() as tmp:
+        chroot = Chroot(os.path.join(tmp, "chroot"))
+        chroot.write(b"data", "directory/subdirectory/file")
+        chroot.symlink(
+            os.path.join(chroot.path(), "directory/subdirectory/file"),
+            "directory/subdirectory/symlinked",
+        )
+        chroot.symlink(os.path.join(chroot.path(), "directory"), "symlinked")
+        zip_dst = os.path.join(tmp, "chroot.zip")
+        chroot.zip(zip_dst)
+        with open_zip(zip_dst) as zip:
+            assert [
+                "directory/",
+                "directory/subdirectory/",
+                "directory/subdirectory/file",
+                "directory/subdirectory/symlinked",
+                "symlinked/",
+                "symlinked/subdirectory/",
+                "symlinked/subdirectory/file",
+                "symlinked/subdirectory/symlinked",
+            ] == sorted(zip.namelist())
+            assert b"" == zip.read("directory/")
+            assert b"" == zip.read("directory/subdirectory/")
+            assert b"data" == zip.read("directory/subdirectory/file")
+            assert b"data" == zip.read("directory/subdirectory/symlinked")
+            assert b"" == zip.read("symlinked/")
+            assert b"" == zip.read("symlinked/subdirectory/")
+            assert b"data" == zip.read("symlinked/subdirectory/file")
+            assert b"data" == zip.read("symlinked/subdirectory/symlinked")
+
+
 def test_can_write_dir_writeable_perms():
     # type: () -> None
     with temporary_dir() as writeable:
