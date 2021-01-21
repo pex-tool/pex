@@ -1413,9 +1413,8 @@ def resolve_from_pex(
     for direct_requirement in direct_requirements:
         if isinstance(direct_requirement, LocalProjectRequirement):
             raise Untranslatable(
-                "Cannot resolve local project {path} from the PEX repository {pex}.".format(
-                    path=direct_requirement.path, pex=pex
-                )
+                "Cannot resolve local projects from PEX repositories. Asked to resolve {path} "
+                "from {pex}.".format(path=direct_requirement.path, pex=pex)
             )
         direct_requirements_by_key[
             direct_requirement.requirement.key
