@@ -1,6 +1,94 @@
 Release Notes
 =============
 
+2.1.25
+------
+
+This release brings support for a ``--venv`` execution mode to complement ``--unzip`` and standard
+unadorned PEX zip file execution modes. The ``--venv`` execution mode will first install the PEX
+file into a virtual environment under ``${PEX_ROOT}/venvs`` and then re-execute itself from there.
+This mode of execution allows you to ship your PEXed application as a single zipfile that
+automatically installs itself in a venv and runs from there to eliminate all PEX startup overhead
+on subsequent runs and work like a "normal" application.
+
+There is also support for a new resolution mode when building PEX files that allows you to use the
+results of a previous resolve by specifying it as a ``-pex-repository`` to resolve from. If you have
+many applications sharing a requirements.txt / constraints.txt this can drastically speed up
+resolves.
+
+* Improve PEX repository error for local projects. (#1184)
+  `PR #1184 <https://github.com/pantsbuild/pex/pull/1184>`_
+
+* Use symlinks to add dists in the Pex CLI. (#1185)
+  `PR #1185 <https://github.com/pantsbuild/pex/pull/1185>`_
+
+* Suppress ``pip debug`` warning. (#1183)
+  `PR #1183 <https://github.com/pantsbuild/pex/pull/1183>`_
+
+* Support resolving from a PEX file repository. (#1182)
+  `PR #1182 <https://github.com/pantsbuild/pex/pull/1182>`_
+
+* PEXEnvironment for a DistributionTarget. (#1178)
+  `PR #1178 <https://github.com/pantsbuild/pex/pull/1178>`_
+
+* Fix plumbing of 2020-resolver to Pip. (#1180)
+  `PR #1180 <https://github.com/pantsbuild/pex/pull/1180>`_
+
+* Platform can report supported_tags. (#1177)
+  `PR #1177 <https://github.com/pantsbuild/pex/pull/1177>`_
+
+* Record original requirements in PEX-INFO. (#1171)
+  `PR #1171 <https://github.com/pantsbuild/pex/pull/1171>`_
+
+* Tighten requirements parsing. (#1170)
+  `PR #1170 <https://github.com/pantsbuild/pex/pull/1170>`_
+
+* Type BuildAndInstallRequest. (#1169)
+  `PR #1169 <https://github.com/pantsbuild/pex/pull/1169>`_
+
+* Type AtomicDirectory. (#1168)
+  `PR #1168 <https://github.com/pantsbuild/pex/pull/1168>`_
+
+* Type SpawnedJob. (#1167)
+  `PR #1167 <https://github.com/pantsbuild/pex/pull/1167>`_
+
+* Refresh and type OrderedSet. (#1166)
+  `PR #1166 <https://github.com/pantsbuild/pex/pull/1166>`_
+
+* PEXEnvironment recursive runtime resolve. (#1165)
+  `PR #1165 <https://github.com/pantsbuild/pex/pull/1165>`_
+
+* Add support for -r / --constraints URL to the CLI. (#1163)
+  `PR #1163 <https://github.com/pantsbuild/pex/pull/1163>`_
+
+* Surface Pip dependency conflict information. (#1162)
+  `Issue #9420 <https://github.com/pypa/pip/issues/9420>`_
+  `PR #1162 <https://github.com/pantsbuild/pex/pull/1162>`_
+
+* Add support for parsing extras and specifiers. (#1161)
+  `PR #1161 <https://github.com/pantsbuild/pex/pull/1161>`_
+
+* Support project_name_and_version metadata. (#1160)
+  `PR #1160 <https://github.com/pantsbuild/pex/pull/1160>`_
+
+* docs: fix simple typo, orignal -> original (#1156)
+  `PR #1156 <https://github.com/pantsbuild/pex/pull/1156>`_
+
+* Support a --venv mode similar to --unzip mode. (#1153)
+  `PR #1153 <https://github.com/pantsbuild/pex/pull/1153>`_
+
+* Remove redundant dep edge label info. (#1152)
+  `PR #1152 <https://github.com/pantsbuild/pex/pull/1152>`_
+
+* Remove our reliance on packaging's LegacyVersion. (#1151)
+  `PR #1151 <https://github.com/pantsbuild/pex/pull/1151>`_
+
+* Implement PEX_INTERPRETER special mode support. (#1149)
+  `PR #1149 <https://github.com/pantsbuild/pex/pull/1149>`_
+
+* Fix PexInfo.copy. (#1148)
+  `PR #1148 <https://github.com/pantsbuild/pex/pull/1148>`_
+
 2.1.24
 ------
 
