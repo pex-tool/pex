@@ -603,10 +603,15 @@ class Pip(object):
         manylinux=None,  # type: Optional[str]
     ):
         # type: (...) -> Job
+
         # N.B.: Pip gives fair warning:
         #   WARNING: This command is only meant for debugging. Do not use this with automation for
         #   parsing and getting these details, since the output and options of this command may
         #   change without notice.
+        #
+        # We suppress the warning by capturing stderr below. The information there will be dumped
+        # only if the Pip command fails, which is what we want.
+
         debug_command = ["debug"]
         debug_command.extend(
             self._iter_platform_args(
@@ -617,7 +622,9 @@ class Pip(object):
                 manylinux=manylinux,
             )
         )
-        return self._spawn_pip_isolated_job(debug_command, pip_verbosity=1, stdout=subprocess.PIPE)
+        return self._spawn_pip_isolated_job(
+            debug_command, pip_verbosity=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
 
 
 _PIP = None
