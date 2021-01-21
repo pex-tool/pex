@@ -27,7 +27,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv, iter_compatible_interpreters
-from pex.pex_builder import PEXBuilder
+from pex.pex_builder import CopyMode, PEXBuilder
 from pex.pip import ResolverVersion
 from pex.platforms import Platform
 from pex.resolver import Unsatisfiable, parsed_platform, resolve_from_pex, resolve_multi
@@ -870,6 +870,7 @@ def build_pex(reqs, options, cache=None):
         path=safe_mkdtemp(),
         interpreter=interpreter,
         preamble=preamble,
+        copy_mode=CopyMode.SYMLINK,
         include_tools=options.include_tools or options.venv,
     )
 
