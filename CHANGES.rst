@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.27
+------
+
+This is another hotfix release to fix a regression in Pex ``--sources-directory`` handling of
+relative paths.
+
+* Support relative paths in `Chroot.symlink`. #1194
+  `PR #1194 <https://github.com/pantsbuild/pex/pull/1194>_`
+
 2.1.26
 ------
 
@@ -22,7 +31,7 @@ on subsequent runs and work like a "normal" application.
 
 There is also support for a new resolution mode when building PEX files that allows you to use the
 results of a previous resolve by specifying it as a ``-pex-repository`` to resolve from. If you have
-many applications sharing a requirements.txt / constraints.txt this can drastically speed up
+many applications sharing a requirements.txt / constraints.txt, this can drastically speed up
 resolves.
 
 * Improve PEX repository error for local projects. (#1184)
