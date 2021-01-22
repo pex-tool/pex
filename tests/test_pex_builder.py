@@ -175,15 +175,17 @@ def test_pex_builder_copy_or_link():
             pb.clone(into=path_clone)
 
             for root in path, path_clone:
-                if copy_mode == CopyMode.SYMLINK:
-                    assert os.path.islink(os.path.join(root, "exe.py"))
-                    continue
                 s1 = os.stat(src)
                 s2 = os.stat(os.path.join(root, "exe.py"))
                 is_link = (s1[stat.ST_INO], s1[stat.ST_DEV]) == (s2[stat.ST_INO], s2[stat.ST_DEV])
                 if copy_mode == CopyMode.COPY:
                     assert not is_link
-                elif copy_mode == CopyMode.LINK:
+                else:
+                    # Since os.stat follows symlinks; so in CopyMode.SYMLINK, this just proves the
+                    # symlink points to the original file. Going further and checking path and
+                    # path_clone for the presence of a symlink (an os.islink test) is trickier since
+                    # a Linux hardlink of a symlink produces a symlink whereas a maxOS hardlink of a
+                    # symlink produces a hardlink.
                     assert is_link
 
         build_and_check(td2, CopyMode.LINK)
