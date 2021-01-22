@@ -7,8 +7,9 @@ import zipfile
 
 import pytest
 
-from pex.common import temporary_dir
+from pex.common import safe_open, temporary_dir
 from pex.compatibility import WINDOWS, nested
+from pex.executor import Executor
 from pex.pex import PEX
 from pex.pex_builder import BOOTSTRAP_DIR, CopyMode, PEXBuilder
 from pex.testing import make_bdist
@@ -16,7 +17,7 @@ from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import List
+    from typing import Any, Iterator, List
 
 exe_main = """
 import sys
@@ -188,6 +189,38 @@ def test_pex_builder_copy_or_link():
         build_and_check(td2, CopyMode.LINK)
         build_and_check(td3, CopyMode.COPY)
         build_and_check(td4, CopyMode.SYMLINK)
+
+
+@pytest.fixture
+def tmp_chroot(tmpdir):
+    # type: (Any) -> Iterator[str]
+    tmp_chroot = str(tmpdir)
+    cwd = os.getcwd()
+    try:
+        os.chdir(tmp_chroot)
+        yield tmp_chroot
+    finally:
+        os.chdir(cwd)
+
+
+@pytest.mark.parametrize(
+    "copy_mode", [pytest.param(copy_mode, id=copy_mode.value) for copy_mode in CopyMode.values]
+)
+def test_pex_builder_add_source_relpath_issues_1192(
+    tmp_chroot,  # type: str
+    copy_mode,  # type: CopyMode.Value
+):
+    # type: (...) -> None
+    pb = PEXBuilder(copy_mode=copy_mode)
+    with safe_open("src/main.py", "w") as fp:
+        fp.write("import sys; sys.exit(42)")
+    pb.add_source("src/main.py", "main.py")
+    pb.set_entry_point("main")
+    pb.build("test.pex")
+
+    process = Executor.open_process(cmd=[os.path.abspath("test.pex")])
+    process.wait()
+    assert 42 == process.returncode
 
 
 def test_pex_builder_deterministic_timestamp():
