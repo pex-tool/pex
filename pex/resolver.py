@@ -773,7 +773,9 @@ class BuildAndInstallRequest(object):
             direct_reqs = [
                 req
                 for req in direct_requirements_by_key.get(distribution.key, ())
-                if req and distribution in req
+                if req
+                and distribution in req
+                and installed_distribution.target.requirement_applies(req)
             ]
             if len(direct_reqs) > 1:
                 raise AssertionError(

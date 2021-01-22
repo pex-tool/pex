@@ -534,6 +534,27 @@ def test_resolve_arbitrary_equality_issues_940():
     assert requirement.marker is None
 
 
+def test_resolve_overlapping_requirements_discriminated_by_markers_issues_1196(py27):
+    # type: (PythonInterpreter) -> None
+    resolved_distributions = resolve_multi(
+        requirements=[
+            "setuptools<45; python_full_version == '2.7.*'",
+            "setuptools; python_version > '2.7'",
+        ],
+        interpreters=[py27],
+    )
+    assert 1 == len(resolved_distributions)
+    resolved_distribution = resolved_distributions[0]
+    assert (
+        Requirement.parse("setuptools<45; python_full_version == '2.7.*'")
+        == resolved_distribution.direct_requirement
+    )
+    assert (
+        Requirement.parse("setuptools==44.1.1")
+        == resolved_distribution.distribution.as_requirement()
+    )
+
+
 def create_pex_repository(
     interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
     platforms=None,  # type: Optional[Iterable[Platform]]
