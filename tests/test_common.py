@@ -231,10 +231,17 @@ def test_chroot_zip_symlink():
             os.path.join(chroot.path(), "directory/subdirectory/file"),
             "directory/subdirectory/symlinked",
         )
-        chroot.symlink(
-            "file",
-            "directory/subdirectory/rel-symlinked",
-        )
+
+        cwd = os.getcwd()
+        try:
+            os.chdir(os.path.join(chroot.path(), "directory/subdirectory"))
+            chroot.symlink(
+                "file",
+                "directory/subdirectory/rel-symlinked",
+            )
+        finally:
+            os.chdir(cwd)
+
         chroot.symlink(os.path.join(chroot.path(), "directory"), "symlinked")
         zip_dst = os.path.join(tmp, "chroot.zip")
         chroot.zip(zip_dst)
