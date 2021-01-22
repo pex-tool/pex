@@ -28,6 +28,10 @@ class MetadataError(Exception):
     """Indicates an error reading distribution metadata."""
 
 
+class UnrecognizedDistributionFormat(MetadataError):
+    """Indicates a distribution file is not of any recognized format."""
+
+
 _PKG_INFO_BY_DIST = {}  # type: Dict[Distribution, Optional[Message]]
 
 
@@ -177,7 +181,7 @@ class ProjectNameAndVersion(namedtuple("ProjectNameAndVersion", ["project_name",
             project_name, version = fname.rsplit("-", 1)
             return cls(project_name=project_name, version=version)
 
-        raise MetadataError(
+        raise UnrecognizedDistributionFormat(
             "The distribution at path {!r} does not have a file name matching known sdist or wheel "
             "file name formats.".format(path)
         )

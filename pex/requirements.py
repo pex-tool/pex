@@ -612,10 +612,17 @@ def _parse_requirement_line(
                 marker=marker,
                 editable=editable,
             )
-        requirement = parse_requirement_from_dist(
-            archive_or_project_path, extras=extras, marker=marker
-        )
-        return URLRequirement.create(line, archive_or_project_path, requirement, editable=editable)
+        try:
+            requirement = parse_requirement_from_dist(
+                archive_or_project_path, extras=extras, marker=marker
+            )
+            return URLRequirement.create(
+                line, archive_or_project_path, requirement, editable=editable
+            )
+        except dist_metadata.UnrecognizedDistributionFormat:
+            # This is not a recognized local archive distribution. Fall through and try parsing as a
+            # PEP-440 requirement.
+            pass
 
     # Handle PEP-440. See: https://www.python.org/dev/peps/pep-0440.
     #

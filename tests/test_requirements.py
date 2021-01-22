@@ -309,6 +309,11 @@ def test_parse_requirements_stress(chroot):
             ),
         )
     )
+
+    # Ensure local non-distribution files matching distribution names are not erroneously probed
+    # as distributions to find name and version metadata.
+    touch("nose")
+
     touch("downloads/numpy-1.9.2-cp34-none-win32.whl")
     with environment_as(PROJECT_NAME="Project"):
         results = normalize_results(req_iter)
