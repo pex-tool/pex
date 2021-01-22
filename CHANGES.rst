@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.26
+------
+
+This is a hotfix release that fixes requirement parsing when there is a local file in the CWD with
+the same name as the project name of a remote requirement to be resolved.
+
+* Requirement parsing handles local non-dist files. (#1190)
+  `PR #1190 <https://github.com/pantsbuild/pex/pull/1190>`_
+
 2.1.25
 ------
 
