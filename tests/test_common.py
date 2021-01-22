@@ -231,6 +231,17 @@ def test_chroot_zip_symlink():
             os.path.join(chroot.path(), "directory/subdirectory/file"),
             "directory/subdirectory/symlinked",
         )
+
+        cwd = os.getcwd()
+        try:
+            os.chdir(os.path.join(chroot.path(), "directory/subdirectory"))
+            chroot.symlink(
+                "file",
+                "directory/subdirectory/rel-symlinked",
+            )
+        finally:
+            os.chdir(cwd)
+
         chroot.symlink(os.path.join(chroot.path(), "directory"), "symlinked")
         zip_dst = os.path.join(tmp, "chroot.zip")
         chroot.zip(zip_dst)
@@ -239,19 +250,23 @@ def test_chroot_zip_symlink():
                 "directory/",
                 "directory/subdirectory/",
                 "directory/subdirectory/file",
+                "directory/subdirectory/rel-symlinked",
                 "directory/subdirectory/symlinked",
                 "symlinked/",
                 "symlinked/subdirectory/",
                 "symlinked/subdirectory/file",
+                "symlinked/subdirectory/rel-symlinked",
                 "symlinked/subdirectory/symlinked",
             ] == sorted(zip.namelist())
             assert b"" == zip.read("directory/")
             assert b"" == zip.read("directory/subdirectory/")
             assert b"data" == zip.read("directory/subdirectory/file")
+            assert b"data" == zip.read("directory/subdirectory/rel-symlinked")
             assert b"data" == zip.read("directory/subdirectory/symlinked")
             assert b"" == zip.read("symlinked/")
             assert b"" == zip.read("symlinked/subdirectory/")
             assert b"data" == zip.read("symlinked/subdirectory/file")
+            assert b"data" == zip.read("symlinked/subdirectory/rel-symlinked")
             assert b"data" == zip.read("symlinked/subdirectory/symlinked")
 
 
