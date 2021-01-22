@@ -1,13 +1,23 @@
 Release Notes
 =============
 
+2.1.28
+------
+
+This is another hotfix release to fix incorrect resolve post-processing failing otherwise correct
+resolves.
+
+* Pex resolver fails to evaluate markers when post-processing resolves to identify which dists
+  satisfy direct requirements. (#1196)
+  `PR #1196 <https://github.com/pantsbuild/pex/pull/1196>_`
+
 2.1.27
 ------
 
 This is another hotfix release to fix a regression in Pex ``--sources-directory`` handling of
 relative paths.
 
-* Support relative paths in `Chroot.symlink`. #1194
+* Support relative paths in `Chroot.symlink`. (#1194)
   `PR #1194 <https://github.com/pantsbuild/pex/pull/1194>_`
 
 2.1.26
