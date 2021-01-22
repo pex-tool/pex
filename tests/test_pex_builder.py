@@ -174,6 +174,9 @@ def test_pex_builder_copy_or_link():
             pb.clone(into=path_clone)
 
             for root in path, path_clone:
+                if copy_mode == CopyMode.SYMLINK:
+                    assert os.path.islink(os.path.join(root, "exe.py"))
+                    continue
                 s1 = os.stat(src)
                 s2 = os.stat(os.path.join(root, "exe.py"))
                 is_link = (s1[stat.ST_INO], s1[stat.ST_DEV]) == (s2[stat.ST_INO], s2[stat.ST_DEV])
