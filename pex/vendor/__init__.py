@@ -110,13 +110,13 @@ def iter_vendor_specs():
     yield VendorSpec.pinned("packaging", "20.8")
 
     # We shell out to pip at buildtime to resolve and install dependencies.
-    # N.B.: We're currently using a patched version of Pip 20.3.3 housed at
+    # N.B.: We're currently using a patched version of Pip 20.3.4 housed at
     # https://github.com/pantsbuild/pip/tree/pex/patches/generation-2. The patch works around a bug
     # in `pip download --constraint...` tracked at https://github.com/pypa/pip/issues/9283 and fixed
     # by https://github.com/pypa/pip/pull/9301 there and https://github.com/pantsbuild/pip/pull/8 in
     # our fork.
     yield VendorSpec.vcs(
-        "git+https://github.com/pantsbuild/pip@06f462537c981116c763c1ba40cf40e9dd461bcf#egg=pip",
+        "git+https://github.com/pantsbuild/pip@de1c91261f2b54d60fdf2a17fba756ef0decb146#egg=pip",
         rewrite=False,
     )
 
