@@ -164,12 +164,19 @@ class WheelBuilder(object):
     class BuildFailure(Exception):
         pass
 
-    def __init__(self, source_dir, interpreter=None, wheel_dir=None):
-        # type: (str, Optional[PythonInterpreter], Optional[str]) -> None
+    def __init__(
+        self,
+        source_dir,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+        wheel_dir=None,  # type: Optional[str]
+        verify=True,  # type: bool
+    ):
+        # type: (...) -> None
         """Create a wheel from an unpacked source distribution in source_dir."""
         self._source_dir = source_dir
         self._wheel_dir = wheel_dir or safe_mkdtemp()
         self._interpreter = interpreter or PythonInterpreter.get()
+        self._verify = verify
 
     def bdist(self):
         # type: () -> str
@@ -177,6 +184,7 @@ class WheelBuilder(object):
             distributions=[self._source_dir],
             wheel_dir=self._wheel_dir,
             interpreter=self._interpreter,
+            verify=self._verify,
         ).wait()
         dists = os.listdir(self._wheel_dir)
         if len(dists) == 0:
