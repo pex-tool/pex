@@ -10,6 +10,7 @@ import random
 import subprocess
 import sys
 from contextlib import contextmanager
+from subprocess import CalledProcessError
 from textwrap import dedent
 
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, temporary_dir, touch
@@ -427,22 +428,33 @@ _INTERPRETER_SET_FINGERPRINT = "_".join(_ALL_PY_VERSIONS) + "_pex_fingerprint"
 _ROOT_DIR = None  # type: Optional[str]
 
 
+def _calculate_root_dir():
+    # type: () -> str
+    return str(
+        os.path.realpath(
+            subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
+        )
+    )
+
+
 def root_dir():
     # type: () -> str
     global _ROOT_DIR
     if _ROOT_DIR is None:
         cwd = os.getcwd()
         try:
-            os.chdir(os.path.dirname(__file__))
-            _ROOT_DIR = str(
-                os.path.realpath(
-                    subprocess.check_output(["git", "rev-parse", "--show-toplevel"])
-                    .decode("utf-8")
-                    .strip()
-                )
+            _ROOT_DIR = _calculate_root_dir()
+        except CalledProcessError as e:
+            print(
+                "WARNING: Searching for root dir from {}; "
+                "failed to determine root dir from {}: {}".format(__file__, cwd, e),
+                file=sys.stderr,
             )
-        finally:
-            os.chdir(cwd)
+            os.chdir(os.path.dirname(__file__))
+            try:
+                _ROOT_DIR = _calculate_root_dir()
+            finally:
+                os.chdir(cwd)
     return _ROOT_DIR
 
 
