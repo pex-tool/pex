@@ -2711,7 +2711,8 @@ def test_seed(
     results = run_pex_command(args=args + mode_args + ["--seed"], quiet=True)
     results.assert_success()
 
-    seed_argv = shlex.split(results.output)
+    # Setting posix=False works around this issue under pypy: https://bugs.python.org/issue1170.
+    seed_argv = shlex.split(results.output, posix=False)
     isort_args = ["--version"]
     seed_stdout, seed_stderr = Executor.execute(seed_argv + isort_args)
     pex_stdout, pex_stderr = Executor.execute([pex_file] + isort_args)
