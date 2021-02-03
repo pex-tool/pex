@@ -1,0 +1,335 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  format-check:
+    name: TOXENV=format-check
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Check Formatting
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: format-check
+  typecheck:
+    name: TOXENV=typecheck
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Check Types
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: typecheck
+  vendor-check:
+    name: TOXENV=vendor-check
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - name: Check Vendoring
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: vendor-check
+  py27:
+    name: TOXENV=py27
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 2.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 2.7
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py27
+  py27-subprocess:
+    name: TOXENV=py27-subprocess
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 2.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 2.7
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py27-subprocess
+  py35:
+    name: TOXENV=py35
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.5
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.5
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py35
+  py36:
+    name: TOXENV=py36
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.6
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py36
+  py37:
+    name: TOXENV=py37
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py37
+  py38:
+    name: TOXENV=py38
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py38
+  py39:
+    name: TOXENV=py39
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py39
+  pypy:
+    name: TOXENV=pypy
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup PyPy
+        uses: actions/setup-python@v2
+        with:
+          python-version: pypy-2.7
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: pypy
+  py27-integration:
+    name: TOXENV=py27-integration
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 2.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 2.7
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Integration Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py27-integration
+  py39-integration:
+    name: TOXENV=py39-integration
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Integration Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py39-integration
+  pypy-integration:
+    name: TOXENV=pypy-integration
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup PyPy
+        uses: actions/setup-python@v2
+        with:
+          python-version: pypy-2.7
+      - name: Install Packages
+        run: |
+          # This is needed for `test_requirement_file_from_url` for building `lxml`.
+          sudo apt install --yes libxslt-dev
+        shell: bash
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Integration Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: pypy-integration
+  py27-osx:
+    name: (macOS) TOXENV=py27
+    runs-on: macos-10.15
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 2.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 2.7
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py27
+  py27-osx-integration:
+    name: (macOS) TOXENV=py27-integration
+    runs-on: macos-10.15
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 2.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 2.7
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Integration Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py27-integration
+  py39-osx:
+    name: (macOS) TOXENV=py39
+    runs-on: macos-10.15
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Unit Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py39
+  py39-osx-integration:
+    name: (macOS) TOXENV=py39-integration
+    runs-on: macos-10.15
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: .pyenv_test
+          key: ${{ runner.os }}-pyenv-test
+      - name: Run Integration Tests
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: py39-integration

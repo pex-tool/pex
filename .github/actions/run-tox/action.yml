@@ -1,0 +1,23 @@
+name: Run Tox
+description: Sets up tox and runs a tox environment.
+inputs:
+  tox-env:
+    description: The tox environment to execute.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install Tox
+      run: |
+        python -mpip install -U pip
+        python -mpip install 'tox<=3.14.5' 'virtualenv<20.0.5'
+      shell: bash
+    - name: Execute tox -e ${{ inputs.tox-env }}
+      run: |
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+          # Needed for Pillow to build successfully:
+          #   https://github.com/python-pillow/Pillow/issues/3438#issuecomment-543812237
+          export CPATH="$(xcrun --show-sdk-path)/usr/include"
+        fi
+        tox --skip-missing-interpreters=false -v -e ${{ inputs.tox-env }}
+      shell: bash

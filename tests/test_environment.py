@@ -302,7 +302,14 @@ _KNOWN_BAD_APPLE_INTERPRETER = (
 
 
 @pytest.mark.skipif(
-    not os.path.exists(_KNOWN_BAD_APPLE_INTERPRETER),
+    not os.path.exists(_KNOWN_BAD_APPLE_INTERPRETER)
+    or subprocess.check_output(
+        [
+            _KNOWN_BAD_APPLE_INTERPRETER,
+            "-c" "import sys; print('.'.join(map(str, sys.version_info[:3])))",
+        ]
+    )
+    != b"2.7.10",
     reason="Test requires known bad Apple interpreter {}".format(_KNOWN_BAD_APPLE_INTERPRETER),
 )
 def test_osx_platform_intel_issue_523():
