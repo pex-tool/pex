@@ -15,7 +15,7 @@ from types import ModuleType
 import pytest
 
 from pex.common import safe_mkdir, safe_open, temporary_dir
-from pex.compatibility import PY2, WINDOWS, nested, to_bytes
+from pex.compatibility import PY2, WINDOWS, to_bytes
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -204,10 +204,9 @@ def test_minimum_sys_modules():
 
 def test_site_libs():
     # type: () -> None
-    with nested(mock.patch.object(PEX, "_get_site_packages"), temporary_dir()) as (
-        mock_site_packages,
-        tempdir,
-    ):
+    with mock.patch.object(
+        PEX, "_get_site_packages"
+    ) as mock_site_packages, temporary_dir() as tempdir:
         site_packages = os.path.join(tempdir, "site-packages")
         os.mkdir(site_packages)
         mock_site_packages.return_value = set([site_packages])
@@ -218,10 +217,9 @@ def test_site_libs():
 @pytest.mark.skipif(WINDOWS, reason="No symlinks on windows")
 def test_site_libs_symlink():
     # type: () -> None
-    with nested(mock.patch.object(PEX, "_get_site_packages"), temporary_dir()) as (
-        mock_site_packages,
-        tempdir,
-    ):
+    with mock.patch.object(
+        PEX, "_get_site_packages"
+    ) as mock_site_packages, temporary_dir() as tempdir:
         site_packages = os.path.join(tempdir, "site-packages")
         os.mkdir(site_packages)
         site_packages_link = os.path.join(tempdir, "site-packages-link")
@@ -240,10 +238,9 @@ def test_site_libs_excludes_prefix():
     Make sure to exclude it.
     """
 
-    with nested(mock.patch.object(PEX, "_get_site_packages"), temporary_dir()) as (
-        mock_site_packages,
-        tempdir,
-    ):
+    with mock.patch.object(
+        PEX, "_get_site_packages"
+    ) as mock_site_packages, temporary_dir() as tempdir:
         site_packages = os.path.join(tempdir, "site-packages")
         os.mkdir(site_packages)
         mock_site_packages.return_value = set([site_packages, sys.prefix])
