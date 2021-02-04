@@ -1,0 +1,67 @@
+name: Release
+on:
+  push:
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+
+jobs:
+  pypi:
+    name: Publish sdist and wheel to PyPI
+    runs-on: ubuntu-20.04
+    environment: Release
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Publish
+        uses: ./.github/actions/run-tox
+        env:
+          FLIT_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          FLIT_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        with:
+          tox-env: publish
+  pex-pex:
+    name: Create Github Release
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - name: Install Packages
+        run: |
+          sudo apt install --yes jq
+      - name: Package Pex PEX
+        uses: ./.github/actions/run-tox
+        with:
+          tox-env: package
+      - name: Determine Tag
+        id: determine-tag
+        run: |
+          echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> ${GITHUB_ENV}
+      - name: Create Release
+        run: |
+          RELEASE_VERSION=${RELEASE_TAG#v}
+          curl \
+            --request POST \
+            --header "Accept: application/vnd.github.v3+json" \
+            --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            --url https://api.github.com/repos/pantsbuild/pex/releases \
+            --data '{
+              "tag_name": "'${RELEASE_TAG}'",
+              "name": "pex '${RELEASE_VERSION}'",
+              "body": "---\n\n## '${RELEASE_VERSION}'\n\nTODO: Add CHANGES.rst entries."
+            }' | tee response.json
+          echo "RELEASE_ID=$(jq '.id' response.json)" >> ${GITHUB_ENV}
+      - name: Upload Pex PEX
+        run: |
+          curl \
+            --request POST \
+            --header "Accept: application/vnd.github.v3+json" \
+            --header 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+            --url https://api.github.com/repos/pantsbuild/pex/releases/${RELEASE_ID}/assets
+            --upload-file dist/pex
