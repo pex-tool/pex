@@ -185,13 +185,8 @@ class Pip(object):
                 from pex.pex_builder import PEXBuilder
 
                 isolated_pip_builder = PEXBuilder(path=chroot)
-                pythonpath = third_party.expose(["pip", "setuptools", "wheel"])
-                isolated_pip_environment = third_party.pkg_resources.Environment(
-                    search_path=pythonpath
-                )
-                for dist_name in isolated_pip_environment:
-                    for dist in isolated_pip_environment[dist_name]:
-                        isolated_pip_builder.add_dist_location(dist=dist.location)
+                for dist_location in third_party.expose(["pip", "setuptools", "wheel"]):
+                    isolated_pip_builder.add_dist_location(dist=dist_location)
                 with open(os.path.join(isolated_pip_builder.path(), "run_pip.py"), "w") as fp:
                     fp.write(
                         dedent(
