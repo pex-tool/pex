@@ -16,7 +16,7 @@ from pex.bin.pex import (
     configure_clp_pex_resolution,
 )
 from pex.common import safe_copy, temporary_dir
-from pex.compatibility import nested, to_bytes
+from pex.compatibility import to_bytes
 from pex.interpreter import PythonInterpreter
 from pex.testing import (
     PY27,
@@ -155,14 +155,11 @@ def test_clp_prereleases():
 
 def test_clp_prereleases_resolver():
     # type: () -> None
-    with nested(
-        built_wheel(name="prerelease-dep", version="1.2.3b1"),
-        built_wheel(name="transitive-dep", install_reqs=["prerelease-dep"]),
-        built_wheel(name="dep", install_reqs=["prerelease-dep>=1.2", "transitive-dep"]),
-        temporary_dir(),
-        temporary_dir(),
-    ) as (prerelease_dep, transitive_dep, dep, dist_dir, cache_dir):
-
+    with built_wheel(name="prerelease-dep", version="1.2.3b1") as prerelease_dep, built_wheel(
+        name="transitive-dep", install_reqs=["prerelease-dep"]
+    ) as transitive_dep, built_wheel(
+        name="dep", install_reqs=["prerelease-dep>=1.2", "transitive-dep"]
+    ) as dep, temporary_dir() as dist_dir, temporary_dir() as cache_dir:
         for dist in (prerelease_dep, transitive_dep, dep):
             safe_copy(dist, os.path.join(dist_dir, os.path.basename(dist)))
 
@@ -181,7 +178,7 @@ def test_clp_prereleases_resolver():
         )
         assert not options.allow_prereleases
 
-        with pytest.raises(SystemExit, message="Should have failed to resolve prerelease dep"):
+        with pytest.raises(SystemExit):
             build_pex(options.requirements, options)
 
         # When we specify `--pre`, allow_prereleases is True

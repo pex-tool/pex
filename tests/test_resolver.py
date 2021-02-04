@@ -11,7 +11,6 @@ import pkginfo
 import pytest
 
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
-from pex.compatibility import nested
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.pex_builder import PEXBuilder
@@ -102,7 +101,7 @@ def test_resolve_cache():
     # type: () -> None
     project_wheel = build_wheel(name="project")
 
-    with nested(temporary_dir(), temporary_dir()) as (td, cache):
+    with temporary_dir() as td, temporary_dir() as cache:
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
 
         # Without a cache, each resolve should be isolated, but otherwise identical.

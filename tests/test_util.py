@@ -7,7 +7,7 @@ from hashlib import sha1
 from textwrap import dedent
 
 from pex.common import safe_mkdir, safe_open, temporary_dir, touch
-from pex.compatibility import nested, to_bytes
+from pex.compatibility import to_bytes
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.typing import TYPE_CHECKING, cast
@@ -128,7 +128,7 @@ def assert_access_zipped_assets(distribution_helper_import):
             distribution_helper_import=distribution_helper_import
         )
     )
-    with nested(temporary_dir(), temporary_dir()) as (td1, td2):
+    with temporary_dir() as td1, temporary_dir() as td2:
         pb = PEXBuilder(path=td1)
         with open(os.path.join(td1, "exe.py"), "w") as fp:
             fp.write(test_executable)

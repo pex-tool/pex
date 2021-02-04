@@ -31,7 +31,7 @@ from pex.common import (
     temporary_dir,
     touch,
 )
-from pex.compatibility import WINDOWS, nested, to_bytes
+from pex.compatibility import WINDOWS, to_bytes
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.network_configuration import NetworkConfiguration
@@ -113,11 +113,10 @@ def assert_installed_wheels(label, pex_root):
 
 def test_pex_root_build():
     # type: () -> None
-    with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (
-        buildtime_pex_root,
-        output_dir,
-        home,
-    ):
+    with temporary_dir() as td, temporary_dir() as home:
+        buildtime_pex_root = os.path.join(td, "buildtime_pex_root")
+        output_dir = os.path.join(td, "output_dir")
+
         output_path = os.path.join(output_dir, "pex.pex")
         args = [
             "pex",
@@ -135,12 +134,10 @@ def test_pex_root_build():
 
 def test_pex_root_run():
     # type: () -> None
-    with nested(temporary_dir(), temporary_dir(), temporary_dir(), temporary_dir()) as (
-        buildtime_pex_root,
-        runtime_pex_root,
-        output_dir,
-        home,
-    ):
+    with temporary_dir() as td, temporary_dir() as runtime_pex_root, temporary_dir() as home:
+        buildtime_pex_root = os.path.join(td, "buildtime_pex_root")
+        output_dir = os.path.join(td, "output_dir")
+
         output_path = os.path.join(output_dir, "pex.pex")
         args = [
             "pex",
@@ -172,7 +169,7 @@ def test_pex_root_run():
 
 def test_cache_disable():
     # type: () -> None
-    with nested(temporary_dir(), temporary_dir(), temporary_dir()) as (td, output_dir, tmp_home):
+    with temporary_dir() as td, temporary_dir() as output_dir, temporary_dir() as tmp_home:
         output_path = os.path.join(output_dir, "pex.pex")
         args = [
             "pex",

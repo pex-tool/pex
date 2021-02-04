@@ -11,7 +11,7 @@ import pytest
 
 from pex import resolver
 from pex.common import open_zip, temporary_dir
-from pex.compatibility import PY2, nested, to_bytes
+from pex.compatibility import PY2, to_bytes
 from pex.distribution_target import DistributionTarget
 from pex.environment import PEXEnvironment, _RankedDistribution
 from pex.inherit_path import InheritPath
@@ -40,10 +40,7 @@ if TYPE_CHECKING:
 @contextmanager
 def yield_pex_builder(zip_safe=True, interpreter=None):
     # type: (bool, Optional[PythonInterpreter]) -> Iterator[PEXBuilder]
-    with nested(temporary_dir(), make_bdist("p1", zip_safe=zip_safe, interpreter=interpreter)) as (
-        td,
-        p1,
-    ):
+    with temporary_dir() as td, make_bdist("p1", zip_safe=zip_safe, interpreter=interpreter) as p1:
         pb = PEXBuilder(path=td, interpreter=interpreter)
         pb.add_dist_location(p1.location)
         yield pb
@@ -51,11 +48,7 @@ def yield_pex_builder(zip_safe=True, interpreter=None):
 
 def test_force_local():
     # type: () -> None
-    with nested(yield_pex_builder(), temporary_dir(), temporary_filename()) as (
-        pb,
-        pex_root,
-        pex_file,
-    ):
+    with yield_pex_builder() as pb, temporary_dir() as pex_root, temporary_filename() as pex_file:
         pb.info.pex_root = pex_root
         pb.build(pex_file)
 
@@ -179,7 +172,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
             for path in content.keys():
                 builder.add_source(os.path.join(project, path), path)
 
-    with nested(temporary_dir(), temporary_dir()) as (root, cache):
+    with temporary_dir() as root, temporary_dir() as cache:
         pex_info1 = PexInfo.default()
         pex_info1.zip_safe = False
         pex1 = os.path.join(root, "pex1.pex")
@@ -253,12 +246,9 @@ def normalize(path):
 
 def assert_dist_cache(zip_safe):
     # type: (bool) -> None
-    with nested(yield_pex_builder(zip_safe=zip_safe), temporary_dir(), temporary_filename()) as (
-        pb,
-        pex_root,
-        pex_file,
-    ):
-
+    with yield_pex_builder(
+        zip_safe=zip_safe
+    ) as pb, temporary_dir() as pex_root, temporary_filename() as pex_file:
         pb.info.pex_root = pex_root
         pb.build(pex_file)
 
@@ -286,7 +276,7 @@ def test_write_zipped_internal_cache():
 def test_load_internal_cache_unzipped():
     # type: () -> None
     # Unzipped pexes should use distributions from the pex internal cache.
-    with nested(yield_pex_builder(zip_safe=True), temporary_dir()) as (pb, pex_root):
+    with yield_pex_builder(zip_safe=True) as pb, temporary_dir() as pex_root:
         pb.info.pex_root = pex_root
         pb.freeze()
 
@@ -325,10 +315,9 @@ def test_osx_platform_intel_issue_523():
         # We need to run the bad interpreter with a modern, non-Apple-Extras setuptools in order to
         # successfully install psutil; yield_pex_builder sets up the bad interpreter with our vendored
         # setuptools and wheel extras.
-        with nested(yield_pex_builder(interpreter=bad_interpreter()), temporary_filename()) as (
-            pb,
-            pex_file,
-        ):
+        with yield_pex_builder(
+            interpreter=bad_interpreter()
+        ) as pb, temporary_filename() as pex_file:
             for resolved_dist in resolver.resolve(
                 ["psutil==5.4.3"], cache=cache, interpreter=pb.interpreter
             ):

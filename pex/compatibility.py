@@ -98,21 +98,6 @@ else:
     # This will result in `exec_function` being defined at runtime.
     eval(compile(_PY3_EXEC_FUNCTION, "<exec_function>", "exec"))
 
-if PY3:
-    from contextlib import contextmanager, ExitStack
-
-    @contextmanager
-    def nested(*context_managers):
-        enters = []
-        with ExitStack() as stack:
-            for manager in context_managers:
-                enters.append(stack.enter_context(manager))
-            yield tuple(enters)
-
-
-else:
-    from contextlib import nested as nested
-
 
 if PY3:
     import urllib.parse as urlparse
