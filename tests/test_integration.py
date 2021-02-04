@@ -41,6 +41,7 @@ from pex.pip import get_pip
 from pex.requirements import LogicalLine, PyPIRequirement, URLFetcher, parse_requirement_file
 from pex.testing import (
     IS_PYPY,
+    IS_PYPY3,
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
     NOT_CPYTHON36_OR_LINUX,
@@ -234,6 +235,7 @@ def test_pex_repl_built():
         assert b">>>" in stdout
 
 
+@pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
 @pytest.mark.skipif(WINDOWS, reason="No symlinks on windows")
 def test_pex_python_symlink():
     # type: () -> None
@@ -2655,6 +2657,7 @@ def isort_pex_args(tmpdir):
     return pex_file, requirements + ["-c", "isort", "-o", pex_file]
 
 
+@pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
 def test_venv_mode(
     tmpdir,  # type: Any
     isort_pex_args,  # type: Tuple[str, List[str]]
@@ -2710,6 +2713,9 @@ def test_seed(
     mode_args,  # type: List[str]
 ):
     # type: (...) -> None
+    if mode_args == ["--venv"] and IS_PYPY3:
+        pytest.xfail(reason="https://github.com/pantsbuild/pex/issues/1210")
+
     pex_file, args = isort_pex_args
     results = run_pex_command(args=args + mode_args + ["--seed"], quiet=True)
     results.assert_success()

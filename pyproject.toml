@@ -9,6 +9,7 @@ author-email = "pantsbuild@gmail.com"
 home-page = "https://github.com/pantsbuild/pex"
 description-file = "README.rst"
 classifiers = [
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: Apache Software License",
   "Operating System :: Unix",
@@ -23,6 +24,12 @@ classifiers = [
   "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Topic :: Software Development :: Build Tools",
+  "Topic :: System :: Archiving :: Packaging",
+  "Topic :: System :: Software Distribution",
+  "Topic :: Utilities",
 ]
 requires-python = ">=2.7,<3.10,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
 
