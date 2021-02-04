@@ -1,58 +1,55 @@
 name: CI
 on: [push, pull_request]
 jobs:
-  format-check:
-    name: TOXENV=format-check
+  checks:
+    name:  TOXENV=${{ matrix.tox-env }}
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        include:
+          - check-name: Formatting
+            python-version: 3.9
+            tox-env: format-check
+          - check-name: Types
+            python-version: 3.9
+            tox-env: typecheck
+          - check-name: Vendoring
+            python-version: 3.8
+            tox-env: vendor-check
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
-      - name: Setup Python 3.9
+      - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9
-      - name: Check Formatting
+          python-version: "${{ matrix.python-version }}"
+      - name: Check ${{ matrix.check-name }}
         uses: ./.github/actions/run-tox
         with:
-          tox-env: format-check
-  typecheck:
-    name: TOXENV=typecheck
-    runs-on: ubuntu-20.04
+          tox-env: ${{ matrix.tox-env }}
+  cpython-unit-tests:
+    name: (${{ matrix.os }}) TOXENV=py${{ join(matrix.python-version, '') }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9]]
+        os: [ubuntu-20.04, macos-10.15]
+        exclude:
+          - os: macos-10.15
+            python-version: [3, 5]
+          - os: macos-10.15
+            python-version: [3, 6]
+          - os: macos-10.15
+            python-version: [3, 7]
+          - os: macos-10.15
+            python-version: [3, 8]
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
-      - name: Setup Python 3.9
+      - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9
-      - name: Check Types
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: typecheck
-  vendor-check:
-    name: TOXENV=vendor-check
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 3.8
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-      - name: Check Vendoring
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: vendor-check
-  py27:
-    name: TOXENV=py27
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 2.7
-        uses: actions/setup-python@v2
-        with:
-          python-version: 2.7
+          python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -61,17 +58,20 @@ jobs:
       - name: Run Unit Tests
         uses: ./.github/actions/run-tox
         with:
-          tox-env: py27
-  py27-subprocess:
-    name: TOXENV=py27-subprocess
+          tox-env: py${{ join(matrix.python-version, '') }}
+  pypy-unit-tests:
+    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ matrix.pypy-version[0] }}
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        pypy-version: [[2, 7]]
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
-      - name: Setup Python 2.7
+      - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: actions/setup-python@v2
         with:
-          python-version: 2.7
+          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -80,131 +80,21 @@ jobs:
       - name: Run Unit Tests
         uses: ./.github/actions/run-tox
         with:
-          tox-env: py27-subprocess
-  py35:
-    name: TOXENV=py35
-    runs-on: ubuntu-20.04
+          tox-env: pypy${{ matrix.pypy-version[0] }}
+  cpython-integration-tests:
+    name: (${{ matrix.os }}) TOXENV=py${{ join(matrix.python-version, '') }}-integration
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: [[2, 7], [3, 9]]
+        os: [ubuntu-20.04, macos-10.15]
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
-      - name: Setup Python 3.5
+      - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.5
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py35
-  py36:
-    name: TOXENV=py36
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 3.6
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.6
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py36
-  py37:
-    name: TOXENV=py37
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 3.7
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.7
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py37
-  py38:
-    name: TOXENV=py38
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 3.8
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py38
-  py39:
-    name: TOXENV=py39
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 3.9
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py39
-  pypy:
-    name: TOXENV=pypy
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup PyPy
-        uses: actions/setup-python@v2
-        with:
-          python-version: pypy-2.7
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: pypy
-  py27-integration:
-    name: TOXENV=py27-integration
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 2.7
-        uses: actions/setup-python@v2
-        with:
-          python-version: 2.7
+          python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -213,41 +103,24 @@ jobs:
       - name: Run Integration Tests
         uses: ./.github/actions/run-tox
         with:
-          tox-env: py27-integration
-  py39-integration:
-    name: TOXENV=py39-integration
+          tox-env: py${{ join(matrix.python-version, '') }}-integration
+  pypy-integration-tests:
+    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ matrix.pypy-version[0] }}-integration
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        pypy-version: [[2, 7]]
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
-      - name: Setup Python 3.9
+      - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Integration Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py39-integration
-  pypy-integration:
-    name: TOXENV=pypy-integration
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup PyPy
-        uses: actions/setup-python@v2
-        with:
-          python-version: pypy-2.7
+          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Install Packages
         run: |
           # This is needed for `test_requirement_file_from_url` for building `lxml`.
           sudo apt install --yes libxslt-dev
-        shell: bash
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -256,80 +129,4 @@ jobs:
       - name: Run Integration Tests
         uses: ./.github/actions/run-tox
         with:
-          tox-env: pypy-integration
-  py27-osx:
-    name: (macOS) TOXENV=py27
-    runs-on: macos-10.15
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 2.7
-        uses: actions/setup-python@v2
-        with:
-          python-version: 2.7
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py27
-  py27-osx-integration:
-    name: (macOS) TOXENV=py27-integration
-    runs-on: macos-10.15
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 2.7
-        uses: actions/setup-python@v2
-        with:
-          python-version: 2.7
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Integration Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py27-integration
-  py39-osx:
-    name: (macOS) TOXENV=py39
-    runs-on: macos-10.15
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 3.9
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py39
-  py39-osx-integration:
-    name: (macOS) TOXENV=py39-integration
-    runs-on: macos-10.15
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python 3.9
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
-      - name: Run Integration Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py39-integration
+          tox-env: pypy${{ matrix.pypy-version[0] }}-integration
