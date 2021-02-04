@@ -22,6 +22,7 @@ from pex.pex_info import PexInfo
 from pex.resolver import resolve
 from pex.testing import (
     IS_LINUX,
+    IS_PYPY3,
     PY35,
     WheelBuilder,
     ensure_python_interpreter,
@@ -209,6 +210,7 @@ def setuptools_requirement():
     return "setuptools==1.0" if PY2 else "setuptools==17.0"
 
 
+@pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
 def test_issues_598_explicit_any_interpreter(setuptools_requirement):
     # type: (str) -> None
     assert_force_local_implicit_ns_packages_issues_598(
