@@ -518,9 +518,12 @@ class Pip(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         cache=None,  # type: Optional[str]
+        verify=True,  # type: bool
     ):
         # type: (...) -> Job
         wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
+        if not verify:
+            wheel_cmd.append("--no-verify")
         wheel_cmd.extend(distributions)
 
         return self._spawn_pip_isolated_job(

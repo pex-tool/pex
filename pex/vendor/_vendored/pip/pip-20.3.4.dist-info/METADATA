@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pip
-Version: 21.0.dev0
+Version: 20.3.4
 Summary: The PyPA recommended tool for installing Python packages.
 Home-page: https://pip.pypa.io/
 Author: The pip developers

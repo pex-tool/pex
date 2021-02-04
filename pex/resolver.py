@@ -550,6 +550,7 @@ class BuildAndInstallRequest(object):
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         cache=None,  # type: Optional[str]
         compile=False,  # type: bool
+        verify_wheels=True,  # type: bool
     ):
         # type: (...) -> None
         self._build_requests = tuple(build_requests)
@@ -558,6 +559,7 @@ class BuildAndInstallRequest(object):
         self._package_index_configuration = package_index_configuration
         self._cache = cache
         self._compile = compile
+        self._verify_wheels = verify_wheels
 
     def _categorize_build_requests(
         self,
@@ -596,6 +598,7 @@ class BuildAndInstallRequest(object):
             cache=self._cache,
             package_index_configuration=self._package_index_configuration,
             interpreter=build_request.target.get_interpreter(),
+            verify=self._verify_wheels,
         )
         return SpawnedJob.wait(job=build_job, result=build_result)
 
@@ -977,6 +980,7 @@ def resolve_multi(
     manylinux=None,
     max_parallel_jobs=None,
     ignore_errors=False,
+    verify_wheels=True,
 ):
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
 
@@ -1030,6 +1034,7 @@ def resolve_multi(
     :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
+    :keyword bool verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
     :returns: List of :class:`ResolvedDistribution` instances meeting ``requirements``.
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
@@ -1105,6 +1110,7 @@ def resolve_multi(
         package_index_configuration=package_index_configuration,
         cache=cache,
         compile=compile,
+        verify_wheels=verify_wheels,
     )
 
     ignore_errors = ignore_errors or not transitive
@@ -1336,6 +1342,7 @@ def install(
     compile=False,
     max_parallel_jobs=None,
     ignore_errors=False,
+    verify_wheels=True,
 ):
     """Installs distributions in individual chroots that can be independently added to `sys.path`.
 
@@ -1360,6 +1367,7 @@ def install(
     :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
+    :keyword bool verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
     :returns: List of :class:`InstalledDistribution` instances meeting ``requirements``.
     :raises Untranslatable: If no compatible distributions could be acquired for
       a particular requirement.
@@ -1387,6 +1395,7 @@ def install(
         package_index_configuration=package_index_configuration,
         cache=cache,
         compile=compile,
+        verify_wheels=verify_wheels,
     )
 
     return list(

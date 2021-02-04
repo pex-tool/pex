@@ -522,7 +522,12 @@ def test_resolve_arbitrary_equality_issues_940():
         version="1.0.2-fba4511",
         python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
     )
-    resolved_distributions = local_resolve_multi(requirements=[dist])
+    resolved_distributions = local_resolve_multi(
+        requirements=[dist],
+        # We need this to allow the invalid version above to sneak by pip wheel metadata
+        # verification.
+        verify_wheels=False,
+    )
 
     assert len(resolved_distributions) == 1
     requirement = resolved_distributions[0].direct_requirement

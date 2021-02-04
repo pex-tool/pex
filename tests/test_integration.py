@@ -2438,6 +2438,9 @@ def test_resolve_arbitrary_equality_issues_940():
     with temporary_dir() as tmpdir, built_wheel(
         name="foo",
         version="1.0.2-fba4511",
+        # We need this to allow the invalid version above to sneak by pip wheel metadata
+        # verification.
+        verify=False,
         python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
     ) as whl:
         pex_file = os.path.join(tmpdir, "pex")

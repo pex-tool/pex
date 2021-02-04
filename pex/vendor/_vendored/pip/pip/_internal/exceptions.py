@@ -91,11 +91,6 @@ class CommandError(PipError):
     """Raised when there is an error in command-line arguments"""
 
 
-class SubProcessError(PipError):
-    """Raised when there is an error raised while executing a
-    command in subprocess"""
-
-
 class PreviousBuildDirError(PipError):
     """Raised when there's a previous conflicting build directory"""
 
@@ -149,6 +144,21 @@ class MetadataInconsistent(InstallationError):
         return "Requested {} has different {} in metadata: {!r}".format(
             self.ireq, self.field, self.built,
         )
+
+
+class InstallationSubprocessError(InstallationError):
+    """A subprocess call failed during installation."""
+    def __init__(self, returncode, description):
+        # type: (int, str) -> None
+        self.returncode = returncode
+        self.description = description
+
+    def __str__(self):
+        # type: () -> str
+        return (
+            "Command errored out with exit status {}: {} "
+            "Check the logs for full command output."
+        ).format(self.returncode, self.description)
 
 
 class HashErrors(InstallationError):
