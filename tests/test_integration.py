@@ -41,7 +41,6 @@ from pex.pip import get_pip
 from pex.requirements import LogicalLine, PyPIRequirement, URLFetcher, parse_requirement_file
 from pex.testing import (
     IS_PYPY,
-    IS_PYPY3,
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
     NOT_CPYTHON36_OR_LINUX,
@@ -232,7 +231,6 @@ def test_pex_repl_built():
         assert b">>>" in stdout
 
 
-@pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
 @pytest.mark.skipif(WINDOWS, reason="No symlinks on windows")
 def test_pex_python_symlink():
     # type: () -> None
