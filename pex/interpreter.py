@@ -65,18 +65,8 @@ class PythonIdentity(object):
     class UnknownRequirement(Error):
         pass
 
-    # TODO(wickman)  Support interpreter-specific versions, e.g. PyPy-2.2.1
-    INTERPRETER_NAME_TO_HASHBANG = {
-        "CPython": "python%(major)d.%(minor)d",
-        "Jython": "jython",
-        "PyPy": "pypy",
-        "IronPython": "ipy",
-    }
-
     ABBR_TO_INTERPRETER_NAME = {
         "pp": "PyPy",
-        "jy": "Jython",
-        "ip": "IronPython",
         "cp": "CPython",
     }
 
@@ -274,14 +264,11 @@ class PythonIdentity(object):
 
     def hashbang(self):
         # type: () -> str
-        hashbang_string = self.INTERPRETER_NAME_TO_HASHBANG.get(
-            self._interpreter_name, "CPython"
-        ) % {
-            "major": self._version[0],
-            "minor": self._version[1],
-            "patch": self._version[2],
-        }
-        return "#!/usr/bin/env %s" % hashbang_string
+        if self._interpreter_name == "PyPy":
+            hashbang_string = "pypy" if self._version[0] == 2 else "pypy{}".format(self._version[0])
+        else:
+            hashbang_string = "python{}.{}".format(self._version[0], self._version[1])
+        return "#!/usr/bin/env {}".format(hashbang_string)
 
     @property
     def python(self):
@@ -329,16 +316,31 @@ class PythonIdentity(object):
 
 class PythonInterpreter(object):
     _REGEXEN = (
-        re.compile(r"jython$"),
-        # NB: OSX ships python binaries named Python so we allow for capital-P.
-        re.compile(r"[Pp]ython$"),
-        re.compile(r"python[23]$"),
-        re.compile(r"python[23].[0-9]$"),
-        # Some distributions include a suffix on the interpreter name, similar to PEP-3149.
-        # For example, Gentoo has /usr/bin/python3.6m to indicate it was built with pymalloc.
-        re.compile(r"python[23].[0-9][a-z]$"),
-        re.compile(r"pypy$"),
-        re.compile(r"pypy-1.[0-9]$"),
+        # NB: OSX ships python binaries named Python with a capital-P; so we allow for this.
+        re.compile(r"^Python$"),
+        re.compile(
+            r"""
+            ^
+            (?:
+                python |
+                pypy
+            )
+            (?:
+                # Major version
+                [2-9]
+                (?:.
+                    # Minor version
+                    [0-9]
+                    # Some distributions include a suffix on the interpreter name, similar to
+                    # PEP-3149. For example, Gentoo has /usr/bin/python3.6m to indicate it was
+                    # built with pymalloc
+                    [a-z]?
+                )?
+            )?
+            $
+            """,
+            flags=re.VERBOSE,
+        ),
     )
 
     _PYTHON_INTERPRETER_BY_NORMALIZED_PATH = {}  # type: Dict
