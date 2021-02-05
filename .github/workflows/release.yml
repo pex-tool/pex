@@ -40,7 +40,6 @@ jobs:
         with:
           tox-env: package
       - name: Determine Tag
-        id: determine-tag
         run: |
           echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> ${GITHUB_ENV}
       - name: Create Release
