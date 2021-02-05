@@ -3,31 +3,65 @@ on:
   push:
     tags:
       - v[0-9]+.[0-9]+.[0-9]+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to manually run a deploy for.
+        required: true
 jobs:
+  determine-tag:
+    name: Determine the release tag to operate against.
+    runs-on: ubuntu-20.04
+    outputs:
+      release-tag: ${{ steps.determine-tag.outputs.release-tag }}
+    steps:
+      - name: Determine Tag
+        id: determine-tag
+        run: |
+          if [[ -n "${{ github.event.inputs.tag }}" ]]; then
+            RELEASE_TAG=${{ github.event.inputs.tag }}
+          else
+            RELEASE_TAG=${GITHUB_REF#refs/tags/}
+          fi
+          if [[ "${RELEASE_TAG}" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+            echo "::set-output name=release-tag::${RELEASE_TAG}"
+          else
+            echo "::error::Release tag '${RELEASE_TAG}' must match 'v\d+.\d+.\d+'."
+            exit 1
+          fi
   pypi:
     name: Publish sdist and wheel to PyPI
     runs-on: ubuntu-20.04
     environment: Release
+    needs: determine-tag
     steps:
-      - name: Checkout Pex
+      - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
         uses: actions/checkout@v2
+        with:
+          ref: ${{ needs.determine-tag.outputs.release-tag }}
       - name: Setup Python 3.9
         uses: actions/setup-python@v2
         with:
           python-version: 3.9
-      - name: Publish
+      - name: Publish Pex ${{ needs.determine-tag.outputs.release-tag }}
         uses: ./.github/actions/run-tox
         env:
           FLIT_USERNAME: ${{ secrets.PYPI_USERNAME }}
           FLIT_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         with:
           tox-env: publish
-  pex-pex:
+  github-release:
     name: Create Github Release
     runs-on: ubuntu-20.04
+    environment: Release
+    needs: determine-tag
     steps:
-      - name: Checkout Pex
+      - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
         uses: actions/checkout@v2
+        with:
+          ref: ${{ needs.determine-tag.outputs.release-tag }}
+          # This ensures we get all branches and tags which is needed for `tox -e package`.
+          fetch-depth: 0
       - name: Setup Python 3.9
         uses: actions/setup-python@v2
         with:
@@ -35,15 +69,13 @@ jobs:
       - name: Install Packages
         run: |
           sudo apt install --yes jq
-      - name: Package Pex PEX
+      - name: Package Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
         uses: ./.github/actions/run-tox
         with:
           tox-env: package
-      - name: Determine Tag
+      - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release
         run: |
-          echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> ${GITHUB_ENV}
-      - name: Create Release
-        run: |
+          RELEASE_TAG=${{ needs.determine-tag.outputs.release-tag }}
           RELEASE_VERSION=${RELEASE_TAG#v}
           curl \
             --request POST \
@@ -56,7 +88,7 @@ jobs:
               "body": "---\n\n## '${RELEASE_VERSION}'\n\nTODO: Add CHANGES.rst entries."
             }' | tee response.json
           echo "RELEASE_ID=$(jq '.id' response.json)" >> ${GITHUB_ENV}
-      - name: Upload Pex PEX
+      - name: Upload Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
         run: |
           curl \
             --request POST \
