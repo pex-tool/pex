@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-20.04
     outputs:
       release-tag: ${{ steps.determine-tag.outputs.release-tag }}
+      release-version: ${{ steps.determine-tag.outputs.release-version }}
     steps:
       - name: Determine Tag
         id: determine-tag
@@ -25,6 +26,7 @@ jobs:
           fi
           if [[ "${RELEASE_TAG}" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
             echo "::set-output name=release-tag::${RELEASE_TAG}"
+            echo "::set-output name=release-version::${RELEASE_TAG#v}"
           else
             echo "::error::Release tag '${RELEASE_TAG}' must match 'v\d+.\d+.\d+'."
             exit 1
@@ -66,33 +68,32 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.9
-      - name: Install Packages
-        run: |
-          sudo apt install --yes jq
       - name: Package Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
         uses: ./.github/actions/run-tox
         with:
           tox-env: package
       - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release
-        run: |
-          RELEASE_TAG=${{ needs.determine-tag.outputs.release-tag }}
-          RELEASE_VERSION=${RELEASE_TAG#v}
-          curl \
-            --request POST \
-            --header "Accept: application/vnd.github.v3+json" \
-            --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            --url https://api.github.com/repos/pantsbuild/pex/releases \
-            --data '{
-              "tag_name": "'${RELEASE_TAG}'",
-              "name": "pex '${RELEASE_VERSION}'",
-              "body": "---\n\n## '${RELEASE_VERSION}'\n\nTODO: Add CHANGES.rst entries."
-            }' | tee response.json
-          echo "RELEASE_ID=$(jq '.id' response.json)" >> ${GITHUB_ENV}
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.determine-tag.outputs.release-tag }}
+          release_name: pex ${{ needs.determine-tag.outputs.release-version }}
+          body: |
+            ---
+
+            ## ${{ needs.determine-tag.outputs.release-version }}
+
+            TODO: Add CHANGES.rst entries.
+          draft: false
+          prerelease: false
       - name: Upload Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
-        run: |
-          curl \
-            --request POST \
-            --header "Accept: application/vnd.github.v3+json" \
-            --header 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
-            --url https://api.github.com/repos/pantsbuild/pex/releases/${RELEASE_ID}/assets
-            --upload-file dist/pex
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: dist/pex
+          asset_name: pex
+          asset_content_type: application/zip
