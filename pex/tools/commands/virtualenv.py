@@ -87,7 +87,8 @@ class Virtualenv(object):
             )
             interpreter = base_interpreter
 
-        if interpreter.version[0] >= 3:
+        if interpreter.version[0] >= 3 and not interpreter.identity.interpreter == "PyPy":
+            # N.B.: PyPy3 comes equipped with a venv module but it does not seem to work.
             interpreter.execute(args=["-m", "venv", "--without-pip", venv_dir])
         else:
             virtualenv_py = resource_string(__name__, "virtualenv_16.7.10_py")

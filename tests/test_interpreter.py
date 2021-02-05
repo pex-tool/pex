@@ -93,11 +93,13 @@ class TestPythonInterpreter(object):
     def test_binary_name_matching(self):
         # type: () -> None
         valid_binary_names = (
-            "jython",
-            "pypy",
-            "pypy-1.1",
-            "python",
             "Python",
+            "pypy",
+            "pypy2",
+            "pypy3",
+            "pypy3.6",
+            "pypy3.6m",
+            "python",
             "python2",
             "python2.7",
             "python2.7m",

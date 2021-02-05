@@ -2654,7 +2654,6 @@ def isort_pex_args(tmpdir):
     return pex_file, requirements + ["-c", "isort", "-o", pex_file]
 
 
-@pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
 def test_venv_mode(
     tmpdir,  # type: Any
     isort_pex_args,  # type: Tuple[str, List[str]]
@@ -2697,7 +2696,6 @@ def test_venv_mode(
     assert isort_pex_interpreter2 == run_isort_pex(PEX_PYTHON=other_interpreter)
 
 
-@pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
 def test_venv_mode_issues_1218(tmpdir):
     # type: (Any) -> None
 
@@ -2763,9 +2761,6 @@ def test_seed(
     mode_args,  # type: List[str]
 ):
     # type: (...) -> None
-    if mode_args == ["--venv"] and IS_PYPY3:
-        pytest.xfail(reason="https://github.com/pantsbuild/pex/issues/1210")
-
     pex_file, args = isort_pex_args
     results = run_pex_command(args=args + mode_args + ["--seed"], quiet=True)
     results.assert_success()
