@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+2.1.29
+------
+
+This release fixes bugs in `--unzip` and `--venv` mode PEX file execution and upgrades to the last
+release of Pip to support Python 2.7.
+
+* Fix PyPy3 `--venv` mode. (#1221)
+  `PR #1221 <https://github.com/pantsbuild/pex/pull/1221>`_
+
+* Make `PexInfo.pex_hash` calculation more robust.  (#1219)
+  `PR #1219 <https://github.com/pantsbuild/pex/pull/1219>`_
+
+* Upgrade to Pip 20.3.4 patched. (#1205)
+  `PR #1205 <https://github.com/pantsbuild/pex/pull/1205>`_
+
 2.1.28
 ------
 
@@ -154,8 +169,8 @@ PEX files in highly concurrent environments in addition to fixing
 `pex --help-variables` output.
 
 A new suite of PEX tools is now available in Pex itself and any PEXes
-built with the new `--include-tools` option. Use 
-`PEX_TOOLS=1 pex --help` to find out more about the available tools and 
+built with the new `--include-tools` option. Use
+`PEX_TOOLS=1 pex --help` to find out more about the available tools and
 their usage.
 
 Finally, the long deprecated exposure of the Pex APIs through `_pex` has
