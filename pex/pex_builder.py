@@ -504,13 +504,7 @@ class PEXBuilder(object):
 
     def _prepare_code(self):
         self._pex_info.code_hash = CacheHelper.pex_code_hash(self._chroot.path())
-
-        hasher = hashlib.sha1()
-        hasher.update("code:{}".format(self._pex_info.code_hash).encode("utf-8"))
-        for location, sha in sorted(self._pex_info.distributions.items()):
-            hasher.update("{}:{}".format(location, sha).encode("utf-8"))
-        self._pex_info.pex_hash = hasher.hexdigest()
-
+        self._pex_info.pex_hash = hashlib.sha1(self._pex_info.dump().encode("utf-8")).hexdigest()
         self._chroot.write(self._pex_info.dump().encode("utf-8"), PexInfo.PATH, label="manifest")
 
         bootstrap = BOOTSTRAP_ENVIRONMENT.format(
