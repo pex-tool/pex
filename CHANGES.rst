@@ -4,8 +4,11 @@ Release Notes
 2.1.29
 ------
 
-This release fixes a bug in `--unzip` and `--venv` mode PEX file execution and upgrades to the last
+This release fixes bugs in `--unzip` and `--venv` mode PEX file execution and upgrades to the last
 release of Pip to support Python 2.7.
+
+* Fix PyPy3 `--venv` mode. (#1221)
+  `PR #1221 <https://github.com/pantsbuild/pex/pull/1221>`_
 
 * Make `PexInfo.pex_hash` calculation more robust.  (#1219)
   `PR #1219 <https://github.com/pantsbuild/pex/pull/1219>`_
