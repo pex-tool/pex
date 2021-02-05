@@ -7,10 +7,23 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Calculate Tox Version
+      id: calculate-tox-version
+      run: |
+        try:
+          from ConfigParser import ConfigParser
+        except ImportError:
+          from configparser import ConfigParser
+
+        cp = ConfigParser()
+        cp.read("tox.ini")
+        tox_min_version = cp.get("tox", "minversion")
+        print("::set-output name=tox-min-version::{}".format(tox_min_version))
+      shell: python
     - name: Install Tox
       run: |
         python -mpip install -U pip
-        python -mpip install 'tox<=3.14.5' 'virtualenv<20.0.5'
+        python -mpip install 'tox==${{ steps.calculate-tox-version.outputs.tox-min-version }}'
       shell: bash
     - name: Execute tox -e ${{ inputs.tox-env }}
       run: |
