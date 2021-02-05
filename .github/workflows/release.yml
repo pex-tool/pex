@@ -30,7 +30,7 @@ jobs:
             exit 1
           fi
   pypi:
-    name: Publish ${{ needs.determine-tag.outputs.release-tag }} sdist and wheel to PyPI
+    name: Publish sdist and wheel to PyPI
     runs-on: ubuntu-20.04
     environment: Release
     needs: determine-tag
@@ -51,7 +51,7 @@ jobs:
         with:
           tox-env: publish
   github-release:
-    name: Create ${{ needs.determine-tag.outputs.release-tag }} Github Release
+    name: Create Github Release
     runs-on: ubuntu-20.04
     environment: Release
     needs: determine-tag
@@ -75,7 +75,7 @@ jobs:
           tox-env: package
       - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release
         run: |
-          RELEASE_TAG=${{ steps.determine-tag.outputs.release-tag }}
+          RELEASE_TAG=${{ needs.determine-tag.outputs.release-tag }}
           RELEASE_VERSION=${RELEASE_TAG#v}
           curl \
             --request POST \
