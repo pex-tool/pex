@@ -86,7 +86,9 @@ def __maybe_run_venv__(pex):
   from pex.tracer import TRACER
   from pex.variables import venv_dir
 
-  venv_home = venv_dir({pex_root!r}, {pex_hash!r}, {interpreter_constraints!r})
+  venv_home = venv_dir(
+    {pex_root!r}, {pex_hash!r}, {interpreter_constraints!r}, pex_path={pex_path!r}
+  )
   venv_pex = os.path.join(venv_home, 'pex')
   if not is_exe(venv_pex):
     # Code in bootstrap_pex will (re)create the venv after selecting the correct interpreter. 
@@ -512,6 +514,7 @@ class PEXBuilder(object):
             pex_root=self._pex_info.raw_pex_root,
             pex_hash=self._pex_info.pex_hash,
             interpreter_constraints=self._pex_info.interpreter_constraints,
+            pex_path=self._pex_info.pex_path,
             is_unzip=self._pex_info.unzip,
             is_venv=self._pex_info.venv,
         )
