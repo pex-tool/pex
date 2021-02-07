@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+2.1.30
+------
+
+This release fixes another bug in --venv mode when PEX_PATH is exported in the environment.
+
+* Fix --venv mode to respect PEX_PATH. (#1227)
+  `PR #1227 <https://github.com/pantsbuild/pants/pull/1227>`_
+
 2.1.29
 ------
 
