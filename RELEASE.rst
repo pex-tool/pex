@@ -10,12 +10,21 @@ Preparation
 Version Bump and Changelog
 --------------------------
 
-Bump the version in ``pex/version.py`` and update ``CHANGES.rst`` in a
-local commit:
+Bump the version in ``pex/version.py`` and update ``CHANGES.rst``. Open a PR with these changes and
+land it on https://github.com/pantsbuild/pex master.
+
+Release
+=======
+
+Push Release tag to Master
+--------------------------
+
+Sync a local branch with https://github.com/pantsbuild/pex master and confirm it has the version
+bump and changelog update as the tip commit:
 
 ::
 
-    $ git log --stat -1 v2.1.29
+    $ git log --stat -1 HEAD
     commit f76a3d896867a5787c151c6afe1820f14dd88848 (tag: v2.1.29, origin/master, origin/HEAD, master)
     Author: John Sirois <john.sirois@gmail.com>
     Date:   Fri Feb 5 10:24:28 2021 -0800
@@ -26,18 +35,12 @@ local commit:
      pex/version.py |  2 +-
      2 files changed, 18 insertions(+), 3 deletions(-)
 
-Release
-=======
-
-Push Release tag to Master
---------------------------
-
-Tag, push and watch Github Release go green:
+Tag the release and push the tag to https://github.com/pantsbuild/pex master:
 
 ::
 
     $ git tag --sign -am 'Release 2.1.29' v2.1.29
-    $ git push --tags origin HEAD
+    $ git push --tags https://github.com/pantsbuild/pex HEAD:master
 
 
 Open the Release workflow run and wait for it to go green:
