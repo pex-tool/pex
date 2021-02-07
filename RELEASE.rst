@@ -30,7 +30,7 @@ Release
 =======
 
 Push Release tag to Master
---------------
+--------------------------
 
 Tag, push and watch Github Release go green:
 
