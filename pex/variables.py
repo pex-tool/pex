@@ -7,6 +7,7 @@
 from __future__ import absolute_import
 
 import hashlib
+import json
 import os
 import sys
 from contextlib import contextmanager
@@ -18,7 +19,18 @@ from pex.typing import TYPE_CHECKING, Generic, overload
 from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
-    from typing import Callable, Dict, Iterable, Iterator, Optional, Tuple, TypeVar, Type, Union
+    from typing import (
+        Callable,
+        Dict,
+        Iterable,
+        Iterator,
+        Optional,
+        Tuple,
+        TypeVar,
+        Type,
+        Union,
+        Any,
+    )
 
     _O = TypeVar("_O")
     _P = TypeVar("_P")
@@ -649,20 +661,40 @@ def venv_dir(
     pex_root,  # type: str
     pex_hash,  # type: str
     interpreter_constraints,  # type: Iterable[str]
+    pex_path=None,  # type: Optional[str]
 ):
     # type: (...) -> str
-    hasher = hashlib.sha1()
-    hasher.update(
-        "interpreter_constraints:{}".format(" or ".join(sorted(interpreter_constraints))).encode(
-            "utf-8"
-        )
-    )
-    hasher.update("PEX_PYTHON:{}".format(ENV.PEX_PYTHON).encode("utf-8"))
-    hasher.update("PEX_PYTHON_PATH:{}".format(ENV.PEX_PYTHON_PATH).encode("utf-8"))
-    interpreter_selection_hash = hasher.hexdigest()
+    # The venv contents are affected by which interpreter is selected as well as which PEX files are
+    # in play. The former can be influenced by interpreter constraints changes as well as PEX_PYTHON
+    # and PEX_PYTHON_PATH. The latter is influenced via PEX_PATH.
+    venv_contents = {
+        "interpreter_constraints": sorted(interpreter_constraints),
+        "PEX_PYTHON": ENV.PEX_PYTHON,
+        "PEX_PYTHON_PATH": ENV.PEX_PYTHON_PATH,
+        "pex_path": {},
+    }  # type: Dict[str, Any]
+
+    # PexInfo.pex_path and PEX_PATH are merged by PEX at runtime, so we include both and hash just
+    # the distributions since those are the only items used from PEX_PATH adjoined PEX files; i.e.:
+    # neither the entry_point nor any other PEX file data or metadata is used.
+    def add_pex_path_items(pex_path):
+        if not pex_path:
+            return
+        from pex.pex_info import PexInfo
+
+        pex_path_contents = venv_contents["pex_path"]
+        for pex in pex_path.split(":"):
+            pex_path_contents[pex] = PexInfo.from_pex(pex).distributions
+
+    add_pex_path_items(pex_path)
+    add_pex_path_items(ENV.PEX_PATH)
+
+    venv_contents_hash = hashlib.sha1(
+        json.dumps(venv_contents, sort_keys=True).encode("utf-8")
+    ).hexdigest()
     return os.path.join(
         _expand_pex_root(pex_root),
         "venvs",
         pex_hash,
-        interpreter_selection_hash,
+        venv_contents_hash,
     )
