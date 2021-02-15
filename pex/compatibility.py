@@ -100,7 +100,7 @@ else:
 
 
 if PY3:
-    import urllib.parse as urlparse
+    from urllib import parse as urlparse
 
     from urllib.error import HTTPError as HTTPError
     from urllib.request import build_opener as build_opener

@@ -261,7 +261,7 @@ class URLRequirement(namedtuple("URLRequirement", ["line", "url", "requirement",
     def create(
         cls,
         line,  # type: LogicalLine
-        url,  # type: str
+        url,  # type: Text
         requirement,  # type: Requirement
         editable=False,  # type: bool
     ):
@@ -411,7 +411,7 @@ class ProjectNameExtrasAndMarker(
     @classmethod
     def create(
         cls,
-        project_name,  # type: str
+        project_name,  # type: Text
         extras=None,  # type: Optional[Iterable[str]]
         marker=None,  # type: Optional[Marker]
     ):
@@ -464,7 +464,7 @@ def _try_parse_project_name_and_specifier_from_path(path):
 
 
 def _try_parse_pip_local_formats(
-    path,  # type: str
+    path,  # type: Text
     basepath=None,  # type: Optional[str]
 ):
     # type: (...) -> Optional[ProjectNameExtrasAndMarker]
