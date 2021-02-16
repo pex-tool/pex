@@ -7,6 +7,7 @@ import errno
 import filecmp
 import functools
 import glob
+import itertools
 import json
 import multiprocessing
 import os
@@ -1742,8 +1743,8 @@ def test_issues_539_abi3_resolution():
         subprocess.check_call([cryptography_pex, "-c", "import cryptography"])
 
 
-def assert_reproducible_build(args):
-    # type: (List[str]) -> None
+def assert_reproducible_build(args, num_pexes=2):
+    # type: (List[str], int) -> None
     with temporary_dir() as td:
         pex1 = os.path.join(td, "1.pex")
         pex2 = os.path.join(td, "2.pex")
@@ -1752,30 +1753,49 @@ def assert_reproducible_build(args):
         # from the random seed, such as data structures, as Tox sets this value by default. See
         # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
         def create_pex(path, seed):
-            result = run_pex_command(args + ["-o", path], env=make_env(PYTHONHASHSEED=seed))
+            result = run_pex_command(
+                args + ["-o", path, "--disable-cache"], env=make_env(PYTHONHASHSEED=seed)
+            )
             result.assert_success()
 
-        create_pex(pex1, seed=111)
-        # We sleep to ensure that there is no non-reproducibility from timestamps or
-        # anything that may depend on the system time. Note that we must sleep for at least
-        # 2 seconds, because the zip format uses 2 second precision per section 4.4.6 of
-        # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
-        safe_sleep(2)
-        create_pex(pex2, seed=22222)
-        # First explode the PEXes to compare file-by-file for easier debugging.
-        with ZipFile(pex1) as zf1, ZipFile(pex2) as zf2:
-            unzipped1 = os.path.join(td, "pex1")
-            unzipped2 = os.path.join(td, "pex2")
-            zf1.extractall(path=unzipped1)
-            zf2.extractall(path=unzipped2)
-            for member1, member2 in zip(sorted(zf1.namelist()), sorted(zf2.namelist())):
-                member1_path = os.path.join(unzipped1, member1)
-                if os.path.isdir(member1_path):
+        def create_multiple_pexes(n):
+            paths = []
+            for i in range(n):
+                path = os.path.join(td, "{}.pex".format(i))
+                paths.append(path)
+                # We sleep to ensure that there is no non-reproducibility from timestamps or
+                # anything that may depend on the system time. Note that we must sleep for at least
+                # 2 seconds, because the zip format uses 2 second precision per section 4.4.6 of
+                # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
+                if i > 0:
+                    safe_sleep(2)
+                create_pex(path, seed=(i * 497) + 4)
+            return paths
+
+        def explode_pex(path):
+            with ZipFile(path) as zf:
+                pex_number = path[-5]
+                destination_dir = os.path.join(td, "pex{}".format(pex_number))
+                zf.extractall(path=destination_dir)
+                return [os.path.join(destination_dir, member) for member in sorted(zf.namelist())]
+
+        pexes = create_multiple_pexes(num_pexes)
+        pex_members = {pex: explode_pex(path=pex) for pex in pexes}
+
+        for pex1, pex2 in itertools.combinations(pexes, r=2):
+            # First compare file-by-file for easier debugging.
+            for member1, member2 in zip(pex_members[pex1], pex_members[pex2]):
+                if os.path.isdir(member1) or os.path.isdir(member2):
                     continue
-                member2_path = os.path.join(unzipped2, member2)
-                assert filecmp.cmp(member1_path, member2_path, shallow=False)
-        # Then compare the original .pex files. This is the assertion we truly care about.
-        assert filecmp.cmp(pex1, pex2, shallow=False)
+                # Check that each file has the same content.
+                with open(member1, "rb") as f1, open(member2, "rb") as f2:
+                    assert list(f1.readlines()) == list(
+                        f2.readlines()
+                    ), "{} and {} have different content.".format(member1, member2)
+                # Check that the entire file is equal, including metadata.
+                assert filecmp.cmp(member1, member2, shallow=False)
+            # Finally, check that the .pex files are byte-for-byte identical.
+            assert filecmp.cmp(pex1, pex2, shallow=False)
 
 
 def test_reproducible_build_no_args():
@@ -1786,12 +1806,12 @@ def test_reproducible_build_no_args():
 def test_reproducible_build_bdist_requirements():
     # type: () -> None
     # We test both a pure Python wheel (six) and a platform-specific wheel (cryptography).
-    assert_reproducible_build(["six==1.12.0", "cryptography==2.6.1"])
+    assert_reproducible_build(["six==1.12.0", "cryptography==2.6.1"], num_pexes=3)
 
 
 def test_reproducible_build_sdist_requirements():
     # type: () -> None
-    assert_reproducible_build(["pycparser==2.19", "--no-wheel"])
+    assert_reproducible_build(["python-crontab==2.3.6"], num_pexes=3)
 
 
 def test_reproducible_build_m_flag():
