@@ -73,7 +73,9 @@ class OrderedSet(MutableSet, Generic["_I"]):
         return "{}({!r})".format(self.__class__.__name__, list(self))
 
     def __eq__(self, other):
-        # type: (Any) -> Union[bool, NotImplemented]
+        # type: (Any) -> bool
         if type(other) != type(self):
             return NotImplemented
-        return self._data == other._data
+        # TODO(John Sirois): Type __eq__ as returning Union[bool, NotImplemented] when MyPy fixes:
+        #  https://github.com/python/mypy/issues/4791
+        return self._data == other._data  # type: ignore[no-any-return]

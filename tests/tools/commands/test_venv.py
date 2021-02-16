@@ -15,13 +15,16 @@ from pex.common import temporary_dir, touch
 from pex.executor import Executor
 from pex.testing import run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Callable, Tuple, Any, Dict, Optional, Iterable
+    from typing import Any, Dict, Iterable, Iterator, Optional, Protocol, Tuple, Text
 
-    CreatePexVenv = Callable[[Tuple[str, ...]], Virtualenv]
+    class CreatePexVenv(Protocol):
+        def __call__(self, *options):
+            # type: (*str) -> Virtualenv
+            pass
 
 
 FABRIC_VERSION = "2.5.0"
@@ -29,7 +32,7 @@ FABRIC_VERSION = "2.5.0"
 
 @pytest.fixture(scope="module")
 def pex():
-    # type: () -> str
+    # type: () -> Iterator[str]
     with temporary_dir() as tmpdir:
         pex_path = os.path.join(tmpdir, "fabric.pex")
 
@@ -64,7 +67,7 @@ def make_env(**kwargs):
 
 @pytest.fixture
 def create_pex_venv(pex):
-    # type: (str) -> CreatePexVenv
+    # type: (str) -> Iterator[CreatePexVenv]
     with temporary_dir() as tmpdir:
         venv_dir = os.path.join(tmpdir, "venv")
 
@@ -102,7 +105,7 @@ def execute_venv_pex_interpreter(
     extra_args=(),  # type: Iterable[str]
     **extra_env  # type: Any
 ):
-    # type: (...) -> Tuple[int, str, str]
+    # type: (...) -> Tuple[int, Text, Text]
     process = subprocess.Popen(
         args=[venv.join_path("pex")] + list(extra_args),
         env=make_env(PEX_INTERPRETER=True, **extra_env),
@@ -129,8 +132,8 @@ def expected_file_path(
 
 
 def parse_fabric_version_output(output):
-    # type: (str) -> Dict[str, str]
-    return dict(line.split(" ", 1) for line in output.splitlines())
+    # type: (Text) -> Dict[Text, Text]
+    return dict(cast("Tuple[Text, Text]", line.split(" ", 1)) for line in output.splitlines())
 
 
 def test_venv_pex(create_pex_venv):
