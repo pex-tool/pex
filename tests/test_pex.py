@@ -7,7 +7,6 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-from collections import namedtuple
 from contextlib import contextmanager
 from textwrap import dedent
 from types import ModuleType
@@ -35,6 +34,7 @@ from pex.testing import (
     temporary_content,
     write_simple_pex,
 )
+from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 
@@ -44,7 +44,10 @@ except ImportError:
     import mock  # type: ignore[no-redef]
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterator, Union
+    import attr  # vendor:skip
+    from typing import Dict, Iterable, Iterator, Union
+else:
+    from pex.third_party import attr
 
 
 def test_pex_uncaught_exceptions():
@@ -306,13 +309,16 @@ def test_pex_run_extra_sys_path():
             assert b"extra/syspath/entry2" in syspath
 
 
-class PythonpathIsolationTest(
-    namedtuple("PythonpathIsolationTest", ["pythonpath", "dists", "exe"])
-):
+@attr.s(frozen=True)
+class PythonpathIsolationTest(object):
     @staticmethod
     def pex_info(inherit_path):
         # type: (Union[str, bool]) -> PexInfo
         return PexInfo.from_json(json.dumps({"inherit_path": inherit_path}))
+
+    pythonpath = attr.ib()  # type: str
+    dists = attr.ib()  # type: Iterable[Distribution]
+    exe = attr.ib()  # type: str
 
     def assert_isolation(self, inherit_path, expected_output):
         # type: (Union[str, bool], str) -> None

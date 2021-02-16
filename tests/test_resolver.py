@@ -462,7 +462,7 @@ def test_install():
 
     installed_by_target = defaultdict(list)
     for installed_distribution in install(
-        [LocalDistribution.create(path=dist) for dist in (project1_sdist, project2_wheel)]
+        [LocalDistribution(path=dist) for dist in (project1_sdist, project2_wheel)]
     ):
         installed_by_target[installed_distribution.target].append(
             installed_distribution.distribution
@@ -488,7 +488,7 @@ def test_install_unsatisfiable():
     project1_sdist = create_sdist(name="project1", version="1.0.0")
     project2_wheel = build_wheel(name="project2", version="2.0.0", install_reqs=["project1==1.0.1"])
     local_distributions = [
-        LocalDistribution.create(path=dist) for dist in (project1_sdist, project2_wheel)
+        LocalDistribution(path=dist) for dist in (project1_sdist, project2_wheel)
     ]
 
     assert 2 == len(install(local_distributions, ignore_errors=True))
@@ -501,17 +501,15 @@ def test_install_invalid_local_distribution():
     # type: () -> None
     project1_sdist = create_sdist(name="project1", version="1.0.0")
 
-    valid_local_sdist = LocalDistribution.create(project1_sdist)
+    valid_local_sdist = LocalDistribution(project1_sdist)
     assert 1 == len(install([valid_local_sdist]))
 
     with pytest.raises(IntegrityError):
-        install([LocalDistribution.create(project1_sdist, fingerprint="mismatch")])
+        install([LocalDistribution(project1_sdist, fingerprint="mismatch")])
 
     project1_wheel = build_wheel(name="project1", version="1.0.0")
     with pytest.raises(IntegrityError):
-        install(
-            [LocalDistribution.create(project1_wheel, fingerprint=valid_local_sdist.fingerprint)]
-        )
+        install([LocalDistribution(project1_wheel, fingerprint=valid_local_sdist.fingerprint)])
 
 
 def test_resolve_arbitrary_equality_issues_940():

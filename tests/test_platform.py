@@ -14,15 +14,21 @@ EXPECTED_BASE = [("py27", "none", "any"), ("py2", "none", "any")]
 
 def test_platform():
     # type: () -> None
-    assert Platform("linux-x86_64", "cp", "27", "mu") == ("linux_x86_64", "cp", "27", "cp27mu")
+    assert Platform("linux-x86_64", "cp", "27", "mu") == Platform(
+        "linux_x86_64", "cp", "27", "cp27mu"
+    )
     assert str(Platform("linux-x86_64", "cp", "27", "m")) == "linux_x86_64-cp-27-cp27m"
 
 
 def test_platform_create():
     # type: () -> None
-    assert Platform.create("linux-x86_64-cp-27-cp27mu") == ("linux_x86_64", "cp", "27", "cp27mu")
-    assert Platform.create("linux-x86_64-cp-27-mu") == ("linux_x86_64", "cp", "27", "cp27mu")
-    assert Platform.create("macosx-10.4-x86_64-cp-27-m") == (
+    assert Platform.create("linux-x86_64-cp-27-cp27mu") == Platform(
+        "linux_x86_64", "cp", "27", "cp27mu"
+    )
+    assert Platform.create("linux-x86_64-cp-27-mu") == Platform(
+        "linux_x86_64", "cp", "27", "cp27mu"
+    )
+    assert Platform.create("macosx-10.4-x86_64-cp-27-m") == Platform(
         "macosx_10_4_x86_64",
         "cp",
         "27",

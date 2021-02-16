@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import json
 import os
 import re
-from collections import namedtuple
 from textwrap import dedent
 
 from pex import compatibility
@@ -17,11 +16,19 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
 
 if TYPE_CHECKING:
+    import attr  # vendor:skip
     from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+else:
+    from pex.third_party import attr
 
 
-# TODO(#1041): Use typing.NamedTuple once we require Python 3.
-class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
+def _normalize_platform(platform):
+    # type: (str) -> str
+    return platform.replace("-", "_").replace(".", "_")
+
+
+@attr.s(frozen=True)
+class Platform(object):
     """Represents a target platform and it's extended interpreter compatibility tags (e.g.
     implementation, version and ABI)."""
 
@@ -75,29 +82,6 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
                 )
             )
 
-    @staticmethod
-    def _interpreter(
-        impl,  # type: str
-        version,  # type: str
-    ):
-        # type: (...) -> str
-        return impl + version
-
-    @classmethod
-    def _maybe_prefix_abi(
-        cls,
-        impl,  # type: str
-        version,  # type: str
-        abi,  # type: str
-    ):
-        # type: (...) -> str
-        if impl != "cp":
-            return abi
-        # N.B. This permits CPython users to pass in simpler extended platform
-        # strings like `linux-x86_64-cp-27-mu` vs e.g. `linux-x86_64-cp-27-cp27mu`.
-        interpreter = cls._interpreter(impl, version)
-        return abi if abi.startswith(interpreter) else interpreter + abi
-
     @classmethod
     def from_tag(cls, tag):
         # type: (tags.Tag) -> Platform
@@ -108,41 +92,34 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
         impl, version = tag.interpreter[:2], tag.interpreter[2:]
         return cls(platform=tag.platform, impl=impl, version=version, abi=tag.abi)
 
-    def __new__(cls, platform, impl, version, abi):
-        if not all((platform, impl, version, abi)):
-            raise cls.InvalidPlatformError(
-                "Platform specifiers cannot have blank fields. Given platform={platform!r}, "
-                "impl={impl!r}, version={version!r}, abi={abi!r}".format(
-                    platform=platform, impl=impl, version=version, abi=abi
+    platform = attr.ib(converter=_normalize_platform)  # type: str
+    impl = attr.ib()  # type: str
+    version = attr.ib()  # type: str
+    abi = attr.ib()  # type: str
+
+    @platform.validator
+    @impl.validator
+    @version.validator
+    @abi.validator
+    def _non_blank(self, attribute, value):
+        if not value:
+            raise self.InvalidPlatformError(
+                "Platform specifiers cannot have blank fields. Given {field}={value!r}".format(
+                    field=attribute.name, value=value
                 )
             )
-        platform = platform.replace("-", "_").replace(".", "_")
-        abi = cls._maybe_prefix_abi(impl, version, abi)
-        return super(Platform, cls).__new__(cls, platform, impl, version, abi)
 
-    @property
-    def platform(self):
-        # type: () -> str
-        return cast(str, super(Platform, self).platform)
-
-    @property
-    def impl(self):
-        # type: () -> str
-        return cast(str, super(Platform, self).impl)
-
-    @property
-    def version(self):
-        # type: () -> str
-        return cast(str, super(Platform, self).version)
-
-    @property
-    def abi(self):
-        # type: () -> str
-        return cast(str, super(Platform, self).abi)
+    def __attrs_post_init__(self):
+        # type: () -> None
+        if self.impl == "cp" and not self.abi.startswith(self.interpreter):
+            # N.B. This permits CPython users to pass in simpler extended platform
+            # strings like `linux-x86_64-cp-27-mu` vs e.g. `linux-x86_64-cp-27-cp27mu`.
+            object.__setattr__(self, "abi", self.interpreter + self.abi)
 
     @property
     def interpreter(self):
-        return self._interpreter(self.impl, self.version)
+        # type: () -> str
+        return self.impl + self.version
 
     @property
     def tag(self):
@@ -208,14 +185,14 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
             return supported_tags
 
         # Read level 2.
-        components = list(self)
+        components = list(attr.astuple(self))
         if manylinux:
             components.append(manylinux)
         disk_cache_key = os.path.join(ENV.PEX_ROOT, "platforms", self.SEP.join(components))
         with atomic_directory(target_dir=disk_cache_key, exclusive=False) as cache_dir:
             if cache_dir:
                 # Missed both caches - spawn calculation.
-                plat_info = self._asdict()
+                plat_info = attr.asdict(self)
                 plat_info.update(
                     supported_tags=[
                         (tag.interpreter, tag.abi, tag.platform)
@@ -286,4 +263,4 @@ class Platform(namedtuple("Platform", ["platform", "impl", "version", "abi"])):
 
     def __str__(self):
         # type: () -> str
-        return cast(str, self.SEP.join(self))
+        return cast(str, self.SEP.join(attr.astuple(self)))

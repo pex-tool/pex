@@ -28,11 +28,14 @@ from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import attr
     from typing import Any, Iterable, Iterator, List, Optional, Union
 
     from pex.requirements import ParsedRequirement
 
     ParsedRequirementOrConstraint = Union[ParsedRequirement, Constraint]
+else:
+    from pex.third_party import attr
 
 
 @pytest.fixture
@@ -131,7 +134,7 @@ def req(
     editable=False,  # type: bool
 ):
     # type: (...) -> PyPIRequirement
-    return PyPIRequirement.create(
+    return PyPIRequirement(
         line=DUMMY_LINE,
         requirement=parse_requirement_from_project_name_and_specifier(
             project_name, extras=extras, specifier=specifier, marker=marker
@@ -149,7 +152,7 @@ def url_req(
     editable=False,  # type: bool
 ):
     # type: (...) -> URLRequirement
-    return URLRequirement.create(
+    return URLRequirement(
         line=DUMMY_LINE,
         url=url,
         requirement=parse_requirement_from_project_name_and_specifier(
@@ -166,7 +169,7 @@ def local_req(
     editable=False,  # type: bool
 ):
     # type: (...) -> LocalProjectRequirement
-    return LocalProjectRequirement.create(
+    return LocalProjectRequirement(
         line=DUMMY_LINE,
         path=path,
         extras=extras,
@@ -178,11 +181,11 @@ def local_req(
 def normalize_results(parsed_requirements):
     # type: (Iterable[ParsedRequirementOrConstraint]) -> List[ParsedRequirementOrConstraint]
     return [
-        parsed_requirement._replace(
-            line=DUMMY_LINE, marker=MarkerWithEq.wrap(parsed_requirement.marker)
+        attr.evolve(
+            parsed_requirement, line=DUMMY_LINE, marker=MarkerWithEq.wrap(parsed_requirement.marker)
         )
         if isinstance(parsed_requirement, LocalProjectRequirement)
-        else parsed_requirement._replace(line=DUMMY_LINE)
+        else attr.evolve(parsed_requirement, line=DUMMY_LINE)
         for parsed_requirement in parsed_requirements
     ]
 

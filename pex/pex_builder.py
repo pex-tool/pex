@@ -497,6 +497,9 @@ class PEXBuilder(object):
             for label in ("source", "executable", "main", "bootstrap")
             for path in self._chroot.filesets.get(label, ())
             if path.endswith(".py")
+            # N.B.: This file if Python 3.6+ only and will not compile under Python 2.7 or
+            # Python 3.5. Since we don't actually use it we just skip compiling it.
+            and path != os.path.join(BOOTSTRAP_DIR, "pex/vendor/_vendored/attrs/attr/_next_gen.py")
         ]
 
         compiler = Compiler(self.interpreter)
@@ -540,7 +543,7 @@ class PEXBuilder(object):
             # NB: We use pip here in the builder, but that's only at buildtime and
             # although we don't use pyparsing directly, packaging.markers, which we
             # do use at runtime, does.
-            root_module_names=["packaging", "pkg_resources", "pyparsing"],
+            root_module_names=["attr", "packaging", "pkg_resources", "pyparsing"],
         )
 
         source_name = "pex"

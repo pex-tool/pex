@@ -8,8 +8,9 @@ import functools
 import itertools
 import os
 import zipfile
-from collections import OrderedDict, defaultdict, namedtuple
+from collections import OrderedDict, defaultdict
 
+from pex import attrs
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
 from pex.environment import PEXEnvironment, ResolveError
@@ -33,9 +34,12 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
+    import attr  # vendor:skip
     from typing import DefaultDict, Iterable, Iterator, List, Optional, Tuple, Union
 
     from pex.requirements import ParsedRequirement
+else:
+    from pex.third_party import attr
 
 
 class Untranslatable(Exception):
@@ -46,49 +50,25 @@ class Unsatisfiable(Exception):
     pass
 
 
-class InstalledDistribution(
-    namedtuple("InstalledDistribution", ["target", "distribution", "direct_requirement"])
-):
+@attr.s(frozen=True)
+class InstalledDistribution(object):
     """A distribution target, and the installed distribution that satisfies it.
 
     If installed distribution directly satisfies a user-specified requirement, that requirement is
     included.
     """
 
-    @classmethod
-    def create(
-        cls,
-        target,  # type: DistributionTarget
-        distribution,  # type: Distribution
-        direct_requirement=None,  # type: Optional[Requirement]
-    ):
-        # type: (...) -> InstalledDistribution
-        return cls(target=target, distribution=distribution, direct_requirement=direct_requirement)
-
-    @property
-    def target(self):
-        # type: () -> DistributionTarget
-        return cast(DistributionTarget, super(InstalledDistribution, self).target)
-
-    @property
-    def distribution(self):
-        # type: () -> Distribution
-        return cast(Distribution, super(InstalledDistribution, self).distribution)
-
-    @property
-    def direct_requirement(self):
-        # type: () -> Optional[Requirement]
-        """The user-supplied requirement that resulted in this distribution installation.
-
-        Distributions that are installed only to satisfy transitive requirements will return `None`.
-        """
-        return cast("Optional[Requirement]", super(InstalledDistribution, self).direct_requirement)
+    target = attr.ib()  # type: DistributionTarget
+    distribution = attr.ib()  # type: Distribution
+    direct_requirement = attr.ib(default=None)  # type: Optional[Requirement]
 
     def with_direct_requirement(self, direct_requirement=None):
         # type: (Optional[Requirement]) -> InstalledDistribution
         if direct_requirement == self.direct_requirement:
             return self
-        return self.create(self.target, self.distribution, direct_requirement=direct_requirement)
+        return InstalledDistribution(
+            self.target, self.distribution, direct_requirement=direct_requirement
+        )
 
 
 # A type alias to preserve API compatibility for resolve and resolve_multi.
@@ -231,6 +211,7 @@ def fingerprint_path(path):
     return CacheHelper.hash(path)
 
 
+@attr.s(frozen=True)
 class BuildRequest(object):
     @classmethod
     def create(
@@ -257,35 +238,16 @@ class BuildRequest(object):
             )
         return request
 
-    def __init__(
-        self,
-        target,  # type: DistributionTarget
-        source_path,  # type: str
-        fingerprint,  # type: str
-    ):
-        # type: (...) -> None
-        self.target = target
-        self.source_path = source_path
-        self.fingerprint = fingerprint
+    target = attr.ib()  # type: DistributionTarget
+    source_path = attr.ib()  # type: str
+    fingerprint = attr.ib()  # type: str
 
     def result(self, dist_root):
         # type: (str) -> BuildResult
         return BuildResult.from_request(self, dist_root=dist_root)
 
-    def __repr__(self):
-        # type: () -> str
-        return (
-            "{class_name}("
-            "target={target!r}, source_path={source_path!r}, fingerprint={fingerprint!r}"
-            ")"
-        ).format(
-            class_name=self.__class__.__name__,
-            target=self.target,
-            source_path=self.source_path,
-            fingerprint=self.fingerprint,
-        )
 
-
+@attr.s(frozen=True)
 class BuildResult(object):
     @classmethod
     def from_request(
@@ -314,14 +276,8 @@ class BuildResult(object):
         )
         return cls(request=build_request, atomic_dir=AtomicDirectory(dist_dir))
 
-    def __init__(
-        self,
-        request,  # type: BuildRequest
-        atomic_dir,  # type: AtomicDirectory
-    ):
-        # type: (...) -> None
-        self.request = request
-        self._atomic_dir = atomic_dir
+    request = attr.ib()  # type: BuildRequest
+    _atomic_dir = attr.ib()  # type: AtomicDirectory
 
     @property
     def is_built(self):
@@ -357,6 +313,7 @@ class BuildResult(object):
         return InstallRequest.create(self.request.target, os.path.join(self.dist_dir, wheel))
 
 
+@attr.s(frozen=True)
 class InstallRequest(object):
     @classmethod
     def from_local_distribution(cls, local_distribution):
@@ -383,16 +340,9 @@ class InstallRequest(object):
         fingerprint = fingerprint_path(wheel_path)
         return cls(target=target, wheel_path=wheel_path, fingerprint=fingerprint)
 
-    def __init__(
-        self,
-        target,  # type: DistributionTarget
-        wheel_path,  # type: str
-        fingerprint,  # type: str
-    ):
-        # type: (...) -> None
-        self.target = target
-        self.wheel_path = wheel_path
-        self.fingerprint = fingerprint
+    target = attr.ib()  # type: DistributionTarget
+    wheel_path = attr.ib()  # type: str
+    fingerprint = attr.ib()  # type: str
 
     @property
     def wheel_file(self):
@@ -403,20 +353,8 @@ class InstallRequest(object):
         # type: (str) -> InstallResult
         return InstallResult.from_request(self, installation_root=installation_root)
 
-    def __repr__(self):
-        # type: () -> str
-        return (
-            "{class_name}("
-            "target={target!r}, wheel_path={wheel_path!r}, fingerprint={fingerprint!r}"
-            ")"
-        ).format(
-            class_name=self.__class__.__name__,
-            target=self.target,
-            wheel_path=self.wheel_path,
-            fingerprint=self.fingerprint,
-        )
 
-
+@attr.s(frozen=True)
 class InstallResult(object):
     @classmethod
     def from_request(
@@ -434,16 +372,9 @@ class InstallResult(object):
             atomic_dir=AtomicDirectory(install_chroot),
         )
 
-    def __init__(
-        self,
-        request,  # type: InstallRequest
-        installation_root,  # type: str
-        atomic_dir,  # type: AtomicDirectory
-    ):
-        # type: (...) -> None
-        self.request = request
-        self._installation_root = installation_root
-        self._atomic_dir = atomic_dir
+    request = attr.ib()  # type: InstallRequest
+    _installation_root = attr.ib()  # type: str
+    _atomic_dir = attr.ib()  # type: AtomicDirectory
 
     @property
     def is_installed(self):
@@ -536,7 +467,7 @@ class InstallResult(object):
             if distribution is None:
                 raise AssertionError("No distribution could be found for {}.".format(self))
             for install_request in install_requests:
-                yield InstalledDistribution.create(
+                yield InstalledDistribution(
                     target=install_request.target, distribution=distribution
                 )
 
@@ -1200,12 +1131,15 @@ def _download_internal(
     return local_projects, download_results
 
 
-class LocalDistribution(namedtuple("LocalDistribution", ["target", "path", "fingerprint"])):
-    @classmethod
-    def create(cls, path, fingerprint=None, target=None):
-        fingerprint = fingerprint or fingerprint_path(path)
-        target = target or DistributionTarget.current()
-        return cls(target=target, path=path, fingerprint=fingerprint)
+@attr.s(frozen=True)
+class LocalDistribution(object):
+    path = attr.ib()  # type: str
+    fingerprint = attr.ib()  # type: str
+    target = attr.ib(default=DistributionTarget.current())  # type: DistributionTarget
+
+    @fingerprint.default
+    def _calculate_fingerprint(self):
+        return fingerprint_path(self.path)
 
     @property
     def is_wheel(self):
@@ -1477,8 +1411,6 @@ def resolve_from_pex(
                 )
 
             resolved_distributions.add(
-                ResolvedDistribution.create(
-                    target, distribution, direct_requirement=direct_requirement
-                )
+                ResolvedDistribution(target, distribution, direct_requirement=direct_requirement)
             )
     return list(resolved_distributions)

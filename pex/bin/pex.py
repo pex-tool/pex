@@ -187,7 +187,7 @@ def configure_clp_pex_resolution(parser):
         ),
     )
 
-    default_net_config = NetworkConfiguration.create()
+    default_net_config = NetworkConfiguration()
 
     group.add_argument(
         "--cache-ttl",
@@ -916,7 +916,7 @@ def build_pex(reqs, options, cache=None):
         if options.headers:
             pex_warnings.warn("The --header option is deprecated and no longer has any effect.")
 
-        network_configuration = NetworkConfiguration.create(
+        network_configuration = NetworkConfiguration(
             retries=options.retries,
             timeout=options.timeout,
             proxy=options.proxy,
