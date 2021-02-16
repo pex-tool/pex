@@ -11,7 +11,14 @@ from hashlib import sha1
 from site import makepath  # type: ignore[attr-defined]
 from zipfile import ZipFile
 
-from pex.common import atomic_directory, filter_pyc_dirs, filter_pyc_files, safe_mkdir, safe_mkdtemp
+from pex.common import (
+    atomic_directory,
+    filter_pyc_dirs,
+    filter_pyc_files,
+    open_zip,
+    safe_mkdir,
+    safe_mkdtemp,
+)
 from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function` is defined dynamically
     PY2,
     exec_function,
@@ -24,14 +31,14 @@ from pex.third_party.pkg_resources import (
     resource_string,
 )
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     if PY2:
         from hashlib import _hash as _Hash
     else:
         from hashlib import _Hash
-    from typing import Any, Callable, IO, Iterable, Iterator, Optional
+    from typing import Any, BinaryIO, Callable, IO, Iterable, Iterator, Optional
 
 
 class DistributionHelper(object):
@@ -104,7 +111,7 @@ class DistributionHelper(object):
 class CacheHelper(object):
     @classmethod
     def update_hash(cls, filelike, digest):
-        # type: (IO[bytes], _Hash) -> None
+        # type: (BinaryIO, _Hash) -> None
         """Update the digest of a single file in a memory-efficient manner."""
         block_size = digest.block_size * 1024
         for chunk in iter(lambda: filelike.read(block_size), b""):
@@ -122,7 +129,7 @@ class CacheHelper(object):
 
     @classmethod
     def _compute_hash(cls, names, stream_factory):
-        # type: (Iterable[str], Callable[[str], IO]) -> str
+        # type: (Iterable[str], Callable[[str], BinaryIO]) -> str
         digest = sha1()
         # Always use / as the path separator, since that's what zip uses.
         hashed_names = [n.replace(os.sep, "/") for n in names]
@@ -148,8 +155,8 @@ class CacheHelper(object):
         names = sorted(f for f in cls._iter_non_pyc_files(d) if not f.startswith("."))
 
         def stream_factory(name):
-            # type: (str) -> IO
-            return open(os.path.join(d, name), "rb")  # noqa: T802
+            # type: (str) -> BinaryIO
+            return cast("BinaryIO", open(os.path.join(d, name), "rb"))
 
         return cls._compute_hash(names, stream_factory)
 
@@ -160,10 +167,33 @@ class CacheHelper(object):
         names = sorted(cls._iter_non_pyc_files(d))
 
         def stream_factory(name):
-            # type: (str) -> IO
-            return open(os.path.join(d, name), "rb")  # noqa: T802
+            # type: (str) -> BinaryIO
+            return cast("BinaryIO", open(os.path.join(d, name), "rb"))
 
         return cls._compute_hash(names, stream_factory)
+
+    @classmethod
+    def zip_hash(
+        cls,
+        zip_file,  # type: str
+        relpath=None,  # type: Optional[str]
+    ):
+        # type: (...) -> str
+        """Return a reproducible hash of the contents of a zip; excluding all `.pyc` files."""
+        with open_zip(zip_file) as zf:
+            names = sorted(
+                filter_pyc_files(
+                    name
+                    for name in zf.namelist()
+                    if not name.endswith("/") and not relpath or name.startswith(relpath)
+                )
+            )
+
+            def stream_factory(name):
+                # type: (str) -> BinaryIO
+                return cast("BinaryIO", zf.open(name, "r"))
+
+            return cls._compute_hash(names, stream_factory)
 
     @classmethod
     def cache_distribution(cls, zf, source, target_dir):
