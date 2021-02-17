@@ -100,7 +100,7 @@ class PackageIndexConfiguration(object):
             yield "--trusted-host"
             yield trusted_host
 
-        network_configuration = network_configuration or NetworkConfiguration.create()
+        network_configuration = network_configuration or NetworkConfiguration()
 
         yield "--retries"
         yield str(network_configuration.retries)
@@ -126,7 +126,7 @@ class PackageIndexConfiguration(object):
 
         if network_configuration.client_cert:
             assert not isolated
-            yield "PIP_CLIENT_CERT", network_configuration.cert
+            yield "PIP_CLIENT_CERT", network_configuration.client_cert
 
     @classmethod
     def create(
@@ -138,7 +138,7 @@ class PackageIndexConfiguration(object):
     ):
         # type: (...) -> PackageIndexConfiguration
         resolver_version = resolver_version or ResolverVersion.PIP_LEGACY
-        network_configuration = network_configuration or NetworkConfiguration.create()
+        network_configuration = network_configuration or NetworkConfiguration()
 
         # We must pass `--client-cert` via PIP_CLIENT_CERT to work around
         # https://github.com/pypa/pip/issues/5502. We can only do this by breaking Pip `--isolated`

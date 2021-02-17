@@ -4,16 +4,34 @@
 from __future__ import absolute_import
 
 import os
-from collections import namedtuple
+
+from pex.third_party.pkg_resources import Distribution
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import attr  # vendor:skip
+    from typing import Optional
+else:
+    from pex.third_party import attr
 
 
-class DistributionScript(namedtuple("DistributionScript", ["dist", "path"])):
+@attr.s(frozen=True)
+class DistributionScript(object):
     @classmethod
-    def find(cls, dist, name):
+    def find(
+        cls,
+        dist,  # type: Distribution
+        name,  # type: str
+    ):
+        # type: (...) -> Optional[DistributionScript]
         script_path = os.path.join(dist.location, "bin", name)
         return cls(dist=dist, path=script_path) if os.path.isfile(script_path) else None
 
+    dist = attr.ib()  # type: Distribution
+    path = attr.ib()  # type: str
+
     def read_contents(self):
+        # type: () -> str
         with open(self.path) as fp:
             return fp.read()
 

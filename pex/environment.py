@@ -9,7 +9,7 @@ import os
 import site
 import sys
 import zipfile
-from collections import OrderedDict, defaultdict, namedtuple
+from collections import OrderedDict, defaultdict
 
 from pex import dist_metadata, pex_builder, pex_warnings
 from pex.bootstrap import Bootstrap
@@ -25,9 +25,11 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
+    import attr  # vendor:skip
     from typing import (
         Container,
         DefaultDict,
+        FrozenSet,
         Iterable,
         Iterator,
         List,
@@ -36,6 +38,8 @@ if TYPE_CHECKING:
         Tuple,
         Union,
     )
+else:
+    from pex.third_party import attr
 
 
 def _import_pkg_resources():
@@ -52,7 +56,8 @@ def _import_pkg_resources():
         return pkg_resources, True
 
 
-class _RankedDistribution(namedtuple("_RankedDistribution", ["rank", "distribution"])):
+@attr.s(frozen=True)
+class _RankedDistribution(object):
     # N.B.: A distribution implements rich comparison with the leading component being the
     # `parsed_version`; as such, a _RankedDistribution sorts as a whole 1st by `rank` (which is a
     # rank of the distribution's tags specificity for the target interpreter), then by version and
@@ -64,61 +69,43 @@ class _RankedDistribution(namedtuple("_RankedDistribution", ["rank", "distributi
         # type: (Optional[Distribution]) -> _RankedDistribution
         return cls(rank=sys.maxsize, distribution=distribution)
 
-    @property
-    def distribution(self):
-        # type: () -> Distribution
-        return cast(Distribution, super(_RankedDistribution, self).distribution)
+    rank = attr.ib()  # type: int
+    distribution = attr.ib()  # type: Distribution
 
     def satisfies(self, requirement):
         # type: (Requirement) -> bool
         return self.distribution in requirement
 
 
-class _QualifiedRequirement(namedtuple("_QualifiedRequirement", ["requirement", "required"])):
-    @classmethod
-    def create(
-        cls,
-        requirement,  # type: Requirement
-        required=True,  # type: Optional[bool]
-    ):
-        # type: (...) -> _QualifiedRequirement
-        return cls(requirement=requirement, required=required)
+@attr.s(frozen=True)
+class _QualifiedRequirement(object):
+    requirement = attr.ib()  # type: Requirement
+    required = attr.ib(default=True)  # type: Optional[bool]
 
-    @property
-    def requirement(self):
-        # type: () -> Requirement
-        return cast(Requirement, super(_QualifiedRequirement, self).requirement)
 
-    @property
-    def required(self):
-        # type: () -> Optional[bool]
-        return cast("Optional[bool]", super(_QualifiedRequirement, self).required)
+@attr.s(frozen=True)
+class _DistributionNotFound(object):
+    requirement = attr.ib()  # type: Requirement
+    required_by = attr.ib(default=None)  # type: Optional[Distribution]
 
 
 if TYPE_CHECKING:
     QualifiedRequirementOrNotFound = Union[_QualifiedRequirement, _DistributionNotFound]
 
 
-class _DistributionNotFound(namedtuple("_DistributionNotFound", ["requirement", "required_by"])):
-    @classmethod
-    def create(
-        cls,
-        requirement,  # type: Requirement
-        required_by=None,  # type: Optional[Distribution]
-    ):
-        # type: (...) -> _DistributionNotFound
-        return cls(requirement=requirement, required_by=required_by)
-
-
 class ResolveError(Exception):
     """Indicates an error resolving requirements for a PEX."""
 
 
-class _RequirementKey(namedtuple("_RequirementKey", ["key", "extras"])):
+@attr.s(frozen=True)
+class _RequirementKey(object):
     @classmethod
     def create(cls, requirement):
         # type: (Requirement) -> _RequirementKey
         return cls(requirement.key, frozenset(requirement.extras))
+
+    key = attr.ib()  # type: str
+    extras = attr.ib()  # type: FrozenSet[str]
 
     def satisfied_keys(self):
         # type: () -> Iterator[_RequirementKey]
@@ -413,7 +400,7 @@ class PEXEnvironment(object):
         ]
         if not available_distributions:
             if required is True:
-                yield _DistributionNotFound.create(requirement, required_by=required_by)
+                yield _DistributionNotFound(requirement, required_by=required_by)
             return
 
         resolved_distribution = sorted(available_distributions, reverse=True)[0].distribution
@@ -484,7 +471,7 @@ class PEXEnvironment(object):
             requirements = qualified_reqs_by_key.get(req.key)
             if requirements is None:
                 qualified_reqs_by_key[req.key] = requirements = []
-            requirements.append(_QualifiedRequirement.create(req, required=required))
+            requirements.append(_QualifiedRequirement(req, required=required))
 
         # Next, from among the remaining applicable requirements for a given project, we want to
         # select the most tailored (highest ranked) available distribution. That distribution's
@@ -505,7 +492,7 @@ class PEXEnvironment(object):
             ]
             if not candidates:
                 for qualified_requirement in qualified_requirements:
-                    yield _DistributionNotFound.create(qualified_requirement.requirement)
+                    yield _DistributionNotFound(qualified_requirement.requirement)
                 continue
 
             ranked_dist, qualified_requirement = sorted(

@@ -2534,7 +2534,7 @@ def test_requirements_network_configuration(run_proxy, tmp_workdir):
         contents,  # type: str
         line_no,  # type: int
     ):
-        return PyPIRequirement.create(
+        return PyPIRequirement(
             LogicalLine(
                 "{}\n".format(contents),
                 contents,
@@ -2550,7 +2550,7 @@ def test_requirements_network_configuration(run_proxy, tmp_workdir):
         reqs = parse_requirement_file(
             EXAMPLE_PYTHON_REQUIREMENTS_URL,
             fetcher=URLFetcher(
-                NetworkConfiguration.create(
+                NetworkConfiguration(
                     proxy="{proxy_auth}@localhost:{port}".format(proxy_auth=proxy_auth, port=port),
                     cert=ca_cert,
                 )

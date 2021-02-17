@@ -7,7 +7,6 @@ from __future__ import absolute_import
 import os
 import tarfile
 import zipfile
-from collections import namedtuple
 from contextlib import closing
 from email.message import Message
 from email.parser import Parser
@@ -19,9 +18,12 @@ from pex.third_party.pkg_resources import DistInfoDistribution, Distribution, Re
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    import attr  # vendor:skip
     from typing import Dict, Iterator, Optional, Text, Union
 
     DistributionLike = Union[Distribution, str]
+else:
+    from pex.third_party import attr
 
 
 class MetadataError(Exception):
@@ -124,7 +126,8 @@ def _parse_pkg_info(dist):
     return _PKG_INFO_BY_DIST[dist]
 
 
-class ProjectNameAndVersion(namedtuple("ProjectNameAndVersion", ["project_name", "version"])):
+@attr.s(frozen=True)
+class ProjectNameAndVersion(object):
     @classmethod
     def from_parsed_pkg_info(cls, source, pkg_info):
         # type: (DistributionLike, Message) -> ProjectNameAndVersion
@@ -185,6 +188,9 @@ class ProjectNameAndVersion(namedtuple("ProjectNameAndVersion", ["project_name",
             "The distribution at path {!r} does not have a file name matching known sdist or wheel "
             "file name formats.".format(path)
         )
+
+    project_name = attr.ib()  # type: str
+    version = attr.ib()  # type: str
 
 
 def project_name_and_version(dist, fallback_to_filename=True):

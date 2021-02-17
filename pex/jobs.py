@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import errno
 import subprocess
 from abc import abstractmethod
-from collections import namedtuple
 from threading import BoundedSemaphore, Event, Thread
 
 from pex.compatibility import AbstractClass, Queue, cpu_count
@@ -14,9 +13,12 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
-    from typing import Callable, Iterable, Optional, Text, Tuple, TypeVar
+    import attr  # vendor:skip
+    from typing import Any, Callable, Iterable, Optional, Text, Tuple, TypeVar
 
     _T = TypeVar("_T")
+else:
+    from pex.third_party import attr
 
 
 class Job(object):
@@ -351,11 +353,15 @@ def execute_parallel(inputs, spawn_func, error_handler=None, max_jobs=None):
         V=9,
     )
 
-    class Spawn(namedtuple("Spawn", ["item", "spawned_job"])):
-        pass
+    @attr.s(frozen=True)
+    class Spawn(object):
+        item = attr.ib()  # type: Any
+        spawned_job = attr.ib()  # type: SpawnedJob
 
-    class SpawnError(namedtuple("SpawnError", ["item", "error"])):
-        pass
+    @attr.s(frozen=True)
+    class SpawnError(object):
+        item = attr.ib()  # type: Any
+        error = attr.ib()  # type: Exception
 
     stop = Event()  # Used as a signal to stop spawning further jobs once any one job fails.
     job_slots = BoundedSemaphore(value=size)

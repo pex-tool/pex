@@ -7,18 +7,10 @@ import os
 import re
 import ssl
 import time
-from collections import namedtuple
 from contextlib import closing, contextmanager
 
-from pex import dist_metadata
-from pex.compatibility import (
-    HTTPError,
-    HTTPSHandler,
-    ProxyHandler,
-    build_opener,
-    to_unicode,
-    urlparse,
-)
+from pex import attrs, dist_metadata
+from pex.compatibility import HTTPError, HTTPSHandler, ProxyHandler, build_opener, urlparse
 from pex.dist_metadata import MetadataError, ProjectNameAndVersion
 from pex.network_configuration import NetworkConfiguration
 from pex.third_party.packaging.markers import Marker
@@ -28,6 +20,7 @@ from pex.third_party.pkg_resources import Requirement, RequirementParseError
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    import attr  # vendor:skip
     from typing import (
         BinaryIO,
         Dict,
@@ -39,35 +32,17 @@ if TYPE_CHECKING:
         Tuple,
         Union,
     )
+else:
+    from pex.third_party import attr
 
 
-class LogicalLine(
-    namedtuple("LogicalLine", ["raw_text", "processed_text", "source", "start_line", "end_line"])
-):
-    @property
-    def raw_text(self):
-        # type: () -> str
-        return cast(str, super(LogicalLine, self).raw_text)
-
-    @property
-    def processed_text(self):
-        # type: () -> str
-        return cast(str, super(LogicalLine, self).processed_text)
-
-    @property
-    def source(self):
-        # type: () -> str
-        return cast(str, super(LogicalLine, self).source)
-
-    @property
-    def start_line(self):
-        # type: () -> int
-        return cast(int, super(LogicalLine, self).start_line)
-
-    @property
-    def end_line(self):
-        # type: () -> int
-        return cast(int, super(LogicalLine, self).end_line)
+@attr.s(frozen=True)
+class LogicalLine(object):
+    raw_text = attr.ib()  # type: Text
+    processed_text = attr.ib()  # type: Text
+    source = attr.ib()  # type: Text
+    start_line = attr.ib()  # type: int
+    end_line = attr.ib()  # type: int
 
     def render_location(self):
         # type: () -> str
@@ -79,7 +54,7 @@ class LogicalLine(
 class URLFetcher(object):
     def __init__(self, network_configuration=None):
         # type: (Optional[NetworkConfiguration]) -> None
-        network_configuration = network_configuration or NetworkConfiguration.create()
+        network_configuration = network_configuration or NetworkConfiguration()
 
         self._timeout = network_configuration.timeout
         self._max_retries = network_configuration.retries
@@ -98,7 +73,7 @@ class URLFetcher(object):
 
     @contextmanager
     def get_body_iter(self, url):
-        # type: (str) -> Iterator[Iterator[Text]]
+        # type: (Text) -> Iterator[Iterator[Text]]
         retries = 0
         retry_delay_secs = 0.1
         last_error = None  # type: Optional[Exception]
@@ -114,7 +89,7 @@ class URLFetcher(object):
                     # can only be returned if a faulty custom handler is installed and we only
                     # install stdlib handlers.
                     body_stream = cast("BinaryIO", fp)
-                    yield (to_unicode(line) for line in body_stream.readlines())
+                    yield (line.decode("utf-8") for line in body_stream.readlines())
                     return
             except HTTPError as e:
                 # See: https://tools.ietf.org/html/rfc2616#page-39
@@ -138,13 +113,14 @@ class URLFetcher(object):
         raise cast(Exception, last_error)
 
 
-class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines"])):
+@attr.s(frozen=True)
+class Source(object):
     @classmethod
     @contextmanager
     def from_url(
         cls,
         fetcher,  # type: URLFetcher
-        url,  # type: str
+        url,  # type: Text
         is_constraints=False,  # type: bool
     ):
         # type: (...) -> Iterator[Source]
@@ -155,7 +131,7 @@ class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines
     @contextmanager
     def from_file(
         cls,
-        path,  # type: str
+        path,  # type: Text
         is_constraints=False,  # type: bool
     ):
         # type: (...) -> Iterator[Source]
@@ -166,8 +142,8 @@ class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines
     @classmethod
     def from_text(
         cls,
-        contents,  # type: str
-        origin="<string>",  # type: str
+        contents,  # type: Text
+        origin="<string>",  # type: Text
         is_constraints=False,  # type: bool
     ):
         # type: (...) -> Source
@@ -175,32 +151,19 @@ class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines
             origin=origin,
             is_file=False,
             is_constraints=is_constraints,
-            lines=contents.splitlines(True),  # This is keepends=True.
+            lines=iter(contents.splitlines(True)),  # This is keepends=True.
         )
 
-    @property
-    def origin(self):
-        # type: () -> str
-        return cast(str, super(Source, self).origin)
-
-    @property
-    def is_file(self):
-        return cast(bool, super(Source, self).is_file)
-
-    @property
-    def is_constraints(self):
-        return cast(bool, super(Source, self).is_constraints)
-
-    @property
-    def lines(self):
-        # type: () -> Iterator[str]
-        return cast("Iterator[str]", super(Source, self).lines)
+    origin = attr.ib()  # type: Text
+    is_file = attr.ib()  # type: bool
+    is_constraints = attr.ib()  # type: bool
+    lines = attr.ib()  # type: Iterator[Text]
 
     @contextmanager
     def resolve(
         self,
         line,  # type: LogicalLine
-        origin,  # type: str
+        origin,  # type: Text
         is_constraints=False,  # type: bool
         fetcher=None,  # type: Optional[URLFetcher]
     ):
@@ -235,47 +198,27 @@ class Source(namedtuple("Source", ["origin", "is_file", "is_constraints", "lines
             raise create_parse_error(str(e))
 
 
-class PyPIRequirement(namedtuple("PyPIRequirement", ["line", "requirement", "editable"])):
+@attr.s(frozen=True)
+class PyPIRequirement(object):
     """A requirement realized through a package index or find links repository."""
 
-    @classmethod
-    def create(
-        cls,
-        line,  # type: LogicalLine
-        requirement,  # type: Requirement
-        editable=False,  # type: bool
-    ):
-        # type: (...) -> PyPIRequirement
-        return cls(line, requirement, editable=editable)
-
-    @property
-    def requirement(self):
-        # type: () -> Requirement
-        return cast(Requirement, super(PyPIRequirement, self).requirement)
+    line = attr.ib()  # type: LogicalLine
+    requirement = attr.ib()  # type: Requirement
+    editable = attr.ib(default=False)  # type: bool
 
 
-class URLRequirement(namedtuple("URLRequirement", ["line", "url", "requirement", "editable"])):
+@attr.s(frozen=True)
+class URLRequirement(object):
     """A requirement realized through an distribution archive at a fixed URL."""
 
-    @classmethod
-    def create(
-        cls,
-        line,  # type: LogicalLine
-        url,  # type: Text
-        requirement,  # type: Requirement
-        editable=False,  # type: bool
-    ):
-        # type: (...) -> URLRequirement
-        return cls(line, url, requirement, editable=editable)
-
-    @property
-    def requirement(self):
-        # type: () -> Requirement
-        return cast(Requirement, super(URLRequirement, self).requirement)
+    line = attr.ib()  # type: LogicalLine
+    url = attr.ib()  # type: Text
+    requirement = attr.ib()  # type: Requirement
+    editable = attr.ib(default=False)  # type: bool
 
 
 def parse_requirement_from_project_name_and_specifier(
-    project_name,  # type: str
+    project_name,  # type: Text
     extras=None,  # type: Optional[Iterable[str]]
     specifier=None,  # type: Optional[SpecifierSet]
     marker=None,  # type: Optional[Marker]
@@ -314,28 +257,15 @@ def parse_requirement_from_dist(
     )
 
 
-class LocalProjectRequirement(
-    namedtuple("LocalProjectRequirement", ["line", "path", "extras", "marker", "editable"])
-):
+@attr.s(frozen=True)
+class LocalProjectRequirement(object):
     """A requirement realized by building a distribution from local sources."""
 
-    @classmethod
-    def create(
-        cls,
-        line,  # type: LogicalLine
-        path,  # type: str
-        extras=None,  # type: Optional[Iterable[str]]
-        marker=None,  # type: Optional[Marker]
-        editable=False,  # type: bool
-    ):
-        # type: (...) -> LocalProjectRequirement
-        return cls(
-            line=line,
-            path=path,
-            extras=tuple(extras or ()),
-            marker=marker,
-            editable=editable,
-        )
+    line = attr.ib()  # type: LogicalLine
+    path = attr.ib()  # type: str
+    extras = attr.ib(default=(), converter=attrs.str_tuple_from_iterable)  # type: Tuple[str, ...]
+    marker = attr.ib(default=None)  # type: Optional[Marker]
+    editable = attr.ib(default=False)  # type: bool
 
     def as_requirement(self, dist):
         # type: (str) -> Requirement
@@ -347,11 +277,10 @@ if TYPE_CHECKING:
     ParsedRequirement = Union[PyPIRequirement, URLRequirement, LocalProjectRequirement]
 
 
-class Constraint(namedtuple("Constraint", ["line", "requirement"])):
-    @property
-    def requirement(self):
-        # type: () -> Requirement
-        return cast(Requirement, super(Constraint, self).requirement)
+@attr.s(frozen=True)
+class Constraint(object):
+    line = attr.ib()  # type: LogicalLine
+    requirement = attr.ib()  # type: Requirement
 
 
 class ParseError(Exception):
@@ -373,7 +302,7 @@ class ParseError(Exception):
 
 
 def _strip_requirement_options(line):
-    # type: (LogicalLine) -> Tuple[bool, str]
+    # type: (LogicalLine) -> Tuple[bool, Text]
 
     processed_text = re.sub(r"^\s*(-e|--editable)\s+", "", line.processed_text)
     editable = processed_text != line.processed_text
@@ -405,22 +334,19 @@ def _is_recognized_non_local_pip_url_scheme(scheme):
     )
 
 
-class ProjectNameExtrasAndMarker(
-    namedtuple("ProjectNameExtrasAndMarker", ["project_name", "extras", "marker"])
-):
-    @classmethod
-    def create(
-        cls,
-        project_name,  # type: Text
-        extras=None,  # type: Optional[Iterable[str]]
-        marker=None,  # type: Optional[Marker]
-    ):
-        # type: (...) -> ProjectNameExtrasAndMarker
-        return cls(project_name=project_name, extras=tuple(extras or ()), marker=marker)
+@attr.s(frozen=True)
+class ProjectNameExtrasAndMarker(object):
+    project_name = attr.ib()  # type: Text
+    extras = attr.ib(default=(), converter=attrs.str_tuple_from_iterable)  # type: Tuple[str, ...]
+    marker = attr.ib(default=None)  # type: Optional[Marker]
+
+    def astuple(self):
+        # type: () -> Tuple[Text, Tuple[str, ...], Optional[Marker]]
+        return self.project_name, self.extras, self.marker
 
 
 def _try_parse_fragment_project_name_and_marker(fragment):
-    # type: (str) -> Optional[ProjectNameExtrasAndMarker]
+    # type: (Text) -> Optional[ProjectNameExtrasAndMarker]
     project_requirement = None
     for part in fragment.split("&"):
         if part.startswith("egg="):
@@ -430,12 +356,13 @@ def _try_parse_fragment_project_name_and_marker(fragment):
         return None
     try:
         req = Requirement.parse(project_requirement)
-        return ProjectNameExtrasAndMarker.create(req.name, extras=req.extras, marker=req.marker)
+        return ProjectNameExtrasAndMarker(req.name, extras=req.extras, marker=req.marker)
     except (RequirementParseError, ValueError):
-        return ProjectNameExtrasAndMarker.create(project_requirement)
+        return ProjectNameExtrasAndMarker(project_requirement)
 
 
-class ProjectNameAndSpecifier(namedtuple("ProjectNameAndSpecifier", ["project_name", "specifier"])):
+@attr.s(frozen=True)
+class ProjectNameAndSpecifier(object):
     @staticmethod
     def _version_as_specifier(version):
         # type: (str) -> SpecifierSet
@@ -452,6 +379,9 @@ class ProjectNameAndSpecifier(namedtuple("ProjectNameAndSpecifier", ["project_na
             specifier=cls._version_as_specifier(project_name_and_version.version),
         )
 
+    project_name = attr.ib()  # type: Text
+    specifier = attr.ib()  # type: SpecifierSet
+
 
 def _try_parse_project_name_and_specifier_from_path(path):
     # type: (str) -> Optional[ProjectNameAndSpecifier]
@@ -465,7 +395,7 @@ def _try_parse_project_name_and_specifier_from_path(path):
 
 def _try_parse_pip_local_formats(
     path,  # type: Text
-    basepath=None,  # type: Optional[str]
+    basepath=None,  # type: Optional[Text]
 ):
     # type: (...) -> Optional[ProjectNameExtrasAndMarker]
     project_requirement = os.path.basename(path)
@@ -509,20 +439,18 @@ def _try_parse_pip_local_formats(
     # Maybe a local archive or project path.
     requirement_parts = match.group("requirement_parts")
     if not requirement_parts:
-        return ProjectNameExtrasAndMarker.create(abs_stripped_path)
+        return ProjectNameExtrasAndMarker(abs_stripped_path)
 
     project_requirement = "fake_project{}".format(requirement_parts)
     try:
         req = Requirement.parse(project_requirement)
-        return ProjectNameExtrasAndMarker.create(
-            abs_stripped_path, extras=req.extras, marker=req.marker
-        )
+        return ProjectNameExtrasAndMarker(abs_stripped_path, extras=req.extras, marker=req.marker)
     except (RequirementParseError, ValueError):
         return None
 
 
 def _split_direct_references(processed_text):
-    # type: (str) -> Union[Tuple[str, str], Tuple[None, None]]
+    # type: (Text) -> Union[Tuple[Text, Text], Tuple[None, None]]
     match = re.match(
         r"""
         ^
@@ -544,7 +472,7 @@ def _split_direct_references(processed_text):
 
 def _parse_requirement_line(
     line,  # type: LogicalLine
-    basepath=None,  # type: Optional[str]
+    basepath=None,  # type: Optional[Text]
 ):
     # type: (...) -> ParsedRequirement
 
@@ -560,9 +488,9 @@ def _parse_requirement_line(
             parsed_url.fragment
         )
         project_name, extras, marker = (
-            project_name_extras_and_marker
+            project_name_extras_and_marker.astuple()
             if project_name_extras_and_marker
-            else (project_name, None, None)
+            else (project_name, (), None)
         )
         specifier = None  # type: Optional[SpecifierSet]
         if not project_name:
@@ -587,7 +515,7 @@ def _parse_requirement_line(
             specifier=specifier,
             marker=marker,
         )
-        return URLRequirement.create(line, url, requirement, editable=editable)
+        return URLRequirement(line, url, requirement, editable=editable)
 
     # Handle local archives and project directories via path or file URL (Pip proprietary).
     local_requirement = parsed_url._replace(scheme="").geturl()
@@ -595,17 +523,17 @@ def _parse_requirement_line(
         local_requirement, basepath=basepath
     )
     maybe_abs_path, extras, marker = (
-        project_name_extras_and_marker
+        project_name_extras_and_marker.astuple()
         if project_name_extras_and_marker
-        else (project_name, None, None)
+        else (project_name, (), None)
     )
-    if maybe_abs_path is not None and any(
+    if isinstance(maybe_abs_path, str) and any(
         os.path.isfile(os.path.join(maybe_abs_path, *p))
         for p in ((), ("setup.py",), ("pyproject.toml",))
     ):
         archive_or_project_path = os.path.realpath(maybe_abs_path)
         if os.path.isdir(archive_or_project_path):
-            return LocalProjectRequirement.create(
+            return LocalProjectRequirement(
                 line,
                 archive_or_project_path,
                 extras=extras,
@@ -616,9 +544,7 @@ def _parse_requirement_line(
             requirement = parse_requirement_from_dist(
                 archive_or_project_path, extras=extras, marker=marker
             )
-            return URLRequirement.create(
-                line, archive_or_project_path, requirement, editable=editable
-            )
+            return URLRequirement(line, archive_or_project_path, requirement, editable=editable)
         except dist_metadata.UnrecognizedDistributionFormat:
             # This is not a recognized local archive distribution. Fall through and try parsing as a
             # PEP-440 requirement.
@@ -630,7 +556,7 @@ def _parse_requirement_line(
     # `packaging.requirements.Requirement`) except for the handling of PEP-440 direct url
     # references; which we handled above and won't encounter here.
     try:
-        return PyPIRequirement.create(line, Requirement.parse(processed_text), editable=editable)
+        return PyPIRequirement(line, Requirement.parse(processed_text), editable=editable)
     except RequirementParseError as e:
         raise ParseError(
             line, "Problem parsing {!r} as a requirement: {}".format(processed_text, e)
@@ -638,7 +564,7 @@ def _parse_requirement_line(
 
 
 def _expand_env_var(line, match):
-    # type: (LogicalLine, Match) -> str
+    # type: (LogicalLine, Match) -> Text
     env_var_name = match.group(1)
     value = os.environ.get(env_var_name)
     if value is None:
@@ -647,19 +573,19 @@ def _expand_env_var(line, match):
 
 
 def _expand_env_vars(line):
-    # type: (LogicalLine) -> str
+    # type: (LogicalLine) -> Text
     # We afford for lowercase letters here over and above the spec.
     # See: https://pubs.opengroup.org/onlinepubs/007908799/xbd/envvar.html
 
     def expand_env_var(match):
-        # type: (Match) -> str
+        # type: (Match) -> Text
         return _expand_env_var(line, match)
 
     return re.sub(r"\${([A-Za-z0-9_]+)}", expand_env_var, line.processed_text)
 
 
 def _get_parameter(line):
-    # type: (LogicalLine) -> str
+    # type: (LogicalLine) -> Text
     split_line = line.processed_text.split("=")
     if len(split_line) != 2:
         split_line = line.processed_text.split()
@@ -704,7 +630,7 @@ def parse_requirements(
             start_line=start_line,
             end_line=end_line,
         )
-        logical_line = logical_line._replace(processed_text=_expand_env_vars(logical_line))
+        logical_line = attr.evolve(logical_line, processed_text=_expand_env_vars(logical_line))
         try:
             # Recurse on any other requirement or constraint files.
             processed_text = logical_line.processed_text
@@ -742,7 +668,7 @@ def parse_requirements(
                         "https://pip.pypa.io/en/stable/user_guide/"
                         "#changes-to-the-pip-dependency-resolver-in-20-3-2020.",
                     )
-                yield Constraint(line, requirement.requirement)
+                yield Constraint(logical_line, requirement.requirement)
             else:
                 yield requirement
         finally:
@@ -752,7 +678,7 @@ def parse_requirements(
 
 
 def parse_requirement_file(
-    location,  # type: str
+    location,  # type: Text
     is_constraints=False,  # type: bool
     fetcher=None,  # type: Optional[URLFetcher]
 ):
@@ -776,7 +702,7 @@ def parse_requirement_file(
 
 
 def parse_requirement_strings(requirements):
-    # type: (Iterable[str]) -> Iterator[ParsedRequirement]
+    # type: (Iterable[Text]) -> Iterator[ParsedRequirement]
     for requirement in requirements:
         yield _parse_requirement_line(
             LogicalLine(

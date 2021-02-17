@@ -105,6 +105,11 @@ def iter_vendor_specs():
     :return: An iterator over specs of all vendored code.
     :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
     """
+    # We use this for a better @dataclass that is also Python2.7 and PyPy compatible.
+    # N.B.: The `[testenv:typecheck]` section in `tox.ini` should have its deps list updated to
+    # reflect this attrs version.
+    yield VendorSpec.pinned("attrs", "20.3.0")
+
     # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
     # time to implement resolving distributions from a PEX repository.
     yield VendorSpec.pinned("packaging", "20.8")
