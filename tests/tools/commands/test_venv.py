@@ -11,7 +11,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import temporary_dir, touch
+from pex.common import safe_open, temporary_dir, touch
 from pex.executor import Executor
 from pex.testing import run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
@@ -289,3 +289,51 @@ def test_venv_pex_interpreter_special_modes(create_pex_venv):
         )
         assert 0 == returncode, stderr
         assert expected_fabric_file_path == stdout.strip()
+
+
+@pytest.mark.parametrize("start_method", ("fork", "spawn", "forkserver"))
+def test_venv_multiprocessing_issues_1236(
+    tmpdir,  # type: Any
+    start_method,  # type: str
+):
+    # type: (...) -> None
+    src = os.path.join(str(tmpdir), "src")
+    with safe_open(os.path.join(src, "foo.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                def bar():
+                    print('hello')
+                """
+            )
+        )
+    with safe_open(os.path.join(src, "main.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from multiprocessing import Process, set_start_method
+                from foo import bar
+
+                if __name__ == '__main__':
+                    set_start_method({start_method!r})
+                    p = Process(target=bar)
+                    p.start()
+                """.format(
+                    start_method=start_method
+                )
+            )
+        )
+
+    pex_file = os.path.join(str(tmpdir), "mp.pex")
+    result = run_pex_command(args=["-D", src, "-m", "main", "-o", pex_file, "--include-tools"])
+    result.assert_success()
+
+    # Confirm multiprocessing works via normal PEX file execution.
+    output = subprocess.check_output(args=[pex_file])
+    assert "hello" == output.decode("utf-8").strip()
+
+    # Confirm multiprocessing works via the `pex` venv script.
+    venv = os.path.join(str(tmpdir), "venv")
+    subprocess.check_call(args=[pex_file, "venv", venv], env=make_env(PEX_TOOLS=True))
+    output = subprocess.check_output(args=[os.path.join(venv, "pex")])
+    assert "hello" == output.decode("utf-8").strip()

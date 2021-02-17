@@ -140,108 +140,109 @@ def populate_venv_with_pex(
         """\
         #!{venv_python} -sE
 
-        import os
-        import sys
+        if __name__ == "__main__":
+            import os
+            import sys
 
-        python = {venv_python!r}
-        if sys.executable != python:
-            sys.stderr.write("Re-execing from {{}}\\n".format(sys.executable))
-            os.execv(python, [python, "-sE"] + sys.argv)
+            python = {venv_python!r}
+            if sys.executable != python:
+                sys.stderr.write("Re-execing from {{}}\\n".format(sys.executable))
+                os.execv(python, [python, "-sE"] + sys.argv)
 
-        os.environ["VIRTUAL_ENV"] = {venv_dir!r}
-        sys.path.extend(os.environ.get("PEX_EXTRA_SYS_PATH", "").split(os.pathsep))
+            os.environ["VIRTUAL_ENV"] = {venv_dir!r}
+            sys.path.extend(os.environ.get("PEX_EXTRA_SYS_PATH", "").split(os.pathsep))
 
-        bin_dir = {venv_bin_dir!r}
-        bin_path = os.environ.get("PEX_VENV_BIN_PATH", {bin_path!r})
-        if bin_path != "false":
-            PATH = os.environ.get("PATH", "").split(os.pathsep)
-            if bin_path == "prepend":
-                PATH.insert(0, bin_dir)
-            elif bin_path == "append":
-                PATH.append(bin_dir)
-            else:
+            bin_dir = {venv_bin_dir!r}
+            bin_path = os.environ.get("PEX_VENV_BIN_PATH", {bin_path!r})
+            if bin_path != "false":
+                PATH = os.environ.get("PATH", "").split(os.pathsep)
+                if bin_path == "prepend":
+                    PATH.insert(0, bin_dir)
+                elif bin_path == "append":
+                    PATH.append(bin_dir)
+                else:
+                    sys.stderr.write(
+                        "PEX_VENV_BIN_PATH must be one of 'false', 'prepend' or 'append', given: "
+                        "{{!r}}\\n".format(
+                            bin_path
+                        )
+                    )
+                    sys.exit(1)
+                os.environ["PATH"] = os.pathsep.join(PATH)
+
+            PEX_EXEC_OVERRIDE_KEYS = ("PEX_INTERPRETER", "PEX_SCRIPT", "PEX_MODULE")
+            pex_overrides = {{
+                key: os.environ.pop(key) for key in PEX_EXEC_OVERRIDE_KEYS if key in os.environ
+            }}
+            if len(pex_overrides) > 1:
                 sys.stderr.write(
-                    "PEX_VENV_BIN_PATH must be one of 'false', 'prepend' or 'append', given: "
-                    "{{!r}}\\n".format(
-                        bin_path
+                    "Can only specify one of {{overrides}}; found: {{found}}\\n".format(
+                        overrides=", ".join(PEX_EXEC_OVERRIDE_KEYS),
+                        found=" ".join("{{}}={{}}".format(k, v) for k, v in pex_overrides.items())
                     )
                 )
                 sys.exit(1)
-            os.environ["PATH"] = os.pathsep.join(PATH)
 
-        PEX_EXEC_OVERRIDE_KEYS = ("PEX_INTERPRETER", "PEX_SCRIPT", "PEX_MODULE")
-        pex_overrides = {{
-            key: os.environ.pop(key) for key in PEX_EXEC_OVERRIDE_KEYS if key in os.environ
-        }}
-        if len(pex_overrides) > 1:
-            sys.stderr.write(
-                "Can only specify one of {{overrides}}; found: {{found}}\\n".format(
-                    overrides=", ".join(PEX_EXEC_OVERRIDE_KEYS),
-                    found=" ".join("{{}}={{}}".format(k, v) for k, v in pex_overrides.items())
-                )
+            pex_script = pex_overrides.get("PEX_SCRIPT")
+            if pex_script:
+                script_path = os.path.join(bin_dir, pex_script)
+                os.execv(script_path, [script_path] + sys.argv[1:])
+
+            pex_interpreter = pex_overrides.get("PEX_INTERPRETER", "").lower() in ("1", "true")
+            PEX_INTERPRETER_ENTRYPOINT = "code:interact"
+            entry_point = (
+                PEX_INTERPRETER_ENTRYPOINT
+                if pex_interpreter
+                else pex_overrides.get("PEX_MODULE", {entry_point!r} or PEX_INTERPRETER_ENTRYPOINT)
             )
-            sys.exit(1)
-
-        pex_script = pex_overrides.get("PEX_SCRIPT")
-        if pex_script:
-            script_path = os.path.join(bin_dir, pex_script)
-            os.execv(script_path, [script_path] + sys.argv[1:])
-
-        pex_interpreter = pex_overrides.get("PEX_INTERPRETER", "").lower() in ("1", "true")
-        PEX_INTERPRETER_ENTRYPOINT = "code:interact"
-        entry_point = (
-            PEX_INTERPRETER_ENTRYPOINT
-            if pex_interpreter
-            else pex_overrides.get("PEX_MODULE", {entry_point!r} or PEX_INTERPRETER_ENTRYPOINT)
-        )
-        if entry_point == PEX_INTERPRETER_ENTRYPOINT and len(sys.argv) > 1:
-            args = sys.argv[1:]
-            arg = args[0]
-            if arg == "-m":
-                if len(args) < 2:
-                    sys.stderr.write("Argument expected for the -m option\\n")
-                    sys.exit(2)
-                entry_point = module = args[1]
-                sys.argv = args[1:]
-                # Fall through to entry_point handling below.
-            else:
-                filename = arg
-                sys.argv = args
-                if arg == "-c":
+            if entry_point == PEX_INTERPRETER_ENTRYPOINT and len(sys.argv) > 1:
+                args = sys.argv[1:]
+                arg = args[0]
+                if arg == "-m":
                     if len(args) < 2:
-                        sys.stderr.write("Argument expected for the -c option\\n")
+                        sys.stderr.write("Argument expected for the -m option\\n")
                         sys.exit(2)
-                    filename = "-c <cmd>"
-                    content = args[1]
-                    sys.argv = ["-c"] + args[2:]
-                elif arg == "-":
-                    content = sys.stdin.read()
+                    entry_point = module = args[1]
+                    sys.argv = args[1:]
+                    # Fall through to entry_point handling below.
                 else:
-                    with open(arg) as fp:
-                        content = fp.read()
+                    filename = arg
+                    sys.argv = args
+                    if arg == "-c":
+                        if len(args) < 2:
+                            sys.stderr.write("Argument expected for the -c option\\n")
+                            sys.exit(2)
+                        filename = "-c <cmd>"
+                        content = args[1]
+                        sys.argv = ["-c"] + args[2:]
+                    elif arg == "-":
+                        content = sys.stdin.read()
+                    else:
+                        with open(arg) as fp:
+                            content = fp.read()
 
-                ast = compile(content, filename, "exec", flags=0, dont_inherit=1)
-                globals_map = globals().copy()
-                globals_map["__name__"] = "__main__"
-                globals_map["__file__"] = filename
-                locals_map = globals_map
-                {exec_ast}
-                sys.exit(0)
+                    ast = compile(content, filename, "exec", flags=0, dont_inherit=1)
+                    globals_map = globals().copy()
+                    globals_map["__name__"] = "__main__"
+                    globals_map["__file__"] = filename
+                    locals_map = globals_map
+                    {exec_ast}
+                    sys.exit(0)
 
-        module_name, _, function = entry_point.partition(":")
-        if not function:
-            import runpy
-            runpy.run_module(module_name, run_name="__main__")
-        else:
-            import importlib
-            module = importlib.import_module(module_name)
-            # N.B.: Functions may be hung off top-level objects in the module namespace,
-            # e.g.: Class.method; so we drill down through any attributes to the final function
-            # object.
-            namespace, func = module, None
-            for attr in function.split("."):
-                func = namespace = getattr(namespace, attr)
-            func()
+            module_name, _, function = entry_point.partition(":")
+            if not function:
+                import runpy
+                runpy.run_module(module_name, run_name="__main__")
+            else:
+                import importlib
+                module = importlib.import_module(module_name)
+                # N.B.: Functions may be hung off top-level objects in the module namespace,
+                # e.g.: Class.method; so we drill down through any attributes to the final function
+                # object.
+                namespace, func = module, None
+                for attr in function.split("."):
+                    func = namespace = getattr(namespace, attr)
+                func()
         """.format(
             venv_python=venv_python,
             venv_bin_dir=venv_bin_dir,
