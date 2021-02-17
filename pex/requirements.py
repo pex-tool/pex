@@ -488,13 +488,9 @@ def _parse_requirement_line(
             parsed_url.fragment
         )
         project_name, extras, marker = (
-            (
-                project_name_extras_and_marker.project_name,
-                project_name_extras_and_marker.extras,
-                project_name_extras_and_marker.marker,
-            )
+            project_name_extras_and_marker.astuple()
             if project_name_extras_and_marker
-            else (project_name, None, None)
+            else (project_name, (), None)
         )
         specifier = None  # type: Optional[SpecifierSet]
         if not project_name:
@@ -527,11 +523,7 @@ def _parse_requirement_line(
         local_requirement, basepath=basepath
     )
     maybe_abs_path, extras, marker = (
-        (
-            project_name_extras_and_marker.project_name,
-            project_name_extras_and_marker.extras,
-            project_name_extras_and_marker.marker,
-        )
+        project_name_extras_and_marker.astuple()
         if project_name_extras_and_marker
         else (project_name, (), None)
     )
