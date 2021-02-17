@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import multiprocessing
 import os
 import subprocess
 import tempfile
@@ -291,10 +292,10 @@ def test_venv_pex_interpreter_special_modes(create_pex_venv):
         assert expected_fabric_file_path == stdout.strip()
 
 
-@pytest.mark.parametrize("start_method", ("fork", "spawn", "forkserver"))
+@pytest.mark.parametrize("start_method", getattr(multiprocessing, "get_all_start_methods", lambda: [None])())
 def test_venv_multiprocessing_issues_1236(
     tmpdir,  # type: Any
-    start_method,  # type: str
+    start_method,  # type: Optional[str]
 ):
     # type: (...) -> None
     src = os.path.join(str(tmpdir), "src")
@@ -311,12 +312,13 @@ def test_venv_multiprocessing_issues_1236(
         fp.write(
             dedent(
                 """\
-                from multiprocessing import Process, set_start_method
+                import multiprocessing
                 from foo import bar
 
                 if __name__ == '__main__':
-                    set_start_method({start_method!r})
-                    p = Process(target=bar)
+                    if {start_method!r}:
+                        multiprocessing.set_start_method({start_method!r})
+                    p = multiprocessing.Process(target=bar)
                     p.start()
                 """.format(
                     start_method=start_method
