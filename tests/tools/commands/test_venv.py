@@ -292,7 +292,9 @@ def test_venv_pex_interpreter_special_modes(create_pex_venv):
         assert expected_fabric_file_path == stdout.strip()
 
 
-@pytest.mark.parametrize("start_method", getattr(multiprocessing, "get_all_start_methods", lambda: [None])())
+@pytest.mark.parametrize(
+    "start_method", getattr(multiprocessing, "get_all_start_methods", lambda: [None])()
+)
 def test_venv_multiprocessing_issues_1236(
     tmpdir,  # type: Any
     start_method,  # type: Optional[str]
