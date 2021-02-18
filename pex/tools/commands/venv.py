@@ -53,7 +53,10 @@ def _copytree(
             dst_entry = os.path.join(dst, os.path.relpath(src_entry, src))
             yield src_entry, dst_entry
             try:
-                if link:
+                # We only try to link regular files since linking a symlink on Linux can produce
+                # another symlink, which leaves open the possibility the src_entry target could
+                # later go missing leaving the dst_entry dangling.
+                if link and not os.path.islink(src_entry):
                     try:
                         os.link(src_entry, dst_entry)
                         continue

@@ -5,7 +5,9 @@ from __future__ import absolute_import
 
 import multiprocessing
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 from subprocess import CalledProcessError
 from textwrap import dedent
@@ -14,6 +16,7 @@ import pytest
 
 from pex.common import safe_open, temporary_dir, touch
 from pex.executor import Executor
+from pex.pex_builder import CopyMode, PEXBuilder
 from pex.testing import run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING, cast
@@ -341,3 +344,25 @@ def test_venv_multiprocessing_issues_1236(
     subprocess.check_call(args=[pex_file, "venv", venv], env=make_env(PEX_TOOLS=True))
     output = subprocess.check_output(args=[os.path.join(venv, "pex")])
     assert "hello" == output.decode("utf-8").strip()
+
+
+def test_venv_symlinked_source_issues_1239(tmpdir):
+    # type: (Any) -> None
+    src = os.path.join(str(tmpdir), "src")
+    main = os.path.join(src, "main.py")
+    with safe_open(main, "w") as fp:
+        fp.write("import sys; sys.exit(42)")
+
+    pex_builder = PEXBuilder(copy_mode=CopyMode.SYMLINK)
+    pex_builder.set_executable(main)
+    pex_file = os.path.join(str(tmpdir), "a.pex")
+    pex_builder.build(pex_file, bytecode_compile=False)
+    assert 42 == subprocess.Popen(args=[pex_file]).wait()
+
+    venv = os.path.join(str(tmpdir), "a.venv")
+    subprocess.check_call(
+        args=[sys.executable, "-m", "pex.tools", pex_builder.path(), "venv", venv]
+    )
+    venv_pex = os.path.join(venv, "pex")
+    shutil.rmtree(src)
+    assert 42 == subprocess.Popen(args=[venv_pex]).wait()
