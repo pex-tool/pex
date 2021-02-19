@@ -186,17 +186,18 @@ get pydoc help on the ``flask.app`` package in Flask:
 
 and so forth.
 
-Entry points can also take the form ``package:target``, such as ``sphinx:main`` or ``fabric.main:main`` for Sphinx
-and Fabric respectively.  This is roughly equivalent to running a script that does ``from package import target; target()``.
+Entry points can also take the form ``package:target``, such as ``sphinx:main`` or
+``fabric.main:main`` for Sphinx and Fabric respectively.  This is roughly equivalent to running a
+script that does ``import sys, from package import target; sys.exit(target())``.
 
 This can be a powerful way to invoke Python applications without ever having to ``pip install``
 anything, for example a one-off invocation of Sphinx with the readthedocs theme available:
 
 .. code-block:: console
 
-    $ pex sphinx sphinx_rtd_theme -e sphinx:main -- --help
+    $ pex sphinx==1.2.2 sphinx_rtd_theme -e sphinx:main -- --help
     Sphinx v1.2.2
-    Usage: /var/folders/4d/9tz0cd5n2n7947xs21gspsxc0000gp/T/tmpLr8ibZ [options] sourcedir outdir [filenames...]
+    Usage: /tmp/tmpydcp6kox [options] sourcedir outdir [filenames...]
 
     General options
     ^^^^^^^^^^^^^^^
@@ -205,12 +206,19 @@ anything, for example a one-off invocation of Sphinx with the readthedocs theme 
     -E            don't use a saved environment, always read all files
     ...
 
+Although sys.exit is applied blindly to the return value of the target function, this probably does
+what you want due to very flexible ``sys.exit`` semantics. Consult your target function and
+`sys.exit <https://docs.python.org/library/sys.html#sys.exit>`_ documentation to be sure.
+
+Almost certainly better and more stable, you can alternatively specify a console script exported by
+the app as explained below.
+
 pex -c
 ~~~~~~
 
-If you don't know the ``package:target`` for the console scripts of
-your favorite python packages, pex allows you to use ``-c`` to specify a console script as defined
-by the distribution.  For example, Fabric provides the ``fab`` tool when pip installed:
+If you don't know the ``package:target`` for the console scripts of your favorite python packages,
+pex allows you to use ``-c`` to specify a console script as defined by the distribution. For
+example, Fabric provides the ``fab`` tool when pip installed:
 
 .. code-block:: console
 
@@ -230,13 +238,13 @@ Even scripts defined by the "scripts" section of a distribution can be used, e.g
                  {bal,hit,hits,new,extend,expire,rm,as,approve,reject,unreject,bonus,notify,give-qual,revoke-qual}
                  ...
     mturk: error: too few arguments
-    
-Note: If you run ``pex -c`` and come across an error similar to 
-``pex.pex_builder.InvalidExecutableSpecification: Could not find script 'mainscript.py' in any distribution within PEX!``, 
-double-check your setup.py and ensure that ``mainscript.py`` is included 
+
+Note: If you run ``pex -c`` and come across an error similar to
+``pex.pex_builder.InvalidExecutableSpecification: Could not find script 'mainscript.py' in any distribution within PEX!``,
+double-check your setup.py and ensure that ``mainscript.py`` is included
 in your setup's ``scripts`` array. If you are using ``console_scripts`` and
 run into this error, double check your ``console_scripts`` syntax - further
-information for both ``scripts`` and ``console_scripts`` can be found in the 
+information for both ``scripts`` and ``console_scripts`` can be found in the
 `Python packaging documentation <https://python-packaging.readthedocs.io/en/latest/command-line-scripts.html>`_.
 
 

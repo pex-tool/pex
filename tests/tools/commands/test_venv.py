@@ -23,7 +23,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Iterator, Optional, Protocol, Tuple, Text
+    from typing import Any, Dict, Iterable, Iterator, Optional, Protocol, Tuple, Text, List
 
     class CreatePexVenv(Protocol):
         def __call__(self, *options):
@@ -366,3 +366,56 @@ def test_venv_symlinked_source_issues_1239(tmpdir):
     venv_pex = os.path.join(venv, "pex")
     shutil.rmtree(src)
     assert 42 == subprocess.Popen(args=[venv_pex]).wait()
+
+
+def test_venv_entrypoint_function_exit_code_issue_1241(tmpdir):
+    # type: (Any) -> None
+
+    pex_file = os.path.join(str(tmpdir), "ep-function.pex")
+    src = os.path.join(str(tmpdir), "src")
+    with safe_open(os.path.join(src, "module.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import sys
+
+
+                def target():
+                    args = sys.argv[1:]
+                    if args:
+                        exit = args[0]
+                        try:
+                            return int(exit)
+                        except ValueError:
+                            return exit
+                """
+            )
+        )
+    result = run_pex_command(
+        args=["-D", src, "-e", "module:target", "--include-tools", "-o", pex_file]
+    )
+    result.assert_success()
+
+    venv = os.path.join(str(tmpdir), "ep-function.venv")
+    subprocess.check_call(args=[pex_file, "venv", venv], env=make_env(PEX_TOOLS=1))
+
+    venv_pex = os.path.join(venv, "pex")
+    assert 0 == subprocess.Popen(args=[venv_pex]).wait()
+
+    def assert_venv_process(
+        args,  # type: List[str]
+        expected_returncode,  # type: int
+        expected_stdout="",  # type: str
+        expected_stderr="",  # type: str
+    ):
+        # type: (...) -> None
+        process = subprocess.Popen(
+            args=[venv_pex] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout, stderr = process.communicate()
+        assert expected_returncode == process.returncode
+        assert expected_stdout == stdout.decode("utf-8")
+        assert expected_stderr == stderr.decode("utf-8")
+
+    assert_venv_process(args=["bob"], expected_returncode=1, expected_stderr="bob\n")
+    assert_venv_process(args=["42"], expected_returncode=42)
