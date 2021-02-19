@@ -95,7 +95,11 @@ if PY3:
 
 
 else:
-    # This will result in `exec_function` being defined at runtime.
+
+    def exec_function(ast, globals_map):
+        raise AssertionError("Expected this function to be re-defined at runtime.")
+
+    # This will result in `exec_function` being re-defined at runtime.
     eval(compile(_PY3_EXEC_FUNCTION, "<exec_function>", "exec"))
 
 

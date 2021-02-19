@@ -245,7 +245,7 @@ def populate_venv_with_pex(
                 namespace, func = module, None
                 for attr in function.split("."):
                     func = namespace = getattr(namespace, attr)
-                func()
+                sys.exit(func())
         """.format(
             venv_python=venv_python,
             venv_bin_dir=venv_bin_dir,

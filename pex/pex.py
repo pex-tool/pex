@@ -471,12 +471,11 @@ class PEX(object):  # noqa: T000
                         " {}".format(e)
                     )
 
-                exit_code = tools.main(pex=self, pex_prog_path=sys.argv[0])
+                exit_value = tools.main(pex=self, pex_prog_path=sys.argv[0])
             else:
                 self.activate()
-                exit_code = self._wrap_coverage(self._wrap_profiling, self._execute)
-            if exit_code:
-                sys.exit(exit_code)
+                exit_value = self._wrap_coverage(self._wrap_profiling, self._execute)
+            sys.exit(exit_value)
         except Exception:
             # Allow the current sys.excepthook to handle this app exception before we tear things
             # down in finally, then reraise so that the exit status is reflected correctly.
@@ -509,6 +508,7 @@ class PEX(object):  # noqa: T000
                 sys.excepthook = lambda *a, **kw: None
 
     def _execute(self):
+        # type: () -> Any
         force_interpreter = self._vars.PEX_INTERPRETER
 
         self._clean_environment(strip_pex_env=self._pex_info.strip_pex_env)
@@ -518,10 +518,10 @@ class PEX(object):  # noqa: T000
             return self.execute_interpreter()
 
         if self._pex_info_overrides.script and self._pex_info_overrides.entry_point:
-            die("Cannot specify both script and entry_point for a PEX!")
+            return "Cannot specify both script and entry_point for a PEX!"
 
         if self._pex_info.script and self._pex_info.entry_point:
-            die("Cannot specify both script and entry_point for a PEX!")
+            return "Cannot specify both script and entry_point for a PEX!"
 
         if self._pex_info_overrides.script:
             return self.execute_script(self._pex_info_overrides.script)
@@ -565,6 +565,7 @@ class PEX(object):  # noqa: T000
         log("  * - paths that do not exist or will be imported via zipimport")
 
     def execute_interpreter(self):
+        # type: () -> Optional[str]
         args = sys.argv[1:]
         if args:
             # NB: We take care here to setup sys.argv to match how CPython does it for each case.
@@ -572,11 +573,11 @@ class PEX(object):  # noqa: T000
             if arg == "-c":
                 content = args[1]
                 sys.argv = ["-c"] + args[2:]
-                self.execute_content("-c <cmd>", content, argv0="-c")
+                return self.execute_content("-c <cmd>", content, argv0="-c")
             elif arg == "-m":
                 module = args[1]
                 sys.argv = args[1:]
-                self.execute_module(module)
+                return self.execute_module(module)
             else:
                 try:
                     if arg == "-":
@@ -585,39 +586,51 @@ class PEX(object):  # noqa: T000
                         with open(arg) as fp:
                             content = fp.read()
                 except IOError as e:
-                    die("Could not open %s in the environment [%s]: %s" % (arg, sys.argv[0], e))
+                    return "Could not open {} in the environment [{}]: {}".format(
+                        arg, sys.argv[0], e
+                    )
                 sys.argv = args
-                self.execute_content(arg, content)
+                return self.execute_content(arg, content)
         else:
             self.demote_bootstrap()
 
             import code
 
             code.interact()
+            return None
 
     def execute_script(self, script_name):
+        # type: (str) -> Any
         dists = list(self.activate())
 
         dist, entry_point = get_entry_point_from_console_script(script_name, dists)
         if entry_point:
-            TRACER.log("Found console_script %r in %r" % (entry_point, dist))
-            sys.exit(self.execute_entry(entry_point))
+            TRACER.log("Found console_script {!r} in {!r}.".format(entry_point, dist))
+            return self.execute_entry(entry_point)
 
         dist_script = get_script_from_distributions(script_name, dists)
         if not dist_script:
-            raise self.NotFound("Could not find script %r in pex!" % script_name)
-        TRACER.log("Found script %r in %r" % (script_name, dist))
+            return "Could not find script {!r} in pex!".format(script_name)
+        TRACER.log("Found script {!r} in {!r}.".format(script_name, dist))
         return self.execute_content(
             dist_script.path, dist_script.read_contents(), argv0=script_name
         )
 
     @classmethod
-    def execute_content(cls, name, content, argv0=None):
+    def execute_content(
+        cls,
+        name,  # type: str
+        content,  # type: str
+        argv0=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Optional[str]
         argv0 = argv0 or name
         try:
             ast = compile(content, name, "exec", flags=0, dont_inherit=1)
         except SyntaxError:
-            die("Unable to parse %s. PEX script support only supports Python scripts." % name)
+            return "Unable to parse {}. PEX script support only supports Python scripts.".format(
+                name
+            )
 
         cls.demote_bootstrap()
 
@@ -628,14 +641,17 @@ class PEX(object):  # noqa: T000
         globals_map["__name__"] = "__main__"
         globals_map["__file__"] = name
         exec_function(ast, globals_map)
+        return None
 
     @classmethod
     def execute_entry(cls, entry_point):
+        # type: (str) -> Any
         runner = cls.execute_pkg_resources if ":" in entry_point else cls.execute_module
         return runner(entry_point)
 
     @classmethod
     def execute_module(cls, module_name):
+        # type: (str) -> None
         cls.demote_bootstrap()
 
         import runpy
@@ -644,6 +660,7 @@ class PEX(object):  # noqa: T000
 
     @classmethod
     def execute_pkg_resources(cls, spec):
+        # type: (str) -> Any
         entry = EntryPoint.parse("run = {}".format(spec))
         cls.demote_bootstrap()
 

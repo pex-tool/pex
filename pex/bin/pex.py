@@ -592,7 +592,8 @@ def configure_clp_pex_entry_points(parser):
         default=None,
         help="Set the entry point to module or module:symbol.  If just specifying module, pex "
         "behaves like python -m, e.g. python -m SimpleHTTPServer.  If specifying "
-        "module:symbol, pex imports that symbol and invokes it as if it were main.",
+        "module:symbol, pex assume symbol is a n0-arg callable and imports that symbol and invokes "
+        "it as if via `sys.exit(symbol())`.",
     )
 
     group.add_argument(
