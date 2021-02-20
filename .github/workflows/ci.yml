@@ -1,5 +1,7 @@
 name: CI
 on: [push, pull_request]
+env:
+  PEX_TEST_PYENV_ROOT: .pyenv_test
 jobs:
   checks:
     name:  TOXENV=${{ matrix.tox-env }}
@@ -53,8 +55,8 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
+          path: ${{ env.PEX_TEST_PYENV_ROOT }}
+          key: ${{ runner.os }}-pyenv-root
       - name: Run Unit Tests
         uses: ./.github/actions/run-tox
         with:
@@ -75,8 +77,8 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
+          path: ${{ env.PEX_TEST_PYENV_ROOT }}
+          key: ${{ runner.os }}-pyenv-root
       - name: Run Unit Tests
         uses: ./.github/actions/run-tox
         with:
@@ -98,8 +100,8 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
+          path: ${{ env.PEX_TEST_PYENV_ROOT }}
+          key: ${{ runner.os }}-pyenv-root
       - name: Run Integration Tests
         uses: ./.github/actions/run-tox
         with:
@@ -124,8 +126,8 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
-          path: .pyenv_test
-          key: ${{ runner.os }}-pyenv-test
+          path: ${{ env.PEX_TEST_PYENV_ROOT }}
+          key: ${{ runner.os }}-pyenv-root
       - name: Run Integration Tests
         uses: ./.github/actions/run-tox
         with:

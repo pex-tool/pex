@@ -32,5 +32,6 @@ runs:
           #   https://github.com/python-pillow/Pillow/issues/3438#issuecomment-543812237
           export CPATH="$(xcrun --show-sdk-path)/usr/include"
         fi
+        echo "Running tox with PEX_TEST_PYENV_ROOT=${PEX_TEST_PYENV_ROOT}"
         tox --skip-missing-interpreters=false -v -e ${{ inputs.tox-env }}
       shell: bash
