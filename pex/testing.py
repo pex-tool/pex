@@ -10,18 +10,9 @@ import random
 import subprocess
 import sys
 from contextlib import contextmanager
-from subprocess import CalledProcessError
 from textwrap import dedent
 
-from pex.common import (
-    atomic_directory,
-    open_zip,
-    safe_mkdir,
-    safe_mkdtemp,
-    safe_rmtree,
-    temporary_dir,
-    touch,
-)
+from pex.common import atomic_directory, open_zip, safe_mkdir, safe_mkdtemp, temporary_dir
 from pex.compatibility import to_unicode
 from pex.distribution_target import DistributionTarget
 from pex.executor import Executor
@@ -433,47 +424,17 @@ PY36 = "3.6.6"
 _ALL_PY_VERSIONS = (PY27, PY35, PY36)
 _ALL_PY3_VERSIONS = (PY35, PY36)
 
-_ROOT_DIR = None  # type: Optional[str]
-
-
-def _calculate_root_dir():
-    # type: () -> str
-    return str(
-        os.path.realpath(
-            subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
-        )
-    )
-
-
-def root_dir():
-    # type: () -> str
-    global _ROOT_DIR
-    if _ROOT_DIR is None:
-        cwd = os.getcwd()
-        try:
-            _ROOT_DIR = _calculate_root_dir()
-        except CalledProcessError as e:
-            print(
-                "WARNING: Searching for root dir from {}; "
-                "failed to determine root dir from {}: {}".format(__file__, cwd, e),
-                file=sys.stderr,
-            )
-            os.chdir(os.path.dirname(__file__))
-            try:
-                _ROOT_DIR = _calculate_root_dir()
-            finally:
-                os.chdir(cwd)
-    return _ROOT_DIR
-
 
 def ensure_python_distribution(version):
     # type: (str) -> Tuple[str, str, Callable[[Iterable[str]], Text]]
     if version not in _ALL_PY_VERSIONS:
         raise ValueError("Please constrain version to one of {}".format(_ALL_PY_VERSIONS))
 
-    pyenv_root = os.path.join(
-        os.environ.get("_PEX_TEST_PYENV_ROOT", "{}_dev".format(ENV.PEX_ROOT)),
-        "pyenv",
+    pyenv_root = os.path.abspath(
+        os.path.join(
+            os.environ.get("_PEX_TEST_PYENV_ROOT", "{}_dev".format(ENV.PEX_ROOT)),
+            "pyenv",
+        )
     )
     interpreter_location = os.path.join(pyenv_root, "versions", version)
 
