@@ -472,7 +472,7 @@ def ensure_python_distribution(version):
         raise ValueError("Please constrain version to one of {}".format(_ALL_PY_VERSIONS))
 
     pyenv_root = os.path.join(
-        os.environ.get("PEX_TEST_PYENV_ROOT", "{}_dev".format(ENV.PEX_ROOT)),
+        os.environ.get("_PEX_TEST_PYENV_ROOT", "{}_dev".format(ENV.PEX_ROOT)),
         "pyenv",
     )
     interpreter_location = os.path.join(pyenv_root, "versions", version)
