@@ -16,7 +16,7 @@ from collections import OrderedDict
 from textwrap import dedent
 
 from pex import third_party
-from pex.common import is_exe, safe_rmtree
+from pex.common import is_exe, safe_mkdtemp, safe_rmtree, temporary_dir
 from pex.compatibility import string
 from pex.executor import Executor
 from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
@@ -654,10 +654,13 @@ class PythonInterpreter(object):
                 ],
                 pythonpath=pythonpath,
             )
+            # Ensure the `.` implicit PYTHONPATH entry contains no Pex code (of a different version)
+            # that might interfere with the behavior we expect in the script above.
+            cwd = safe_mkdtemp()
             process = Executor.open_process(
-                cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
             )
-            job = Job(command=cmd, process=process)
+            job = Job(command=cmd, process=process, finalizer=lambda: safe_rmtree(cwd))
             return SpawnedJob.stdout(job, result_func=create_interpreter)
 
     @classmethod
