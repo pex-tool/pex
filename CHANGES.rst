@@ -1,6 +1,38 @@
 Release Notes
 =============
 
+2.1.31
+------
+
+This release primarily hardens Pex venvs fixing several bugs.
+
+* Fix Pex isolation. (#1250)
+  `PR #1250 <https://github.com/pantsbuild/pex/pull/1250>`_
+
+* Support pre-compiling a venv. (#1246)
+  `PR #1246 <https://github.com/pantsbuild/pex/pull/1246>`_
+
+* Support venv relocation. (#1247)
+  `PR #1247 <https://github.com/pantsbuild/pex/pull/1247>`_
+
+* Fix `--runtime-pex-root` leak in pex bootstrap. (#1244)
+  `PR #1244 <https://github.com/pantsbuild/pex/pull/1244>`_
+
+* Support venvs that can outlive their base python. (#1245)
+  `PR #1245 <https://github.com/pantsbuild/pex/pull/1245>`_
+
+* Harden Pex interpreter identification. (#1248)
+  `PR #1248 <https://github.com/pantsbuild/pex/pull/1248>`_
+
+* The `pex` venv script handles entrypoints like PEX. (#1242)
+  `PR #1242 <https://github.com/pantsbuild/pex/pull/1242>`_
+
+* Ensure PEX files aren't symlinked in venv. (#1240)
+  `PR #1240 <https://github.com/pantsbuild/pex/pull/1240>`_
+
+* Fix venv pex script for use with multiprocessing. (#1238)
+  `PR #1238 <https://github.com/pantsbuild/pex/pull/1238>`_
+
 2.1.30
 ------
 
