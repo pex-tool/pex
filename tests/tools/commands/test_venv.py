@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import errno
 import multiprocessing
 import os
 import shutil
@@ -446,3 +447,49 @@ def test_venv_copies(tmpdir):
         os.path.join(venv_copies, "bin", "python")
     )
     assert not os.path.islink(venv_copies_interpreter.binary)
+
+
+def test_relocatable_venv(tmpdir):
+    # type: (Any) -> None
+
+    pex_file = os.path.join(str(tmpdir), "relocatable.pex")
+    src = os.path.join(str(tmpdir), "src")
+    with safe_open(os.path.join(src, "main.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import sys
+                from colors import blue
+
+
+                print(blue(sys.executable))
+                """
+            )
+        )
+    result = run_pex_command(
+        args=["-D", src, "ansicolors==1.1.8", "-m", "main", "--include-tools", "-o", pex_file]
+    )
+    result.assert_success()
+
+    venv = os.path.join(str(tmpdir), "relocatable.venv")
+    subprocess.check_call(args=[pex_file, "venv", venv], env=make_env(PEX_TOOLS=1))
+    subprocess.check_call(args=[os.path.join(venv, "pex")])
+
+    relocated_relpath = "relocated.venv"
+    relocated_venv = os.path.join(str(tmpdir), relocated_relpath)
+
+    # Since the venv pex script contains a shebang with an absolute path to the venv python
+    # interpreter, a move of the venv makes the script un-runnable directly.
+    shutil.move(venv, relocated_venv)
+    with pytest.raises(OSError) as exec_info:
+        subprocess.check_call(args=[os.path.join(relocated_venv, "pex")])
+    assert errno.ENOENT == exec_info.value.errno
+
+    # But we should be able to run the script using the moved venv's interpreter.
+    subprocess.check_call(
+        args=[
+            os.path.join(relocated_relpath, "bin", "python"),
+            os.path.join(relocated_relpath, "pex"),
+        ],
+        cwd=str(tmpdir),
+    )
