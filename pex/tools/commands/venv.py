@@ -147,22 +147,23 @@ def populate_venv_with_pex(
             import os
             import sys
 
-            python = {venv_python!r}
+            venv_dir = os.path.abspath(os.path.dirname(__file__))
+            venv_bin_dir = os.path.join(venv_dir, "bin")
+            python = os.path.join(venv_bin_dir, os.path.basename({venv_python!r}))
             if sys.executable != python:
                 sys.stderr.write("Re-execing from {{}}\\n".format(sys.executable))
                 os.execv(python, [python, "-sE"] + sys.argv)
 
-            os.environ["VIRTUAL_ENV"] = {venv_dir!r}
+            os.environ["VIRTUAL_ENV"] = venv_dir
             sys.path.extend(os.environ.get("PEX_EXTRA_SYS_PATH", "").split(os.pathsep))
 
-            bin_dir = {venv_bin_dir!r}
             bin_path = os.environ.get("PEX_VENV_BIN_PATH", {bin_path!r})
             if bin_path != "false":
                 PATH = os.environ.get("PATH", "").split(os.pathsep)
                 if bin_path == "prepend":
-                    PATH.insert(0, bin_dir)
+                    PATH.insert(0, venv_bin_dir)
                 elif bin_path == "append":
-                    PATH.append(bin_dir)
+                    PATH.append(venv_bin_dir)
                 else:
                     sys.stderr.write(
                         "PEX_VENV_BIN_PATH must be one of 'false', 'prepend' or 'append', given: "
@@ -188,7 +189,7 @@ def populate_venv_with_pex(
 
             pex_script = pex_overrides.get("PEX_SCRIPT")
             if pex_script:
-                script_path = os.path.join(bin_dir, pex_script)
+                script_path = os.path.join(venv_bin_dir, pex_script)
                 os.execv(script_path, [script_path] + sys.argv[1:])
 
             pex_interpreter = pex_overrides.get("PEX_INTERPRETER", "").lower() in ("1", "true")
@@ -248,8 +249,6 @@ def populate_venv_with_pex(
                 sys.exit(func())
         """.format(
             venv_python=venv_python,
-            venv_bin_dir=venv_bin_dir,
-            venv_dir=venv_dir,
             bin_path=bin_path,
             entry_point=pex_info.entry_point,
             exec_ast=(
