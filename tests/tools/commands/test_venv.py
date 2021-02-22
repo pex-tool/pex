@@ -20,8 +20,7 @@ from pex.compatibility import PY2
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import IS_PYPY, run_pex_command
-from pex.testing import PY36, ensure_python_interpreter, run_pex_command
+from pex.testing import IS_PYPY, PY36, ensure_python_interpreter, run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
