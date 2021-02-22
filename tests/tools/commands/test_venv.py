@@ -16,16 +16,17 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, temporary_dir, touch
+from pex.compatibility import PY2
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import PY36, ensure_python_interpreter, run_pex_command
+from pex.testing import IS_PYPY, PY36, ensure_python_interpreter, run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Iterator, Optional, Protocol, Tuple, Text, List
+    from typing import Any, Dict, Iterable, Iterator, List, Optional, Protocol, Set, Text, Tuple
 
     class CreatePexVenv(Protocol):
         def __call__(self, *options):
@@ -493,3 +494,82 @@ def test_relocatable_venv(tmpdir):
         ],
         cwd=str(tmpdir),
     )
+
+
+def test_compile(tmpdir):
+    # type: (Any) -> None
+
+    def collect_files(
+        root_dir,  # type: str
+        extension,  # type: str
+    ):
+        # type: (...) -> Set[str]
+        return {
+            os.path.relpath(os.path.join(root, f), root_dir)
+            for root, _, files in os.walk(root_dir, followlinks=False)
+            for f in files
+            if f.endswith(extension)
+        }
+
+    pex_file = os.path.join(str(tmpdir), "compile.pex")
+    src = os.path.join(str(tmpdir), "src")
+    with safe_open(os.path.join(src, "main.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from colors import yellow
+
+            
+                print(yellow("Slartibartfast"))
+                """
+            )
+        )
+    result = run_pex_command(
+        args=["-D", src, "ansicolors==1.0.2", "-m", "main", "--include-tools", "-o", pex_file]
+    )
+    result.assert_success()
+
+    venv = os.path.join(str(tmpdir), "venv")
+    subprocess.check_call(args=[pex_file, "venv", venv], env=make_env(PEX_TOOLS=1))
+    # N.B.: The right way to discover the site-packages dir is via site.getsitepackages().
+    # Unfortunately we use an old version of virtualenv to create PyPy and CPython 2.7 venvs and it
+    # does not add a getsitepackages function to site.py; so we cheat.
+    if IS_PYPY:
+        site_packages = "site-packages"
+    else:
+        site_packages = os.path.join(
+            "lib", "python{}.{}".format(sys.version_info[0], sys.version_info[1]), "site-packages"
+        )
+
+    # Ensure we have at least the basic direct dependency python files we expect.
+    venv_py_files = collect_files(venv, ".py")
+    assert os.path.join(site_packages, "main.py") in venv_py_files
+    assert os.path.join(site_packages, "colors.py") in venv_py_files
+    assert "__main__.py" in venv_py_files
+
+    compile_venv = os.path.join(str(tmpdir), "compile.venv")
+    subprocess.check_call(
+        args=[pex_file, "venv", "--compile", compile_venv], env=make_env(PEX_TOOLS=1)
+    )
+    # Ensure all original py files have a compiled counterpart.
+    for py_file in venv_py_files:
+        if PY2:
+            assert os.path.exists(os.path.join(compile_venv, py_file + "c"))
+        else:
+            name, _ = os.path.splitext(os.path.basename(py_file))
+            assert os.path.exists(
+                os.path.join(
+                    compile_venv,
+                    os.path.dirname(py_file),
+                    "__pycache__",
+                    "{name}.{cache_tag}.pyc".format(
+                        name=name, cache_tag=sys.implementation.cache_tag
+                    ),
+                )
+            )
+
+    compile_venv_pyc_files = collect_files(compile_venv, ".pyc")
+    subprocess.check_call(args=[os.path.join(compile_venv, "pex")])
+    assert compile_venv_pyc_files == collect_files(
+        compile_venv, ".pyc"
+    ), "Expected no new compiled python files."
