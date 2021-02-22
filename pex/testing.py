@@ -528,3 +528,14 @@ def environment_as(**kwargs):
         yield
     finally:
         adjust_environment(existing)
+
+
+@contextmanager
+def pushd(directory):
+    # type: (str) -> Iterator[None]
+    cwd = os.getcwd()
+    try:
+        os.chdir(directory)
+        yield
+    finally:
+        os.chdir(cwd)

@@ -8,6 +8,7 @@ import subprocess
 from abc import abstractmethod
 from threading import BoundedSemaphore, Event, Thread
 
+from pex.attrs import str_tuple_from_iterable
 from pex.compatibility import AbstractClass, Queue, cpu_count
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
@@ -49,14 +50,18 @@ class Job(object):
         self,
         command,  # type: Iterable[str]
         process,  # type: subprocess.Popen
+        finalizer=None,  # type: Optional[Callable[[], None]]
     ):
         # type: (...) -> None
         """
         :param command: The command used to spawn the job process.
         :param process: The spawned process handle.
+        :param finalizer: An optional cleanup function to call exactly once when the underlying
+                          process terminates in the course of calling this job's public methods.
         """
         self._command = tuple(command)
         self._process = process
+        self._finalizer = finalizer
 
     def wait(self):
         # type: () -> None
@@ -64,8 +69,11 @@ class Job(object):
 
         :raises: :class:`Job.Error` if the job exited non-zero.
         """
-        self._process.wait()
-        self._check_returncode()
+        try:
+            self._process.wait()
+            self._check_returncode()
+        finally:
+            self._finalize_job()
 
     def communicate(self, input=None):
         # type: (Optional[bytes]) -> Tuple[bytes, bytes]
@@ -76,9 +84,12 @@ class Job(object):
         :return: A tuple of the job's stdout and stderr as per the `subprocess` API.
         :raises: :class:`Job.Error` if the job exited non-zero.
         """
-        stdout, stderr = self._process.communicate(input=input)
-        self._check_returncode(stderr)
-        return stdout, stderr
+        try:
+            stdout, stderr = self._process.communicate(input=input)
+            self._check_returncode(stderr)
+            return stdout, stderr
+        finally:
+            self._finalize_job()
 
     def kill(self):
         # type: () -> None
@@ -91,6 +102,13 @@ class Job(object):
         except OSError as e:
             if e.errno != errno.ESRCH:
                 raise e
+        finally:
+            self._finalize_job()
+
+    def _finalize_job(self):
+        if self._finalizer is not None:
+            self._finalizer()
+            self._finalizer = None
 
     def _check_returncode(self, stderr=None):
         # type: (Optional[bytes]) -> None
