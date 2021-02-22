@@ -310,6 +310,12 @@ class Venv(Command):
             default=False,
             help="Add pip to the venv.",
         )
+        parser.add_argument(
+            "--copies",
+            action="store_true",
+            default=False,
+            help="Create the venv using copies of system files instead of symlinks",
+        )
 
     def run(
         self,
@@ -318,7 +324,10 @@ class Venv(Command):
     ):
         # type: (...) -> Result
 
-        venv = Virtualenv.create(options.venv[0], interpreter=pex.interpreter, force=options.force)
+        venv_dir = options.venv[0]
+        venv = Virtualenv.create(
+            venv_dir, interpreter=pex.interpreter, force=options.force, copies=options.copies
+        )
         populate_venv_with_pex(
             venv,
             pex,

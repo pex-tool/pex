@@ -251,6 +251,16 @@ class PexInfo(object):
         self._pex_info["venv_bin_path"] = str(value)
 
     @property
+    def venv_copies(self):
+        # type: () -> bool
+        return self._pex_info.get("venv_copies", False)
+
+    @venv_copies.setter
+    def venv_copies(self, value):
+        # type: (bool) -> None
+        self._pex_info["venv_copies"] = value
+
+    @property
     def venv_dir(self):
         # type: () -> Optional[str]
         if not self.venv:

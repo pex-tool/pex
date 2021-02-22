@@ -16,8 +16,9 @@ import pytest
 
 from pex.common import safe_open, temporary_dir, touch
 from pex.executor import Executor
+from pex.interpreter import PythonInterpreter
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import run_pex_command
+from pex.testing import PY36, ensure_python_interpreter, run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
@@ -419,3 +420,29 @@ def test_venv_entrypoint_function_exit_code_issue_1241(tmpdir):
 
     assert_venv_process(args=["bob"], expected_returncode=1, expected_stderr="bob\n")
     assert_venv_process(args=["42"], expected_returncode=42)
+
+
+def test_venv_copies(tmpdir):
+    # type: (Any) -> None
+
+    python36 = ensure_python_interpreter(PY36)
+
+    pex_file = os.path.join(str(tmpdir), "venv.pex")
+    result = run_pex_command(args=["-o", pex_file, "--include-tools"], python=python36)
+    result.assert_success()
+
+    PEX_TOOLS = make_env(PEX_TOOLS=1)
+
+    venv_symlinks = os.path.join(str(tmpdir), "venv.symlinks")
+    subprocess.check_call(args=[python36, pex_file, "venv", venv_symlinks], env=PEX_TOOLS)
+    venv_symlinks_interpreter = PythonInterpreter.from_binary(
+        os.path.join(venv_symlinks, "bin", "python")
+    )
+    assert os.path.islink(venv_symlinks_interpreter.binary)
+
+    venv_copies = os.path.join(str(tmpdir), "venv.copies")
+    subprocess.check_call(args=[python36, pex_file, "venv", "--copies", venv_copies], env=PEX_TOOLS)
+    venv_copies_interpreter = PythonInterpreter.from_binary(
+        os.path.join(venv_copies, "bin", "python")
+    )
+    assert not os.path.islink(venv_copies_interpreter.binary)
