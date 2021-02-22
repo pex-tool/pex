@@ -12,7 +12,6 @@ import sys
 import tempfile
 from subprocess import CalledProcessError
 from textwrap import dedent
-from typing import Set
 
 import pytest
 
@@ -28,7 +27,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Iterator, Optional, Protocol, Tuple, Text, List
+    from typing import Any, Dict, Iterable, Iterator, List, Optional, Protocol, Set, Text, Tuple
 
     class CreatePexVenv(Protocol):
         def __call__(self, *options):
