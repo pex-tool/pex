@@ -103,6 +103,13 @@ def test_pex_raise():
     run_simple_pex_test(body, coverage=True)
 
 
+def assert_interpreters(label, pex_root):
+    # type: (str, str) -> None
+    assert "interpreters" in os.listdir(
+        pex_root
+    ), "Expected {label} pex root to be populated with interpreters.".format(label=label)
+
+
 def assert_installed_wheels(label, pex_root):
     # type: (str, str) -> None
     assert "installed_wheels" in os.listdir(
@@ -133,24 +140,33 @@ def test_pex_root_build():
 
 def test_pex_root_run():
     # type: () -> None
+    python35 = ensure_python_interpreter(PY35)
+    python36 = ensure_python_interpreter(PY36)
+
     with temporary_dir() as td, temporary_dir() as runtime_pex_root, temporary_dir() as home:
+        pex_env = make_env(HOME=home, PEX_PYTHON_PATH=os.pathsep.join((python35, python36)))
+
         buildtime_pex_root = os.path.join(td, "buildtime_pex_root")
         output_dir = os.path.join(td, "output_dir")
 
-        output_path = os.path.join(output_dir, "pex.pex")
+        pex_pex = os.path.join(output_dir, "pex.pex")
         args = [
             "pex",
             "-o",
-            output_path,
+            pex_pex,
+            "-c",
+            "pex",
             "--not-zip-safe",
             "--pex-root={}".format(buildtime_pex_root),
             "--runtime-pex-root={}".format(runtime_pex_root),
+            "--interpreter-constraint=CPython=={version}".format(version=PY35),
         ]
-        results = run_pex_command(args=args, env=make_env(HOME=home, PEX_INTERPRETER="1"))
+        results = run_pex_command(args=args, env=pex_env, python=python36)
         results.assert_success()
         assert ["pex.pex"] == os.listdir(output_dir), "Expected built pex file."
         assert [] == os.listdir(home), "Expected empty home dir."
 
+        assert_interpreters(label="buildtime", pex_root=buildtime_pex_root)
         assert_installed_wheels(label="buildtime", pex_root=buildtime_pex_root)
         safe_mkdir(buildtime_pex_root, clean=True)
 
@@ -158,12 +174,13 @@ def test_pex_root_run():
             runtime_pex_root
         ), "Expected runtime pex root to be empty prior to any runs."
 
-        _, rc = run_simple_pex(output_path)
-        assert rc == 0
+        subprocess.check_call(args=[python36, pex_pex, "--version"], env=pex_env)
+        assert_interpreters(label="runtime", pex_root=runtime_pex_root)
         assert_installed_wheels(label="runtime", pex_root=runtime_pex_root)
         assert [] == os.listdir(
             buildtime_pex_root
-        ), "Expected buildtime pex root to be empty after runs using a seperate runtime pex root."
+        ), "Expected buildtime pex root to be empty after runs using a separate runtime pex root."
+        assert [] == os.listdir(home), "Expected empty home dir."
 
 
 def test_cache_disable():

@@ -392,22 +392,25 @@ def bootstrap_pex(entry_point):
     # type: (str) -> None
     pex_info = _bootstrap(entry_point)
 
-    if not ENV.PEX_TOOLS and pex_info.venv:
-        try:
-            target = find_compatible_interpreter(
-                interpreter_constraints=pex_info.interpreter_constraints,
-            )
-        except UnsatisfiableInterpreterConstraintsError as e:
-            die(str(e))
-        from . import pex
+    # ENV.PEX_ROOT is consulted by PythonInterpreter and Platform so set that up as early as
+    # possible in the run.
+    with ENV.patch(PEX_ROOT=pex_info.pex_root):
+        if not ENV.PEX_TOOLS and pex_info.venv:
+            try:
+                target = find_compatible_interpreter(
+                    interpreter_constraints=pex_info.interpreter_constraints,
+                )
+            except UnsatisfiableInterpreterConstraintsError as e:
+                die(str(e))
+            from . import pex
 
-        venv_pex = ensure_venv(pex.PEX(entry_point, interpreter=target))
-        os.execv(venv_pex, [venv_pex] + sys.argv[1:])
-    else:
-        maybe_reexec_pex(pex_info.interpreter_constraints)
-        from . import pex
+            venv_pex = ensure_venv(pex.PEX(entry_point, interpreter=target))
+            os.execv(venv_pex, [venv_pex] + sys.argv[1:])
+        else:
+            maybe_reexec_pex(pex_info.interpreter_constraints)
+            from . import pex
 
-        pex.PEX(entry_point).execute()
+            pex.PEX(entry_point).execute()
 
 
 # NB: This helper is used by third party libs - namely https://github.com/wickman/lambdex.
