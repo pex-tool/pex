@@ -372,6 +372,17 @@ def configure_clp_pex_options(parser):
         "multiple times under a stable runtime PEX_ROOT, the venv creation will only be done once "
         "and subsequent runs will enjoy lower startup latency.",
     )
+    group.add_argument(
+        "--venv-copies",
+        "--no-venv-copies",
+        dest="venv_copies",
+        default=False,
+        action=HandleBoolAction,
+        help=(
+            "If --venv is specified, create the venv using copies of base interpreter files "
+            "instead of symlinks."
+        ),
+    )
 
     group.add_argument(
         "--always-write-cache",
@@ -894,6 +905,7 @@ def build_pex(reqs, options, cache=None):
     pex_info.unzip = options.unzip
     pex_info.venv = bool(options.venv)
     pex_info.venv_bin_path = options.venv
+    pex_info.venv_copies = options.venv_copies
     pex_info.pex_path = options.pex_path
     pex_info.always_write_cache = options.always_write_cache
     pex_info.ignore_errors = options.ignore_errors

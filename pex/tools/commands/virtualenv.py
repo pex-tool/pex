@@ -72,6 +72,7 @@ class Virtualenv(object):
         venv_dir,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
         force=False,  # type: bool
+        copies=False,  # type: bool
     ):
         # type: (...) -> Virtualenv
         venv_dir = os.path.abspath(venv_dir)
@@ -89,15 +90,19 @@ class Virtualenv(object):
 
         if interpreter.version[0] >= 3 and not interpreter.identity.interpreter == "PyPy":
             # N.B.: PyPy3 comes equipped with a venv module but it does not seem to work.
-            interpreter.execute(args=["-m", "venv", "--without-pip", venv_dir])
+            args = ["-m", "venv", "--without-pip", venv_dir]
+            if copies:
+                args.append("--copies")
+            interpreter.execute(args=args)
         else:
             virtualenv_py = resource_string(__name__, "virtualenv_16.7.10_py")
             with named_temporary_file(mode="wb") as fp:
                 fp.write(virtualenv_py)
                 fp.close()
-                interpreter.execute(
-                    args=[fp.name, "--no-pip", "--no-setuptools", "--no-wheel", venv_dir],
-                )
+                args = [fp.name, "--no-pip", "--no-setuptools", "--no-wheel", venv_dir]
+                if copies:
+                    args.append("--always-copy")
+                interpreter.execute(args=args)
         return cls(venv_dir)
 
     def __init__(
