@@ -315,6 +315,12 @@ class Venv(Command):
             default=False,
             help="Create the venv using copies of system files instead of symlinks",
         )
+        parser.add_argument(
+            "--compile",
+            action="store_true",
+            default=False,
+            help="Compile all `.py` files in the venv.",
+        )
 
     def run(
         self,
@@ -341,5 +347,6 @@ class Venv(Command):
                     "The virtual environment was successfully created, but Pip was not "
                     "installed:\n{}".format(e)
                 )
-
+        if options.compile:
+            pex.interpreter.execute(["-m", "compileall", venv_dir])
         return Ok()
