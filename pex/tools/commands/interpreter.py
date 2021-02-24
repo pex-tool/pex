@@ -38,7 +38,7 @@ class Interpreter(JsonMixin, OutputMixin, Command):
             action="store_true",
             help="Print the interpreter requirement in addition to it's path.",
         )
-        self.add_json_options(parser, entity="verbose output"),
+        self.add_json_options(parser, entity="verbose output")
 
     @staticmethod
     def _find_interpreters(

@@ -15,7 +15,7 @@ from pex.pex import PEX
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, IO, Optional, Dict
+    from typing import Any, Dict, Iterable, Iterator, IO, NoReturn, Optional
 
 
 class Result(object):
@@ -111,6 +111,15 @@ def try_open_file(
 
 
 class Command(object):
+    @staticmethod
+    def show_help(
+        parser,  # type: ArgumentParser
+        *_args,  # type: Any
+        **_kwargs  # type: Any
+    ):
+        # type: (...) -> NoReturn
+        parser.error("a subcommand is required")
+
     def add_arguments(self, parser):
         # type: (ArgumentParser) -> None
         pass

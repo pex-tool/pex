@@ -545,6 +545,16 @@ class PEXBuilder(object):
             # do use at runtime, does.
             root_module_names=["attr", "packaging", "pkg_resources", "pyparsing"],
         )
+        if self._include_tools:
+            # The `repository extract` tool needs setuptools and wheel to build sdists and wheels
+            # and distutils needs .dist-info to discover setuptools (and wheel).
+            vendor.vendor_runtime(
+                chroot=self._chroot,
+                dest_basedir=BOOTSTRAP_DIR,
+                label="bootstrap",
+                root_module_names=["setuptools", "wheel"],
+                include_dist_info=True,
+            )
 
         source_name = "pex"
         provider = get_provider(source_name)
