@@ -81,7 +81,7 @@ def populate_venv_with_pex(
     python=None,  # type: Optional[str]
     collisions_ok=True,  # type: bool
 ):
-    # type: (...) -> None
+    # type: (...) -> str
 
     venv_python = python or venv.interpreter.binary
     venv_bin_dir = os.path.dirname(python) if python else venv.bin_dir
@@ -139,9 +139,10 @@ def populate_venv_with_pex(
 
     # 2. Add a __main__ to the root of the venv for running the venv dir like a loose PEX dir
     # and a main.py for running as a script.
+    shebang = "#!{} -sE".format(venv_python)
     main_contents = dedent(
         """\
-        #!{venv_python} -sE
+        {shebang}
 
         if __name__ == "__main__":
             import os
@@ -149,8 +150,9 @@ def populate_venv_with_pex(
 
             venv_dir = os.path.abspath(os.path.dirname(__file__))
             venv_bin_dir = os.path.join(venv_dir, "bin")
-            python = os.path.join(venv_bin_dir, os.path.basename({venv_python!r}))
-            if sys.executable != python:
+            shebang_python = {shebang_python!r}
+            python = os.path.join(venv_bin_dir, os.path.basename(shebang_python))
+            if sys.executable not in (python, shebang_python):
                 sys.stderr.write("Re-execing from {{}}\\n".format(sys.executable))
                 os.execv(python, [python, "-sE"] + sys.argv)
 
@@ -248,7 +250,8 @@ def populate_venv_with_pex(
                     func = namespace = getattr(namespace, attr)
                 sys.exit(func())
         """.format(
-            venv_python=venv_python,
+            shebang=shebang,
+            shebang_python=venv_python,
             bin_path=bin_path,
             entry_point=pex_info.entry_point,
             exec_ast=(
@@ -264,8 +267,10 @@ def populate_venv_with_pex(
     os.symlink(os.path.basename(fp.name), venv.join_path("pex"))
 
     # 3. Re-write any (console) scripts to use the venv Python.
-    for script in venv.rewrite_scripts(python=python, python_args="-sE"):
+    for script in venv.rewrite_scripts(python=venv_python, python_args="-sE"):
         TRACER.log("Re-writing {}".format(script))
+
+    return shebang
 
 
 class Venv(Command):

@@ -2690,17 +2690,25 @@ def test_venv_mode(
         pex_root = str(tmpdir)
         stdout, returncode = run_simple_pex(
             pex_file,
-            args=["-c", "import sys; print(sys.executable)"],
+            args=["-c", "import sys; print(sys.executable); print(sys.prefix)"],
             env=make_env(PEX_ROOT=pex_root, PEX_INTERPRETER=1, **env),
         )
         assert returncode == 0, stdout
-        pex_interpreter = cast(str, stdout.decode("utf-8").strip())
+        pex_interpreter, venv_home = cast(
+            "Tuple[str, str]", stdout.decode("utf-8").strip().splitlines()
+        )
+        actual_venv_home = os.path.realpath(venv_home)
+        assert venv_home != actual_venv_home, "Expected the venv home to be a symlink"
+        assert len(venv_home) < len(
+            actual_venv_home
+        ), "Expected the venv home symlink path length to be shorter than the actual path length"
+
         with ENV.patch(**env):
             pex_info = PexInfo.from_pex(pex_file)
             pex_hash = pex_info.pex_hash
             assert pex_hash is not None
             expected_venv_home = venv_dir(pex_root, pex_hash, interpreter_constraints=[])
-        assert expected_venv_home == os.path.commonprefix([pex_interpreter, expected_venv_home])
+        assert expected_venv_home == os.path.commonprefix([actual_venv_home, expected_venv_home])
         return pex_interpreter
 
     isort_pex_interpreter1 = run_isort_pex()
