@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.32
+------
+
+This is a hotfix release that fixes ``--venv`` mode shebangs being too long for some Linux
+environments.
+
+* Guard against too long ``--venv`` mode shebangs. (#1254)
+  `PR #1254 <https://github.com/pantsbuild/pex/pull/1254>`_
+
 2.1.31
 ------
 
