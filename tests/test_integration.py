@@ -2688,12 +2688,10 @@ def test_venv_mode(
     def run_isort_pex(**env):
         # type: (**Any) -> str
         pex_root = str(tmpdir)
-        stdout, returncode = run_simple_pex(
-            pex_file,
-            args=["-c", "import sys; print(sys.executable); print(sys.prefix)"],
+        stdout = subprocess.check_output(
+            args=[pex_file, "-c", "import sys; print(sys.executable); print(sys.prefix)"],
             env=make_env(PEX_ROOT=pex_root, PEX_INTERPRETER=1, **env),
         )
-        assert returncode == 0, stdout
         pex_interpreter, venv_home = cast(
             "Tuple[str, str]", stdout.decode("utf-8").strip().splitlines()
         )
