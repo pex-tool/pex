@@ -26,7 +26,7 @@ from pex.tools.command import Command, Error, JsonMixin, Ok, OutputMixin, Result
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    import attr
+    import attr  # vendor:skip
     from typing import Callable, IO, Iterable, Iterator, Text, Tuple
 
     RepositoryFunc = Callable[[PEX, Namespace], Result]
