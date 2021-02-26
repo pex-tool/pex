@@ -34,6 +34,8 @@ def pex():
             fp.write(
                 dedent(
                     """\
+                    from __future__ import print_function
+
                     import os
                     import sys
 
@@ -43,7 +45,7 @@ def pex():
                     def do():
                         with open(os.path.join(os.path.dirname(__file__), "data", "url.txt")) as fp:
                             url = fp.read().strip()
-                        print(f"Fetching from {url} ...")
+                        print("Fetching from {} ...".format(url))
                         print(requests.get(url).text, file=sys.stderr)
                     """
                 )
@@ -56,7 +58,7 @@ def pex():
                 "-e",
                 "main:do",
                 "--interpreter-constraint",
-                "CPython>=3.6,<4",
+                "CPython>=2.7,<4",
                 "-o",
                 pex_path,
                 "--include-tools",
@@ -94,7 +96,7 @@ def test_wheel_included(pex, tmpdir):
         stdout=subprocess.PIPE,
     )
     with open(pid_file) as fp:
-        _, port = fp.read().strip().split(":", maxsplit=1)
+        _, port = fp.read().strip().split(":", 1)
     example_sdist_pex = os.path.join(str(tmpdir), "example-sdist.pex")
     result = run_pex_command(
         args=[

@@ -297,8 +297,12 @@ class Repository(JsonMixin, OutputMixin, Command):
         name, _ = os.path.splitext(os.path.basename(pex.path()))
         version = "0.0.0+{}".format(pex_info.code_hash)
         zip_safe = pex_info.zip_safe
-        py_modules = [os.path.splitext(name)[0] for name in os.listdir(src) if name.endswith(".py")]
-
+        py_modules = [os.path.splitext(f)[0] for f in os.listdir(src) if f.endswith(".py")]
+        packages = [
+            os.path.relpath(os.path.join(root, d), src).replace(os.sep, ".")
+            for root, dirs, _ in os.walk(src)
+            for d in dirs
+        ]
         install_requires = [str(req) for req in pex_info.requirements]
 
         python_requires = None
@@ -310,7 +314,7 @@ class Repository(JsonMixin, OutputMixin, Command):
             pex_warnings.warn(
                 "Omitting `python_requires` for {name} sdist since {pex} has multiple "
                 "interpreter constraints:\n{interpreter_constraints}".format(
-                    name=None,
+                    name=name,
                     pex=os.path.normpath(pex.path()),
                     interpreter_constraints="\n".join(
                         "{index}.) {constraint}".format(index=index, constraint=constraint)
@@ -336,23 +340,16 @@ class Repository(JsonMixin, OutputMixin, Command):
                     [options]
                     zip_safe = {zip_safe}
                     {py_modules}
-                    include_package_data = True
+                    {packages}
                     package_dir =
                         =src
-                    packages = find_namespace:
+                    include_package_data = True
 
                     {python_requires}
                     {install_requires}
 
                     [options.entry_points]
                     {entry_points}
-
-                    # N.B.: Although setuptools docs say this section should be
-                    # `options.packages.find_namespace`, that currently leads to errors.
-                    # It turns out sticking to `options.packages.find` works:
-                    # https://github.com/pypa/setuptools/issues/2406
-                    [options.packages.find]
-                    where = src
                     """
                 ).format(
                     name=name,
@@ -360,6 +357,9 @@ class Repository(JsonMixin, OutputMixin, Command):
                     zip_safe=zip_safe,
                     py_modules=(
                         "py_modules =\n  {}".format("\n  ".join(py_modules)) if py_modules else ""
+                    ),
+                    packages=(
+                        "packages = \n  {}".format("\n  ".join(packages)) if packages else ""
                     ),
                     install_requires=(
                         "install_requires =\n  {}".format("\n  ".join(install_requires))
