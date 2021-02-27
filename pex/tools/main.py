@@ -13,23 +13,14 @@ from pex import pex_bootstrapper
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.tools import commands
-from pex.tools.command import Result
+from pex.tools.command import Command, Result
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, NoReturn, Optional
+    from typing import Callable, Optional
 
     CommandFunc = Callable[[PEX, Namespace], Result]
-
-
-def show_help(
-    parser,  # type: ArgumentParser
-    *_args,  # type: Any
-    **_kwargs  # type: Any
-):
-    # type: (...) -> NoReturn
-    parser.error("a subcommand is required")
 
 
 def simplify_pex_path(pex_path):
@@ -70,7 +61,7 @@ def main(
             parser.add_argument(
                 "pex", nargs=1, metavar="PATH", help="The path of the PEX file to operate on."
             )
-        parser.set_defaults(func=functools.partial(show_help, parser))
+        parser.set_defaults(func=functools.partial(Command.show_help, parser))
         subparsers = parser.add_subparsers(
             description="{} can be operated on using any of the following subcommands.".format(
                 "The PEX file {}".format(pex_prog_path) if pex else "A PEX file"

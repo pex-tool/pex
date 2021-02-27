@@ -5,6 +5,7 @@ from pex.tools.command import Command
 from pex.tools.commands.graph import Graph
 from pex.tools.commands.info import Info
 from pex.tools.commands.interpreter import Interpreter
+from pex.tools.commands.repository import Repository
 from pex.tools.commands.venv import Venv
 from pex.typing import TYPE_CHECKING
 
@@ -14,4 +15,4 @@ if TYPE_CHECKING:
 
 def all_commands():
     # type: () -> Iterable[Command]
-    return Info(), Interpreter(), Graph(), Venv()
+    return Info(), Interpreter(), Graph(), Repository(), Venv()
