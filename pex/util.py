@@ -38,7 +38,7 @@ if TYPE_CHECKING:
         from hashlib import _hash as _Hash
     else:
         from hashlib import _Hash
-    from typing import Any, BinaryIO, Callable, IO, Iterable, Iterator, Optional
+    from typing import Any, BinaryIO, Callable, IO, Iterable, Iterator, Optional, Text
 
 
 class DistributionHelper(object):
@@ -90,7 +90,7 @@ class DistributionHelper(object):
 
     @classmethod
     def distribution_from_path(cls, path, name=None):
-        # type: (str, Optional[str]) -> Optional[Distribution]
+        # type: (Text, Optional[str]) -> Optional[Distribution]
         """Return a distribution from a path.
 
         If name is provided, find the distribution.  If none is found matching the name, return

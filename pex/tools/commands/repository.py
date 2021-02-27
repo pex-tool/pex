@@ -202,7 +202,13 @@ class Repository(JsonMixin, OutputMixin, Command):
                         output,
                     )
                 else:
-                    output.write(repr(distribution))
+                    output.write(
+                        "{project_name} {version} {location}".format(
+                            project_name=distribution.project_name,
+                            version=distribution.version,
+                            location=distribution.location,
+                        )
+                    )
                 output.write("\n")
         return Ok()
 
