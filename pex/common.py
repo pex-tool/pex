@@ -687,7 +687,7 @@ class Chroot(object):
                         yield full_path, path
                         continue
                     for root, _, files in os.walk(full_path):
-                        for f in files:
+                        for f in sorted(files):
                             abs_path = os.path.join(root, f)
                             rel_path = os.path.join(path, os.path.relpath(abs_path, full_path))
                             yield abs_path, rel_path

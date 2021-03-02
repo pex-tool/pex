@@ -10,16 +10,18 @@ import zipfile
 from contextlib import closing
 from email.message import Message
 from email.parser import Parser
+from io import StringIO
 
 from pex import pex_warnings
 from pex.common import open_zip
+from pex.compatibility import to_unicode
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import DistInfoDistribution, Distribution, Requirement
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import Dict, Iterator, Optional, Text, Union
+    from typing import Dict, Iterator, Optional, Union
 
     DistributionLike = Union[Distribution, str]
 else:
@@ -50,8 +52,8 @@ def _strip_sdist_path(sdist_path):
 
 
 def _parse_message(message):
-    # type: (Text) -> Message
-    return cast(Message, Parser().parsestr(message))
+    # type: (bytes) -> Message
+    return cast(Message, Parser().parse(StringIO(to_unicode(message))))
 
 
 def _parse_sdist_package_info(sdist_path):
@@ -65,7 +67,7 @@ def _parse_sdist_package_info(sdist_path):
     if zipfile.is_zipfile(sdist_path):
         with open_zip(sdist_path) as zip:
             try:
-                return _parse_message(zip.read(pkg_info_path).decode("utf-8"))
+                return _parse_message(zip.read(pkg_info_path))
             except KeyError as e:
                 pex_warnings.warn(
                     "Source distribution {} did not have the expected metadata file {}: {}".format(
@@ -82,7 +84,7 @@ def _parse_sdist_package_info(sdist_path):
                     # N.B.: `extractfile` returns None for directories and special files.
                     return None
                 with closing(pkg_info) as fp:
-                    return _parse_message(fp.read().decode("utf-8"))
+                    return _parse_message(fp.read())
             except KeyError as e:
                 pex_warnings.warn(
                     "Source distribution {} did not have the expected metadata file {}: {}".format(
@@ -102,7 +104,7 @@ def _parse_wheel_package_info(wheel_path):
     dist_info_dir = "{}-{}.dist-info".format(project_name, version)
     with open_zip(wheel_path) as whl:
         with whl.open(os.path.join(dist_info_dir, DistInfoDistribution.PKG_INFO)) as fp:
-            return _parse_message(fp.read().decode("utf-8"))
+            return _parse_message(fp.read())
 
 
 def _parse_distribution_package_info(dist):
