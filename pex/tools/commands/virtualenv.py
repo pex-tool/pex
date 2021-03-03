@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import fileinput
 import os
 import re
+import sys
 from contextlib import closing
 
 from pex.common import is_exe, safe_mkdir
@@ -177,9 +178,9 @@ class Virtualenv(object):
             python_scripts.append(executable)
         if python_scripts:
             with closing(fileinput.input(files=python_scripts, inplace=True)) as fi:
-                # N.B.: `fileinput` is strange, but useful: the `print` statements below are
-                # monkey-patched by `fileinput` to print to the corresponding original input file,
-                # which is has moved aside.
+                # N.B.: `fileinput` is strange, but useful: the context manager above monkey-patches
+                # sys.stdout to print to the corresponding original input file, which is has moved
+                # aside.
                 for line in fi:
                     if fi.isfirstline():
                         shebang = [python or self._interpreter.binary]
@@ -188,7 +189,8 @@ class Virtualenv(object):
                         print("#!{shebang}".format(shebang=" ".join(shebang)))
                         yield fi.filename()
                     else:
-                        print(line)
+                        # N.B.: These lines include the newline already.
+                        sys.stdout.write(line)
 
     def install_pip(self):
         # type: () -> None
