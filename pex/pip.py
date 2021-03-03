@@ -4,26 +4,33 @@
 
 from __future__ import absolute_import, print_function
 
+import fileinput
+import functools
+import json
 import os
 import re
 import subprocess
+import sys
 from collections import deque
+from contextlib import closing
 from textwrap import dedent
 
-from pex import third_party
+from pex import dist_metadata, third_party
 from pex.common import atomic_directory, safe_mkdtemp
 from pex.compatibility import urlparse
+from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.third_party import isolated
+from pex.third_party.pkg_resources import safe_name, safe_version
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, List, Mapping, Optional, Tuple
+    from typing import Any, Iterable, Iterator, List, Mapping, Optional, Tuple, Callable
 
 
 class ResolverVersion(object):
@@ -327,6 +334,7 @@ class Pip(object):
         cache=None,  # type: Optional[str]
         interpreter=None,  # type: Optional[PythonInterpreter]
         pip_verbosity=0,  # type: int
+        finalizer=None,  # type: Optional[Callable[[], None]]
         **popen_kwargs  # type: Any
     ):
         # type: (...) -> Job
@@ -338,7 +346,7 @@ class Pip(object):
             pip_verbosity=pip_verbosity,
             **popen_kwargs
         )
-        return Job(command=command, process=process)
+        return Job(command=command, process=process, finalizer=finalizer)
 
     def _iter_platform_args(
         self,
@@ -529,6 +537,58 @@ class Pip(object):
             interpreter=interpreter,
         )
 
+    @staticmethod
+    def _fixup_install(
+        dist,  # type: str
+        install_dir,  # type: str
+    ):
+        # type: (...) -> None
+
+        # The dist-info metadata directory is named as specifed in:
+        #   https://www.python.org/dev/peps/pep-0427/
+        #   https://packaging.python.org/specifications/recording-installed-packages/#the-dist-info-directory
+        project_name_and_version = dist_metadata.project_name_and_version(
+            dist
+        ) or ProjectNameAndVersion.from_filename(dist)
+        project_name = safe_name(project_name_and_version.project_name).replace("-", "_")
+        version = safe_version(project_name_and_version.version).replace("-", "_")
+        dist_info_dir = os.path.join(
+            install_dir,
+            "{project_name}-{version}.dist-info".format(project_name=project_name, version=version),
+        )
+
+        # The `direct_url.json` file is both mandatory for Pip to install and non-hermetic for
+        # Pex's purpose, since it contains the absolute local filesystem path to any local wheel
+        # file Pex installs via Pip. We remove the file and its entry in RECORD so that PEX files
+        # are bytewise reproducible. The absence of the direct_url.json file only affects Pex venvs
+        # where further mutation by PEP-compatible packaging tooling (e.g.: Pip) may be hindered.
+        # In particular, `pip freeze` for any distributions provided by local projects or archives
+        # will produce unuseful entries for those distributions.
+        #
+        # See:
+        #   https://www.python.org/dev/peps/pep-0610/
+        #   https://packaging.python.org/specifications/direct-url/#specification
+        direct_url_relpath = os.path.join(os.path.basename(dist_info_dir), "direct_url.json")
+        direct_url_abspath = os.path.join(os.path.dirname(dist_info_dir), direct_url_relpath)
+        if not os.path.exists(direct_url_abspath):
+            return
+
+        with open(direct_url_abspath) as fp:
+            if urlparse.urlparse(json.load(fp)["url"]).scheme != "file":
+                return
+
+        os.unlink(direct_url_abspath)
+
+        # The RECORD is a csv file with the path to each installed file in the 1st column.
+        # See: https://www.python.org/dev/peps/pep-0376/#record
+        with closing(
+            fileinput.input(files=[os.path.join(dist_info_dir, "RECORD")], inplace=True)
+        ) as record_fi:
+            for line in record_fi:
+                if line.split(",")[0] != direct_url_relpath:
+                    # N.B.: These lines include the newline already.
+                    sys.stdout.write(line)
+
     def spawn_install_wheel(
         self,
         wheel,  # type: str
@@ -590,7 +650,13 @@ class Pip(object):
 
         install_cmd.append("--compile" if compile else "--no-compile")
         install_cmd.append(wheel)
-        return self._spawn_pip_isolated_job(install_cmd, cache=cache, interpreter=interpreter)
+
+        return self._spawn_pip_isolated_job(
+            args=install_cmd,
+            cache=cache,
+            interpreter=interpreter,
+            finalizer=functools.partial(self._fixup_install, dist=wheel, install_dir=install_dir),
+        )
 
     def spawn_debug(
         self,
