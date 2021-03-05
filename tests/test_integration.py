@@ -3186,3 +3186,11 @@ def test_isolated_pex_zip_issues_1232(tmpdir):
     assert (
         ansicolors_pex_isolated_vendoreds == tally_isolated_vendoreds()
     ), "Expecting no new Pex isolations."
+
+
+def test_requires_metadata_issues_1201(tmpdir):
+    # type: (Any) -> None
+    pex_file = os.path.join(str(tmpdir), "et-xmlfile.pex")
+    result = run_pex_command(args=["et-xmlfile==1.0.1", "-o", pex_file])
+    result.assert_success()
+    subprocess.check_call(args=[pex_file, "-c", "import et_xmlfile"])
