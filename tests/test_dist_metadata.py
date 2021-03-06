@@ -7,6 +7,7 @@ import os
 import tarfile
 import warnings
 from contextlib import contextmanager
+from textwrap import dedent
 
 import pytest
 
@@ -18,6 +19,7 @@ from pex.dist_metadata import (
     requires_dists,
     requires_python,
 )
+from pex.orderedset import OrderedSet
 from pex.pex_warnings import PEXWarning
 from pex.pip import get_pip
 from pex.third_party.packaging.specifiers import SpecifierSet
@@ -250,3 +252,26 @@ def test_requires_dists_none(pygoogleearth_zip_sdist):
     with example_distribution("MarkupSafe-1.0-cp27-cp27mu-linux_x86_64.whl") as (wheel_path, dist):
         assert [] == list(requires_dists(wheel_path))
         assert [] == list(requires_dists(dist))
+
+    # This tests a strange case detailed here:
+    #   https://github.com/pantsbuild/pex/issues/1201#issuecomment-791715585
+    with downloaded_sdist("et-xmlfile==1.0.1") as sdist, warnings.catch_warnings(
+        record=True
+    ) as events:
+        assert [] == list(requires_dists(sdist))
+        assert len(events) == 1
+        warning = events[0]
+        assert PEXWarning == warning.category
+        assert (
+            dedent(
+                """\
+                Ignoring 1 `Requires` field in {sdist} metadata:
+                1.) Requires: python (>=2.6.0)
+
+                You may have issues using the 'et_xmlfile' distribution as a result.
+                More information on this workaround can be found here:
+                  https://github.com/pantsbuild/pex/issues/1201#issuecomment-791715585
+                """
+            ).format(sdist=sdist)
+            == str(warning.message)
+        )
