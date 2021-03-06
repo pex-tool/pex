@@ -267,7 +267,7 @@ def requires_dists(dist):
                 Ignoring {count} `Requires` {field} in {dist} metadata:
                 {requires}
 
-                You may have issues using using the '{project_name}' distribution as a result.
+                You may have issues using the '{project_name}' distribution as a result.
                 More information on this workaround can be found here:
                   https://github.com/pantsbuild/pex/issues/1201#issuecomment-791715585
                 """
