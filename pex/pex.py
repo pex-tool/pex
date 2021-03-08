@@ -78,7 +78,7 @@ class PEX(object):  # noqa: T000
         self._pex_info = PexInfo.from_pex(self._pex)
         self._pex_info_overrides = PexInfo.from_env(env=env)
         self._vars = env
-        self._envs = []  # type: List[PEXEnvironment]
+        self._envs = None  # type: Optional[Iterable[PEXEnvironment]]
         self._activated_dists = None  # type: Optional[Iterable[Distribution]]
         if verify_entry_point:
             self._do_entry_point_verification()
@@ -95,27 +95,38 @@ class PEX(object):  # noqa: T000
         # type: () -> PythonInterpreter
         return self._interpreter
 
+    @property
+    def _loaded_envs(self):
+        # type: () -> Iterable[PEXEnvironment]
+        if self._envs is None:
+            # set up the local .pex environment
+            pex_info = self.pex_info()
+            target = DistributionTarget.for_interpreter(self._interpreter)
+            envs = [PEXEnvironment(self._pex, pex_info, target=target)]
+            # N.B. by this point, `pex_info.pex_path` will contain a single pex path
+            # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
+            # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
+            # in the environment.
+            if pex_info.pex_path:
+                # set up other environments as specified in pex_path
+                for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
+                    pex_info = PexInfo.from_pex(pex_path)
+                    pex_info.update(self._pex_info_overrides)
+                    envs.append(PEXEnvironment(pex_path, pex_info, target=target))
+            self._envs = tuple(envs)
+        return self._envs
+
+    def resolve(self):
+        # type: () -> Iterator[Distribution]
+        for env in self._loaded_envs:
+            for dist in env.resolve():
+                yield dist
+
     def _activate(self):
         # type: () -> Iterable[Distribution]
 
-        # set up the local .pex environment
-        pex_info = self.pex_info()
-        target = DistributionTarget.for_interpreter(self._interpreter)
-        self._envs.append(PEXEnvironment(self._pex, pex_info, target=target))
-        # N.B. by this point, `pex_info.pex_path` will contain a single pex path
-        # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
-        # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
-        # in the environment.
-        if pex_info.pex_path:
-            # set up other environments as specified in pex_path
-            for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
-                pex_info = PexInfo.from_pex(pex_path)
-                pex_info.update(self._pex_info_overrides)
-                self._envs.append(PEXEnvironment(pex_path, pex_info, target=target))
-
-        # activate all of them
         activated_dists = []  # type: List[Distribution]
-        for env in self._envs:
+        for env in self._loaded_envs:
             activated_dists.extend(env.activate())
 
         # Ensure that pkg_resources is not imported until at least every pex environment
