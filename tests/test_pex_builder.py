@@ -3,6 +3,7 @@
 
 import os
 import stat
+import subprocess
 import zipfile
 
 import pytest
@@ -11,8 +12,8 @@ from pex.common import safe_open, temporary_dir
 from pex.compatibility import WINDOWS
 from pex.executor import Executor
 from pex.pex import PEX
-from pex.pex_builder import BOOTSTRAP_DIR, CopyMode, PEXBuilder
-from pex.testing import make_bdist
+from pex.pex_builder import CopyMode, PEXBuilder
+from pex.testing import built_wheel, make_bdist
 from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
 
@@ -140,7 +141,7 @@ def test_pex_builder_compilation():
                     assert pyc_exists
                 else:
                     assert not pyc_exists
-            bootstrap_dir = os.path.join(path, BOOTSTRAP_DIR)
+            bootstrap_dir = os.path.join(path, pb.info.bootstrap)
             bootstrap_pycs = []  # type: List[str]
             for _, _, files in os.walk(bootstrap_dir):
                 bootstrap_pycs.extend(f for f in files if f.endswith(".pyc"))
@@ -266,3 +267,24 @@ def test_pex_builder_from_requirements_pex():
             pb3.build(target)
             pb4 = build_from_req_pex(td4, target)
         verify(pb4)
+
+
+def test_prex_builder_script_from_pex_path(tmpdir):
+    # type: (Any) -> None
+
+    pex_with_script = os.path.join(str(tmpdir), "script.pex")
+    with built_wheel(
+        name="my_project",
+        entry_points={"console_scripts": ["my_app = my_project.my_module:do_something"]},
+    ) as my_whl:
+        pb = PEXBuilder()
+        pb.add_dist_location(my_whl)
+        pb.build(pex_with_script)
+
+    pex_file = os.path.join(str(tmpdir), "app.pex")
+    pb = PEXBuilder()
+    pb.info.pex_path = pex_with_script
+    pb.set_script("my_app")
+    pb.build(pex_file)
+
+    assert "hello world!\n" == subprocess.check_output(args=[pex_file]).decode("utf-8")

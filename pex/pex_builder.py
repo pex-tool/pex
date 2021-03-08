@@ -14,6 +14,8 @@ from pex.compiler import Compiler
 from pex.distribution_target import DistributionTarget
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
+from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
 from pex.third_party.pkg_resources import DefaultProvider, Distribution, ZipProvider, get_provider
@@ -53,8 +55,6 @@ class CopyMode(object):
             )
         )
 
-
-BOOTSTRAP_DIR = ".bootstrap"
 
 BOOTSTRAP_ENVIRONMENT = """\
 import os
@@ -360,29 +360,34 @@ class PEXBuilder(object):
           in any distribution added to the PEX.
         """
 
-        # check if 'script' is a console_script
-        dist, entry_point = get_entry_point_from_console_script(
-            script, self._distributions.values()
-        )
+        distributions = OrderedSet(self._distributions.values())
+        if self._pex_info.pex_path:
+            for pex in self._pex_info.pex_path.split(":"):
+                if os.path.exists(pex):
+                    distributions.update(PEX(pex, interpreter=self._interpreter).resolve())
+
+        # Check if 'script' is a console_script.
+        dist, entry_point = get_entry_point_from_console_script(script, distributions)
         if entry_point:
             self.set_entry_point(entry_point)
-            TRACER.log("Set entrypoint to console_script %r in %r" % (entry_point, dist))
+            TRACER.log("Set entrypoint to console_script {!r} in {!r}".format(entry_point, dist))
             return
 
-        # check if 'script' is an ordinary script
-        dist_script = get_script_from_distributions(script, self._distributions.values())
+        # Check if 'script' is an ordinary script.
+        dist_script = get_script_from_distributions(script, distributions)
         if dist_script:
             if self._pex_info.entry_point:
                 raise self.InvalidExecutableSpecification(
                     "Cannot set both entry point and script of PEX!"
                 )
             self._pex_info.script = script
-            TRACER.log("Set entrypoint to script %r in %r" % (script, dist_script.dist))
+            TRACER.log("Set entrypoint to script {!r} in {!r}".format(script, dist_script.dist))
             return
 
         raise self.InvalidExecutableSpecification(
-            "Could not find script %r in any distribution %s within PEX!"
-            % (script, ", ".join(str(d) for d in self._distributions.values()))
+            "Could not find script {!r} in any distribution {} within PEX!".format(
+                script, ", ".join(str(d) for d in distributions)
+            )
         )
 
     def set_entry_point(self, entry_point):
@@ -499,7 +504,10 @@ class PEXBuilder(object):
             if path.endswith(".py")
             # N.B.: This file if Python 3.6+ only and will not compile under Python 2.7 or
             # Python 3.5. Since we don't actually use it we just skip compiling it.
-            and path != os.path.join(BOOTSTRAP_DIR, "pex/vendor/_vendored/attrs/attr/_next_gen.py")
+            and path
+            != os.path.join(
+                self._pex_info.bootstrap, "pex/vendor/_vendored/attrs/attr/_next_gen.py"
+            )
         ]
 
         compiler = Compiler(self.interpreter)
@@ -513,7 +521,7 @@ class PEXBuilder(object):
         self._chroot.write(self._pex_info.dump().encode("utf-8"), PexInfo.PATH, label="manifest")
 
         bootstrap = BOOTSTRAP_ENVIRONMENT.format(
-            bootstrap_dir=BOOTSTRAP_DIR,
+            bootstrap_dir=self._pex_info.bootstrap,
             pex_root=self._pex_info.raw_pex_root,
             pex_hash=self._pex_info.pex_hash,
             interpreter_constraints=self._pex_info.interpreter_constraints,
@@ -538,7 +546,7 @@ class PEXBuilder(object):
 
         vendor.vendor_runtime(
             chroot=self._chroot,
-            dest_basedir=BOOTSTRAP_DIR,
+            dest_basedir=self._pex_info.bootstrap,
             label="bootstrap",
             # NB: We use pip here in the builder, but that's only at buildtime and
             # although we don't use pyparsing directly, packaging.markers, which we
@@ -550,7 +558,7 @@ class PEXBuilder(object):
             # and distutils needs .dist-info to discover setuptools (and wheel).
             vendor.vendor_runtime(
                 chroot=self._chroot,
-                dest_basedir=BOOTSTRAP_DIR,
+                dest_basedir=self._pex_info.bootstrap,
                 label="bootstrap",
                 root_module_names=["setuptools", "wheel"],
                 include_dist_info=True,
@@ -571,7 +579,7 @@ class PEXBuilder(object):
                     rel_path = os.path.join(package, fn)
                     self._chroot.write(
                         provider.get_resource_string(source_name, rel_path),
-                        os.path.join(BOOTSTRAP_DIR, source_name, rel_path),
+                        os.path.join(self._pex_info.bootstrap, source_name, rel_path),
                         "bootstrap",
                     )
 

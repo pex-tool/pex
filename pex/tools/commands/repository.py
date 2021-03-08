@@ -177,7 +177,7 @@ class Repository(JsonMixin, OutputMixin, Command):
     ):
         # type: (...) -> Iterator[Tuple[Iterable[Distribution], IO]]
         with self.output(options) as out:
-            yield pex.activate(), out
+            yield tuple(pex.resolve()), out
 
     def _info(
         self,
