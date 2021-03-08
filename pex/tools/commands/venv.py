@@ -11,7 +11,7 @@ from argparse import ArgumentParser, Namespace
 from collections import defaultdict
 from textwrap import dedent
 
-from pex import pex_builder, pex_warnings
+from pex import pex_warnings
 from pex.common import chmod_plus_x, pluralize, safe_mkdir
 from pex.environment import PEXEnvironment
 from pex.pex import PEX
@@ -107,7 +107,7 @@ def populate_venv_with_pex(
             _copytree(
                 src=pex.path(),
                 dst=venv.site_packages_dir,
-                exclude=(pex_info.internal_cache, pex_builder.BOOTSTRAP_DIR, "__main__.py"),
+                exclude=(pex_info.internal_cache, pex_info.bootstrap, "__main__.py"),
             )
         )
 

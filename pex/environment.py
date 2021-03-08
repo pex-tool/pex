@@ -11,7 +11,7 @@ import sys
 import zipfile
 from collections import OrderedDict, defaultdict
 
-from pex import dist_metadata, pex_builder, pex_warnings
+from pex import dist_metadata, pex_warnings
 from pex.bootstrap import Bootstrap
 from pex.common import atomic_directory, open_zip
 from pex.distribution_target import DistributionTarget
@@ -198,7 +198,7 @@ class PEXEnvironment(object):
                 pex_files = (
                     name
                     for name in pex_zip.namelist()
-                    if not name.startswith(pex_builder.BOOTSTRAP_DIR)
+                    if not name.startswith(self._pex_info.bootstrap)
                     and not name.startswith(self._pex_info.internal_cache)
                     and name not in exclude
                 )

@@ -434,6 +434,10 @@ class PexInfo(object):
             self._pex_info["pex_root"] = value
 
     @property
+    def bootstrap(self):
+        return ".bootstrap"
+
+    @property
     def internal_cache(self):
         return ".deps"
 
