@@ -3194,3 +3194,19 @@ def test_requires_metadata_issues_1201(tmpdir):
     result = run_pex_command(args=["et-xmlfile==1.0.1", "-o", pex_file])
     result.assert_success()
     subprocess.check_call(args=[pex_file, "-c", "import et_xmlfile"])
+
+
+def test_console_script_from_pex_path(tmpdir):
+    # type: (Any) -> None
+    pex_with_script = os.path.join(str(tmpdir), "script.pex")
+    with built_wheel(
+        name="my_project",
+        entry_points={"console_scripts": ["my_app = my_project.my_module:do_something"]},
+    ) as my_whl:
+        run_pex_command(args=[my_whl, "-o", pex_with_script]).assert_success()
+
+    pex_file = os.path.join(str(tmpdir), "app.pex")
+    result = run_pex_command(args=["-c", "my_app", "--pex-path", pex_with_script, "-o", pex_file])
+    result.assert_success()
+
+    assert "hello world!\n" == subprocess.check_output(args=[pex_file]).decode("utf-8")

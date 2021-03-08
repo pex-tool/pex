@@ -202,6 +202,7 @@ def built_wheel(
     zip_safe=True,  # type: bool
     install_reqs=None,  # type: Optional[List[str]]
     extras_require=None,  # type: Optional[Dict[str, List[str]]]
+    entry_points=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
     interpreter=None,  # type: Optional[PythonInterpreter]
     python_requires=None,  # type: Optional[str]
     **kwargs  # type: Any
@@ -213,6 +214,7 @@ def built_wheel(
         zip_safe=zip_safe,
         install_reqs=install_reqs,
         extras_require=extras_require,
+        entry_points=entry_points,
         python_requires=python_requires,
     ) as td:
         builder = WheelBuilder(td, interpreter=interpreter, **kwargs)
