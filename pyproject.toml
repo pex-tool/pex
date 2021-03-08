@@ -47,6 +47,10 @@ bdist_pex = "pex.commands.bdist_pex:bdist_pex"
 [tool.flit.sdist]
 include = ["CHANGES.rst"]
 
+[tool.flit.metadata.urls]
+Changelog = "https://github.com/pantsbuild/pex/blob/master/CHANGES.rst"
+Documentation = "https://pex.readthedocs.io/en/latest/"
+
 [tool.black]
 line-length = 100
 target-version = ["py27"]

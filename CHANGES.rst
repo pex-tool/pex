@@ -1,6 +1,24 @@
 Release Notes
 =============
 
+2.1.33
+------
+
+* Support console scripts found in the PEX_PATH. (#1265)
+  `PR #1265 <https://github.com/pantsbuild/pex/pull/1265>`_
+
+* Fix Requires metadata handling. (#1262)
+  `PR #1262 <https://github.com/pantsbuild/pex/pull/1262>`_
+
+* Fix PEX file reproducibility. (#1259)
+  `PR #1259 <https://github.com/pantsbuild/pex/pull/1259>`_
+
+* Fix venv script shebang rewriting. (#1260)
+  `PR #1260 <https://github.com/pantsbuild/pex/pull/1260>`_
+
+* Introduce the repository PEX_TOOL. (#1256)
+  `PR #1256 <https://github.com/pantsbuild/pex/pull/1256>`_
+
 2.1.32
 ------
 
