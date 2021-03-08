@@ -301,6 +301,7 @@ class PEXEnvironment(object):
         self._available_ranked_dists_by_key = defaultdict(
             list
         )  # type: DefaultDict[str, List[_RankedDistribution]]
+        self._resolved_dists = None  # type: Optional[Iterable[Distribution]]
         self._activated_dists = None  # type: Optional[Iterable[Distribution]]
 
         self._target = target or DistributionTarget.current()
@@ -514,7 +515,14 @@ class PEXEnvironment(object):
                 )
             yield qualified_requirement
 
-    def resolve(self, reqs):
+    def resolve(self):
+        # type: () -> Iterable[Distribution]
+        if self._resolved_dists is None:
+            all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
+            self._resolved_dists = self.resolve_dists(all_reqs)
+        return self._resolved_dists
+
+    def resolve_dists(self, reqs):
         # type: (Iterable[Requirement]) -> Iterable[Distribution]
 
         self._update_candidate_distributions(self._load_internal_cache())
@@ -685,8 +693,7 @@ class PEXEnvironment(object):
             )
             sys.path.insert(0, self._pex)
 
-        all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
-        resolved = self.resolve(all_reqs)
+        resolved = self.resolve()
         for dist in resolved:
             with TRACER.timed("Activating %s" % dist, V=2):
                 if self._pex_info.inherit_path == InheritPath.FALLBACK:

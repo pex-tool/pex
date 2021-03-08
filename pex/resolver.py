@@ -1386,7 +1386,7 @@ def resolve_from_pex(
     for target in unique_targets:
         pex_env = PEXEnvironment(pex, target=target)
         try:
-            distributions = pex_env.resolve(all_reqs)
+            distributions = pex_env.resolve_dists(all_reqs)
         except ResolveError as e:
             raise Unsatisfiable(str(e))
 
