@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import hashlib
 import logging
 import os
+import pkgutil
 
 from pex import pex_warnings
 from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdtemp, safe_open, temporary_dir
@@ -16,7 +17,7 @@ from pex.finders import get_entry_point_from_console_script, get_script_from_dis
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
-from pex.third_party.pkg_resources import DefaultProvider, Distribution, ZipProvider, get_provider
+from pex.third_party.pkg_resources import Distribution, ResourceManager, ZipProvider, get_provider
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
@@ -556,24 +557,36 @@ class PEXBuilder(object):
                 include_dist_info=True,
             )
 
-        source_name = "pex"
-        provider = get_provider(source_name)
-        if not isinstance(provider, DefaultProvider):
-            mod = __import__(source_name, fromlist=["ignore"])
-            provider = ZipProvider(mod)
-
+        resource_manager = ResourceManager()
+        provider = get_provider("pex")
         bootstrap_packages = ["", "third_party"]
         if self._include_tools:
             bootstrap_packages.extend(["tools", "tools/commands"])
-        for package in bootstrap_packages:
-            for fn in provider.resource_listdir(package):
-                if not (provider.resource_isdir(os.path.join(package, fn)) or fn.endswith(".pyc")):
-                    rel_path = os.path.join(package, fn)
-                    self._chroot.write(
-                        provider.get_resource_string(source_name, rel_path),
-                        os.path.join(BOOTSTRAP_DIR, source_name, rel_path),
-                        "bootstrap",
-                    )
+
+        cwd = os.getcwd()
+
+        # The pkg_resources resource location mechanism for sys.path directory entries is thwarted
+        # by certain multiprocessing schemes including that used by pytest-xdist. By proactively
+        # setting the CWD to the sys.path entry where Pex is loaded from, we work around those
+        # issues.
+        if not isinstance(provider, ZipProvider):
+            loader = provider.loader or pkgutil.get_loader("pex")
+            pex__init__file_path = loader.get_filename("pex")
+            pex_sys_path_entry = os.path.dirname(os.path.dirname(pex__init__file_path))
+            os.chdir(pex_sys_path_entry)
+
+        try:
+            for bootstrap_package in bootstrap_packages:
+                for fn in provider.resource_listdir(bootstrap_package):
+                    relpath = os.path.join(bootstrap_package, fn)
+                    if not (provider.resource_isdir(relpath) or fn.endswith(".pyc")):
+                        self._chroot.write(
+                            provider.get_resource_string(resource_manager, relpath),
+                            os.path.join(BOOTSTRAP_DIR, "pex", relpath),
+                            "bootstrap",
+                        )
+        finally:
+            os.chdir(cwd)
 
     def freeze(self, bytecode_compile=True):
         """Freeze the PEX.
