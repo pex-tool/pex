@@ -111,7 +111,7 @@ def populate_venv_with_pex(
             )
         )
 
-    for dist in pex.activate():
+    for dist in pex.resolve():
         record_provenance(
             _copytree(src=dist.location, dst=venv.site_packages_dir, exclude=("bin",))
         )
