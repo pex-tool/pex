@@ -2876,7 +2876,7 @@ def test_seed(
 ):
     # type: (...) -> None
     pex_file, args = isort_pex_args
-    results = run_pex_command(args=args + mode_args + ["--seed"], quiet=True)
+    results = run_pex_command(args=args + mode_args + ["--seed"])
     results.assert_success()
 
     # Setting posix=False works around this issue under pypy: https://bugs.python.org/issue1170.
