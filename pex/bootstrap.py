@@ -41,13 +41,16 @@ class Bootstrap(object):
         """
         import sys  # Grab a hold of `sys` early since we'll be un-importing our module in this process.
 
+        # N.B.: We mutate the sys.path before un-importing modules so that any re-imports triggered
+        # by concurrent code will pull from the desired sys.path ordering.
+
+        sys.path[:] = [path for path in sys.path if os.path.realpath(path) != self._realpath]
+        sys.path.append(self._sys_path_entry)
+
         unimported_modules = []
         for name, module in reversed(sorted(sys.modules.items())):
             if self.imported_from_bootstrap(module):
                 unimported_modules.append(sys.modules.pop(name))
-
-        sys.path[:] = [path for path in sys.path if os.path.realpath(path) != self._realpath]
-        sys.path.append(self._sys_path_entry)
 
         return unimported_modules
 
