@@ -611,8 +611,17 @@ def test_execute_interpreter_dashm_module():
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)
         pex_builder.add_source(None, "foo/__init__.py")
-        with tempfile.NamedTemporaryFile() as fp:
-            fp.write(b'import sys; print(" ".join(sys.argv))')
+        with tempfile.NamedTemporaryFile(mode="w") as fp:
+            fp.write(
+                dedent(
+                    """\
+                    import os
+                    import sys
+
+                    print("{} {}".format(os.path.realpath(sys.argv[0]), " ".join(sys.argv[1:])))
+                    """
+                )
+            )
             fp.flush()
             pex_builder.add_source(fp.name, "foo/bar.py")
         pex_builder.freeze()
