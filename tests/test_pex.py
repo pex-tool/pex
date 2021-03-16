@@ -626,7 +626,9 @@ def test_execute_interpreter_dashm_module():
         stdout, stderr = process.communicate()
 
         assert 0 == process.returncode
-        assert b"foo.bar one two\n" == stdout
+        assert "{} one two\n".format(os.path.join(pex_chroot, "foo/bar.py")) == stdout.decode(
+            "utf-8"
+        )
         assert b"" == stderr
 
 
