@@ -2364,9 +2364,10 @@ def test_unzip_mode():
         assert pex_hash is not None
         unzipped_cache = unzip_dir(pex_root, pex_hash)
         assert os.path.isdir(unzipped_cache)
-        assert ["quit re-exec", os.path.join(unzipped_cache, "example.py")] == output1.decode(
-            "utf-8"
-        ).splitlines()
+        assert [
+            "quit re-exec",
+            os.path.realpath(os.path.join(unzipped_cache, "example.py")),
+        ] == output1.decode("utf-8").splitlines()
 
         shutil.rmtree(unzipped_cache)
 
