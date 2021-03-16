@@ -44,6 +44,7 @@ if TYPE_CHECKING:
 
 PY_VER = sys.version_info[:2]
 IS_PYPY = hasattr(sys, "pypy_version_info")
+IS_PYPY2 = IS_PYPY and sys.version_info[0] == 2
 IS_PYPY3 = IS_PYPY and sys.version_info[0] == 3
 NOT_CPYTHON27 = IS_PYPY or PY_VER != (2, 7)
 NOT_CPYTHON36 = IS_PYPY or PY_VER != (3, 6)

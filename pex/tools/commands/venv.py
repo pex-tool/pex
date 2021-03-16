@@ -238,7 +238,7 @@ def populate_venv_with_pex(
             module_name, _, function = entry_point.partition(":")
             if not function:
                 import runpy
-                runpy.run_module(module_name, run_name="__main__")
+                runpy.run_module(module_name, run_name="__main__", alter_sys=True)
             else:
                 import importlib
                 module = importlib.import_module(module_name)

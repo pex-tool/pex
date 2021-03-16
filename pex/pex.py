@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import warnings
+import zipfile
 from distutils import sysconfig
 from site import USER_SITE
 from types import ModuleType
@@ -576,7 +577,7 @@ class PEX(object):  # noqa: T000
         log("  * - paths that do not exist or will be imported via zipimport")
 
     def execute_interpreter(self):
-        # type: () -> Optional[str]
+        # type: () -> Any
         args = sys.argv[1:]
         if args:
             # NB: We take care here to setup sys.argv to match how CPython does it for each case.
@@ -588,7 +589,7 @@ class PEX(object):  # noqa: T000
             elif arg == "-m":
                 module = args[1]
                 sys.argv = args[1:]
-                return self.execute_module(module)
+                return self.execute_module(module, alter_sys=True)
             else:
                 try:
                     if arg == "-":
@@ -654,20 +655,33 @@ class PEX(object):  # noqa: T000
         exec_function(ast, globals_map)
         return None
 
-    @classmethod
-    def execute_entry(cls, entry_point):
+    def execute_entry(self, entry_point):
         # type: (str) -> Any
-        runner = cls.execute_pkg_resources if ":" in entry_point else cls.execute_module
-        return runner(entry_point)
+        if ":" in entry_point:
+            return self.execute_pkg_resources(entry_point)
 
-    @classmethod
-    def execute_module(cls, module_name):
-        # type: (str) -> None
-        cls.demote_bootstrap()
+        # When running as a zipapp we can't usefully `alter_sys` to point to the module we're
+        # executing as argv[0] since that module will be contained in a zipfile. In other words, if
+        # we did do this, sys.argv[0] would be `/path/to/pex.zip/path/to/module.py` and that value
+        # would not be usable in the standard way. Its not a file you can read or re-execute
+        # against like a loose python module source file would be.
+        #
+        # Python itself disallows this case altogether in the standard zipapp module (probably for
+        # similar reasons). See: https://docs.python.org/3/library/zipapp.html#cmdoption-zipapp-m
+        alter_sys = not zipfile.is_zipfile(self._pex)
+        return self.execute_module(entry_point, alter_sys)
+
+    def execute_module(
+        self,
+        module_name,  # type: str
+        alter_sys,  # type: bool
+    ):
+        # type: (...) -> None
+        self.demote_bootstrap()
 
         import runpy
 
-        runpy.run_module(module_name, run_name="__main__")
+        runpy.run_module(module_name, run_name="__main__", alter_sys=alter_sys)
 
     @classmethod
     def execute_pkg_resources(cls, spec):
