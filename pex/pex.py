@@ -660,6 +660,14 @@ class PEX(object):  # noqa: T000
         if ":" in entry_point:
             return self.execute_pkg_resources(entry_point)
 
+        # When running as a zipapp we can't usefully `alter_sys` to point to the module we're
+        # executing as argv[0] since that module will be contained in a zipfile. In other words, if
+        # we did do this, sys.argv[0] would be `/path/to/pex.zip/path/to/module.py` and that value
+        # would not be usable in the standard way. Its not a file you can read or re-execute
+        # against like a loose python module source file would be.
+        #
+        # Python itself disallows this case altogether in the standard zipapp module (probably for
+        # similar reasons). See: https://docs.python.org/3/library/zipapp.html#cmdoption-zipapp-m
         alter_sys = not zipfile.is_zipfile(self._pex)
         return self.execute_module(entry_point, alter_sys)
 
