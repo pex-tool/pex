@@ -637,7 +637,11 @@ def configure_clp():
         "sources, requirements, their dependencies and other options."
     )
 
-    parser = ArgumentParser(usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(
+        usage=usage,
+        formatter_class=ArgumentDefaultsHelpFormatter,
+        fromfile_prefix_chars="@",
+    )
 
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("requirements", nargs="*", help="Requirements to add to the pex")

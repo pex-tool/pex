@@ -124,6 +124,17 @@ def test_clp_constraints_txt():
     assert options.constraint_files == ["requirements1.txt"]
 
 
+def test_clp_arg_file():
+    # type: () -> None
+    with NamedTemporaryFile() as tmpfile:
+        tmpfile.write(to_bytes("-r\nrequirements1.txt\r-r\nrequirements2.txt"))
+        tmpfile.flush()
+
+        parser = configure_clp()
+        options = parser.parse_args(args=["@" + tmpfile.name])
+        assert options.requirement_files == ["requirements1.txt", "requirements2.txt"]
+
+
 def test_clp_preamble_file():
     # type: () -> None
     with NamedTemporaryFile() as tmpfile:
