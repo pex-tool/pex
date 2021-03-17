@@ -3,6 +3,7 @@
 
 import os
 import shutil
+import subprocess
 import sys
 from textwrap import dedent
 
@@ -11,12 +12,14 @@ import pytest
 from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
-from pex.pex_bootstrapper import iter_compatible_interpreters
+from pex.pex import PEX
+from pex.pex_bootstrapper import ensure_venv, iter_compatible_interpreters
+from pex.pex_builder import PEXBuilder
 from pex.testing import PY27, PY35, PY36, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import AnyStr, Iterable, List, Optional
+    from typing import Any, Iterable, List, Optional
 
 
 def basenames(*paths):
@@ -169,6 +172,7 @@ def test_find_compatible_interpreters_bias_current():
 
 
 def test_find_compatible_interpreters_siblings_of_current_issues_1109():
+    # type: () -> None
     py27 = ensure_python_interpreter(PY27)
     py36 = ensure_python_interpreter(PY36)
 
@@ -182,3 +186,51 @@ def test_find_compatible_interpreters_siblings_of_current_issues_1109():
         assert [os.path.realpath(p) for p in (python36, python27)] == find_interpreters(
             path=[path_entry], preferred_interpreter=PythonInterpreter.from_binary(python36)
         )
+
+
+def test_ensure_venv_activate_issues_1276(tmpdir):
+    # type: (Any) -> None
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pb = PEXBuilder()
+    pb.info.pex_root = pex_root
+    pb.info.venv = True
+    pb.freeze()
+
+    venv_pex = ensure_venv(PEX(pb.path()))
+
+    expected_python_bin_dir = (
+        subprocess.check_output(
+            args=[
+                venv_pex,
+                "-c",
+                "import os, sys; print(os.path.realpath(os.path.dirname(sys.executable)))",
+            ],
+        )
+        .decode("utf-8")
+        .strip()
+    )
+    bash_activate = os.path.join(os.path.dirname(venv_pex), "bin", "activate")
+
+    subprocess.check_call(
+        args=[
+            "/usr/bin/env",
+            "bash",
+            "-c",
+            dedent(
+                """\
+                source "{activate_script}"
+
+                actual_python_bin_dir="$(dirname "$(command -v python)")"
+                expected_python_bin_dir="{expected_python_bin_dir}"
+
+                if [ "${{actual_python_bin_dir}}" != "${{expected_python_bin_dir}}" ]; then
+                    echo >&2 "Actual Python Bin Dir: ${{actual_python_bin_dir}}"
+                    echo >&2 "Expected Python Bin Dir: ${{expected_python_bin_dir}}"
+                  exit 42
+                fi
+                """.format(
+                    activate_script=bash_activate, expected_python_bin_dir=expected_python_bin_dir
+                )
+            ),
+        ]
+    )

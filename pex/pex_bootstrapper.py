@@ -374,8 +374,8 @@ def ensure_venv(pex):
             from .tools.commands.venv import populate_venv_with_pex
             from .tools.commands.virtualenv import Virtualenv
 
-            virtualenv = Virtualenv.create(
-                venv_dir=venv.work_dir,
+            virtualenv = Virtualenv.create_atomic(
+                venv_dir=venv,
                 interpreter=pex.interpreter,
                 copies=pex_info.venv_copies,
             )
