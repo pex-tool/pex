@@ -1,6 +1,26 @@
 Release Notes
 =============
 
+2.1.34
+------
+
+Beyond bugfixes for a few important edge cases, this release includes
+new support for @argfiles on the command line from @jjhelmus. These
+can be useful to overcome command line length limitations. See:
+https://docs.python.org/3/library/argparse.html#fromfile-prefix-chars.
+
+* Allow cli arguments to be specified in a file (#1273)
+  `PR #1273 <https://github.com/pantsbuild/pex/pull/1273>`_
+
+* Fix module entrypoints. (#1274)
+  `PR #1274 <https://github.com/pantsbuild/pants/pull/1274>`_
+
+* Guard against concurrent re-imports. (#1270)
+  `PR #1270 <https://github.com/pantsbuild/pants/pull/1270>`_
+
+* Ensure Pip logs to stderr. (#1268)
+  `PR #1268 <https://github.com/pantsbuild/pants/pull/1268>`_
+
 2.1.33
 ------
 
