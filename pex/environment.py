@@ -218,8 +218,8 @@ class PEXEnvironment(object):
         explode_dir = os.path.join(self._pex_info.zip_unsafe_cache, self._pex_info.code_hash)
         TRACER.log("PEX is not zip safe, exploding to %s" % explode_dir)
         with atomic_directory(explode_dir, exclusive=True) as explode_tmp:
-            if explode_tmp:
-                self.explode_code(explode_tmp)
+            if not explode_tmp.is_finalized:
+                self.explode_code(explode_tmp.work_dir)
         return explode_dir
 
     def _update_module_paths(self):

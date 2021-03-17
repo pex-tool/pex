@@ -370,12 +370,12 @@ def ensure_venv(pex):
             "Expected PEX-INFO for {} to have the components of a venv directory".format(pex.path())
         )
     with atomic_directory(venv_dir, exclusive=True) as venv:
-        if venv:
+        if not venv.is_finalized:
             from .tools.commands.venv import populate_venv_with_pex
             from .tools.commands.virtualenv import Virtualenv
 
             virtualenv = Virtualenv.create(
-                venv_dir=venv,
+                venv_dir=venv.work_dir,
                 interpreter=pex.interpreter,
                 copies=pex_info.venv_copies,
             )
