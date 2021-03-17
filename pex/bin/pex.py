@@ -1136,10 +1136,10 @@ def seed_cache(
                     )
                 )
             with atomic_directory(unzip_dir, exclusive=True) as chroot:
-                if chroot:
+                if not chroot.is_finalized:
                     with TRACER.timed("Extracting {}".format(pex_path)):
                         with open_zip(options.pex_name) as pex_zip:
-                            pex_zip.extractall(chroot)
+                            pex_zip.extractall(chroot.work_dir)
             return [pex.interpreter.binary, unzip_dir]
         elif options.venv:
             with TRACER.timed("Creating venv from {}".format(pex_path)):

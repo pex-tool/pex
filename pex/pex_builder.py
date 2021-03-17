@@ -68,10 +68,10 @@ def __maybe_run_unzipped__(pex_zip):
 
   unzip_to = unzip_dir({pex_root!r}, {pex_hash!r})
   with atomic_directory(unzip_to, exclusive=True) as chroot:
-    if chroot:
+    if not chroot.is_finalized:
       with TRACER.timed('Extracting {{}} to {{}}'.format(pex_zip, unzip_to)):
         with open_zip(pex_zip) as zip:
-          zip.extractall(chroot)
+          zip.extractall(chroot.work_dir)
   TRACER.log('Executing unzipped pex for {{}} at {{}}'.format(pex_zip, unzip_to))
 
   # N.B.: This is read by pex.PEX and used to point sys.argv[0] back to the original pex_zip before

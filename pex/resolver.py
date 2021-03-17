@@ -448,12 +448,12 @@ class InstallResult(object):
         #
         wheel_dir_hash = CacheHelper.dir_hash(self.install_chroot)
         runtime_key_dir = os.path.join(self._installation_root, wheel_dir_hash)
-        with atomic_directory(runtime_key_dir, exclusive=False) as work_dir:
-            if work_dir:
+        with atomic_directory(runtime_key_dir, exclusive=False) as atomic_dir:
+            if not atomic_dir.is_finalized:
                 # Note: Create a relative path symlink between the two directories so that the
                 # PEX_ROOT can be used within a chroot environment where the prefix of the path may
                 # change between programs running inside and outside of the chroot.
-                source_path = os.path.join(work_dir, self.request.wheel_file)
+                source_path = os.path.join(atomic_dir.work_dir, self.request.wheel_file)
                 start_dir = os.path.dirname(source_path)
                 relative_target_path = os.path.relpath(self.install_chroot, start_dir)
                 os.symlink(relative_target_path, source_path)

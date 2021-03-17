@@ -365,8 +365,8 @@ class AtomicDirectory(object):
 
 @contextmanager
 def atomic_directory(target_dir, exclusive, source=None):
-    # type: (str, bool, Optional[str]) -> Iterator[Optional[str]]
-    """A context manager that yields a new empty work directory path it will move to `target_dir`.
+    # type: (str, bool, Optional[str]) -> Iterator[AtomicDirectory]
+    """A context manager that yields a potentially exclusively locked AtomicDirectory.
 
     :param target_dir: The target directory to atomically update.
     :param exclusive: If `True`, its guaranteed that only one process will be yielded a non `None`
@@ -375,8 +375,8 @@ def atomic_directory(target_dir, exclusive, source=None):
     :param source: An optional source offset into the work directory to use for the atomic update
                    of the target directory. By default the whole work directory is used.
 
-    If the `target_dir` already exists the enclosed block will be yielded `None` to signal there is
-    no work to do.
+    If the `target_dir` already exists the enclosed block will be yielded an AtomicDirectory that
+    `is_finalized` to signal there is no work to do.
 
     If the enclosed block fails the `target_dir` will be undisturbed.
 
@@ -389,7 +389,7 @@ def atomic_directory(target_dir, exclusive, source=None):
     atomic_dir = AtomicDirectory(target_dir=target_dir)
     if atomic_dir.is_finalized:
         # Our work is already done for us so exit early.
-        yield None
+        yield atomic_dir
         return
 
     lock_fd = None  # type: Optional[int]
@@ -421,14 +421,14 @@ def atomic_directory(target_dir, exclusive, source=None):
             # We lost the double-checked locking race and our work was done for us by the race
             # winner so exit early.
             try:
-                yield None
+                yield atomic_dir
             finally:
                 unlock()
             return
 
     try:
         safe_mkdir(atomic_dir.work_dir)
-        yield atomic_dir.work_dir
+        yield atomic_dir
         atomic_dir.finalize(source=source)
     finally:
         unlock()

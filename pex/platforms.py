@@ -190,7 +190,7 @@ class Platform(object):
             components.append(manylinux)
         disk_cache_key = os.path.join(ENV.PEX_ROOT, "platforms", self.SEP.join(components))
         with atomic_directory(target_dir=disk_cache_key, exclusive=False) as cache_dir:
-            if cache_dir:
+            if not cache_dir.is_finalized:
                 # Missed both caches - spawn calculation.
                 plat_info = attr.asdict(self)
                 plat_info.update(
@@ -200,7 +200,7 @@ class Platform(object):
                     ],
                 )
                 # Write level 2.
-                with safe_open(os.path.join(cache_dir, self.PLAT_INFO_FILE), "w") as fp:
+                with safe_open(os.path.join(cache_dir.work_dir, self.PLAT_INFO_FILE), "w") as fp:
                     json.dump(plat_info, fp)
 
         with open(os.path.join(disk_cache_key, self.PLAT_INFO_FILE)) as fp:

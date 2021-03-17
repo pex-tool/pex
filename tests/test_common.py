@@ -72,17 +72,18 @@ def test_atomic_directory_empty_workdir_finalize():
         target_dir = os.path.join(sandbox, "target_dir")
         assert not os.path.exists(target_dir)
 
-        with atomic_directory(target_dir, exclusive=False) as work_dir:
-            assert work_dir is not None
-            assert os.path.exists(work_dir)
-            assert os.path.isdir(work_dir)
-            assert [] == os.listdir(work_dir)
+        with atomic_directory(target_dir, exclusive=False) as atomic_dir:
+            assert not atomic_dir.is_finalized
+            assert target_dir == atomic_dir.target_dir
+            assert os.path.exists(atomic_dir.work_dir)
+            assert os.path.isdir(atomic_dir.work_dir)
+            assert [] == os.listdir(atomic_dir.work_dir)
 
-            touch(os.path.join(work_dir, "created"))
+            touch(os.path.join(atomic_dir.work_dir, "created"))
 
             assert not os.path.exists(target_dir)
 
-        assert not os.path.exists(work_dir), "The work_dir should always be cleaned up."
+        assert not os.path.exists(atomic_dir.work_dir), "The work_dir should always be cleaned up."
         assert os.path.exists(os.path.join(target_dir, "created"))
 
 
@@ -94,22 +95,27 @@ def test_atomic_directory_empty_workdir_failure():
     with temporary_dir() as sandbox:
         target_dir = os.path.join(sandbox, "target_dir")
         with pytest.raises(SimulatedRuntimeError):
-            with atomic_directory(target_dir, exclusive=False) as work_dir:
-                assert work_dir is not None
-                touch(os.path.join(work_dir, "created"))
+            with atomic_directory(target_dir, exclusive=False) as atomic_dir:
+                assert not atomic_dir.is_finalized
+                touch(os.path.join(atomic_dir.work_dir, "created"))
                 raise SimulatedRuntimeError()
 
-        assert not os.path.exists(work_dir), "The work_dir should always be cleaned up."  # type: ignore[unreachable]
-        assert not os.path.exists(
-            target_dir
-        ), "When the context raises the work_dir it was given should not be moved to the target_dir."
+        assert not os.path.exists(  # type: ignore[unreachable]
+            atomic_dir.work_dir
+        ), "The work_dir should always be cleaned up."
+        assert not os.path.exists(target_dir), (
+            "When the context raises the work_dir it was given should not be moved to the "
+            "target_dir."
+        )
 
 
 def test_atomic_directory_empty_workdir_finalized():
     # type: () -> None
     with temporary_dir() as target_dir:
         with atomic_directory(target_dir, exclusive=False) as work_dir:
-            assert work_dir is None, "When the target_dir exists no work_dir should be created."
+            assert (
+                work_dir.is_finalized
+            ), "When the target_dir exists no work_dir should be created."
 
 
 def extract_perms(path):

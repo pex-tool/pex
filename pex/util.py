@@ -210,13 +210,13 @@ class CacheHelper(object):
         :returns: The cached distribution.
         """
         with atomic_directory(target_dir, source=source, exclusive=True) as target_dir_tmp:
-            if target_dir_tmp is None:
+            if target_dir_tmp.is_finalized:
                 TRACER.log("Using cached {}".format(target_dir), V=3)
             else:
                 with TRACER.timed("Caching {}:{} in {}".format(zf.filename, source, target_dir)):
                     for name in zf.namelist():
                         if name.startswith(source) and not name.endswith("/"):
-                            zf.extract(name, target_dir_tmp)
+                            zf.extract(name, target_dir_tmp.work_dir)
 
         dist = DistributionHelper.distribution_from_path(target_dir)
         assert dist is not None, "Failed to cache distribution: {} ".format(source)

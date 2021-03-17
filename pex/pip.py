@@ -188,10 +188,10 @@ class Pip(object):
         """
         pip_pex_path = os.path.join(path, isolated().pex_hash)
         with atomic_directory(pip_pex_path, exclusive=True) as chroot:
-            if chroot is not None:
+            if not chroot.is_finalized:
                 from pex.pex_builder import PEXBuilder
 
-                isolated_pip_builder = PEXBuilder(path=chroot)
+                isolated_pip_builder = PEXBuilder(path=chroot.work_dir)
                 for dist_location in third_party.expose(["pip", "setuptools", "wheel"]):
                     isolated_pip_builder.add_dist_location(dist=dist_location)
                 with open(os.path.join(isolated_pip_builder.path(), "run_pip.py"), "w") as fp:
