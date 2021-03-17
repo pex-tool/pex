@@ -9,7 +9,7 @@ import re
 import sys
 from contextlib import closing
 
-from pex.common import is_exe, safe_mkdir
+from pex.common import AtomicDirectory, is_exe, safe_mkdir
 from pex.interpreter import PythonInterpreter
 from pex.third_party.pkg_resources import resource_string
 from pex.tracer import TRACER
@@ -26,12 +26,10 @@ class PipUnavailableError(Exception):
     """Indicates no local copy of Pip could be found for install."""
 
 
-def _iter_executables(directory):
+def _iter_files(directory):
     # type: (str) -> Iterator[str]
     for entry in os.listdir(directory):
-        path = os.path.join(directory, entry)
-        if is_exe(path):
-            yield path
+        yield os.path.join(directory, entry)
 
 
 def _is_python_script(executable):
@@ -52,8 +50,6 @@ def _is_python_script(executable):
                 (
                       python
                     | pypy
-                    | jython
-                    | ipy
                 )
                 # Optional Python version
                 (\d+(\.\d+)*)?
@@ -106,6 +102,22 @@ class Virtualenv(object):
                 interpreter.execute(args=args)
         return cls(venv_dir)
 
+    @classmethod
+    def create_atomic(
+        cls,
+        venv_dir,  # type: AtomicDirectory
+        interpreter=None,  # type: Optional[PythonInterpreter]
+        force=False,  # type: bool
+        copies=False,  # type: bool
+    ):
+        # type: (...) -> Virtualenv
+        virtualenv = cls.create(
+            venv_dir=venv_dir.work_dir, interpreter=interpreter, force=force, copies=copies
+        )
+        for script in virtualenv._rewrite_base_scripts(real_venv_dir=venv_dir.target_dir):
+            TRACER.log("Re-writing {}".format(script))
+        return virtualenv
+
     def __init__(
         self,
         venv_dir,  # type: str
@@ -129,7 +141,7 @@ class Virtualenv(object):
                 "site-packages",
             )
         )
-        self._base_executables = frozenset(_iter_executables(self._bin_dir))
+        self._base_bin = frozenset(_iter_files(self._bin_dir))
 
     @property
     def venv_dir(self):
@@ -161,7 +173,28 @@ class Virtualenv(object):
 
     def iter_executables(self):
         # type: () -> Iterator[str]
-        return _iter_executables(self._bin_dir)
+        for path in _iter_files(self._bin_dir):
+            if is_exe(path):
+                yield path
+
+    def _rewrite_base_scripts(self, real_venv_dir):
+        # type: (str) -> Iterator[str]
+        scripts = [
+            path
+            for path in self._base_bin
+            if _is_python_script(path) or re.search(r"^[Aa]ctivate", os.path.basename(path))
+        ]
+        if scripts:
+            rewritten_files = set()
+            with closing(fileinput.input(files=sorted(scripts), inplace=True)) as fi:
+                for line in fi:
+                    rewritten_line = line.replace(self._venv_dir, real_venv_dir)
+                    if rewritten_line != line:
+                        filename = fi.filename()
+                        if filename not in rewritten_files:
+                            rewritten_files.add(filename)
+                            yield filename
+                    sys.stdout.write(rewritten_line)
 
     def rewrite_scripts(
         self,
@@ -171,13 +204,13 @@ class Virtualenv(object):
         # type: (...) -> Iterator[str]
         python_scripts = []
         for executable in self.iter_executables():
-            if executable in self._base_executables:
+            if executable in self._base_bin:
                 continue
             if not _is_python_script(executable):
                 continue
             python_scripts.append(executable)
         if python_scripts:
-            with closing(fileinput.input(files=python_scripts, inplace=True)) as fi:
+            with closing(fileinput.input(files=sorted(python_scripts), inplace=True)) as fi:
                 # N.B.: `fileinput` is strange, but useful: the context manager above monkey-patches
                 # sys.stdout to print to the corresponding original input file, which is has moved
                 # aside.
