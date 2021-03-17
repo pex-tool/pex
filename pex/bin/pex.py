@@ -635,9 +635,16 @@ def configure_clp():
         "%(prog)s [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n"
         "%(prog)s builds a PEX (Python Executable) file based on the given specifications: "
         "sources, requirements, their dependencies and other options."
+        "\n"
+        "Command-line options can be provided in one or more files by prefixing the filenames "
+        "with an @ symbol. These files must contain one argument per line."
     )
 
-    parser = ArgumentParser(usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(
+        usage=usage,
+        formatter_class=ArgumentDefaultsHelpFormatter,
+        fromfile_prefix_chars="@",
+    )
 
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("requirements", nargs="*", help="Requirements to add to the pex")
