@@ -2,7 +2,6 @@ name: CI
 on: [push, pull_request]
 env:
   _PEX_TEST_PYENV_ROOT: .pyenv_test
-  __EXPOSE_PYTHONS_REF: 627a8ce2
 jobs:
   checks:
     name:  TOXENV=${{ matrix.tox-env }}
@@ -54,7 +53,7 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@${{ env.__EXPOSE_PYTHONS_REF }}
+        uses: pantsbuild/actions/expose-pythons@627a8ce2
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -78,7 +77,7 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@${{ env.__EXPOSE_PYTHONS_REF }}
+        uses: pantsbuild/actions/expose-pythons@627a8ce2
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -103,7 +102,7 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@${{ env.__EXPOSE_PYTHONS_REF }}
+        uses: pantsbuild/actions/expose-pythons@627a8ce2
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -127,7 +126,7 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@${{ env.__EXPOSE_PYTHONS_REF }}
+        uses: pantsbuild/actions/expose-pythons@627a8ce2
       - name: Install Packages
         run: |
           # This is needed for `test_requirement_file_from_url` for building `lxml`.
