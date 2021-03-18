@@ -46,13 +46,16 @@ def main(
     logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
     with TRACER.timed("Executing PEX_TOOLS"):
         pex_prog_path = simplify_pex_path(pex_prog_path or pex.path()) if pex else None
-        prog = (
-            "PEX_TOOLS=1 {pex_path}".format(pex_path=pex_prog_path)
-            if pex
-            else "{python} {module}".format(
+
+        # By default, let argparse derive prog from sys.argv[0].
+        prog = None  # type: Optional[str]
+        if pex:
+            prog = "PEX_TOOLS=1 {pex_path}".format(pex_path=pex_prog_path)
+        elif os.path.basename(sys.argv[0]) == "__main__.py":
+            prog = "{python} {module}".format(
                 python=sys.executable, module=".".join(__name__.split(".")[:-1])
             )
-        )
+
         parser = ArgumentParser(
             prog=prog,
             description="Tools for working with {}.".format(pex_prog_path if pex else "PEX files"),
