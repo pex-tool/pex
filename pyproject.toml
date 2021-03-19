@@ -49,7 +49,7 @@ bdist_pex = "pex.commands.bdist_pex:bdist_pex"
 include = ["CHANGES.rst"]
 
 [tool.flit.metadata.urls]
-Changelog = "https://github.com/pantsbuild/pex/blob/master/CHANGES.rst"
+Changelog = "https://github.com/pantsbuild/pex/blob/main/CHANGES.rst"
 Documentation = "https://pex.readthedocs.io/en/latest/"
 
 [tool.black]
