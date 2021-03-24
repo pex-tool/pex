@@ -13,7 +13,7 @@ from pex import resolver
 from pex.common import open_zip, temporary_dir
 from pex.compatibility import PY2, to_bytes
 from pex.distribution_target import DistributionTarget
-from pex.environment import PEXEnvironment, _RankedDistribution
+from pex.environment import PEXEnvironment, _InvalidWheelName, _RankedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
@@ -476,13 +476,14 @@ def test_can_add_handles_optional_build_tag_in_wheel(
 ):
     # type: (PEXEnvironment, str, bool) -> None
     native_wheel = IS_LINUX and wheel_is_linux
-    added = cpython_35_environment._can_add(wheel_distribution) is not None
+    added = isinstance(cpython_35_environment._can_add(wheel_distribution), _RankedDistribution)
     assert added is native_wheel
 
 
 def test_can_add_handles_invalid_wheel_filename(cpython_35_environment):
     # type: (PEXEnvironment) -> None
-    assert cpython_35_environment._can_add(create_dist("pep427-invalid.whl")) is None
+    dist = create_dist("pep427-invalid.whl")
+    assert _InvalidWheelName(dist, "pep427-invalid") == cpython_35_environment._can_add(dist)
 
 
 @pytest.fixture
@@ -491,7 +492,7 @@ def assert_cpython_35_environment_can_add(cpython_35_environment):
     def assert_can_add(dist):
         # type: (Distribution) -> _RankedDistribution
         rank = cpython_35_environment._can_add(dist)
-        assert rank is not None
+        assert isinstance(rank, _RankedDistribution)
         return rank
 
     return assert_can_add

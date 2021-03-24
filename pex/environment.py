@@ -13,15 +13,15 @@ from collections import OrderedDict, defaultdict
 
 from pex import dist_metadata, pex_warnings
 from pex.bootstrap import Bootstrap
-from pex.common import atomic_directory, open_zip
+from pex.common import atomic_directory, open_zip, pluralize
 from pex.distribution_target import DistributionTarget
 from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
-from pex.third_party.packaging import tags
+from pex.third_party.packaging import specifiers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
@@ -75,6 +75,62 @@ class _RankedDistribution(object):
     def satisfies(self, requirement):
         # type: (Requirement) -> bool
         return self.distribution in requirement
+
+
+@attr.s(frozen=True)
+class _UnrankedDistribution(object):
+    dist = attr.ib()  # type: Distribution
+
+    def render_message(self, target):
+        # type: (DistributionTarget) -> str
+        return "The distribution {dist} cannot be used by {target}.".format(
+            dist=self.dist, target=target
+        )
+
+
+@attr.s(frozen=True)
+class _InvalidWheelName(_UnrankedDistribution):
+    filename = attr.ib()  # type: str
+
+    def render_message(self, _target):
+        # type: (DistributionTarget) -> str
+        return (
+            "The filename of {dist} is not a valid wheel file name that can be parsed for "
+            "tags.".format(dist=self.dist)
+        )
+
+
+@attr.s(frozen=True)
+class _TagMismatch(_UnrankedDistribution):
+    wheel_tags = attr.ib()  # type: FrozenSet[tags.Tag]
+
+    def render_message(self, target):
+        # type: (DistributionTarget) -> str
+        return (
+            "The wheel tags for {dist} are {wheel_tags} which do not match the supported tags of "
+            "{target}:\n{supported_tags}".format(
+                dist=self.dist,
+                wheel_tags=", ".join(map(str, self.wheel_tags)),
+                target=target,
+                supported_tags="\n".join(map(str, target.get_supported_tags())),
+            )
+        )
+
+
+@attr.s(frozen=True)
+class _PythonRequiresMismatch(_UnrankedDistribution):
+    python_requires = attr.ib()  # type: specifiers.SpecifierSet
+
+    def render_message(self, target):
+        # type: (DistributionTarget) -> str
+        return (
+            "The distribution has a python requirement of {python_requires} which does not match "
+            "the python version of {python_version} for {target}.".format(
+                python_requires=self.python_requires,
+                python_version=target.get_python_version_str(),
+                target=target,
+            )
+        )
 
 
 @attr.s(frozen=True)
@@ -301,6 +357,9 @@ class PEXEnvironment(object):
         self._available_ranked_dists_by_key = defaultdict(
             list
         )  # type: DefaultDict[str, List[_RankedDistribution]]
+        self._unavailable_dists_by_key = defaultdict(
+            list
+        )  # type: DefaultDict[str, List[_UnrankedDistribution]]
         self._resolved_dists = None  # type: Optional[Iterable[Distribution]]
         self._activated_dists = None  # type: Optional[Iterable[Distribution]]
 
@@ -324,12 +383,14 @@ class PEXEnvironment(object):
         # type: (Iterable[Distribution]) -> None
         for dist in distribution_iter:
             ranked_dist = self._can_add(dist)
-            if ranked_dist is not None:
+            if isinstance(ranked_dist, _RankedDistribution):
                 with TRACER.timed("Adding %s" % dist, V=2):
                     self._available_ranked_dists_by_key[dist.key].append(ranked_dist)
+            else:
+                self._unavailable_dists_by_key[dist.key].append(ranked_dist)
 
     def _can_add(self, dist):
-        # type: (Distribution) -> Optional[_RankedDistribution]
+        # type: (Distribution) -> Union[_RankedDistribution, _UnrankedDistribution]
         filename, ext = os.path.splitext(os.path.basename(dist.location))
         if ext.lower() != ".whl":
             # This supports resolving pex's own vendored distributions which are vendored in directory
@@ -342,7 +403,7 @@ class PEXEnvironment(object):
         # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
         wheel_components = filename.split("-")
         if len(wheel_components) < 3:
-            return None
+            return _InvalidWheelName(dist, filename)
 
         # `{python tag}-{abi tag}-{platform tag}`
         wheel_tags = tags.parse_tag("-".join(wheel_components[-3:]))
@@ -350,12 +411,12 @@ class PEXEnvironment(object):
         # with highest rank from that expanded set.
         rank = max(self._supported_tags_to_rank.get(tag, -1) for tag in wheel_tags)
         if rank == -1:
-            return None
+            return _TagMismatch(dist, wheel_tags)
 
         if self._interpreter_version:
             python_requires = dist_metadata.requires_python(dist)
             if python_requires and self._interpreter_version not in python_requires:
-                return None
+                return _PythonRequiresMismatch(dist, python_requires)
 
         return _RankedDistribution(rank, dist)
 
@@ -482,9 +543,27 @@ class PEXEnvironment(object):
             if ranked_dists is None:
                 # We've winnowed down reqs_by_key to just those requirements whose environment
                 # markers apply; so, we should always have an available distribution.
-                raise ResolveError(
-                    "A distribution for {} could not be resolved in this environment.".format(key)
+                message = "A distribution for {} could not be resolved in this environment.".format(
+                    key
                 )
+                unavailable_dists = self._unavailable_dists_by_key.get(key)
+                if unavailable_dists:
+                    message += (
+                        "Found {count} {distributions} for {key} that do not apply:\n"
+                        "{unavailable_dists}".format(
+                            count=len(unavailable_dists),
+                            distributions=pluralize(unavailable_dists, "distribution"),
+                            key=key,
+                            unavailable_dists="\n".join(
+                                "{index}.) {message}".format(
+                                    index=index,
+                                    message=unavailable_dist.render_message(self._target),
+                                )
+                                for index, unavailable_dist in enumerate(unavailable_dists, start=1)
+                            ),
+                        )
+                    )
+                raise ResolveError(message)
             candidates = [
                 (ranked_dist, qualified_requirement)
                 for qualified_requirement in qualified_requirements
