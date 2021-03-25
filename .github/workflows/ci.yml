@@ -18,6 +18,9 @@ jobs:
           - check-name: Vendoring
             python-version: 3.8
             tox-env: vendor-check
+          - check-name: Packaging
+            python-version: 3.9
+            tox-env: build
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
