@@ -20,7 +20,7 @@ jobs:
             tox-env: vendor-check
           - check-name: Packaging
             python-version: 3.9
-            tox-env: build
+            tox-env: package -- --additional-format sdist --additional-format wheel
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
