@@ -3315,7 +3315,7 @@ def test_invalid_macosx_platform_tag(tmpdir):
 
     output = subprocess.check_output(args=["pex-tools", repository_pex, "interpreter", "-av"])
     lines = output.decode("utf-8").splitlines()
-    print(">>> Found {} candidate interpreters:", file=sys.stderr)
+    print(">>> Found {} candidate interpreters:".format(len(lines)), file=sys.stderr)
     for index, line in enumerate(lines, start=1):
         interpreter = PythonInterpreter.from_binary(json.loads(line)["path"])
         print(">>> {}.) interpreter is: {}".format(index, interpreter), file=sys.stderr)
