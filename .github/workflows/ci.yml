@@ -27,4 +27,4 @@ jobs:
       - name: Run Integration Tests
         uses: ./.github/actions/run-tox
         with:
-          tox-env: py${{ join(matrix.python-version, '') }}-integration
+          tox-env: py${{ join(matrix.python-version, '') }}-integration -- -vvsk test_invalid_macosx_platform_tag
