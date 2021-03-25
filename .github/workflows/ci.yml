@@ -3,108 +3,13 @@ on: [push, pull_request]
 env:
   _PEX_TEST_PYENV_ROOT: .pyenv_test
 jobs:
-  checks:
-    name:  TOXENV=${{ matrix.tox-env }}
-    runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        include:
-          - check-name: Formatting
-            python-version: 3.9
-            tox-env: format-check
-            fetch-depth: 1
-          - check-name: Types
-            python-version: 3.9
-            tox-env: typecheck
-            fetch-depth: 1
-          - check-name: Vendoring
-            python-version: 3.8
-            tox-env: vendor-check
-            fetch-depth: 1
-          - check-name: Packaging
-            python-version: 3.9
-            tox-env: package -- --additional-format sdist --additional-format wheel
-            # We need branches and tags since package leans on `git describe`. Passing 0 gets us
-            # complete history.
-            fetch-depth: 0
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: ${{ matrix.fetch-depth }}
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: "${{ matrix.python-version }}"
-      - name: Check ${{ matrix.check-name }}
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: ${{ matrix.tox-env }}
-  cpython-unit-tests:
-    name: (${{ matrix.os }}) TOXENV=py${{ join(matrix.python-version, '') }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9]]
-        os: [ubuntu-20.04, macos-10.15]
-        exclude:
-          - os: macos-10.15
-            python-version: [3, 5]
-          - os: macos-10.15
-            python-version: [3, 6]
-          - os: macos-10.15
-            python-version: [3, 7]
-          - os: macos-10.15
-            python-version: [3, 8]
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: "${{ join(matrix.python-version, '.') }}"
-      - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@627a8ce25d972afa03da1641be9261bbbe0e3ffe
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: py${{ join(matrix.python-version, '') }}
-  pypy-unit-tests:
-    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ matrix.pypy-version[0] }}
-    runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        pypy-version: [[2, 7], [3, 6]]
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
-      - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@627a8ce25d972afa03da1641be9261bbbe0e3ffe
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root
-      - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: pypy${{ matrix.pypy-version[0] }}
   cpython-integration-tests:
     name: (${{ matrix.os }}) TOXENV=py${{ join(matrix.python-version, '') }}-integration
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 9]]
-        os: [ubuntu-20.04, macos-10.15]
+        python-version: [[3, 8]]
+        os: [macos-10.15]
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
@@ -123,31 +28,3 @@ jobs:
         uses: ./.github/actions/run-tox
         with:
           tox-env: py${{ join(matrix.python-version, '') }}-integration
-  pypy-integration-tests:
-    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ matrix.pypy-version[0] }}-integration
-    runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        pypy-version: [[2, 7], [3, 6]]
-    steps:
-      - name: Checkout Pex
-        uses: actions/checkout@v2
-      - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
-      - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@627a8ce25d972afa03da1641be9261bbbe0e3ffe
-      - name: Install Packages
-        run: |
-          # This is needed for `test_requirement_file_from_url` for building `lxml`.
-          sudo apt install --yes libxslt-dev
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
-        with:
-          path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root
-      - name: Run Integration Tests
-        uses: ./.github/actions/run-tox
-        with:
-          tox-env: pypy${{ matrix.pypy-version[0] }}-integration
