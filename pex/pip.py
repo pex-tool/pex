@@ -311,6 +311,7 @@ class Pip(object):
         env = dict(popen_kwargs.pop("env", {}))
         if package_index_configuration:
             env.update(package_index_configuration.env)
+        print(">>> Using env for pip spawn: {}".format(env), file=sys.stderr)
 
         with ENV.strip().patch(
             PEX_ROOT=cache or ENV.PEX_ROOT, PEX_VERBOSE=str(ENV.PEX_VERBOSE), **env
@@ -546,6 +547,7 @@ class Pip(object):
         env = None  # type: Optional[Mapping[str, str]]
         if interpreter.macosx_deployment_target:
             env = dict(MACOSX_DEPLOYMENT_TARGET=interpreter.macosx_deployment_target)
+            print(">>> Using custom env for wheel building: {}".format(env), file=sys.stderr)
 
         return self._spawn_pip_isolated_job(
             wheel_cmd,

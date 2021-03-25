@@ -3311,7 +3311,12 @@ def test_invalid_macosx_platform_tag(tmpdir):
     # type: (Any) -> None
     repository_pex = os.path.join(str(tmpdir), "repository.pex")
     ic_args = ["--interpreter-constraint", "==3.8.*"]
-    run_pex_command(args=ic_args + ["setproctitle==1.2", "-o", repository_pex]).assert_success()
+    args = ic_args + ["setproctitle==1.2", "-o", repository_pex]
+    result = run_pex_command(args=args)
+    result.assert_success()
+    print(">>> Output of {}".format(args), file=sys.stderr)
+    print("... STDOUT:\n{}".format(result.output), file=sys.stderr)
+    print("... STDERR:\n{}".format(result.error), file=sys.stderr)
 
     output = subprocess.check_output(args=["pex-tools", repository_pex, "interpreter", "-av"])
     lines = output.decode("utf-8").splitlines()
