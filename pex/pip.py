@@ -308,7 +308,10 @@ class Pip(object):
         if package_index_configuration:
             command.extend(package_index_configuration.args)
 
-        env = package_index_configuration.env if package_index_configuration else {}
+        env = dict(popen_kwargs.pop("env", {}))
+        if package_index_configuration:
+            env.update(package_index_configuration.env)
+
         with ENV.strip().patch(
             PEX_ROOT=cache or ENV.PEX_ROOT, PEX_VERBOSE=str(ENV.PEX_VERBOSE), **env
         ) as env:
@@ -539,12 +542,18 @@ class Pip(object):
             wheel_cmd.append("--no-verify")
         wheel_cmd.extend(distributions)
 
+        interpreter = interpreter or PythonInterpreter.get()
+        env = None  # type: Optional[Mapping[str, str]]
+        if interpreter.macosx_deployment_target:
+            env = dict(MACOSX_DEPLOYMENT_TARGET=interpreter.macosx_deployment_target)
+
         return self._spawn_pip_isolated_job(
             wheel_cmd,
             # If the build leverages PEP-518 it will need to resolve build requirements.
             package_index_configuration=package_index_configuration,
             cache=cache,
             interpreter=interpreter,
+            env=env,
         )
 
     @staticmethod

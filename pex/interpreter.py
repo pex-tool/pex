@@ -16,7 +16,7 @@ from collections import OrderedDict
 from textwrap import dedent
 
 from pex import third_party
-from pex.common import is_exe, safe_mkdtemp, safe_rmtree, temporary_dir
+from pex.common import is_exe, safe_mkdtemp, safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
 from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
@@ -86,6 +86,11 @@ class PythonIdentity(object):
 
         supported_tags = tuple(tags.sys_tags())
         preferred_tag = supported_tags[0]
+
+        # N.B.: The platform module supports mac_ver on non-macOS OSes. It just returns the
+        # promised shaped tuple with empty strings in all slots.
+        macosx_deployment_target = "_".join(platform.mac_ver()[0].split(".")[:2])
+
         return cls(
             binary=binary or sys.executable,
             prefix=sys.prefix,
@@ -102,13 +107,14 @@ class PythonIdentity(object):
             version=sys.version_info[:3],
             supported_tags=supported_tags,
             env_markers=markers.default_environment(),
+            macosx_deployment_target=macosx_deployment_target or None,
         )
 
     @classmethod
     def decode(cls, encoded):
         TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
         values = json.loads(encoded)
-        if len(values) != 9:
+        if len(values) != 10:
             raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
 
         supported_tags = values.pop("supported_tags")
@@ -137,6 +143,7 @@ class PythonIdentity(object):
         version,  # type: Iterable[int]
         supported_tags,  # type: Iterable[tags.Tag]
         env_markers,  # type: Dict[str, str]
+        macosx_deployment_target,  # type: Optional[str]
     ):
         # type: (...) -> None
         # N.B.: We keep this mapping to support historical values for `distribution` and `requirement`
@@ -152,6 +159,7 @@ class PythonIdentity(object):
         self._version = tuple(version)
         self._supported_tags = tuple(supported_tags)
         self._env_markers = dict(env_markers)
+        self._macosx_deployment_target = macosx_deployment_target
 
     def encode(self):
         values = dict(
@@ -166,6 +174,7 @@ class PythonIdentity(object):
                 (tag.interpreter, tag.abi, tag.platform) for tag in self._supported_tags
             ],
             env_markers=self._env_markers,
+            macosx_deployment_target=self._macosx_deployment_target,
         )
         return json.dumps(values, sort_keys=True)
 
@@ -230,6 +239,11 @@ class PythonIdentity(object):
     def distribution(self):
         # type: () -> Distribution
         return Distribution(project_name=self.interpreter, version=self.version_str)
+
+    @property
+    def macosx_deployment_target(self):
+        # type: () -> Optional[str]
+        return self._macosx_deployment_target
 
     def iter_supported_platforms(self):
         # type: () -> Iterator[Platform]
@@ -984,6 +998,11 @@ class PythonInterpreter(object):
         if self._supported_platforms is None:
             self._supported_platforms = frozenset(self._identity.iter_supported_platforms())
         return self._supported_platforms
+
+    @property
+    def macosx_deployment_target(self):
+        # type: () -> Optional[str]
+        return self._identity.macosx_deployment_target
 
     def execute(self, args=None, stdin_payload=None, pythonpath=None, env=None, **kwargs):
         return self._execute(
