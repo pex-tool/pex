@@ -3314,9 +3314,11 @@ def test_invalid_macosx_platform_tag(tmpdir):
     run_pex_command(args=ic_args + ["setproctitle==1.2", "-o", repository_pex]).assert_success()
 
     output = subprocess.check_output(args=["pex-tools", repository_pex, "interpreter", "-av"])
-    for line in output.decode("utf-8").splitlines():
+    lines = output.decode("utf-8").splitlines()
+    print(">>> Found {} candidate interpreters:", file=sys.stderr)
+    for index, line in enumerate(lines, start=1):
         interpreter = PythonInterpreter.from_binary(json.loads(line)["path"])
-        print(">>> Bad interpreter is: {}".format(interpreter), file=sys.stderr)
+        print(">>> {}.) interpreter is: {}".format(index, interpreter), file=sys.stderr)
         _, stdout, _ = interpreter.execute(
             args=[
                 "-c",
@@ -3336,10 +3338,10 @@ def test_invalid_macosx_platform_tag(tmpdir):
                         )
                     )
                     """
-                )
+                ),
             ]
         )
-        print(">>> Bad interpreter info:\n{}".format(stdout), file=sys.stderr)
+        print("... interpreter info:\n{}".format(stdout), file=sys.stderr)
 
     setproctitle_pex = os.path.join(str(tmpdir), "setproctitle.pex")
     run_pex_command(
