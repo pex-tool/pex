@@ -12,18 +12,26 @@ jobs:
           - check-name: Formatting
             python-version: 3.9
             tox-env: format-check
+            fetch-depth: 1
           - check-name: Types
             python-version: 3.9
             tox-env: typecheck
+            fetch-depth: 1
           - check-name: Vendoring
             python-version: 3.8
             tox-env: vendor-check
+            fetch-depth: 1
           - check-name: Packaging
             python-version: 3.9
-            tox-env: build
+            tox-env: package -- --additional-format sdist --additional-format wheel
+            # We need branches and tags since package leans on `git describe`. Passing 0 gets us
+            # complete history.
+            fetch-depth: 0
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
+        with:
+          fetch-depth: ${{ matrix.fetch-depth }}
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
