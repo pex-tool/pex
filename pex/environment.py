@@ -107,9 +107,10 @@ class _TagMismatch(_UnrankedDistribution):
     def render_message(self, target):
         # type: (DistributionTarget) -> str
         return (
-            "The wheel tags for {dist} are {wheel_tags} which do not match the supported tags of "
-            "{target}:\n{supported_tags}".format(
+            "The wheel tags for {dist} at {location} are {wheel_tags} which do not match the "
+            "supported tags of {target}:\n{supported_tags}".format(
                 dist=self.dist,
+                location=self.dist.location,
                 wheel_tags=", ".join(map(str, self.wheel_tags)),
                 target=target,
                 supported_tags="\n".join(map(str, target.get_supported_tags())),
