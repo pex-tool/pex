@@ -5,6 +5,6 @@
 
 from __future__ import absolute_import
 
-from pex.version import __version__ as __pex_version__
+from .version import __version__ as __pex_version__
 
 __version__ = __pex_version__  # N.B.: Flit uses this as out distribution version.

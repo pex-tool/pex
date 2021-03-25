@@ -11,7 +11,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
 from typing import Tuple
 
-import pytoml as toml
+import toml
 
 PROJECT_METADATA = Path("pyproject.toml")
 DIST_DIR = Path("dist")
@@ -89,6 +89,7 @@ def build_pex_dists(dist_fmt: Format, *additional_dist_fmts: Format, verbose: bo
         ["flit", "build", *[f"--format={fmt}" for fmt in [dist_fmt, *additional_dist_fmts]]],
         stdout=output,
         stderr=output,
+        check=True,
     )
 
 
