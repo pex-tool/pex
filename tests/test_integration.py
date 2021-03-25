@@ -3313,32 +3313,33 @@ def test_invalid_macosx_platform_tag(tmpdir):
     ic_args = ["--interpreter-constraint", "==3.8.*"]
     run_pex_command(args=ic_args + ["setproctitle==1.2", "-o", repository_pex]).assert_success()
 
-    output = subprocess.check_output(args=["pex-tools", repository_pex, "interpreter", "-v"])
-    interpreter = PythonInterpreter.from_binary(json.loads(output.decode("utf-8"))["path"])
-    print(">>> Bad interpreter is: {}".format(interpreter), file=sys.stderr)
-    _, stdout, _ = interpreter.execute(
-        args=[
-            "-c",
-            dedent(
-                """\
-                import os
-                import platform
+    output = subprocess.check_output(args=["pex-tools", repository_pex, "interpreter", "-av"])
+    for line in output.decode("utf-8").splitlines():
+        interpreter = PythonInterpreter.from_binary(json.loads(line)["path"])
+        print(">>> Bad interpreter is: {}".format(interpreter), file=sys.stderr)
+        _, stdout, _ = interpreter.execute(
+            args=[
+                "-c",
+                dedent(
+                    """\
+                    import os
+                    import platform
 
-                print(
-                    "MACOSX_DEPLOYMENT_TARGET={}".format(
-                        os.environ.get("MACOSX_DEPLOYMENT_TARGET", "<unset>")
+                    print(
+                        "MACOSX_DEPLOYMENT_TARGET={}".format(
+                            os.environ.get("MACOSX_DEPLOYMENT_TARGET", "<unset>")
+                        )
                     )
-                )
-                print(
-                    "platform.mac_ver={}".format(
-                        getattr(platform, "mac_ver", lambda: "Not a mac")()
+                    print(
+                        "platform.mac_ver={}".format(
+                            getattr(platform, "mac_ver", lambda: "Not a mac")()
+                        )
                     )
+                    """
                 )
-                """
-            )
-        ]
-    )
-    print(">>> Bad interpreter info:\n{}".format(stdout), file=sys.stderr)
+            ]
+        )
+        print(">>> Bad interpreter info:\n{}".format(stdout), file=sys.stderr)
 
     setproctitle_pex = os.path.join(str(tmpdir), "setproctitle.pex")
     run_pex_command(
