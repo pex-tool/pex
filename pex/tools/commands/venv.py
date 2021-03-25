@@ -152,8 +152,24 @@ def populate_venv_with_pex(
             venv_bin_dir = os.path.join(venv_dir, "bin")
             shebang_python = {shebang_python!r}
             python = os.path.join(venv_bin_dir, os.path.basename(shebang_python))
-            if sys.executable not in (python, shebang_python):
+
+            def iter_valid_venv_pythons():
+                # Allow for both the known valid venv pythons and their fully resolved venv path
+                # version in the case their parent directories contain symlinks.
+                for python_binary in (python, shebang_python):
+                    yield python_binary
+                    yield os.path.join(
+                        os.path.realpath(os.path.dirname(python_binary)),
+                        os.path.basename(python_binary)
+                    )
+
+            current_interpreter_blessed_env_var = "_PEX_SHOULD_EXIT_VENV_REEXEC"
+            if (
+                not os.environ.pop(current_interpreter_blessed_env_var, None)
+                and sys.executable not in tuple(iter_valid_venv_pythons())
+            ):
                 sys.stderr.write("Re-execing from {{}}\\n".format(sys.executable))
+                os.environ[current_interpreter_blessed_env_var] = "1"
                 os.execv(python, [python, "-sE"] + sys.argv)
 
             os.environ["VIRTUAL_ENV"] = venv_dir
