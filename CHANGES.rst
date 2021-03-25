@@ -1,6 +1,25 @@
 Release Notes
 =============
 
+2.1.35
+------
+
+This release hardens a few aspects of `--venv` mode PEXes. An infinite
+re-exec loop in venv `pex` scripts is fixed and the `activate` family
+of scripts in the venv is fixed.
+
+* Improve resolve error information. (#1287)
+  `PR #1287 <https://github.com/pantsbuild/pex/pull/1287>`_
+
+* Ensure venv pex does not enter a re-exec loop. (#1286)
+  `PR #1286 <https://github.com/pantsbuild/pex/pull/1286>`_
+
+* Expose Pex tools via a pex-tools console script. (#1279)
+  `PR #1279 <https://github.com/pantsbuild/pex/pull/1279>`_
+
+* Fix auto-created `--venv` core scripts. (#1278)
+  `PR #1278 <https://github.com/pantsbuild/pex/pull/1278>`_
+
 2.1.34
 ------
 
