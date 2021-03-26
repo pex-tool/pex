@@ -57,10 +57,10 @@ class PEX(object):  # noqa: T000
         env = env or os.environ
 
         try:
-            macosx_deployment_target = env.pop("MACOSX_DEPLOYMENT_TARGET")
+            macosx_deployment_target = env.get("MACOSX_DEPLOYMENT_TARGET")
             if macosx_deployment_target:
                 print(
-                    ">>> cleaned MACOSX_DEPLOYMENT_TARGET={}".format(macosx_deployment_target),
+                    ">>> Not cleaning MACOSX_DEPLOYMENT_TARGET={}".format(macosx_deployment_target),
                     file=sys.stderr,
                 )
         except KeyError:
