@@ -3,7 +3,7 @@
 
 """pex support for interacting with interpreters."""
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import hashlib
 import json
@@ -12,6 +12,7 @@ import platform
 import re
 import subprocess
 import sys
+import sysconfig
 from collections import OrderedDict
 from textwrap import dedent
 
@@ -89,7 +90,8 @@ class PythonIdentity(object):
 
         # N.B.: The platform module supports mac_ver on non-macOS OSes. It just returns the
         # promised shaped tuple with empty strings in all slots.
-        macosx_deployment_target = ".".join(platform.mac_ver()[0].split(".")[:2])
+        desired_macosx_deployment_target = ".".join(platform.mac_ver()[0].split(".")[:2])
+        configured_macosx_deployment_target = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
 
         return cls(
             binary=binary or sys.executable,
@@ -107,14 +109,15 @@ class PythonIdentity(object):
             version=sys.version_info[:3],
             supported_tags=supported_tags,
             env_markers=markers.default_environment(),
-            macosx_deployment_target=macosx_deployment_target or None,
+            desired_macosx_deployment_target=desired_macosx_deployment_target or None,
+            configured_macosx_deployment_target=configured_macosx_deployment_target or None,
         )
 
     @classmethod
     def decode(cls, encoded):
         TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
         values = json.loads(encoded)
-        if len(values) != 10:
+        if len(values) != 11:
             raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
 
         supported_tags = values.pop("supported_tags")
@@ -143,7 +146,8 @@ class PythonIdentity(object):
         version,  # type: Iterable[int]
         supported_tags,  # type: Iterable[tags.Tag]
         env_markers,  # type: Dict[str, str]
-        macosx_deployment_target,  # type: Optional[str]
+        desired_macosx_deployment_target,  # type: Optional[str]
+        configured_macosx_deployment_target,  # type: Optional[str]
     ):
         # type: (...) -> None
         # N.B.: We keep this mapping to support historical values for `distribution` and `requirement`
@@ -159,7 +163,8 @@ class PythonIdentity(object):
         self._version = tuple(version)
         self._supported_tags = tuple(supported_tags)
         self._env_markers = dict(env_markers)
-        self._macosx_deployment_target = macosx_deployment_target
+        self._desired_macosx_deployment_target = desired_macosx_deployment_target
+        self._configured_macosx_deployment_target = configured_macosx_deployment_target
 
     def encode(self):
         values = dict(
@@ -174,7 +179,8 @@ class PythonIdentity(object):
                 (tag.interpreter, tag.abi, tag.platform) for tag in self._supported_tags
             ],
             env_markers=self._env_markers,
-            macosx_deployment_target=self._macosx_deployment_target,
+            desired_macosx_deployment_target=self._desired_macosx_deployment_target,
+            configured_macosx_deployment_target=self._configured_macosx_deployment_target,
         )
         return json.dumps(values, sort_keys=True)
 
@@ -241,9 +247,14 @@ class PythonIdentity(object):
         return Distribution(project_name=self.interpreter, version=self.version_str)
 
     @property
-    def macosx_deployment_target(self):
+    def desired_macosx_deployment_target(self):
         # type: () -> Optional[str]
-        return self._macosx_deployment_target
+        return self._desired_macosx_deployment_target
+
+    @property
+    def configured_macosx_deployment_target(self):
+        # type: () -> Optional[str]
+        return self._configured_macosx_deployment_target
 
     def iter_supported_platforms(self):
         # type: () -> Iterator[Platform]
@@ -846,7 +857,7 @@ class PythonInterpreter(object):
         if macosx_deployment_target:
             print(
                 ">>> Not sanitizing MACOSX_DEPLOYMENT_TARGET={}".format(macosx_deployment_target),
-                file=sys.stderr
+                file=sys.stderr,
             )
         return env_copy
 
@@ -1005,9 +1016,14 @@ class PythonInterpreter(object):
         return self._supported_platforms
 
     @property
-    def macosx_deployment_target(self):
+    def desired_macosx_deployment_target(self):
         # type: () -> Optional[str]
-        return self._identity.macosx_deployment_target
+        return self._identity.desired_macosx_deployment_target
+
+    @property
+    def configured_macosx_deployment_target(self):
+        # type: () -> Optional[str]
+        return self._identity.configured_macosx_deployment_target
 
     def execute(self, args=None, stdin_payload=None, pythonpath=None, env=None, **kwargs):
         return self._execute(
