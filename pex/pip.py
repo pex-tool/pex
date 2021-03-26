@@ -199,9 +199,12 @@ class Pip(object):
                     fp.write(
                         dedent(
                             """\
+                            from __future__ import print_function
+
                             import os
                             import runpy
                             import sys
+                            import sysconfig
                             
                             
                             # Propagate un-vendored setuptools to pip for any legacy setup.py builds
@@ -209,6 +212,20 @@ class Pip(object):
                             os.environ['__PEX_UNVENDORED__'] = '1'
                             os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
                             
+                            env_value = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
+                            if env_value:
+                                config_vars = sysconfig.get_config_vars()
+                                configured_value = config_vars.get(
+                                    "MACOSX_DEPLOYMENT_TARGET", env_value
+                                )
+                                if configured_value != env_value:
+                                    print(
+                                        ">>> Resetting configured MACOSX_DEPLOYMENT_TARGET from "
+                                        "{} -> {}".format(configured_value, env_value),
+                                        file=sys.stderr
+                                    )
+                                    config_vars["MACOSX_DEPLOYMENT_TARGET"] = env_value
+
                             runpy.run_module('pip', run_name='__main__')
                             """
                         )
@@ -283,10 +300,10 @@ class Pip(object):
                 python_interpreter, package_index_configuration=package_index_configuration
             )
         )
-        # if not package_index_configuration or package_index_configuration.isolated:
-        #     # Don't read PIP_ environment variables or pip configuration files like
-        #     # `~/.config/pip/pip.conf`.
-        #     pip_args.append("--isolated")
+        if not package_index_configuration or package_index_configuration.isolated:
+            # Don't read PIP_ environment variables or pip configuration files like
+            # `~/.config/pip/pip.conf`.
+            pip_args.append("--isolated")
 
         # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor
         # of 3.
