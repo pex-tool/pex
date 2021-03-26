@@ -503,11 +503,26 @@ class Pip(object):
             log = os.path.join(safe_mkdtemp(), "pip.log")
             download_cmd = ["--log", log] + download_cmd
 
+        interpreter = target.get_interpreter()
+        env = None  # type: Optional[Mapping[str, str]]
+        if not target.is_foreign:
+            if interpreter.desired_macosx_deployment_target:
+                env = dict(MACOSX_DEPLOYMENT_TARGET=interpreter.desired_macosx_deployment_target)
+                print(">>> Using custom env for dist downloading: {}".format(env), file=sys.stderr)
+            if interpreter.configured_macosx_deployment_target:
+                print(
+                    ">>> Configured MACOSX_DEPLOYMENT_TARGET={}: {}".format(
+                        interpreter.configured_macosx_deployment_target, interpreter
+                    ),
+                    file=sys.stderr,
+                )
+
         command, process = self._spawn_pip_isolated(
             download_cmd,
             package_index_configuration=package_index_configuration,
             cache=cache,
-            interpreter=target.get_interpreter(),
+            interpreter=interpreter,
+            env=env,
         )
         return self._Issue9420Job(command, process, log) if log else Job(command, process)
 
