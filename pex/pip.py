@@ -283,10 +283,10 @@ class Pip(object):
                 python_interpreter, package_index_configuration=package_index_configuration
             )
         )
-        if not package_index_configuration or package_index_configuration.isolated:
-            # Don't read PIP_ environment variables or pip configuration files like
-            # `~/.config/pip/pip.conf`.
-            pip_args.append("--isolated")
+        # if not package_index_configuration or package_index_configuration.isolated:
+        #     # Don't read PIP_ environment variables or pip configuration files like
+        #     # `~/.config/pip/pip.conf`.
+        #     pip_args.append("--isolated")
 
         # The max pip verbosity is -vvv and for pex it's -vvvvvvvvv; so we scale down by a factor
         # of 3.
