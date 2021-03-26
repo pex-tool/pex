@@ -842,7 +842,12 @@ class PythonInterpreter(object):
         # N.B. This is merely a hack because sysconfig.py on the default OS X
         # installation of 2.7 breaks.
         env_copy = (env or os.environ).copy()
-        env_copy.pop("MACOSX_DEPLOYMENT_TARGET", None)
+        macosx_deployment_target = env_copy.get("MACOSX_DEPLOYMENT_TARGET")
+        if macosx_deployment_target:
+            print(
+                ">>> Not sanitizing MACOSX_DEPLOYMENT_TARGET={}".format(macosx_deployment_target),
+                file=sys.stderr
+            )
         return env_copy
 
     def __init__(self, identity):
