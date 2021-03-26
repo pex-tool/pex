@@ -185,7 +185,7 @@ def call_subprocess(
         import sysconfig
         config_value = sysconfig.get_config_vars().get("MACOSX_DEPLOYMENT_TARGET", "")
         env_value = env.get("MACOSX_DEPLOYMENT_TARGET", "")
-        if env_value != config_value:
+        if env_value:
             print(
                 ">>> MACOSX_DEPLOYMENT_TARGET: config={}, env={} -> when running: {} ".format(
                     config_value, env_value, cmd
