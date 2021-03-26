@@ -57,7 +57,12 @@ class PEX(object):  # noqa: T000
         env = env or os.environ
 
         try:
-            del env["MACOSX_DEPLOYMENT_TARGET"]
+            macosx_deployment_target = env.pop("MACOSX_DEPLOYMENT_TARGET")
+            if macosx_deployment_target:
+                print(
+                    ">>> cleaned MACOSX_DEPLOYMENT_TARGET={}".format(macosx_deployment_target),
+                    file=sys.stderr,
+                )
         except KeyError:
             pass
 
@@ -717,7 +722,7 @@ class PEX(object):  # noqa: T000
         Remaining keyword arguments are passed directly to subprocess.Popen.
         """
         if env is not None:
-            # If explicit env vars are passed, we don't want clean any of these.
+            # If explicit env vars are passed, we don't want to clean any of these.
             env = env.copy()
         else:
             env = os.environ.copy()

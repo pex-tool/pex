@@ -311,7 +311,6 @@ class Pip(object):
         env = dict(popen_kwargs.pop("env", {}))
         if package_index_configuration:
             env.update(package_index_configuration.env)
-        print(">>> Using env for pip spawn: {}".format(env), file=sys.stderr)
 
         with ENV.strip().patch(
             PEX_ROOT=cache or ENV.PEX_ROOT, PEX_VERBOSE=str(ENV.PEX_VERBOSE), **env
@@ -336,6 +335,8 @@ class Pip(object):
             # + https://github.com/pantsbuild/pex/issues/1267
             # + https://github.com/pypa/pip/issues/9420
             stdout = popen_kwargs.pop("stdout", sys.stderr.fileno())
+
+            print(">>> Using env for pip spawn: {}".format(env), file=sys.stderr)
 
             return pip.cmdline(command), pip.run(
                 args=command, env=env, blocking=False, stdout=stdout, **popen_kwargs
@@ -538,7 +539,7 @@ class Pip(object):
         verify=True,  # type: bool
     ):
         # type: (...) -> Job
-        wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
+        wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir, "--use-pep517"]
         if not verify:
             wheel_cmd.append("--no-verify")
         wheel_cmd.extend(distributions)
