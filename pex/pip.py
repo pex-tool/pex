@@ -10,6 +10,8 @@ import json
 import os
 import re
 import subprocess
+import sysconfig
+
 import sys
 from collections import deque
 from contextlib import closing
@@ -549,6 +551,12 @@ class Pip(object):
         if interpreter.macosx_deployment_target:
             env = dict(MACOSX_DEPLOYMENT_TARGET=interpreter.macosx_deployment_target)
             print(">>> Using custom env for wheel building: {}".format(env), file=sys.stderr)
+            print(
+                ">>> Current interpreter configured MACOSX_DEPLOYMENT_TARGET={}: {}".format(
+                    sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET"), PythonInterpreter.get()
+                ),
+                file=sys.stderr
+            )
 
         return self._spawn_pip_isolated_job(
             wheel_cmd,
