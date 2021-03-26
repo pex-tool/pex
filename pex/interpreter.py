@@ -89,7 +89,7 @@ class PythonIdentity(object):
 
         # N.B.: The platform module supports mac_ver on non-macOS OSes. It just returns the
         # promised shaped tuple with empty strings in all slots.
-        macosx_deployment_target = "_".join(platform.mac_ver()[0].split(".")[:2])
+        macosx_deployment_target = ".".join(platform.mac_ver()[0].split(".")[:2])
 
         return cls(
             binary=binary or sys.executable,
