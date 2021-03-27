@@ -317,11 +317,16 @@ class Pip(object):
 
         if (
             python_interpreter.configured_macosx_deployment_target
-            != python_interpreter.desired_macosx_deployment_target
+            and python_interpreter.configured_macosx_deployment_target
+            != PythonIdentity.normalize_macosx_deployment_target(
+                python_interpreter.configured_macosx_deployment_target
+            )
         ):
             env.update(
-                SYSTEM_VERSION_COMPAT="1",
-                MACOSX_DEPLOYMENT_TARGET=python_interpreter.desired_macosx_deployment_target
+                _PYTHON_HOST_PLATFORM="macosx-{}-x86-64".format(
+                    python_interpreter.desired_macosx_deployment_target
+                ),
+                MACOSX_DEPLOYMENT_TARGET=python_interpreter.desired_macosx_deployment_target,
             )
             print(">>> Using custom env {} for {}".format(env, command), file=sys.stderr)
 
