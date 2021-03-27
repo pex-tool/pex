@@ -578,7 +578,7 @@ class PythonInterpreter(object):
         # some python distributions include portions of the standard library there.
         cmd.append("-s")
 
-        env = (env or os.environ).copy()
+        env = cls._sanitized_environment(env=env)
         pythonpath = list(pythonpath or ())
         if pythonpath:
             env["PYTHONPATH"] = os.pathsep.join(pythonpath)
@@ -854,6 +854,14 @@ class PythonInterpreter(object):
             if identity not in seen and version_filter(version):
                 seen.add(identity)
                 yield interp
+
+    @classmethod
+    def _sanitized_environment(cls, env=None):
+        # N.B. This is merely a hack because sysconfig.py on the default OS X
+        # installation of 2.7 breaks.
+        env_copy = (env or os.environ).copy()
+        env_copy.pop("MACOSX_DEPLOYMENT_TARGET", None)
+        return env_copy
 
     def __init__(self, identity):
         # type: (PythonIdentity) -> None

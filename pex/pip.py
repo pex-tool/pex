@@ -199,8 +199,6 @@ class Pip(object):
                     fp.write(
                         dedent(
                             """\
-                            from __future__ import print_function
-
                             import os
                             import runpy
                             import sys
@@ -322,13 +320,18 @@ class Pip(object):
                 python_interpreter.configured_macosx_deployment_target
             )
         ):
+            # An undocumented feature of sysconfig.get_platform() is respect for the
+            # _PYTHON_HOST_PLATFORM environment variable. We can fix up badly configured macOS
+            # interpreters by influencing the platform this way.
+            # This is supported for the CPythons we support:
+            # + https://github.com/python/cpython/blob/v2.7.18/Lib/sysconfig.py#L567-L569
+            # ... through ...
+            # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
             env.update(
                 _PYTHON_HOST_PLATFORM="macosx-{}-x86-64".format(
                     python_interpreter.desired_macosx_deployment_target
                 ),
-                # MACOSX_DEPLOYMENT_TARGET=python_interpreter.desired_macosx_deployment_target,
             )
-            print(">>> Using custom env {} for {}".format(env, command), file=sys.stderr)
 
         with ENV.strip().patch(
             PEX_ROOT=cache or ENV.PEX_ROOT, PEX_VERBOSE=str(ENV.PEX_VERBOSE), **env
@@ -555,7 +558,7 @@ class Pip(object):
         verify=True,  # type: bool
     ):
         # type: (...) -> Job
-        wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir, "--use-pep517"]
+        wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
         if not verify:
             wheel_cmd.append("--no-verify")
         wheel_cmd.extend(distributions)

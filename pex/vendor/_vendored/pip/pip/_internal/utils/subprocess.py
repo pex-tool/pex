@@ -181,17 +181,6 @@ def call_subprocess(
     for name in unset_environ:
         env.pop(name, None)
     try:
-        import sys
-        import sysconfig
-        config_value = sysconfig.get_config_vars().get("MACOSX_DEPLOYMENT_TARGET", "")
-        env_value = env.get("MACOSX_DEPLOYMENT_TARGET", "")
-        if env_value:
-            print(
-                ">>> MACOSX_DEPLOYMENT_TARGET: config={}, env={} -> when running: {} ".format(
-                    config_value, env_value, cmd
-                ),
-                file=sys.stderr
-            )
         proc = subprocess.Popen(
             # Convert HiddenText objects to the underlying str.
             reveal_command_args(cmd),
