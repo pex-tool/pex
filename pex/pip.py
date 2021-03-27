@@ -326,7 +326,7 @@ class Pip(object):
                 _PYTHON_HOST_PLATFORM="macosx-{}-x86-64".format(
                     python_interpreter.desired_macosx_deployment_target
                 ),
-                MACOSX_DEPLOYMENT_TARGET=python_interpreter.desired_macosx_deployment_target,
+                # MACOSX_DEPLOYMENT_TARGET=python_interpreter.desired_macosx_deployment_target,
             )
             print(">>> Using custom env {} for {}".format(env, command), file=sys.stderr)
 
