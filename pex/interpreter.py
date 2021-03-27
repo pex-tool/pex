@@ -92,12 +92,6 @@ class PythonIdentity(object):
 
         supported_tags = tuple(tags.sys_tags())
         preferred_tag = supported_tags[0]
-
-        # N.B.: The platform module supports mac_ver on non-macOS OSes. It just returns the
-        # promised shaped tuple with empty strings in all slots.
-        desired_macosx_deployment_target = cls.normalize_macosx_deployment_target(
-            platform.mac_ver()[0]
-        )
         configured_macosx_deployment_target = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
 
         return cls(
@@ -116,7 +110,6 @@ class PythonIdentity(object):
             version=sys.version_info[:3],
             supported_tags=supported_tags,
             env_markers=markers.default_environment(),
-            desired_macosx_deployment_target=desired_macosx_deployment_target or None,
             configured_macosx_deployment_target=configured_macosx_deployment_target or None,
         )
 
@@ -124,7 +117,7 @@ class PythonIdentity(object):
     def decode(cls, encoded):
         TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
         values = json.loads(encoded)
-        if len(values) != 11:
+        if len(values) != 10:
             raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
 
         supported_tags = values.pop("supported_tags")
@@ -153,7 +146,6 @@ class PythonIdentity(object):
         version,  # type: Iterable[int]
         supported_tags,  # type: Iterable[tags.Tag]
         env_markers,  # type: Dict[str, str]
-        desired_macosx_deployment_target,  # type: Optional[str]
         configured_macosx_deployment_target,  # type: Optional[str]
     ):
         # type: (...) -> None
@@ -170,7 +162,6 @@ class PythonIdentity(object):
         self._version = tuple(version)
         self._supported_tags = tuple(supported_tags)
         self._env_markers = dict(env_markers)
-        self._desired_macosx_deployment_target = desired_macosx_deployment_target
         self._configured_macosx_deployment_target = configured_macosx_deployment_target
 
     def encode(self):
@@ -186,7 +177,6 @@ class PythonIdentity(object):
                 (tag.interpreter, tag.abi, tag.platform) for tag in self._supported_tags
             ],
             env_markers=self._env_markers,
-            desired_macosx_deployment_target=self._desired_macosx_deployment_target,
             configured_macosx_deployment_target=self._configured_macosx_deployment_target,
         )
         return json.dumps(values, sort_keys=True)
@@ -256,7 +246,9 @@ class PythonIdentity(object):
     @property
     def desired_macosx_deployment_target(self):
         # type: () -> Optional[str]
-        return self._desired_macosx_deployment_target
+        if not self._configured_macosx_deployment_target:
+            return None
+        return ".".join(self._configured_macosx_deployment_target.split(".")[:2])
 
     @property
     def configured_macosx_deployment_target(self):

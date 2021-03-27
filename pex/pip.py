@@ -315,10 +315,7 @@ class Pip(object):
 
         if (
             python_interpreter.configured_macosx_deployment_target
-            and python_interpreter.configured_macosx_deployment_target
-            != PythonIdentity.normalize_macosx_deployment_target(
-                python_interpreter.configured_macosx_deployment_target
-            )
+            != python_interpreter.desired_macosx_deployment_target
         ):
             # An undocumented feature of sysconfig.get_platform() is respect for the
             # _PYTHON_HOST_PLATFORM environment variable. We can fix up badly configured macOS
@@ -329,9 +326,7 @@ class Pip(object):
             # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
             env.update(
                 _PYTHON_HOST_PLATFORM="macosx-{}-x86-64".format(
-                    PythonIdentity.normalize_macosx_deployment_target(
-                        python_interpreter.configured_macosx_deployment_target
-                    )
+                    python_interpreter.desired_macosx_deployment_target
                 ),
             )
 
