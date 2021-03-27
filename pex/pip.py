@@ -329,7 +329,9 @@ class Pip(object):
             # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
             env.update(
                 _PYTHON_HOST_PLATFORM="macosx-{}-x86-64".format(
-                    python_interpreter.desired_macosx_deployment_target
+                    PythonIdentity.normalize_macosx_deployment_target(
+                        python_interpreter.configured_macosx_deployment_target
+                    )
                 ),
             )
 
