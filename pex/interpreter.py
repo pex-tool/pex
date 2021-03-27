@@ -72,6 +72,11 @@ class PythonIdentity(object):
     }
 
     @classmethod
+    def normalize_macosx_deployment_target(cls, value):
+        # type: (str) -> str
+        return ".".join(value.split(".")[:2])
+
+    @classmethod
     def get(cls, binary=None):
         # type: (Optional[str]) -> PythonIdentity
 
@@ -90,7 +95,9 @@ class PythonIdentity(object):
 
         # N.B.: The platform module supports mac_ver on non-macOS OSes. It just returns the
         # promised shaped tuple with empty strings in all slots.
-        desired_macosx_deployment_target = ".".join(platform.mac_ver()[0].split(".")[:2])
+        desired_macosx_deployment_target = cls.normalize_macosx_deployment_target(
+            platform.mac_ver()[0]
+        )
         configured_macosx_deployment_target = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
 
         return cls(
@@ -571,7 +578,7 @@ class PythonInterpreter(object):
         # some python distributions include portions of the standard library there.
         cmd.append("-s")
 
-        env = cls._sanitized_environment(env=env)
+        env = (env or os.environ).copy()
         pythonpath = list(pythonpath or ())
         if pythonpath:
             env["PYTHONPATH"] = os.pathsep.join(pythonpath)
@@ -847,19 +854,6 @@ class PythonInterpreter(object):
             if identity not in seen and version_filter(version):
                 seen.add(identity)
                 yield interp
-
-    @classmethod
-    def _sanitized_environment(cls, env=None):
-        # N.B. This is merely a hack because sysconfig.py on the default OS X
-        # installation of 2.7 breaks.
-        env_copy = (env or os.environ).copy()
-        macosx_deployment_target = env_copy.get("MACOSX_DEPLOYMENT_TARGET")
-        if macosx_deployment_target:
-            print(
-                ">>> Not sanitizing MACOSX_DEPLOYMENT_TARGET={}".format(macosx_deployment_target),
-                file=sys.stderr,
-            )
-        return env_copy
 
     def __init__(self, identity):
         # type: (PythonIdentity) -> None

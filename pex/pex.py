@@ -55,17 +55,6 @@ class PEX(object):  # noqa: T000
     @classmethod
     def _clean_environment(cls, env=None, strip_pex_env=True):
         env = env or os.environ
-
-        try:
-            macosx_deployment_target = env.get("MACOSX_DEPLOYMENT_TARGET")
-            if macosx_deployment_target:
-                print(
-                    ">>> Not cleaning MACOSX_DEPLOYMENT_TARGET={}".format(macosx_deployment_target),
-                    file=sys.stderr,
-                )
-        except KeyError:
-            pass
-
         if strip_pex_env:
             for key in list(env):
                 if key.startswith("PEX_"):
