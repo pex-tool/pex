@@ -320,6 +320,7 @@ class Pip(object):
             != python_interpreter.desired_macosx_deployment_target
         ):
             env.update(
+                SYSTEM_VERSION_COMPAT="1",
                 MACOSX_DEPLOYMENT_TARGET=python_interpreter.desired_macosx_deployment_target
             )
             print(">>> Using custom env {} for {}".format(env, command), file=sys.stderr)
