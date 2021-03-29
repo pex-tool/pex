@@ -17,7 +17,7 @@ from collections import OrderedDict
 from textwrap import dedent
 from typing import AnyStr
 
-from pex import third_party
+from pex import third_party, pex_warnings
 from pex.common import is_exe, safe_mkdtemp, safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
@@ -95,7 +95,6 @@ class PythonIdentity(object):
 
         supported_tags = tuple(tags.sys_tags())
         preferred_tag = supported_tags[0]
-        configured_macosx_deployment_target = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
 
         return cls(
             binary=binary or sys.executable,
@@ -113,14 +112,13 @@ class PythonIdentity(object):
             version=sys.version_info[:3],
             supported_tags=supported_tags,
             env_markers=markers.default_environment(),
-            configured_macosx_deployment_target=configured_macosx_deployment_target or None,
         )
 
     @classmethod
     def decode(cls, encoded):
         TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
         values = json.loads(encoded)
-        if len(values) != 10:
+        if len(values) != 9:
             raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
 
         supported_tags = values.pop("supported_tags")
@@ -149,7 +147,6 @@ class PythonIdentity(object):
         version,  # type: Iterable[int]
         supported_tags,  # type: Iterable[tags.Tag]
         env_markers,  # type: Dict[str, str]
-        configured_macosx_deployment_target,  # type: Optional[str]
     ):
         # type: (...) -> None
         # N.B.: We keep this mapping to support historical values for `distribution` and `requirement`
@@ -165,7 +162,6 @@ class PythonIdentity(object):
         self._version = tuple(version)
         self._supported_tags = tuple(supported_tags)
         self._env_markers = dict(env_markers)
-        self._configured_macosx_deployment_target = configured_macosx_deployment_target
 
     def encode(self):
         values = dict(
@@ -180,7 +176,6 @@ class PythonIdentity(object):
                 (tag.interpreter, tag.abi, tag.platform) for tag in self._supported_tags
             ],
             env_markers=self._env_markers,
-            configured_macosx_deployment_target=self._configured_macosx_deployment_target,
         )
         return json.dumps(values, sort_keys=True)
 
@@ -245,18 +240,6 @@ class PythonIdentity(object):
     def distribution(self):
         # type: () -> Distribution
         return Distribution(project_name=self.interpreter, version=self.version_str)
-
-    @property
-    def desired_macosx_deployment_target(self):
-        # type: () -> Optional[str]
-        if not self._configured_macosx_deployment_target:
-            return None
-        return ".".join(self._configured_macosx_deployment_target.split(".")[:2])
-
-    @property
-    def configured_macosx_deployment_target(self):
-        # type: () -> Optional[str]
-        return self._configured_macosx_deployment_target
 
     def iter_supported_platforms(self):
         # type: () -> Iterator[Platform]
@@ -855,7 +838,7 @@ class PythonInterpreter(object):
     def _sanitized_environment(cls, env=None):
         # type: (Optional[Mapping[str, str]]) -> Dict[str, str]
         # N.B. This is merely a hack because sysconfig.py on the default OS X
-        # installation of 2.7 breaks.
+        # installation of 2.7 breaks. See: https://bugs.python.org/issue9516
         env_copy = dict(env or os.environ)
         env_copy.pop("MACOSX_DEPLOYMENT_TARGET", None)
         return env_copy
@@ -1014,16 +997,6 @@ class PythonInterpreter(object):
             self._supported_platforms = frozenset(self._identity.iter_supported_platforms())
         return self._supported_platforms
 
-    @property
-    def desired_macosx_deployment_target(self):
-        # type: () -> Optional[str]
-        return self._identity.desired_macosx_deployment_target
-
-    @property
-    def configured_macosx_deployment_target(self):
-        # type: () -> Optional[str]
-        return self._identity.configured_macosx_deployment_target
-
     def create_isolated_cmd(
         self,
         args=None,  # type: Optional[Iterable[str]]
@@ -1032,20 +1005,34 @@ class PythonInterpreter(object):
     ):
         # type: (...) -> Tuple[Iterable[str], Mapping[str, str]]
         env_copy = dict(env or os.environ)
-        if self.configured_macosx_deployment_target != self.desired_macosx_deployment_target:
-            # An undocumented feature of sysconfig.get_platform() is respect for the
-            # _PYTHON_HOST_PLATFORM environment variable. We can fix up badly configured macOS
-            # interpreters by influencing the platform this way.
-            # This is supported for the CPythons we support:
-            # + https://github.com/python/cpython/blob/v2.7.18/Lib/sysconfig.py#L567-L569
-            # ... through ...
-            # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
-            # TODO(John Sirois): XXX: Derive x86-64.
-            env_copy.update(
-                _PYTHON_HOST_PLATFORM="macosx-{}-x86-64".format(
-                    self.desired_macosx_deployment_target
-                ),
+
+        if platform.system() == "Darwin":
+            reported_platform = sysconfig.get_platform()
+            osname, release, machine = reported_platform.split("-")
+            version = release.split(".")
+            if len(version) == 1:
+                release = "{}.0".format(version)
+            elif len(version) > 2:
+                release = ".".join(version[:2])
+
+            pep425_compatible_platform = "{osname}-{release}-{machine}".format(
+                osname=osname, release=release, machine=machine
             )
+            if pep425_compatible_platform != reported_platform:
+                # An undocumented feature of sysconfig.get_platform() is respect for the
+                # _PYTHON_HOST_PLATFORM environment variable. We can fix up badly configured macOS
+                # interpreters by influencing the platform this way.
+                # This is supported for the CPythons we support:
+                # + https://github.com/python/cpython/blob/v2.7.18/Lib/sysconfig.py#L567-L569
+                # ... through ...
+                # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
+                pex_warnings.warn(
+                    "Correcting mis-reported platform of {} to {} for {}".format(
+                        reported_platform, pep425_compatible_platform, self
+                    )
+                )
+                env_copy.update(_PYTHON_HOST_PLATFORM=pep425_compatible_platform)
+
         return self._create_isolated_cmd(
             self.binary, args=args, pythonpath=pythonpath, env=env_copy
         )
