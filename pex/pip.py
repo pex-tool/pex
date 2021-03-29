@@ -324,6 +324,7 @@ class Pip(object):
             # + https://github.com/python/cpython/blob/v2.7.18/Lib/sysconfig.py#L567-L569
             # ... through ...
             # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
+            # TODO(John Sirois): XXX: Derive x86-64.
             env.update(
                 _PYTHON_HOST_PLATFORM="macosx-{}-x86-64".format(
                     python_interpreter.desired_macosx_deployment_target

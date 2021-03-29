@@ -3314,9 +3314,6 @@ def test_invalid_macosx_platform_tag(tmpdir):
     args = ic_args + ["setproctitle==1.2", "-o", repository_pex]
     result = run_pex_command(args=args)
     result.assert_success()
-    print(">>> Output of {}".format(args), file=sys.stderr)
-    print("... STDOUT:\n{}".format(result.output), file=sys.stderr)
-    print("... STDERR:\n{}".format(result.error), file=sys.stderr)
 
     output = subprocess.check_output(args=["pex-tools", repository_pex, "interpreter", "-av"])
     lines = output.decode("utf-8").splitlines()
@@ -3331,12 +3328,17 @@ def test_invalid_macosx_platform_tag(tmpdir):
                     """\
                     import os
                     import platform
+                    import sysconfig
 
+                    print("sysconfig.get_platform={}".format(sysconfig.get_platform()))
+                    print("os.uname={}".format(os.uname()))
                     print(
-                        "MACOSX_DEPLOYMENT_TARGET={}".format(
-                            os.environ.get("MACOSX_DEPLOYMENT_TARGET", "<unset>")
+                        "MACOSX_DEPLOYMENT_TARGET: env={} sysconfig={}".format(
+                            os.environ.get("MACOSX_DEPLOYMENT_TARGET"),
+                            sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET"),
                         )
                     )
+                    print("platform.machine={}".format(platform.machine()))
                     print(
                         "platform.mac_ver={}".format(
                             getattr(platform, "mac_ver", lambda: "Not a mac")()
