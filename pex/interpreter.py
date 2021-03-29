@@ -17,7 +17,7 @@ from collections import OrderedDict
 from textwrap import dedent
 from typing import AnyStr
 
-from pex import third_party, pex_warnings
+from pex import pex_warnings, third_party
 from pex.common import is_exe, safe_mkdtemp, safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
@@ -1018,6 +1018,13 @@ class PythonInterpreter(object):
             pep425_compatible_platform = "{osname}-{release}-{machine}".format(
                 osname=osname, release=release, machine=machine
             )
+            print(
+                ">>> On Darwin: version={} reported_platform={} "
+                "pep425_compatible_platform={}".format(
+                    version, reported_platform, pep425_compatible_platform
+                ),
+                file=sys.stderr
+            )
             if pep425_compatible_platform != reported_platform:
                 # An undocumented feature of sysconfig.get_platform() is respect for the
                 # _PYTHON_HOST_PLATFORM environment variable. We can fix up badly configured macOS
@@ -1032,6 +1039,8 @@ class PythonInterpreter(object):
                     )
                 )
                 env_copy.update(_PYTHON_HOST_PLATFORM=pep425_compatible_platform)
+        else:
+            print(">>> On {}".format(platform.system()), file=sys.stderr)
 
         return self._create_isolated_cmd(
             self.binary, args=args, pythonpath=pythonpath, env=env_copy
