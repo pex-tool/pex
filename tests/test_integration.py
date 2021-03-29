@@ -41,6 +41,7 @@ from pex.pex_info import PexInfo
 from pex.pip import get_pip
 from pex.requirements import LogicalLine, PyPIRequirement, URLFetcher, parse_requirement_file
 from pex.testing import (
+    IS_MAC,
     IS_PYPY,
     IS_PYPY2,
     NOT_CPYTHON27,
@@ -3307,6 +3308,9 @@ def test_execute_module_issues_1018(tmpdir):
     assert expected_output == subprocess.check_output(args=[with_module_venv_pex])
 
 
+@pytest.mark.skipif(
+    not IS_MAC, reason="This is a test of a problem specific to macOS interpreters."
+)
 def test_invalid_macosx_platform_tag(tmpdir):
     # type: (Any) -> None
     if not any((3, 8) == pi.version[:2] for pi in PythonInterpreter.iter()):
