@@ -3312,43 +3312,7 @@ def test_invalid_macosx_platform_tag(tmpdir):
     repository_pex = os.path.join(str(tmpdir), "repository.pex")
     ic_args = ["--interpreter-constraint", "==3.8.*"]
     args = ic_args + ["setproctitle==1.2", "-o", repository_pex]
-    result = run_pex_command(args=args)
-    result.assert_success()
-
-    output = subprocess.check_output(args=["pex-tools", repository_pex, "interpreter", "-av"])
-    lines = output.decode("utf-8").splitlines()
-    print(">>> Found {} candidate interpreters:".format(len(lines)), file=sys.stderr)
-    for index, line in enumerate(lines, start=1):
-        interpreter = PythonInterpreter.from_binary(json.loads(line)["path"])
-        print(">>> {}.) interpreter is: {}".format(index, interpreter), file=sys.stderr)
-        _, stdout, _ = interpreter.execute(
-            args=[
-                "-c",
-                dedent(
-                    """\
-                    import os
-                    import platform
-                    import sysconfig
-
-                    print("sysconfig.get_platform={}".format(sysconfig.get_platform()))
-                    print("os.uname={}".format(os.uname()))
-                    print(
-                        "MACOSX_DEPLOYMENT_TARGET: env={} sysconfig={}".format(
-                            os.environ.get("MACOSX_DEPLOYMENT_TARGET"),
-                            sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET"),
-                        )
-                    )
-                    print("platform.machine={}".format(platform.machine()))
-                    print(
-                        "platform.mac_ver={}".format(
-                            getattr(platform, "mac_ver", lambda: "Not a mac")()
-                        )
-                    )
-                    """
-                ),
-            ]
-        )
-        print("... interpreter info:\n{}".format(stdout), file=sys.stderr)
+    run_pex_command(args=args).assert_success()
 
     setproctitle_pex = os.path.join(str(tmpdir), "setproctitle.pex")
     run_pex_command(

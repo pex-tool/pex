@@ -75,11 +75,6 @@ class PythonIdentity(object):
     }
 
     @classmethod
-    def normalize_macosx_deployment_target(cls, value):
-        # type: (str) -> str
-        return ".".join(value.split(".")[:2])
-
-    @classmethod
     def get(cls, binary=None):
         # type: (Optional[str]) -> PythonIdentity
 
@@ -1017,6 +1012,18 @@ class PythonInterpreter(object):
         env_copy = dict(env or os.environ)
 
         if self._identity.configured_macosx_deployment_target:
+            # System interpreters on mac have a history of bad configuration from one source or
+            # another. See `cls._sanitized_environment` for one example of this.
+            #
+            # When a Python interpreter is used to build platform specific wheels on a mac, it needs
+            # to report a platform of `macosx-X.Y-<machine>` to conform to PEP-425 & PyPAs
+            # `packaging` tags library. The X.Y release is derived from the MACOSX_DEPLOYMENT_TARGET
+            # sysconfig (Makefile) variable. Sometimes the configuration is provided by a user
+            # building a custom Python. See https://github.com/pypa/wheel/issues/385 for an example
+            # where MACOSX_DEPLOYMENT_TARGET is set to 11. Other times the configuration is provided
+            # by the system maintainer (Apple). See https://github.com/pantsbuild/pants/issues/11061
+            # for an example of this via XCode 12s system Python 3.8 interpreter which reports
+            # 10.14.6.
             release = self._identity.configured_macosx_deployment_target
             version = release.split(".")
             if len(version) == 1:
@@ -1029,16 +1036,16 @@ class PythonInterpreter(object):
                 pep425_compatible_platform = "{osname}-{release}-{machine}".format(
                     osname=osname, release=release, machine=machine
                 )
-                # An undocumented feature of sysconfig.get_platform() is respect for the
+                # An undocumented feature of `sysconfig.get_platform()` is respect for the
                 # _PYTHON_HOST_PLATFORM environment variable. We can fix up badly configured macOS
-                # interpreters by influencing the platform this way.
-                # This is supported for the CPythons we support:
+                # interpreters by influencing the platform this way, which is enough to get wheels
+                # building with proper platform tags. This is supported for the CPythons we support:
                 # + https://github.com/python/cpython/blob/v2.7.18/Lib/sysconfig.py#L567-L569
                 # ... through ...
                 # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
-                pex_warnings.warn(
+                TRACER.log(
                     "Correcting mis-configured MACOSX_DEPLOYMENT_TARGET of {} to {} corresponding "
-                    "to a valid PEP-425 platform of {} for {}".format(
+                    "to a valid PEP-425 platform of {} for {}.".format(
                         self._identity.configured_macosx_deployment_target,
                         release,
                         pep425_compatible_platform,
