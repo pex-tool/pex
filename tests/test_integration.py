@@ -3305,3 +3305,21 @@ def test_execute_module_issues_1018(tmpdir):
         args=["-D", src_dir, "-m", "issues_1018", "-o", with_module_venv_pex, "--venv"]
     ).assert_success()
     assert expected_output == subprocess.check_output(args=[with_module_venv_pex])
+
+
+def test_invalid_macosx_platform_tag(tmpdir):
+    # type: (Any) -> None
+    if not any((3, 8) == pi.version[:2] for pi in PythonInterpreter.iter()):
+        pytest.skip("Test requires a system Python 3.8 interpreter.")
+
+    repository_pex = os.path.join(str(tmpdir), "repository.pex")
+    ic_args = ["--interpreter-constraint", "==3.8.*"]
+    args = ic_args + ["setproctitle==1.2", "-o", repository_pex]
+    run_pex_command(args=args).assert_success()
+
+    setproctitle_pex = os.path.join(str(tmpdir), "setproctitle.pex")
+    run_pex_command(
+        args=ic_args + ["setproctitle", "--pex-repository", repository_pex, "-o", setproctitle_pex]
+    ).assert_success()
+
+    subprocess.check_call(args=[setproctitle_pex, "-c", "import setproctitle"])

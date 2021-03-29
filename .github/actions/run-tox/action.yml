@@ -31,6 +31,12 @@ runs:
           # Needed for Pillow to build successfully:
           #   https://github.com/python-pillow/Pillow/issues/3438#issuecomment-543812237
           export CPATH="$(xcrun --show-sdk-path)/usr/include"
+
+          if [[ "$(uname -m)" == "x86_64" ]]; then
+            # Works around bad `-arch arm64` flag embedded in Xcode 12.x Python interpreters on
+            # intel machines. See: https://github.com/giampaolo/psutil/issues/1832
+            export ARCHFLAGS="-arch x86_64"
+          fi
         fi
         tox --skip-missing-interpreters=false -v -e ${{ inputs.tox-env }}
       shell: bash
