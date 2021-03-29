@@ -11,7 +11,6 @@ import os
 import re
 import subprocess
 import sys
-import sysconfig
 from collections import deque
 from contextlib import closing
 from textwrap import dedent
@@ -21,7 +20,7 @@ from pex.common import atomic_directory, safe_mkdtemp
 from pex.compatibility import urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
-from pex.interpreter import PythonIdentity, PythonInterpreter
+from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.third_party import isolated
@@ -309,28 +308,7 @@ class Pip(object):
         if package_index_configuration:
             command.extend(package_index_configuration.args)
 
-        env = dict(popen_kwargs.pop("env", {}))
-        if package_index_configuration:
-            env.update(package_index_configuration.env)
-
-        if (
-            python_interpreter.configured_macosx_deployment_target
-            != python_interpreter.desired_macosx_deployment_target
-        ):
-            # An undocumented feature of sysconfig.get_platform() is respect for the
-            # _PYTHON_HOST_PLATFORM environment variable. We can fix up badly configured macOS
-            # interpreters by influencing the platform this way.
-            # This is supported for the CPythons we support:
-            # + https://github.com/python/cpython/blob/v2.7.18/Lib/sysconfig.py#L567-L569
-            # ... through ...
-            # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
-            # TODO(John Sirois): XXX: Derive x86-64.
-            env.update(
-                _PYTHON_HOST_PLATFORM="macosx-{}-x86-64".format(
-                    python_interpreter.desired_macosx_deployment_target
-                ),
-            )
-
+        env = package_index_configuration.env if package_index_configuration else {}
         with ENV.strip().patch(
             PEX_ROOT=cache or ENV.PEX_ROOT, PEX_VERBOSE=str(ENV.PEX_VERBOSE), **env
         ) as env:

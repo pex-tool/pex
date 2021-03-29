@@ -55,12 +55,6 @@ class PEX(object):  # noqa: T000
     @classmethod
     def _clean_environment(cls, env=None, strip_pex_env=True):
         env = env or os.environ
-
-        try:
-            del env["MACOSX_DEPLOYMENT_TARGET"]
-        except KeyError:
-            pass
-
         if strip_pex_env:
             for key in list(env):
                 if key.startswith("PEX_"):
@@ -698,10 +692,8 @@ class PEX(object):  # noqa: T000
         :keyword args: Additional arguments to be passed to the application being invoked by the
           environment.
         """
-        cmds = [self._interpreter.binary]
-        cmds.append(self._pex)
-        cmds.extend(args)
-        return cmds
+        cmd, _ = self._interpreter.create_isolated_cmd(args)
+        return cmd
 
     def run(self, args=(), with_chroot=False, blocking=True, setsid=False, env=None, **kwargs):
         """Run the PythonEnvironment in an interpreter in a subprocess.
@@ -723,10 +715,9 @@ class PEX(object):  # noqa: T000
             env = os.environ.copy()
             self._clean_environment(env=env)
 
-        cmdline = self.cmdline(args)
-        TRACER.log("PEX.run invoking %s" % " ".join(cmdline))
-        process = Executor.open_process(
-            cmdline,
+        TRACER.log("PEX.run invoking {}".format(" ".join(self.cmdline(args))))
+        _, process = self._interpreter.open_process(
+            [self._pex] + list(args),
             cwd=self._pex if with_chroot else os.getcwd(),
             preexec_fn=os.setsid if setsid else None,
             stdin=kwargs.pop("stdin", None),

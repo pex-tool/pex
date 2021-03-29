@@ -3,7 +3,7 @@
 
 """pex support for interacting with interpreters."""
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import hashlib
 import json
@@ -15,6 +15,7 @@ import sys
 import sysconfig
 from collections import OrderedDict
 from textwrap import dedent
+from typing import AnyStr
 
 from pex import third_party
 from pex.common import is_exe, safe_mkdtemp, safe_rmtree
@@ -32,11 +33,13 @@ from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import (
+        Any,
         Callable,
         Dict,
         Iterable,
         Iterator,
         List,
+        Mapping,
         MutableMapping,
         Optional,
         Sequence,
@@ -561,7 +564,14 @@ class PythonInterpreter(object):
         return list(cls.iter(paths=paths))
 
     @classmethod
-    def _create_isolated_cmd(cls, binary, args=None, pythonpath=None, env=None):
+    def _create_isolated_cmd(
+        cls,
+        binary,  # type: str
+        args=None,  # type: Optional[Iterable[str]]
+        pythonpath=None,  # type: Optional[Iterable[str]]
+        env=None,  # type: Optional[Mapping[str, str]]
+    ):
+        # type: (...) -> Tuple[Iterable[str], Mapping[str, str]]
         cmd = [binary]
 
         # Don't add the user site directory to `sys.path`.
@@ -587,12 +597,6 @@ class PythonInterpreter(object):
         TRACER.log("Executing: {}".format(rendered_command), V=3)
 
         return cmd, env
-
-    @classmethod
-    def _execute(cls, binary, args=None, pythonpath=None, env=None, stdin_payload=None, **kwargs):
-        cmd, env = cls._create_isolated_cmd(binary, args=args, pythonpath=pythonpath, env=env)
-        stdout, stderr = Executor.execute(cmd, stdin_payload=stdin_payload, env=env, **kwargs)
-        return cmd, stdout, stderr
 
     INTERP_INFO_FILE = "INTERP-INFO"
 
@@ -849,9 +853,10 @@ class PythonInterpreter(object):
 
     @classmethod
     def _sanitized_environment(cls, env=None):
+        # type: (Optional[Mapping[str, str]]) -> Dict[str, str]
         # N.B. This is merely a hack because sysconfig.py on the default OS X
         # installation of 2.7 breaks.
-        env_copy = (env or os.environ).copy()
+        env_copy = dict(env or os.environ)
         env_copy.pop("MACOSX_DEPLOYMENT_TARGET", None)
         return env_copy
 
@@ -1019,18 +1024,54 @@ class PythonInterpreter(object):
         # type: () -> Optional[str]
         return self._identity.configured_macosx_deployment_target
 
-    def execute(self, args=None, stdin_payload=None, pythonpath=None, env=None, **kwargs):
-        return self._execute(
-            self.binary,
-            args=args,
-            stdin_payload=stdin_payload,
-            pythonpath=pythonpath,
-            env=env,
-            **kwargs
+    def create_isolated_cmd(
+        self,
+        args=None,  # type: Optional[Iterable[str]]
+        pythonpath=None,  # type: Optional[Iterable[str]]
+        env=None,  # type: Optional[Mapping[str, str]]
+    ):
+        # type: (...) -> Tuple[Iterable[str], Mapping[str, str]]
+        env_copy = dict(env or os.environ)
+        if self.configured_macosx_deployment_target != self.desired_macosx_deployment_target:
+            # An undocumented feature of sysconfig.get_platform() is respect for the
+            # _PYTHON_HOST_PLATFORM environment variable. We can fix up badly configured macOS
+            # interpreters by influencing the platform this way.
+            # This is supported for the CPythons we support:
+            # + https://github.com/python/cpython/blob/v2.7.18/Lib/sysconfig.py#L567-L569
+            # ... through ...
+            # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
+            # TODO(John Sirois): XXX: Derive x86-64.
+            env_copy.update(
+                _PYTHON_HOST_PLATFORM="macosx-{}-x86-64".format(
+                    self.desired_macosx_deployment_target
+                ),
+            )
+        return self._create_isolated_cmd(
+            self.binary, args=args, pythonpath=pythonpath, env=env_copy
         )
 
-    def open_process(self, args=None, pythonpath=None, env=None, **kwargs):
-        cmd, env = self._create_isolated_cmd(self.binary, args=args, pythonpath=pythonpath, env=env)
+    def execute(
+        self,
+        args=None,  # type: Optional[Iterable[str]]
+        stdin_payload=None,  # type: Optional[AnyStr]
+        pythonpath=None,  # type: Optional[Iterable[str]]
+        env=None,  # type: Optional[Mapping[str, str]]
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> Tuple[Iterable[str], str, str]
+        cmd, env = self.create_isolated_cmd(args=args, pythonpath=pythonpath, env=env)
+        stdout, stderr = Executor.execute(cmd, stdin_payload=stdin_payload, env=env, **kwargs)
+        return cmd, stdout, stderr
+
+    def open_process(
+        self,
+        args=None,  # type: Optional[Iterable[str]]
+        pythonpath=None,  # type: Optional[Iterable[str]]
+        env=None,  # type: Optional[Mapping[str, str]]
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> Tuple[Iterable[str], subprocess.Popen]
+        cmd, env = self.create_isolated_cmd(args=args, pythonpath=pythonpath, env=env)
         process = Executor.open_process(cmd, env=env, **kwargs)
         return cmd, process
 
