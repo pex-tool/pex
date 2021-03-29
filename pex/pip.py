@@ -207,7 +207,7 @@ class Pip(object):
                             # it needs to perform.
                             os.environ['__PEX_UNVENDORED__'] = '1'
                             os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
-                            
+
                             runpy.run_module('pip', run_name='__main__')
                             """
                         )

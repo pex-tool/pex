@@ -12,11 +12,12 @@ import platform
 import re
 import subprocess
 import sys
+import sysconfig
 from collections import OrderedDict
 from textwrap import dedent
 
 from pex import third_party
-from pex.common import is_exe, safe_mkdtemp, safe_rmtree, temporary_dir
+from pex.common import is_exe, safe_mkdtemp, safe_rmtree
 from pex.compatibility import string
 from pex.executor import Executor
 from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
@@ -31,11 +32,14 @@ from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import (
+        Any,
+        AnyStr,
         Callable,
         Dict,
         Iterable,
         Iterator,
         List,
+        Mapping,
         MutableMapping,
         Optional,
         Sequence,
@@ -86,6 +90,8 @@ class PythonIdentity(object):
 
         supported_tags = tuple(tags.sys_tags())
         preferred_tag = supported_tags[0]
+        configured_macosx_deployment_target = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
+
         return cls(
             binary=binary or sys.executable,
             prefix=sys.prefix,
@@ -102,13 +108,14 @@ class PythonIdentity(object):
             version=sys.version_info[:3],
             supported_tags=supported_tags,
             env_markers=markers.default_environment(),
+            configured_macosx_deployment_target=configured_macosx_deployment_target or None,
         )
 
     @classmethod
     def decode(cls, encoded):
         TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
         values = json.loads(encoded)
-        if len(values) != 9:
+        if len(values) != 10:
             raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
 
         supported_tags = values.pop("supported_tags")
@@ -137,10 +144,11 @@ class PythonIdentity(object):
         version,  # type: Iterable[int]
         supported_tags,  # type: Iterable[tags.Tag]
         env_markers,  # type: Dict[str, str]
+        configured_macosx_deployment_target,  # type: Optional[str]
     ):
         # type: (...) -> None
-        # N.B.: We keep this mapping to support historical values for `distribution` and `requirement`
-        # properties.
+        # N.B.: We keep this mapping to support historical values for `distribution` and
+        # `requirement` properties.
         self._interpreter_name = self._find_interpreter_name(python_tag)
 
         self._binary = binary
@@ -152,6 +160,7 @@ class PythonIdentity(object):
         self._version = tuple(version)
         self._supported_tags = tuple(supported_tags)
         self._env_markers = dict(env_markers)
+        self._configured_macosx_deployment_target = configured_macosx_deployment_target
 
     def encode(self):
         values = dict(
@@ -166,6 +175,7 @@ class PythonIdentity(object):
                 (tag.interpreter, tag.abi, tag.platform) for tag in self._supported_tags
             ],
             env_markers=self._env_markers,
+            configured_macosx_deployment_target=self._configured_macosx_deployment_target,
         )
         return json.dumps(values, sort_keys=True)
 
@@ -217,6 +227,11 @@ class PythonIdentity(object):
     @property
     def env_markers(self):
         return dict(self._env_markers)
+
+    @property
+    def configured_macosx_deployment_target(self):
+        # type: () -> Optional[str]
+        return self._configured_macosx_deployment_target
 
     @property
     def interpreter(self):
@@ -537,7 +552,14 @@ class PythonInterpreter(object):
         return list(cls.iter(paths=paths))
 
     @classmethod
-    def _create_isolated_cmd(cls, binary, args=None, pythonpath=None, env=None):
+    def _create_isolated_cmd(
+        cls,
+        binary,  # type: str
+        args=None,  # type: Optional[Iterable[str]]
+        pythonpath=None,  # type: Optional[Iterable[str]]
+        env=None,  # type: Optional[Mapping[str, str]]
+    ):
+        # type: (...) -> Tuple[Iterable[str], Mapping[str, str]]
         cmd = [binary]
 
         # Don't add the user site directory to `sys.path`.
@@ -563,12 +585,6 @@ class PythonInterpreter(object):
         TRACER.log("Executing: {}".format(rendered_command), V=3)
 
         return cmd, env
-
-    @classmethod
-    def _execute(cls, binary, args=None, pythonpath=None, env=None, stdin_payload=None, **kwargs):
-        cmd, env = cls._create_isolated_cmd(binary, args=args, pythonpath=pythonpath, env=env)
-        stdout, stderr = Executor.execute(cmd, stdin_payload=stdin_payload, env=env, **kwargs)
-        return cmd, stdout, stderr
 
     INTERP_INFO_FILE = "INTERP-INFO"
 
@@ -825,9 +841,10 @@ class PythonInterpreter(object):
 
     @classmethod
     def _sanitized_environment(cls, env=None):
+        # type: (Optional[Mapping[str, str]]) -> Dict[str, str]
         # N.B. This is merely a hack because sysconfig.py on the default OS X
-        # installation of 2.7 breaks.
-        env_copy = (env or os.environ).copy()
+        # installation of 2.7 breaks. See: https://bugs.python.org/issue9516
+        env_copy = dict(env or os.environ)
         env_copy.pop("MACOSX_DEPLOYMENT_TARGET", None)
         return env_copy
 
@@ -985,18 +1002,84 @@ class PythonInterpreter(object):
             self._supported_platforms = frozenset(self._identity.iter_supported_platforms())
         return self._supported_platforms
 
-    def execute(self, args=None, stdin_payload=None, pythonpath=None, env=None, **kwargs):
-        return self._execute(
-            self.binary,
-            args=args,
-            stdin_payload=stdin_payload,
-            pythonpath=pythonpath,
-            env=env,
-            **kwargs
+    def create_isolated_cmd(
+        self,
+        args=None,  # type: Optional[Iterable[str]]
+        pythonpath=None,  # type: Optional[Iterable[str]]
+        env=None,  # type: Optional[Mapping[str, str]]
+    ):
+        # type: (...) -> Tuple[Iterable[str], Mapping[str, str]]
+        env_copy = dict(env or os.environ)
+
+        if self._identity.configured_macosx_deployment_target:
+            # System interpreters on mac have a history of bad configuration from one source or
+            # another. See `cls._sanitized_environment` for one example of this.
+            #
+            # When a Python interpreter is used to build platform specific wheels on a mac, it needs
+            # to report a platform of `macosx-X.Y-<machine>` to conform to PEP-425 & PyPAs
+            # `packaging` tags library. The X.Y release is derived from the MACOSX_DEPLOYMENT_TARGET
+            # sysconfig (Makefile) variable. Sometimes the configuration is provided by a user
+            # building a custom Python. See https://github.com/pypa/wheel/issues/385 for an example
+            # where MACOSX_DEPLOYMENT_TARGET is set to 11. Other times the configuration is provided
+            # by the system maintainer (Apple). See https://github.com/pantsbuild/pants/issues/11061
+            # for an example of this via XCode 12s system Python 3.8 interpreter which reports
+            # 10.14.6.
+            release = self._identity.configured_macosx_deployment_target
+            version = release.split(".")
+            if len(version) == 1:
+                release = "{}.0".format(version)
+            elif len(version) > 2:
+                release = ".".join(version[:2])
+
+            if release != self._identity.configured_macosx_deployment_target:
+                osname, _, machine = sysconfig.get_platform().split("-")
+                pep425_compatible_platform = "{osname}-{release}-{machine}".format(
+                    osname=osname, release=release, machine=machine
+                )
+                # An undocumented feature of `sysconfig.get_platform()` is respect for the
+                # _PYTHON_HOST_PLATFORM environment variable. We can fix up badly configured macOS
+                # interpreters by influencing the platform this way, which is enough to get wheels
+                # building with proper platform tags. This is supported for the CPythons we support:
+                # + https://github.com/python/cpython/blob/v2.7.18/Lib/sysconfig.py#L567-L569
+                # ... through ...
+                # + https://github.com/python/cpython/blob/v3.9.2/Lib/sysconfig.py#L652-L654
+                TRACER.log(
+                    "Correcting mis-configured MACOSX_DEPLOYMENT_TARGET of {} to {} corresponding "
+                    "to a valid PEP-425 platform of {} for {}.".format(
+                        self._identity.configured_macosx_deployment_target,
+                        release,
+                        pep425_compatible_platform,
+                        self,
+                    )
+                )
+                env_copy.update(_PYTHON_HOST_PLATFORM=pep425_compatible_platform)
+
+        return self._create_isolated_cmd(
+            self.binary, args=args, pythonpath=pythonpath, env=env_copy
         )
 
-    def open_process(self, args=None, pythonpath=None, env=None, **kwargs):
-        cmd, env = self._create_isolated_cmd(self.binary, args=args, pythonpath=pythonpath, env=env)
+    def execute(
+        self,
+        args=None,  # type: Optional[Iterable[str]]
+        stdin_payload=None,  # type: Optional[AnyStr]
+        pythonpath=None,  # type: Optional[Iterable[str]]
+        env=None,  # type: Optional[Mapping[str, str]]
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> Tuple[Iterable[str], str, str]
+        cmd, env = self.create_isolated_cmd(args=args, pythonpath=pythonpath, env=env)
+        stdout, stderr = Executor.execute(cmd, stdin_payload=stdin_payload, env=env, **kwargs)
+        return cmd, stdout, stderr
+
+    def open_process(
+        self,
+        args=None,  # type: Optional[Iterable[str]]
+        pythonpath=None,  # type: Optional[Iterable[str]]
+        env=None,  # type: Optional[Mapping[str, str]]
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> Tuple[Iterable[str], subprocess.Popen]
+        cmd, env = self.create_isolated_cmd(args=args, pythonpath=pythonpath, env=env)
         process = Executor.open_process(cmd, env=env, **kwargs)
         return cmd, process
 

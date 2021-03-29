@@ -49,6 +49,7 @@ IS_PYPY3 = IS_PYPY and sys.version_info[0] == 3
 NOT_CPYTHON27 = IS_PYPY or PY_VER != (2, 7)
 NOT_CPYTHON36 = IS_PYPY or PY_VER != (3, 6)
 IS_LINUX = platform.system() == "Linux"
+IS_MAC = platform.system() == "Darwin"
 IS_NOT_LINUX = not IS_LINUX
 NOT_CPYTHON27_OR_OSX = NOT_CPYTHON27 or IS_NOT_LINUX
 NOT_CPYTHON36_OR_LINUX = NOT_CPYTHON36 or IS_LINUX
