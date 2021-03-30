@@ -2894,6 +2894,46 @@ def test_seed(
     assert pex_stderr == seed_stderr
 
 
+@pytest.mark.parametrize(
+    ["mode_args", "seeded_execute_args"],
+    [
+        pytest.param([], ["python", "pex"], id="PEX"),
+        pytest.param(["--unzip"], ["python", "pex"], id="unzip"),
+        pytest.param(["--venv"], ["pex"], id="venv"),
+    ],
+)
+def test_seed_verbose(
+    isort_pex_args,  # type: Tuple[str, List[str]]
+    mode_args,  # type: List[str]
+    seeded_execute_args,  # type: List[str]
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+    pex_root = str(tmpdir)
+    pex_file, args = isort_pex_args
+    results = run_pex_command(
+        args=args + mode_args + ["--seed", "verbose"],
+        env=make_env(PEX_ROOT=pex_root, PEX_PYTHON_PATH=sys.executable),
+    )
+    results.assert_success()
+    verbose_info = json.loads(results.output)
+    seeded_argv0 = [verbose_info[arg] for arg in seeded_execute_args]
+
+    assert pex_root == verbose_info.pop("pex_root")
+
+    python = verbose_info.pop("python")
+    assert PythonInterpreter.get() == PythonInterpreter.from_binary(python)
+
+    verbose_info.pop("pex")
+    assert {} == verbose_info
+
+    isort_args = ["--version"]
+    seed_stdout, seed_stderr = Executor.execute(seeded_argv0 + isort_args)
+    pex_stdout, pex_stderr = Executor.execute([pex_file] + isort_args)
+    assert pex_stdout == seed_stdout
+    assert pex_stderr == seed_stderr
+
+
 def test_pip_issues_9420_workaround():
     # type: () -> None
 
