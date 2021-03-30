@@ -648,7 +648,7 @@ class Seed(object):
     ARGS = Value("args")
     VERBOSE = Value("verbose")
 
-    values = ARGS, VERBOSE
+    values = NONE, ARGS, VERBOSE
 
     @classmethod
     def for_value(cls, value):
@@ -666,16 +666,11 @@ class Seed(object):
 class HandleSeedAction(Action):
     def __init__(self, *args, **kwargs):
         kwargs["nargs"] = "?"
-        kwargs["choices"] = (Seed.NONE, Seed.ARGS.value, Seed.VERBOSE.value)
+        kwargs["choices"] = (Seed.NONE.value, Seed.ARGS.value, Seed.VERBOSE.value)
         super(HandleSeedAction, self).__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_str=None):
-        if option_str.startswith("--no"):
-            if value is not None:
-                raise ValueError()
-            seed = Seed.NONE
-        else:
-            seed = Seed.ARGS if value is None else Seed.for_value(value)
+        seed = Seed.ARGS if value is None else Seed.for_value(value)
         setattr(namespace, self.dest, seed)
 
 
