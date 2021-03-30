@@ -7,7 +7,7 @@ import functools
 import logging
 import os
 import sys
-from argparse import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 
 from pex import pex_bootstrapper
 from pex.pex import PEX
@@ -82,7 +82,7 @@ def main(
                 name,
                 formatter_class=ArgumentDefaultsHelpFormatter,
                 help=help_text,
-                description=description
+                description=description,
             )
             command.add_arguments(command_parser)
             command_parser.set_defaults(func=command.run)
