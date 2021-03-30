@@ -47,6 +47,8 @@ def test_pex_tools_script():
     output = subprocess.check_output(args=[script_path("pex-tools"), "-h"])
     first_line = output.decode("utf-8").splitlines()[0]
     assert (
-        "usage: pex-tools [-h] PATH {{{command_names}}} ...".format(command_names=command_names)
+        "usage: pex-tools [-h] [-V] PATH {{{command_names}}} ...".format(
+            command_names=command_names
+        )
         == first_line
     )
