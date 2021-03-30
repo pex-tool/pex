@@ -233,6 +233,7 @@ def test_chroot_zip_symlink():
     with temporary_dir() as tmp:
         chroot = Chroot(os.path.join(tmp, "chroot"))
         chroot.write(b"data", "directory/subdirectory/file")
+        chroot.write(b"data", "directory/subdirectory/file.foo")
         chroot.symlink(
             os.path.join(chroot.path(), "directory/subdirectory/file"),
             "directory/subdirectory/symlinked",
@@ -250,7 +251,7 @@ def test_chroot_zip_symlink():
 
         chroot.symlink(os.path.join(chroot.path(), "directory"), "symlinked")
         zip_dst = os.path.join(tmp, "chroot.zip")
-        chroot.zip(zip_dst)
+        chroot.zip(zip_dst, exclude_file=lambda path: path.endswith(".foo"))
         with open_zip(zip_dst) as zip:
             assert [
                 "directory/",

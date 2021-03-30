@@ -24,7 +24,17 @@ from uuid import uuid4
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, DefaultDict, Iterable, Iterator, NoReturn, Optional, Set, Sized
+    from typing import (
+        Any,
+        Callable,
+        DefaultDict,
+        Iterable,
+        Iterator,
+        NoReturn,
+        Optional,
+        Set,
+        Sized,
+    )
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
@@ -43,15 +53,21 @@ def filter_pyc_dirs(dirs):
 
 def filter_pyc_files(files):
     # type: (Iterable[str]) -> Iterator[str]
-    """Return an iterator over the input `files` filtering out any Python bytecode files."""
+    """Iterate the input `files` filtering out any Python bytecode files."""
     for f in files:
         # For Python 2.7, `.pyc` files are compiled as siblings to `.py` files (there is no
-        # __pycache__ dir). We rely on the fact that the temporary files created by CPython
-        # have object id (integer) suffixes to avoid picking up either finished `.pyc` files
-        # or files where Python bytecode compilation is in-flight; i.e.:
-        # `.pyc.0123456789`-style files.
-        if not re.search(r"\.pyc(?:\.[0-9]+)?$", f):
+        # __pycache__ dir).
+        if not f.endswith(".pyc") and not is_pyc_temporary_file(f):
             yield f
+
+
+def is_pyc_temporary_file(file_path):
+    # type: (str) -> bool
+    """Check if `file` is a temporary Python bytecode file."""
+    # We rely on the fact that the temporary files created by CPython have object id (integer)
+    # suffixes to avoid picking up files where Python bytecode compilation is in-flight; i.e.:
+    # `.pyc.0123456789`-style files.
+    return re.search(r"\.pyc\.[0-9]+$", file_path) is not None
 
 
 def die(msg, exit_code=1):
@@ -651,7 +667,14 @@ class Chroot(object):
     def delete(self):
         shutil.rmtree(self.chroot)
 
-    def zip(self, filename, mode="w", deterministic_timestamp=False):
+    def zip(
+        self,
+        filename,  # type: str
+        mode="w",  # type: str
+        deterministic_timestamp=False,  # type: bool
+        exclude_file=lambda _: False,  # type: Callable[[str], bool]
+    ):
+        # type: (...) -> None
         with open_zip(filename, mode) as zf:
 
             def write_entry(filename, arcname):
@@ -684,10 +707,15 @@ class Chroot(object):
                 for path in sorted(self.files()):
                     full_path = os.path.join(self.chroot, path)
                     if os.path.isfile(full_path):
+                        if exclude_file(full_path):
+                            continue
                         yield full_path, path
                         continue
+
                     for root, _, files in os.walk(full_path):
                         for f in sorted(files):
+                            if exclude_file(f):
+                                continue
                             abs_path = os.path.join(root, f)
                             rel_path = os.path.join(path, os.path.relpath(abs_path, full_path))
                             yield abs_path, rel_path

@@ -8,7 +8,15 @@ import logging
 import os
 
 from pex import pex_warnings
-from pex.common import Chroot, chmod_plus_x, open_zip, safe_mkdtemp, safe_open, temporary_dir
+from pex.common import (
+    Chroot,
+    chmod_plus_x,
+    is_pyc_temporary_file,
+    open_zip,
+    safe_mkdtemp,
+    safe_open,
+    temporary_dir,
+)
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
 from pex.distribution_target import DistributionTarget
@@ -623,7 +631,19 @@ class PEXBuilder(object):
             assert os.path.getsize(pexfile.name) == 0
             pexfile.write(to_bytes("{}\n".format(self._shebang)))
         with TRACER.timed("Zipping PEX file."):
-            self._chroot.zip(tmp_zip, mode="a", deterministic_timestamp=deterministic_timestamp)
+            self._chroot.zip(
+                tmp_zip,
+                mode="a",
+                deterministic_timestamp=deterministic_timestamp,
+                # When configured with a `copy_mode` of `CopyMode.SYMLINK`, we symlink distributions
+                # as pointers to installed wheel directories in ~/.pex/installed_wheels/... Since
+                # those installed wheels reside in a shared cache, they can be in-use by other
+                # processes and so their code may be in the process of being bytecode compiled as we
+                # attempt to zip up our chroot. Bytecode compilation produces ephemeral temporary
+                # pyc files that we should avoid copying since they are unuseful and inherently
+                # racy.
+                exclude_file=is_pyc_temporary_file,
+            )
         if os.path.exists(filename):
             os.unlink(filename)
         os.rename(tmp_zip, filename)
