@@ -8,6 +8,7 @@ sources, requirements and their dependencies.
 
 from __future__ import absolute_import, print_function
 
+import json
 import os
 import sys
 import tempfile
@@ -38,7 +39,7 @@ from pex.venv_bin_path import BinPath
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import List, Iterable
+    from typing import List, Iterable, Dict
     from argparse import Namespace
 
 
@@ -629,6 +630,55 @@ def configure_clp_pex_entry_points(parser):
     )
 
 
+class Seed(object):
+    class Value(object):
+        def __init__(self, value):
+            # type: (str) -> None
+            self.value = value
+
+        def __str__(self):
+            # type: () -> str
+            return str(self.value)
+
+        def __repr__(self):
+            # type: () -> str
+            return repr(self.value)
+
+    NONE = Value("none")
+    ARGS = Value("args")
+    VERBOSE = Value("verbose")
+
+    values = ARGS, VERBOSE
+
+    @classmethod
+    def for_value(cls, value):
+        # type: (str) -> Seed.Value
+        for v in cls.values:
+            if v.value == value:
+                return v
+        raise ValueError(
+            "{!r} of type {} must be one of {}".format(
+                value, type(value), ", ".join(map(repr, cls.values))
+            )
+        )
+
+
+class HandleSeedAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        kwargs["choices"] = (Seed.NONE, Seed.ARGS.value, Seed.VERBOSE.value)
+        super(HandleSeedAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        if option_str.startswith("--no"):
+            if value is not None:
+                raise ValueError()
+            seed = Seed.NONE
+        else:
+            seed = Seed.ARGS if value is None else Seed.for_value(value)
+        setattr(namespace, self.dest, seed)
+
+
 def configure_clp():
     # type: () -> ArgumentParser
     usage = (
@@ -769,12 +819,24 @@ def configure_clp():
 
     parser.add_argument(
         "--seed",
+        dest="seed",
+        action=HandleSeedAction,
+        default=Seed.NONE,
+        help=(
+            "Seed local Pex caches for the generated PEX and print out the command line to run "
+            "directly from the seed with ({args}) or else a json object including the 'pex_root' "
+            "path, the 'python' binary path and the seeded 'pex' path ({seed}).".format(
+                args=Seed.ARGS, seed=Seed.VERBOSE
+            )
+        ),
+    )
+    parser.add_argument(
         "--no-seed",
         dest="seed",
-        action=HandleBoolAction,
-        default=False,
-        help="Seed local Pex caches for the generated PEX and print out the command line to run "
-        "directly from the seed with.",
+        action="store_const",
+        const=Seed.NONE,
+        metavar="DEPRECATED",
+        help="Deprecated: Use --seed=none instead.",
     )
 
     parser.add_argument(
@@ -1100,9 +1162,9 @@ def main(args=None):
                 bytecode_compile=options.compile,
                 deterministic_timestamp=not options.use_system_time,
             )
-            if options.seed:
-                execute_cached_args = seed_cache(options, pex)
-                print(" ".join(execute_cached_args))
+            if options.seed != Seed.NONE:
+                seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)
+                print(seed_info)
         else:
             if not _compatible_with_current_platform(interpreter, options.platforms):
                 log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
@@ -1123,12 +1185,21 @@ def main(args=None):
 def seed_cache(
     options,  # type: Namespace
     pex,  # type: PEX
+    verbose=False,  # type : bool
 ):
-    # type: (...) -> Iterable[str]
+    # type: (...) -> str
     pex_path = pex.path()
     with TRACER.timed("Seeding local caches for {}".format(pex_path)):
+        pex_info = pex.pex_info()
+
+        def create_verbose_info(final_pex_path):
+            # type: (str) -> Dict[str, str]
+            return dict(
+                pex_root=pex_info.pex_root, python=pex.interpreter.binary, pex=final_pex_path
+            )
+
         if options.unzip:
-            unzip_dir = pex.pex_info().unzip_dir
+            unzip_dir = pex_info.unzip_dir
             if unzip_dir is None:
                 raise AssertionError(
                     "Expected PEX-INFO for {} to have the components of an unzip directory".format(
@@ -1140,15 +1211,25 @@ def seed_cache(
                     with TRACER.timed("Extracting {}".format(pex_path)):
                         with open_zip(options.pex_name) as pex_zip:
                             pex_zip.extractall(chroot.work_dir)
-            return [pex.interpreter.binary, unzip_dir]
+            if verbose:
+                return json.dumps(create_verbose_info(final_pex_path=unzip_dir))
+            else:
+                return "{} {}".format(pex.interpreter.binary, unzip_dir)
         elif options.venv:
             with TRACER.timed("Creating venv from {}".format(pex_path)):
                 venv_pex = ensure_venv(pex)
-                return [venv_pex]
+                if verbose:
+                    return json.dumps(create_verbose_info(final_pex_path=venv_pex))
+                else:
+                    return venv_pex
         else:
             with TRACER.timed("Extracting code and distributions for {}".format(pex_path)):
                 pex.activate()
-            return [os.path.abspath(options.pex_name)]
+            pex_path = os.path.abspath(options.pex_name)
+            if verbose:
+                return json.dumps(create_verbose_info(final_pex_path=pex_path))
+            else:
+                return pex_path
 
 
 if __name__ == "__main__":
