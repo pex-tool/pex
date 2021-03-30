@@ -1,6 +1,22 @@
 Release Notes
 =============
 
+2.1.36
+------
+
+This release brings a fix for building sdists with certain macOS
+interpreters when creating a PEX file that would then fail to resolve
+on PEX startup.
+
+* Add support for ``--seed verbose``. (#1299)
+  `PR #1299 <https://github.com/pantsbuild/pex/pull/1299>`_
+
+* Fix bytecode compilation race in PEXBuilder.build. (#1298)
+  `PR #1298 <https://github.com/pantsbuild/pex/pull/1298>`_
+
+* Fix wheel building for certain macOS system interpreters. (#1296)
+  `PR #1296 <https://github.com/pantsbuild/pex/pull/1296>`_
+
 2.1.35
 ------
 
