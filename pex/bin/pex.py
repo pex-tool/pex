@@ -691,7 +691,7 @@ def configure_clp():
         fromfile_prefix_chars="@",
     )
 
-    parser.add_argument("--version", action="version", version=__version__)
+    parser.add_argument("-V", "--version", action="version", version=__version__)
     parser.add_argument("requirements", nargs="*", help="Requirements to add to the pex")
 
     configure_clp_pex_resolution(parser)

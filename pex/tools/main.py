@@ -7,7 +7,7 @@ import functools
 import logging
 import os
 import sys
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 
 from pex import pex_bootstrapper
 from pex.pex import PEX
@@ -16,6 +16,7 @@ from pex.tools import commands
 from pex.tools.command import Command, Result
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
+from pex.version import __version__
 
 if TYPE_CHECKING:
     from typing import Callable, Optional
@@ -58,8 +59,10 @@ def main(
 
         parser = ArgumentParser(
             prog=prog,
+            formatter_class=ArgumentDefaultsHelpFormatter,
             description="Tools for working with {}.".format(pex_prog_path if pex else "PEX files"),
         )
+        parser.add_argument("-V", "--version", action="version", version=__version__)
         if pex is None:
             parser.add_argument(
                 "pex", nargs=1, metavar="PATH", help="The path of the PEX file to operate on."
@@ -75,7 +78,12 @@ def main(
             # N.B.: We want to trigger the default argparse description if the doc string is empty.
             description = command.__doc__ or None
             help_text = description.splitlines()[0] if description else None
-            command_parser = subparsers.add_parser(name, help=help_text, description=description)
+            command_parser = subparsers.add_parser(
+                name,
+                formatter_class=ArgumentDefaultsHelpFormatter,
+                help=help_text,
+                description=description,
+            )
             command.add_arguments(command_parser)
             command_parser.set_defaults(func=command.run)
 
