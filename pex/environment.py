@@ -17,6 +17,7 @@ from pex.common import atomic_directory, open_zip, pluralize
 from pex.distribution_target import DistributionTarget
 from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
+from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.third_party.packaging import specifiers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
@@ -74,7 +75,12 @@ class _RankedDistribution(object):
 
     def satisfies(self, requirement):
         # type: (Requirement) -> bool
-        return self.distribution in requirement
+        # N.B.: Although Requirement.__contains__ handles Distributions directly, it compares the
+        # Distribution key with the Requirement key and these keys are not properly canonicalized
+        # per PEP-503; so we compare project names here on our own.
+        if ProjectName(self.distribution) != ProjectName(requirement):
+            return False
+        return self.distribution.version in requirement
 
 
 @attr.s(frozen=True)
@@ -154,13 +160,12 @@ class ResolveError(Exception):
 
 
 @attr.s(frozen=True)
-class _RequirementKey(object):
+class _RequirementKey(ProjectName):
     @classmethod
     def create(cls, requirement):
         # type: (Requirement) -> _RequirementKey
-        return cls(requirement.key, frozenset(requirement.extras))
+        return cls(requirement, frozenset(requirement.extras))
 
-    key = attr.ib()  # type: str
     extras = attr.ib()  # type: FrozenSet[str]
 
     def satisfied_keys(self):
@@ -176,7 +181,7 @@ class _RequirementKey(object):
         items = list(self.extras)
         for size in range(len(items) + 1):
             for combination_of_size in itertools.combinations(items, size):
-                yield _RequirementKey(self.key, frozenset(combination_of_size))
+                yield _RequirementKey(self.project_name, frozenset(combination_of_size))
 
 
 class PEXEnvironment(object):
@@ -354,12 +359,12 @@ class PEXEnvironment(object):
         self._pex = os.path.realpath(pex)
         self._pex_info = pex_info or PexInfo.from_pex(pex)
 
-        self._available_ranked_dists_by_key = defaultdict(
+        self._available_ranked_dists_by_project_name = defaultdict(
             list
-        )  # type: DefaultDict[str, List[_RankedDistribution]]
-        self._unavailable_dists_by_key = defaultdict(
+        )  # type: DefaultDict[ProjectName, List[_RankedDistribution]]
+        self._unavailable_dists_by_project_name = defaultdict(
             list
-        )  # type: DefaultDict[str, List[_UnrankedDistribution]]
+        )  # type: DefaultDict[ProjectName, List[_UnrankedDistribution]]
         self._resolved_dists = None  # type: Optional[Iterable[Distribution]]
         self._activated_dists = None  # type: Optional[Iterable[Distribution]]
 
@@ -383,11 +388,12 @@ class PEXEnvironment(object):
         # type: (Iterable[Distribution]) -> None
         for dist in distribution_iter:
             ranked_dist = self._can_add(dist)
+            project_name = ProjectName(dist)
             if isinstance(ranked_dist, _RankedDistribution):
                 with TRACER.timed("Adding %s" % dist, V=2):
-                    self._available_ranked_dists_by_key[dist.key].append(ranked_dist)
+                    self._available_ranked_dists_by_project_name[project_name].append(ranked_dist)
             else:
-                self._unavailable_dists_by_key[dist.key].append(ranked_dist)
+                self._unavailable_dists_by_project_name[project_name].append(ranked_dist)
 
     def _can_add(self, dist):
         # type: (Distribution) -> Union[_RankedDistribution, _UnrankedDistribution]
@@ -457,7 +463,9 @@ class PEXEnvironment(object):
 
         available_distributions = [
             ranked_dist
-            for ranked_dist in self._available_ranked_dists_by_key.get(requirement.key, [])
+            for ranked_dist in self._available_ranked_dists_by_project_name[
+                ProjectName(requirement)
+            ]
             if ranked_dist.satisfies(requirement)
         ]
         if not available_distributions:
@@ -525,35 +533,39 @@ class PEXEnvironment(object):
         #   "setuptools==44.1.1; python_version<'3.6'",
         #   "isort==5.6.4; python_version>='3.6'",
         # }
-        qualified_reqs_by_key = OrderedDict()  # type: OrderedDict[str, List[_QualifiedRequirement]]
+        qualified_reqs_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, List[_QualifiedRequirement]]
         for req in reqs:
             required = self._evaluate_marker(req)
             if required is False:
                 continue
-            requirements = qualified_reqs_by_key.get(req.key)
+            project_name = ProjectName(req)
+            requirements = qualified_reqs_by_project_name.get(project_name)
             if requirements is None:
-                qualified_reqs_by_key[req.key] = requirements = []
+                qualified_reqs_by_project_name[project_name] = requirements = []
             requirements.append(_QualifiedRequirement(req, required=required))
 
         # Next, from among the remaining applicable requirements for a given project, we want to
         # select the most tailored (highest ranked) available distribution. That distribution's
         # transitive requirements will later fill in the full resolve.
-        for key, qualified_requirements in qualified_reqs_by_key.items():
-            ranked_dists = self._available_ranked_dists_by_key.get(key)
+        for project_name, qualified_requirements in qualified_reqs_by_project_name.items():
+            ranked_dists = self._available_ranked_dists_by_project_name.get(project_name)
             if ranked_dists is None:
                 # We've winnowed down reqs_by_key to just those requirements whose environment
                 # markers apply; so, we should always have an available distribution.
-                message = "A distribution for {} could not be resolved in this environment.".format(
-                    key
+                message = (
+                    "A distribution for {project_name} could not be resolved in this "
+                    "environment.".format(project_name=project_name)
                 )
-                unavailable_dists = self._unavailable_dists_by_key.get(key)
+                unavailable_dists = self._unavailable_dists_by_project_name.get(project_name)
                 if unavailable_dists:
                     message += (
-                        "Found {count} {distributions} for {key} that do not apply:\n"
+                        "Found {count} {distributions} for {project_name} that do not apply:\n"
                         "{unavailable_dists}".format(
                             count=len(unavailable_dists),
                             distributions=pluralize(unavailable_dists, "distribution"),
-                            key=key,
+                            project_name=project_name,
                             unavailable_dists="\n".join(
                                 "{index}.) {message}".format(
                                     index=index,
@@ -652,7 +664,9 @@ class PEXEnvironment(object):
                         rendered_requirers = "\n    Required by:" "\n      {requirers}".format(
                             requirers="\n      ".join(map(str, requirers))
                         )
-                    contains = self._available_ranked_dists_by_key[requirement.key]
+                    contains = self._available_ranked_dists_by_project_name[
+                        ProjectName(requirement)
+                    ]
                     if contains:
                         rendered_contains = (
                             "\n    But this pex only contains:"

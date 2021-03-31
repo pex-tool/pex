@@ -3367,3 +3367,26 @@ def test_invalid_macosx_platform_tag(tmpdir):
     ).assert_success()
 
     subprocess.check_call(args=[setproctitle_pex, "-c", "import setproctitle"])
+
+
+def test_pex_repository_pep503_issues_1302(tmpdir):
+    # type: (Any) -> None
+    repository_pex = os.path.join(str(tmpdir), "repository.pex")
+    with built_wheel(name="foo_bar", version="1.0.0") as wheel_path:
+        run_pex_command(
+            args=[
+                "--no-pypi",
+                "--find-links",
+                os.path.dirname(wheel_path),
+                "Foo._-BAR==1.0.0",
+                "-o",
+                repository_pex,
+            ]
+        ).assert_success()
+
+    foo_bar_pex = os.path.join(str(tmpdir), "foo-bar.pex")
+    run_pex_command(
+        args=["--pex-repository", repository_pex, "Foo._-BAR==1.0.0", "-o", foo_bar_pex]
+    ).assert_success()
+
+    subprocess.check_call(args=[foo_bar_pex, "-c", "import foo_bar"])
