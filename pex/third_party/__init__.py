@@ -346,7 +346,7 @@ def isolated():
     global _ISOLATED
     if _ISOLATED is None:
         from pex import vendor
-        from pex.common import atomic_directory
+        from pex.common import atomic_directory, is_pyc_temporary_file
         from pex.util import CacheHelper
         from pex.variables import ENV
         from pex.third_party.pkg_resources import resource_isdir, resource_listdir, resource_stream
@@ -367,8 +367,10 @@ def isolated():
                 src_entry = "{}/{}".format(srcdir, entry_name) if srcdir else entry_name
                 dst_entry = os.path.join(dstdir, entry_name)
                 if resource_isdir(module, src_entry):
+                    if os.path.basename(src_entry) == "__pycache__":
+                        continue
                     recursive_copy(src_entry, dst_entry)
-                elif not entry_name.endswith(".pyc"):
+                elif not entry_name.endswith(".pyc") and not is_pyc_temporary_file(entry_name):
                     with open(dst_entry, "wb") as fp:
                         with closing(resource_stream(module, src_entry)) as resource:
                             shutil.copyfileobj(resource, fp)
