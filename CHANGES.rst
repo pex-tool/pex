@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.38
+------
+
+A hotfix that finishes work started in 2.1.37 by #1304 to align Pip
+based resolve results with ``--pex-repository`` based resolve results
+for requirements with '.' in their names as allowed by PEP-503.
+
+* Fix PEX direct requirements metadata. (#1312)
+  `PR #1312 <https://github.com/pantsbuild/pex/pull/1312>`_
+
 2.1.37
 ------
 
