@@ -73,13 +73,12 @@ jobs:
         with:
           tox-env: package
       - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release
-        id: create-release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ needs.determine-tag.outputs.release-tag }}
-          release_name: pex ${{ needs.determine-tag.outputs.release-version }}
+          name: pex ${{ needs.determine-tag.outputs.release-version }}
           body: |
             ---
 
@@ -88,12 +87,5 @@ jobs:
             TODO: Add CHANGES.rst entries.
           draft: false
           prerelease: false
-      - name: Upload Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_path: dist/pex
-          asset_name: pex
-          asset_content_type: application/zip
+          files: dist/pex
+          fail_on_unmatched_files: true
