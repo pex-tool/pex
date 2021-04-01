@@ -10,7 +10,6 @@ import os
 import zipfile
 from collections import OrderedDict, defaultdict
 
-from pex import attrs
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
 from pex.environment import PEXEnvironment, ResolveError
@@ -18,6 +17,7 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip import PackageIndexConfiguration, get_pip
 from pex.platforms import Platform
@@ -653,11 +653,13 @@ class BuildAndInstallRequest(object):
                     install_req = build_request.result(built_wheels_dir).finalize_build()
                     yield requirement.as_requirement(dist=install_req.wheel_path)
 
-            direct_requirements_by_key = defaultdict(
+            direct_requirements_by_project_name = defaultdict(
                 OrderedSet
-            )  # type: DefaultDict[str, OrderedSet[Requirement]]
+            )  # type: DefaultDict[ProjectName, OrderedSet[Requirement]]
             for direct_requirement in iter_direct_requirements():
-                direct_requirements_by_key[direct_requirement.key].add(direct_requirement)
+                direct_requirements_by_project_name[ProjectName(direct_requirement)].add(
+                    direct_requirement
+                )
 
         # 3. Install wheels in individual chroots.
 
@@ -706,7 +708,7 @@ class BuildAndInstallRequest(object):
             distribution = installed_distribution.distribution
             direct_reqs = [
                 req
-                for req in direct_requirements_by_key.get(distribution.key, ())
+                for req in direct_requirements_by_project_name.get(ProjectName(distribution), ())
                 if req
                 and distribution in req
                 and installed_distribution.target.requirement_applies(req)
@@ -734,20 +736,22 @@ class BuildAndInstallRequest(object):
 
     def _check_install(self, installed_distributions):
         # type: (Iterable[InstalledDistribution]) -> None
-        installed_distribution_by_key = OrderedDict(
-            (resolved_distribution.distribution.key, resolved_distribution)
+        installed_distribution_by_project_name = OrderedDict(
+            (ProjectName(resolved_distribution.distribution), resolved_distribution)
             for resolved_distribution in installed_distributions
-        )
+        )  # type: OrderedDict[ProjectName, ResolvedDistribution]
 
         unsatisfied = []
-        for installed_distribution in installed_distribution_by_key.values():
+        for installed_distribution in installed_distribution_by_project_name.values():
             dist = installed_distribution.distribution
             target = installed_distribution.target
             for requirement in dist.requires():
                 if not target.requirement_applies(requirement):
                     continue
 
-                installed_requirement_dist = installed_distribution_by_key.get(requirement.key)
+                installed_requirement_dist = installed_distribution_by_project_name.get(
+                    ProjectName(requirement)
+                )
                 if not installed_requirement_dist:
                     unsatisfied.append(
                         "{dist} requires {requirement} but no version was resolved".format(
@@ -1354,18 +1358,22 @@ def resolve_from_pex(
     # type: (...) -> List[ResolvedDistribution]
 
     direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
-    direct_requirements_by_key = OrderedDict()
+    direct_requirements_by_project_name = (
+        OrderedDict()
+    )  # type: OrderedDict[ProjectName, Requirement]
     for direct_requirement in direct_requirements:
         if isinstance(direct_requirement, LocalProjectRequirement):
             raise Untranslatable(
                 "Cannot resolve local projects from PEX repositories. Asked to resolve {path} "
                 "from {pex}.".format(path=direct_requirement.path, pex=pex)
             )
-        direct_requirements_by_key[
-            direct_requirement.requirement.key
+        direct_requirements_by_project_name[
+            ProjectName(direct_requirement.requirement)
         ] = direct_requirement.requirement
 
-    constraints_by_key = defaultdict(list)  # type: DefaultDict[str, List[Constraint]]
+    constraints_by_project_name = defaultdict(
+        list
+    )  # type: DefaultDict[ProjectName, List[Constraint]]
     if not ignore_errors and (requirement_files or constraint_files):
         fetcher = URLFetcher(network_configuration=network_configuration)
         for location, is_constraints in itertools.chain(
@@ -1376,9 +1384,11 @@ def resolve_from_pex(
                 location, is_constraints=is_constraints, fetcher=fetcher
             ):
                 if isinstance(parsed_item, Constraint):
-                    constraints_by_key[parsed_item.requirement.key].append(parsed_item)
+                    constraints_by_project_name[ProjectName(parsed_item.requirement)].append(
+                        parsed_item
+                    )
 
-    all_reqs = direct_requirements_by_key.values()
+    all_reqs = direct_requirements_by_project_name.values()
     unique_targets = _unique_targets(
         interpreters=interpreters, platforms=platforms, manylinux=manylinux
     )
@@ -1391,13 +1401,14 @@ def resolve_from_pex(
             raise Unsatisfiable(str(e))
 
         for distribution in distributions:
-            direct_requirement = direct_requirements_by_key.get(distribution.key, None)
+            project_name = ProjectName(distribution)
+            direct_requirement = direct_requirements_by_project_name.get(project_name, None)
             if not transitive and not direct_requirement:
                 continue
 
             unmet_constraints = [
                 constraint
-                for constraint in constraints_by_key.get(distribution.key, ())
+                for constraint in constraints_by_project_name.get(project_name, ())
                 if distribution not in constraint.requirement
             ]
             if unmet_constraints:
