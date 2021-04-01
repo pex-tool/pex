@@ -3390,3 +3390,101 @@ def test_pex_repository_pep503_issues_1302(tmpdir):
     ).assert_success()
 
     subprocess.check_call(args=[foo_bar_pex, "-c", "import foo_bar"])
+
+
+def test_require_hashes(tmpdir):
+    # type: (Any) -> None
+    requirements = os.path.join(str(tmpdir), "requirements.txt")
+    with open(requirements, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                # The --require-hashes flag puts Pip in a mode where all requirements must be both
+                # pinned and have a --hash specified. # More on Pip hash checking mode here:
+                # https://pip.pypa.io/en/stable/reference/pip_install/#hash-checking-mode
+                #
+                # This mode causes Pip to verify that the resolved distributions have matching
+                # hashes and that the resolve closure has not expanded. It's not needed however
+                # since including even one requirement with --hash implicitly turns on hash
+                # checking mode.
+                --require-hashes
+
+                # Pip requirement files support line continuation in the customary way.
+                requests==2.25.1 \
+                    --hash sha256:c210084e36a42ae6b9219e00e48287def368a26d03a048ddad7bfee44f75871e
+
+                idna==2.10 \
+                    --hash sha256:b97d804b1e9b523befed77c48dacec60e6dcb0b5391d57af6a65a312a90648c0
+
+                # N.B.: Pip accepts flag values in either ` ` or `=` separated forms.
+                chardet==4.0.0 \
+                    --hash=sha256:f864054d66fd9118f2e67044ac8981a54775ec5b67aed0441892edb553d21da5
+
+                certifi==2020.12.5 \
+                    --hash sha256:719a74fb9e33b9bd44cc7f3a8d94bc35e4049deebe19ba7d8e108280cfd59830
+
+                # Pip supports the following three hash algorithms and it need only find one
+                # successful matching distribution.
+                urllib3==1.26.4 \
+                    --hash sha384:bad \
+                    --hash sha512:worse \
+                    --hash sha256:2f4da4594db7e1e110a944bb1b551fdf4e6c136ad42e4234131391e21eb5b0df
+                """
+            )
+        )
+    requests_pex = os.path.join(str(tmpdir), "requests.pex")
+    run_pex_command(args=["-r", requirements, "-o", requests_pex]).assert_success()
+
+    subprocess.check_call(args=[requests_pex, "-c", "import requests"])
+
+    with open(requirements, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                requests==2.25.1 \
+                    --hash sha256:c210084e36a42ae6b9219e00e48287def368a26d03a048ddad7bfee44f75871e
+                idna==2.10 \
+                    --hash sha256:b97d804b1e9b523befed77c48dacec60e6dcb0b5391d57af6a65a312a90648c0
+                chardet==4.0.0 \
+                    --hash=sha256:f864054d66fd9118f2e67044ac8981a54775ec5b67aed0441892edb553d21da5
+                certifi==2020.12.5 \
+                    --hash sha256:719a74fb9e33b9bd44cc7f3a8d94bc35e4049deebe19ba7d8e108280cfd59830
+                urllib3==1.26.4 \
+                    --hash sha384:bad \
+                    --hash sha512:worse \
+                    --hash sha256:2f4da4594db7e1e110a944bb1b551fdf4e6c136ad42e4234131391e21eb5b0d0
+                """
+            )
+        )
+    result = run_pex_command(args=["-r", requirements])
+    result.assert_failure()
+
+    error_lines = {
+        re.sub(r"\s+", " ", line.strip()): index
+        for index, line in enumerate(result.error.splitlines())
+    }
+    index = error_lines["Expected sha512 worse"]
+    assert (
+        index + 1
+        == error_lines[
+            "Got ca602ae6dd925648c8ff87ef00bcef2d0ebebf1090b44e8dd43b75403f07db50269e5078f709cbce8e"
+            "7cfaedaf1b754d02dda08b6970b6a157cbf4c31ebc16a7"
+        ]
+    )
+
+    index = error_lines["Expected sha384 bad"]
+    assert (
+        index + 1
+        == error_lines[
+            "Got 64ec6b63f74b7bdf161a9b38fabf59c0a691ba9ed325f0864fea984e0deabe648cbd12d619d3989b64"
+            "24488349df3b30"
+        ]
+    )
+
+    index = error_lines[
+        "Expected sha256 2f4da4594db7e1e110a944bb1b551fdf4e6c136ad42e4234131391e21eb5b0d0"
+    ]
+    assert (
+        index + 1
+        == error_lines["Got 2f4da4594db7e1e110a944bb1b551fdf4e6c136ad42e4234131391e21eb5b0df"]
+    )
