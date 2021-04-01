@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.37
+------
+
+* Fix Pex isolation to avoid temporary pyc files. (#1308)
+  `PR #1308 <https://github.com/pantsbuild/pex/pull/1308>`_
+
+* Fix --pex-repository requirement canonicalization. (#1304)
+  `PR #1304 <https://github.com/pantsbuild/pex/pull/1304>`_
+
+* Spruce up ``pex`` and ``pex-tools`` CLIs with uniform ``-V`` /
+  ``--version`` support and default value display in help. (#1301)
+  `PR #1301 <https://github.com/pantsbuild/pex/pull/1301>`_
+
 2.1.36
 ------
 
