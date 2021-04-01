@@ -17,7 +17,7 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.pep_503 import ProjectName
+from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
 from pex.pip import PackageIndexConfiguration, get_pip
 from pex.platforms import Platform
@@ -708,9 +708,8 @@ class BuildAndInstallRequest(object):
             distribution = installed_distribution.distribution
             direct_reqs = [
                 req
-                for req in direct_requirements_by_project_name.get(ProjectName(distribution), ())
-                if req
-                and distribution in req
+                for req in direct_requirements_by_project_name[ProjectName(distribution)]
+                if distribution_satisfies_requirement(distribution, req)
                 and installed_distribution.target.requirement_applies(req)
             ]
             if len(direct_reqs) > 1:

@@ -17,7 +17,7 @@ from pex.common import atomic_directory, open_zip, pluralize
 from pex.distribution_target import DistributionTarget
 from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
-from pex.pep_503 import ProjectName
+from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
 from pex.third_party.packaging import specifiers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
@@ -75,12 +75,7 @@ class _RankedDistribution(object):
 
     def satisfies(self, requirement):
         # type: (Requirement) -> bool
-        # N.B.: Although Requirement.__contains__ handles Distributions directly, it compares the
-        # Distribution key with the Requirement key and these keys are not properly canonicalized
-        # per PEP-503; so we compare project names here on our own.
-        if ProjectName(self.distribution) != ProjectName(requirement):
-            return False
-        return self.distribution.version in requirement
+        return distribution_satisfies_requirement(self.distribution, requirement)
 
 
 @attr.s(frozen=True)

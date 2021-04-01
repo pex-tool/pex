@@ -26,7 +26,7 @@ def _canonicalize_project_name(project_nameable):
 
 @attr.s(frozen=True)
 class ProjectName(object):
-    """Encodes a canonicalized project name as per PEP-502.
+    """Encodes a canonicalized project name as per PEP-503.
 
     See: https://www.python.org/dev/peps/pep-0503/#normalized-names
     """
@@ -36,3 +36,22 @@ class ProjectName(object):
     def __str__(self):
         # type: () -> str
         return self.project_name
+
+
+def distribution_satisfies_requirement(
+    distribution,  # type: Distribution
+    requirement,  # type: Requirement
+):
+    # type: (...) -> bool
+    """Determines if the given distribution satisfies the given requirement.
+
+    N.B.: Any environment markers present in the requirement are not evaluated. The requirement is
+    considered satisfied if project names match and the distribution version is in the requirement's
+    specified range, if any.
+    """
+    # N.B.: Although Requirement.__contains__ handles Distributions directly, it compares the
+    # Distribution key with the Requirement key and these keys are not properly canonicalized
+    # per PEP-503; so we compare project names here on our own.
+    if ProjectName(distribution) != ProjectName(requirement):
+        return False
+    return distribution.version in requirement
