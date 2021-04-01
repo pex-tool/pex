@@ -3381,13 +3381,29 @@ def test_pex_repository_pep503_issues_1302(tmpdir):
                 "Foo._-BAR==1.0.0",
                 "-o",
                 repository_pex,
+                "--include-tools",
             ]
         ).assert_success()
 
+    repository_info = subprocess.check_output(
+        args=[repository_pex, "info"], env=make_env(PEX_TOOLS=1)
+    )
+    assert ["Foo._-BAR==1.0.0"] == json.loads(repository_info.decode("utf-8"))["requirements"]
+
     foo_bar_pex = os.path.join(str(tmpdir), "foo-bar.pex")
     run_pex_command(
-        args=["--pex-repository", repository_pex, "Foo._-BAR==1.0.0", "-o", foo_bar_pex]
+        args=[
+            "--pex-repository",
+            repository_pex,
+            "Foo._-BAR==1.0.0",
+            "-o",
+            foo_bar_pex,
+            "--include-tools",
+        ]
     ).assert_success()
+
+    foo_bar_info = subprocess.check_output(args=[foo_bar_pex, "info"], env=make_env(PEX_TOOLS=1))
+    assert ["Foo._-BAR==1.0.0"] == json.loads(foo_bar_info.decode("utf-8"))["requirements"]
 
     subprocess.check_call(args=[foo_bar_pex, "-c", "import foo_bar"])
 
