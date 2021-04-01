@@ -3400,7 +3400,7 @@ def test_require_hashes(tmpdir):
             dedent(
                 """\
                 # The --require-hashes flag puts Pip in a mode where all requirements must be both
-                # pinned and have a --hash specified. # More on Pip hash checking mode here:
+                # pinned and have a --hash specified. More on Pip hash checking mode here:
                 # https://pip.pypa.io/en/stable/reference/pip_install/#hash-checking-mode
                 #
                 # This mode causes Pip to verify that the resolved distributions have matching
@@ -3433,8 +3433,14 @@ def test_require_hashes(tmpdir):
             )
         )
     requests_pex = os.path.join(str(tmpdir), "requests.pex")
-    run_pex_command(args=["-r", requirements, "-o", requests_pex]).assert_success()
 
+    run_pex_command(args=["-r", requirements, "-o", requests_pex]).assert_success()
+    subprocess.check_call(args=[requests_pex, "-c", "import requests"])
+
+    # The hash checking mode should also work in constraints context.
+    run_pex_command(
+        args=["--constraints", requirements, "requests", "-o", requests_pex]
+    ).assert_success()
     subprocess.check_call(args=[requests_pex, "-c", "import requests"])
 
     with open(requirements, "w") as fp:
@@ -3456,12 +3462,16 @@ def test_require_hashes(tmpdir):
                 """
             )
         )
-    result = run_pex_command(args=["-r", requirements])
-    result.assert_failure()
+    as_requirements_result = run_pex_command(args=["-r", requirements])
+    as_requirements_result.assert_failure()
+
+    # The hash checking mode should also work in constraints context.
+    as_constraints_result = run_pex_command(args=["--constraints", requirements, "requests"])
+    as_constraints_result.assert_failure()
 
     error_lines = {
         re.sub(r"\s+", " ", line.strip()): index
-        for index, line in enumerate(result.error.splitlines())
+        for index, line in enumerate(as_constraints_result.error.splitlines())
     }
     index = error_lines["Expected sha512 worse"]
     assert (
