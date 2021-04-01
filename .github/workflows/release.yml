@@ -88,4 +88,3 @@ jobs:
           draft: false
           prerelease: false
           files: dist/pex
-          fail_on_unmatched_files: true
