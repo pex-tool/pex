@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.39
+------
+
+A hotfix that fixes a bug present since 2.1.25 that results in infinite
+recursion in PEX runtime resolves when handling dependency cycles.
+
+* Guard against cyclic dependency graphs. (#1317)
+  `PR #1317 <https://github.com/pantsbuild/pex/pull/1317>`_
+
 2.1.38
 ------
 
