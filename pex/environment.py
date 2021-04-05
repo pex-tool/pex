@@ -481,6 +481,10 @@ class PEXEnvironment(object):
                 V=9,
             )
 
+        resolved_dists_by_key.update(
+            (key, resolved_distribution) for key in requirement_key.satisfied_keys()
+        )
+
         for dep_requirement in dist_metadata.requires_dists(resolved_distribution):
             # A note regarding extras and why they're passed down one level (we don't pass / use
             # dep_requirement.extras for example):
@@ -509,10 +513,6 @@ class PEXEnvironment(object):
                 required_by=resolved_distribution,
             ):
                 yield not_found
-
-        resolved_dists_by_key.update(
-            (key, resolved_distribution) for key in requirement_key.satisfied_keys()
-        )
 
     def _root_requirements_iter(self, reqs):
         # type: (Iterable[Requirement]) -> Iterator[QualifiedRequirementOrNotFound]
