@@ -3514,3 +3514,10 @@ def test_require_hashes(tmpdir):
         index + 1
         == error_lines["Got 2f4da4594db7e1e110a944bb1b551fdf4e6c136ad42e4234131391e21eb5b0df"]
     )
+
+
+def test_issues_1316_resolve_cyclic_dependency_graph(tmpdir):
+    # type: (Any) -> None
+    naked_pex = os.path.join(str(tmpdir), "naked.pex")
+    run_pex_command(args=["Naked==0.1.31", "-o", naked_pex]).assert_success()
+    subprocess.check_call(args=[naked_pex, "-c", "import Naked"])
