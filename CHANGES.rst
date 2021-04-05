@@ -80,13 +80,13 @@ https://docs.python.org/3/library/argparse.html#fromfile-prefix-chars.
   `PR #1273 <https://github.com/pantsbuild/pex/pull/1273>`_
 
 * Fix module entrypoints. (#1274)
-  `PR #1274 <https://github.com/pantsbuild/pants/pull/1274>`_
+  `PR #1274 <https://github.com/pantsbuild/pex/pull/1274>`_
 
 * Guard against concurrent re-imports. (#1270)
-  `PR #1270 <https://github.com/pantsbuild/pants/pull/1270>`_
+  `PR #1270 <https://github.com/pantsbuild/pex/pull/1270>`_
 
 * Ensure Pip logs to stderr. (#1268)
-  `PR #1268 <https://github.com/pantsbuild/pants/pull/1268>`_
+  `PR #1268 <https://github.com/pantsbuild/pex/pull/1268>`_
 
 2.1.33
 ------
@@ -153,7 +153,7 @@ This release primarily hardens Pex venvs fixing several bugs.
 This release fixes another bug in --venv mode when PEX_PATH is exported in the environment.
 
 * Fix --venv mode to respect PEX_PATH. (#1227)
-  `PR #1227 <https://github.com/pantsbuild/pants/pull/1227>`_
+  `PR #1227 <https://github.com/pantsbuild/pex/pull/1227>`_
 
 2.1.29
 ------
@@ -295,10 +295,10 @@ also fixed to install for Python 3.9.1+.
 
 * Upgrade to a patched Pip 20.3.3. (#1143)
   `Issue #9283 <https://github.com/pypa/pip/issues/9283>`_
-  `PR #1143 <https://github.com/pantsbuild/pants/pex/pull/1143>`_
+  `PR #1143 <https://github.com/pantsbuild/pex/pull/1143>`_
 
 * Fix python requirement to include full 3.9 series. (#1142)
-  `PR #1142 <https://github.com/pantsbuild/pants/pex/pull/1142>`_
+  `PR #1142 <https://github.com/pantsbuild/pex/pull/1142>`_
 
 2.1.23
 ------
@@ -523,16 +523,16 @@ and a bug in the ``-D / --sources-directory`` and
 (namespace) packages were not respected (#1021).
 
 * Improve UnsatisfiableInterpreterConstraintsError. (#1028)
-  `PR #1028 <https://github.com/pantsbuild/pants/pull/1028>`_
+  `PR #1028 <https://github.com/pantsbuild/pex/pull/1028>`_
 
 * Scrub direct sys.path manipulations by .pth files. (#1026)
-  `PR #1026 <https://github.com/pantsbuild/pants/pull/1026>`_
+  `PR #1026 <https://github.com/pantsbuild/pex/pull/1026>`_
 
 * PEX zips now contain directory entries. (#1022)
-  `PR #1022 <https://github.com/pantsbuild/pants/pull/1022>`_
+  `PR #1022 <https://github.com/pantsbuild/pex/pull/1022>`_
 
 * Fix UnsatisfiableInterpreterConstraintsError. (#1024)
-  `PR #1024 <https://github.com/pantsbuild/pants/pull/1024>`_
+  `PR #1024 <https://github.com/pantsbuild/pex/pull/1024>`_
 
 2.1.15
 ------
