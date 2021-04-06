@@ -139,7 +139,6 @@ class MktempTeardownRegistry(object):
         self._registry = defaultdict(set)  # type: DefaultDict[int, Set[str]]
         self._lock = threading.RLock()
         self._getpid = os.getpid
-        self._exists = os.path.exists
         self._rmtree = shutil.rmtree
         atexit.register(self.teardown)
 
@@ -156,8 +155,7 @@ class MktempTeardownRegistry(object):
     def teardown(self):
         # type: () -> None
         for td in self._registry.pop(self._getpid(), []):
-            if self._exists(td):
-                self._rmtree(td)
+            self._rmtree(td, ignore_errors=True)
 
 
 _MKDTEMP_SINGLETON = MktempTeardownRegistry()
