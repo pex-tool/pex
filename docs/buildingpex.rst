@@ -100,7 +100,7 @@ way to freeze a virtualenv into a PEX file:
 
 .. code-block:: console
 
-    $ pex -r <(pip freeze) -o my_application.pex
+    $ pex $(pip freeze) -o my_application.pex
 
 
 Specifying entry points
