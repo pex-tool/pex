@@ -23,6 +23,7 @@ from pex.executor import Executor
 from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.platforms import Platform
+from pex.pyenv import Pyenv
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
@@ -586,6 +587,24 @@ class PythonInterpreter(object):
 
         return cmd, env
 
+    # We use () as the unset sentinel for this lazily calculated cached value. The cached value
+    # itself should always be Optional[Pyenv].
+    #
+    # N.B.: The empty tuple type is not represented as Tuple[] as you might naivly guess but
+    # instead as Tuple[()].
+    #
+    # See:
+    # + https://github.com/python/mypy/issues/4211
+    # + https://www.python.org/dev/peps/pep-0484/#the-typing-module
+    _PYENV = ()  # type: Union[Tuple[()],Optional[Pyenv]]
+
+    @classmethod
+    def _pyenv_shim(cls, binary):
+        # type: (str) -> Optional[Pyenv.Shim]
+        if isinstance(cls._PYENV, tuple):
+            cls._PYENV = Pyenv.find()
+        return cls._PYENV.as_shim(binary) if cls._PYENV else None
+
     INTERP_INFO_FILE = "INTERP-INFO"
 
     @classmethod
@@ -619,21 +638,36 @@ class PythonInterpreter(object):
             with TRACER.timed("GCing interpreter cache from prior OS version"):
                 safe_rmtree(interpreter_cache_dir)
 
-        interpreter_hash = CacheHelper.hash(binary)
+        # Pyenv shims are immutable files that re-exec a different underlying python depending
+        # on a combination of environment variables and the presence of various version
+        # configuration files and the location of $PWD. If the binary is a pyenv shim, we need to
+        # take these factors into account in our cache key; so we calculate the underlying pyenv
+        # python version here which maps one-to-one with the underlying pyenv python version that
+        # will be re-exec'd to.
+        pyenv_version = None
+        shim = cls._pyenv_shim(binary)
+        if shim is not None:
+            pyenv_version = shim.select_version()
+            if pyenv_version is None:
+                TRACER.log("Detected inactive pyenv shim: {}.".format(shim), V=3)
+                raise cls.IdentificationError("The pyenv shim at {} is not active.".format(binary))
+            TRACER.log("Detected pyenv shim activated to {}: {}.".format(pyenv_version, shim), V=3)
 
-        # Some distributions include more than one copy of the same interpreter via a hard link (e.g.:
-        # python3.7 is a hardlink to python3.7m). To ensure a deterministic INTERP-INFO file we must
-        # emit a separate INTERP-INFO for each link since INTERP-INFO contains the interpreter path and
-        # would otherwise be unstable.
+        # Some distributions include more than one copy of the same interpreter via a hard link (
+        # e.g.: python3.7 is a hardlink to python3.7m). To ensure a deterministic INTERP-INFO file
+        # we must emit a separate INTERP-INFO for each link since INTERP-INFO contains the
+        # interpreter path and would otherwise be unstable. As such, we include the interpreter
+        # path in the hash.
         #
         # See cls._REGEXEN for a related affordance.
-        #
-        # N.B.: The path for --venv mode interpreters can be quite long; so we just used a fixed
-        # length hash of the interpreter binary path to ensure uniqueness and not run afoul of file
-        # name length limits.
-        path_id = hashlib.sha1(binary.encode("utf-8")).hexdigest()
+        interpreter_hash_subject = dict(
+            hash=CacheHelper.hash(binary), path=binary, pyenv_version=pyenv_version
+        )
+        interpreter_hash = hashlib.sha1(
+            json.dumps(interpreter_hash_subject, sort_keys=True).encode("utf-8")
+        ).hexdigest()
 
-        cache_dir = os.path.join(os_cache_dir, interpreter_hash, path_id)
+        cache_dir = os.path.join(os_cache_dir, interpreter_hash)
         cache_file = os.path.join(cache_dir, cls.INTERP_INFO_FILE)
         if os.path.isfile(cache_file):
             try:
@@ -728,7 +762,10 @@ class PythonInterpreter(object):
         :param binary: The path to the python interpreter binary.
         :return: an interpreter created from the given `binary`.
         """
-        return cast(PythonInterpreter, cls._spawn_from_binary(binary).await_result())
+        try:
+            return cast(PythonInterpreter, cls._spawn_from_binary(binary).await_result())
+        except Job.Error as e:
+            raise cls.IdentificationError("Failed to identify {}: {}".format(binary, e))
 
     @classmethod
     def _matches_binary_name(cls, path):
