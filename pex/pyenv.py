@@ -13,7 +13,7 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import Iterator, List, Optional, Tuple
+    from typing import Iterable, Iterator, Optional, Tuple, Iterable
 else:
     from pex.third_party import attr
 
@@ -157,32 +157,38 @@ class Pyenv(object):
         # type: (Optional[str]) -> Tuple[str, ...]
         """Reports the active pyenv versions for the given starting search directory or $PWD."""
 
+        source_and_versions = None  # type: Optional[Tuple[str, Iterable[str]]]
+
         # See: https://github.com/pyenv/pyenv#choosing-the-python-version
         with TRACER.timed("Finding {} active versions...".format(self), V=6):
             shell_version = os.environ.get("PYENV_VERSION")
             if shell_version:
-                TRACER.log(
-                    "Found active pyenv version of PYENV_VERSION={}".format(shell_version), V=6
+                source_and_versions = (
+                    "PYENV_VERSION={}".format(shell_version),
+                    shell_version.split(":"),
                 )
-                return (shell_version,)
-
-            cwd = search_dir if search_dir is not None else os.getcwd()
-            TRACER.log("Looking for pyenv version files starting from {}.".format(cwd), V=6)
-
-            versions = []  # type: List[str]
-            local_version = self._find_local_version_file(search_dir=cwd)
-            if local_version:
-                versions.extend(self._read_pyenv_versions(local_version))
-                TRACER.log("Found active versions in {}: {}".format(local_version, versions), V=6)
             else:
-                global_version = os.path.join(self.root, "version")
-                if os.path.exists(global_version):
-                    versions.extend(self._read_pyenv_versions(global_version))
-                    TRACER.log(
-                        "Found active versions in {}: {}".format(global_version, versions), V=6
-                    )
+                cwd = search_dir if search_dir is not None else os.getcwd()
+                TRACER.log("Looking for pyenv version files starting from {}.".format(cwd), V=6)
 
+                local_version = self._find_local_version_file(search_dir=cwd)
+                if local_version:
+                    source_and_versions = (local_version, self._read_pyenv_versions(local_version))
+                else:
+                    global_version = os.path.join(self.root, "version")
+                    if os.path.exists(global_version):
+                        source_and_versions = (
+                            global_version,
+                            self._read_pyenv_versions(global_version),
+                        )
+
+        if source_and_versions:
+            source, versions = source_and_versions
+            TRACER.log("Found active versions in {}: {}".format(source, versions), V=6)
             return tuple(versions)
+
+        TRACER.log("Found no active pyenv versions.", V=6)
+        return ()
 
     def python(
         self,

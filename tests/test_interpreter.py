@@ -222,16 +222,16 @@ class TestPythonInterpreter(object):
             run_pyenv(["local"] + list(versions))
 
         @contextmanager
-        def pyenv_shell(version):
-            # type: (Optional[str]) -> Iterator[None]
-            with environment_as(PYENV_VERSION=version):
+        def pyenv_shell(*versions):
+            # type: (*str) -> Iterator[None]
+            with environment_as(PYENV_VERSION=":".join(versions)):
                 yield
 
         pex_root = os.path.join(str(tmpdir), "pex_root")
         cwd = safe_mkdir(os.path.join(str(tmpdir), "home", "jake", "project"))
         with ENV.patch(PEX_ROOT=pex_root) as pex_env, environment_as(
             PYENV_ROOT=pyenv_root, PEX_PYTHON_PATH=pyenv_shims, **pex_env
-        ), pyenv_shell(version=None), pushd(cwd):
+        ), pyenv_shell(), pushd(cwd):
             pyenv = Pyenv.find()
             assert pyenv is not None
             assert pyenv_root == pyenv.root
@@ -277,6 +277,12 @@ class TestPythonInterpreter(object):
                 assert_shim("python3", py36)
                 assert_shim("python3.6", py36)
                 assert_shim_inactive("python3.5")
+
+            with pyenv_shell(PY35, PY36):
+                assert_shim("python", py35)
+                assert_shim("python3", py35)
+                assert_shim("python3.5", py35)
+                assert_shim("python3.6", py36)
 
             # The shim pointer is now invalid since python3.5 was uninstalled and so
             # should be re-read and found invalid.
