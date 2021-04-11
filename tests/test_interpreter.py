@@ -5,7 +5,6 @@ import glob
 import json
 import os
 import subprocess
-import sys
 from collections import defaultdict
 from contextlib import contextmanager
 
@@ -16,6 +15,7 @@ from pex.common import safe_mkdir, safe_mkdtemp, temporary_dir, touch
 from pex.compatibility import PY3
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.pyenv import Pyenv
 from pex.testing import (
     PY27,
     PY35,
@@ -36,7 +36,7 @@ except ImportError:
     from unittest.mock import Mock, patch  # type: ignore[misc,no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, List, Tuple
+    from typing import Any, Iterator, List, Tuple, Optional
 
     from pex.interpreter import InterpreterOrError
 
@@ -223,32 +223,37 @@ class TestPythonInterpreter(object):
 
         @contextmanager
         def pyenv_shell(version):
-            # type: (str) -> Iterator[None]
+            # type: (Optional[str]) -> Iterator[None]
             with environment_as(PYENV_VERSION=version):
                 yield
-
-        def interpreter_for_shim(shim_name):
-            # type: (str) -> PythonInterpreter
-            return PythonInterpreter.from_binary(os.path.join(pyenv_shims, shim_name))
-
-        def assert_shim(
-            shim_name,  # type: str
-            expected_binary_path,  # type: str
-        ):
-            # type: (...) -> None
-            python = interpreter_for_shim(shim_name)
-            assert expected_binary_path == python.binary
-
-        def assert_shim_inactive(shim_name):
-            # type: (str) -> None
-            with pytest.raises(PythonInterpreter.IdentificationError):
-                interpreter_for_shim(shim_name)
 
         pex_root = os.path.join(str(tmpdir), "pex_root")
         cwd = safe_mkdir(os.path.join(str(tmpdir), "home", "jake", "project"))
         with ENV.patch(PEX_ROOT=pex_root) as pex_env, environment_as(
             PYENV_ROOT=pyenv_root, PEX_PYTHON_PATH=pyenv_shims, **pex_env
-        ), pushd(cwd):
+        ), pyenv_shell(version=None), pushd(cwd):
+            pyenv = Pyenv.find()
+            assert pyenv is not None
+            assert pyenv_root == pyenv.root
+
+            def interpreter_for_shim(shim_name):
+                # type: (str) -> PythonInterpreter
+                binary = os.path.join(pyenv_shims, shim_name)
+                return PythonInterpreter.from_binary(binary, pyenv=pyenv)
+
+            def assert_shim(
+                shim_name,  # type: str
+                expected_binary_path,  # type: str
+            ):
+                # type: (...) -> None
+                python = interpreter_for_shim(shim_name)
+                assert expected_binary_path == python.binary
+
+            def assert_shim_inactive(shim_name):
+                # type: (str) -> None
+                with pytest.raises(PythonInterpreter.IdentificationError):
+                    interpreter_for_shim(shim_name)
+
             pyenv_global(PY35, PY36)
             assert_shim("python", py35)
             assert_shim("python3", py35)
