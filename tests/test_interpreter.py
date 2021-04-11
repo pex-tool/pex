@@ -6,14 +6,16 @@ import json
 import os
 import subprocess
 from collections import defaultdict
+from contextlib import contextmanager
 
 import pytest
 
 from pex import interpreter
-from pex.common import safe_mkdtemp, temporary_dir, touch
+from pex.common import safe_mkdir, safe_mkdtemp, temporary_dir, touch
 from pex.compatibility import PY3
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.pyenv import Pyenv
 from pex.testing import (
     PY27,
     PY35,
@@ -34,7 +36,7 @@ except ImportError:
     from unittest.mock import Mock, patch  # type: ignore[misc,no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, List, Tuple
+    from typing import Any, Iterator, List, Tuple, Optional
 
     from pex.interpreter import InterpreterOrError
 
@@ -203,8 +205,8 @@ class TestPythonInterpreter(object):
             )
             assert os.path.basename(expected_interpreter.binary) != "jake"
 
-    def test_pyenv_shims(self):
-        # type: () -> None
+    def test_pyenv_shims(self, tmpdir):
+        # type: (Any) -> None
         py35, _, run_pyenv = ensure_python_distribution(PY35)
         py36 = ensure_python_interpreter(PY36)
 
@@ -212,31 +214,89 @@ class TestPythonInterpreter(object):
         pyenv_shims = os.path.join(pyenv_root, "shims")
 
         def pyenv_global(*versions):
+            # type: (*str) -> None
             run_pyenv(["global"] + list(versions))
 
-        def assert_shim(shim_name, expected_binary_path):
-            python = PythonInterpreter.from_binary(os.path.join(pyenv_shims, shim_name))
-            assert expected_binary_path == python.binary
+        def pyenv_local(*versions):
+            # type: (*str) -> None
+            run_pyenv(["local"] + list(versions))
 
-        with temporary_dir() as pex_root:
-            with ENV.patch(PEX_ROOT=pex_root) as pex_env:
-                with environment_as(PYENV_ROOT=pyenv_root, **pex_env):
-                    pyenv_global(PY35, PY36)
-                    assert_shim("python3", py35)
+        @contextmanager
+        def pyenv_shell(*versions):
+            # type: (*str) -> Iterator[None]
+            with environment_as(PYENV_VERSION=":".join(versions)):
+                yield
 
-                    pyenv_global(PY36, PY35)
-                    # The python3 shim is now pointing at python3.6 but the Pex cache has a valid
-                    # entry for the old python3.5 association (the interpreter still exists.)
-                    assert_shim("python3", py35)
+        pex_root = os.path.join(str(tmpdir), "pex_root")
+        cwd = safe_mkdir(os.path.join(str(tmpdir), "home", "jake", "project"))
+        with ENV.patch(PEX_ROOT=pex_root) as pex_env, environment_as(
+            PYENV_ROOT=pyenv_root, PEX_PYTHON_PATH=pyenv_shims, **pex_env
+        ), pyenv_shell(), pushd(cwd):
+            pyenv = Pyenv.find()
+            assert pyenv is not None
+            assert pyenv_root == pyenv.root
 
-                    # The shim pointer is now invalid since python3.5 was uninstalled and so should
-                    # be re-read.
-                    py35_deleted = "{}.uninstalled".format(py35)
-                    os.rename(py35, py35_deleted)
-                    try:
-                        assert_shim("python3", py36)
-                    finally:
-                        os.rename(py35_deleted, py35)
+            def interpreter_for_shim(shim_name):
+                # type: (str) -> PythonInterpreter
+                binary = os.path.join(pyenv_shims, shim_name)
+                return PythonInterpreter.from_binary(binary, pyenv=pyenv)
+
+            def assert_shim(
+                shim_name,  # type: str
+                expected_binary_path,  # type: str
+            ):
+                # type: (...) -> None
+                python = interpreter_for_shim(shim_name)
+                assert expected_binary_path == python.binary
+
+            def assert_shim_inactive(shim_name):
+                # type: (str) -> None
+                with pytest.raises(PythonInterpreter.IdentificationError):
+                    interpreter_for_shim(shim_name)
+
+            pyenv_global(PY35, PY36)
+            assert_shim("python", py35)
+            assert_shim("python3", py35)
+            assert_shim("python3.5", py35)
+            assert_shim("python3.6", py36)
+
+            pyenv_global(PY36, PY35)
+            assert_shim("python", py36)
+            assert_shim("python3", py36)
+            assert_shim("python3.6", py36)
+            assert_shim("python3.5", py35)
+
+            pyenv_local(PY35)
+            assert_shim("python", py35)
+            assert_shim("python3", py35)
+            assert_shim("python3.5", py35)
+            assert_shim_inactive("python3.6")
+
+            with pyenv_shell(PY36):
+                assert_shim("python", py36)
+                assert_shim("python3", py36)
+                assert_shim("python3.6", py36)
+                assert_shim_inactive("python3.5")
+
+            with pyenv_shell(PY35, PY36):
+                assert_shim("python", py35)
+                assert_shim("python3", py35)
+                assert_shim("python3.5", py35)
+                assert_shim("python3.6", py36)
+
+            # The shim pointer is now invalid since python3.5 was uninstalled and so
+            # should be re-read and found invalid.
+            py35_version_dir = os.path.dirname(os.path.dirname(py35))
+            py35_deleted = "{}.uninstalled".format(py35_version_dir)
+            os.rename(py35_version_dir, py35_deleted)
+            try:
+                assert_shim_inactive("python")
+                assert_shim_inactive("python3")
+                assert_shim_inactive("python3.5")
+            finally:
+                os.rename(py35_deleted, py35_version_dir)
+
+            assert_shim("python", py35)
 
 
 def test_latest_release_of_min_compatible_version():

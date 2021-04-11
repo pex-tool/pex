@@ -23,6 +23,7 @@ from pex.executor import Executor
 from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.platforms import Platform
+from pex.pyenv import Pyenv
 from pex.third_party.packaging import markers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
@@ -586,11 +587,55 @@ class PythonInterpreter(object):
 
         return cmd, env
 
+    # We use () as the unset sentinel for this lazily calculated cached value. The cached value
+    # itself should always be Optional[Pyenv].
+    #
+    # N.B.: The empty tuple type is not represented as Tuple[] as you might naivly guess but
+    # instead as Tuple[()].
+    #
+    # See:
+    # + https://github.com/python/mypy/issues/4211
+    # + https://www.python.org/dev/peps/pep-0484/#the-typing-module
+    _PYENV = ()  # type: Union[Tuple[()],Optional[Pyenv]]
+
+    @classmethod
+    def _pyenv(cls):
+        # type: () -> Optional[Pyenv]
+        if isinstance(cls._PYENV, tuple):
+            cls._PYENV = Pyenv.find()
+        return cls._PYENV
+
+    @classmethod
+    def _resolve_pyenv_shim(
+        cls,
+        binary,  # type: str
+        pyenv=None,  # type: Optional[Pyenv]
+    ):
+        # type: (...) -> Optional[str]
+
+        pyenv = pyenv or cls._pyenv()
+        if pyenv is not None:
+            shim = pyenv.as_shim(binary)
+            if shim is not None:
+                python = shim.select_version()
+                if python is None:
+                    TRACER.log("Detected inactive pyenv shim: {}.".format(shim), V=3)
+                else:
+                    TRACER.log("Detected pyenv shim activated to {}: {}.".format(python, shim), V=3)
+                return python
+        return binary
+
     INTERP_INFO_FILE = "INTERP-INFO"
 
     @classmethod
     def _spawn_from_binary_external(cls, binary):
-        def create_interpreter(stdout, check_binary=False):
+        # type: (str) -> SpawnedJob[PythonInterpreter]
+
+        def create_interpreter(
+            stdout,  # type: bytes
+            check_binary=False,  # type: bool
+        ):
+            # type: (...) -> PythonInterpreter
             identity = stdout.decode("utf-8").strip()
             if not identity:
                 raise cls.IdentificationError("Could not establish identity of {}.".format(binary))
@@ -707,6 +752,7 @@ class PythonInterpreter(object):
 
     @classmethod
     def _spawn_from_binary(cls, binary):
+        # type: (str) -> SpawnedJob[PythonInterpreter]
         canonicalized_binary = cls.canonicalize_path(binary)
         if not os.path.exists(canonicalized_binary):
             raise cls.InterpreterNotFound(canonicalized_binary)
@@ -721,14 +767,27 @@ class PythonInterpreter(object):
         return cls._spawn_from_binary_external(canonicalized_binary)
 
     @classmethod
-    def from_binary(cls, binary):
-        # type: (str) -> PythonInterpreter
+    def from_binary(
+        cls,
+        binary,  # type: str
+        pyenv=None,  # type: Optional[Pyenv]
+    ):
+        # type: (...) -> PythonInterpreter
         """Create an interpreter from the given `binary`.
 
         :param binary: The path to the python interpreter binary.
+        :param pyenv: A custom Pyenv installation for handling pyenv shim identification.
+                      Auto-detected by default.
         :return: an interpreter created from the given `binary`.
         """
-        return cast(PythonInterpreter, cls._spawn_from_binary(binary).await_result())
+        python = cls._resolve_pyenv_shim(binary, pyenv=pyenv)
+        if python is None:
+            raise cls.IdentificationError("The pyenv shim at {} is not active.".format(binary))
+
+        try:
+            return cast(PythonInterpreter, cls._spawn_from_binary(python).await_result())
+        except Job.Error as e:
+            raise cls.IdentificationError("Failed to identify {}: {}".format(binary, e))
 
     @classmethod
     def _matches_binary_name(cls, path):
@@ -804,10 +863,12 @@ class PythonInterpreter(object):
             for path in cls._paths(paths=paths):
                 for fn in cls._expand_path(path):
                     if filter(fn):
-                        yield fn
+                        binary = cls._resolve_pyenv_shim(fn)
+                        if binary:
+                            yield binary
 
         results = execute_parallel(
-            inputs=list(iter_candidates()),
+            inputs=OrderedSet(iter_candidates()),
             spawn_func=cls._spawn_from_binary,
             error_handler=error_handler,
         )

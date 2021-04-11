@@ -517,15 +517,15 @@ def ensure_python_interpreter(version):
 
 @contextmanager
 def environment_as(**kwargs):
-    # type: (**str) -> Iterator[None]
+    # type: (**Any) -> Iterator[None]
     existing = {key: os.environ.get(key) for key in kwargs}
 
     def adjust_environment(mapping):
         for key, value in mapping.items():
             if value is not None:
-                os.environ[key] = value
+                os.environ[key] = str(value)
             else:
-                del os.environ[key]
+                os.environ.pop(key, None)
 
     adjust_environment(kwargs)
     try:

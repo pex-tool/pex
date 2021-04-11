@@ -253,7 +253,7 @@ def register_rmtree(directory):
 
 
 def safe_mkdir(directory, clean=False):
-    # type: (str, bool) -> None
+    # type: (str, bool) -> str
     """Safely create a directory.
 
     Ensures a directory is present.  If it's not there, it is created.  If it is, it's a no-op. If
@@ -266,6 +266,8 @@ def safe_mkdir(directory, clean=False):
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
+    finally:
+        return directory
 
 
 def safe_open(filename, *args, **kwargs):
