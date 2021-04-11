@@ -278,7 +278,7 @@ class TestPythonInterpreter(object):
                 assert_shim("python3.6", py36)
                 assert_shim_inactive("python3.5")
 
-            # The shim pointer is now invalid since python3.6 was uninstalled and so
+            # The shim pointer is now invalid since python3.5 was uninstalled and so
             # should be re-read and found invalid.
             py35_version_dir = os.path.dirname(os.path.dirname(py35))
             py35_deleted = "{}.uninstalled".format(py35_version_dir)
@@ -289,6 +289,8 @@ class TestPythonInterpreter(object):
                 assert_shim_inactive("python3.5")
             finally:
                 os.rename(py35_deleted, py35_version_dir)
+
+            assert_shim("python", py35)
 
 
 def test_latest_release_of_min_compatible_version():

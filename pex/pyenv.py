@@ -8,27 +8,26 @@ import re
 import subprocess
 
 from pex.common import is_exe
-from pex.compatibility import to_unicode
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import Iterator, List, Optional, Text, Tuple
+    from typing import Iterator, List, Optional, Tuple
 else:
     from pex.third_party import attr
 
 
 @attr.s(frozen=True)
 class Pyenv(object):
-    root = attr.ib()  # type: Text
+    root = attr.ib()  # type: str
 
     @classmethod
     def find(cls):
         # type: () -> Optional[Pyenv]
         """Finds the active pyenv installation if any."""
         with TRACER.timed("Searching for pyenv root...", V=3):
-            pyenv_root = to_unicode(os.environ.get("PYENV_ROOT", ""))
+            pyenv_root = os.environ.get("PYENV_ROOT", "")
             if not pyenv_root:
                 for path_entry in os.environ.get("PATH", "").split(os.pathsep):
                     pyenv_exe = os.path.join(path_entry, "pyenv")
@@ -36,7 +35,7 @@ class Pyenv(object):
                         process = subprocess.Popen(args=[pyenv_exe, "root"], stdout=subprocess.PIPE)
                         stdout, _ = process.communicate()
                         if process.returncode == 0:
-                            pyenv_root = stdout.decode("utf-8").strip()
+                            pyenv_root = str(stdout).strip()
                             break
 
             if pyenv_root:
@@ -99,7 +98,7 @@ class Pyenv(object):
         _PYENV_CPYTHON_VERSION_LEADING_CHARS = frozenset(str(digit) for digit in range(2, 10))
 
         def select_version(self, search_dir=None):
-            # type: (Optional[str]) -> Optional[Text]
+            # type: (Optional[str]) -> Optional[str]
             """Reports the active shim version for the given directory or $PWD.
 
             If the shim is not activated, returns `None`.
@@ -107,13 +106,14 @@ class Pyenv(object):
             with TRACER.timed("Calculating active version for {}...".format(self), V=6):
                 active_versions = self.pyenv.active_versions(search_dir=search_dir)
                 if active_versions:
+                    binary_name = os.path.basename(self.path)
                     if self.name == "python" and not self.major and not self.minor:
                         for pyenv_version in active_versions:
                             if pyenv_version[0] in self._PYENV_CPYTHON_VERSION_LEADING_CHARS:
                                 TRACER.log(
                                     "{} has active version {}".format(self, pyenv_version), V=6
                                 )
-                                return pyenv_version
+                                return self.pyenv.python(pyenv_version, binary_name=binary_name)
 
                     prefix = "{name}{major}{minor}".format(
                         name="" if self.name == "python" else self.name,
@@ -123,7 +123,7 @@ class Pyenv(object):
                     for pyenv_version in active_versions:
                         if pyenv_version.startswith(prefix):
                             TRACER.log("{} has active version {}".format(self, pyenv_version), V=6)
-                            return pyenv_version
+                            return self.pyenv.python(pyenv_version, binary_name=binary_name)
 
                 TRACER.log("{} is not activated.".format(self), V=6)
                 return None
@@ -135,7 +135,7 @@ class Pyenv(object):
 
     @staticmethod
     def _read_pyenv_versions(version_file):
-        # type: (Text) -> Iterator[Text]
+        # type: (str) -> Iterator[str]
         with open(version_file) as fp:
             for line in fp:
                 for version in line.strip().split():
@@ -154,7 +154,7 @@ class Pyenv(object):
             search_dir = parent_dir
 
     def active_versions(self, search_dir=None):
-        # type: (Optional[str]) -> Tuple[Text, ...]
+        # type: (Optional[str]) -> Tuple[str, ...]
         """Reports the active pyenv versions for the given starting search directory or $PWD."""
 
         # See: https://github.com/pyenv/pyenv#choosing-the-python-version
@@ -169,7 +169,7 @@ class Pyenv(object):
             cwd = search_dir if search_dir is not None else os.getcwd()
             TRACER.log("Looking for pyenv version files starting from {}.".format(cwd), V=6)
 
-            versions = []  # type: List[Text]
+            versions = []  # type: List[str]
             local_version = self._find_local_version_file(search_dir=cwd)
             if local_version:
                 versions.extend(self._read_pyenv_versions(local_version))
@@ -183,3 +183,23 @@ class Pyenv(object):
                     )
 
             return tuple(versions)
+
+    def python(
+        self,
+        pyenv_version,  # type: str
+        binary_name=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Optional[str]
+        """Return the path of the python binary for the given pyenv version.
+
+        Returns `None` if the given pyenv version is not installed.
+        """
+        # N.B.: Pyenv creates a 'python' symlink for both the CPython and PyPy versions it installs;
+        # so counting on 'python' is OK here. We do resolve the symlink though to return a canonical
+        # direct path to the python binary.
+        binary_name = binary_name or "python"
+
+        python = os.path.realpath(
+            os.path.join(self.root, "versions", pyenv_version, "bin", binary_name)
+        )
+        return python if is_exe(python) else None

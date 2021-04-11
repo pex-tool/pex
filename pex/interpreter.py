@@ -605,15 +605,31 @@ class PythonInterpreter(object):
             cls._PYENV = Pyenv.find()
         return cls._PYENV
 
-    INTERP_INFO_FILE = "INTERP-INFO"
-
     @classmethod
-    def _spawn_from_binary_external(
+    def _resolve_pyenv_shim(
         cls,
         binary,  # type: str
         pyenv=None,  # type: Optional[Pyenv]
     ):
-        # type: (...) -> SpawnedJob[PythonInterpreter]
+        # type: (...) -> Optional[str]
+
+        pyenv = pyenv or cls._pyenv()
+        if pyenv is not None:
+            shim = pyenv.as_shim(binary)
+            if shim is not None:
+                python = shim.select_version()
+                if python is None:
+                    TRACER.log("Detected inactive pyenv shim: {}.".format(shim), V=3)
+                else:
+                    TRACER.log("Detected pyenv shim activated to {}: {}.".format(python, shim), V=3)
+                return python
+        return binary
+
+    INTERP_INFO_FILE = "INTERP-INFO"
+
+    @classmethod
+    def _spawn_from_binary_external(cls, binary):
+        # type: (str) -> SpawnedJob[PythonInterpreter]
 
         def create_interpreter(
             stdout,  # type: bytes
@@ -648,42 +664,21 @@ class PythonInterpreter(object):
             with TRACER.timed("GCing interpreter cache from prior OS version"):
                 safe_rmtree(interpreter_cache_dir)
 
-        # Pyenv shims are immutable files that re-exec a different underlying python depending
-        # on a combination of environment variables and the presence of various version
-        # configuration files and the location of $PWD. If the binary is a pyenv shim, we need to
-        # take these factors into account in our cache key; so we calculate the underlying pyenv
-        # python version here which maps one-to-one with the underlying pyenv python version that
-        # will be re-exec'd to.
-        pyenv_version = None
-        pyenv = pyenv or cls._pyenv()
-        if pyenv is not None:
-            shim = pyenv.as_shim(binary)
-            if shim is not None:
-                pyenv_version = shim.select_version()
-                if pyenv_version is None:
-                    TRACER.log("Detected inactive pyenv shim: {}.".format(shim), V=3)
-                    raise cls.IdentificationError(
-                        "The pyenv shim at {} is not active.".format(binary)
-                    )
-                TRACER.log(
-                    "Detected pyenv shim activated to {}: {}.".format(pyenv_version, shim), V=3
-                )
+        interpreter_hash = CacheHelper.hash(binary)
 
-        # Some distributions include more than one copy of the same interpreter via a hard link (
-        # e.g.: python3.7 is a hardlink to python3.7m). To ensure a deterministic INTERP-INFO file
-        # we must emit a separate INTERP-INFO for each link since INTERP-INFO contains the
-        # interpreter path and would otherwise be unstable. As such, we include the interpreter
-        # path in the hash.
+        # Some distributions include more than one copy of the same interpreter via a hard link (e.g.:
+        # python3.7 is a hardlink to python3.7m). To ensure a deterministic INTERP-INFO file we must
+        # emit a separate INTERP-INFO for each link since INTERP-INFO contains the interpreter path and
+        # would otherwise be unstable.
         #
         # See cls._REGEXEN for a related affordance.
-        interpreter_hash_subject = dict(
-            hash=CacheHelper.hash(binary), path=binary, pyenv_version=pyenv_version
-        )
-        interpreter_hash = hashlib.sha1(
-            json.dumps(interpreter_hash_subject, sort_keys=True).encode("utf-8")
-        ).hexdigest()
+        #
+        # N.B.: The path for --venv mode interpreters can be quite long; so we just used a fixed
+        # length hash of the interpreter binary path to ensure uniqueness and not run afoul of file
+        # name length limits.
+        path_id = hashlib.sha1(binary.encode("utf-8")).hexdigest()
 
-        cache_dir = os.path.join(os_cache_dir, interpreter_hash)
+        cache_dir = os.path.join(os_cache_dir, interpreter_hash, path_id)
         cache_file = os.path.join(cache_dir, cls.INTERP_INFO_FILE)
         if os.path.isfile(cache_file):
             try:
@@ -691,7 +686,7 @@ class PythonInterpreter(object):
                     return SpawnedJob.completed(create_interpreter(fp.read(), check_binary=True))
             except (IOError, OSError, cls.Error, PythonIdentity.Error):
                 safe_rmtree(cache_dir)
-                return cls._spawn_from_binary_external(binary, pyenv=pyenv)
+                return cls._spawn_from_binary_external(binary)
         else:
             pythonpath = third_party.expose(["pex"])
             cmd, env = cls._create_isolated_cmd(
@@ -756,12 +751,8 @@ class PythonInterpreter(object):
             return interpreter
 
     @classmethod
-    def _spawn_from_binary(
-        cls,
-        binary,  # type: str
-        pyenv=None,  # type: Optional[Pyenv]
-    ):
-        # type: (...) -> SpawnedJob[PythonInterpreter]
+    def _spawn_from_binary(cls, binary):
+        # type: (str) -> SpawnedJob[PythonInterpreter]
         canonicalized_binary = cls.canonicalize_path(binary)
         if not os.path.exists(canonicalized_binary):
             raise cls.InterpreterNotFound(canonicalized_binary)
@@ -773,7 +764,7 @@ class PythonInterpreter(object):
         if canonicalized_binary == cls.canonicalize_path(sys.executable):
             current_interpreter = cls(PythonIdentity.get())
             return SpawnedJob.completed(current_interpreter)
-        return cls._spawn_from_binary_external(canonicalized_binary, pyenv=pyenv)
+        return cls._spawn_from_binary_external(canonicalized_binary)
 
     @classmethod
     def from_binary(
@@ -789,10 +780,12 @@ class PythonInterpreter(object):
                       Auto-detected by default.
         :return: an interpreter created from the given `binary`.
         """
+        python = cls._resolve_pyenv_shim(binary, pyenv=pyenv)
+        if python is None:
+            raise cls.IdentificationError("The pyenv shim at {} is not active.".format(binary))
+
         try:
-            return cast(
-                PythonInterpreter, cls._spawn_from_binary(binary, pyenv=pyenv).await_result()
-            )
+            return cast(PythonInterpreter, cls._spawn_from_binary(python).await_result())
         except Job.Error as e:
             raise cls.IdentificationError("Failed to identify {}: {}".format(binary, e))
 
@@ -870,10 +863,12 @@ class PythonInterpreter(object):
             for path in cls._paths(paths=paths):
                 for fn in cls._expand_path(path):
                     if filter(fn):
-                        yield fn
+                        binary = cls._resolve_pyenv_shim(fn)
+                        if binary:
+                            yield binary
 
         results = execute_parallel(
-            inputs=list(iter_candidates()),
+            inputs=OrderedSet(iter_candidates()),
             spawn_func=cls._spawn_from_binary,
             error_handler=error_handler,
         )
