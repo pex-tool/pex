@@ -573,3 +573,61 @@ def test_compile(tmpdir):
     assert compile_venv_pyc_files == collect_files(
         compile_venv, ".pyc"
     ), "Expected no new compiled python files."
+
+
+def test_strip_pex_env(tmpdir):
+    # type: (Any) -> None
+
+    def create_pex_venv(strip_pex_env):
+        # type: (bool) -> str
+        pex = os.path.join(str(tmpdir), "strip_{}.pex".format(strip_pex_env))
+        run_pex_command(
+            args=[
+                "--strip-pex-env" if strip_pex_env else "--no-strip-pex-env",
+                "--include-tools",
+                "-o",
+                pex,
+            ]
+        ).assert_success()
+
+        venv = os.path.join(str(tmpdir), "strip_{}.venv".format(strip_pex_env))
+        subprocess.check_call(args=[pex, "venv", venv], env=make_env(PEX_TOOLS=1))
+        return venv
+
+    check_pex_env_vars_code = dedent(
+        """\
+        from __future__ import print_function
+
+        import os
+        import sys
+
+
+        pex_env_vars = 0
+        for name, value in os.environ.items():
+            if name.startswith("PEX_"):
+                pex_env_vars += 1
+                print(
+                    "Un-stripped: {name}={value}".format(name=name, value=value), file=sys.stderr
+                )
+        sys.exit(pex_env_vars)
+        """
+    )
+
+    two_pex_env_vars = {
+        name: value
+        for name, value in make_env(PEX_ROOT="42", PEX_TOOLS=1).items()
+        if name in ("PEX_ROOT", "PEX_TOOLS") or not name.startswith("PEX_")
+    }
+    assert 2 == len([name for name in two_pex_env_vars if name.startswith("PEX_")])
+
+    strip_venv = create_pex_venv(strip_pex_env=True)
+    subprocess.check_call(
+        args=[os.path.join(strip_venv, "pex"), "-c", check_pex_env_vars_code], env=two_pex_env_vars
+    )
+
+    no_strip_venv = create_pex_venv(strip_pex_env=False)
+    process = subprocess.Popen(
+        args=[os.path.join(no_strip_venv, "pex"), "-c", check_pex_env_vars_code],
+        env=two_pex_env_vars,
+    )
+    assert 2 == process.wait()

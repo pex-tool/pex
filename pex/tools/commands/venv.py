@@ -194,7 +194,7 @@ def populate_venv_with_pex(
 
             PEX_EXEC_OVERRIDE_KEYS = ("PEX_INTERPRETER", "PEX_SCRIPT", "PEX_MODULE")
             pex_overrides = {{
-                key: os.environ.pop(key) for key in PEX_EXEC_OVERRIDE_KEYS if key in os.environ
+                key: os.environ.get(key) for key in PEX_EXEC_OVERRIDE_KEYS if key in os.environ
             }}
             if len(pex_overrides) > 1:
                 sys.stderr.write(
@@ -204,6 +204,10 @@ def populate_venv_with_pex(
                     )
                 )
                 sys.exit(1)
+            if {strip_pex_env!r}:
+                for key in list(os.environ):
+                    if key.startswith("PEX_"):
+                        del os.environ[key]
 
             pex_script = pex_overrides.get("PEX_SCRIPT")
             if pex_script:
@@ -269,6 +273,7 @@ def populate_venv_with_pex(
             shebang=shebang,
             shebang_python=venv_python,
             bin_path=bin_path,
+            strip_pex_env=pex_info.strip_pex_env,
             entry_point=pex_info.entry_point,
             exec_ast=(
                 "exec ast in globals_map, locals_map"
