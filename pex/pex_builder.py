@@ -95,7 +95,11 @@ def __maybe_run_venv__(pex):
   from pex.variables import venv_dir
 
   venv_home = venv_dir(
-    {pex_root!r}, {pex_hash!r}, {interpreter_constraints!r}, pex_path={pex_path!r}
+    pex_root={pex_root!r}, 
+    pex_hash={pex_hash!r},
+    interpreter_constraints={interpreter_constraints!r},
+    strip_pex_env={strip_pex_env!r},
+    pex_path={pex_path!r},
   )
   venv_pex = os.path.join(venv_home, 'pex')
   if not is_exe(venv_pex):
@@ -533,6 +537,7 @@ class PEXBuilder(object):
             pex_root=self._pex_info.raw_pex_root,
             pex_hash=self._pex_info.pex_hash,
             interpreter_constraints=self._pex_info.interpreter_constraints,
+            strip_pex_env=self._pex_info.strip_pex_env,
             pex_path=self._pex_info.pex_path,
             is_unzip=self._pex_info.unzip,
             is_venv=self._pex_info.venv,

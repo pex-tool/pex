@@ -661,6 +661,7 @@ def venv_dir(
     pex_root,  # type: str
     pex_hash,  # type: str
     interpreter_constraints,  # type: Iterable[str]
+    strip_pex_env,  # type: bool
     pex_path=None,  # type: Optional[str]
 ):
     # type: (...) -> str
@@ -671,6 +672,7 @@ def venv_dir(
         "interpreter_constraints": sorted(interpreter_constraints),
         "PEX_PYTHON": ENV.PEX_PYTHON,
         "PEX_PYTHON_PATH": ENV.PEX_PYTHON_PATH,
+        "strip_pex_env": strip_pex_env,
         "pex_path": {},
     }  # type: Dict[str, Any]
 

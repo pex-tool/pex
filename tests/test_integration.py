@@ -2729,7 +2729,9 @@ def test_venv_mode(
             pex_info = PexInfo.from_pex(pex_file)
             pex_hash = pex_info.pex_hash
             assert pex_hash is not None
-            expected_venv_home = venv_dir(pex_root, pex_hash, interpreter_constraints=[])
+            expected_venv_home = venv_dir(
+                pex_root=pex_root, pex_hash=pex_hash, interpreter_constraints=[], strip_pex_env=True
+            )
         assert expected_venv_home == os.path.commonprefix([actual_venv_home, expected_venv_home])
         return pex_interpreter
 
