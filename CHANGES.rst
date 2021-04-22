@@ -1,6 +1,18 @@
 Release Notes
 =============
 
+2.1.40
+------
+
+This release brings proper support for pyenv shim interpreter
+identification as well as a bug fix for venv mode.
+
+* Fix Pex venv mode to respect ``--strip-pex-env``. (#1329)
+  `PR #1329 <https://github.com/pantsbuild/pex/pull/1329>`_
+
+* Fix pyenv shim identification. (#1325)
+  `PR #1325 <https://github.com/pantsbuild/pex/pull/1325>`_
+
 2.1.39
 ------
 
