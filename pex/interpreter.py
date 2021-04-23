@@ -1088,7 +1088,7 @@ class PythonInterpreter(object):
             release = self._identity.configured_macosx_deployment_target
             version = release.split(".")
             if len(version) == 1:
-                release = "{}.0".format(version)
+                release = "{}.0".format(version[0])
             elif len(version) > 2:
                 release = ".".join(version[:2])
 
