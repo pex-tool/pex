@@ -4,11 +4,11 @@ Release Notes
 2.1.41
 ------
 
-This release brings a hotfix for interpreter identification on macOS
-11.
+This release brings a hotfix from @kaos for interpreter identification 
+on macOS 11.
 
 * Update interpreter.py (#1332)
-  `PR #1332 <https://github.com/pantsbuild/pants/pull/1332>`_
+  `PR #1332 <https://github.com/pantsbuild/pex/pull/1332>`_
 
 2.1.40
 ------
