@@ -46,7 +46,7 @@ jobs:
         with:
           python-version: 3.9
       - name: Publish Pex ${{ needs.determine-tag.outputs.release-tag }}
-        uses: ./.github/actions/run-tox
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         env:
           FLIT_USERNAME: ${{ secrets.PYPI_USERNAME }}
           FLIT_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
@@ -69,7 +69,7 @@ jobs:
         with:
           python-version: 3.9
       - name: Package Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
-        uses: ./.github/actions/run-tox
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
           tox-env: package
       - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release

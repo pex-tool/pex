@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: "${{ matrix.python-version }}"
       - name: Check ${{ matrix.check-name }}
-        uses: ./.github/actions/run-tox
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
           tox-env: ${{ matrix.tox-env }}
   cpython-unit-tests:
@@ -71,7 +71,7 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root
       - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
           tox-env: py${{ join(matrix.python-version, '') }}
   pypy-unit-tests:
@@ -95,7 +95,7 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root
       - name: Run Unit Tests
-        uses: ./.github/actions/run-tox
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
           tox-env: pypy${{ matrix.pypy-version[0] }}
   cpython-integration-tests:
@@ -120,7 +120,7 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root
       - name: Run Integration Tests
-        uses: ./.github/actions/run-tox
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
           tox-env: py${{ join(matrix.python-version, '') }}-integration
   pypy-integration-tests:
@@ -148,6 +148,6 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root
       - name: Run Integration Tests
-        uses: ./.github/actions/run-tox
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
           tox-env: pypy${{ matrix.pypy-version[0] }}-integration
