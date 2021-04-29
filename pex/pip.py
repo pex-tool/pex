@@ -13,7 +13,6 @@ import subprocess
 import sys
 from collections import deque
 from contextlib import closing
-from textwrap import dedent
 
 from pex import dist_metadata, third_party
 from pex.common import atomic_directory, safe_mkdtemp
@@ -23,6 +22,9 @@ from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
+from pex.pex import PEX
+from pex.pex_bootstrapper import ensure_venv
+from pex.pex_info import PexInfo
 from pex.third_party import isolated
 from pex.third_party.pkg_resources import safe_name, safe_version
 from pex.tracer import TRACER
@@ -30,7 +32,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, List, Mapping, Optional, Tuple, Callable
+    from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Callable
 
 
 class ResolverVersion(object):
@@ -180,42 +182,33 @@ class PackageIndexConfiguration(object):
 
 class Pip(object):
     @classmethod
-    def create(cls, path):
-        # type: (str) -> Pip
+    def create(
+        cls,
+        path,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> Pip
         """Creates a pip tool with PEX isolation at path.
 
-        :param path: The path to build the pip tool pex at.
+        :param path: The path to assemble the pip tool at.
+        :param interpreter: The interpreter to run Pip with. The current interpreter by default.
+        :return: The path of a PEX that can be used to execute Pip in isolation.
         """
+        pip_interpreter = interpreter or PythonInterpreter.get()
         pip_pex_path = os.path.join(path, isolated().pex_hash)
         with atomic_directory(pip_pex_path, exclusive=True) as chroot:
             if not chroot.is_finalized:
                 from pex.pex_builder import PEXBuilder
 
                 isolated_pip_builder = PEXBuilder(path=chroot.work_dir)
+                isolated_pip_builder.info.venv = True
                 for dist_location in third_party.expose(["pip", "setuptools", "wheel"]):
                     isolated_pip_builder.add_dist_location(dist=dist_location)
-                with open(os.path.join(isolated_pip_builder.path(), "run_pip.py"), "w") as fp:
-                    fp.write(
-                        dedent(
-                            """\
-                            import os
-                            import runpy
-                            import sys
-                            
-                            
-                            # Propagate un-vendored setuptools to pip for any legacy setup.py builds
-                            # it needs to perform.
-                            os.environ['__PEX_UNVENDORED__'] = '1'
-                            os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
-
-                            runpy.run_module('pip', run_name='__main__')
-                            """
-                        )
-                    )
-                isolated_pip_builder.set_executable(fp.name)
+                isolated_pip_builder.set_script("pip")
                 isolated_pip_builder.freeze()
-
-        return cls(pip_pex_path)
+        pex_info = PexInfo.from_pex(pip_pex_path)
+        pex_info.add_interpreter_constraint(str(pip_interpreter.identity.requirement))
+        return cls(ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter, pex_info=pex_info)))
 
     def __init__(self, pip_pex_path):
         # type: (str) -> None
@@ -310,7 +303,10 @@ class Pip(object):
 
         env = package_index_configuration.env if package_index_configuration else {}
         with ENV.strip().patch(
-            PEX_ROOT=cache or ENV.PEX_ROOT, PEX_VERBOSE=str(ENV.PEX_VERBOSE), **env
+            PEX_ROOT=cache or ENV.PEX_ROOT,
+            PEX_VERBOSE=str(ENV.PEX_VERBOSE),
+            __PEX_UNVENDORED__="1",
+            **env
         ) as env:
             # Guard against API calls from environment with ambient PYTHONPATH preventing pip PEX
             # bootstrapping. See: https://github.com/pantsbuild/pex/issues/892
@@ -319,10 +315,6 @@ class Pip(object):
                 TRACER.log(
                     "Scrubbed PYTHONPATH={} from the pip PEX environment.".format(pythonpath), V=3
                 )
-
-            from pex.pex import PEX
-
-            pip = PEX(pex=self._pip_pex_path, interpreter=python_interpreter)
 
             # Pip has no discernable stdout / stderr discipline with its logging. Pex guarantees
             # stdout will only contain useable (parseable) data and all logging will go to stderr.
@@ -333,9 +325,8 @@ class Pip(object):
             # + https://github.com/pypa/pip/issues/9420
             stdout = popen_kwargs.pop("stdout", sys.stderr.fileno())
 
-            return pip.cmdline(command), pip.run(
-                args=command, env=env, blocking=False, stdout=stdout, **popen_kwargs
-            )
+            args = [self._pip_pex_path] + command
+            return args, subprocess.Popen(args=args, env=env, stdout=stdout, **popen_kwargs)
 
     def _spawn_pip_isolated_job(
         self,
@@ -701,13 +692,14 @@ class Pip(object):
         )
 
 
-_PIP = None
+_PIP = {}  # type: Dict[Optional[PythonInterpreter], Pip]
 
 
-def get_pip():
-    # type: () -> Pip
+def get_pip(interpreter=None):
+    # type: (Optional[PythonInterpreter]) -> Pip
     """Returns a lazily instantiated global Pip object that is safe for un-coordinated use."""
-    global _PIP
-    if _PIP is None:
-        _PIP = Pip.create(path=os.path.join(ENV.PEX_ROOT, "pip.pex"))
-    return _PIP
+    pip = _PIP.get(interpreter)
+    if pip is None:
+        pip = Pip.create(path=os.path.join(ENV.PEX_ROOT, "pip.pex"), interpreter=interpreter)
+        _PIP[interpreter] = pip
+    return pip

@@ -149,7 +149,7 @@ class DownloadRequest(object):
     ):
         # type: (...) -> SpawnedJob[DownloadResult]
         download_dir = os.path.join(resolved_dists_dir, target.id)
-        download_job = get_pip().spawn_download_distributions(
+        download_job = get_pip(interpreter=target.get_interpreter()).spawn_download_distributions(
             download_dir=download_dir,
             requirements=self.requirements,
             requirement_files=self.requirement_files,
@@ -523,7 +523,7 @@ class BuildAndInstallRequest(object):
     ):
         # type: (...) -> SpawnedJob[BuildResult]
         build_result = build_request.result(built_wheels_dir)
-        build_job = get_pip().spawn_build_wheels(
+        build_job = get_pip(interpreter=build_request.target.get_interpreter()).spawn_build_wheels(
             distributions=[build_request.source_path],
             wheel_dir=build_result.build_dir,
             cache=self._cache,
@@ -566,7 +566,9 @@ class BuildAndInstallRequest(object):
     ):
         # type: (...) -> SpawnedJob[InstallResult]
         install_result = install_request.result(installed_wheels_dir)
-        install_job = get_pip().spawn_install_wheel(
+        install_job = get_pip(
+            interpreter=install_request.target.get_interpreter()
+        ).spawn_install_wheel(
             wheel=install_request.wheel_path,
             install_dir=install_result.build_chroot,
             compile=self._compile,

@@ -445,7 +445,7 @@ class PEXBuilder(object):
 
     def _add_dist_wheel_file(self, path, dist_name):
         with temporary_dir() as install_dir:
-            get_pip().spawn_install_wheel(
+            get_pip(interpreter=self._interpreter).spawn_install_wheel(
                 wheel=path,
                 install_dir=install_dir,
                 target=DistributionTarget.for_interpreter(self.interpreter),
@@ -498,7 +498,7 @@ class PEXBuilder(object):
         dist_path = dist
         if os.path.isfile(dist_path) and dist_path.endswith(".whl"):
             dist_path = os.path.join(safe_mkdtemp(), os.path.basename(dist))
-            get_pip().spawn_install_wheel(
+            get_pip(interpreter=self._interpreter).spawn_install_wheel(
                 wheel=dist,
                 install_dir=dist_path,
                 target=DistributionTarget.for_interpreter(self.interpreter),
