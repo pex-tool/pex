@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.42
+------
+
+This release brings a bugfix for macOS interpreters when the
+MACOSX_DEPLOYMENT_TARGET sysconfig variable is numeric as well as a fix
+that improves Pip execution environment isolation.
+
+* Fix MACOSX_DEPLOYMENT_TARGET handling. (#1338)
+  `PR #1338 <https://github.com/pantsbuild/pex/pull/1338>`_
+
+* Better isolate Pip. (#1339)
+  `PR #1339 <https://github.com/pantsbuild/pex/pull/1339>`_
+
 2.1.41
 ------
 
