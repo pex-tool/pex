@@ -91,7 +91,12 @@ class PythonIdentity(object):
 
         supported_tags = tuple(tags.sys_tags())
         preferred_tag = supported_tags[0]
-        configured_macosx_deployment_target = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
+        macosx_deployment_target = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
+        # N.B.: Sometime MACOSX_DEPLOYMENT_TARGET can be configured as a float.
+        # See: https://github.com/pantsbuild/pex/issues/1337
+        configured_macosx_deployment_target = (
+            str(macosx_deployment_target) if macosx_deployment_target is not None else None
+        )
 
         return cls(
             binary=binary or sys.executable,
@@ -109,7 +114,7 @@ class PythonIdentity(object):
             version=sys.version_info[:3],
             supported_tags=supported_tags,
             env_markers=markers.default_environment(),
-            configured_macosx_deployment_target=configured_macosx_deployment_target or None,
+            configured_macosx_deployment_target=configured_macosx_deployment_target,
         )
 
     @classmethod
