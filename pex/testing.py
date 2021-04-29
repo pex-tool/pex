@@ -183,7 +183,7 @@ class WheelBuilder(object):
 
     def bdist(self):
         # type: () -> str
-        get_pip().spawn_build_wheels(
+        get_pip(interpreter=self._interpreter).spawn_build_wheels(
             distributions=[self._source_dir],
             wheel_dir=self._wheel_dir,
             interpreter=self._interpreter,
@@ -251,7 +251,7 @@ def make_bdist(
     ) as dist_location:
 
         install_dir = os.path.join(safe_mkdtemp(), os.path.basename(dist_location))
-        get_pip().spawn_install_wheel(
+        get_pip(interpreter=interpreter).spawn_install_wheel(
             wheel=dist_location,
             install_dir=install_dir,
             target=DistributionTarget(interpreter=interpreter),

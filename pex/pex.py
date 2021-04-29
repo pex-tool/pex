@@ -64,13 +64,14 @@ class PEX(object):  # noqa: T000
         self,
         pex=sys.argv[0],  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
+        pex_info=None,  # type: Optional[PexInfo]
         env=ENV,  # type: Variables
         verify_entry_point=False,  # type: bool
     ):
         # type: (...) -> None
         self._pex = pex
         self._interpreter = interpreter or PythonInterpreter.get()
-        self._pex_info = PexInfo.from_pex(self._pex)
+        self._pex_info = pex_info or PexInfo.from_pex(self._pex)
         self._pex_info_overrides = PexInfo.from_env(env=env)
         self._vars = env
         self._envs = None  # type: Optional[Iterable[PEXEnvironment]]

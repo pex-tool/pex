@@ -1766,12 +1766,15 @@ def test_issues_539_abi3_resolution():
 def assert_reproducible_build(args):
     # type: (List[str]) -> None
     with temporary_dir() as td:
+        pex_root = os.path.join(td, "pex_root")
+
         # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
         # from the random seed, such as data structures, as Tox sets this value by default. See
         # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
         def create_pex(path, seed):
+            safe_rmtree(pex_root)
             result = run_pex_command(
-                args + ["-o", path, "--disable-cache"], env=make_env(PYTHONHASHSEED=seed)
+                args + ["-o", path, "--pex-root", pex_root], env=make_env(PYTHONHASHSEED=seed)
             )
             result.assert_success()
 
@@ -3523,3 +3526,11 @@ def test_issues_1316_resolve_cyclic_dependency_graph(tmpdir):
     naked_pex = os.path.join(str(tmpdir), "naked.pex")
     run_pex_command(args=["Naked==0.1.31", "-o", naked_pex]).assert_success()
     subprocess.check_call(args=[naked_pex, "-c", "import Naked"])
+
+
+def test_pip_leak_issues_1336(tmpdir):
+    # type: (Any) -> None
+    python = ensure_python_interpreter(PY36)
+    pip = os.path.join(os.path.dirname(python), "pip")
+    subprocess.check_call(args=[pip, "install", "setuptools_scm==6.0.1"])
+    run_pex_command(args=["--python", python, "bitstring==3.1.7"], python=python).assert_success()
