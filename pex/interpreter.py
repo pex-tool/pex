@@ -75,6 +75,16 @@ class PythonIdentity(object):
         "cp": "CPython",
     }
 
+    @staticmethod
+    def _normalize_macosx_deployment_target(value):
+        # type: (Any) -> Optional[str]
+
+        # N.B.: Sometimes MACOSX_DEPLOYMENT_TARGET can be configured as a float.
+        # See: https://github.com/pantsbuild/pex/issues/1337
+        if value is None:
+            return None
+        return str(value)
+
     @classmethod
     def get(cls, binary=None):
         # type: (Optional[str]) -> PythonIdentity
@@ -91,7 +101,10 @@ class PythonIdentity(object):
 
         supported_tags = tuple(tags.sys_tags())
         preferred_tag = supported_tags[0]
-        configured_macosx_deployment_target = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
+
+        configured_macosx_deployment_target = cls._normalize_macosx_deployment_target(
+            sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
+        )
 
         return cls(
             binary=binary or sys.executable,
@@ -109,7 +122,7 @@ class PythonIdentity(object):
             version=sys.version_info[:3],
             supported_tags=supported_tags,
             env_markers=markers.default_environment(),
-            configured_macosx_deployment_target=configured_macosx_deployment_target or None,
+            configured_macosx_deployment_target=configured_macosx_deployment_target,
         )
 
     @classmethod
@@ -125,7 +138,17 @@ class PythonIdentity(object):
             for (interpreter, abi, platform) in supported_tags:
                 yield tags.Tag(interpreter=interpreter, abi=abi, platform=platform)
 
-        return cls(supported_tags=iter_tags(), **values)
+        # N.B.: Old encoded identities may have numeric values; so we support these and convert
+        # back to strings here as needed. See: https://github.com/pantsbuild/pex/issues/1337
+        configured_macosx_deployment_target = cls._normalize_macosx_deployment_target(
+            values.pop("configured_macosx_deployment_target")
+        )
+
+        return cls(
+            supported_tags=iter_tags(),
+            configured_macosx_deployment_target=configured_macosx_deployment_target,
+            **values
+        )
 
     @classmethod
     def _find_interpreter_name(cls, python_tag):
