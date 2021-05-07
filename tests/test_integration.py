@@ -799,7 +799,9 @@ def test_entry_point_targeting():
 
         # test pex with entry point
         pex_out_path = os.path.join(td, "pex.pex")
-        res = run_pex_command(["--disable-cache", "autopep8", "-e", "autopep8", "-o", pex_out_path])
+        res = run_pex_command(
+            ["--disable-cache", "autopep8==1.5.6", "-e", "autopep8", "-o", pex_out_path]
+        )
         res.assert_success()
 
         stdout, rc = run_simple_pex(pex_out_path)
