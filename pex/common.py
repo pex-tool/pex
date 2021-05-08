@@ -529,6 +529,7 @@ class Chroot(object):
             )
 
     def __init__(self, chroot_base):
+        # type: (str) -> None
         """Create the chroot.
 
         :chroot_base Directory for the creation of the target chroot.
@@ -536,9 +537,9 @@ class Chroot(object):
         try:
             safe_mkdir(chroot_base)
         except OSError as e:
-            raise self.ChrootException("Unable to create chroot in %s: %s" % (chroot_base, e))
+            raise self.Error("Unable to create chroot in %s: %s" % (chroot_base, e))
         self.chroot = chroot_base
-        self.filesets = defaultdict(set)
+        self.filesets = defaultdict(set)  # type: DefaultDict[str, Set[str]]
 
     def clone(self, into=None):
         """Clone this chroot.
@@ -558,6 +559,7 @@ class Chroot(object):
         return new_chroot
 
     def path(self):
+        # type: () -> str
         """The path of the chroot."""
         return self.chroot
 

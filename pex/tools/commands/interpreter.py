@@ -38,10 +38,10 @@ class Interpreter(JsonMixin, OutputMixin, Command):
             action="count",
             default=0,
             help=(
-                "Provide more information about the interpreter in json format.\n"
-                "Once: include the interpreter requirement and platform in addition to it's path.\n"
-                "Twice: include the interpreter's supported tags.\n"
-                "Thrice: include the interpreter's environment markers and it's venv affiliation "
+                "Provide more information about the interpreter in json format. "
+                "Once: include the interpreter requirement and platform in addition to its path. "
+                "Twice: include the interpreter's supported tags. "
+                "Thrice: include the interpreter's environment markers and its venv affiliation, "
                 "if any."
             ),
         )

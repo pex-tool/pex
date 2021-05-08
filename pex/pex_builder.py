@@ -220,6 +220,7 @@ class PEXBuilder(object):
         return self._interpreter
 
     def chroot(self):
+        # type: () -> Chroot
         return self._chroot
 
     def clone(self, into=None):
@@ -248,6 +249,7 @@ class PEXBuilder(object):
         return clone
 
     def path(self):
+        # type: () -> str
         return self.chroot().path()
 
     @property
