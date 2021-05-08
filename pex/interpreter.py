@@ -250,6 +250,7 @@ class PythonIdentity(object):
 
     @property
     def env_markers(self):
+        # type: () -> Dict[str, str]
         return dict(self._env_markers)
 
     @property
@@ -263,6 +264,7 @@ class PythonIdentity(object):
 
     @property
     def requirement(self):
+        # type: () -> Requirement
         return self.distribution.as_requirement()
 
     @property
@@ -1070,10 +1072,8 @@ class PythonInterpreter(object):
 
     @property
     def platform(self):
-        """The most specific platform of this interpreter.
-
-        :rtype: :class:`Platform`
-        """
+        # type: () -> Platform
+        """The most specific platform of this interpreter."""
         return next(self._identity.iter_supported_platforms())
 
     @property
