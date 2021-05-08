@@ -15,7 +15,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Iterator
+    from typing import Any, Dict, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,15 @@ class Interpreter(JsonMixin, OutputMixin, Command):
         parser.add_argument(
             "-v",
             "--verbose",
-            action="store_true",
-            help="Print the interpreter requirement in addition to it's path.",
+            action="count",
+            default=0,
+            help=(
+                "Provide more information about the interpreter in json format. "
+                "Once: include the interpreter requirement and platform in addition to its path. "
+                "Twice: include the interpreter's supported tags. "
+                "Thrice: include the interpreter's environment markers and its venv affiliation, "
+                "if any."
+            ),
         )
         self.add_json_options(parser, entity="verbose output")
 
@@ -75,15 +82,23 @@ class Interpreter(JsonMixin, OutputMixin, Command):
             try:
                 for interpreter in self._find_interpreters(pex, all=options.all):
                     if options.verbose:
-                        self.dump_json(
-                            options,
-                            {
-                                "path": interpreter.binary,
-                                "requirement": str(interpreter.identity.requirement),
-                                "platform": str(interpreter.platform),
-                            },
-                            out,
-                        )
+                        interpreter_info = {
+                            "path": interpreter.binary,
+                            "requirement": str(interpreter.identity.requirement),
+                            "platform": str(interpreter.platform),
+                        }  # type: Dict[str, Any]
+                        if options.verbose >= 2:
+                            interpreter_info["supported_tags"] = [
+                                str(tag) for tag in interpreter.identity.supported_tags
+                            ]
+                        if options.verbose >= 3:
+                            interpreter_info["env_markers"] = interpreter.identity.env_markers
+                            interpreter_info["venv"] = interpreter.is_venv
+                            if interpreter.is_venv:
+                                interpreter_info[
+                                    "base_interpreter"
+                                ] = interpreter.resolve_base_interpreter().binary
+                        self.dump_json(options, interpreter_info, out)
                     else:
                         out.write(interpreter.binary)
                     out.write("\n")

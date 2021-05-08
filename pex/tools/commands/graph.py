@@ -39,7 +39,7 @@ class Graph(OutputMixin, Command):
             ),
         )
         marker_environment = pex.interpreter.identity.env_markers.copy()
-        marker_environment["extra"] = []
+        marker_environment["extra"] = ""
         present_dists = frozenset(dist.project_name for dist in pex.resolve())
         for dist in pex.resolve():
             graph.add_node(
