@@ -5,6 +5,11 @@ from __future__ import absolute_import
 
 import contextlib
 import os
+import shutil
+import traceback
+from tempfile import mkdtemp
+from textwrap import dedent
+
 import sys
 import tempfile
 from hashlib import sha1
@@ -30,6 +35,8 @@ from pex.third_party.pkg_resources import (
     resource_listdir,
     resource_string,
 )
+
+from pex.pex_info import PexInfo
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
@@ -219,7 +226,34 @@ class CacheHelper(object):
                             zf.extract(name, target_dir_tmp.work_dir)
 
         dist = DistributionHelper.distribution_from_path(target_dir)
-        assert dist is not None, "Failed to cache distribution: {} ".format(source)
+        if dist is None:
+            save_dir = mkdtemp()
+            shutil.copy(zf.filename, save_dir)
+            raise AssertionError(
+                dedent(
+                    """\
+                    Failed to cache distribution: {dist} to target directory: {target}
+                    Source is {source} with contents:
+                    {contents}
+
+                    And PEX-INFO:
+                    {pex_info}
+
+                    Via call stack:
+                    {stack}
+
+                    Saved source to: {saved_source}
+                    """
+                ).format(
+                    dist=source,
+                    target=target_dir,
+                    source=zf.filename,
+                    contents=os.linesep.join(sorted(zf.namelist())),
+                    pex_info=PexInfo.from_pex(zf.filename).dump(indent=4),
+                    stack="".join(traceback.format_stack()),
+                    saved_source=os.path.join(save_dir, os.path.basename(zf.filename))
+                )
+            )
         return dist
 
 

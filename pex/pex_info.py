@@ -476,12 +476,12 @@ class PexInfo(object):
         data["distributions"] = self._distributions.copy()
         return data
 
-    def dump(self):
+    def dump(self, **json_dump_kwargs):
         # type: (...) -> str
         data = self.as_json_dict()
         data["requirements"].sort()
         data["interpreter_constraints"].sort()
-        return json.dumps(data, sort_keys=True)
+        return json.dumps(data, sort_keys=True, **json_dump_kwargs)
 
     def copy(self):
         # type: () -> PexInfo
