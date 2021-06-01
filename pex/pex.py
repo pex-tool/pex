@@ -585,6 +585,10 @@ class PEX(object):  # noqa: T000
                 module = args[1]
                 sys.argv = args[1:]
                 return self.execute_module(module, alter_sys=True)
+            elif arg == "-s":
+                script = args[1]
+                sys.argv = args[1:]
+                return self.execute_script(script)
             else:
                 try:
                     if arg == "-":
