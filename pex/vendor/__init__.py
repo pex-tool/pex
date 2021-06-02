@@ -9,6 +9,10 @@ import os
 from pex.common import filter_pyc_dirs, filter_pyc_files, touch
 from pex.compatibility import urlparse
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Iterator
 
 _PACKAGE_COMPONENTS = __name__.split(".")
 
@@ -100,10 +104,10 @@ class VendorSpec(
 
 
 def iter_vendor_specs():
+    # type: () -> Iterator[VendorSpec]
     """Iterate specifications for code vendored by pex.
 
     :return: An iterator over specs of all vendored code.
-    :rtype: :class:`collection.Iterator` of :class:`VendorSpec`
     """
     # We use this for a better @dataclass that is also Python2.7 and PyPy compatible.
     # N.B.: The `[testenv:typecheck]` section in `tox.ini` should have its deps list updated to

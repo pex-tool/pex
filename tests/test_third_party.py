@@ -34,6 +34,18 @@ def test_isolated_pex_root():
         assert pex_root == os.path.commonprefix([pex_root, devendored_chroot])
 
 
+def test_isolated_vendoring_constraints_omitted():
+    # type: () -> None
+    with temporary_pex_root() as (pex_root, _):
+        devendored_chroot = os.path.realpath(third_party.isolated().chroot_path)
+        assert [] == [
+            os.path.join(root, file)
+            for root, _, files in os.walk(devendored_chroot)
+            for file in files
+            if file == "constraints.txt"
+        ]
+
+
 def test_isolated_idempotent_inprocess():
     # type: () -> None
     with temporary_pex_root():

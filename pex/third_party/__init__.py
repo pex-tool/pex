@@ -353,6 +353,13 @@ def isolated():
 
         module = "pex"
 
+        # These files are only used for running `tox -evendor` and should not pollute either the
+        # PEX_ROOT or built PEXs.
+        vendor_lockfiles = tuple(
+            os.path.join(os.path.relpath(vendor_spec.relpath, module), "constraints.txt")
+            for vendor_spec in vendor.iter_vendor_specs()
+        )
+
         # TODO(John Sirois): Unify with `pex.util.DistributionHelper.access_zipped_assets`.
         def recursive_copy(srcdir, dstdir):
             os.mkdir(dstdir)
@@ -370,7 +377,11 @@ def isolated():
                     if os.path.basename(src_entry) == "__pycache__":
                         continue
                     recursive_copy(src_entry, dst_entry)
-                elif not entry_name.endswith(".pyc") and not is_pyc_temporary_file(entry_name):
+                elif (
+                    not entry_name.endswith(".pyc")
+                    and not is_pyc_temporary_file(entry_name)
+                    and src_entry not in vendor_lockfiles
+                ):
                     with open(dst_entry, "wb") as fp:
                         with closing(resource_stream(module, src_entry)) as resource:
                             shutil.copyfileobj(resource, fp)
