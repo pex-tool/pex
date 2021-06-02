@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from typing import Any
 
 
-def test_no_pex_warnings(tmpdir):
+def test_no_duplicate_constraints_pex_warnings(tmpdir):
     # type: (Any) -> None
     pex_root = os.path.join(str(tmpdir), "pex_root")
     pip_root = os.path.join(str(tmpdir), "pip_root")
@@ -29,8 +29,7 @@ def test_no_pex_warnings(tmpdir):
         platform=platform.platform, impl=platform.impl, version=platform.version, abi=platform.abi
     ).wait()
 
-    assert 0 == len(
-        events
-    ), "Expected no warnings to be emitted when creating a Pip venv but found\n{}".format(
-        "\n".join(map(str, events))
+    assert 0 == len([event for event in events if "constraints.txt" in str(event)]), (
+        "Expected no duplicate constraints warnings to be emitted when creating a Pip venv but "
+        "found\n{}".format("\n".join(map(str, events)))
     )
