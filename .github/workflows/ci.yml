@@ -72,6 +72,9 @@ jobs:
           key: ${{ runner.os }}-pyenv-root
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        env:
+          # If CC is propagated to tests, things fail on macOS.
+          CC: ""
         with:
           tox-env: py${{ join(matrix.python-version, '') }}
   pypy-unit-tests:
@@ -121,6 +124,9 @@ jobs:
           key: ${{ runner.os }}-pyenv-root
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        env:
+          # If CC is propagated to tests, things fail on macOS.
+          CC: ""
         with:
           tox-env: py${{ join(matrix.python-version, '') }}-integration
   pypy-integration-tests:
