@@ -280,6 +280,16 @@ class PexInfo(object):
         )
 
     @property
+    def includes_tools(self):
+        # type: () -> bool
+        return self._pex_info.get("includes_tools", self.venv)
+
+    @includes_tools.setter
+    def includes_tools(self, value):
+        # type: (bool) -> None
+        self._pex_info["includes_tools"] = bool(value)
+
+    @property
     def strip_pex_env(self):
         """Whether or not this PEX should strip `PEX_*` env vars before executing its entrypoint.
 

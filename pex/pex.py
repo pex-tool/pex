@@ -469,14 +469,13 @@ class PEX(object):  # noqa: T000
 
         try:
             if self._vars.PEX_TOOLS:
-                try:
-                    from pex.tools import main as tools
-                except ImportError as e:
+                if not self._pex_info.includes_tools:
                     die(
                         "The PEX_TOOLS environment variable was set, but this PEX was not built "
-                        "with tools (Re-build the PEX file with `pex --include-tools ...`):"
-                        " {}".format(e)
+                        "with tools (Re-build the PEX file with `pex --include-tools ...`)"
                     )
+
+                from pex.tools import main as tools
 
                 exit_value = tools.main(pex=self, pex_prog_path=sys.argv[0])
             else:

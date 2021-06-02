@@ -69,12 +69,12 @@ import os
 import sys
 
 
-def __maybe_run_unzipped__(pex_zip):
+def __maybe_run_unzipped__(pex_zip, pex_root):
   from pex.common import atomic_directory, open_zip
   from pex.tracer import TRACER
   from pex.variables import unzip_dir
 
-  unzip_to = unzip_dir({pex_root!r}, {pex_hash!r})
+  unzip_to = unzip_dir(pex_root, {pex_hash!r})
   with atomic_directory(unzip_to, exclusive=True) as chroot:
     if not chroot.is_finalized:
       with TRACER.timed('Extracting {{}} to {{}}'.format(pex_zip, unzip_to)):
@@ -89,17 +89,17 @@ def __maybe_run_unzipped__(pex_zip):
   os.execv(sys.executable, [sys.executable, unzip_to] + sys.argv[1:])
 
 
-def __maybe_run_venv__(pex):
+def __maybe_run_venv__(pex, pex_root, pex_path):
   from pex.common import is_exe
   from pex.tracer import TRACER
   from pex.variables import venv_dir
 
   venv_home = venv_dir(
-    pex_root={pex_root!r}, 
+    pex_root=pex_root, 
     pex_hash={pex_hash!r},
     interpreter_constraints={interpreter_constraints!r},
     strip_pex_env={strip_pex_env!r},
-    pex_path={pex_path!r},
+    pex_path=pex_path,
   )
   venv_pex = os.path.join(venv_home, 'pex')
   if not is_exe(venv_pex):
@@ -133,19 +133,37 @@ sys.path[0] = os.path.abspath(sys.path[0])
 sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, {bootstrap_dir!r})))
 
 from pex.variables import ENV, Variables
-if Variables.PEX_VENV.value_or(ENV, {is_venv!r}):
-  if not {is_venv!r}:
-    from pex.common import die
-    die(
-      "The PEX_VENV environment variable was set, but this PEX was not built with venv support "
-      "(Re-build the PEX file with `pex --venv ...`):"
+__pex_root__ = Variables.PEX_ROOT.value_or(ENV, {pex_root!r})
+if ENV.PEX_VENV and ENV.PEX_UNZIP:
+  if {is_venv!r}:
+    default_mode = (
+      "Venv: Build a venv from the PEX zip file at {{}} under {{}} and run from there.".format(
+        __entry_point__, __pex_root__
+      )
     )
-  if not ENV.PEX_TOOLS:  # We need to run from the PEX for access to tools.
-    __maybe_run_venv__(__entry_point__)
+  elif {is_unzip!r}:
+    default_mode = "Unzip: Unzip the PEX zip file at {{}} under {{}} and run from there.".format(
+        __entry_point__, __pex_root__
+    )
+  else:
+    default_mode = "Zipapp: Run from the PEX zip file at {{}}.".format(__entry_point__)
+  from pex.common import die
+  die(
+    "Cannot request both PEX_VENV and PEX_UNZIP via environment variable.\\n"
+    "Please use just one of those environment variables or else unset both and accept this PEX's "
+    "default mode:\\n{{}}".format(default_mode)
+  )
+
+if not (ENV.PEX_UNZIP or ENV.PEX_TOOLS) and Variables.PEX_VENV.value_or(ENV, {is_venv!r}):
+  __maybe_run_venv__(
+    __entry_point__,
+    pex_root=__pex_root__,
+    pex_path=Variables.PEX_PATH.value_or(ENV, {pex_path!r}),
+  )
 elif Variables.PEX_UNZIP.value_or(ENV, {is_unzip!r}):
   import zipfile
   if zipfile.is_zipfile(__entry_point__):
-    __maybe_run_unzipped__(__entry_point__)
+    __maybe_run_unzipped__(__entry_point__, __pex_root__)
 
 from pex.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)
@@ -178,7 +196,6 @@ class PEXBuilder(object):
         pex_info=None,  # type: Optional[PexInfo]
         preamble=None,  # type: Optional[str]
         copy_mode=CopyMode.LINK,  # type: CopyMode.Value
-        include_tools=False,  # type: bool
     ):
         # type: (...) -> None
         """Initialize a pex builder.
@@ -192,8 +209,6 @@ class PEXBuilder(object):
         :keyword preamble: If supplied, execute this code prior to bootstrapping this PEX
           environment.
         :keyword copy_mode: Create the pex environment using the given copy mode.
-        :keyword include_tools: If True, include runtime tools which can be executed by exporting
-                                `PEX_TOOLS=1`.
 
         .. versionchanged:: 0.8
           The temporary directory created when ``path`` is not specified is now garbage collected on
@@ -204,7 +219,6 @@ class PEXBuilder(object):
         self._pex_info = pex_info or PexInfo.default(self._interpreter)
         self._preamble = preamble or ""
         self._copy_mode = copy_mode
-        self._include_tools = include_tools
 
         self._shebang = self._interpreter.identity.hashbang()
         self._logger = logging.getLogger(__name__)
@@ -568,7 +582,7 @@ class PEXBuilder(object):
             # do use at runtime, does.
             root_module_names=["attr", "packaging", "pkg_resources", "pyparsing"],
         )
-        if self._include_tools:
+        if self._pex_info.includes_tools:
             # The `repository extract` tool needs setuptools and wheel to build sdists and wheels
             # and distutils needs .dist-info to discover setuptools (and wheel).
             vendor.vendor_runtime(
@@ -586,7 +600,7 @@ class PEXBuilder(object):
             provider = ZipProvider(mod)
 
         bootstrap_packages = ["", "third_party"]
-        if self._include_tools:
+        if self._pex_info.includes_tools:
             bootstrap_packages.extend(["tools", "tools/commands"])
         for package in bootstrap_packages:
             for fn in provider.resource_listdir(package):

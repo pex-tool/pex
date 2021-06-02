@@ -523,7 +523,7 @@ class Variables(object):
         """
         return self._maybe_get_string("PEX_EXTRA_SYS_PATH")
 
-    @defaulted_property(default=os.path.expanduser("~/.pex"))
+    @defaulted_property(default="~/.pex")
     def PEX_ROOT(self):
         # type: () -> str
         """Directory.
@@ -536,7 +536,8 @@ class Variables(object):
         return self._get_path("PEX_ROOT")
 
     @PEX_ROOT.validator
-    def _ensure_writeable_pex_root(self, pex_root):
+    def _ensure_writeable_pex_root(self, raw_pex_root):
+        pex_root = os.path.expanduser(raw_pex_root)
         if not can_write_dir(pex_root):
             tmp_root = os.path.realpath(safe_mkdtemp())
             pex_warnings.warn(
