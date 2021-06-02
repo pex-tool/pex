@@ -369,6 +369,11 @@ def ensure_venv(pex):
         raise AssertionError(
             "Expected PEX-INFO for {} to have the components of a venv directory".format(pex.path())
         )
+    if not pex_info.includes_tools:
+        raise ValueError(
+            "The PEX_VENV environment variable was set, but this PEX was not built with venv "
+            "support (Re-build the PEX file with `pex --venv ...`)"
+        )
     with atomic_directory(venv_dir, exclusive=True) as venv:
         if not venv.is_finalized:
             from .tools.commands.venv import populate_venv_with_pex
@@ -456,7 +461,7 @@ def bootstrap_pex(entry_point):
     # ENV.PEX_ROOT is consulted by PythonInterpreter and Platform so set that up as early as
     # possible in the run.
     with ENV.patch(PEX_ROOT=pex_info.pex_root):
-        if not ENV.PEX_TOOLS and pex_info.venv:
+        if not (ENV.PEX_UNZIP or ENV.PEX_TOOLS) and pex_info.venv:
             try:
                 target = find_compatible_interpreter(
                     interpreter_constraints=pex_info.interpreter_constraints,
@@ -465,7 +470,10 @@ def bootstrap_pex(entry_point):
                 die(str(e))
             from . import pex
 
-            venv_pex = ensure_venv(pex.PEX(entry_point, interpreter=target))
+            try:
+                venv_pex = ensure_venv(pex.PEX(entry_point, interpreter=target))
+            except ValueError as e:
+                die(str(e))
             os.execv(venv_pex, [venv_pex] + sys.argv[1:])
         else:
             maybe_reexec_pex(pex_info.interpreter_constraints)

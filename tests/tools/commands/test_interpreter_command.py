@@ -47,7 +47,8 @@ class InterpreterTool(object):
         *other_interpreters  # type: PythonInterpreter
     ):
         # type: (...) -> InterpreterTool
-        pex_builder = PEXBuilder(include_tools=True, interpreter=interpreter)
+        pex_builder = PEXBuilder(interpreter=interpreter)
+        pex_builder.info.includes_tools = True
         pex_builder.freeze()
         return cls(
             tools_pex=pex_builder.path(),
