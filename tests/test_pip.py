@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 
 def test_no_pex_warnings(tmpdir):
     # type: (Any) -> None
-    pex_root = os.path.join(tmpdir, "pex_root")
-    pip_root = os.path.join(tmpdir, "pip_root")
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pip_root = os.path.join(str(tmpdir), "pip_root")
     interpreter = PythonInterpreter.get()
     platform = interpreter.platform
 
