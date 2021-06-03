@@ -198,6 +198,9 @@ def populate_venv_with_pex(
                     "PEX_VERBOSE",
                     "__PEX_EXE__",
                     "__PEX_UNVENDORED__",
+                    # This is _not_ used (it is ignored), but it's present under CI and simplest to
+                    # add an exception for here and not warn about in CI runs.
+                    "_PEX_TEST_PYENV_ROOT",
                 )
             ]
             if ignored_pex_env_vars:
