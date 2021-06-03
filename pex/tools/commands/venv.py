@@ -175,6 +175,42 @@ def populate_venv_with_pex(
                 os.environ[current_interpreter_blessed_env_var] = "1"
                 os.execv(python, [python, "-sE"] + sys.argv)
 
+            ignored_pex_env_vars = [
+                "{{}}={{}}".format(name, value)
+                for name, value in os.environ.items()
+                if name.startswith(("PEX_", "_PEX_", "__PEX_")) and name not in (
+                    # These are used inside this script.
+                    "_PEX_SHOULD_EXIT_VENV_REEXEC",
+                    "PEX_EXTRA_SYS_PATH",
+                    "PEX_VENV_BIN_PATH",
+                    "PEX_INTERPRETER",
+                    "PEX_SCRIPT",
+                    "PEX_MODULE",
+                    # This is used when loading ENV (Variables()):
+                    "PEX_IGNORE_RCFILES",
+                    # And ENV is used to access these during PEX bootstrap when delegating here via
+                    # a --venv mode PEX file.
+                    "PEX_ROOT",
+                    "PEX_VENV",
+                    "PEX_PATH",
+                    "PEX_PYTHON",
+                    "PEX_PYTHON_PATH",
+                    "PEX_VERBOSE",
+                    "__PEX_EXE__",
+                    "__PEX_UNVENDORED__",
+                    # This is _not_ used (it is ignored), but it's present under CI and simplest to
+                    # add an exception for here and not warn about in CI runs.
+                    "_PEX_TEST_PYENV_ROOT",
+                )
+            ]
+            if ignored_pex_env_vars:
+                sys.stderr.write(
+                    "Ignoring the following environment variables in Pex venv mode:\\n"
+                    "{{}}\\n\\n".format(
+                        os.linesep.join(sorted(ignored_pex_env_vars))
+                    )
+                )
+
             os.environ["VIRTUAL_ENV"] = venv_dir
             sys.path.extend(os.environ.get("PEX_EXTRA_SYS_PATH", "").split(os.pathsep))
 
