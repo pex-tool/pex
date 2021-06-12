@@ -134,3 +134,10 @@ class bdist_pex(Command):  # noqa
                     ),
                     result,
                 )
+            else:
+                die(
+                    "Successfully created pex via {}:\n{}".format(
+                        " ".join(cmd), stderr.decode("utf-8")
+                    ),
+                    result,
+                )
