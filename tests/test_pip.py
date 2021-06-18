@@ -3,28 +3,56 @@
 
 from __future__ import absolute_import
 
+import glob
 import os
 import warnings
 
+import pytest
+
+from pex.common import safe_rmtree
+from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
-from pex.pip import Pip
+from pex.jobs import Job
+from pex.pip import PackageIndexConfiguration, Pip
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Callable, Iterator, Optional
+
+    CreatePip = Callable[[Optional[PythonInterpreter]], Pip]
 
 
-def test_no_duplicate_constraints_pex_warnings(tmpdir):
-    # type: (Any) -> None
+@pytest.fixture
+def current_interpreter():
+    # type: () -> PythonInterpreter
+    return PythonInterpreter.get()
+
+
+@pytest.fixture
+def create_pip(tmpdir):
+    # type: (Any) -> Iterator[CreatePip]
     pex_root = os.path.join(str(tmpdir), "pex_root")
     pip_root = os.path.join(str(tmpdir), "pip_root")
-    interpreter = PythonInterpreter.get()
-    platform = interpreter.platform
 
-    with ENV.patch(PEX_ROOT=pex_root), warnings.catch_warnings(record=True) as events:
-        pip = Pip.create(path=pip_root, interpreter=interpreter)
+    with ENV.patch(PEX_ROOT=pex_root):
 
+        def create_pip(interpreter):
+            # type: (Optional[PythonInterpreter]) -> Pip
+            return Pip.create(path=pip_root, interpreter=interpreter)
+
+        yield create_pip
+
+
+def test_no_duplicate_constraints_pex_warnings(
+    create_pip,  # type: CreatePip
+    current_interpreter,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+    with warnings.catch_warnings(record=True) as events:
+        pip = create_pip(current_interpreter)
+
+    platform = current_interpreter.platform
     pip.spawn_debug(
         platform=platform.platform, impl=platform.impl, version=platform.version, abi=platform.abi
     ).wait()
@@ -33,3 +61,64 @@ def test_no_duplicate_constraints_pex_warnings(tmpdir):
         "Expected no duplicate constraints warnings to be emitted when creating a Pip venv but "
         "found\n{}".format("\n".join(map(str, events)))
     )
+
+
+def test_download_platform_issues_1355(
+    create_pip,  # type: CreatePip
+    current_interpreter,  # type: PythonInterpreter
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+    pip = create_pip(current_interpreter)
+    download_dir = os.path.join(str(tmpdir), "downloads")
+
+    def download_ansicolors(
+        target=None,  # type: Optional[DistributionTarget]
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+    ):
+        # type: (...) -> Job
+        safe_rmtree(download_dir)
+        return pip.spawn_download_distributions(
+            download_dir=download_dir,
+            requirements=["ansicolors==1.0.2"],
+            transitive=False,
+            target=target,
+            package_index_configuration=package_index_configuration,
+        )
+
+    def assert_ansicolors_downloaded(target=None):
+        download_ansicolors(target=target).wait()
+        assert ["ansicolors-1.0.2.tar.gz"] == os.listdir(download_dir)
+
+    # The only ansicolors 1.0.2 dist on PyPI is an sdist and we should be able to download one of
+    # those with the current interpreter since we have an interpreter in hand to build a wheel from
+    # it with later.
+    assert_ansicolors_downloaded()
+    assert_ansicolors_downloaded(target=DistributionTarget.current())
+    assert_ansicolors_downloaded(target=DistributionTarget.for_interpreter(current_interpreter))
+
+    wheel_dir = os.path.join(str(tmpdir), "wheels")
+    pip.spawn_build_wheels(
+        distributions=glob.glob(os.path.join(download_dir, "*.tar.gz")),
+        wheel_dir=wheel_dir,
+        interpreter=current_interpreter,
+    ).wait()
+    built_wheels = glob.glob(os.path.join(wheel_dir, "*.whl"))
+    assert len(built_wheels) == 1
+
+    ansicolors_wheel = built_wheels[0]
+    local_wheel_repo = PackageIndexConfiguration.create(find_links=[wheel_dir])
+    current_platform = DistributionTarget.for_platform(current_interpreter.platform)
+
+    # We should fail to find a wheel for ansicolors 1.0.2 and thus fail to download for a target
+    # Platform, even if that target platform happens to match the current interpreter we're
+    # executing Pip with.
+    with pytest.raises(Job.Error):
+        download_ansicolors(target=current_platform).wait()
+
+    # If we point the target Platform to a find-links repo with the wheel just-built though, the
+    # download should proceed without error.
+    download_ansicolors(
+        target=current_platform, package_index_configuration=local_wheel_repo
+    ).wait()
+    assert [os.path.basename(ansicolors_wheel)] == os.listdir(download_dir)

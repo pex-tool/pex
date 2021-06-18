@@ -509,6 +509,7 @@ class PythonInterpreter(object):
 
     @classmethod
     def get(cls):
+        # type: () -> PythonInterpreter
         return cls.from_binary(sys.executable)
 
     @staticmethod
