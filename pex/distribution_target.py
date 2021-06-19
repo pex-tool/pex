@@ -18,6 +18,12 @@ if TYPE_CHECKING:
 class DistributionTarget(object):
     """Represents the target of a python distribution."""
 
+    class AmbiguousTargetError(ValueError):
+        pass
+
+    class ManylinuxOutOfContextError(ValueError):
+        pass
+
     @classmethod
     def current(cls):
         # type: () -> DistributionTarget
@@ -45,14 +51,16 @@ class DistributionTarget(object):
     ):
         # type: (...) -> None
         if interpreter and platform:
-            raise ValueError(
+            raise self.AmbiguousTargetError(
                 "A {class_name} can represent an interpreter or a platform but not both at the "
                 "same time. Given interpreter {interpreter} and platform {platform}.".format(
                     class_name=self.__class__.__name__, interpreter=interpreter, platform=platform
                 )
             )
+        if not interpreter and not platform:
+            interpreter = PythonInterpreter.get()
         if manylinux and not platform:
-            raise ValueError(
+            raise self.ManylinuxOutOfContextError(
                 "A value for manylinux only makes sense for platform distribution targets. Given "
                 "manylinux={!r} but no platform.".format(manylinux)
             )
@@ -61,9 +69,33 @@ class DistributionTarget(object):
         self._manylinux = manylinux
 
     @property
+    def is_platform(self):
+        # type: () -> bool
+        """Is the distribution target a platform specification.
+
+        N.B.: This value will always be the opposite of `is_interpreter` since a distribution target
+        can only encapsulate either a platform specification or a local interpreter.
+        """
+        return self._platform is not None
+
+    @property
+    def is_interpreter(self):
+        # type: () -> bool
+        """Is the distribution target a local interpreter.
+
+        N.B.: This value will always be the opposite of `is_platform` since a distribution target
+        can only encapsulate either a platform specification or a local interpreter.
+        """
+        return self._interpreter is not None
+
+    @property
     def is_foreign(self):
         # type: () -> bool
-        if self._platform is None:
+        """Does the distribution target represent a foreign platform.
+
+        A foreign platform is one not matching the current interpreter.
+        """
+        if self.is_interpreter:
             return False
         return self._platform not in self.get_interpreter().supported_platforms
 
@@ -73,7 +105,7 @@ class DistributionTarget(object):
 
     def get_python_version_str(self):
         # type: () -> Optional[str]
-        if self._platform is not None:
+        if self.is_platform:
             return None
         return self.get_interpreter().identity.version_str
 
@@ -106,8 +138,9 @@ class DistributionTarget(object):
         if requirement.marker is None:
             return True
 
-        if self._platform is not None:
-            # We can have no opinion for foreign platforms.
+        if not self.is_interpreter:
+            # We can have no opinion without an interpreter to answer questions about enviornment
+            # markers.
             return None
 
         if not extras:
@@ -126,7 +159,7 @@ class DistributionTarget(object):
     def id(self):
         # type: () -> str
         """A unique id for this distribution target suitable as a path name component."""
-        if self._platform is None:
+        if self.is_interpreter:
             interpreter = self.get_interpreter()
             return interpreter.binary.replace(os.sep, ".").lstrip(".")
         else:
@@ -134,7 +167,7 @@ class DistributionTarget(object):
 
     def __repr__(self):
         # type: () -> str
-        if self._platform is None:
+        if self.is_interpreter:
             return "{}(interpreter={!r})".format(self.__class__.__name__, self.get_interpreter())
         else:
             return "{}(platform={!r})".format(self.__class__.__name__, self._platform)

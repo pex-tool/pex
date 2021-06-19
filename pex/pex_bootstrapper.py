@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         List,
         NoReturn,
         Optional,
+        Set,
         Tuple,
         Union,
     )
@@ -73,7 +74,7 @@ def iter_compatible_interpreters(
 
     def _iter_interpreters():
         # type: () -> Iterator[InterpreterOrError]
-        seen = set()
+        seen = set()  # type: Set[InterpreterOrError]
 
         normalized_paths = (
             OrderedSet(PythonInterpreter.canonicalize_path(p) for p in path.split(os.pathsep))

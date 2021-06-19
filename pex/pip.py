@@ -414,14 +414,14 @@ class Pip(object):
                     "Cannot both ignore wheels (use_wheel=False) and refrain from building "
                     "distributions (build=False)."
                 )
-            elif target.is_foreign:
+            elif target.is_platform:
                 raise ValueError(
-                    "Cannot ignore wheels (use_wheel=False) when resolving for a foreign "
-                    "platform: {}".format(platform)
+                    "Cannot ignore wheels (use_wheel=False) when resolving for a platform: "
+                    "{}".format(platform)
                 )
 
         download_cmd = ["download", "--dest", download_dir]
-        if target.is_foreign:
+        if target.is_platform:
             # We're either resolving for a different host / platform or a different interpreter for
             # the current platform that we have no access to; so we need to let pip know and not
             # otherwise pickup platform info from the interpreter we execute pip with.
@@ -435,7 +435,7 @@ class Pip(object):
                 )
             )
 
-        if target.is_foreign or not build:
+        if target.is_platform or not build:
             download_cmd.extend(["--only-binary", ":all:"])
 
         if not use_wheel:
