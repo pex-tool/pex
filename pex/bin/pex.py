@@ -68,6 +68,10 @@ class HandleBoolAction(Action):
 
 
 class ManylinuxAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        super(ManylinuxAction, self).__init__(*args, **kwargs)
+
     def __call__(self, parser, namespace, value, option_str=None):
         if option_str.startswith("--no"):
             setattr(namespace, self.dest, None)

@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
@@ -278,3 +278,30 @@ def test_run_pex():
     py27 = ensure_python_interpreter(PY27)
     stderr_lines = assert_run_pex(python=py27, pex_args=["--platform=macosx-10.13-x86_64-cp-37-m"])
     assert incompatible_platforms_warning_msg in stderr_lines
+
+
+def test_clp_manylinux():
+    with option_parser() as parser:
+        configure_clp_pex_resolution(parser)
+
+        options = parser.parse_args(args=[])
+        assert options.manylinux, "The --manylinux option should default to some value."
+
+        def assert_manylinux(value):
+            # type: (str) -> None
+            assert value == parser.parse_args(args=["--manylinux", value]).manylinux
+
+        # Legacy manylinux standards should be supported.
+        assert_manylinux("manylinux1_x86_64")
+        assert_manylinux("manylinux2010_x86_64")
+        assert_manylinux("manylinux2014_x86_64")
+
+        # The modern open-ended glibc version based manylinux standards should be supported.
+        assert_manylinux("manylinux_2_5_x86_64")
+        assert_manylinux("manylinux_2_33_x86_64")
+
+        options = parser.parse_args(args=["--no-manylinux"])
+        assert options.manylinux is None
+
+        with pytest.raises(ArgumentTypeError):
+            parser.parse_args(args=["--manylinux", "foo"])
