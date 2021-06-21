@@ -11,8 +11,10 @@ import os
 import re
 import subprocess
 import sys
+from abc import abstractmethod
 from collections import deque
 from contextlib import closing
+from textwrap import dedent
 
 from pex import dist_metadata, third_party
 from pex.common import atomic_directory, safe_mkdtemp
@@ -25,14 +27,27 @@ from pex.network_configuration import NetworkConfiguration
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
+from pex.platforms import Platform
 from pex.third_party import isolated
 from pex.third_party.pkg_resources import safe_name, safe_version
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.util import named_temporary_file
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Callable
+    from typing import (
+        Any,
+        Callable,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Tuple,
+        Union,
+    )
 
 
 class ResolverVersion(object):
@@ -180,7 +195,112 @@ class PackageIndexConfiguration(object):
         self.isolated = isolated  # type: bool
 
 
+class _LogAnalyzer(object):
+    @abstractmethod
+    def analyze(self, line):
+        # type: (str) -> Union[bool, str]
+        """Analyze the given log line.
+
+        Returns useful text or else True to continue to analyze the next log line or else False to
+        stop analysis.
+        """
+
+
+class _Issue9420Analyzer(_LogAnalyzer):
+    # Works around: https://github.com/pypa/pip/issues/9420
+
+    def __init__(self):
+        # type: () -> None
+        self._strip = None  # type: Optional[int]
+
+    def analyze(self, line):
+        # type: (str) -> Union[bool, str]
+        # N.B.: Pip --log output looks like:
+        # 2021-01-04T16:12:01,119 ERROR: Cannot install pantsbuild-pants==1.24.0.dev2 and wheel==0.33.6 because these package versions have conflicting dependencies.
+        # 2021-01-04T16:12:01,119
+        # 2021-01-04T16:12:01,119 The conflict is caused by:
+        # 2021-01-04T16:12:01,119     The user requested wheel==0.33.6
+        # 2021-01-04T16:12:01,119     pantsbuild-pants 1.24.0.dev2 depends on wheel==0.31.1
+        # 2021-01-04T16:12:01,119
+        # 2021-01-04T16:12:01,119 To fix this you could try to:
+        # 2021-01-04T16:12:01,119 1. loosen the range of package versions you've specified
+        # 2021-01-04T16:12:01,119 2. remove package versions to allow pip attempt to solve the dependency conflict
+        # 2021-01-04T16:12:01,119 ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/user_guide/#fixing-conflicting-dependencies
+        if not self._strip:
+            match = re.match(r"^(?P<timestamp>[^ ]+) ERROR: Cannot install ", line)
+            if match:
+                self._strip = len(match.group("timestamp"))
+        else:
+            match = re.match(r"^[^ ]+ ERROR: ResolutionImpossible: ", line)
+            if match:
+                return False
+            else:
+                return line[self._strip :]
+        return True
+
+
+class _Issue10050Analyzer(_LogAnalyzer):
+    # Part of the workaround for: https://github.com/pypa/pip/issues/10050
+
+    def __init__(self, platform):
+        # type: (Platform) -> None
+        self._platform = platform
+        self._scanning = True
+
+    def analyze(self, line):
+        # type: (str) -> Union[bool, str]
+        # N.B.: Pip --log output looks like:
+        # 2021-06-20T19:06:00,981 pip._vendor.packaging.markers.UndefinedEnvironmentName: 'python_full_version' does not exist in evaluation environment.
+        if self._scanning:
+            match = re.match(
+                r"^[^ ]+ pip._vendor.packaging.markers.UndefinedEnvironmentName: "
+                r"(?P<missing_marker>.*)\.$",
+                line,
+            )
+            if match:
+                self._scanning = False
+                return (
+                    "Failed to resolve for platform {}. Resolve requires evaluation of unknown "
+                    "environment marker: {}.".format(self._platform, match.group("missing_marker"))
+                )
+        return self._scanning
+
+
+class _LogScrapeJob(Job):
+    def __init__(
+        self,
+        command,  # type: Iterable[str]
+        process,  # type: subprocess.Popen
+        log,  # type: str
+        log_analyzers,  # type: Iterable[_LogAnalyzer]
+    ):
+        self._log = log
+        self._log_analyzers = list(log_analyzers)
+        super(_LogScrapeJob, self).__init__(command, process)
+
+    def _check_returncode(self, stderr=None):
+        if self._process.returncode != 0:
+            collected = []
+            with open(self._log, "r") as fp:
+                for line in fp:
+                    if not self._log_analyzers:
+                        break
+                    for index, analyzer in enumerate(self._log_analyzers):
+                        result = analyzer.analyze(line)
+                        if isinstance(result, str):
+                            collected.append(result)
+                        elif not result:
+                            self._log_analyzers.pop(index)
+                            if not self._log_analyzers:
+                                break
+            os.unlink(self._log)
+            stderr = (stderr or b"") + "".join(collected).encode("utf-8")
+        super(_LogScrapeJob, self)._check_returncode(stderr=stderr)
+
+
 class Pip(object):
+    _PATCHED_MARKERS_FILE_ENV_VAR_NAME = "_PEX_PATCHED_MARKERS_FILE"
+
     @classmethod
     def create(
         cls,
@@ -204,7 +324,40 @@ class Pip(object):
                 isolated_pip_builder.info.venv = True
                 for dist_location in third_party.expose(["pip", "setuptools", "wheel"]):
                     isolated_pip_builder.add_dist_location(dist=dist_location)
-                isolated_pip_builder.set_script("pip")
+                with named_temporary_file(prefix="", suffix=".py", mode="w") as fp:
+                    fp.write(
+                        dedent(
+                            """\
+                            from __future__ import print_function
+
+                            import os
+                            import runpy
+
+                            patched_markers_file = os.environ.pop(
+                                {patched_markers_env_var_name!r}, None
+                            )
+                            if patched_markers_file:
+                                def patch_markers():
+                                    import json
+
+                                    from pip._vendor.packaging import markers
+
+                                    with open(patched_markers_file) as fp:
+                                        patched_markers = json.load(fp)
+
+                                    markers.default_environment = patched_markers.copy
+
+                                patch_markers()
+                                del patch_markers
+
+                            runpy.run_module(mod_name="pip", run_name="__main__", alter_sys=True)
+                            """.format(
+                                patched_markers_env_var_name=cls._PATCHED_MARKERS_FILE_ENV_VAR_NAME
+                            )
+                        )
+                    )
+                    fp.close()
+                    isolated_pip_builder.set_executable(fp.name, "__pex_patched_pip__.py")
                 isolated_pip_builder.freeze()
         pex_info = PexInfo.from_pex(pip_pex_path)
         pex_info.add_interpreter_constraint(str(pip_interpreter.identity.requirement))
@@ -301,7 +454,11 @@ class Pip(object):
         if package_index_configuration:
             command.extend(package_index_configuration.args)
 
-        env = package_index_configuration.env if package_index_configuration else {}
+        extra_env = popen_kwargs.pop("env", None)
+        env = dict(extra_env) if extra_env else {}
+        if package_index_configuration:
+            env.update(package_index_configuration.env)
+
         with ENV.strip().patch(
             PEX_ROOT=cache or ENV.PEX_ROOT,
             PEX_VERBOSE=str(ENV.PEX_VERBOSE),
@@ -458,16 +615,42 @@ class Pip(object):
         if requirements:
             download_cmd.extend(requirements)
 
+        env = None
+        log_analyzers = []  # type: List[_LogAnalyzer]
+
+        # Pip evaluates environment markers in the context of the ambient interpreter instead of
+        # failing when encountering them, ignoring them or doing what we do here: evaluate those
+        # environment markers positively identified by the platform quadruple and failing for those
+        # we cannot know.
+        if target.is_platform:
+            env_markers_dir = safe_mkdtemp()
+            platform, _ = target.get_platform()
+            patched_environment = platform.marker_environment()
+            with open(
+                os.path.join(env_markers_dir, "env_markers.{}.json".format(platform)), "w"
+            ) as fp:
+                json.dump(patched_environment, fp)
+            env = os.environ.copy()
+            env[self._PATCHED_MARKERS_FILE_ENV_VAR_NAME] = fp.name
+            log_analyzers.append(_Issue10050Analyzer(platform))
+            TRACER.log(
+                "Patching environment markers for {} with {}".format(target, patched_environment),
+                V=3,
+            )
+
         # The Pip 2020 resolver hides useful dependency conflict information in stdout interspersed
         # with other information we want to suppress. We jump though some hoops here to get at that
         # information and surface it on stderr. See: https://github.com/pypa/pip/issues/9420.
-        log = None
         if (
             self._calculate_resolver_version(
                 package_index_configuration=package_index_configuration
             )
             == ResolverVersion.PIP_2020
         ):
+            log_analyzers.append(_Issue9420Analyzer())
+
+        log = None
+        if log_analyzers:
             log = os.path.join(safe_mkdtemp(), "pip.log")
             download_cmd = ["--log", log] + download_cmd
 
@@ -476,44 +659,12 @@ class Pip(object):
             package_index_configuration=package_index_configuration,
             cache=cache,
             interpreter=target.get_interpreter(),
+            env=env,
         )
-        return self._Issue9420Job(command, process, log) if log else Job(command, process)
-
-    class _Issue9420Job(Job):
-        def __init__(self, command, process, log):
-            self._log = log
-            super(Pip._Issue9420Job, self).__init__(command, process)
-
-        def _check_returncode(self, stderr=None):
-            # N.B.: Pip --log output looks like:
-            # 2021-01-04T16:12:01,119 ERROR: Cannot install pantsbuild-pants==1.24.0.dev2 and wheel==0.33.6 because these package versions have conflicting dependencies.
-            # 2021-01-04T16:12:01,119
-            # 2021-01-04T16:12:01,119 The conflict is caused by:
-            # 2021-01-04T16:12:01,119     The user requested wheel==0.33.6
-            # 2021-01-04T16:12:01,119     pantsbuild-pants 1.24.0.dev2 depends on wheel==0.31.1
-            # 2021-01-04T16:12:01,119
-            # 2021-01-04T16:12:01,119 To fix this you could try to:
-            # 2021-01-04T16:12:01,119 1. loosen the range of package versions you've specified
-            # 2021-01-04T16:12:01,119 2. remove package versions to allow pip attempt to solve the dependency conflict
-            # 2021-01-04T16:12:01,119 ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/user_guide/#fixing-conflicting-dependencies
-            if self._process.returncode != 0:
-                strip = None
-                collected = []
-                with open(self._log, "r") as fp:
-                    for line in fp:
-                        if not strip:
-                            match = re.match(r"^(?P<timestamp>[^ ]+) ERROR: Cannot install ", line)
-                            if match:
-                                strip = len(match.group("timestamp"))
-                        else:
-                            match = re.match(r"^[^ ]+ ERROR: ResolutionImpossible: ", line)
-                            if match:
-                                break
-                            else:
-                                collected.append(line[strip:].encode("utf-8"))
-                os.unlink(self._log)
-                stderr = (stderr or b"") + b"".join(collected)
-            super(Pip._Issue9420Job, self)._check_returncode(stderr=stderr)
+        if log:
+            return _LogScrapeJob(command, process, log, log_analyzers)
+        else:
+            return Job(command, process)
 
     def spawn_build_wheels(
         self,

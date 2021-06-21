@@ -138,17 +138,15 @@ class DistributionTarget(object):
         if requirement.marker is None:
             return True
 
-        if not self.is_interpreter:
-            # We can have no opinion without an interpreter to answer questions about enviornment
-            # markers.
-            return None
-
         if not extras:
             # Provide an empty extra to safely evaluate the markers without matching any extra.
             extras = ("",)
         for extra in extras:
-            # N.B.: This nets us a copy of the markers so we're free to mutate.
-            environment = self.get_interpreter().identity.env_markers
+            # N.B.: These each net us a copy of the markers so we're free to mutate.
+            if self._platform is not None:
+                environment = self._platform.marker_environment()
+            else:
+                environment = self.get_interpreter().identity.env_markers
             environment["extra"] = extra
             if requirement.marker.evaluate(environment=environment):
                 return True

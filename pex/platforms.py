@@ -261,6 +261,38 @@ class Platform(object):
             safe_rmtree(disk_cache_key)
             return self.supported_tags(manylinux=manylinux)
 
+    def marker_environment(self):
+        # type: () -> Dict[str, str]
+        major_version = int(self.version[0])
+
+        env = {}
+
+        if major_version == 2:
+            env["implementation_name"] = ""
+            env["implementation_version"] = "0"
+        elif self.impl == "cp":
+            env["implementation_name"] = "cpython"
+        elif self.impl == "pp":
+            env["implementation_name"] = "pypy"
+
+        if "linux" in self.platform:
+            env["os_name"] = "posix"
+            env["platform_system"] = "Linux"
+            env["sys_platform"] = "linux2" if major_version == 2 else "linux"
+        elif "mac" in self.platform:
+            env["os_name"] = "posix"
+            env["platform_system"] = "Darwin"
+            env["sys_platform"] = "darwin"
+
+        if self.impl == "cp":
+            env["platform_python_implementation"] = "CPython"
+        elif self.impl == "pp":
+            env["platform_python_implementation"] = "PyPy"
+
+        env["python_version"] = ".".join(self.version)
+
+        return env
+
     def __str__(self):
         # type: () -> str
         return cast(str, self.SEP.join(attr.astuple(self)))
