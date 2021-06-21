@@ -251,7 +251,7 @@ class _Issue9420Analyzer(_LogAnalyzer):
         return self.Continue()
 
 
-@attr.s
+@attr.s(frozen=True)
 class _Issue10050Analyzer(_LogAnalyzer):
     # Part of the workaround for: https://github.com/pypa/pip/issues/10050
 
