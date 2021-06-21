@@ -128,7 +128,6 @@ def test_download_platform_issues_1355(
 
 def test_download_platform_markers_issue_1366(
     create_pip,  # type: CreatePip
-    current_interpreter,  # type: PythonInterpreter
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
@@ -149,7 +148,6 @@ def test_download_platform_markers_issue_1366(
 
 def test_download_platform_markers_issue_1366_indeterminate(
     create_pip,  # type: CreatePip
-    current_interpreter,  # type: PythonInterpreter
     tmpdir,  # type: Any
 ):
     # type: (...) -> None

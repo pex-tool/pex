@@ -631,7 +631,11 @@ class Pip(object):
         if target.is_platform:
             env_markers_dir = safe_mkdtemp()
             platform, _ = target.get_platform()
-            patched_environment = platform.marker_environment()
+            patched_environment = platform.marker_environment(
+                # We want to fail a resolve when it needs to evaluate environment markers we can't
+                # calculate given just the platform information.
+                default_unknown=False
+            )
             with open(
                 os.path.join(env_markers_dir, "env_markers.{}.json".format(platform)), "w"
             ) as fp:
