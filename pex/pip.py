@@ -328,8 +328,6 @@ class Pip(object):
                     fp.write(
                         dedent(
                             """\
-                            from __future__ import print_function
-
                             import os
                             import runpy
 
