@@ -36,6 +36,8 @@ from pex.util import named_temporary_file
 from pex.variables import ENV
 
 if TYPE_CHECKING:
+    import attr  # vendor:skip
+
     from typing import (
         Any,
         Callable,
@@ -48,6 +50,8 @@ if TYPE_CHECKING:
         Tuple,
         Union,
     )
+else:
+    from pex.third_party import attr
 
 
 class ResolverVersion(object):
@@ -196,13 +200,21 @@ class PackageIndexConfiguration(object):
 
 
 class _LogAnalyzer(object):
+    @attr.s(frozen=True)
+    class Complete(object):
+        text = attr.ib(default=None)  # type: Optional[str]
+
+    @attr.s(frozen=True)
+    class Continue(object):
+        text = attr.ib(default=None)  # type: Optional[str]
+
     @abstractmethod
     def analyze(self, line):
-        # type: (str) -> Union[bool, str]
+        # type: (str) -> Union[Complete, Continue]
         """Analyze the given log line.
 
-        Returns useful text or else True to continue to analyze the next log line or else False to
-        stop analysis.
+        Returns a value indicating whether or not analysis is complete. The value may contain text
+        that should be reported as part of the error analysis.
         """
 
 
@@ -214,7 +226,7 @@ class _Issue9420Analyzer(_LogAnalyzer):
         self._strip = None  # type: Optional[int]
 
     def analyze(self, line):
-        # type: (str) -> Union[bool, str]
+        # type: (str) -> Union[_LogAnalyzer.Complete, _LogAnalyzer.Continue]
         # N.B.: Pip --log output looks like:
         # 2021-01-04T16:12:01,119 ERROR: Cannot install pantsbuild-pants==1.24.0.dev2 and wheel==0.33.6 because these package versions have conflicting dependencies.
         # 2021-01-04T16:12:01,119
@@ -233,37 +245,33 @@ class _Issue9420Analyzer(_LogAnalyzer):
         else:
             match = re.match(r"^[^ ]+ ERROR: ResolutionImpossible: ", line)
             if match:
-                return False
+                return self.Complete()
             else:
-                return line[self._strip :]
-        return True
+                return self.Continue(line[self._strip :])
+        return self.Continue()
 
 
+@attr.s
 class _Issue10050Analyzer(_LogAnalyzer):
     # Part of the workaround for: https://github.com/pypa/pip/issues/10050
 
-    def __init__(self, platform):
-        # type: (Platform) -> None
-        self._platform = platform
-        self._scanning = True
+    _platform = attr.ib()  # type: Platform
 
     def analyze(self, line):
-        # type: (str) -> Union[bool, str]
+        # type: (str) -> Union[_LogAnalyzer.Complete, _LogAnalyzer.Continue]
         # N.B.: Pip --log output looks like:
         # 2021-06-20T19:06:00,981 pip._vendor.packaging.markers.UndefinedEnvironmentName: 'python_full_version' does not exist in evaluation environment.
-        if self._scanning:
-            match = re.match(
-                r"^[^ ]+ pip._vendor.packaging.markers.UndefinedEnvironmentName: "
-                r"(?P<missing_marker>.*)\.$",
-                line,
+        match = re.match(
+            r"^[^ ]+ pip._vendor.packaging.markers.UndefinedEnvironmentName: "
+            r"(?P<missing_marker>.*)\.$",
+            line,
+        )
+        if match:
+            return self.Complete(
+                "Failed to resolve for platform {}. Resolve requires evaluation of unknown "
+                "environment marker: {}.".format(self._platform, match.group("missing_marker"))
             )
-            if match:
-                self._scanning = False
-                return (
-                    "Failed to resolve for platform {}. Resolve requires evaluation of unknown "
-                    "environment marker: {}.".format(self._platform, match.group("missing_marker"))
-                )
-        return self._scanning
+        return self.Continue()
 
 
 class _LogScrapeJob(Job):
@@ -287,9 +295,9 @@ class _LogScrapeJob(Job):
                         break
                     for index, analyzer in enumerate(self._log_analyzers):
                         result = analyzer.analyze(line)
-                        if isinstance(result, str):
-                            collected.append(result)
-                        elif not result:
+                        if result.text:
+                            collected.append(result.text)
+                        if isinstance(result, _LogAnalyzer.Complete):
                             self._log_analyzers.pop(index)
                             if not self._log_analyzers:
                                 break
@@ -630,7 +638,7 @@ class Pip(object):
                 json.dump(patched_environment, fp)
             env = os.environ.copy()
             env[self._PATCHED_MARKERS_FILE_ENV_VAR_NAME] = fp.name
-            log_analyzers.append(_Issue10050Analyzer(platform))
+            log_analyzers.append(_Issue10050Analyzer(platform=platform))
             TRACER.log(
                 "Patching environment markers for {} with {}".format(target, patched_environment),
                 V=3,
