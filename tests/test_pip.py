@@ -13,7 +13,9 @@ from pex.common import safe_rmtree
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
-from pex.pip import PackageIndexConfiguration, Pip
+from pex.pip import PackageIndexConfiguration, Pip, ResolverVersion
+from pex.platforms import Platform
+from pex.testing import PY27, PY36, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -122,3 +124,48 @@ def test_download_platform_issues_1355(
         target=current_platform, package_index_configuration=local_wheel_repo
     ).wait()
     assert [os.path.basename(ansicolors_wheel)] == os.listdir(download_dir)
+
+
+def test_download_platform_markers_issue_1366(
+    create_pip,  # type: CreatePip
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+    python36_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY36))
+    pip = create_pip(python36_interpreter)
+
+    python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
+    download_dir = os.path.join(str(tmpdir), "downloads")
+    pip.spawn_download_distributions(
+        target=DistributionTarget.for_platform(python27_platform),
+        requirements=["typing_extensions==3.7.4.2; python_version < '3.6'"],
+        download_dir=download_dir,
+        transitive=False,
+    ).wait()
+
+    assert ["typing_extensions-3.7.4.2-py2-none-any.whl"] == os.listdir(download_dir)
+
+
+def test_download_platform_markers_issue_1366_indeterminate(
+    create_pip,  # type: CreatePip
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+    python36_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY36))
+    pip = create_pip(python36_interpreter)
+
+    python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
+    download_dir = os.path.join(str(tmpdir), "downloads")
+
+    with pytest.raises(Job.Error) as exc_info:
+        pip.spawn_download_distributions(
+            target=DistributionTarget.for_platform(python27_platform),
+            requirements=["typing_extensions==3.7.4.2; python_full_version < '3.6'"],
+            download_dir=download_dir,
+            transitive=False,
+        ).wait()
+    assert (
+        "Failed to resolve for platform manylinux_2_33_x86_64-cp-27-cp27mu. Resolve requires "
+        "evaluation of unknown environment marker: 'python_full_version' does not exist in "
+        "evaluation environment."
+    ) in str(exc_info.value)

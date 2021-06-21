@@ -261,6 +261,71 @@ class Platform(object):
             safe_rmtree(disk_cache_key)
             return self.supported_tags(manylinux=manylinux)
 
+    def marker_environment(self, default_unknown=True):
+        # type: (bool) -> Dict[str, str]
+        """Populate a partial marker environment given what we know from platform information.
+
+        Since Pex support is (currently) restricted to:
+        + interpreters: CPython and PyPy
+        + os: Linux and Mac
+
+        We can fill in most of the environment markers used in these environments in practice in the
+        wild.
+
+        For any environment markers that can't be derived from the platform information, the value
+        is either defaulted as specified in PEP 508 or else omitted entirely as per
+        `default_unknown`. Defaulting will cause tests against those environment markers to always
+        fail; thus marking the requirement as not applying. Leaving the marker out will cause the
+        same test to error; thus failing the resolve outright.
+
+        See: https://www.python.org/dev/peps/pep-0508/#environment-markers
+        """
+        env = (
+            {
+                "implementation_name": "",
+                "implementation_version": "0",
+                "os_name": "",
+                "platform_machine": "",
+                "platform_python_implementation": "",
+                "platform_release": "",
+                "platform_system": "",
+                "platform_version": "",
+                "python_full_version": "0",
+                "python_version": "0",
+                "sys_platform": "",
+            }
+            if default_unknown
+            else {}
+        )
+
+        major_version = int(self.version[0])
+
+        if major_version == 2:
+            env["implementation_name"] = ""
+            env["implementation_version"] = "0"
+        elif self.impl == "cp":
+            env["implementation_name"] = "cpython"
+        elif self.impl == "pp":
+            env["implementation_name"] = "pypy"
+
+        if "linux" in self.platform:
+            env["os_name"] = "posix"
+            env["platform_system"] = "Linux"
+            env["sys_platform"] = "linux2" if major_version == 2 else "linux"
+        elif "mac" in self.platform:
+            env["os_name"] = "posix"
+            env["platform_system"] = "Darwin"
+            env["sys_platform"] = "darwin"
+
+        if self.impl == "cp":
+            env["platform_python_implementation"] = "CPython"
+        elif self.impl == "pp":
+            env["platform_python_implementation"] = "PyPy"
+
+        env["python_version"] = ".".join(self.version)
+
+        return env
+
     def __str__(self):
         # type: () -> str
         return cast(str, self.SEP.join(attr.astuple(self)))

@@ -436,7 +436,7 @@ def ensure_python_distribution(version):
 
     pyenv_root = os.path.abspath(
         os.path.join(
-            os.environ.get("_PEX_TEST_PYENV_ROOT", "{}_dev".format(ENV.PEX_ROOT)),
+            os.path.expanduser(os.environ.get("_PEX_TEST_PYENV_ROOT", "~/.pex_dev")),
             "pyenv",
         )
     )
