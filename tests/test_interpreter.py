@@ -323,8 +323,8 @@ def test_latest_release_of_min_compatible_version():
 def test_detect_pyvenv(tmpdir):
     # type: (Any) -> None
     venv = str(tmpdir)
-    py35 = ensure_python_interpreter(PY37)
-    real_interpreter = PythonInterpreter.from_binary(py35)
+    py37 = ensure_python_interpreter(PY37)
+    real_interpreter = PythonInterpreter.from_binary(py37)
     real_interpreter.execute(["-m", "venv", venv])
     with pytest.raises(Executor.NonZeroExit):
         real_interpreter.execute(["-c", "import colors"])
@@ -343,7 +343,7 @@ def test_detect_pyvenv(tmpdir):
     ), "Expected exactly one canonical venv python, found: {}".format(canonical_to_python)
     canonical, pythons = canonical_to_python.popitem()
 
-    real_python = os.path.realpath(py35)
+    real_python = os.path.realpath(py37)
     assert canonical != real_python
     assert os.path.dirname(canonical) == venv_bin_dir
     assert os.path.realpath(canonical) == real_python
@@ -400,13 +400,13 @@ def test_resolve_venv_ambient():
 def test_identify_cwd_isolation_issues_1231(tmpdir):
     # type: (Any) -> None
 
-    python36, pip = ensure_python_venv(PY38)
+    python38, pip = ensure_python_venv(PY38)
     polluted_cwd = os.path.join(str(tmpdir), "dir")
     subprocess.check_call(args=[pip, "install", "--target", polluted_cwd, "pex==2.1.16"])
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
     with pushd(polluted_cwd), ENV.patch(PEX_ROOT=pex_root):
-        interp = PythonInterpreter.from_binary(python36)
+        interp = PythonInterpreter.from_binary(python38)
 
     interp_info_files = {
         os.path.join(root, f)
