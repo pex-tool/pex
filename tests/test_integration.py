@@ -820,7 +820,7 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
         # The parent interpreter is the interpreter we expect the parent pex to
         # execute with. The child interpreter is the interpreter we expect the
         # child pex to execute with.
-        if (sys.version_info[0], sys.version_info[1]) == (3, 6):
+        if sys.version_info[:2] == (3, 8):
             child_pex_interpreter_version = PY38
         else:
             child_pex_interpreter_version = PY27
@@ -2034,7 +2034,7 @@ def test_pex_reexec_constraints_dont_match_current_pex_python_path_min_py_versio
 
 def test_pex_reexec_constraints_dont_match_current_pex_python():
     # type: () -> None
-    version = PY27 if sys.version_info[0:2] == (3, 6) else PY38
+    version = PY27 if sys.version_info[:2] == (3, 8) else PY38
     interpreter = ensure_python_interpreter(version)
     _assert_exec_chain(
         exec_chain=[interpreter],

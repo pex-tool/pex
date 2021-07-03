@@ -262,7 +262,7 @@ def test_resolve_current_platform(p537_resolve_cache):
         resolve_p537_wheel_names, cache=p537_resolve_cache, platforms=["current"]
     )
 
-    other_python_version = PY38 if PY_VER == (3, 5) else PY37
+    other_python_version = PY38 if PY_VER == (3, 7) else PY37
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -292,7 +292,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
 
     assert 2 == len(resolve_current_and_foreign())
 
-    other_python_version = PY38 if PY_VER == (3, 5) else PY37
+    other_python_version = PY38 if PY_VER == (3, 7) else PY37
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
