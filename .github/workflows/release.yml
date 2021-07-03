@@ -9,8 +9,16 @@ on:
         description: The tag to manually run a deploy for.
         required: true
 jobs:
+  org-check:
+    name: Check GitHub Organization
+    if: ${{ github.repository_owner == 'pantsbuild' }}
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Noop
+        run: "true"
   determine-tag:
     name: Determine the release tag to operate against.
+    needs: org-check
     runs-on: ubuntu-20.04
     outputs:
       release-tag: ${{ steps.determine-tag.outputs.release-tag }}
@@ -33,9 +41,9 @@ jobs:
           fi
   pypi:
     name: Publish sdist and wheel to PyPI
+    needs: determine-tag
     runs-on: ubuntu-20.04
     environment: Release
-    needs: determine-tag
     steps:
       - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
         uses: actions/checkout@v2
@@ -54,9 +62,9 @@ jobs:
           tox-env: publish
   github-release:
     name: Create Github Release
+    needs: determine-tag
     runs-on: ubuntu-20.04
     environment: Release
-    needs: determine-tag
     steps:
       - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
         uses: actions/checkout@v2
