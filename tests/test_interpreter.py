@@ -18,8 +18,8 @@ from pex.interpreter import PythonInterpreter
 from pex.pyenv import Pyenv
 from pex.testing import (
     PY27,
-    PY35,
-    PY36,
+    PY37,
+    PY38,
     PY_VER,
     ensure_python_distribution,
     ensure_python_interpreter,
@@ -62,7 +62,7 @@ class TestPythonInterpreter(object):
     TEST_INTERPRETER1_VERSION = PY27
     TEST_INTERPRETER1_VERSION_TUPLE = tuple_from_version(TEST_INTERPRETER1_VERSION)
 
-    TEST_INTERPRETER2_VERSION = PY35
+    TEST_INTERPRETER2_VERSION = PY37
     TEST_INTERPRETER2_VERSION_TUPLE = tuple_from_version(TEST_INTERPRETER2_VERSION)
 
     @pytest.fixture
@@ -207,8 +207,8 @@ class TestPythonInterpreter(object):
 
     def test_pyenv_shims(self, tmpdir):
         # type: (Any) -> None
-        py35, _, run_pyenv = ensure_python_distribution(PY35)
-        py36 = ensure_python_interpreter(PY36)
+        py37, _, run_pyenv = ensure_python_distribution(PY37)
+        py38 = ensure_python_interpreter(PY38)
 
         pyenv_root = str(run_pyenv(["root"]).strip())
         pyenv_shims = os.path.join(pyenv_root, "shims")
@@ -254,49 +254,49 @@ class TestPythonInterpreter(object):
                 with pytest.raises(PythonInterpreter.IdentificationError):
                     interpreter_for_shim(shim_name)
 
-            pyenv_global(PY35, PY36)
-            assert_shim("python", py35)
-            assert_shim("python3", py35)
-            assert_shim("python3.5", py35)
-            assert_shim("python3.6", py36)
+            pyenv_global(PY37, PY38)
+            assert_shim("python", py37)
+            assert_shim("python3", py37)
+            assert_shim("python3.7", py37)
+            assert_shim("python3.8", py38)
 
-            pyenv_global(PY36, PY35)
-            assert_shim("python", py36)
-            assert_shim("python3", py36)
-            assert_shim("python3.6", py36)
-            assert_shim("python3.5", py35)
+            pyenv_global(PY38, PY37)
+            assert_shim("python", py38)
+            assert_shim("python3", py38)
+            assert_shim("python3.8", py38)
+            assert_shim("python3.7", py37)
 
-            pyenv_local(PY35)
-            assert_shim("python", py35)
-            assert_shim("python3", py35)
-            assert_shim("python3.5", py35)
-            assert_shim_inactive("python3.6")
+            pyenv_local(PY37)
+            assert_shim("python", py37)
+            assert_shim("python3", py37)
+            assert_shim("python3.7", py37)
+            assert_shim_inactive("python3.8")
 
-            with pyenv_shell(PY36):
-                assert_shim("python", py36)
-                assert_shim("python3", py36)
-                assert_shim("python3.6", py36)
-                assert_shim_inactive("python3.5")
+            with pyenv_shell(PY38):
+                assert_shim("python", py38)
+                assert_shim("python3", py38)
+                assert_shim("python3.8", py38)
+                assert_shim_inactive("python3.7")
 
-            with pyenv_shell(PY35, PY36):
-                assert_shim("python", py35)
-                assert_shim("python3", py35)
-                assert_shim("python3.5", py35)
-                assert_shim("python3.6", py36)
+            with pyenv_shell(PY37, PY38):
+                assert_shim("python", py37)
+                assert_shim("python3", py37)
+                assert_shim("python3.7", py37)
+                assert_shim("python3.8", py38)
 
-            # The shim pointer is now invalid since python3.5 was uninstalled and so
+            # The shim pointer is now invalid since python3.7 was uninstalled and so
             # should be re-read and found invalid.
-            py35_version_dir = os.path.dirname(os.path.dirname(py35))
-            py35_deleted = "{}.uninstalled".format(py35_version_dir)
-            os.rename(py35_version_dir, py35_deleted)
+            py37_version_dir = os.path.dirname(os.path.dirname(py37))
+            py37_deleted = "{}.uninstalled".format(py37_version_dir)
+            os.rename(py37_version_dir, py37_deleted)
             try:
                 assert_shim_inactive("python")
                 assert_shim_inactive("python3")
-                assert_shim_inactive("python3.5")
+                assert_shim_inactive("python3.7")
             finally:
-                os.rename(py35_deleted, py35_version_dir)
+                os.rename(py37_deleted, py37_version_dir)
 
-            assert_shim("python", py35)
+            assert_shim("python", py37)
 
 
 def test_latest_release_of_min_compatible_version():
@@ -323,8 +323,8 @@ def test_latest_release_of_min_compatible_version():
 def test_detect_pyvenv(tmpdir):
     # type: (Any) -> None
     venv = str(tmpdir)
-    py35 = ensure_python_interpreter(PY35)
-    real_interpreter = PythonInterpreter.from_binary(py35)
+    py37 = ensure_python_interpreter(PY37)
+    real_interpreter = PythonInterpreter.from_binary(py37)
     real_interpreter.execute(["-m", "venv", venv])
     with pytest.raises(Executor.NonZeroExit):
         real_interpreter.execute(["-c", "import colors"])
@@ -343,7 +343,7 @@ def test_detect_pyvenv(tmpdir):
     ), "Expected exactly one canonical venv python, found: {}".format(canonical_to_python)
     canonical, pythons = canonical_to_python.popitem()
 
-    real_python = os.path.realpath(py35)
+    real_python = os.path.realpath(py37)
     assert canonical != real_python
     assert os.path.dirname(canonical) == venv_bin_dir
     assert os.path.realpath(canonical) == real_python
@@ -384,7 +384,7 @@ def check_resolve_venv(real_interpreter):
 
 def test_resolve_venv():
     # type: () -> None
-    real_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY35))
+    real_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY37))
     check_resolve_venv(real_interpreter)
 
 
@@ -400,13 +400,13 @@ def test_resolve_venv_ambient():
 def test_identify_cwd_isolation_issues_1231(tmpdir):
     # type: (Any) -> None
 
-    python36, pip = ensure_python_venv(PY36)
+    python38, pip = ensure_python_venv(PY38)
     polluted_cwd = os.path.join(str(tmpdir), "dir")
     subprocess.check_call(args=[pip, "install", "--target", polluted_cwd, "pex==2.1.16"])
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
     with pushd(polluted_cwd), ENV.patch(PEX_ROOT=pex_root):
-        interp = PythonInterpreter.from_binary(python36)
+        interp = PythonInterpreter.from_binary(python38)
 
     interp_info_files = {
         os.path.join(root, f)

@@ -11,7 +11,7 @@ import pytest
 
 from pex import resolver
 from pex.common import open_zip, temporary_dir
-from pex.compatibility import PY2, to_bytes
+from pex.compatibility import to_bytes
 from pex.distribution_target import DistributionTarget
 from pex.environment import PEXEnvironment, _InvalidWheelName, _RankedDistribution
 from pex.inherit_path import InheritPath
@@ -23,7 +23,7 @@ from pex.resolver import resolve
 from pex.testing import (
     IS_LINUX,
     IS_PYPY3,
-    PY35,
+    PY37,
     WheelBuilder,
     ensure_python_interpreter,
     make_bdist,
@@ -191,23 +191,26 @@ def assert_force_local_implicit_ns_packages_issues_598(
         builder2.set_script("foobaz")
         builder2.freeze()
 
-        assert 42 == PEX(pex2, interpreter=interpreter).run(env=dict(PEX_VERBOSE="9"))
+        assert 42 == PEX(pex2, interpreter=interpreter).run()
 
 
-@pytest.fixture
-def setuptools_requirement():
-    # type: () -> str
+def get_setuptools_requirement(interpreter=None):
+    # type: (Optional[PythonInterpreter]) -> str
     # We use a very old version of setuptools to prove the point the user version is what is used
     # here and not the vendored version (when possible). A newer setuptools is needed though to work
     # with python 3.
-    return "setuptools==1.0" if PY2 else "setuptools==17.0"
+    return (
+        "setuptools==1.0"
+        if (interpreter or PythonInterpreter.get()).version[0] == 2
+        else "setuptools==17.0"
+    )
 
 
 @pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
-def test_issues_598_explicit_any_interpreter(setuptools_requirement):
-    # type: (str) -> None
+def test_issues_598_explicit_any_interpreter():
+    # type: () -> None
     assert_force_local_implicit_ns_packages_issues_598(
-        requirements=[setuptools_requirement], create_ns_packages=True
+        requirements=[get_setuptools_requirement()], create_ns_packages=True
     )
 
 
@@ -217,24 +220,24 @@ def test_issues_598_explicit_missing_requirement():
 
 
 @pytest.fixture
-def python_35_interpreter():
+def python_37_interpreter():
     # type: () -> PythonInterpreter
-    # Python 3.5 supports implicit namespace packages.
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY35))
+    # Python 3.7 supports implicit namespace packages.
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY37))
 
 
-def test_issues_598_implicit(python_35_interpreter):
+def test_issues_598_implicit(python_37_interpreter):
     # type: (PythonInterpreter) -> None
     assert_force_local_implicit_ns_packages_issues_598(
-        interpreter=python_35_interpreter, create_ns_packages=False
+        interpreter=python_37_interpreter, create_ns_packages=False
     )
 
 
-def test_issues_598_implicit_explicit_mixed(python_35_interpreter, setuptools_requirement):
-    # type: (PythonInterpreter, str) -> None
+def test_issues_598_implicit_explicit_mixed(python_37_interpreter):
+    # type: (PythonInterpreter) -> None
     assert_force_local_implicit_ns_packages_issues_598(
-        interpreter=python_35_interpreter,
-        requirements=[setuptools_requirement],
+        interpreter=python_37_interpreter,
+        requirements=[get_setuptools_requirement(python_37_interpreter)],
         create_ns_packages=True,
     )
 
@@ -438,11 +441,11 @@ def create_dist(
 
 
 @pytest.fixture
-def cpython_35_environment(python_35_interpreter):
+def cpython_37_environment(python_37_interpreter):
     return PEXEnvironment(
         pex="",
-        pex_info=PexInfo.default(python_35_interpreter),
-        target=DistributionTarget.for_interpreter(python_35_interpreter),
+        pex_info=PexInfo.default(python_37_interpreter),
+        target=DistributionTarget.for_interpreter(python_37_interpreter),
     )
 
 
@@ -450,65 +453,65 @@ def cpython_35_environment(python_35_interpreter):
     ("wheel_distribution", "wheel_is_linux"),
     [
         pytest.param(
-            create_dist("llvmlite-0.29.0-cp35-cp35m-linux_x86_64.whl", "0.29.0"),
+            create_dist("llvmlite-0.29.0-cp37-cp37m-linux_x86_64.whl", "0.29.0"),
             True,
             id="without_build_tag_linux",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-1-cp35-cp35m-linux_x86_64.whl", "0.29.0"),
+            create_dist("llvmlite-0.29.0-1-cp37-cp37m-linux_x86_64.whl", "0.29.0"),
             True,
             id="with_build_tag_linux",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-cp35-cp35m-macosx_10.9_x86_64.whl", "0.29.0"),
+            create_dist("llvmlite-0.29.0-cp37-cp37m-macosx_10.9_x86_64.whl", "0.29.0"),
             False,
             id="without_build_tag_osx",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-1-cp35-cp35m-macosx_10.9_x86_64.whl", "0.29.0"),
+            create_dist("llvmlite-0.29.0-1-cp37-cp37m-macosx_10.9_x86_64.whl", "0.29.0"),
             False,
             id="with_build_tag_osx",
         ),
     ],
 )
 def test_can_add_handles_optional_build_tag_in_wheel(
-    cpython_35_environment, wheel_distribution, wheel_is_linux
+    cpython_37_environment, wheel_distribution, wheel_is_linux
 ):
     # type: (PEXEnvironment, str, bool) -> None
     native_wheel = IS_LINUX and wheel_is_linux
-    added = isinstance(cpython_35_environment._can_add(wheel_distribution), _RankedDistribution)
+    added = isinstance(cpython_37_environment._can_add(wheel_distribution), _RankedDistribution)
     assert added is native_wheel
 
 
-def test_can_add_handles_invalid_wheel_filename(cpython_35_environment):
+def test_can_add_handles_invalid_wheel_filename(cpython_37_environment):
     # type: (PEXEnvironment) -> None
     dist = create_dist("pep427-invalid.whl")
-    assert _InvalidWheelName(dist, "pep427-invalid") == cpython_35_environment._can_add(dist)
+    assert _InvalidWheelName(dist, "pep427-invalid") == cpython_37_environment._can_add(dist)
 
 
 @pytest.fixture
-def assert_cpython_35_environment_can_add(cpython_35_environment):
+def assert_cpython_37_environment_can_add(cpython_37_environment):
     # type: (PEXEnvironment) -> Callable[[Distribution], _RankedDistribution]
     def assert_can_add(dist):
         # type: (Distribution) -> _RankedDistribution
-        rank = cpython_35_environment._can_add(dist)
+        rank = cpython_37_environment._can_add(dist)
         assert isinstance(rank, _RankedDistribution)
         return rank
 
     return assert_can_add
 
 
-def test_can_add_ranking_platform_tag_more_specific(assert_cpython_35_environment_can_add):
+def test_can_add_ranking_platform_tag_more_specific(assert_cpython_37_environment_can_add):
     # type: (Callable[[Distribution], _RankedDistribution]) -> None
-    ranked_specific = assert_cpython_35_environment_can_add(
-        create_dist("foo-1.0.0-cp35-cp35m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
+    ranked_specific = assert_cpython_37_environment_can_add(
+        create_dist("foo-1.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
     )
-    ranked_universal = assert_cpython_35_environment_can_add(
+    ranked_universal = assert_cpython_37_environment_can_add(
         create_dist("foo-2.0.0-py2.py3-none-any.whl", "2.0.0")
     )
     assert ranked_specific > ranked_universal
 
-    ranked_almost_py3universal = assert_cpython_35_environment_can_add(
+    ranked_almost_py3universal = assert_cpython_37_environment_can_add(
         create_dist("foo-2.0.0-py3-none-any.whl", "2.0.0")
     )
     assert ranked_universal.rank == ranked_almost_py3universal.rank, (
@@ -517,23 +520,23 @@ def test_can_add_ranking_platform_tag_more_specific(assert_cpython_35_environmen
     )
 
 
-def test_can_add_ranking_version_newer_tie_break(assert_cpython_35_environment_can_add):
+def test_can_add_ranking_version_newer_tie_break(assert_cpython_37_environment_can_add):
     # type: (Callable[[Distribution], _RankedDistribution]) -> None
-    ranked_v1 = assert_cpython_35_environment_can_add(
-        create_dist("foo-1.0.0-cp35-cp35m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
+    ranked_v1 = assert_cpython_37_environment_can_add(
+        create_dist("foo-1.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
     )
-    ranked_v2 = assert_cpython_35_environment_can_add(
-        create_dist("foo-2.0.0-cp35-cp35m-macosx_10_9_x86_64.linux_x86_64.whl", "2.0.0")
+    ranked_v2 = assert_cpython_37_environment_can_add(
+        create_dist("foo-2.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "2.0.0")
     )
     assert ranked_v2 > ranked_v1
 
 
-def test_ranking_platform_tag_maximum(cpython_35_environment):
+def test_ranking_platform_tag_maximum(cpython_37_environment):
     # type: (PEXEnvironment) -> None
-    dist = create_dist("foo-1.0.0-cp35-cp35m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
+    dist = create_dist("foo-1.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
 
-    minimum_tag_rank = min(cpython_35_environment._supported_tags_to_rank.values())
-    maximum_tag_rank = max(cpython_35_environment._supported_tags_to_rank.values())
+    minimum_tag_rank = min(cpython_37_environment._supported_tags_to_rank.values())
+    maximum_tag_rank = max(cpython_37_environment._supported_tags_to_rank.values())
     assert maximum_tag_rank > minimum_tag_rank
 
     maximum_rank = _RankedDistribution.maximum(dist)

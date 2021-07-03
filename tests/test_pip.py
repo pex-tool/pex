@@ -15,7 +15,7 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pip import PackageIndexConfiguration, Pip, ResolverVersion
 from pex.platforms import Platform
-from pex.testing import PY27, PY36, ensure_python_interpreter
+from pex.testing import PY38, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -131,14 +131,14 @@ def test_download_platform_markers_issue_1366(
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
-    python36_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY36))
-    pip = create_pip(python36_interpreter)
+    python38_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
+    pip = create_pip(python38_interpreter)
 
     python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
     download_dir = os.path.join(str(tmpdir), "downloads")
     pip.spawn_download_distributions(
         target=DistributionTarget.for_platform(python27_platform),
-        requirements=["typing_extensions==3.7.4.2; python_version < '3.6'"],
+        requirements=["typing_extensions==3.7.4.2; python_version < '3.8'"],
         download_dir=download_dir,
         transitive=False,
     ).wait()
@@ -151,8 +151,8 @@ def test_download_platform_markers_issue_1366_indeterminate(
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
-    python36_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY36))
-    pip = create_pip(python36_interpreter)
+    python38_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
+    pip = create_pip(python38_interpreter)
 
     python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
     download_dir = os.path.join(str(tmpdir), "downloads")
@@ -160,7 +160,7 @@ def test_download_platform_markers_issue_1366_indeterminate(
     with pytest.raises(Job.Error) as exc_info:
         pip.spawn_download_distributions(
             target=DistributionTarget.for_platform(python27_platform),
-            requirements=["typing_extensions==3.7.4.2; python_full_version < '3.6'"],
+            requirements=["typing_extensions==3.7.4.2; python_full_version < '3.8'"],
             download_dir=download_dir,
             transitive=False,
         ).wait()

@@ -78,7 +78,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root
+          key: ${{ runner.os }}-pyenv-root-v2
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -103,7 +103,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root
+          key: ${{ runner.os }}-pyenv-root-v2
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -129,7 +129,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root
+          key: ${{ runner.os }}-pyenv-root-v2
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -158,7 +158,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root
+          key: ${{ runner.os }}-pyenv-root-v2
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
