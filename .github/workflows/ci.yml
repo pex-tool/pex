@@ -3,8 +3,16 @@ on: [push, pull_request]
 env:
   _PEX_TEST_PYENV_ROOT: .pyenv_test
 jobs:
+  org-check:
+    name: Check GitHub Organization
+    if: ${{ github.repository_owner == 'pantsbuild' }}
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Noop
+        run: "true"
   checks:
     name:  TOXENV=${{ matrix.tox-env }}
+    needs: org-check
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -42,6 +50,7 @@ jobs:
           tox-env: ${{ matrix.tox-env }}
   cpython-unit-tests:
     name: (${{ matrix.os }}) TOXENV=py${{ join(matrix.python-version, '') }}
+    needs: org-check
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -76,6 +85,7 @@ jobs:
           tox-env: py${{ join(matrix.python-version, '') }}
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ matrix.pypy-version[0] }}
+    needs: org-check
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -100,6 +110,7 @@ jobs:
           tox-env: pypy${{ matrix.pypy-version[0] }}
   cpython-integration-tests:
     name: (${{ matrix.os }}) TOXENV=py${{ join(matrix.python-version, '') }}-integration
+    needs: org-check
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -125,6 +136,7 @@ jobs:
           tox-env: py${{ join(matrix.python-version, '') }}-integration
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ matrix.pypy-version[0] }}-integration
+    needs: org-check
     runs-on: ubuntu-20.04
     strategy:
       matrix:
