@@ -30,8 +30,8 @@ from pex.testing import (
     IS_LINUX,
     IS_PYPY,
     PY27,
-    PY35,
-    PY36,
+    PY37,
+    PY38,
     PY_VER,
     built_wheel,
     ensure_python_interpreter,
@@ -262,7 +262,7 @@ def test_resolve_current_platform(p537_resolve_cache):
         resolve_p537_wheel_names, cache=p537_resolve_cache, platforms=["current"]
     )
 
-    other_python_version = PY36 if PY_VER == (3, 5) else PY35
+    other_python_version = PY38 if PY_VER == (3, 5) else PY37
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -292,7 +292,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
 
     assert 2 == len(resolve_current_and_foreign())
 
-    other_python_version = PY36 if PY_VER == (3, 5) else PY35
+    other_python_version = PY38 if PY_VER == (3, 5) else PY37
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -347,7 +347,7 @@ def test_resolve_foreign_abi3():
 
 def test_issues_851():
     # type: () -> None
-    # Previously, the PY36 resolve would fail post-resolution checks for configparser, pathlib2 and
+    # Previously, the PY37 resolve would fail post-resolution checks for configparser, pathlib2 and
     # contextlib2 which are only required for python_version<3.
 
     def resolve_pytest(python_version, pytest_version):
@@ -359,7 +359,7 @@ def test_issues_851():
         assert project_to_version["pytest"] == pytest_version
         return project_to_version
 
-    resolved_project_to_version = resolve_pytest(python_version=PY36, pytest_version="5.3.4")
+    resolved_project_to_version = resolve_pytest(python_version=PY37, pytest_version="5.3.4")
     assert "importlib-metadata" in resolved_project_to_version
     assert "configparser" not in resolved_project_to_version
     assert "pathlib2" not in resolved_project_to_version
@@ -383,7 +383,7 @@ def test_issues_892():
         import sys
 
 
-        # This puts python3.6 stdlib on PYTHONPATH.
+        # This puts python3.8 stdlib on PYTHONPATH.
         os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
 
 
@@ -399,8 +399,8 @@ def test_issues_892():
         )
     )
 
-    python36 = ensure_python_interpreter(PY36)
-    cmd, process = PythonInterpreter.from_binary(python36).open_process(
+    python38 = ensure_python_interpreter(PY38)
+    cmd, process = PythonInterpreter.from_binary(python38).open_process(
         args=["-c", program], stderr=subprocess.PIPE
     )
     _, stderr = process.communicate()
@@ -598,9 +598,9 @@ def py27():
 
 
 @pytest.fixture(scope="module")
-def py36():
+def py38():
     # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY36))
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
 
 
 @pytest.fixture(scope="module")
@@ -631,7 +631,7 @@ def foreign_platform(
 
 
 @pytest.fixture(scope="module")
-def pex_repository(py27, py36, foreign_platform, manylinux):
+def pex_repository(py27, py38, foreign_platform, manylinux):
     # type () -> str
 
     # N.B.: requests 2.25.1 constrains urllib3 to <1.27,>=1.21.1 and pick 1.26.2 on its own as of
@@ -639,7 +639,7 @@ def pex_repository(py27, py36, foreign_platform, manylinux):
     constraints_file = create_constraints_file("urllib3==1.26.1")
 
     return create_pex_repository(
-        interpreters=[py27, py36],
+        interpreters=[py27, py38],
         platforms=[foreign_platform],
         requirements=["requests[security,socks]==2.25.1"],
         constraint_files=[constraints_file],
@@ -650,7 +650,7 @@ def pex_repository(py27, py36, foreign_platform, manylinux):
 def test_resolve_from_pex(
     pex_repository,  # type: str
     py27,  # type: PythonInterpreter
-    py36,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
     manylinux,  # type: Optional[str]
 ):
@@ -662,7 +662,7 @@ def test_resolve_from_pex(
     resolved_distributions = resolve_from_pex(
         pex=pex_repository,
         requirements=direct_requirements,
-        interpreters=[py27, py36],
+        interpreters=[py27, py38],
         platforms=[foreign_platform],
         manylinux=manylinux,
     )
@@ -720,7 +720,7 @@ def test_resolve_from_pex_subset(
 
 def test_resolve_from_pex_not_found(
     pex_repository,  # type: str
-    py36,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -728,7 +728,7 @@ def test_resolve_from_pex_not_found(
         resolve_from_pex(
             pex=pex_repository,
             requirements=["pex"],
-            interpreters=[py36],
+            interpreters=[py38],
         )
     assert "A distribution for pex could not be resolved in this environment." in str(
         exec_info.value
@@ -738,13 +738,13 @@ def test_resolve_from_pex_not_found(
         resolve_from_pex(
             pex=pex_repository,
             requirements=["requests==1.0.0"],
-            interpreters=[py36],
+            interpreters=[py38],
         )
     message = str(exec_info.value)
     assert (
         "Failed to resolve requirements from PEX environment @ {}".format(pex_repository) in message
     )
-    assert "Needed {} compatible dependencies for:".format(py36.platform) in message
+    assert "Needed {} compatible dependencies for:".format(py38.platform) in message
     assert "1: requests==1.0.0" in message
     assert "But this pex only contains:" in message
     assert "requests-2.25.1-py2.py3-none-any.whl" in message
@@ -753,7 +753,7 @@ def test_resolve_from_pex_not_found(
 def test_resolve_from_pex_intransitive(
     pex_repository,  # type: str
     py27,  # type: PythonInterpreter
-    py36,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
     manylinux,  # type: Optional[str]
 ):
@@ -763,7 +763,7 @@ def test_resolve_from_pex_intransitive(
         pex=pex_repository,
         requirements=["requests"],
         transitive=False,
-        interpreters=[py27, py36],
+        interpreters=[py27, py38],
         platforms=[foreign_platform],
         manylinux=manylinux,
     )

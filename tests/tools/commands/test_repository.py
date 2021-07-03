@@ -12,7 +12,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, temporary_dir
-from pex.testing import PY36, ensure_python_venv, run_pex_command
+from pex.testing import PY38, ensure_python_venv, run_pex_command
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.typing import TYPE_CHECKING
@@ -166,7 +166,7 @@ def test_extract(pex, pex_tools_env, tmpdir):
     )
     result.assert_success()
 
-    _, pip = ensure_python_venv(PY36)
+    _, pip = ensure_python_venv(PY38)
     subprocess.check_call(
         args=[pip, "install", "--no-index", "--find-links", find_links_url, "example"]
     )
