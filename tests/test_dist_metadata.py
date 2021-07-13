@@ -15,11 +15,11 @@ from pex.common import open_zip, temporary_dir
 from pex.dist_metadata import (
     MetadataError,
     ProjectNameAndVersion,
+    find_dist_info_file,
     project_name_and_version,
     requires_dists,
     requires_python,
 )
-from pex.orderedset import OrderedSet
 from pex.pex_warnings import PEXWarning
 from pex.pip import get_pip
 from pex.third_party.packaging.specifiers import SpecifierSet
@@ -275,3 +275,63 @@ def test_requires_dists_none(pygoogleearth_zip_sdist):
             ).format(sdist=sdist)
             == str(warning.message)
         )
+
+
+def test_wheel_metadata_project_name_fuzzy_issues_1375():
+    # type: () -> None
+    with example_distribution("PyAthena-1.9.0-py2.py3-none-any.whl") as (wheel_path, dist):
+        expected = ProjectNameAndVersion("PyAthena", "1.9.0")
+        assert expected == project_name_and_version(wheel_path)
+        assert expected == project_name_and_version(dist)
+
+    with example_distribution("PyAthena-1.11.5-py2.py3-none-any.whl") as (wheel_path, dist):
+        expected = ProjectNameAndVersion("pyathena", "1.11.5")
+        assert expected == project_name_and_version(wheel_path)
+        assert expected == project_name_and_version(dist)
+
+
+def test_find_dist_info_file():
+    # type: () -> None
+    assert (
+        find_dist_info_file(
+            project_name="foo",
+            version="1.0",
+            filename="bar",
+            listing=[],
+        )
+        is None
+    )
+
+    assert (
+        find_dist_info_file(
+            project_name="foo",
+            version="1.0",
+            filename="bar",
+            listing=[
+                "foo-1.0.dist-info/baz",
+            ],
+        )
+        is None
+    )
+
+    assert "Foo-1.0.dist-info/bar" == find_dist_info_file(
+        project_name="foo",
+        version="1.0",
+        filename="bar",
+        listing=[
+            "foo-100.dist-info/bar",
+            "Foo-1.0.dist-info/bar",
+            "foo-1.0.dist-info/bar",
+        ],
+    )
+
+    assert "stress__-.-__Test-1.0rc0.dist-info/direct_url.json" == find_dist_info_file(
+        project_name="Stress-.__Test",
+        version="1.0rc0",
+        filename="direct_url.json",
+        listing=[
+            "direct_url.json",
+            "foo-1.0rc0.dist-info/direct_url.json",
+            "stress__-.-__Test-1.0rc0.dist-info/direct_url.json",
+        ],
+    )

@@ -5,6 +5,7 @@
 from __future__ import absolute_import
 
 import os
+import re
 import tarfile
 import zipfile
 from contextlib import closing
@@ -22,7 +23,7 @@ from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import Dict, Iterator, Optional, Union, List
+    from typing import Dict, Iterable, Iterator, List, Optional, Union
 
     DistributionLike = Union[Distribution, str]
 else:
@@ -97,14 +98,60 @@ def _parse_sdist_package_info(sdist_path):
     return None
 
 
+def find_dist_info_file(
+    project_name,  # type: str
+    version,  # type: str
+    filename,  # type: str
+    listing,  # type: Iterable[str]
+):
+    # type: (...) -> Optional[str]
+
+    # The relevant PEP for project names appears to be the wheel 2.1 spec in PEP-566:
+    #   https://www.python.org/dev/peps/pep-0566/#name
+    #
+    # That defers to PEP-508:
+    #   https://www.python.org/dev/peps/pep-0508/#names
+    #
+    # In practice though it appears the PyPA ecosystem at least does a variant of the name
+    # normalization defined for the simple repository API in PEP-503:
+    #   https://www.python.org/dev/peps/pep-0503/#normalized-names
+    #
+    # For example, with the following setup.py:
+    # ---
+    # from setuptools import setup
+    #
+    # setup(name="Stress-.__Test", version="1.0")
+    #
+    # Using `pip wheel` generates a wheel with a `.dist-info/` dir of `Stress_._Test-1.0.dist-info`.
+    # So `-` -> `_` and runs of `_` go to a single `_`. To be flexible, we accept any run of any
+    # combo of `-`, `_`, and `.` as name component separators.
+    project_name_pattern = re.sub(r"[-_.]+", "[-_.]+", project_name)
+
+    wheel_metadata_pattern = "^{}$".format(
+        os.path.join("{}-{}.dist-info".format(project_name_pattern, re.escape(version)), filename)
+    )
+    wheel_metadata_re = re.compile(wheel_metadata_pattern, re.IGNORECASE)
+    for item in listing:
+        if wheel_metadata_re.match(item):
+            return item
+    return None
+
+
 def _parse_wheel_package_info(wheel_path):
     # type: (str) -> Optional[Message]
     if not wheel_path.endswith(".whl") or not zipfile.is_zipfile(wheel_path):
         return None
     project_name, version, _ = os.path.basename(wheel_path).split("-", 2)
-    dist_info_dir = "{}-{}.dist-info".format(project_name, version)
     with open_zip(wheel_path) as whl:
-        with whl.open(os.path.join(dist_info_dir, DistInfoDistribution.PKG_INFO)) as fp:
+        metadata_file = find_dist_info_file(
+            project_name=project_name,
+            version=version,
+            filename=DistInfoDistribution.PKG_INFO,
+            listing=whl.namelist(),
+        )
+        if not metadata_file:
+            return None
+        with whl.open(metadata_file) as fp:
             return _parse_message(fp.read())
 
 
