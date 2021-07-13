@@ -2,7 +2,7 @@
 # Copyright 2019 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import fileinput
 import functools
@@ -29,7 +29,6 @@ from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
 from pex.platforms import Platform
 from pex.third_party import isolated
-from pex.third_party.pkg_resources import safe_name, safe_version
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
@@ -712,12 +711,6 @@ class Pip(object):
         project_name_and_version = dist_metadata.project_name_and_version(
             dist
         ) or ProjectNameAndVersion.from_filename(dist)
-        project_name = safe_name(project_name_and_version.project_name).replace("-", "_")
-        version = safe_version(project_name_and_version.version).replace("-", "_")
-        dist_info_dir = os.path.join(
-            install_dir,
-            "{project_name}-{version}.dist-info".format(project_name=project_name, version=version),
-        )
 
         # The `direct_url.json` file is both mandatory for Pip to install and non-hermetic for
         # Pex's purpose, since it contains the absolute local filesystem path to any local wheel
@@ -730,8 +723,21 @@ class Pip(object):
         # See:
         #   https://www.python.org/dev/peps/pep-0610/
         #   https://packaging.python.org/specifications/direct-url/#specification
-        direct_url_relpath = os.path.join(os.path.basename(dist_info_dir), "direct_url.json")
-        direct_url_abspath = os.path.join(os.path.dirname(dist_info_dir), direct_url_relpath)
+        listing = [
+            os.path.relpath(os.path.join(root, f), install_dir)
+            for root, _, files in os.walk(install_dir)
+            for f in files
+        ]
+        direct_url_relpath = dist_metadata.find_dist_info_file(
+            project_name=project_name_and_version.project_name,
+            version=project_name_and_version.version,
+            filename="direct_url.json",
+            listing=listing,
+        )
+        if not direct_url_relpath:
+            return
+
+        direct_url_abspath = os.path.join(install_dir, direct_url_relpath)
         if not os.path.exists(direct_url_abspath):
             return
 
@@ -743,6 +749,7 @@ class Pip(object):
 
         # The RECORD is a csv file with the path to each installed file in the 1st column.
         # See: https://www.python.org/dev/peps/pep-0376/#record
+        dist_info_dir = os.path.dirname(direct_url_abspath)
         with closing(
             fileinput.input(files=[os.path.join(dist_info_dir, "RECORD")], inplace=True)
         ) as record_fi:
