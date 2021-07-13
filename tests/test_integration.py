@@ -2984,8 +2984,16 @@ def test_pip_issues_9420_workaround():
 
 def test_requirement_file_from_url(tmpdir):
     # type: (Any) -> None
+
+    constraints = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints, "w") as fp:
+        fp.write("translate>=3.2.1,<3.6.0")
+
     pex_file = os.path.join(str(tmpdir), "pex")
-    results = run_pex_command(args=["-r", EXAMPLE_PYTHON_REQUIREMENTS_URL, "-o", pex_file])
+
+    results = run_pex_command(
+        args=["-r", EXAMPLE_PYTHON_REQUIREMENTS_URL, "--constraints", constraints, "-o", pex_file]
+    )
     results.assert_success()
     output, returncode = run_simple_pex(
         pex_file, args=["-c", "import colors, google.protobuf, setuptools, translate"]
