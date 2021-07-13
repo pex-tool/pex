@@ -2770,7 +2770,8 @@ def test_venv_mode_issues_1218(tmpdir):
 
     invoke_pex = os.path.join(str(tmpdir), "invoke.pex")
     results = run_pex_command(
-        args=["fabric==2.6.0", "--venv", "-e", "invoke", "-o", invoke_pex], quiet=True
+        args=["fabric==2.6.0", "invoke==1.5.0", "--venv", "-e", "invoke", "-o", invoke_pex],
+        quiet=True,
     )
     results.assert_success()
     invoke_versions = get_fabric_versions(invoke_pex)
@@ -2983,8 +2984,16 @@ def test_pip_issues_9420_workaround():
 
 def test_requirement_file_from_url(tmpdir):
     # type: (Any) -> None
+
+    constraints = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints, "w") as fp:
+        fp.write("translate>=3.2.1,<3.6.0")
+
     pex_file = os.path.join(str(tmpdir), "pex")
-    results = run_pex_command(args=["-r", EXAMPLE_PYTHON_REQUIREMENTS_URL, "-o", pex_file])
+
+    results = run_pex_command(
+        args=["-r", EXAMPLE_PYTHON_REQUIREMENTS_URL, "--constraints", constraints, "-o", pex_file]
+    )
     results.assert_success()
     output, returncode = run_simple_pex(
         pex_file, args=["-c", "import colors, google.protobuf, setuptools, translate"]
