@@ -2771,7 +2771,7 @@ def test_venv_mode_issues_1218(tmpdir):
     invoke_pex = os.path.join(str(tmpdir), "invoke.pex")
     results = run_pex_command(
         args=["fabric==2.6.0", "invoke==1.5.0", "--venv", "-e", "invoke", "-o", invoke_pex],
-        quiet=True
+        quiet=True,
     )
     results.assert_success()
     invoke_versions = get_fabric_versions(invoke_pex)
