@@ -1,6 +1,39 @@
 Release Notes
 =============
 
+2.1.43
+------
+
+* Fix dist-info metadata discovery. (#1376)
+  `PR #1376 <https://github.com/pantsbuild/pex/pull/1376>`_
+
+* Fix ``--platform`` resolve handling of env markers. (#1367)
+  `PR #1367 <https://github.com/pantsbuild/pex/pull/1367>`_
+
+* Fix ``--no-manylinux``. (#1365)
+  `PR #1365 <https://github.com/pantsbuild/pex/pull/1365>`_
+
+* Allow ``--platform`` resolves for current interpreter. (#1364)
+  `PR #1364 <https://github.com/pantsbuild/pex/pull/1364>`_
+
+* Do not suppress pex output in bidst_pex (#1358)
+  `PR #1358 <https://github.com/pantsbuild/pex/pull/1358>`_
+
+* Warn for PEX env vars unsupported by venv. (#1354)
+  `PR #1354 <https://github.com/pantsbuild/pex/pull/1354>`_
+
+* Fix execution modes. (#1353)
+  `PR #1353 <https://github.com/pantsbuild/pex/pull/1353>`_
+
+* Fix Pex emitting warnings about its Pip PEX venv. (#1351)
+  `PR #1351 <https://github.com/pantsbuild/pex/pull/1351>`_
+
+* Support more verbose output for interpreter info. (#1347)
+  `PR #1347 <https://github.com/pantsbuild/pex/pull/1347>`_
+
+* Fix typo in recipes.rst (#1342)
+  `PR #1342 <https://github.com/pantsbuild/pex/pull/1342>`_
+
 2.1.42
 ------
 
