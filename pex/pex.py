@@ -617,10 +617,47 @@ class PEX(object):  # noqa: T000
         dist_script = get_script_from_distributions(script_name, dists)
         if not dist_script:
             return "Could not find script {!r} in pex!".format(script_name)
-        TRACER.log("Found script {!r} in {!r}.".format(script_name, dist))
-        return self.execute_content(
-            dist_script.path, dist_script.read_contents(), argv0=script_name
-        )
+        TRACER.log("Found script {!r} in {!r}.".format(script_name, dist_script.dist))
+
+        contents = dist_script.read_contents()
+        shebang = contents.split("\n", 1)[0]
+        try:
+            interpreter = PythonInterpreter.from_shebang(shebang)
+            if interpreter and interpreter.version_string != self.interpreter.version_string:
+                TRACER.log(
+                    "Python script shebang resolved to {shebang_python}, but we will execute it with {pex_python}".format(
+                        shebang_python=interpreter.version_string,
+                        pex_python=self.interpreter.version_string,
+                    ),
+                    V=2,
+                )
+        except PythonInterpreter.InterpreterNotFound as e:
+            TRACER.log(
+                "Python script shebang indicated unknown interpreter: {shebang!r}: {e}, will execute it with {version}.".format(
+                    shebang=shebang, e=e, version=self.interpreter.version_string
+                ),
+                V=2,
+            )
+            interpreter = self.interpreter
+
+        if interpreter:
+            TRACER.log(
+                "Executing python script with {}".format(self.interpreter.version_string), V=2
+            )
+            return self.execute_content(dist_script.path, contents, argv0=script_name)
+        else:
+            TRACER.log("Executing non-python script using shebang: {}".format(shebang), V=2)
+            return self.execute_external(dist_script.path)
+
+    def execute_external(self, cmd):
+        # type: (str) -> Any
+        try:
+            # execute as a shell command, inheriting stdout and stderr
+            proc = Executor.open_process([cmd] + sys.argv[:1], shell=True)
+            proc.communicate()
+            return proc.returncode
+        except Executor.ExecutionError as e:
+            return "Could not invoke script: {}".format(e)
 
     @classmethod
     def execute_content(
@@ -633,10 +670,8 @@ class PEX(object):  # noqa: T000
         argv0 = argv0 or name
         try:
             ast = compile(content, name, "exec", flags=0, dont_inherit=1)
-        except SyntaxError:
-            return "Unable to parse {}. PEX script support only supports Python scripts.".format(
-                name
-            )
+        except SyntaxError as e:
+            return "Unable to parse {}: {}".format(name, e)
 
         cls.demote_bootstrap()
 

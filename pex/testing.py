@@ -137,8 +137,8 @@ def make_project(
             )
             """
         ),
-        "scripts/hello_world": '#!/usr/bin/env python\nprint("hello world!")\n',
-        "scripts/shell_script": "#!/usr/bin/env bash\necho hello world\n",
+        "scripts/hello_world": '#!/usr/bin/env python\nprint("hello world from py script!")\n',
+        "scripts/shell_script": "#!/usr/bin/env bash\necho hello world from shell script\n",
         os.path.join(name, "__init__.py"): 0,
         os.path.join(name, "my_module.py"): 'def do_something():\n  print("hello world!")\n',
         os.path.join(name, "package_data/resource1.dat"): 1000,

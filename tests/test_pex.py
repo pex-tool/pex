@@ -269,8 +269,8 @@ def test_pex_script(project_name, zip_safe):
 
         env_copy["PEX_SCRIPT"] = "shell_script"
         so, rc = run_simple_pex_test("", env=env_copy, dists=[bdist_path])
-        assert rc == 1, so.decode("utf-8")
-        assert b"Unable to parse" in so
+        assert rc == 0, so.decode("utf-8")
+        assert b"hello world from shell script" in so
 
 
 def test_pex_run():
