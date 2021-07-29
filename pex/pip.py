@@ -410,6 +410,7 @@ class Pip(object):
         cache=None,  # type: Optional[str]
         interpreter=None,  # type: Optional[PythonInterpreter]
         pip_verbosity=0,  # type: int
+        extra_env=None,  # type: Optional[Dict[str, str]]
         **popen_kwargs  # type: Any
     ):
         # type: (...) -> Tuple[List[str], subprocess.Popen]
@@ -459,16 +460,15 @@ class Pip(object):
         if package_index_configuration:
             command.extend(package_index_configuration.args)
 
-        extra_env = popen_kwargs.pop("env", None)
-        env = dict(extra_env) if extra_env else {}
+        extra_env = extra_env or {}
         if package_index_configuration:
-            env.update(package_index_configuration.env)
+            extra_env.update(package_index_configuration.env)
 
         with ENV.strip().patch(
             PEX_ROOT=cache or ENV.PEX_ROOT,
             PEX_VERBOSE=str(ENV.PEX_VERBOSE),
             __PEX_UNVENDORED__="1",
-            **env
+            **extra_env
         ) as env:
             # Guard against API calls from environment with ambient PYTHONPATH preventing pip PEX
             # bootstrapping. See: https://github.com/pantsbuild/pex/issues/892
@@ -498,6 +498,7 @@ class Pip(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
         pip_verbosity=0,  # type: int
         finalizer=None,  # type: Optional[Callable[[], None]]
+        extra_env=None,  # type: Optional[Dict[str, str]]
         **popen_kwargs  # type: Any
     ):
         # type: (...) -> Job
@@ -507,6 +508,7 @@ class Pip(object):
             cache=cache,
             interpreter=interpreter,
             pip_verbosity=pip_verbosity,
+            extra_env=extra_env,
             **popen_kwargs
         )
         return Job(command=command, process=process, finalizer=finalizer)
@@ -620,7 +622,7 @@ class Pip(object):
         if requirements:
             download_cmd.extend(requirements)
 
-        env = None
+        extra_env = None
         log_analyzers = []  # type: List[_LogAnalyzer]
 
         # Pip evaluates environment markers in the context of the ambient interpreter instead of
@@ -639,8 +641,7 @@ class Pip(object):
                 os.path.join(env_markers_dir, "env_markers.{}.json".format(platform)), "w"
             ) as fp:
                 json.dump(patched_environment, fp)
-            env = os.environ.copy()
-            env[self._PATCHED_MARKERS_FILE_ENV_VAR_NAME] = fp.name
+            extra_env = {self._PATCHED_MARKERS_FILE_ENV_VAR_NAME: fp.name}
             log_analyzers.append(_Issue10050Analyzer(platform=platform))
             TRACER.log(
                 "Patching environment markers for {} with {}".format(target, patched_environment),
@@ -668,7 +669,7 @@ class Pip(object):
             package_index_configuration=package_index_configuration,
             cache=cache,
             interpreter=target.get_interpreter(),
-            env=env,
+            extra_env=extra_env,
         )
         if log:
             return _LogScrapeJob(command, process, log, log_analyzers)
