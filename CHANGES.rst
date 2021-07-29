@@ -1,6 +1,18 @@
 Release Notes
 =============
 
+2.1.44
+------
+
+This is a hotfix release that fixes env var collisions (introduced in
+the Pex 2.1.43 release by
+`PR #1367 <https://github.com/pantsbuild/pex/pull/1367>`_) that could
+occur when invoking Pex with environment variables like ``PEX_ROOT``
+defined.
+
+* Fix Pip handling of internal env vars. #1388
+  `PR #1388 <https://github.com/pantsbuild/pex/pull/1388>`_
+
 2.1.43
 ------
 
