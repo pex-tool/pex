@@ -15,7 +15,7 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pip import PackageIndexConfiguration, Pip, ResolverVersion
 from pex.platforms import Platform
-from pex.testing import PY38, ensure_python_interpreter
+from pex.testing import PY38, ensure_python_interpreter, environment_as
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -32,8 +32,17 @@ def current_interpreter():
 
 
 @pytest.fixture
-def create_pip(tmpdir):
-    # type: (Any) -> Iterator[CreatePip]
+def pex_root(tmpdir):
+    # type: (Any) -> str
+    return os.path.join(str(tmpdir), "pex_root")
+
+
+@pytest.fixture
+def create_pip(
+    pex_root,  # type: str
+    tmpdir,  # type: Any
+):
+    # type: (...) -> Iterator[CreatePip]
     pex_root = os.path.join(str(tmpdir), "pex_root")
     pip_root = os.path.join(str(tmpdir), "pip_root")
 
@@ -126,7 +135,7 @@ def test_download_platform_issues_1355(
     assert [os.path.basename(ansicolors_wheel)] == os.listdir(download_dir)
 
 
-def test_download_platform_markers_issue_1366(
+def assert_download_platform_markers_issue_1366(
     create_pip,  # type: CreatePip
     tmpdir,  # type: Any
 ):
@@ -144,6 +153,30 @@ def test_download_platform_markers_issue_1366(
     ).wait()
 
     assert ["typing_extensions-3.7.4.2-py2-none-any.whl"] == os.listdir(download_dir)
+
+
+def test_download_platform_markers_issue_1366(
+    create_pip,  # type: CreatePip
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+    assert_download_platform_markers_issue_1366(create_pip, tmpdir)
+
+
+def test_download_platform_markers_issue_1366_issue_1387(
+    create_pip,  # type: CreatePip
+    pex_root,  # type: str
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+
+    # As noted in https://github.com/pantsbuild/pex/issues/1387, previously, internal env vars were
+    # passed by 1st cloning the ambient environment and then adding internal env vars for
+    # subprocesses to see. This could lead to duplicate keyword argument errors when env vars we
+    # patch - like PEX_ROOT - are also present in the ambient environment. This test verifies we
+    # are not tripped up by such ambient environment variables.
+    with environment_as(PEX_ROOT=pex_root):
+        assert_download_platform_markers_issue_1366(create_pip, tmpdir)
 
 
 def test_download_platform_markers_issue_1366_indeterminate(
