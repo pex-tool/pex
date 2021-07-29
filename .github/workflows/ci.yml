@@ -73,7 +73,7 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@627a8ce25d972afa03da1641be9261bbbe0e3ffe
+        uses: pantsbuild/actions/expose-pythons@8c9762e2c1f60aa7411c3b64ff213d2363a1e803
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -98,7 +98,7 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@627a8ce25d972afa03da1641be9261bbbe0e3ffe
+        uses: pantsbuild/actions/expose-pythons@8c9762e2c1f60aa7411c3b64ff213d2363a1e803
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -124,7 +124,7 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@627a8ce25d972afa03da1641be9261bbbe0e3ffe
+        uses: pantsbuild/actions/expose-pythons@8c9762e2c1f60aa7411c3b64ff213d2363a1e803
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -149,7 +149,7 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@627a8ce25d972afa03da1641be9261bbbe0e3ffe
+        uses: pantsbuild/actions/expose-pythons@8c9762e2c1f60aa7411c3b64ff213d2363a1e803
       - name: Install Packages
         run: |
           # This is needed for `test_requirement_file_from_url` for building `lxml`.
