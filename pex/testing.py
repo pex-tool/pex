@@ -464,18 +464,7 @@ def ensure_python_distribution(version):
                     "https://github.com/pyenv/pyenv.git",
                 ]
             )
-            env = pyenv_env.copy()
-            if sys.platform.lower().startswith("linux"):
-                env["CONFIGURE_OPTS"] = "--enable-shared"
-                # The pyenv builder detects `--enable-shared` and sets up `RPATH` via
-                # `LDFLAGS=-Wl,-rpath=... $LDFLAGS` to ensure the built python binary links the
-                # correct libpython shared lib. Some versions of compiler set the `RUNPATH` instead
-                # though which is searched _after_ the `LD_LIBRARY_PATH` environment variable. To
-                # ensure an inopportune `LD_LIBRARY_PATH` doesn't fool the pyenv python binary into
-                # linking the wrong libpython, force `RPATH`, which is searched 1st by the linker,
-                # with with `--disable-new-dtags`.
-                env["LDFLAGS"] = "-Wl,--disable-new-dtags"
-            subprocess.check_call([pyenv, "install", "--keep", version], env=env)
+            subprocess.check_call([pyenv, "install", "--keep", version], env=pyenv_env)
             subprocess.check_call([pip, "install", "-U", "pip"])
 
     python = os.path.join(interpreter_location, "bin", "python" + version[0:3])
