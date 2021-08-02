@@ -49,7 +49,7 @@ def bdist_pex_pythonpath():
 
 @contextmanager
 def bdist_pex(project_dir, bdist_args=None):
-    # type: (str, Optional[Iterable[str]]) -> Iterator[str]
+    # type: (str, Optional[Iterable[str]]) -> Iterator[List[str]]
     with temporary_dir() as dist_dir:
         cmd = [
             "setup.py",
@@ -62,44 +62,98 @@ def bdist_pex(project_dir, bdist_args=None):
             cmd.extend(bdist_args)
 
         spawn_python_job(args=cmd, cwd=project_dir, pythonpath=bdist_pex_pythonpath()).wait()
-        dists = os.listdir(dist_dir)
-        assert len(dists) == 1
-        yield os.path.join(dist_dir, dists[0])
+        yield [os.path.join(dist_dir, dir_entry) for dir_entry in os.listdir(dist_dir)]
 
 
-def assert_entry_points(entry_points):
-    # type: (Union[str, Dict[str, List[str]]]) -> None
+def assert_entry_points(entry_points, bdist_args=None):
+    # type: (Union[str, Dict[str, List[str]]], Optional[Iterable[str]]) -> Iterator[str]
     with make_project(name="my_app", entry_points=entry_points) as project_dir:
-        with bdist_pex(project_dir) as my_app_pex:
-            process = subprocess.Popen([my_app_pex], stdout=subprocess.PIPE)
-            stdout, _ = process.communicate()
-            assert "{pex_root}" not in os.listdir(project_dir)
-            assert 0 == process.returncode
-            assert stdout == b"hello world!\n"
+        with bdist_pex(project_dir, bdist_args) as apps_pex:
+            for app_pex in apps_pex:
+                process = subprocess.Popen([app_pex], stdout=subprocess.PIPE)
+                stdout, _ = process.communicate()
+                assert "{pex_root}" not in os.listdir(project_dir)
+                assert 0 == process.returncode
+                assert stdout == b"hello world!\n"
+                yield os.path.basename(app_pex)
 
 
 def assert_pex_args_shebang(shebang):
     # type: (str) -> None
     with make_project() as project_dir:
         pex_args = '--pex-args=--python-shebang="{}"'.format(shebang)
-        with bdist_pex(project_dir, bdist_args=[pex_args]) as my_app_pex:
+        with bdist_pex(project_dir, bdist_args=[pex_args]) as (my_app_pex,):
             with open(my_app_pex, "rb") as fp:
                 assert fp.readline().decode().rstrip() == shebang
 
 
 def test_entry_points_dict():
     # type: () -> None
-    assert_entry_points({"console_scripts": ["my_app = my_app.my_module:do_something"]})
+    (_,) = assert_entry_points({"console_scripts": ["my_app = my_app.my_module:do_something"]})
 
 
 def test_entry_points_ini_string():
     # type: () -> None
-    assert_entry_points(
+    (_,) = assert_entry_points(
         dedent(
             """
             [console_scripts]
             my_app=my_app.my_module:do_something
             """
+        )
+    )
+
+
+def test_bdist_all_single_entry_point_dict():
+    # type: () -> None
+    assert {"first_app"} == set(
+        assert_entry_points(
+            {"console_scripts": ["first_app = my_app.my_module:do_something"]}, ["--bdist-all"]
+        )
+    )
+
+
+def test_bdist_all_two_entry_points_dict():
+    # type: () -> None
+    assert {"first_app", "second_app"} == set(
+        assert_entry_points(
+            {
+                "console_scripts": [
+                    "first_app = my_app.my_module:do_something",
+                    "second_app = my_app.my_module:do_something",
+                ]
+            },
+            ["--bdist-all"],
+        )
+    )
+
+
+def test_bdist_all_single_entry_point_ini_string():
+    # type: () -> None
+    (my_app,) = assert_entry_points(
+        dedent(
+            """
+            [console_scripts]
+            my_app=my_app.my_module:do_something
+            """
+        ),
+        ["--bdist-all"],
+    )
+    assert "my_app" == my_app
+
+
+def test_bdist_all_two_entry_points_ini_string():
+    # type: () -> None
+    assert {"first_app", "second_app"} == set(
+        assert_entry_points(
+            dedent(
+                """
+            [console_scripts]
+            first_app=my_app.my_module:do_something
+            second_app=my_app.my_module:do_something
+            """
+            ),
+            ["--bdist-all"],
         )
     )
 
@@ -146,7 +200,7 @@ def test_unwriteable_contents():
             pex_args = "--pex-args=--disable-cache --no-pypi -f {}".format(
                 os.path.dirname(my_app_whl)
             )
-            with bdist_pex(uses_my_app_project_dir, bdist_args=[pex_args]) as uses_my_app_pex:
+            with bdist_pex(uses_my_app_project_dir, bdist_args=[pex_args]) as (uses_my_app_pex,):
                 with open_zip(uses_my_app_pex) as zf:
                     unwriteable_sos = [
                         path for path in zf.namelist() if path.endswith("my_app/unwriteable.so")
