@@ -2,7 +2,7 @@ name: CI
 on: [push, pull_request]
 env:
   _PEX_TEST_PYENV_ROOT: .pyenv_test
-  # We use this to skip exposing same-versioned Pythons present on the host. These otherwise can
+  # We use this to skip exposing same-versioned Pythons present on Linux hosts. These otherwise can
   # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
   # importing builtins like `fcntl` as outlined in https://github.com/pantsbuild/pex/issues/1391.
   _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.8"
@@ -70,6 +70,15 @@ jobs:
           - os: macos-10.15
             python-version: [3, 8]
     steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "::set-output name=skip::${skip}"
+        shell: bash
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
@@ -79,7 +88,7 @@ jobs:
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
         with:
-          skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -97,6 +106,15 @@ jobs:
       matrix:
         pypy-version: [[2, 7], [3, 6]]
     steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "::set-output name=skip::${skip}"
+        shell: bash
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
@@ -106,7 +124,7 @@ jobs:
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
         with:
-          skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -125,6 +143,15 @@ jobs:
         python-version: [[2, 7], [3, 9]]
         os: [ubuntu-20.04, macos-10.15]
     steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "::set-output name=skip::${skip}"
+        shell: bash
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
@@ -134,7 +161,7 @@ jobs:
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
         with:
-          skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
@@ -152,6 +179,15 @@ jobs:
       matrix:
         pypy-version: [[2, 7], [3, 6]]
     steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "::set-output name=skip::${skip}"
+        shell: bash
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
@@ -161,7 +197,7 @@ jobs:
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
         with:
-          skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Install Packages
         run: |
           # This is needed for `test_requirement_file_from_url` for building `lxml`.
