@@ -3383,7 +3383,16 @@ def test_invalid_macosx_platform_tag(tmpdir):
 
     setproctitle_pex = os.path.join(str(tmpdir), "setproctitle.pex")
     run_pex_command(
-        args=ic_args + ["setproctitle", "--pex-repository", repository_pex, "-o", setproctitle_pex]
+        args=ic_args
+        + [
+            "setproctitle",
+            "--python-shebang",
+            "/usr/bin/env python",
+            "--pex-repository",
+            repository_pex,
+            "-o",
+            setproctitle_pex,
+        ]
     ).assert_success()
 
     subprocess.check_call(args=[setproctitle_pex, "-c", "import setproctitle"])
