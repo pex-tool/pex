@@ -24,7 +24,6 @@ from pex.pip import get_pip
 from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper, named_temporary_file
-from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import (
