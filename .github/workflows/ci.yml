@@ -2,7 +2,10 @@ name: CI
 on: [push, pull_request]
 env:
   _PEX_TEST_PYENV_ROOT: .pyenv_test
-  _PEX_TEST_PYENV_VERSIONS: 2.7.18 3.7.11 3.8.11
+  # We use this to skip exposing same-versioned Pythons present on the host. These otherwise can
+  # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
+  # importing builtins like `fcntl` as outlined in https://github.com/pantsbuild/pex/issues/1391.
+  _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.8"
 jobs:
   org-check:
     name: Check GitHub Organization
@@ -74,23 +77,14 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@8c9762e2c1f60aa7411c3b64ff213d2363a1e803
+        uses: pantsbuild/actions/expose-pythons@35107c9b98fabb71bd935751105dbdea285ff906
+        with:
+          skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v2
-      - name: Configure Pyenv Interpreters
-        run: |
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            for version in $(echo ${_PEX_TEST_PYENV_VERSIONS} | tr ' ' '\n'); do
-              pyenv_version_lib_path="${PWD}/${_PEX_TEST_PYENV_ROOT}/versions/${version}/lib"
-              LD_LIBRARY_PATH="${pyenv_version_lib_path}:${LD_LIBRARY_PATH}"
-            done
-            echo "Setting LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-            echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-          fi
-        shell: bash
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -110,23 +104,14 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@8c9762e2c1f60aa7411c3b64ff213d2363a1e803
+        uses: pantsbuild/actions/expose-pythons@35107c9b98fabb71bd935751105dbdea285ff906
+        with:
+          skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v2
-      - name: Configure Pyenv Interpreters
-        run: |
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            for version in $(echo ${_PEX_TEST_PYENV_VERSIONS} | tr ' ' '\n'); do
-              pyenv_version_lib_path="${PWD}/${_PEX_TEST_PYENV_ROOT}/versions/${version}/lib"
-              LD_LIBRARY_PATH="${pyenv_version_lib_path}:${LD_LIBRARY_PATH}"
-            done
-            echo "Setting LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-            echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-          fi
-        shell: bash
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -147,23 +132,14 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@8c9762e2c1f60aa7411c3b64ff213d2363a1e803
+        uses: pantsbuild/actions/expose-pythons@35107c9b98fabb71bd935751105dbdea285ff906
+        with:
+          skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v2
-      - name: Configure Pyenv Interpreters
-        run: |
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            for version in $(echo ${_PEX_TEST_PYENV_VERSIONS} | tr ' ' '\n'); do
-              pyenv_version_lib_path="${PWD}/${_PEX_TEST_PYENV_ROOT}/versions/${version}/lib"
-              LD_LIBRARY_PATH="${pyenv_version_lib_path}:${LD_LIBRARY_PATH}"
-            done
-            echo "Setting LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-            echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-          fi
-        shell: bash
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -183,7 +159,9 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@8c9762e2c1f60aa7411c3b64ff213d2363a1e803
+        uses: pantsbuild/actions/expose-pythons@35107c9b98fabb71bd935751105dbdea285ff906
+        with:
+          skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
       - name: Install Packages
         run: |
           # This is needed for `test_requirement_file_from_url` for building `lxml`.
@@ -193,17 +171,6 @@ jobs:
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v2
-      - name: Configure Pyenv Interpreters
-        run: |
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            for version in $(echo ${_PEX_TEST_PYENV_VERSIONS} | tr ' ' '\n'); do
-              pyenv_version_lib_path="${PWD}/${_PEX_TEST_PYENV_ROOT}/versions/${version}/lib"
-              LD_LIBRARY_PATH="${pyenv_version_lib_path}:${LD_LIBRARY_PATH}"
-            done
-            echo "Setting LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
-            echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-          fi
-        shell: bash
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
