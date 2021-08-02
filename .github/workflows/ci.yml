@@ -77,7 +77,7 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@35107c9b98fabb71bd935751105dbdea285ff906
+        uses: pantsbuild/actions/expose-pythons@a042ed87bfc5066f3f44ec0085de5908802fdc49
         with:
           skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
       - name: Cache Pyenv Interpreters
@@ -104,7 +104,7 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@35107c9b98fabb71bd935751105dbdea285ff906
+        uses: pantsbuild/actions/expose-pythons@a042ed87bfc5066f3f44ec0085de5908802fdc49
         with:
           skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
       - name: Cache Pyenv Interpreters
@@ -132,7 +132,7 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@35107c9b98fabb71bd935751105dbdea285ff906
+        uses: pantsbuild/actions/expose-pythons@a042ed87bfc5066f3f44ec0085de5908802fdc49
         with:
           skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
       - name: Cache Pyenv Interpreters
@@ -159,7 +159,7 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@35107c9b98fabb71bd935751105dbdea285ff906
+        uses: pantsbuild/actions/expose-pythons@a042ed87bfc5066f3f44ec0085de5908802fdc49
         with:
           skip: "${{ env._PEX_TEST_PYENV_VERSIONS }}"
       - name: Install Packages
