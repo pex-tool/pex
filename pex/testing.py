@@ -473,7 +473,6 @@ def ensure_python_distribution(version):
                 # ensure an inopportune `LD_LIBRARY_PATH` doesn't fool the pyenv python binary into
                 # linking the wrong libpython, force `RPATH`, which is searched 1st by the linker,
                 # with with `--disable-new-dtags`.
-                env["CC"] = "clang"
                 env["LDFLAGS"] = "-Wl,--disable-new-dtags"
             subprocess.check_call([pyenv, "install", "--keep", version], env=env)
             subprocess.check_call([pip, "install", "-U", "pip"])
