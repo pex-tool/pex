@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.45
+------
+
+This is a hotfix release that fixes the ``--bdist-all`` handling in the
+``bdist_pex`` distutils command that regressed in 2.1.43 to only create
+a bdist for the first discovered entry point.
+
+* Fix --bdist-all handling multiple console_scripts (#1396)
+  `PR #1396 <https://github.com/pantsbuild/pex/pull/1396>`_
+
 2.1.44
 ------
 
@@ -10,7 +20,7 @@ the Pex 2.1.43 release by
 occur when invoking Pex with environment variables like ``PEX_ROOT``
 defined.
 
-* Fix Pip handling of internal env vars. #1388
+* Fix Pip handling of internal env vars. (#1388)
   `PR #1388 <https://github.com/pantsbuild/pex/pull/1388>`_
 
 2.1.43
