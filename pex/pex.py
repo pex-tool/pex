@@ -626,7 +626,8 @@ class PEX(object):  # noqa: T000
         else:
             return self.execute_external(dist_script.path)
 
-    def execute_external(self, cmd):
+    @staticmethod
+    def execute_external(cmd):
         # type: (str) -> Any
         try:
             proc = Executor.open_process([cmd] + sys.argv[:1])
