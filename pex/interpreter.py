@@ -777,23 +777,6 @@ class PythonInterpreter(object):
             return interpreter
 
     @classmethod
-    def from_shebang(cls, shebang):
-        # type: (str) -> Optional[PythonInterpreter]
-        if not (shebang and shebang.startswith("#!")):
-            return None
-
-        binary, _, args = shebang.partition(" ")
-        if binary == "/usr/bin/env":
-            if not args:
-                return None
-            return cast(PythonInterpreter, cls.from_env(args))
-
-        if cls._matches_binary_name(binary):
-            return cls.from_binary(binary)
-
-        return None
-
-    @classmethod
     def _spawn_from_binary(cls, binary):
         # type: (str) -> SpawnedJob[PythonInterpreter]
         canonicalized_binary = cls.canonicalize_path(binary)
