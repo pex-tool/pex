@@ -620,7 +620,9 @@ class PEX(object):  # noqa: T000
 
         TRACER.log("Found script {!r} in {!r}.".format(script_name, dist_script.dist))
         if dist_script.is_python_script():
-            return self.execute_content(dist_script.path, dist_script.read_contents(), argv0=script_name)
+            return self.execute_content(
+                dist_script.path, dist_script.read_contents(), argv0=script_name
+            )
         else:
             return self.execute_external(dist_script.path)
 

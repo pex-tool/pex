@@ -82,10 +82,10 @@ def get_entry_point_from_console_script(script, dists):
 
 # Copied from
 # https://github.com/pypa/setuptools/blob/a4dbe3457d89cf67ee3aa571fdb149e6eb544e88/setuptools/command/easy_install.py#L1893-L1900
-def is_python(text, filename='<string>'):
+def is_python(text, filename="<string>"):
     "Is this string a valid Python script?"
     try:
-        compile(text, filename, 'exec')
+        compile(text, filename, "exec")
     except (SyntaxError, TypeError):
         return False
     else:
@@ -95,14 +95,13 @@ def is_python(text, filename='<string>'):
 # Copied from
 # https://github.com/pypa/setuptools/blob/a4dbe3457d89cf67ee3aa571fdb149e6eb544e88/setuptools/command/easy_install.py#L1918-L1929
 def is_python_script(script_text, filename):
-    """Is this text, as a whole, a Python script? (as opposed to shell/bat/etc.
-    """
-    if filename.endswith('.py') or filename.endswith('.pyw'):
+    """Is this text, as a whole, a Python script? (as opposed to shell/bat/etc."""
+    if filename.endswith(".py") or filename.endswith(".pyw"):
         return True  # extension says it's Python
     if is_python(script_text, filename):
         return True  # it's syntactically valid Python
-    if script_text.startswith('#!'):
+    if script_text.startswith("#!"):
         # It begins with a '#!' line, so check if 'python' is in it somewhere
-        return 'python' in script_text.splitlines()[0].lower()
+        return "python" in script_text.splitlines()[0].lower()
 
     return False  # Not any Python I can recognize
