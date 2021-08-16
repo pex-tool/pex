@@ -83,6 +83,7 @@ def get_entry_point_from_console_script(script, dists):
 # Copied from
 # https://github.com/pypa/setuptools/blob/a4dbe3457d89cf67ee3aa571fdb149e6eb544e88/setuptools/command/easy_install.py#L1893-L1900
 def is_python(text, filename="<string>"):
+    # type: (str, str) -> bool
     "Is this string a valid Python script?"
     try:
         compile(text, filename, "exec")
@@ -95,6 +96,7 @@ def is_python(text, filename="<string>"):
 # Copied from
 # https://github.com/pypa/setuptools/blob/a4dbe3457d89cf67ee3aa571fdb149e6eb544e88/setuptools/command/easy_install.py#L1918-L1929
 def is_python_script(script_text, filename):
+    # type: (str, str) -> bool
     """Is this text, as a whole, a Python script? (as opposed to shell/bat/etc."""
     if filename.endswith(".py") or filename.endswith(".pyw"):
         return True  # extension says it's Python
