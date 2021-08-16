@@ -617,10 +617,23 @@ class PEX(object):  # noqa: T000
         dist_script = get_script_from_distributions(script_name, dists)
         if not dist_script:
             return "Could not find script {!r} in pex!".format(script_name)
-        TRACER.log("Found script {!r} in {!r}.".format(script_name, dist))
-        return self.execute_content(
-            dist_script.path, dist_script.read_contents(), argv0=script_name
-        )
+
+        TRACER.log("Found script {!r} in {!r}.".format(script_name, dist_script.dist))
+        if dist_script.is_python_script():
+            return self.execute_content(
+                dist_script.path, dist_script.read_contents(), argv0=script_name
+            )
+        else:
+            return self.execute_external(dist_script.path)
+
+    @staticmethod
+    def execute_external(cmd):
+        # type: (str) -> Any
+        try:
+            proc = Executor.open_process([cmd] + sys.argv[:1])
+            return proc.wait()
+        except Executor.ExecutionError as e:
+            return "Could not invoke script: {}".format(e)
 
     @classmethod
     def execute_content(
@@ -633,10 +646,8 @@ class PEX(object):  # noqa: T000
         argv0 = argv0 or name
         try:
             ast = compile(content, name, "exec", flags=0, dont_inherit=1)
-        except SyntaxError:
-            return "Unable to parse {}. PEX script support only supports Python scripts.".format(
-                name
-            )
+        except SyntaxError as e:
+            return "Unable to parse {}: {}".format(name, e)
 
         cls.demote_bootstrap()
 

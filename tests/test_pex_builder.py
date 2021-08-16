@@ -269,7 +269,7 @@ def test_pex_builder_from_requirements_pex():
         verify(pb4)
 
 
-def test_prex_builder_script_from_pex_path(tmpdir):
+def test_pex_builder_script_from_pex_path(tmpdir):
     # type: (Any) -> None
 
     pex_with_script = os.path.join(str(tmpdir), "script.pex")
@@ -288,3 +288,20 @@ def test_prex_builder_script_from_pex_path(tmpdir):
     pb.build(pex_file)
 
     assert "hello world!\n" == subprocess.check_output(args=[pex_file]).decode("utf-8")
+
+
+def test_pex_builder_setuptools_script(tmpdir):
+    # type: (Any) -> None
+
+    pex_file = os.path.join(str(tmpdir), "app.pex")
+    with built_wheel(
+        name="my_project",
+    ) as my_whl:
+        pb = PEXBuilder()
+        pb.add_dist_location(my_whl)
+        pb.set_script("shell_script")
+        pb.build(pex_file)
+
+    assert "hello world from shell script\n" == subprocess.check_output(args=[pex_file]).decode(
+        "utf-8"
+    )
