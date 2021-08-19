@@ -64,6 +64,9 @@ Launch an interpreter with ``requests``, ``flask`` and ``psutil`` in the environ
 
     $ pex requests flask 'psutil>2,<3'
 
+Save Dependencies From Pip
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Or instead freeze your current virtualenv via requirements.txt and execute it anywhere:
 
 .. code-block:: bash
@@ -71,6 +74,9 @@ Or instead freeze your current virtualenv via requirements.txt and execute it an
     $ pex $(pip freeze) -o my_virtualenv.pex
     $ deactivate
     $ ./my_virtualenv.pex
+
+Ephemeral Environments
+~~~~~~~~~~~~~~~~~~~~~~
 
 Run webserver.py in an environment containing ``flask`` as a quick way to experiment:
 
@@ -84,17 +90,37 @@ Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sph
 
     $ pex sphinx -e sphinx:main -- --help
 
-Build a standalone pex binary into ``pex.pex`` using the ``pex`` console_scripts entry point:
+Using ``setup.py`` Entry Points
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Once you have a ``pex_entry`` entry point in the `console_scripts <https://python-packaging.readthedocs.io/en/latest/command-line-scripts.html#the-console-scripts-entry-point>`_ section of your ``setup.py``:
+
+.. code-block:: python
+
+    setup(
+        ...
+        entry_points = {
+            'console_scripts': [
+                'pex_entry=my_package.my_module:main',
+            ],
+        }
+        ...
+    )
+
+you can build a standalone pex binary, including the ``pex`` package itself, into ``pex-executable.pex`` using the ``pex_entry`` entry point:
 
 .. code-block:: bash
 
-    $ pex pex -c pex -o pex.pex
+    $ pex pex -c pex_entry -o pex-executable.pex
+
+Specifying A Specific Interpreter
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can also build pex files that use a specific interpreter type:
 
 .. code-block:: bash
 
-    $ pex pex -c pex --python=pypy -o pypy-pex.pex
+    $ pex pex -c pex_entry --python=pypy -o pex-pypy-executable.pex
 
 Most pex options compose well with one another, so the above commands can be
 mixed and matched.  For a full list of options, just type ``pex --help``.
