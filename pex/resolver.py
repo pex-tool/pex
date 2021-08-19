@@ -13,6 +13,7 @@ from collections import OrderedDict, defaultdict
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
 from pex.environment import PEXEnvironment, ResolveError
+from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
@@ -24,7 +25,6 @@ from pex.platforms import Platform
 from pex.requirements import (
     Constraint,
     LocalProjectRequirement,
-    URLFetcher,
     parse_requirement_file,
     parse_requirement_strings,
 )

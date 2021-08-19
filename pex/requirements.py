@@ -5,25 +5,21 @@ from __future__ import absolute_import
 
 import os
 import re
-import ssl
-import time
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 
 from pex import attrs, dist_metadata
-from pex.compatibility import HTTPError, HTTPSHandler, ProxyHandler, build_opener, urlparse
+from pex.compatibility import urlparse
 from pex.dist_metadata import MetadataError, ProjectNameAndVersion
-from pex.network_configuration import NetworkConfiguration
+from pex.fetcher import URLFetcher
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion, Version
 from pex.third_party.pkg_resources import Requirement, RequirementParseError
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
     from typing import (
-        BinaryIO,
-        Dict,
         Iterable,
         Iterator,
         Match,
@@ -49,68 +45,6 @@ class LogicalLine(object):
         if self.start_line == self.end_line:
             return "{} line {}".format(self.source, self.start_line)
         return "{} lines {}-{}".format(self.source, self.start_line, self.end_line)
-
-
-class URLFetcher(object):
-    def __init__(self, network_configuration=None):
-        # type: (Optional[NetworkConfiguration]) -> None
-        network_configuration = network_configuration or NetworkConfiguration()
-
-        self._timeout = network_configuration.timeout
-        self._max_retries = network_configuration.retries
-
-        ssl_context = ssl.create_default_context(cafile=network_configuration.cert)
-        if network_configuration.client_cert:
-            ssl_context.load_cert_chain(network_configuration.client_cert)
-
-        proxies = None  # type: Optional[Dict[str, str]]
-        if network_configuration.proxy:
-            proxies = {
-                protocol: network_configuration.proxy for protocol in ("ftp", "http", "https")
-            }
-
-        self._handlers = (ProxyHandler(proxies), HTTPSHandler(context=ssl_context))
-
-    @contextmanager
-    def get_body_iter(self, url):
-        # type: (Text) -> Iterator[Iterator[Text]]
-        retries = 0
-        retry_delay_secs = 0.1
-        last_error = None  # type: Optional[Exception]
-        while retries <= self._max_retries:
-            if retries > 0:
-                time.sleep(retry_delay_secs)
-                retry_delay_secs *= 2
-
-            opener = build_opener(*self._handlers)
-            try:
-                with closing(opener.open(url, timeout=self._timeout)) as fp:
-                    # The fp is typed as Optional[...] for Python 2 only in the typeshed. A `None`
-                    # can only be returned if a faulty custom handler is installed and we only
-                    # install stdlib handlers.
-                    body_stream = cast("BinaryIO", fp)
-                    yield (line.decode("utf-8") for line in body_stream.readlines())
-                    return
-            except HTTPError as e:
-                # See: https://tools.ietf.org/html/rfc2616#page-39
-                if e.code not in (
-                    408,  # Request Time-out
-                    500,  # Internal Server Error
-                    503,  # Service Unavailable
-                    504,  # Gateway Time-out
-                ):
-                    raise e
-                last_error = e
-            except (IOError, OSError) as e:
-                # Unfortunately errors are overly broad at this point. We can get either OSError or
-                # URLError (a subclass of OSError) which at times indicates retryable socket level
-                # errors. Since retrying a non-retryable socket level error just wastes local
-                # machine resources we err towards always retrying.
-                last_error = e
-            finally:
-                retries += 1
-
-        raise cast(Exception, last_error)
 
 
 @attr.s(frozen=True)
