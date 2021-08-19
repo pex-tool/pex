@@ -34,12 +34,13 @@ from pex.common import (
 )
 from pex.compatibility import WINDOWS, to_bytes
 from pex.executor import Executor
+from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
-from pex.requirements import LogicalLine, PyPIRequirement, URLFetcher, parse_requirement_file
+from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
 from pex.testing import (
     IS_MAC,
     IS_PYPY,

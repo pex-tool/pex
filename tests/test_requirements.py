@@ -9,6 +9,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, temporary_dir, touch
+from pex.fetcher import URLFetcher
 from pex.requirements import (
     Constraint,
     LocalProjectRequirement,
@@ -16,7 +17,6 @@ from pex.requirements import (
     ParseError,
     PyPIRequirement,
     Source,
-    URLFetcher,
     URLRequirement,
     parse_requirement_file,
     parse_requirement_from_project_name_and_specifier,
