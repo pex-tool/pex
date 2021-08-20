@@ -32,7 +32,7 @@ from pex.common import (
     temporary_dir,
     touch,
 )
-from pex.compatibility import WINDOWS, to_bytes
+from pex.compatibility import PY2, WINDOWS, to_bytes
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
@@ -1770,33 +1770,43 @@ def test_issues_539_abi3_resolution():
         subprocess.check_call([cryptography_pex, "-c", "import cryptography"])
 
 
-def assert_reproducible_build(args):
-    # type: (List[str]) -> None
-    with temporary_dir() as td:
+def assert_reproducible_build(
+    args,  # type: List[str]
+    python_versions=None,  # type: Optional[Iterable[str]]
+):
+    # type: (...) -> None
+    with temporary_dir(cleanup=False) as td:
         pex_root = os.path.join(td, "pex_root")
 
         # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
         # from the random seed, such as data structures, as Tox sets this value by default. See
         # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
-        def create_pex(path, seed):
+        def create_pex(path, seed=None, python=None):
             safe_rmtree(pex_root)
-            result = run_pex_command(
-                args + ["-o", path, "--pex-root", pex_root], env=make_env(PYTHONHASHSEED=seed)
-            )
+            cmd = args + ["-o", path, "--pex-root", pex_root]
+            if python_versions:
+                cmd.extend(["--python-shebang", "/usr/bin/env python"])
+            env = make_env(PYTHONHASHSEED=seed) if seed is not None else None
+            result = run_pex_command(cmd, env=env, python=python)
             result.assert_success()
 
         def create_multiple_pexes():
             paths = []
-            for index in range(3):
+            for index in range(2):
                 path = os.path.join(td, "{}.pex".format(index))
                 paths.append(path)
                 # We sleep to ensure that there is no non-reproducibility from timestamps or
-                # anything that may depend on the system time. Note that we must sleep for at least
-                # 2 seconds, because the zip format uses 2 second precision per section 4.4.6 of
-                # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
+                # anything that may depend on the system time. Note that we must sleep for at
+                # least 2 seconds, because the zip format uses 2 second precision per section
+                # 4.4.6 of https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
                 if index > 0:
                     safe_sleep(2)
-                create_pex(path, seed=(index * 497) + 4)
+                create_pex(path=path, seed=(index * 497) + 4)
+            if python_versions:
+                for python_version in python_versions:
+                    path = os.path.join(td, "{}.pex".format(python_version))
+                    paths.append(path)
+                    create_pex(path=path, python=ensure_python_interpreter(python_version))
             return paths
 
         def explode_pex(path):
@@ -1826,9 +1836,13 @@ def assert_reproducible_build(args):
             assert filecmp.cmp(pex1, pex2, shallow=False)
 
 
+MAJOR_COMPATIBLE_PYTHONS = (PY27,) if PY2 else (PY37, PY38)
+MIXED_MAJOR_PYTHONS = PY27, PY37, PY38
+
+
 def test_reproducible_build_no_args():
     # type: () -> None
-    assert_reproducible_build([])
+    assert_reproducible_build([], python_versions=MIXED_MAJOR_PYTHONS)
 
 
 def test_reproducible_build_bdist_requirements():
@@ -1839,16 +1853,24 @@ def test_reproducible_build_bdist_requirements():
 
 def test_reproducible_build_sdist_requirements():
     # type: () -> None
-    assert_reproducible_build(["python-crontab==2.3.6"])
+    # The python-crontab sdist will be built as py2-none-any or py3-none-any depending on the
+    # Python major version since it is not marked as universal in the sdist.
+    assert_reproducible_build(["python-crontab==2.3.6"], python_versions=MAJOR_COMPATIBLE_PYTHONS)
 
 
 def test_reproducible_build_m_flag():
     # type: () -> None
-    assert_reproducible_build(["-m", "pydoc"])
+    assert_reproducible_build(["-m", "pydoc"], python_versions=MIXED_MAJOR_PYTHONS)
 
 
 def test_reproducible_build_c_flag_from_source():
     # type: () -> None
+    setup_cfg = dedent(
+        """\
+        [wheel]
+        universal = 1
+        """
+    )
     setup_py = dedent(
         """\
         from setuptools import setup
@@ -1857,7 +1879,7 @@ def test_reproducible_build_c_flag_from_source():
             name='my_app',
             entry_points={'console_scripts': ['my_app_function = my_app:do_something']},
         )
-  """
+        """
     )
     my_app = dedent(
         """\
@@ -1865,22 +1887,31 @@ def test_reproducible_build_c_flag_from_source():
             return "reproducible"
         """
     )
-    with temporary_content({"setup.py": setup_py, "my_app.py": my_app}) as project_dir:
-        assert_reproducible_build([project_dir, "-c", "my_app_function"])
+    with temporary_content(
+        {"setup.cfg": setup_cfg, "setup.py": setup_py, "my_app.py": my_app}
+    ) as project_dir:
+        assert_reproducible_build(
+            [project_dir, "-c", "my_app_function"], python_versions=MIXED_MAJOR_PYTHONS
+        )
 
 
 def test_reproducible_build_c_flag_from_dependency():
     # type: () -> None
-    assert_reproducible_build(["future==0.17.1", "-c", "futurize"])
+    # The futurize script installed depends on the version of python being used; so we don't try
+    # to mix Python 2 with Python 3 as in many other reproducibility tests.
+    assert_reproducible_build(
+        ["future==0.17.1", "-c", "futurize"], python_versions=MAJOR_COMPATIBLE_PYTHONS
+    )
 
 
 def test_reproducible_build_python_flag():
     # type: () -> None
-    assert_reproducible_build(["--python=python2.7"])
+    assert_reproducible_build(["--python=python2.7"], python_versions=MIXED_MAJOR_PYTHONS)
 
 
 def test_reproducible_build_python_shebang_flag():
     # type: () -> None
+    # Passing `python_versions` override `--python-shebang`; so we don't do that here.
     assert_reproducible_build(["--python-shebang=/usr/bin/python"])
 
 

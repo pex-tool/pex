@@ -60,24 +60,9 @@ class PexInfo(object):
     INSTALL_CACHE = "installed_wheels"
 
     @classmethod
-    def make_build_properties(cls, interpreter=None):
-        # This lazy import is currently needed for performance reasons. At PEX runtime PexInfo is
-        # read in the bootstrap to see if the PEX should run in `--unzip` mode. If so, it must
-        # re-exec itself to run against its unzipped contents. Since `make_build_properties` is only
-        # used at PEX buildtime and the transitive imports of PythonInterpreter are large and slow,
-        # we avoid this import cost for runtime-only use.
-        #
-        # See: https://github.com/pantsbuild/pex/issues/1054
-        from pex.interpreter import PythonInterpreter
-
-        pi = interpreter or PythonInterpreter.get()
-        plat = pi.platform
-        platform_name = plat.platform
+    def make_build_properties(cls):
         return {
             "pex_version": pex_version,
-            "class": pi.identity.interpreter,
-            "version": pi.identity.version,
-            "platform": platform_name,
         }
 
     @classmethod
@@ -86,7 +71,7 @@ class PexInfo(object):
         pex_info = {
             "requirements": [],
             "distributions": {},
-            "build_properties": cls.make_build_properties(interpreter),
+            "build_properties": cls.make_build_properties(),
         }
         return cls(info=pex_info)
 

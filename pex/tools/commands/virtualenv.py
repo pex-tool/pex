@@ -39,7 +39,11 @@ def _is_python_script(executable):
             return False
         interpreter = fp.readline()
         return bool(
-            re.search(
+            # Support the `#!python` shebang that wheel installers should recognize as a special
+            # form to convert to a localized shebang upon install.
+            # See: https://www.python.org/dev/peps/pep-0427/#recommended-installer-features
+            interpreter == b"python\n"
+            or re.search(
                 br"""
                 # The aim is to admit the common shebang forms:
                 # + /usr/bin/env <python bin name>
