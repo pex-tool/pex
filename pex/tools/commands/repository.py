@@ -256,6 +256,11 @@ class Repository(JsonMixin, OutputMixin, Command):
             # type: (Distribution) -> SpawnedJob[Text]
             env = os.environ.copy()
             if not options.use_system_time:
+                # N.B.: The `SOURCE_DATE_EPOCH` env var is semi-standard magic for controlling
+                # build tools. Wheel has supported this since 2016.
+                # See:
+                # + https://reproducible-builds.org/docs/source-date-epoch/
+                # + https://github.com/pypa/wheel/blob/1b879e53fed1f179897ed47e55a68bc51df188db/wheel/archive.py#L36-L39
                 env.update(SOURCE_DATE_EPOCH=str(int(DETERMINISTIC_DATETIME_TIMESTAMP)))
             job = spawn_python_job(
                 args=["-m", "wheel", "pack", "--dest-dir", dest_dir, distribution.location],
