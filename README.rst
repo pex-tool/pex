@@ -71,7 +71,7 @@ Or instead freeze your current virtualenv via requirements.txt and execute it an
 
 .. code-block:: bash
 
-    $ pex -r requirements.txt -o my_virtualenv.pex
+    $ pex $(pip freeze) -o my_virtualenv.pex
     $ deactivate
     $ ./my_virtualenv.pex
 
@@ -93,15 +93,11 @@ Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sph
 Using Entry Points
 ~~~~~~~~~~~~~~~~~~
 
-Projects specifying a ``console_scripts`` entry point (with
-`Flit <https://flit.readthedocs.io/en/latest/pyproject_toml.html#scripts-section>`_,
-`Poetry <https://python-poetry.org/docs/pyproject/#scripts>`_,
-or `setuptools <https://python-packaging.readthedocs.io/en/latest/command-line-scripts.html#the-console-scripts-entry-point>`_)
-in their configuration can build standalone executables for those entry points.
+Projects specifying a ``console_scripts`` entry point in their configuration
+can build standalone executables for those entry points.
 
-To build a standalone ``pex-tools-executable.pex`` binary, including
-the ``pex`` package itself (version ``2.1.35`` or later), using the
-``pex-tools`` `entry point <https://github.com/pantsbuild/pex/blob/c92de90f5265c074ab66a225ad08d96ad045eccd/pyproject.toml#L42>`_:
+To build a standalone ``pex-tools-executable.pex`` binary that runs the
+``pex-tools`` console script found in all pex version ``2.1.35`` and newer distributions:
 
 .. code-block:: bash
 
