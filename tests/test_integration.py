@@ -522,7 +522,6 @@ def test_interpreter_resolution_with_constraint_option():
         res.assert_success()
         pex_info = PexInfo.from_pex(pex_out_path)
         assert [">=2.7,<3"] == pex_info.interpreter_constraints
-        assert pex_info.build_properties["version"][0] < 3
 
 
 def test_interpreter_resolution_with_multiple_constraint_options():
@@ -543,7 +542,6 @@ def test_interpreter_resolution_with_multiple_constraint_options():
         res.assert_success()
         pex_info = PexInfo.from_pex(pex_out_path)
         assert {">=2.7,<3", ">=500"} == set(pex_info.interpreter_constraints)
-        assert pex_info.build_properties["version"][0] < 3
 
 
 def test_interpreter_resolution_with_pex_python_path():
