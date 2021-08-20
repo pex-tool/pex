@@ -11,7 +11,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import safe_open, temporary_dir
+from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open, temporary_dir
 from pex.testing import PY38, ensure_python_venv, run_pex_command
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import Distribution, Requirement
@@ -128,7 +128,43 @@ def test_info_verbose(pex, pex_tools_env):
     } == {Requirement.parse(req) for req in requests_info["requires_dists"]}
 
 
-def test_extract(pex, pex_tools_env, tmpdir):
+def test_extract_determinism(pex, pex_tools_env, tmpdir):
+    deterministic_date_time = (
+        DETERMINISTIC_DATETIME.year,
+        DETERMINISTIC_DATETIME.month,
+        DETERMINISTIC_DATETIME.day,
+        DETERMINISTIC_DATETIME.hour,
+        DETERMINISTIC_DATETIME.minute,
+        DETERMINISTIC_DATETIME.second,
+    )
+
+    deterministic_dists_dir = os.path.join(str(tmpdir), "deterministic-dists")
+    subprocess.check_call(
+        args=[pex, "repository", "extract", "-f", deterministic_dists_dir], env=pex_tools_env
+    )
+    with open_zip(
+        os.path.join(deterministic_dists_dir, "requests-2.25.1-py2.py3-none-any.whl")
+    ) as zipfile:
+        infolist = zipfile.infolist()
+        assert len(infolist) > 0
+        for info in infolist:
+            assert deterministic_date_time == info.date_time
+
+    non_deterministic_dists_dir = os.path.join(str(tmpdir), "non_deterministic_dists_dir")
+    subprocess.check_call(
+        args=[pex, "repository", "extract", "-f", non_deterministic_dists_dir, "--use-system-time"],
+        env=pex_tools_env,
+    )
+    with open_zip(
+        os.path.join(non_deterministic_dists_dir, "requests-2.25.1-py2.py3-none-any.whl")
+    ) as zipfile:
+        infolist = zipfile.infolist()
+        assert len(infolist) > 0
+        for info in infolist:
+            assert deterministic_date_time != info.date_time
+
+
+def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     # type: (str, Dict[str, str], Any) -> None
     dists_dir = os.path.join(str(tmpdir), "dists")
     pid_file = os.path.join(str(tmpdir), "pid")

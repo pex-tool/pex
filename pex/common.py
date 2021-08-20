@@ -41,6 +41,8 @@ if TYPE_CHECKING:
 DETERMINISTIC_DATETIME = datetime(
     year=1980, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None
 )
+_UNIX_EPOCH = datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None)
+DETERMINISTIC_DATETIME_TIMESTAMP = (DETERMINISTIC_DATETIME - _UNIX_EPOCH).total_seconds()
 
 
 def filter_pyc_dirs(dirs):
