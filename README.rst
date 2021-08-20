@@ -71,7 +71,7 @@ Or instead freeze your current virtualenv via requirements.txt and execute it an
 
 .. code-block:: bash
 
-    $ pex $(pip freeze) -o my_virtualenv.pex
+    $ pex -r requirements.txt -o my_virtualenv.pex
     $ deactivate
     $ ./my_virtualenv.pex
 
@@ -90,28 +90,22 @@ Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sph
 
     $ pex sphinx -e sphinx:main -- --help
 
-Using ``setup.py`` Entry Points
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Using Entry Points
+~~~~~~~~~~~~~~~~~~
 
-Once you have a ``pex_entry`` entry point in the `console_scripts <https://python-packaging.readthedocs.io/en/latest/command-line-scripts.html#the-console-scripts-entry-point>`_ section of your ``setup.py``:
+Projects specifying a ``console_scripts`` entry point (with
+`Flit <https://flit.readthedocs.io/en/latest/pyproject_toml.html#scripts-section>`_,
+`Poetry <https://python-poetry.org/docs/pyproject/#scripts>`_,
+or `setuptools <https://python-packaging.readthedocs.io/en/latest/command-line-scripts.html#the-console-scripts-entry-point>`_)
+in their configuration can build standalone executables for those entry points.
 
-.. code-block:: python
-
-    setup(
-        ...
-        entry_points = {
-            'console_scripts': [
-                'pex_entry=my_package.my_module:main',
-            ],
-        }
-        ...
-    )
-
-you can build a standalone pex binary, including the ``pex`` package itself, into ``pex-executable.pex`` using the ``pex_entry`` entry point:
+To build a standalone ``pex-tools-executable.pex`` binary, including
+the ``pex`` package itself (version ``2.1.35`` or later), using the
+``pex-tools`` `entry point <https://github.com/pantsbuild/pex/blob/c92de90f5265c074ab66a225ad08d96ad045eccd/pyproject.toml#L42>`_:
 
 .. code-block:: bash
 
-    $ pex pex -c pex_entry -o pex-executable.pex
+    $ pex "pex>=2.1.35" --console-script pex-tools --output-file pex-tools-executable.pex
 
 Specifying A Specific Interpreter
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -120,10 +114,12 @@ You can also build pex files that use a specific interpreter type:
 
 .. code-block:: bash
 
-    $ pex pex -c pex_entry --python=pypy -o pex-pypy-executable.pex
+    $ pex "pex>=2.1.35" -c pex-tools --python=pypy -o pex-tools-pypy-executable.pex
 
 Most pex options compose well with one another, so the above commands can be
-mixed and matched.  For a full list of options, just type ``pex --help``.
+mixed and matched, and equivalent short options are available.
+
+For a full list of options, just type ``pex --help``.
 
 
 Integrating pex into your workflow
