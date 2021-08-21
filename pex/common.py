@@ -41,6 +41,8 @@ if TYPE_CHECKING:
 DETERMINISTIC_DATETIME = datetime(
     year=1980, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None
 )
+_UNIX_EPOCH = datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None)
+DETERMINISTIC_DATETIME_TIMESTAMP = (DETERMINISTIC_DATETIME - _UNIX_EPOCH).total_seconds()
 
 
 def filter_pyc_dirs(dirs):
@@ -306,7 +308,7 @@ def safe_rmtree(directory):
 
 
 def safe_sleep(seconds):
-    # type: (int) -> None
+    # type: (float) -> None
     """Ensure that the thread sleeps at a minimum the requested seconds.
 
     Until Python 3.5, there was no guarantee that time.sleep() would actually sleep the requested

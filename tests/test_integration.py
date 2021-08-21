@@ -7,7 +7,6 @@ import errno
 import filecmp
 import functools
 import glob
-import itertools
 import json
 import multiprocessing
 import os
@@ -23,15 +22,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from pex.common import (
-    safe_copy,
-    safe_mkdir,
-    safe_open,
-    safe_rmtree,
-    safe_sleep,
-    temporary_dir,
-    touch,
-)
+from pex.common import safe_copy, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, to_bytes
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
@@ -53,10 +44,13 @@ from pex.testing import (
     IntegResults,
     WheelBuilder,
     built_wheel,
+    create_pex_command,
     ensure_python_interpreter,
     ensure_python_venv,
     get_dep_dist_names_from_pex,
+    make_env,
     make_source_dir,
+    run_command_with_jitter,
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
@@ -82,16 +76,6 @@ if TYPE_CHECKING:
         Optional,
         Tuple,
     )
-
-
-def make_env(**kwargs):
-    # type: (**Any) -> Dict[str, str]
-    env = os.environ.copy()
-    env.update((k, str(v)) for k, v in kwargs.items() if v is not None)
-    for k, v in kwargs.items():
-        if v is None:
-            env.pop(k, None)
-    return env
 
 
 def test_pex_execute():
@@ -1773,31 +1757,6 @@ def test_issues_539_abi3_resolution():
 def assert_reproducible_build(args):
     # type: (List[str]) -> None
     with temporary_dir() as td:
-        pex_root = os.path.join(td, "pex_root")
-
-        # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
-        # from the random seed, such as data structures, as Tox sets this value by default. See
-        # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed.
-        def create_pex(path, seed):
-            safe_rmtree(pex_root)
-            result = run_pex_command(
-                args + ["-o", path, "--pex-root", pex_root], env=make_env(PYTHONHASHSEED=seed)
-            )
-            result.assert_success()
-
-        def create_multiple_pexes():
-            paths = []
-            for index in range(3):
-                path = os.path.join(td, "{}.pex".format(index))
-                paths.append(path)
-                # We sleep to ensure that there is no non-reproducibility from timestamps or
-                # anything that may depend on the system time. Note that we must sleep for at least
-                # 2 seconds, because the zip format uses 2 second precision per section 4.4.6 of
-                # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
-                if index > 0:
-                    safe_sleep(2)
-                create_pex(path, seed=(index * 497) + 4)
-            return paths
 
         def explode_pex(path):
             with ZipFile(path) as zf:
@@ -1806,10 +1765,12 @@ def assert_reproducible_build(args):
                 zf.extractall(path=destination_dir)
                 return [os.path.join(destination_dir, member) for member in sorted(zf.namelist())]
 
-        pexes = create_multiple_pexes()
+        pexes = run_command_with_jitter(
+            path_argument="--output-file", args=create_pex_command(quiet=True), count=3
+        )
         pex_members = {pex: explode_pex(path=pex) for pex in pexes}
-
-        for pex1, pex2 in itertools.combinations(pexes, r=2):
+        pex1 = pexes.pop()
+        for pex2 in pexes:
             # First compare file-by-file for easier debugging.
             for member1, member2 in zip(pex_members[pex1], pex_members[pex2]):
                 assert not os.path.isdir(member1) ^ os.path.isdir(member2)
