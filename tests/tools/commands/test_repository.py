@@ -3,16 +3,19 @@
 
 from __future__ import absolute_import
 
+import filecmp
+import itertools
 import json
 import os
 import signal
 import subprocess
+import time
 from textwrap import dedent
 
 import pytest
 
 from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open, temporary_dir
-from pex.testing import PY38, ensure_python_venv, run_pex_command
+from pex.testing import PY38, ensure_python_venv, run_command_with_jitter, run_pex_command
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.typing import TYPE_CHECKING
@@ -128,7 +131,7 @@ def test_info_verbose(pex, pex_tools_env):
     } == {Requirement.parse(req) for req in requests_info["requires_dists"]}
 
 
-def test_extract_determinism(pex, pex_tools_env, tmpdir):
+def test_extract_deterministic_timestamp(pex, pex_tools_env, tmpdir):
     deterministic_date_time = (
         DETERMINISTIC_DATETIME.year,
         DETERMINISTIC_DATETIME.month,
@@ -162,6 +165,46 @@ def test_extract_determinism(pex, pex_tools_env, tmpdir):
         assert len(infolist) > 0
         for info in infolist:
             assert deterministic_date_time != info.date_time
+
+
+def test_extract_non_deterministic_wheels(pex, pex_tools_env):
+    dist_dirs = run_command_with_jitter(
+        args=[pex, "repository", "extract", "--use-system-time"],
+        path_argument="-f",
+        extra_env=pex_tools_env,
+        count=3,
+    )
+    for dists_dir1, dists_dir2 in itertools.combinations(dist_dirs, 2):
+        dists1 = sorted(os.listdir(dists_dir1))
+        assert len(dists1) > 1
+        assert dists1 == sorted(os.listdir(dists_dir2))
+
+        same, different, non_reg = filecmp.cmpfiles(
+            dists_dir1, dists_dir2, common=dists1, shallow=False
+        )
+        assert not same
+        assert not non_reg
+        assert sorted(dists1) == sorted(different)
+
+
+def test_extract_deterministic_wheels(pex, pex_tools_env):
+    # We already have tests that ensure PEX file creation is deterministic; so here we just test
+    # that extracting wheels from a fixed PEX file is also deterministic.
+
+    dist_dirs = run_command_with_jitter(
+        args=[pex, "repository", "extract"], path_argument="-f", extra_env=pex_tools_env, count=3
+    )
+    dists_dir1 = dist_dirs.pop()
+    dists1 = sorted(os.listdir(dists_dir1))
+    assert len(dists1) > 1
+    for dists_dir2 in dist_dirs:
+        assert dists1 == sorted(os.listdir(dists_dir2))
+        same, different, non_reg = filecmp.cmpfiles(
+            dists_dir1, dists_dir2, common=dists1, shallow=False
+        )
+        assert not different
+        assert not non_reg
+        assert sorted(dists1) == sorted(same)
 
 
 def test_extract_lifecycle(pex, pex_tools_env, tmpdir):

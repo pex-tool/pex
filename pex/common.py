@@ -308,7 +308,7 @@ def safe_rmtree(directory):
 
 
 def safe_sleep(seconds):
-    # type: (int) -> None
+    # type: (float) -> None
     """Ensure that the thread sleeps at a minimum the requested seconds.
 
     Until Python 3.5, there was no guarantee that time.sleep() would actually sleep the requested
