@@ -4,8 +4,11 @@
 
 from __future__ import absolute_import
 
+import base64
+import csv
 import fileinput
 import functools
+import hashlib
 import json
 import os
 import re
@@ -17,7 +20,7 @@ from contextlib import closing
 from textwrap import dedent
 
 from pex import dist_metadata, third_party
-from pex.common import atomic_directory, safe_mkdtemp
+from pex.common import atomic_directory, is_exe, safe_mkdtemp
 from pex.compatibility import urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
@@ -30,8 +33,8 @@ from pex.pex_info import PexInfo
 from pex.platforms import Platform
 from pex.third_party import isolated
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
-from pex.util import named_temporary_file
+from pex.typing import TYPE_CHECKING, cast
+from pex.util import CacheHelper, named_temporary_file
 from pex.variables import ENV
 
 if TYPE_CHECKING:
@@ -46,9 +49,17 @@ if TYPE_CHECKING:
         List,
         Mapping,
         Optional,
+        Protocol,
         Tuple,
         Union,
     )
+
+    class CSVWriter(Protocol):
+        def writerow(self, row):
+            # type: (Iterable[Union[str, int]]) -> None
+            pass
+
+
 else:
     from pex.third_party import attr
 
@@ -699,10 +710,21 @@ class Pip(object):
             interpreter=interpreter,
         )
 
-    @staticmethod
+    @classmethod
     def _fixup_install(
+        cls,
         dist,  # type: str
         install_dir,  # type: str
+    ):
+        # type: (...) -> None
+        modified_scripts = list(cls._fixup_scripts(install_dir))
+        cls._fixup_record(dist, install_dir, modified_scripts=modified_scripts)
+
+    @staticmethod
+    def _fixup_record(
+        dist,  # type: str
+        install_dir,  # type: str
+        modified_scripts=None,  # type: Optional[Iterable[str]]
     ):
         # type: (...) -> None
 
@@ -729,33 +751,95 @@ class Pip(object):
             for root, _, files in os.walk(install_dir)
             for f in files
         ]
-        direct_url_relpath = dist_metadata.find_dist_info_file(
+        record_relpath = dist_metadata.find_dist_info_file(
             project_name=project_name_and_version.project_name,
             version=project_name_and_version.version,
-            filename="direct_url.json",
+            filename="RECORD",
             listing=listing,
         )
-        if not direct_url_relpath:
+        if not record_relpath:
             return
 
-        direct_url_abspath = os.path.join(install_dir, direct_url_relpath)
-        if not os.path.exists(direct_url_abspath):
-            return
+        exclude_relpaths = []
 
-        with open(direct_url_abspath) as fp:
-            if urlparse.urlparse(json.load(fp)["url"]).scheme != "file":
-                return
+        record_abspath = os.path.join(install_dir, record_relpath)
+        dist_info_dir = os.path.dirname(record_abspath)
 
-        os.unlink(direct_url_abspath)
+        direct_url_abspath = os.path.join(dist_info_dir, "direct_url.json")
+        direct_url_relpath = os.path.relpath(direct_url_abspath, install_dir)
+        if os.path.exists(direct_url_abspath):
+            with open(direct_url_abspath) as fp:
+                if urlparse.urlparse(json.load(fp)["url"]).scheme == "file":
+                    exclude_relpaths.append(os.path.relpath(direct_url_abspath, install_dir))
+                    os.unlink(direct_url_abspath)
+
+        to_rehash = {}
+        if modified_scripts:
+            for modified_script in modified_scripts:
+                # N.B.: Pip installs wheels with RECORD entries like `../../bin/script` even when it's
+                # called in `--target <dir>` mode which installs the script in `bin/script`.
+                record_relpath = os.path.join(os.pardir, os.pardir, modified_script)
+                modified_script_abspath = os.path.join(install_dir, modified_script)
+                to_rehash[record_relpath] = modified_script_abspath
 
         # The RECORD is a csv file with the path to each installed file in the 1st column.
         # See: https://www.python.org/dev/peps/pep-0376/#record
-        dist_info_dir = os.path.dirname(direct_url_abspath)
-        with closing(
-            fileinput.input(files=[os.path.join(dist_info_dir, "RECORD")], inplace=True)
-        ) as record_fi:
-            for line in record_fi:
-                if line.split(",")[0] != direct_url_relpath:
+        with closing(fileinput.input(files=[record_abspath], inplace=True, mode="rU")) as record_fi:
+            csv_writer = None  # type: Optional[CSVWriter]
+            for path, existing_hash, existing_size in csv.reader(
+                record_fi, delimiter=",", quotechar='"'
+            ):
+                if csv_writer is None:
+                    # N.B.: The raw input lines include a newline that varies between '\r\n' and
+                    # '\n' when the wheel was built from an sdist by Pip depending on whether the
+                    # interpreter used was Python 2 or Python 3 respectively. As such, we normalize
+                    # all RECORD files to use '\n' regardless of interpreter.
+                    csv_writer = cast(
+                        "CSVWriter",
+                        csv.writer(sys.stdout, delimiter=",", quotechar='"', lineterminator="\n"),
+                    )
+
+                abspath_to_rehash = to_rehash.pop(path, None)
+                if existing_hash and abspath_to_rehash is not None:
+                    algorithm = existing_hash.split("=")[0]
+                    hasher = hashlib.new(algorithm)
+                    with open(abspath_to_rehash, "rb") as rehash_fp:
+                        CacheHelper.update_hash(rehash_fp, digest=hasher)
+
+                    fingerprint = base64.urlsafe_b64encode(hasher.digest()).decode("ascii")
+                    de_padded, pad, rest = fingerprint.rpartition("=")
+                    new_hash = str(de_padded if pad and not rest else fingerprint)
+                    new_size = os.stat(abspath_to_rehash).st_size
+                    csv_writer.writerow((path, new_hash, new_size))
+                elif path != direct_url_relpath:
+                    csv_writer.writerow((path, existing_hash, existing_size))
+
+    @staticmethod
+    def _fixup_scripts(
+        install_dir,  # type: str
+    ):
+        # type: (...) -> Iterator[str]
+        bin_dir = os.path.join(install_dir, "bin")
+        if not os.path.isdir(bin_dir):
+            return
+
+        scripts = []
+        for script_name in os.listdir(bin_dir):
+            script_path = os.path.join(bin_dir, script_name)
+            if is_exe(script_path):
+                scripts.append(script_path)
+
+        with closing(fileinput.input(files=scripts, inplace=True)) as script_fi:
+            for line in script_fi:
+                if script_fi.isfirstline() and re.match(
+                    r"^#!.*(?:python|pypy)", line, re.IGNORECASE
+                ):
+                    # Ensure python shebangs are reproducible. The only place these can be used is
+                    # in venv mode PEXes where the `#!python` placeholder shebang will be re-written
+                    # to use the venv's python interpreter.
+                    print("#!python")
+                    yield os.path.relpath(script_fi.filename(), install_dir)
+                else:
                     # N.B.: These lines include the newline already.
                     sys.stdout.write(line)
 

@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import contextlib
+import itertools
 import os
 import platform
 import random
@@ -583,20 +584,17 @@ def make_env(**kwargs):
     return env
 
 
-def run_command_with_jitter(
-    args,  # type: Iterable[str]
+def run_commands_with_jitter(
+    commands,  # type: Iterable[Iterable[str]]
     path_argument,  # type: str
     extra_env=None,  # type: Optional[Mapping[str, str]]
-    python=None,  # type: Optional[str]
     delay=2.0,  # type: float
-    count=3,  # type: int
 ):
     # type: (...) -> List[str]
-    """Runs the command `count` times in an attempt to introduce randomness.
+    """Runs the commands with tactics that attempt to introduce randomness in outputs.
 
-    Each run of the command will run against a clean Pex cache with a unique path injected as the
-    value for `path_argument`. A unique `PYTHONHASHSEED` is set in the environment for each
-    execution as well.
+    Each command will run against a clean Pex cache with a unique path injected as the value for
+    `path_argument`. A unique `PYTHONHASHSEED` is set in the environment for each execution as well.
 
     Additionally, a delay is inserted between executions. By default, this delay is 2s to ensure zip
     precision is stressed. See: https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
@@ -605,9 +603,9 @@ def run_command_with_jitter(
     pex_root = os.path.join(td, "pex_root")
 
     paths = []
-    for index in range(count):
+    for index, command in enumerate(commands):
         path = os.path.join(td, str(index))
-        cmd = list(args) + [path_argument, path]
+        cmd = list(command) + [path_argument, path]
 
         # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
         # from the random seed, such as data structures, as Tox sets this value by default.
@@ -625,3 +623,28 @@ def run_command_with_jitter(
         subprocess.check_call(args=cmd, env=env)
         paths.append(path)
     return paths
+
+
+def run_command_with_jitter(
+    args,  # type: Iterable[str]
+    path_argument,  # type: str
+    extra_env=None,  # type: Optional[Mapping[str, str]]
+    delay=2.0,  # type: float
+    count=3,  # type: int
+):
+    # type: (...) -> List[str]
+    """Runs the command `count` times in an attempt to introduce randomness.
+
+    Each run of the command will run against a clean Pex cache with a unique path injected as the
+    value for `path_argument`. A unique `PYTHONHASHSEED` is set in the environment for each
+    execution as well.
+
+    Additionally, a delay is inserted between executions. By default, this delay is 2s to ensure zip
+    precision is stressed. See: https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
+    """
+    return run_commands_with_jitter(
+        commands=list(itertools.repeat(list(args), count)),
+        path_argument=path_argument,
+        extra_env=extra_env,
+        delay=delay,
+    )
