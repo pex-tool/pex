@@ -831,7 +831,9 @@ class Pip(object):
 
         with closing(fileinput.input(files=scripts, inplace=True)) as script_fi:
             for line in script_fi:
-                if script_fi.isfirstline() and re.match(r"^#!.*python", line):
+                if script_fi.isfirstline() and re.match(
+                    r"^#!.*(?:python|pypy)", line, re.IGNORECASE
+                ):
                     # Ensure python shebangs are reproducible. The only place these can be used is
                     # in venv mode PEXes where the `#!python` placeholder shebang will be re-written
                     # to use the venv's python interpreter.
