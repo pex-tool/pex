@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import contextlib
+import itertools
 import os
 import platform
 import random
@@ -12,7 +13,15 @@ import sys
 from contextlib import contextmanager
 from textwrap import dedent
 
-from pex.common import atomic_directory, open_zip, safe_mkdir, safe_mkdtemp, temporary_dir
+from pex.common import (
+    atomic_directory,
+    open_zip,
+    safe_mkdir,
+    safe_mkdtemp,
+    safe_rmtree,
+    safe_sleep,
+    temporary_dir,
+)
 from pex.compatibility import to_unicode
 from pex.distribution_target import DistributionTarget
 from pex.executor import Executor
@@ -344,18 +353,34 @@ class IntegResults(object):
         assert self.return_code != 0
 
 
-def run_pex_command(args, env=None, python=None, quiet=False):
-    # type: (Iterable[str], Optional[Dict[str, str]], Optional[str], bool) -> IntegResults
+def create_pex_command(
+    args=None,  # type: Optional[Iterable[str]]
+    python=None,  # type: Optional[str]
+    quiet=False,  # type: bool
+):
+    # type: (...) -> List[str]
+    cmd = [python or sys.executable, "-mpex"]
+    if not quiet:
+        cmd.append("-vvvvv")
+    if args:
+        cmd.extend(args)
+    return cmd
+
+
+def run_pex_command(
+    args,  # type: Iterable[str]
+    env=None,  # type: Optional[Dict[str, str]]
+    python=None,  # type: Optional[str]
+    quiet=False,  # type: bool
+):
+    # type: (...) -> IntegResults
     """Simulate running pex command for integration testing.
 
     This is different from run_simple_pex in that it calls the pex command rather than running a
     generated pex.  This is useful for testing end to end runs with specific command line arguments
     or env options.
     """
-    cmd = [python or sys.executable, "-mpex"]
-    if not quiet:
-        cmd.append("-vvvvv")
-    cmd.extend(args)
+    cmd = create_pex_command(args, python=python, quiet=quiet)
     process = Executor.open_process(
         cmd=cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
@@ -540,3 +565,86 @@ def pushd(directory):
         yield
     finally:
         os.chdir(cwd)
+
+
+def make_env(**kwargs):
+    # type: (**Any) -> Dict[str, str]
+    """Create a copy of the current environment with the given modifications.
+
+    The given kwargs add to or update the environment when they have a non-`None` value. When they
+    have a `None` value, the environment variable is removed from the environment.
+
+    All non-`None` values are converted to strings by apply `str`.
+    """
+    env = os.environ.copy()
+    env.update((k, str(v)) for k, v in kwargs.items() if v is not None)
+    for k, v in kwargs.items():
+        if v is None:
+            env.pop(k, None)
+    return env
+
+
+def run_commands_with_jitter(
+    commands,  # type: Iterable[Iterable[str]]
+    path_argument,  # type: str
+    extra_env=None,  # type: Optional[Mapping[str, str]]
+    delay=2.0,  # type: float
+):
+    # type: (...) -> List[str]
+    """Runs the commands with tactics that attempt to introduce randomness in outputs.
+
+    Each command will run against a clean Pex cache with a unique path injected as the value for
+    `path_argument`. A unique `PYTHONHASHSEED` is set in the environment for each execution as well.
+
+    Additionally, a delay is inserted between executions. By default, this delay is 2s to ensure zip
+    precision is stressed. See: https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
+    """
+    td = safe_mkdtemp()
+    pex_root = os.path.join(td, "pex_root")
+
+    paths = []
+    for index, command in enumerate(commands):
+        path = os.path.join(td, str(index))
+        cmd = list(command) + [path_argument, path]
+
+        # Note that we change the `PYTHONHASHSEED` to ensure that there are no issues resulting
+        # from the random seed, such as data structures, as Tox sets this value by default.
+        # See:
+        # https://tox.readthedocs.io/en/latest/example/basic.html#special-handling-of-pythonhashseed
+        env = make_env(PEX_ROOT=pex_root, PYTHONHASHSEED=(index * 497) + 4)
+        if extra_env:
+            env.update(extra_env)
+
+        if index > 0:
+            safe_sleep(delay)
+
+        # Ensure the PEX is fully rebuilt.
+        safe_rmtree(pex_root)
+        subprocess.check_call(args=cmd, env=env)
+        paths.append(path)
+    return paths
+
+
+def run_command_with_jitter(
+    args,  # type: Iterable[str]
+    path_argument,  # type: str
+    extra_env=None,  # type: Optional[Mapping[str, str]]
+    delay=2.0,  # type: float
+    count=3,  # type: int
+):
+    # type: (...) -> List[str]
+    """Runs the command `count` times in an attempt to introduce randomness.
+
+    Each run of the command will run against a clean Pex cache with a unique path injected as the
+    value for `path_argument`. A unique `PYTHONHASHSEED` is set in the environment for each
+    execution as well.
+
+    Additionally, a delay is inserted between executions. By default, this delay is 2s to ensure zip
+    precision is stressed. See: https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT.
+    """
+    return run_commands_with_jitter(
+        commands=list(itertools.repeat(list(args), count)),
+        path_argument=path_argument,
+        extra_env=extra_env,
+        delay=delay,
+    )

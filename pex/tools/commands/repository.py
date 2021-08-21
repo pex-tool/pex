@@ -15,7 +15,14 @@ from textwrap import dedent
 from threading import Thread
 
 from pex import dist_metadata, pex_warnings
-from pex.common import pluralize, safe_mkdir, safe_mkdtemp, safe_open
+from pex.common import (
+    DETERMINISTIC_DATETIME,
+    DETERMINISTIC_DATETIME_TIMESTAMP,
+    pluralize,
+    safe_mkdir,
+    safe_mkdtemp,
+    safe_open,
+)
 from pex.compatibility import Queue
 from pex.environment import PEXEnvironment
 from pex.interpreter import PythonIdentity, PythonInterpreter, spawn_python_job
@@ -128,6 +135,20 @@ class Repository(JsonMixin, OutputMixin, Command):
             help="Also extract a wheel for the PEX file sources.",
         )
         extract_parser.add_argument(
+            "--use-system-time",
+            dest="use_system_time",
+            default=False,
+            action="store_true",
+            help=(
+                "Use the current system time to generate timestamps for the extracted "
+                "distributions. Otherwise, Pex will use midnight on January 1, 1980. By using "
+                "system time, the extracted distributions will not be reproducible, meaning that "
+                "if you were to re-run extraction against the same PEX file then the newly "
+                "extracted distributions would not be byte-for-byte identical distributions "
+                "extracted in prior runs."
+            ),
+        )
+        extract_parser.add_argument(
             "--serve",
             action="store_true",
             help="Serve the --find-links repo.",
@@ -233,11 +254,20 @@ class Repository(JsonMixin, OutputMixin, Command):
 
         def spawn_extract(distribution):
             # type: (Distribution) -> SpawnedJob[Text]
+            env = os.environ.copy()
+            if not options.use_system_time:
+                # N.B.: The `SOURCE_DATE_EPOCH` env var is semi-standard magic for controlling
+                # build tools. Wheel has supported this since 2016.
+                # See:
+                # + https://reproducible-builds.org/docs/source-date-epoch/
+                # + https://github.com/pypa/wheel/blob/1b879e53fed1f179897ed47e55a68bc51df188db/wheel/archive.py#L36-L39
+                env.update(SOURCE_DATE_EPOCH=str(int(DETERMINISTIC_DATETIME_TIMESTAMP)))
             job = spawn_python_job(
                 args=["-m", "wheel", "pack", "--dest-dir", dest_dir, distribution.location],
                 interpreter=pex.interpreter,
                 expose=["wheel"],
                 stdout=subprocess.PIPE,
+                env=env,
             )
             return SpawnedJob.stdout(
                 job, result_func=lambda out: "{}: {}".format(distribution, out.decode())
