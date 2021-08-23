@@ -16,6 +16,7 @@ from pex.common import (
     can_write_dir,
     chmod_plus_x,
     is_exe,
+    is_script,
     open_zip,
     safe_open,
     temporary_dir,
@@ -29,7 +30,7 @@ except ImportError:
     import mock  # type: ignore[no-redef]
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Tuple, Type
+    from typing import Any, Iterator, Optional, Tuple, Type
 
 
 @contextmanager
@@ -336,19 +337,51 @@ def test_safe_open_relative(temporary_working_dir):
         assert "contents" == fp.read()
 
 
-def test_is_exe(temporary_working_dir):
-    # type: (str) -> None
-    touch("all_exe")
-    chmod_plus_x("all_exe")
-    assert is_exe("all_exe")
+def test_is_exe(tmpdir):
+    # type: (Any) -> None
+    all_exe = os.path.join(str(tmpdir), "all_exe")
+    touch(all_exe)
+    chmod_plus_x(all_exe)
+    assert is_exe(all_exe)
 
-    touch("other_exe")
-    os.chmod("other_exe", 0o665)
-    assert not is_exe("other_exe")
+    other_exe = os.path.join(str(tmpdir), "other_exe")
+    touch(other_exe)
+    os.chmod(other_exe, 0o665)
+    assert not is_exe(other_exe)
 
-    touch("not_exe")
-    assert not is_exe("not_exe")
+    not_exe = os.path.join(str(tmpdir), "not_exe")
+    touch(not_exe)
+    assert not is_exe(not_exe)
 
-    os.mkdir("exe_dir")
-    chmod_plus_x("exe_dir")
-    assert not is_exe("exe_dir")
+    exe_dir = os.path.join(str(tmpdir), "exe_dir")
+    os.mkdir(exe_dir)
+    chmod_plus_x(exe_dir)
+    assert not is_exe(exe_dir)
+
+
+def test_is_script(tmpdir):
+    # type: (Any) -> None
+    exe = os.path.join(str(tmpdir), "exe")
+
+    touch(exe)
+    assert not is_exe(exe)
+    assert not is_script(exe)
+
+    chmod_plus_x(exe)
+    assert is_exe(exe)
+    assert not is_script(exe)
+
+    with open(exe, "wb") as fp:
+        fp.write(bytearray([0xCA, 0xFE, 0xBA, 0xBE]))
+    assert not is_script(fp.name)
+
+    with open(exe, "wb") as fp:
+        fp.write(b"#!/mystery\n")
+        fp.write(bytearray([0xCA, 0xFE, 0xBA, 0xBE]))
+    assert is_script(exe)
+    assert is_script(exe, pattern=r"^/mystery")
+    assert not is_script(exe, pattern=r"^python")
+
+    os.chmod(exe, 0o665)
+    assert not is_script(exe)
+    assert not is_exe(exe)

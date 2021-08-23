@@ -251,7 +251,7 @@ def populate_venv_with_pex(
                     if key.startswith("PEX_"):
                         del os.environ[key]
 
-            pex_script = pex_overrides.get("PEX_SCRIPT")
+            pex_script = pex_overrides.get("PEX_SCRIPT") if pex_overrides else {script!r}
             if pex_script:
                 script_path = os.path.join(venv_bin_dir, pex_script)
                 os.execv(script_path, [script_path] + sys.argv[1:])
@@ -317,6 +317,7 @@ def populate_venv_with_pex(
             bin_path=bin_path,
             strip_pex_env=pex_info.strip_pex_env,
             entry_point=pex_info.entry_point,
+            script=pex_info.script,
             exec_ast=(
                 "exec ast in globals_map, locals_map"
                 if venv.interpreter.version[0] == 2
