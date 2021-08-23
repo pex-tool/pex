@@ -3,10 +3,12 @@
 
 from __future__ import absolute_import
 
+import ast
 import os
 
+from pex.common import is_script
 from pex.third_party.pkg_resources import Distribution
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
@@ -17,6 +19,10 @@ else:
 
 @attr.s(frozen=True)
 class DistributionScript(object):
+    @staticmethod
+    def is_python_script(path):
+        return is_script(path, pattern=r"(?i)^.*(?:python|pypy)")
+
     @classmethod
     def find(
         cls,
@@ -31,13 +37,21 @@ class DistributionScript(object):
     path = attr.ib()  # type: str
 
     def read_contents(self):
-        # type: () -> str
-        with open(self.path) as fp:
+        # type: () -> bytes
+        with open(self.path, "rb") as fp:
             return fp.read()
 
-    def is_python_script(self):
-        # type: () -> bool
-        return is_python_script(self.read_contents(), self.path)
+    def python_script(self):
+        # type: () -> Optional[ast.AST]
+        if not self.is_python_script(self.path):
+            return None
+
+        try:
+            return cast(
+                ast.AST, compile(self.read_contents(), self.path, "exec", flags=0, dont_inherit=1)
+            )
+        except (SyntaxError, TypeError):
+            return None
 
 
 def get_script_from_distributions(name, dists):
@@ -78,32 +92,3 @@ def get_entry_point_from_console_script(script, dists):
     if entries:
         dist, entry_point = next(iter(entries.values()))
     return dist, entry_point
-
-
-# Copied from
-# https://github.com/pypa/setuptools/blob/a4dbe3457d89cf67ee3aa571fdb149e6eb544e88/setuptools/command/easy_install.py#L1893-L1900
-def is_python(text, filename="<string>"):
-    # type: (str, str) -> bool
-    "Is this string a valid Python script?"
-    try:
-        compile(text, filename, "exec")
-    except (SyntaxError, TypeError):
-        return False
-    else:
-        return True
-
-
-# Copied from
-# https://github.com/pypa/setuptools/blob/a4dbe3457d89cf67ee3aa571fdb149e6eb544e88/setuptools/command/easy_install.py#L1918-L1929
-def is_python_script(script_text, filename):
-    # type: (str, str) -> bool
-    """Is this text, as a whole, a Python script? (as opposed to shell/bat/etc."""
-    if filename.endswith(".py") or filename.endswith(".pyw"):
-        return True  # extension says it's Python
-    if is_python(script_text, filename):
-        return True  # it's syntactically valid Python
-    if script_text.startswith("#!"):
-        # It begins with a '#!' line, so check if 'python' is in it somewhere
-        return "python" in script_text.splitlines()[0].lower()
-
-    return False  # Not any Python I can recognize

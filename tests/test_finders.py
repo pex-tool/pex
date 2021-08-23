@@ -31,7 +31,7 @@ def test_get_script_from_distributions(tmpdir):
     assert dist_script.dist is dist
     assert os.path.join(install_dir, "bin/cfn-signal") == dist_script.path
     assert dist_script.read_contents().startswith(
-        "#!"
+        b"#!"
     ), "Expected a `scripts`-style script w/shebang."
 
     assert None is get_script_from_distributions("non_existent_script", [dist])

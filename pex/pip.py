@@ -2,7 +2,7 @@
 # Copyright 2019 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import base64
 import csv
@@ -20,10 +20,11 @@ from contextlib import closing
 from textwrap import dedent
 
 from pex import dist_metadata, third_party
-from pex.common import atomic_directory, is_exe, safe_mkdtemp
+from pex.common import atomic_directory, is_script, safe_mkdtemp
 from pex.compatibility import urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
+from pex.finders import DistributionScript
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
@@ -826,14 +827,14 @@ class Pip(object):
         scripts = []
         for script_name in os.listdir(bin_dir):
             script_path = os.path.join(bin_dir, script_name)
-            if is_exe(script_path):
+            if DistributionScript.is_python_script(script_path):
                 scripts.append(script_path)
+        if not scripts:
+            return
 
         with closing(fileinput.input(files=scripts, inplace=True)) as script_fi:
             for line in script_fi:
-                if script_fi.isfirstline() and re.match(
-                    r"^#!.*(?:python|pypy)", line, re.IGNORECASE
-                ):
+                if script_fi.isfirstline():
                     # Ensure python shebangs are reproducible. The only place these can be used is
                     # in venv mode PEXes where the `#!python` placeholder shebang will be re-written
                     # to use the venv's python interpreter.

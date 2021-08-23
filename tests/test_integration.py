@@ -3557,3 +3557,22 @@ def test_pip_leak_issues_1336(tmpdir):
     pip = os.path.join(os.path.dirname(python), "pip")
     subprocess.check_call(args=[pip, "install", "setuptools_scm==6.0.1"])
     run_pex_command(args=["--python", python, "bitstring==3.1.7"], python=python).assert_success()
+
+
+@pytest.mark.parametrize(
+    "mode_args",
+    [
+        pytest.param([], id="PEX"),
+        pytest.param(["--unzip"], id="unzip"),
+        pytest.param(["--venv"], id="venv"),
+    ],
+)
+def test_binary_scripts(tmpdir, mode_args):
+    # The py-spy distribution has a `py-spy` "script" that is a native executable that we should
+    # not try to parse as a traditional script but should still be able to execute.
+    py_spy_pex = os.path.join(str(tmpdir), "py-spy.pex")
+    run_pex_command(
+        args=["py-spy==0.3.8", "-c", "py-spy", "-o", py_spy_pex] + mode_args
+    ).assert_success()
+    output = subprocess.check_output(args=[py_spy_pex, "-V"])
+    assert output == b"py-spy 0.3.8\n"

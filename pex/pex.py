@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import ast
 import os
 import re
 import sys
@@ -619,21 +620,22 @@ class PEX(object):  # noqa: T000
             return "Could not find script {!r} in pex!".format(script_name)
 
         TRACER.log("Found script {!r} in {!r}.".format(script_name, dist_script.dist))
-        if dist_script.is_python_script():
-            return self.execute_content(
+        ast = dist_script.python_script()
+        if ast:
+            return self.execute_ast(
                 dist_script.path, dist_script.read_contents(), argv0=script_name
             )
         else:
             return self.execute_external(dist_script.path)
 
     @staticmethod
-    def execute_external(cmd):
+    def execute_external(binary):
         # type: (str) -> Any
+        args = [binary] + sys.argv[1:]
         try:
-            proc = Executor.open_process([cmd] + sys.argv[:1])
-            return proc.wait()
+            return Executor.open_process(args).wait()
         except Executor.ExecutionError as e:
-            return "Could not invoke script: {}".format(e)
+            return "Could not invoke script {}: {}".format(binary, e)
 
     @classmethod
     def execute_content(
@@ -643,21 +645,29 @@ class PEX(object):  # noqa: T000
         argv0=None,  # type: Optional[str]
     ):
         # type: (...) -> Optional[str]
-        argv0 = argv0 or name
         try:
-            ast = compile(content, name, "exec", flags=0, dont_inherit=1)
+            program = compile(content, name, "exec", flags=0, dont_inherit=1)
         except SyntaxError as e:
             return "Unable to parse {}: {}".format(name, e)
+        return cls.execute_ast(name, program, argv0=argv0)
 
+    @classmethod
+    def execute_ast(
+        cls,
+        name,  # type: str
+        program,  # type: ast.AST
+        argv0=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Optional[str]
         cls.demote_bootstrap()
 
         from pex.compatibility import exec_function
 
-        sys.argv[0] = argv0
+        sys.argv[0] = argv0 or name
         globals_map = globals().copy()
         globals_map["__name__"] = "__main__"
         globals_map["__file__"] = name
-        exec_function(ast, globals_map)
+        exec_function(program, globals_map)
         return None
 
     def execute_entry(self, entry_point):
