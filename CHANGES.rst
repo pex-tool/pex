@@ -1,6 +1,32 @@
 Release Notes
 =============
 
+2.1.46
+------
+
+This release improves PEX file build reproducibility and requirement
+parsing of environment markers in Pip's proprietary URL format.
+
+Also, the `-c` / `--script` / `--console-script` argument now supports
+non-Python distribution scripts.
+
+Finally, new contributor @blag improved the README.
+
+* Fix Pip proprietary URL env marker handling. (#1417)
+  `PR #1417 <https://github.com/pantsbuild/pex/pull/1417>`_
+
+* Un-reify installed wheel script shebangs. (#1410)
+  `PR #1410 <https://github.com/pantsbuild/pex/pull/1410>`_
+
+* Support deterministic repository extract tool. (#1411)
+  `PR #1411 <https://github.com/pantsbuild/pex/pull/1411>`_
+
+* Improve examples and add example subsection titles (#1409)
+  `PR #1409 <https://github.com/pantsbuild/pex/pull/1409>`_
+
+* support any scripts specified in `setup(scripts=...)` from setup.py. (#1381)
+  `PR #1381 <https://github.com/pantsbuild/pex/pull/1381>`_
+
 2.1.45
 ------
 
@@ -72,7 +98,7 @@ that improves Pip execution environment isolation.
 2.1.41
 ------
 
-This release brings a hotfix from @kaos for interpreter identification 
+This release brings a hotfix from @kaos for interpreter identification
 on macOS 11.
 
 * Update interpreter.py (#1332)
