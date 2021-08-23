@@ -4,6 +4,7 @@
 import functools
 import os
 import subprocess
+import sys
 from collections import defaultdict
 from textwrap import dedent
 
@@ -827,3 +828,26 @@ def test_resolve_from_pex_ignore_errors(
     assert len(resolved_distributions_by_key) > 1, "We should resolve at least requests and urllib3"
     assert "requests" in resolved_distributions_by_key
     assert Requirement.parse("urllib3==1.26.1") == resolved_distributions_by_key["urllib3"]
+
+
+def test_pip_proprietary_url_with_markers_issues_1415():
+    # https://<internal hostname>/pip/ray-0.8.4-cp37-cp37m-linux_x86_64.whl; sys_platform == 'linux'
+    # ray==0.8.4; sys_platform == 'darwin'
+    resolved_dists = resolve_multi(
+        requirements=[
+            (
+                "https://files.pythonhosted.org/packages/53/18/"
+                "a56e2fe47b259bb52201093a3a9d4a32014f9d85071ad07e9d60600890ca/"
+                "ansicolors-1.1.8-py2.py3-none-any.whl; sys_platform != '{}'".format(sys.platform)
+            ),
+            "ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform),
+        ]
+    )
+    assert len(resolved_dists) == 1
+
+    resolved_dist = resolved_dists[0]
+    assert Requirement.parse("ansicolors==1.1.8") == resolved_dist.distribution.as_requirement()
+    assert (
+        Requirement.parse("ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform))
+        == resolved_dist.direct_requirement
+    )

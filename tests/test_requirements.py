@@ -245,15 +245,19 @@ def test_parse_requirements_stress(chroot):
                 tmp/tmpW8tdb_[foo]
                 tmp/tmpW8tdb_[foo];python_version == "3.9"
 
-                hg+http://hg.example.com/MyProject@da39a3ee5e6b#egg=AnotherProject[extra,more];python_version=="3.9.*"&subdirectory=foo/bar
+                hg+http://hg.example.com/MyProject@da39a3ee5e6b\\
+                    #egg=AnotherProject[extra,more];python_version=="3.9.*"&subdirectory=foo/bar
 
                 ftp://a/${PROJECT_NAME}-1.0.tar.gz
                 http://a/${PROJECT_NAME}-1.0.zip
                 https://a/numpy-1.9.2-cp34-none-win32.whl
+                https://a/numpy-1.9.2-cp34-none-win32.whl;\\
+                    python_version=="3.4.*" and sys_platform=='win32'
 
                 Django@ git+https://github.com/django/django.git
                 Django@git+https://github.com/django/django.git@stable/2.1.x
-                Django@ git+https://github.com/django/django.git@fd209f62f1d83233cc634443cfac5ee4328d98b8
+                Django@ git+https://github.com/django/django.git\\
+                    @fd209f62f1d83233cc634443cfac5ee4328d98b8
                 Django @ file:projects/django-2.3.zip; python_version >= "3.10"
                 """
             )
@@ -376,6 +380,12 @@ def test_parse_requirements_stress(chroot):
             project_name="numpy",
             url="https://a/numpy-1.9.2-cp34-none-win32.whl",
             specifier="==1.9.2",
+        ),
+        url_req(
+            project_name="numpy",
+            url="https://a/numpy-1.9.2-cp34-none-win32.whl",
+            specifier="==1.9.2",
+            marker="python_version == '3.4.*' and sys_platform == 'win32'",
         ),
         url_req(project_name="Django", url="git+https://github.com/django/django.git"),
         url_req(project_name="Django", url="git+https://github.com/django/django.git@stable/2.1.x"),

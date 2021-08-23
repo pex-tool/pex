@@ -434,6 +434,11 @@ def _parse_requirement_line(
             if project_name_and_specifier is not None:
                 project_name = project_name_and_specifier.project_name
                 specifier = project_name_and_specifier.specifier
+        # Pip allows an environment marker after the url which matches the urlparse structure:
+        #   scheme://netloc/path;parameters?query#fragment
+        # See: https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlparse
+        if not marker and parsed_url.params:
+            marker = Marker(parsed_url.params)
         if project_name is None:
             raise ParseError(
                 line,
@@ -442,7 +447,7 @@ def _parse_requirement_line(
                     "#egg=<project name>."
                 ),
             )
-        url = parsed_url._replace(fragment="").geturl()
+        url = parsed_url._replace(params="", fragment="").geturl()
         requirement = parse_requirement_from_project_name_and_specifier(
             project_name,
             extras=extras,
