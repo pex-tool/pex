@@ -8,7 +8,7 @@ import functools
 import itertools
 import os
 import zipfile
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, Sequence, defaultdict
 
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
@@ -20,7 +20,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
-from pex.pip import PackageIndexConfiguration, get_pip
+from pex.pip import PackageIndexConfiguration, ResolverVersion, get_pip
 from pex.platforms import Platform
 from pex.requirements import (
     Constraint,
@@ -30,7 +30,7 @@ from pex.requirements import (
 )
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
@@ -71,10 +71,6 @@ class InstalledDistribution(object):
         )
 
 
-# A type alias to preserve API compatibility for resolve and resolve_multi.
-ResolvedDistribution = InstalledDistribution
-
-
 def parsed_platform(platform=None):
     # type: (Optional[Union[str, Platform]]) -> Optional[Platform]
     """Parse the given platform into a `Platform` object.
@@ -89,33 +85,24 @@ def parsed_platform(platform=None):
     return Platform.create(platform) if platform and platform != "current" else None
 
 
+def _uniqued_targets(targets=None):
+    # type: (Optional[Iterable[DistributionTarget]]) -> Tuple[DistributionTarget, ...]
+    return tuple(OrderedSet(targets)) if targets is not None else ()
+
+
+@attr.s(frozen=True)
 class DownloadRequest(object):
-    def __init__(
-        self,
-        targets,  # type: OrderedSet[DistributionTarget]
-        direct_requirements,  # type: Iterable[ParsedRequirement]
-        requirements=None,  # type: Optional[Iterable[str]]
-        requirement_files=None,  # type: Optional[Iterable[str]]
-        constraint_files=None,  # type: Optional[Iterable[str]]
-        allow_prereleases=False,  # type: bool
-        transitive=True,  # type: bool
-        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        cache=None,  # type: Optional[str]
-        build=True,  # type: bool
-        use_wheel=True,  # type: bool
-    ):
-        # type: (...) -> None
-        self.targets = tuple(targets)
-        self.direct_requirements = direct_requirements
-        self.requirements = requirements
-        self.requirement_files = requirement_files
-        self.constraint_files = constraint_files
-        self.allow_prereleases = allow_prereleases
-        self.transitive = transitive
-        self.package_index_configuration = package_index_configuration
-        self.cache = cache
-        self.build = build
-        self.use_wheel = use_wheel
+    targets = attr.ib(converter=_uniqued_targets)  # type: Tuple[DistributionTarget, ...]
+    direct_requirements = attr.ib()  # type: Iterable[ParsedRequirement]
+    requirements = attr.ib(default=None)  # type: Optional[Iterable[str]]
+    requirement_files = attr.ib(default=None)  # type: Optional[Iterable[str]]
+    constraint_files = attr.ib(default=None)  # type: Optional[Iterable[str]]
+    allow_prereleases = attr.ib(default=False)  # type: bool
+    transitive = attr.ib(default=True)  # type: bool
+    package_index_configuration = attr.ib(default=None)  # type: Optional[PackageIndexConfiguration]
+    cache = attr.ib(default=None)  # type: Optional[str]
+    build = attr.ib(default=True)  # type: bool
+    use_wheel = attr.ib(default=True)  # type: bool
 
     def iter_local_projects(self):
         # type: () -> Iterator[BuildRequest]
@@ -165,20 +152,15 @@ class DownloadRequest(object):
         return SpawnedJob.wait(job=download_job, result=DownloadResult(target, download_dir))
 
 
+@attr.s(frozen=True)
 class DownloadResult(object):
     @staticmethod
     def _is_wheel(path):
         # type: (str) -> bool
         return os.path.isfile(path) and path.endswith(".whl")
 
-    def __init__(
-        self,
-        target,  # type: DistributionTarget
-        download_dir,  # type: str
-    ):
-        # type: (...) -> None
-        self.target = target
-        self.download_dir = download_dir
+    target = attr.ib()  # type: DistributionTarget
+    download_dir = attr.ib()  # type: str
 
     def _iter_distribution_paths(self):
         # type: () -> Iterator[str]
@@ -740,7 +722,7 @@ class BuildAndInstallRequest(object):
         installed_distribution_by_project_name = OrderedDict(
             (ProjectName(resolved_distribution.distribution), resolved_distribution)
             for resolved_distribution in installed_distributions
-        )  # type: OrderedDict[ProjectName, ResolvedDistribution]
+        )  # type: OrderedDict[ProjectName, InstalledDistribution]
 
         unsatisfied = []
         for installed_distribution in installed_distribution_by_project_name.values():
@@ -781,100 +763,6 @@ class BuildAndInstallRequest(object):
             )
 
 
-def resolve(
-    requirements=None,
-    requirement_files=None,
-    constraint_files=None,
-    allow_prereleases=False,
-    transitive=True,
-    interpreter=None,
-    platform=None,
-    indexes=None,
-    find_links=None,
-    network_configuration=None,
-    cache=None,
-    build=True,
-    use_wheel=True,
-    compile=False,
-    manylinux=None,
-    max_parallel_jobs=None,
-    ignore_errors=False,
-):
-    """Produce all distributions needed to meet all specified requirements.
-
-    :keyword requirements: A sequence of requirement strings.
-    :type requirements: list of str
-    :keyword requirement_files: A sequence of requirement file paths.
-    :type requirement_files: list of str
-    :keyword constraint_files: A sequence of constraint file paths.
-    :type constraint_files: list of str
-    :keyword bool allow_prereleases: Whether to include pre-release and development versions when
-      resolving requirements. Defaults to ``False``, but any requirements that explicitly request
-      prerelease or development versions will override this setting.
-    :keyword bool transitive: Whether to resolve transitive dependencies of requirements.
-      Defaults to ``True``.
-    :keyword interpreter: If specified, distributions will be resolved for this interpreter, and
-      non-wheel distributions will be built against this interpreter. If both `interpreter` and
-      `platform` are ``None`` (the default), this defaults to the current interpreter.
-    :type interpreter: :class:`pex.interpreter.PythonInterpreter`
-    :keyword str platform: The exact PEP425-compatible platform string to resolve distributions for,
-      in addition to the platform of the given interpreter, if provided. If any distributions need
-      to be built, use the interpreter argument instead, providing the corresponding interpreter.
-      However, if the platform matches the current interpreter, the current interpreter will be used
-      to build any non-wheels.
-    :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
-      distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
-      use of all indexes, pass an empty list.
-    :type indexes: list of str
-    :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
-      local html file paths, these are parsed for links to distributions. If a local directory path,
-      its listing is used to discover distributions.
-    :type find_links: list of str
-    :keyword network_configuration: Configuration for network requests made downloading and building
-      distributions.
-    :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
-    :keyword str cache: A directory path to use to cache distributions locally.
-    :keyword bool build: Whether to allow building source distributions when no wheel is found.
-      Defaults to ``True``.
-    :keyword bool use_wheel: Whether to allow resolution of pre-built wheel distributions.
-      Defaults to ``True``.
-    :keyword bool compile: Whether to pre-compile resolved distribution python sources.
-      Defaults to ``False``.
-    :keyword str manylinux: The upper bound manylinux standard to support when targeting foreign linux
-      platforms. Defaults to ``None``.
-    :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
-      building and installing distributions in a resolve. Defaults to the number of CPUs available.
-    :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
-    :returns: List of :class:`ResolvedDistribution` instances meeting ``requirements``.
-    :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
-    :raises Untranslatable: If no compatible distributions could be acquired for
-      a particular requirement.
-    :raises ValueError: If a foreign `platform` was provided, and `use_wheel=False`.
-    :raises ValueError: If `build=False` and `use_wheel=False`.
-    """
-    # TODO(https://github.com/pantsbuild/pex/issues/969): Deprecate resolve with a single interpreter
-    #  or platform and rename resolve_multi to resolve for a single API entrypoint to a full resolve.
-    return resolve_multi(
-        requirements=requirements,
-        requirement_files=requirement_files,
-        constraint_files=constraint_files,
-        allow_prereleases=allow_prereleases,
-        transitive=transitive,
-        interpreters=None if interpreter is None else [interpreter],
-        platforms=None if platform is None else [platform],
-        indexes=indexes,
-        find_links=find_links,
-        network_configuration=network_configuration,
-        cache=cache,
-        build=build,
-        use_wheel=use_wheel,
-        compile=compile,
-        manylinux=manylinux,
-        max_parallel_jobs=max_parallel_jobs,
-        ignore_errors=ignore_errors,
-    )
-
-
 def _parse_reqs(
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
@@ -897,81 +785,73 @@ def _parse_reqs(
     return parsed_requirements
 
 
-def resolve_multi(
-    requirements=None,
-    requirement_files=None,
-    constraint_files=None,
-    allow_prereleases=False,
-    transitive=True,
-    interpreters=None,
-    platforms=None,
-    indexes=None,
-    find_links=None,
-    resolver_version=None,
-    network_configuration=None,
-    cache=None,
-    build=True,
-    use_wheel=True,
-    compile=False,
-    manylinux=None,
-    max_parallel_jobs=None,
-    ignore_errors=False,
-    verify_wheels=True,
+def resolve(
+    requirements=None,  # type: Optional[Iterable[str]]
+    requirement_files=None,  # type: Optional[Iterable[str]]
+    constraint_files=None,  # type: Optional[Iterable[str]]
+    allow_prereleases=False,  # type: bool
+    transitive=True,  # type: bool
+    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
+    platforms=None,  # type: Optional[Iterable[Union[str, Platform]]]
+    indexes=None,  # type: Optional[Sequence[str]]
+    find_links=None,  # type: Optional[Iterable[str]]
+    resolver_version=None,  # type: Optional[ResolverVersion.Value]
+    network_configuration=None,  # type: Optional[NetworkConfiguration]
+    cache=None,  # type: Optional[str]
+    build=True,  # type: bool
+    use_wheel=True,  # type: bool
+    compile=False,  # type: bool
+    manylinux=None,  # type: Optional[str]
+    max_parallel_jobs=None,  # type: Optional[int]
+    ignore_errors=False,  # type: bool
+    verify_wheels=True,  # type: bool
 ):
+    # type: (...) -> List[InstalledDistribution]
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
 
     The resulting distributions are installed in individual chroots that can be independently added
     to `sys.path`
 
     :keyword requirements: A sequence of requirement strings.
-    :type requirements: list of str
     :keyword requirement_files: A sequence of requirement file paths.
-    :type requirement_files: list of str
     :keyword constraint_files: A sequence of constraint file paths.
-    :type constraint_files: list of str
-    :keyword bool allow_prereleases: Whether to include pre-release and development versions when
+    :keyword allow_prereleases: Whether to include pre-release and development versions when
       resolving requirements. Defaults to ``False``, but any requirements that explicitly request
       prerelease or development versions will override this setting.
-    :keyword bool transitive: Whether to resolve transitive dependencies of requirements.
+    :keyword transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
     :keyword interpreters: If specified, distributions will be resolved for these interpreters, and
       non-wheel distributions will be built against each interpreter. If both `interpreters` and
       `platforms` are ``None`` (the default) or an empty iterable, this defaults to a list
       containing only the current interpreter.
-    :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
     :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
       for, in addition to the platforms of any given interpreters. If any distributions need to be
       built, use the interpreters argument instead, providing the corresponding interpreter.
       However, if any platform matches the current interpreter, the current interpreter will be used
       to build any non-wheels for that platform.
-    :type platforms: list of str
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
       use of all indexes, pass an empty list.
-    :type indexes: list of str
     :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
       local html file paths, these are parsed for links to distributions. If a local directory path,
       its listing is used to discover distributions.
-    :type find_links: list of str
     :keyword resolver_version: The resolver version to use.
-    :type resolver_version: :class:`ResolverVersion`
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
-    :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
-    :keyword str cache: A directory path to use to cache distributions locally.
-    :keyword bool build: Whether to allow building source distributions when no wheel is found.
+    :keyword cache: A directory path to use to cache distributions locally.
+    :keyword build: Whether to allow building source distributions when no wheel is found.
       Defaults to ``True``.
-    :keyword bool use_wheel: Whether to allow resolution of pre-built wheel distributions.
+    :keyword use_wheel: Whether to allow resolution of pre-built wheel distributions.
       Defaults to ``True``.
-    :keyword bool compile: Whether to pre-compile resolved distribution python sources.
+    :keyword compile: Whether to pre-compile resolved distribution python sources.
       Defaults to ``False``.
-    :keyword str manylinux: The upper bound manylinux standard to support when targeting foreign linux
+    :keyword manylinux: The upper bound manylinux standard to support when targeting foreign linux
       platforms. Defaults to ``None``.
-    :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
+    :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
-    :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
-    :keyword bool verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
-    :returns: List of :class:`ResolvedDistribution` instances meeting ``requirements``.
+    :keyword ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
+    :keyword verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
+    :returns: The resolved distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
       a particular requirement.
@@ -1034,7 +914,7 @@ def resolve_multi(
         max_parallel_jobs=max_parallel_jobs,
     )
 
-    install_requests = []
+    install_requests = []  # type: List[InstallRequest]
     for download_result in download_results:
         build_requests.extend(download_result.build_requests())
         install_requests.extend(download_result.install_requests())
@@ -1152,68 +1032,60 @@ class LocalDistribution(object):
 
 
 def download(
-    requirements=None,
-    requirement_files=None,
-    constraint_files=None,
-    allow_prereleases=False,
-    transitive=True,
-    interpreters=None,
-    platforms=None,
-    indexes=None,
-    find_links=None,
-    resolver_version=None,
-    network_configuration=None,
-    cache=None,
-    build=True,
-    use_wheel=True,
-    manylinux=None,
-    dest=None,
-    max_parallel_jobs=None,
+    requirements=None,  # type: Optional[Iterable[str]]
+    requirement_files=None,  # type: Optional[Iterable[str]]
+    constraint_files=None,  # type: Optional[Iterable[str]]
+    allow_prereleases=False,  # type: bool
+    transitive=True,  # type: bool
+    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
+    platforms=None,  # type: Optional[Iterable[Union[str, Platform]]]
+    indexes=None,  # type: Optional[Sequence[str]]
+    find_links=None,  # type: Optional[Iterable[str]]
+    resolver_version=None,  # type: Optional[ResolverVersion.Value]
+    network_configuration=None,  # type: Optional[NetworkConfiguration]
+    cache=None,  # type: Optional[str]
+    build=True,  # type: bool
+    use_wheel=True,  # type: bool
+    manylinux=None,  # type: Optional[str]
+    dest=None,  # type: Optional[str]
+    max_parallel_jobs=None,  # type: Optional[int]
 ):
+    # type: (...) -> List[LocalDistribution]
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
 
     :keyword requirements: A sequence of requirement strings.
-    :type requirements: list of str
     :keyword requirement_files: A sequence of requirement file paths.
-    :type requirement_files: list of str
     :keyword constraint_files: A sequence of constraint file paths.
-    :type constraint_files: list of str
-    :keyword bool allow_prereleases: Whether to include pre-release and development versions when
+    :keyword allow_prereleases: Whether to include pre-release and development versions when
       resolving requirements. Defaults to ``False``, but any requirements that explicitly request
       prerelease or development versions will override this setting.
-    :keyword bool transitive: Whether to resolve transitive dependencies of requirements.
+    :keyword transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
     :keyword interpreters: If specified, distributions will be resolved for these interpreters.
       If both `interpreters` and `platforms` are ``None`` (the default) or an empty iterable, this
       defaults to a list containing only the current interpreter.
-    :type interpreters: list of :class:`pex.interpreter.PythonInterpreter`
     :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
       for, in addition to the platforms of any given interpreters.
-    :type platforms: list of str
-    :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
-      distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
-      use of all indexes, pass an empty list.
-    :type indexes: list of str
-    :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
+    :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search
+      for distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn
+      off use of all indexes, pass an empty list.
+    :keyword find_links: A list of URLs, paths to local html files or directory paths. If URLs or
       local html file paths, these are parsed for links to distributions. If a local directory path,
       its listing is used to discover distributions.
-    :type find_links: list of str
     :keyword resolver_version: The resolver version to use.
-    :type resolver_version: :class:`ResolverVersion`
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
-    :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
-    :keyword str cache: A directory path to use to cache distributions locally.
-    :keyword bool build: Whether to allow building source distributions when no wheel is found.
+    :keyword cache: A directory path to use to cache distributions locally.
+    :keyword build: Whether to allow building source distributions when no wheel is found.
       Defaults to ``True``.
-    :keyword bool use_wheel: Whether to allow resolution of pre-built wheel distributions.
+    :keyword use_wheel: Whether to allow resolution of pre-built wheel distributions.
       Defaults to ``True``.
-    :keyword str manylinux: The upper bound manylinux standard to support when targeting foreign linux
+    :keyword manylinux: The upper bound manylinux standard to support when targeting foreign linux
       platforms. Defaults to ``None``.
-    :keyword str dest: A directory path to download distributions to.
-    :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
+    :keyword dest: A directory path to download distributions to.
+    :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
-    :returns: List of :class:`LocalDistribution` instances meeting ``requirements``.
+    :returns: The local distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
     :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
     :raises ValueError: If `build=False` and `use_wheel=False`.
@@ -1272,42 +1144,38 @@ def download(
 
 
 def install(
-    local_distributions,
-    indexes=None,
-    find_links=None,
-    resolver_version=None,
-    network_configuration=None,
-    cache=None,
-    compile=False,
-    max_parallel_jobs=None,
-    ignore_errors=False,
-    verify_wheels=True,
+    local_distributions,  # type: Iterable[LocalDistribution]
+    indexes=None,  # type: Optional[Sequence[str]]
+    find_links=None,  # type: Optional[Iterable[str]]
+    resolver_version=None,  # type: Optional[ResolverVersion.Value]
+    network_configuration=None,  # type: Optional[NetworkConfiguration]
+    cache=None,  # type: Optional[str]
+    compile=False,  # type: bool
+    max_parallel_jobs=None,  # type: Optional[int]
+    ignore_errors=False,  # type: bool
+    verify_wheels=True,  # type: bool
 ):
+    # type: (...) -> List[InstalledDistribution]
     """Installs distributions in individual chroots that can be independently added to `sys.path`.
 
     :keyword local_distributions: The local distributions to install.
-    :type local_distributions: list of :class:`LocalDistribution`
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
       use of all indexes, pass an empty list.
-    :type indexes: list of str
     :keyword find_links: A list or URLs, paths to local html files or directory paths. If URLs or
       local html file paths, these are parsed for links to distributions. If a local directory path,
       its listing is used to discover distributions.
-    :type find_links: list of str
     :keyword resolver_version: The resolver version to use.
-    :type resolver_version: :class:`ResolverVersion`
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
-    :type network_configuration: :class:`pex.network_configuration.NetworkConfiguration`
-    :keyword str cache: A directory path to use to cache distributions locally.
-    :keyword bool compile: Whether to pre-compile resolved distribution python sources.
+    :keyword cache: A directory path to use to cache distributions locally.
+    :keyword compile: Whether to pre-compile resolved distribution python sources.
       Defaults to ``False``.
-    :keyword int max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
+    :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
-    :keyword bool ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
-    :keyword bool verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
-    :returns: List of :class:`InstalledDistribution` instances meeting ``requirements``.
+    :keyword ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
+    :keyword verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
+    :returns: The installed distributions meeting all requirements and constraints.
     :raises Untranslatable: If no compatible distributions could be acquired for
       a particular requirement.
     :raises Unsatisfiable: If not ignoring errors and distribution requirements are found to not be
@@ -1356,7 +1224,7 @@ def resolve_from_pex(
     manylinux=None,  # type: Optional[str]
     ignore_errors=False,  # type: bool
 ):
-    # type: (...) -> List[ResolvedDistribution]
+    # type: (...) -> List[InstalledDistribution]
 
     direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
     direct_requirements_by_project_name = (
@@ -1393,7 +1261,7 @@ def resolve_from_pex(
     unique_targets = _unique_targets(
         interpreters=interpreters, platforms=platforms, manylinux=manylinux
     )
-    resolved_distributions = OrderedSet()  # type: OrderedSet[ResolvedDistribution]
+    resolved_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
     for target in unique_targets:
         pex_env = PEXEnvironment(pex, target=target)
         try:
@@ -1423,6 +1291,6 @@ def resolve_from_pex(
                 )
 
             resolved_distributions.add(
-                ResolvedDistribution(target, distribution, direct_requirement=direct_requirement)
+                InstalledDistribution(target, distribution, direct_requirement=direct_requirement)
             )
     return list(resolved_distributions)

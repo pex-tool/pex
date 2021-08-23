@@ -41,8 +41,8 @@ def bdist_pex_pythonpath():
         # Although the setuptools version is not important, we pick one so the test can leverage the
         # pex cache for speed run over run.
         BDIST_PEX_PYTHONPATH.extend(
-            resolved_distribution.distribution.location
-            for resolved_distribution in resolver.resolve(["setuptools==36.2.7"])
+            installed_distribution.distribution.location
+            for installed_distribution in resolver.resolve(["setuptools==36.2.7"])
         )
     return BDIST_PEX_PYTHONPATH
 

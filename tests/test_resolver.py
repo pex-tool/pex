@@ -24,8 +24,8 @@ from pex.resolver import (
     Unsatisfiable,
     download,
     install,
+    resolve,
     resolve_from_pex,
-    resolve_multi,
 )
 from pex.testing import (
     IS_LINUX,
@@ -71,21 +71,21 @@ def build_wheel(**kwargs):
         return whl
 
 
-def local_resolve_multi(*args, **kwargs):
+def local_resolve(*args, **kwargs):
     # type: (*Any, **Any) -> List[InstalledDistribution]
     # Skip remote lookups.
     kwargs["indexes"] = []
-    return list(resolve_multi(*args, **kwargs))
+    return list(resolve(*args, **kwargs))
 
 
 def test_empty_resolve():
     # type: () -> None
-    empty_resolve_multi = local_resolve_multi([])
-    assert empty_resolve_multi == []
+    empty_resolve = local_resolve([])
+    assert empty_resolve == []
 
     with temporary_dir() as td:
-        empty_resolve_multi = local_resolve_multi([], cache=td)
-        assert empty_resolve_multi == []
+        empty_resolve = local_resolve([], cache=td)
+        assert empty_resolve == []
 
 
 def test_simple_local_resolve():
@@ -94,8 +94,8 @@ def test_simple_local_resolve():
 
     with temporary_dir() as td:
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
-        resolved_dists = local_resolve_multi(["project"], find_links=[td])
-        assert len(resolved_dists) == 1
+        installed_dists = local_resolve(["project"], find_links=[td])
+        assert len(installed_dists) == 1
 
 
 def test_resolve_cache():
@@ -106,20 +106,22 @@ def test_resolve_cache():
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
 
         # Without a cache, each resolve should be isolated, but otherwise identical.
-        resolved_dists1 = local_resolve_multi(["project"], find_links=[td])
-        resolved_dists2 = local_resolve_multi(["project"], find_links=[td])
-        assert resolved_dists1 != resolved_dists2
-        assert len(resolved_dists1) == 1
-        assert len(resolved_dists2) == 1
-        assert resolved_dists1[0].direct_requirement == resolved_dists2[0].direct_requirement
-        assert resolved_dists1[0].distribution.location != resolved_dists2[0].distribution.location
+        installed_dists1 = local_resolve(["project"], find_links=[td])
+        installed_dists2 = local_resolve(["project"], find_links=[td])
+        assert installed_dists1 != installed_dists2
+        assert len(installed_dists1) == 1
+        assert len(installed_dists2) == 1
+        assert installed_dists1[0].direct_requirement == installed_dists2[0].direct_requirement
+        assert (
+            installed_dists1[0].distribution.location != installed_dists2[0].distribution.location
+        )
 
         # With a cache, each resolve should be identical.
-        resolved_dists3 = local_resolve_multi(["project"], find_links=[td], cache=cache)
-        resolved_dists4 = local_resolve_multi(["project"], find_links=[td], cache=cache)
-        assert resolved_dists1 != resolved_dists3
-        assert resolved_dists2 != resolved_dists3
-        assert resolved_dists3 == resolved_dists4
+        installed_dists3 = local_resolve(["project"], find_links=[td], cache=cache)
+        installed_dists4 = local_resolve(["project"], find_links=[td], cache=cache)
+        assert installed_dists1 != installed_dists3
+        assert installed_dists2 != installed_dists3
+        assert installed_dists3 == installed_dists4
 
 
 def test_diamond_local_resolve_cached():
@@ -132,10 +134,8 @@ def test_diamond_local_resolve_cached():
         for wheel in (project1_wheel, project2_wheel):
             safe_copy(wheel, os.path.join(dd, os.path.basename(wheel)))
         with temporary_dir() as cd:
-            resolved_dists = local_resolve_multi(
-                ["project1", "project2"], find_links=[dd], cache=cd
-            )
-            assert len(resolved_dists) == 2
+            installed_dists = local_resolve(["project1", "project2"], find_links=[dd], cache=cd)
+            assert len(installed_dists) == 2
 
 
 def test_cached_dependency_pinned_unpinned_resolution_multi_run():
@@ -149,15 +149,15 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
         with temporary_dir() as cd:
             # First run, pinning 1.0.0 in the cache
-            resolved_dists = local_resolve_multi(["project==1.0.0"], find_links=[td], cache=cd)
-            assert len(resolved_dists) == 1
-            assert resolved_dists[0].distribution.version == "1.0.0"
+            installed_dists = local_resolve(["project==1.0.0"], find_links=[td], cache=cd)
+            assert len(installed_dists) == 1
+            assert installed_dists[0].distribution.version == "1.0.0"
 
             # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should also
             # return SourcePackages found in td
-            resolved_dists = local_resolve_multi(["project"], find_links=[td], cache=cd)
-            assert len(resolved_dists) == 1
-            assert resolved_dists[0].distribution.version == "1.1.0"
+            installed_dists = local_resolve(["project"], find_links=[td], cache=cd)
+            assert len(installed_dists) == 1
+            assert installed_dists[0].distribution.version == "1.1.0"
 
 
 def test_intransitive():
@@ -169,10 +169,10 @@ def test_intransitive():
         for wheel in (foo1_0, bar1_0):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
         with temporary_dir() as cd:
-            resolved_dists = local_resolve_multi(
+            installed_dists = local_resolve(
                 ["foo", "bar"], find_links=[td], cache=cd, transitive=False
             )
-            assert len(resolved_dists) == 2
+            assert len(installed_dists) == 2
 
 
 def test_resolve_prereleases():
@@ -185,10 +185,10 @@ def test_resolve_prereleases():
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
         def assert_resolve(expected_version, **resolve_kwargs):
-            resolved_dists = local_resolve_multi(["dep>=1,<4"], find_links=[td], **resolve_kwargs)
-            assert 1 == len(resolved_dists)
-            resolved_dist = resolved_dists[0]
-            assert expected_version == resolved_dist.distribution.version
+            installed_dists = local_resolve(["dep>=1,<4"], find_links=[td], **resolve_kwargs)
+            assert 1 == len(installed_dists)
+            installed_dist = installed_dists[0]
+            assert expected_version == installed_dist.distribution.version
 
         assert_resolve("2.0.0")
         assert_resolve("2.0.0", allow_prereleases=False)
@@ -211,10 +211,10 @@ def test_resolve_extra_setup_py():
         with temporary_dir() as td:
             safe_copy(project2_wheel, os.path.join(td, os.path.basename(project2_wheel)))
 
-            resolved_dists = local_resolve_multi(["{}[foo]".format(project1_dir)], find_links=[td])
+            installed_dists = local_resolve(["{}[foo]".format(project1_dir)], find_links=[td])
             assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
-                _parse_requirement(resolved_dist.distribution.as_requirement())
-                for resolved_dist in resolved_dists
+                _parse_requirement(installed_dist.distribution.as_requirement())
+                for installed_dist in installed_dists
             }
 
 
@@ -228,18 +228,18 @@ def test_resolve_extra_wheel():
         for wheel in (project1_wheel, project2_wheel):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
-        resolved_dists = local_resolve_multi(["project1[foo]"], find_links=[td])
+        installed_dists = local_resolve(["project1[foo]"], find_links=[td])
         assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
-            _parse_requirement(resolved_dist.distribution.as_requirement())
-            for resolved_dist in resolved_dists
+            _parse_requirement(installed_dist.distribution.as_requirement())
+            for installed_dist in installed_dists
         }
 
 
 def resolve_wheel_names(**kwargs):
     # type: (**Any) -> List[str]
     return [
-        os.path.basename(resolved_distribution.distribution.location)
-        for resolved_distribution in resolve_multi(**kwargs)
+        os.path.basename(installed_distribution.distribution.location)
+        for installed_distribution in resolve(**kwargs)
     ]
 
 
@@ -353,10 +353,13 @@ def test_issues_851():
 
     def resolve_pytest(python_version, pytest_version):
         interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(python_version))
-        resolved_dists = resolve_multi(
+        installed_dists = resolve(
             interpreters=[interpreter], requirements=["pytest=={}".format(pytest_version)]
         )
-        project_to_version = {rd.distribution.key: rd.distribution.version for rd in resolved_dists}
+        project_to_version = {
+            installed_dist.distribution.key: installed_dist.distribution.version
+            for installed_dist in installed_dists
+        }
         assert project_to_version["pytest"] == pytest_version
         return project_to_version
 
@@ -393,7 +396,7 @@ def test_issues_892():
 
 
         python27 = PythonInterpreter.from_binary({python27!r})
-        result = resolver.resolve(requirements=['packaging==19.2'], interpreter=python27)
+        result = resolver.resolve(requirements=['packaging==19.2'], interpreters=[python27])
         print('Resolved: {{}}'.format(result))
   """.format(
             python27=python27
@@ -520,15 +523,15 @@ def test_resolve_arbitrary_equality_issues_940():
         version="1.0.2-fba4511",
         python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
     )
-    resolved_distributions = local_resolve_multi(
+    installed_distributions = local_resolve(
         requirements=[dist],
         # We need this to allow the invalid version above to sneak by pip wheel metadata
         # verification.
         verify_wheels=False,
     )
 
-    assert len(resolved_distributions) == 1
-    requirement = resolved_distributions[0].direct_requirement
+    assert len(installed_distributions) == 1
+    requirement = installed_distributions[0].direct_requirement
     assert requirement is not None, (
         "The foo requirement was direct; so the resulting resolved distribution should carry the "
         "associated requirement."
@@ -539,22 +542,22 @@ def test_resolve_arbitrary_equality_issues_940():
 
 def test_resolve_overlapping_requirements_discriminated_by_markers_issues_1196(py27):
     # type: (PythonInterpreter) -> None
-    resolved_distributions = resolve_multi(
+    installed_distributions = resolve(
         requirements=[
             "setuptools<45; python_full_version == '2.7.*'",
             "setuptools; python_version > '2.7'",
         ],
         interpreters=[py27],
     )
-    assert 1 == len(resolved_distributions)
-    resolved_distribution = resolved_distributions[0]
+    assert 1 == len(installed_distributions)
+    installed_distribution = installed_distributions[0]
     assert (
         Requirement.parse("setuptools<45; python_full_version == '2.7.*'")
-        == resolved_distribution.direct_requirement
+        == installed_distribution.direct_requirement
     )
     assert (
         Requirement.parse("setuptools==44.1.1")
-        == resolved_distribution.distribution.as_requirement()
+        == installed_distribution.distribution.as_requirement()
     )
 
 
@@ -568,7 +571,7 @@ def create_pex_repository(
 ):
     # type: (...) -> str
     pex_builder = PEXBuilder()
-    for resolved_dist in resolve_multi(
+    for installed_dist in resolve(
         interpreters=interpreters,
         platforms=platforms,
         requirements=requirements,
@@ -576,9 +579,9 @@ def create_pex_repository(
         constraint_files=constraint_files,
         manylinux=manylinux,
     ):
-        pex_builder.add_distribution(resolved_dist.distribution)
-        if resolved_dist.direct_requirement:
-            pex_builder.add_requirement(resolved_dist.direct_requirement)
+        pex_builder.add_distribution(installed_dist.distribution)
+        if installed_dist.direct_requirement:
+            pex_builder.add_requirement(installed_dist.direct_requirement)
     pex_builder.freeze()
     return os.path.realpath(cast(str, pex_builder.path()))
 
@@ -660,7 +663,7 @@ def test_resolve_from_pex(
     direct_requirements = pex_info.requirements
     assert 1 == len(direct_requirements)
 
-    resolved_distributions = resolve_from_pex(
+    installed_distributions = resolve_from_pex(
         pex=pex_repository,
         requirements=direct_requirements,
         interpreters=[py27, py38],
@@ -669,9 +672,9 @@ def test_resolve_from_pex(
     )
 
     distribution_locations_by_key = defaultdict(set)  # type: DefaultDict[str, Set[str]]
-    for resolved_distribution in resolved_distributions:
-        distribution_locations_by_key[resolved_distribution.distribution.key].add(
-            resolved_distribution.distribution.location
+    for installed_distribution in installed_distributions:
+        distribution_locations_by_key[installed_distribution.distribution.key].add(
+            installed_distribution.distribution.location
         )
 
     assert {
@@ -707,7 +710,7 @@ def test_resolve_from_pex_subset(
 ):
     # type: (...) -> None
 
-    resolved_distributions = resolve_from_pex(
+    installed_distributions = resolve_from_pex(
         pex=pex_repository,
         requirements=["cffi"],
         platforms=[foreign_platform],
@@ -715,7 +718,8 @@ def test_resolve_from_pex_subset(
     )
 
     assert {"cffi", "pycparser"} == {
-        resolved_distribution.distribution.key for resolved_distribution in resolved_distributions
+        installed_distribution.distribution.key
+        for installed_distribution in installed_distributions
     }
 
 
@@ -760,7 +764,7 @@ def test_resolve_from_pex_intransitive(
 ):
     # type: (...) -> None
 
-    resolved_distributions = resolve_from_pex(
+    installed_distributions = resolve_from_pex(
         pex=pex_repository,
         requirements=["requests"],
         transitive=False,
@@ -769,23 +773,23 @@ def test_resolve_from_pex_intransitive(
         manylinux=manylinux,
     )
     assert 3 == len(
-        resolved_distributions
+        installed_distributions
     ), "Expected one resolved distribution per distribution target."
     assert 1 == len(
         frozenset(
-            resolved_distribution.distribution.location
-            for resolved_distribution in resolved_distributions
+            installed_distribution.distribution.location
+            for installed_distribution in installed_distributions
         )
     ), (
         "Expected one underlying resolved universal distribution usable on Linux and macOs by "
         "both Python 2.7 and Python 3.6."
     )
-    for resolved_distribution in resolved_distributions:
+    for installed_distribution in installed_distributions:
         assert (
             Requirement.parse("requests==2.25.1")
-            == resolved_distribution.distribution.as_requirement()
+            == installed_distribution.distribution.as_requirement()
         )
-        assert Requirement.parse("requests") == resolved_distribution.direct_requirement
+        assert Requirement.parse("requests") == installed_distribution.direct_requirement
 
 
 def test_resolve_from_pex_constraints(
@@ -814,26 +818,26 @@ def test_resolve_from_pex_ignore_errors(
     # type: (...) -> None
 
     # See test_resolve_from_pex_constraints above for the failure this would otherwise cause.
-    resolved_distributions = resolve_from_pex(
+    installed_distributions = resolve_from_pex(
         pex=pex_repository,
         requirements=["requests"],
         constraint_files=[create_constraints_file("urllib3==1.26.2")],
         interpreters=[py27],
         ignore_errors=True,
     )
-    resolved_distributions_by_key = {
-        resolved_distribution.distribution.key: resolved_distribution.distribution.as_requirement()
-        for resolved_distribution in resolved_distributions
+    installed_distributions_by_key = {
+        installed_distribution.distribution.key: installed_distribution.distribution.as_requirement()
+        for installed_distribution in installed_distributions
     }
-    assert len(resolved_distributions_by_key) > 1, "We should resolve at least requests and urllib3"
-    assert "requests" in resolved_distributions_by_key
-    assert Requirement.parse("urllib3==1.26.1") == resolved_distributions_by_key["urllib3"]
+    assert (
+        len(installed_distributions_by_key) > 1
+    ), "We should resolve at least requests and urllib3"
+    assert "requests" in installed_distributions_by_key
+    assert Requirement.parse("urllib3==1.26.1") == installed_distributions_by_key["urllib3"]
 
 
 def test_pip_proprietary_url_with_markers_issues_1415():
-    # https://<internal hostname>/pip/ray-0.8.4-cp37-cp37m-linux_x86_64.whl; sys_platform == 'linux'
-    # ray==0.8.4; sys_platform == 'darwin'
-    resolved_dists = resolve_multi(
+    installed_dists = resolve(
         requirements=[
             (
                 "https://files.pythonhosted.org/packages/53/18/"
@@ -843,11 +847,11 @@ def test_pip_proprietary_url_with_markers_issues_1415():
             "ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform),
         ]
     )
-    assert len(resolved_dists) == 1
+    assert len(installed_dists) == 1
 
-    resolved_dist = resolved_dists[0]
-    assert Requirement.parse("ansicolors==1.1.8") == resolved_dist.distribution.as_requirement()
+    installed_dist = installed_dists[0]
+    assert Requirement.parse("ansicolors==1.1.8") == installed_dist.distribution.as_requirement()
     assert (
         Requirement.parse("ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform))
-        == resolved_dist.direct_requirement
+        == installed_dist.direct_requirement
     )

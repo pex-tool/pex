@@ -19,7 +19,6 @@ from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.resolver import resolve
 from pex.testing import (
     IS_LINUX,
     IS_PYPY3,
@@ -155,10 +154,12 @@ def assert_force_local_implicit_ns_packages_issues_598(
 
     def add_requirements(builder, cache):
         # type: (PEXBuilder, str) -> None
-        for resolved_dist in resolve(requirements, cache=cache, interpreter=builder.interpreter):
-            builder.add_distribution(resolved_dist.distribution)
-            if resolved_dist.direct_requirement:
-                builder.add_requirement(resolved_dist.direct_requirement)
+        for installed_dist in resolver.resolve(
+            requirements, cache=cache, interpreters=[builder.interpreter]
+        ):
+            builder.add_distribution(installed_dist.distribution)
+            if installed_dist.direct_requirement:
+                builder.add_requirement(installed_dist.direct_requirement)
 
     def add_wheel(builder, content):
         # type: (PEXBuilder, Dict[str, str]) -> None
@@ -321,10 +322,10 @@ def test_osx_platform_intel_issue_523():
         with yield_pex_builder(
             interpreter=bad_interpreter()
         ) as pb, temporary_filename() as pex_file:
-            for resolved_dist in resolver.resolve(
-                ["psutil==5.4.3"], cache=cache, interpreter=pb.interpreter
+            for installed_dist in resolver.resolve(
+                ["psutil==5.4.3"], cache=cache, interpreters=[pb.interpreter]
             ):
-                pb.add_dist_location(resolved_dist.distribution.location)
+                pb.add_dist_location(installed_dist.distribution.location)
             pb.build(pex_file)
 
             # NB: We want PEX to find the bare bad interpreter at runtime.
@@ -377,10 +378,12 @@ def test_osx_platform_intel_issue_523():
 def test_activate_extras_issue_615():
     # type: () -> None
     with yield_pex_builder() as pb:
-        for resolved_dist in resolver.resolve(["pex[requests]==1.6.3"], interpreter=pb.interpreter):
-            if resolved_dist.direct_requirement:
-                pb.add_requirement(resolved_dist.direct_requirement)
-            pb.add_dist_location(resolved_dist.distribution.location)
+        for installed_dist in resolver.resolve(
+            ["pex[requests]==1.6.3"], interpreters=[pb.interpreter]
+        ):
+            if installed_dist.direct_requirement:
+                pb.add_requirement(installed_dist.direct_requirement)
+            pb.add_dist_location(installed_dist.distribution.location)
         pb.set_script("pex")
         pb.freeze()
         process = PEX(pb.path(), interpreter=pb.interpreter).run(
@@ -401,8 +404,8 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
     # type: (str, str, bool) -> None
     requirement = "{}=={}".format(distribution, version)
     pb = PEXBuilder()
-    for resolved_dist in resolver.resolve([requirement]):
-        pb.add_dist_location(resolved_dist.distribution.location)
+    for installed_dist in resolver.resolve([requirement]):
+        pb.add_dist_location(installed_dist.distribution.location)
     pb.freeze()
 
     process = PEX(pb.path()).run(args=["-c", ""], blocking=False, stderr=subprocess.PIPE)
