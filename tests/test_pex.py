@@ -13,13 +13,13 @@ from types import ModuleType
 
 import pytest
 
+from pex import resolver
 from pex.common import safe_mkdir, safe_open, temporary_dir
 from pex.compatibility import PY2, WINDOWS, to_bytes
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.resolver import resolve
 from pex.testing import (
     IS_PYPY3,
     PY27,
@@ -714,8 +714,8 @@ def test_pex_run_strip_env():
 
 def test_pex_run_custom_setuptools_useable():
     # type: () -> None
-    resolved_dists = resolve(["setuptools==36.2.7"])
-    dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
+    installed_dists = resolver.resolve(["setuptools==36.2.7"])
+    dists = [installed_dist.distribution for installed_dist in installed_dists]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
             temp_dir,
@@ -737,8 +737,8 @@ def test_pex_run_conflicting_custom_setuptools_useable():
     # > pkg_resources/py31compat.py
     # > pkg_resources/_vendor/appdirs.py
 
-    resolved_dists = resolve(["setuptools==20.3.1"])
-    dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
+    installed_dists = resolver.resolve(["setuptools==20.3.1"])
+    dists = [installed_dist.distribution for installed_dist in installed_dists]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
             temp_dir,
@@ -769,8 +769,8 @@ def test_pex_run_conflicting_custom_setuptools_useable():
 def test_pex_run_custom_pex_useable():
     # type: () -> None
     old_pex_version = "0.7.0"
-    resolved_dists = resolve(["pex=={}".format(old_pex_version), "setuptools==40.6.3"])
-    dists = [resolved_dist.distribution for resolved_dist in resolved_dists]
+    installed_dists = resolver.resolve(["pex=={}".format(old_pex_version), "setuptools==40.6.3"])
+    dists = [installed_dist.distribution for installed_dist in installed_dists]
     with temporary_dir() as temp_dir:
         from pex.version import __version__
 

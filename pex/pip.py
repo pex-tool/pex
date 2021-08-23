@@ -20,7 +20,7 @@ from contextlib import closing
 from textwrap import dedent
 
 from pex import dist_metadata, third_party
-from pex.common import atomic_directory, is_script, safe_mkdtemp
+from pex.common import atomic_directory, safe_mkdtemp
 from pex.compatibility import urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
@@ -51,6 +51,7 @@ if TYPE_CHECKING:
         Mapping,
         Optional,
         Protocol,
+        Sequence,
         Tuple,
         Union,
     )
@@ -96,8 +97,8 @@ class ResolverVersion(object):
 class PackageIndexConfiguration(object):
     @staticmethod
     def _calculate_args(
-        indexes=None,  # type: Optional[List[str]]
-        find_links=None,  # type: Optional[List[str]]
+        indexes=None,  # type: Optional[Sequence[str]]
+        find_links=None,  # type: Optional[Iterable[str]]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
     ):
         # type: (...) -> Iterator[str]
@@ -171,8 +172,8 @@ class PackageIndexConfiguration(object):
     def create(
         cls,
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
-        indexes=None,  # type: Optional[List[str]]
-        find_links=None,  # type: Optional[List[str]]
+        indexes=None,  # type: Optional[Sequence[str]]
+        find_links=None,  # type: Optional[Iterable[str]]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
     ):
         # type: (...) -> PackageIndexConfiguration

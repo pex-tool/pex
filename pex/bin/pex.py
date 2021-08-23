@@ -31,7 +31,7 @@ from pex.pex_bootstrapper import ensure_venv, iter_compatible_interpreters
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.pip import ResolverVersion
 from pex.platforms import Platform
-from pex.resolver import Unsatisfiable, parsed_platform, resolve_from_pex, resolve_multi
+from pex.resolver import Unsatisfiable, parsed_platform, resolve, resolve_from_pex
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV, Variables
@@ -1024,7 +1024,7 @@ def build_pex(reqs, options, cache=None):
                     )
             else:
                 with TRACER.timed("Resolving requirements."):
-                    resolveds = resolve_multi(
+                    resolveds = resolve(
                         requirements=reqs,
                         requirement_files=options.requirement_files,
                         constraint_files=options.constraint_files,
