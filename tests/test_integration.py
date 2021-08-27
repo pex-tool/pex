@@ -9,6 +9,7 @@ import functools
 import glob
 import json
 import multiprocessing
+import operator
 import os
 import re
 import shlex
@@ -2759,12 +2760,13 @@ def test_venv_mode(
     )
     results.assert_success()
 
-    def run_isort_pex(**env):
-        # type: (**Any) -> str
+    def run_isort_pex(pex_python=None):
+        # type: (Optional[str]) -> str
+        args = [pex_file] if pex_python else [sys.executable, pex_file]
         pex_root = str(tmpdir)
         stdout = subprocess.check_output(
-            args=[pex_file, "-c", "import sys; print(sys.executable); print(sys.prefix)"],
-            env=make_env(PEX_ROOT=pex_root, PEX_INTERPRETER=1, **env),
+            args=args + ["-c", "import sys; print(sys.executable); print(sys.prefix)"],
+            env=make_env(PEX_ROOT=pex_root, PEX_INTERPRETER=1, PEX_PYTHON=pex_python),
         )
         pex_interpreter, venv_home = cast(
             "Tuple[str, str]", stdout.decode("utf-8").strip().splitlines()
@@ -2775,12 +2777,15 @@ def test_venv_mode(
             actual_venv_home
         ), "Expected the venv home symlink path length to be shorter than the actual path length"
 
-        with ENV.patch(**env):
+        with ENV.patch(PEX_PYTHON=pex_python):
             pex_info = PexInfo.from_pex(pex_file)
             pex_hash = pex_info.pex_hash
             assert pex_hash is not None
             expected_venv_home = venv_dir(
-                pex_root=pex_root, pex_hash=pex_hash, interpreter_constraints=[], strip_pex_env=True
+                pex_file=pex_file,
+                pex_root=pex_root,
+                pex_hash=pex_hash,
+                has_interpreter_constraints=False,
             )
         assert expected_venv_home == os.path.commonprefix([actual_venv_home, expected_venv_home])
         return pex_interpreter
@@ -2788,10 +2793,10 @@ def test_venv_mode(
     isort_pex_interpreter1 = run_isort_pex()
     assert isort_pex_interpreter1 == run_isort_pex()
 
-    isort_pex_interpreter2 = run_isort_pex(PEX_PYTHON=other_interpreter)
+    isort_pex_interpreter2 = run_isort_pex(pex_python=other_interpreter)
     assert other_interpreter != isort_pex_interpreter2
     assert isort_pex_interpreter1 != isort_pex_interpreter2
-    assert isort_pex_interpreter2 == run_isort_pex(PEX_PYTHON=other_interpreter)
+    assert isort_pex_interpreter2 == run_isort_pex(pex_python=other_interpreter)
 
 
 def test_venv_mode_issues_1218(tmpdir):
@@ -3609,3 +3614,99 @@ def test_binary_scripts(tmpdir, mode_args):
     ).assert_success()
     output = subprocess.check_output(args=[py_spy_pex, "-V"])
     assert output == b"py-spy 0.3.8\n"
+
+
+def test_unconstrained_universal_venv_pex_issues_1422(tmpdir):
+    # type: (Any) -> None
+    setuptools_pex = os.path.join(str(tmpdir), "setuptools.pex")
+    run_pex_command(args=["setuptools==44.0.0", "-o", setuptools_pex, "--venv"]).assert_success()
+
+    def execute_pex(
+        python,  # type: str
+        **extra_env  # type: str
+    ):
+        # type: (...) -> Tuple[bytes, bytes, int]
+        process = subprocess.Popen(
+            args=[
+                python,
+                setuptools_pex,
+                "-c",
+                "import sys; print('.'.join(map(str, sys.version_info[:2])))",
+            ],
+            env=make_env(PEX_VERBOSE=1, **extra_env),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, stderr = process.communicate()
+        return stdout, stderr, process.returncode
+
+    def assert_uses_python(
+        python,  # type: str
+        expected_version,  # type: Tuple[int, int]
+        expected_warnings=None,  # type: Optional[Iterable[str]]
+        **extra_env  # type: str
+    ):
+        # type: (...) -> None
+        stdout, stderr, returncode = execute_pex(python, **extra_env)
+        assert 0 == returncode, stderr
+        assert ".".join(map(str, expected_version)) == stdout.decode("utf-8").strip()
+
+        stderr_text = stderr.decode("utf-8").strip()
+        if expected_warnings:
+            assert "PEXWarning" in stderr_text
+            for expected_warning in expected_warnings:
+                assert re.search(expected_warning, stderr_text)
+        else:
+            assert "PEXWarning" not in stderr_text
+
+    py27 = ensure_python_interpreter(PY27)
+    py37 = ensure_python_interpreter(PY37)
+    py38 = ensure_python_interpreter(PY38)
+
+    assert_uses_python(python=sys.executable, expected_version=sys.version_info[:2])
+    assert_uses_python(python=py27, expected_version=(2, 7))
+    assert_uses_python(python=py37, expected_version=(3, 7))
+    assert_uses_python(python=py38, expected_version=(3, 8))
+
+    # When PEX_PYTHON is imprecise, the final python should be chosen by the PEX runtime.
+    py27_ppp = os.path.dirname(py27)
+    assert_uses_python(
+        python=py38,
+        expected_version=(2, 7),
+        PEX_PYTHON="python3.7",
+        PEX_PYTHON_PATH=py27_ppp,
+        expected_warnings=[
+            r"Using a venv restricted by PEX_PYTHON_PATH={ppp} for {pex} at ".format(
+                ppp=py27_ppp, pex=setuptools_pex
+            )
+        ],
+    )
+
+    # When PEX_PYTHON is imprecise and not locked down to a minor version, a warning should be
+    # issued.
+    assert_uses_python(
+        python=py38,
+        expected_version=(2, 7),
+        PEX_PYTHON="python3",
+        PEX_PYTHON_PATH=py27_ppp,
+        expected_warnings=[
+            r"Using a venv selected by PEX_PYTHON=python3 for {pex} at".format(pex=setuptools_pex),
+            r"Using a venv restricted by PEX_PYTHON_PATH={ppp} for {pex} at ".format(
+                ppp=py27_ppp, pex=setuptools_pex
+            ),
+        ],
+    )
+
+    # When PEX_PYTHON is precise but not on PEX_PYTHON_PATH, the final python should also be chosen
+    # by the PEX runtime and selection should fail.
+    _, _, returncode = execute_pex(python=py38, PEX_PYTHON=py37, PEX_PYTHON_PATH=py27_ppp)
+    assert 0 != returncode
+
+    # But when PEX_PYTHON is precise and on the PEX_PYTHON_PATH, the final python should be
+    # PEX_PYTHON.
+    assert_uses_python(
+        python=py38,
+        expected_version=(3, 7),
+        PEX_PYTHON=py37,
+        PEX_PYTHON_PATH=":".join(os.path.dirname(py) for py in (py27, py37)),
+    )

@@ -144,8 +144,8 @@ class PexInfo(object):
             raise ValueError(
                 "PexInfo can only be seeded with a dict, got: " "%s of type %s" % (info, type(info))
             )
-        self._pex_info = dict(info) if info else {}  # type Dict[str, Any]
-        self._distributions = self._pex_info.get("distributions", {})
+        self._pex_info = dict(info) if info else {}  # type: Dict[str, Any]
+        self._distributions = self._pex_info.get("distributions", {})  # type: Dict[str, str]
         # cast as set because pex info from json must store interpreter_constraints as a list
         self._interpreter_constraints = set(self._pex_info.get("interpreter_constraints", set()))
         requirements = self._pex_info.get("requirements", [])
@@ -249,18 +249,22 @@ class PexInfo(object):
         # type: (bool) -> None
         self._pex_info["venv_copies"] = value
 
-    @property
-    def venv_dir(self):
-        # type: () -> Optional[str]
+    def venv_dir(
+        self,
+        pex_file,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> Optional[str]
         if not self.venv:
             return None
         if self.pex_hash is None:
             raise ValueError("The venv_dir was requested but no pex_hash was set.")
         return variables.venv_dir(
+            pex_file=pex_file,
             pex_root=self.pex_root,
             pex_hash=self.pex_hash,
-            interpreter_constraints=self.interpreter_constraints,
-            strip_pex_env=self.strip_pex_env,
+            has_interpreter_constraints=bool(self.interpreter_constraints),
+            interpreter=interpreter,
             pex_path=self.pex_path,
         )
 
@@ -399,6 +403,7 @@ class PexInfo(object):
 
     @property
     def distributions(self):
+        # type: () -> Dict[str, str]
         return self._distributions
 
     @property

@@ -318,6 +318,7 @@ class _LogScrapeJob(Job):
         super(_LogScrapeJob, self)._check_returncode(stderr=stderr)
 
 
+@attr.s(frozen=True)
 class Pip(object):
     _PATCHED_MARKERS_FILE_ENV_VAR_NAME = "_PEX_PATCHED_MARKERS_FILE"
 
@@ -377,13 +378,9 @@ class Pip(object):
                     fp.close()
                     isolated_pip_builder.set_executable(fp.name, "__pex_patched_pip__.py")
                 isolated_pip_builder.freeze()
-        pex_info = PexInfo.from_pex(pip_pex_path)
-        pex_info.add_interpreter_constraint(str(pip_interpreter.identity.requirement))
-        return cls(ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter, pex_info=pex_info)))
+        return cls(ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter)))
 
-    def __init__(self, pip_pex_path):
-        # type: (str) -> None
-        self._pip_pex_path = pip_pex_path  # type: str
+    _pip_pex_path = attr.ib()  # type: str
 
     @staticmethod
     def _calculate_resolver_version(package_index_configuration=None):

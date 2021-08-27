@@ -4,25 +4,26 @@
 # Due to the PEX_ properties, disable checkstyle.
 # checkstyle: noqa
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import hashlib
 import json
 import os
+import re
 import sys
 from contextlib import contextmanager
+from textwrap import dedent
 
 from pex import pex_warnings
 from pex.common import can_write_dir, die, safe_mkdtemp
 from pex.inherit_path import InheritPath
-from pex.typing import TYPE_CHECKING, Generic, overload
+from pex.typing import TYPE_CHECKING, Generic, cast, overload
 from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
     from typing import (
         Callable,
         Dict,
-        Iterable,
         Iterator,
         Optional,
         Tuple,
@@ -34,6 +35,9 @@ if TYPE_CHECKING:
 
     _O = TypeVar("_O")
     _P = TypeVar("_P")
+
+    # N.B.: This is an expensive import and we only need it for type checking.
+    from pex.interpreter import PythonInterpreter
 
 
 class NoValueError(Exception):
@@ -668,45 +672,118 @@ def unzip_dir(
 
 
 def venv_dir(
+    pex_file,  # type: str
     pex_root,  # type: str
     pex_hash,  # type: str
-    interpreter_constraints,  # type: Iterable[str]
-    strip_pex_env,  # type: bool
+    has_interpreter_constraints,  # type: bool
+    interpreter=None,  # type: Optional[PythonInterpreter]
     pex_path=None,  # type: Optional[str]
 ):
     # type: (...) -> str
-    # The venv contents are affected by which interpreter is selected as well as which PEX files are
-    # in play. The former can be influenced by interpreter constraints changes as well as PEX_PYTHON
-    # and PEX_PYTHON_PATH. The latter is influenced via PEX_PATH.
-    venv_contents = {
-        "interpreter_constraints": sorted(interpreter_constraints),
-        "PEX_PYTHON": ENV.PEX_PYTHON,
-        "PEX_PYTHON_PATH": ENV.PEX_PYTHON_PATH,
-        "strip_pex_env": strip_pex_env,
-        "pex_path": {},
-    }  # type: Dict[str, Any]
+
+    # The venv contents are affected by which PEX files are in play as well as which interpreter
+    # is selected. The former is influenced via PEX_PATH and the is influenced by interpreter
+    # constraints, PEX_PYTHON and PEX_PYTHON_PATH.
+
+    pex_path_contents = {}  # type: Dict[str, Dict[str, str]]
+    venv_contents = {"pex_path": pex_path_contents}  # type: Dict[str, Any]
 
     # PexInfo.pex_path and PEX_PATH are merged by PEX at runtime, so we include both and hash just
     # the distributions since those are the only items used from PEX_PATH adjoined PEX files; i.e.:
     # neither the entry_point nor any other PEX file data or metadata is used.
-    def add_pex_path_items(pex_path):
-        if not pex_path:
+    def add_pex_path_items(path):
+        # type: (Optional[str]) -> None
+        if not path:
             return
         from pex.pex_info import PexInfo
 
-        pex_path_contents = venv_contents["pex_path"]
-        for pex in pex_path.split(":"):
+        for pex in path.split(":"):
             pex_path_contents[pex] = PexInfo.from_pex(pex).distributions
 
     add_pex_path_items(pex_path)
     add_pex_path_items(ENV.PEX_PATH)
 
+    # There are two broad cases of interpreter selection, Pex chooses and user chooses. For the
+    # former we hash Pex's selection criteria and for the latter we write down the actual
+    # interpreter the user selected. N.B.: The pex_hash already includes an encoding of the
+    # interpreter constraints, if any; so we don't hash those here again for the Pex chooses case.
+
+    # This is relevant in all cases of interpreter selection and restricts the valid search path
+    # for interpreter constraints, PEX_PYTHON and otherwise unconstrained PEXes.
+    venv_contents["PEX_PYTHON_PATH"] = ENV.PEX_PYTHON_PATH
+
+    interpreter_path = None  # type: Optional[str]
+    imprecise_pex_python = ENV.PEX_PYTHON and not os.path.isabs(ENV.PEX_PYTHON)
+    if imprecise_pex_python:
+        # For PEX_PYTHON=python3.7, for example, we just write down the constraint and let the PEX
+        # runtime determine the path of an appropriate python3.7, if any (Pex chooses).
+        venv_contents["PEX_PYTHON"] = ENV.PEX_PYTHON
+    elif not has_interpreter_constraints:
+        # Otherwise we can calculate the exact interpreter the PEX runtime will use. This ensures
+        # ~unconstrained PEXes get a venv per interpreter used to invoke them with (user chooses).
+        interpreter_binary = os.path.realpath(
+            interpreter.binary if interpreter else (ENV.PEX_PYTHON or sys.executable)
+        )
+        if not ENV.PEX_PYTHON_PATH or interpreter_binary.startswith(
+            tuple(ENV.PEX_PYTHON_PATH.split(":"))
+        ):
+            interpreter_path = interpreter_binary
+    if interpreter_path:
+        venv_contents["interpreter"] = interpreter_path
+
     venv_contents_hash = hashlib.sha1(
         json.dumps(venv_contents, sort_keys=True).encode("utf-8")
     ).hexdigest()
-    return os.path.join(
-        _expand_pex_root(pex_root),
-        "venvs",
-        pex_hash,
-        venv_contents_hash,
-    )
+    venv_path = os.path.join(_expand_pex_root(pex_root), "venvs", pex_hash, venv_contents_hash)
+
+    def warn(message):
+        # type: (str) -> None
+        from pex.pex_info import PexInfo
+
+        pex_warnings.configure_warnings(PexInfo.from_pex(pex_file), ENV)
+        pex_warnings.warn(message)
+
+    # N.B.: We know ENV.PEX_PYTHON is a str when imprecise_pex_python is True but mypy does not.
+    if imprecise_pex_python and not re.match(r".*[^\d][\d]+\.[\d+]$", cast(str, ENV.PEX_PYTHON)):
+        warn(
+            dedent(
+                """\
+                Using a venv selected by PEX_PYTHON={pex_python} for {pex_file} at {venv_path}.
+
+                If `{pex_python}` is upgraded or downgraded at some later date, this venv will still
+                be used. To force re-creation of the venv using the upgraded or downgraded
+                `{pex_python}` you will need to delete it at that point in time.
+
+                To avoid this warning, either specify a Python binary with major and minor version
+                in its name, like PEX_PYTHON=python{current_python_version} or else re-build the PEX
+                with `--no-emit-warnings` or re-run the PEX with PEX_EMIT_WARNINGS=False.
+                """.format(
+                    pex_python=ENV.PEX_PYTHON,
+                    pex_file=os.path.normpath(pex_file),
+                    venv_path=venv_path,
+                    current_python_version=".".join(map(str, sys.version_info[:2])),
+                )
+            )
+        )
+    if not interpreter_path and ENV.PEX_PYTHON_PATH:
+        warn(
+            dedent(
+                """\
+                Using a venv restricted by PEX_PYTHON_PATH={ppp} for {pex_file} at {venv_path}.
+
+                If the contents of `{ppp}` changes at some later date, this venv and the interpreter
+                selected from `{ppp}` will still be used. To force re-creation of the venv using
+                the new pythons available on `{ppp}` you will need to delete it at that point in
+                time.
+
+                To avoid this warning, re-build the PEX with `--no-emit-warnings` or re-run the PEX
+                with PEX_EMIT_WARNINGS=False.
+                """
+            ).format(
+                ppp=ENV.PEX_PYTHON_PATH,
+                pex_file=os.path.normpath(pex_file),
+                venv_path=venv_path,
+            )
+        )
+
+    return venv_path
