@@ -8,7 +8,7 @@ import functools
 import itertools
 import os
 import zipfile
-from collections import OrderedDict, Sequence, defaultdict
+from collections import OrderedDict, defaultdict
 
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
@@ -35,7 +35,7 @@ from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import DefaultDict, Iterable, Iterator, List, Optional, Tuple, Union
+    from typing import DefaultDict, Iterable, Iterator, List, Optional, Sequence, Tuple, Union
 
     from pex.requirements import ParsedRequirement
 else:
