@@ -194,3 +194,25 @@ def test_pex_vars_value_or(tmpdir):
         "Expected the fallback to be validated, and in the case of PEX_ROOT, replaced with a "
         "writeable tmp dir"
     )
+
+
+def test_patch():
+    v = Variables(environ=dict(PEX_VERBOSE="3", PEX_PYTHON="jython", PEX_EMIT_WARNINGS="True"))
+    assert v.PEX_VERBOSE == 3
+    assert v.PEX_PYTHON == "jython"
+    assert v.PEX_EMIT_WARNINGS is True
+    assert v.PEX_FORCE_LOCAL is False
+
+    with v.patch(PEX_VERBOSE="1", PEX_EMIT_WARNINGS=None, PEX_FORCE_LOCAL="True") as env:
+        assert env["PEX_VERBOSE"] == "1"
+        assert env["PEX_PYTHON"] == "jython"
+        assert "PEX_EMIT_WARNINGS" not in env
+        assert env["PEX_FORCE_LOCAL"] == "True"
+
+        assert v.PEX_VERBOSE == 1
+        assert v.PEX_PYTHON == "jython"
+        assert v.PEX_EMIT_WARNINGS is None
+
+        # If the assertion is flipped from `is True` to `is False` this test fails; so MyPy is just
+        # confused here about the statement being unreachable.
+        assert v.PEX_FORCE_LOCAL is True  # type: ignore[unreachable]
