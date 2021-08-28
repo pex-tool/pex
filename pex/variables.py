@@ -292,11 +292,20 @@ class Variables(object):
 
     @contextmanager
     def patch(self, **kw):
-        # type: (**str) -> Iterator[Dict[str, str]]
-        """Update the environment for the duration of a context."""
+        # type: (**Optional[str]) -> Iterator[Dict[str, str]]
+        """Update the environment for the duration of a context.
+
+        Any environment variable with a value of `None` will be removed from the environment if
+        present. The rest will be added to the environment or else updated if already present in
+        the environment.
+        """
         old_environ = self._environ
         self._environ = self._environ.copy()
-        self._environ.update(kw)
+        for k, v in kw.items():
+            if v is None:
+                self._environ.pop(k, None)
+            else:
+                self._environ[k] = v
         yield self._environ
         self._environ = old_environ
 
