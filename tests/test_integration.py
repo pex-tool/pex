@@ -591,47 +591,76 @@ def test_interpreter_constraints_honored_without_ppp_or_pp():
         res.assert_success()
 
         # We want to try to run that pex with no environment variables set
-        stdin_payload = b"import sys; print(sys.executable); sys.exit(0)"
-
-        stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload, env=env)
+        stdout, rc = run_simple_pex(
+            pex_out_path,
+            args=["-c", "import sys; print('.'.join(map(str, sys.version_info[:2])))"],
+            env=env,
+        )
         assert rc == 0
 
         # If the constraints are honored, it will have run python3.8 and not python3.7
         # Without constraints, we would expect it to use python3.7 as it is the minimum interpreter
         # in the PATH.
-        assert str(py38_path).encode() in stdout
+        assert b"3.8\n" == stdout
 
 
-def test_interpreter_resolution_pex_python_path_precedence_over_pex_python():
-    # type: () -> None
-    with temporary_dir() as td:
-        pexrc_path = os.path.join(td, ".pexrc")
-        with open(pexrc_path, "w") as pexrc:
-            # set both PPP and PP
-            pex_python_path = ":".join(
-                [ensure_python_interpreter(PY27), ensure_python_interpreter(PY37)]
+def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdir):
+    # type: (Any) -> None
+
+    pexrc_path = os.path.join(str(tmpdir), ".pexrc")
+    ppp = ":".join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY27, PY37))
+    with open(pexrc_path, "w") as pexrc:
+        # set both PPP and PP
+        pexrc.write(
+            dedent(
+                """\
+                PEX_PYTHON_PATH={ppp}
+                PEX_PYTHON={pp}
+                """.format(
+                    ppp=ppp, pp=ensure_python_interpreter(PY38)
+                )
             )
-            pexrc.write("PEX_PYTHON_PATH=%s\n" % pex_python_path)
-            pex_python = "/path/to/some/python"
-            pexrc.write("PEX_PYTHON=%s" % pex_python)
-
-        pex_out_path = os.path.join(td, "pex.pex")
-        res = run_pex_command(
-            [
-                "--disable-cache",
-                "--rcfile=%s" % pexrc_path,
-                "--interpreter-constraint=>3,<3.8",
-                "-o",
-                pex_out_path,
-            ]
         )
-        res.assert_success()
 
-        stdin_payload = b"import sys; print(sys.executable); sys.exit(0)"
-        stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
-        assert rc == 0
-        correct_interpreter_path = pex_python_path.split(":")[1].encode()
-        assert correct_interpreter_path in stdout
+    pex_out_path = os.path.join(str(tmpdir), "pex.pex")
+    run_pex_command(
+        [
+            "--disable-cache",
+            "--rcfile",
+            pexrc_path,
+            "--interpreter-constraint=>3,<3.8",
+            "-o",
+            pex_out_path,
+        ]
+    ).assert_success()
+
+    print_python_version_command = [
+        "-c",
+        "import sys; print('.'.join(map(str, sys.version_info[:2])))",
+    ]
+
+    _, rc = run_simple_pex(pex_out_path, print_python_version_command)
+    assert rc != 0, (
+        "PEX_PYTHON_PATH should trump PEX_PYTHON when PEX_PYTHON is an explicit path to a Python "
+        "interpreter that is not on the PEX_PYTHON_PATH and this should lead to failure to select "
+        "an interpreter"
+    )
+
+    with open(pexrc_path, "w") as pexrc:
+        pexrc.write(
+            dedent(
+                """\
+                PEX_PYTHON_PATH={ppp}
+                PEX_PYTHON=python
+                """.format(
+                    ppp=ppp
+                )
+            )
+        )
+
+    stdout, rc = run_simple_pex(pex_out_path, print_python_version_command)
+    assert rc == 0
+    assert b"3.7\n" == stdout
 
 
 def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
@@ -673,29 +702,33 @@ def test_pex_exec_with_pex_python_path_only():
         assert str(pex_python_path.split(":")[0]).encode() in stdout
 
 
-def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints():
-    # type: () -> None
-    with temporary_dir() as td:
-        pexrc_path = os.path.join(td, ".pexrc")
-        with open(pexrc_path, "w") as pexrc:
-            # set both PPP and PP
-            pex_python_path = ":".join(
-                [ensure_python_interpreter(PY27), ensure_python_interpreter(PY38)]
+def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints(tmpdir):
+    # type: (Any) -> None
+    pexrc_path = os.path.join(str(tmpdir), ".pexrc")
+    with open(pexrc_path, "w") as pexrc:
+        # set both PPP and PP
+        pexrc.write(
+            dedent(
+                """\
+                PEX_PYTHON_PATH={}
+                PEX_PYTHON=python
+                """.format(
+                    ":".join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY38, PY27))
+                )
             )
-            pexrc.write("PEX_PYTHON_PATH=%s\n" % pex_python_path)
-            pex_python = "/path/to/some/python"
-            pexrc.write("PEX_PYTHON=%s" % pex_python)
+        )
 
-        pex_out_path = os.path.join(td, "pex.pex")
-        res = run_pex_command(["--disable-cache", "--rcfile=%s" % pexrc_path, "-o", pex_out_path])
-        res.assert_success()
+    pex_out_path = os.path.join(str(tmpdir), "pex.pex")
+    res = run_pex_command(["--disable-cache", "--rcfile", pexrc_path, "-o", pex_out_path])
+    res.assert_success()
 
-        # test that pex bootstrapper selects lowest version interpreter
-        # in pex python path (python2.7)
-        stdin_payload = b"import sys; print(sys.executable); sys.exit(0)"
-        stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
-        assert rc == 0
-        assert str(pex_python_path.split(":")[0]).encode() in stdout
+    # test that pex bootstrapper selects lowest version interpreter
+    # in pex python path (python2.7)
+    stdout, rc = run_simple_pex(
+        pex_out_path, args=["-c", "import sys; print('.'.join(map(str, sys.version_info[:2])))"]
+    )
+    assert rc == 0
+    assert b"2.7\n" == stdout
 
 
 def test_pex_python():

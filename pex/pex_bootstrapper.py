@@ -160,25 +160,30 @@ def _select_path_interpreter(
     path=None,  # type: Optional[str]
     valid_basenames=None,  # type: Optional[Tuple[str, ...]]
     interpreter_constraints=None,  # type: Optional[Iterable[str]]
+    preferred_interpreter=None,  # type: Optional[PythonInterpreter]
 ):
     # type: (...) -> Optional[PythonInterpreter]
     candidate_interpreters_iter = iter_compatible_interpreters(
         path=path,
         valid_basenames=valid_basenames,
         interpreter_constraints=interpreter_constraints,
+        preferred_interpreter=preferred_interpreter,
     )
     current_interpreter = PythonInterpreter.get()  # type: PythonInterpreter
-    candidate_interpreters = []
+    preferred_interpreter = preferred_interpreter or current_interpreter
+    candidate_interpreters = OrderedSet()  # type: OrderedSet[PythonInterpreter]
     for interpreter in candidate_interpreters_iter:
-        if current_interpreter == interpreter:
-            # Always prefer continuing with the current interpreter when possible to avoid re-exec
-            # overhead.
-            return current_interpreter
+        if preferred_interpreter == interpreter:
+            # Always respect the preferred interpreter if it doesn't violate other constraints.
+            return preferred_interpreter
         else:
-            candidate_interpreters.append(interpreter)
+            candidate_interpreters.add(interpreter)
     if not candidate_interpreters:
         return None
-
+    if current_interpreter in candidate_interpreters:
+        # Always prefer continuing with the current interpreter when possible to avoid re-exec
+        # overhead.
+        return current_interpreter
     # TODO: Allow the selection strategy to be parameterized:
     #   https://github.com/pantsbuild/pex/issues/430
     return PythonInterpreter.latest_release_of_min_compatible_version(candidate_interpreters)
@@ -186,13 +191,37 @@ def _select_path_interpreter(
 
 def find_compatible_interpreter(interpreter_constraints=None):
     # type: (Optional[Iterable[str]]) -> PythonInterpreter
+
+    def gather_constraints():
+        # type: () -> Iterable[str]
+        constraints = []
+        if ENV.PEX_PYTHON:
+            constraints.append("PEX_PYTHON={}".format(ENV.PEX_PYTHON))
+        if ENV.PEX_PYTHON_PATH:
+            constraints.append("PEX_PYTHON_PATH={}".format(ENV.PEX_PYTHON_PATH))
+        if interpreter_constraints:
+            constraints.append("Version matches {}".format(" or ".join(interpreter_constraints)))
+        return constraints
+
+    preferred_interpreter = None  # type: Optional[PythonInterpreter]
+    if ENV.PEX_PYTHON and os.path.isabs(ENV.PEX_PYTHON):
+        try:
+            preferred_interpreter = PythonInterpreter.from_binary(ENV.PEX_PYTHON)
+        except PythonInterpreter.Error as e:
+            raise UnsatisfiableInterpreterConstraintsError(
+                constraints=gather_constraints(),
+                candidates=[],
+                failures=[(ENV.PEX_PYTHON, str(e))],
+                preamble=(
+                    "The specified PEX_PYTHON={pex_python} could not be identified as a "
+                    "valid Python interpreter.".format(pex_python=ENV.PEX_PYTHON)
+                ),
+            )
+
     current_interpreter = PythonInterpreter.get()
     target = current_interpreter  # type: Optional[PythonInterpreter]
     with TRACER.timed("Selecting runtime interpreter", V=3):
         if ENV.PEX_PYTHON and not ENV.PEX_PYTHON_PATH:
-            # preserve PEX_PYTHON re-exec for backwards compatibility
-            # TODO: Kill this off completely in favor of PEX_PYTHON_PATH
-            # https://github.com/pantsbuild/pex/issues/431
             TRACER.log(
                 "Using PEX_PYTHON={} constrained by {}".format(
                     ENV.PEX_PYTHON, interpreter_constraints
@@ -204,6 +233,7 @@ def find_compatible_interpreter(interpreter_constraints=None):
                     target = _select_path_interpreter(
                         path=ENV.PEX_PYTHON,
                         interpreter_constraints=interpreter_constraints,
+                        preferred_interpreter=preferred_interpreter,
                     )
                 else:
                     target = _select_path_interpreter(
@@ -228,7 +258,9 @@ def find_compatible_interpreter(interpreter_constraints=None):
             )
             try:
                 target = _select_path_interpreter(
-                    path=ENV.PEX_PYTHON_PATH, interpreter_constraints=interpreter_constraints
+                    path=ENV.PEX_PYTHON_PATH,
+                    interpreter_constraints=interpreter_constraints,
+                    preferred_interpreter=preferred_interpreter,
                 )
             except UnsatisfiableInterpreterConstraintsError as e:
                 raise e.with_preamble(
@@ -237,24 +269,28 @@ def find_compatible_interpreter(interpreter_constraints=None):
                     )
                 )
 
+        if preferred_interpreter and target != preferred_interpreter:
+            candidates = [preferred_interpreter, target] if target else [preferred_interpreter]
+            raise UnsatisfiableInterpreterConstraintsError(
+                constraints=gather_constraints(),
+                candidates=candidates,
+                failures=[],
+                preamble=(
+                    "The specified PEX_PYTHON={pex_python} did not meet other "
+                    "constraints.".format(pex_python=ENV.PEX_PYTHON)
+                ),
+            )
+
         if target is None:
             # N.B.: This can only happen when PEX_PYTHON_PATH is set and interpreter_constraints
             # is empty, but we handle all constraints generally for sanity sake.
-            constraints = []
-            if ENV.PEX_PYTHON:
-                constraints.append("PEX_PYTHON={}".format(ENV.PEX_PYTHON))
-            if ENV.PEX_PYTHON_PATH:
-                constraints.append("PEX_PYTHON_PATH={}".format(ENV.PEX_PYTHON_PATH))
-            if interpreter_constraints:
-                constraints.append(
-                    "Version matches {}".format(" or ".join(interpreter_constraints))
-                )
             raise UnsatisfiableInterpreterConstraintsError(
-                constraints=constraints,
+                constraints=gather_constraints(),
                 candidates=[current_interpreter],
                 failures=[],
                 preamble="Could not find a compatible interpreter.",
             )
+
         return target
 
 
