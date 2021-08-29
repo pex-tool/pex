@@ -141,5 +141,8 @@ else:
     from Queue import Queue as Queue
     from multiprocessing import cpu_count as cpu_count
 
-
 WINDOWS = os.name == "nt"
+
+
+# Universal newlines is the default in Python 3.
+MODE_READ_UNIVERSAL_NEWLINES = "rU" if PY2 else "r"
