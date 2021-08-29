@@ -21,7 +21,7 @@ from textwrap import dedent
 
 from pex import dist_metadata, third_party
 from pex.common import atomic_directory, safe_mkdtemp
-from pex.compatibility import urlparse
+from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
 from pex.finders import DistributionScript
@@ -786,7 +786,9 @@ class Pip(object):
 
         # The RECORD is a csv file with the path to each installed file in the 1st column.
         # See: https://www.python.org/dev/peps/pep-0376/#record
-        with closing(fileinput.input(files=[record_abspath], inplace=True, mode="rU")) as record_fi:
+        with closing(
+            fileinput.input(files=[record_abspath], inplace=True, mode=MODE_READ_UNIVERSAL_NEWLINES)
+        ) as record_fi:
             csv_writer = None  # type: Optional[CSVWriter]
             for path, existing_hash, existing_size in csv.reader(
                 record_fi, delimiter=",", quotechar='"'
