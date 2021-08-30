@@ -43,7 +43,6 @@ if TYPE_CHECKING:
         Mapping,
         MutableMapping,
         Optional,
-        Sequence,
         Text,
         Tuple,
         Union,
@@ -496,7 +495,7 @@ class PythonInterpreter(object):
 
     @staticmethod
     def latest_release_of_min_compatible_version(interps):
-        # type: (Sequence[PythonInterpreter]) -> PythonInterpreter
+        # type: (Iterable[PythonInterpreter]) -> PythonInterpreter
         """Find the minimum major version, but use the most recent micro version within that minor
         version.
 

@@ -13,10 +13,15 @@ from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.pex import PEX
-from pex.pex_bootstrapper import ensure_venv, iter_compatible_interpreters
+from pex.pex_bootstrapper import (
+    ensure_venv,
+    find_compatible_interpreter,
+    iter_compatible_interpreters,
+)
 from pex.pex_builder import PEXBuilder
 from pex.testing import PY27, PY37, PY38, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List, Optional
@@ -234,3 +239,77 @@ def test_ensure_venv_activate_issues_1276(tmpdir):
             ),
         ]
     )
+
+
+def test_pp_invalid():
+    # type: () -> None
+    with ENV.patch(PEX_PYTHON="/invalid/abs/python"):
+        with pytest.raises(
+            UnsatisfiableInterpreterConstraintsError,
+            match=(
+                r"The specified PEX_PYTHON=/invalid/abs/python could not be identified as a "
+                r"valid Python interpreter."
+            ),
+        ):
+            find_compatible_interpreter()
+
+
+def test_pp_exact():
+    # type: () -> None
+    py38 = ensure_python_interpreter(PY38)
+    with ENV.patch(PEX_PYTHON=py38):
+        assert PythonInterpreter.from_binary(py38) == find_compatible_interpreter()
+
+
+def test_pp_exact_on_ppp():
+    # type: () -> None
+
+    py27 = ensure_python_interpreter(PY27)
+    py37 = ensure_python_interpreter(PY37)
+    py38 = ensure_python_interpreter(PY38)
+
+    with ENV.patch(
+        PEX_PYTHON=py38, PEX_PYTHON_PATH=":".join(os.path.dirname(py) for py in (py27, py37, py38))
+    ):
+        assert PythonInterpreter.from_binary(py38) == find_compatible_interpreter()
+
+
+def test_pp_exact_satisfies_constraints():
+    # type: () -> None
+
+    py38 = ensure_python_interpreter(PY38)
+
+    with ENV.patch(PEX_PYTHON=py38):
+        assert PythonInterpreter.from_binary(py38) == find_compatible_interpreter(
+            interpreter_constraints=[">=3.7"]
+        )
+
+
+def test_pp_exact_does_not_satisfy_constraints():
+    # type: () -> None
+
+    py38 = ensure_python_interpreter(PY38)
+
+    with ENV.patch(PEX_PYTHON=py38):
+        with pytest.raises(
+            UnsatisfiableInterpreterConstraintsError,
+            match=r"Failed to find a compatible PEX_PYTHON={pp}.".format(pp=py38),
+        ):
+            find_compatible_interpreter(interpreter_constraints=["<=3.7"])
+
+
+def test_pp_exact_not_on_ppp():
+    # type: () -> None
+
+    py27 = ensure_python_interpreter(PY27)
+    py37 = ensure_python_interpreter(PY37)
+    py38 = ensure_python_interpreter(PY38)
+
+    with ENV.patch(
+        PEX_PYTHON=py38, PEX_PYTHON_PATH=":".join(os.path.dirname(py) for py in (py27, py37))
+    ):
+        with pytest.raises(
+            UnsatisfiableInterpreterConstraintsError,
+            match=r"The specified PEX_PYTHON={pp} did not meet other constraints.".format(pp=py38),
+        ):
+            find_compatible_interpreter()
