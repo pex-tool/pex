@@ -1468,12 +1468,13 @@ def test_venv_mode(
     )
     results.assert_success()
 
-    def run_isort_pex(**env):
-        # type: (**Any) -> str
+    def run_isort_pex(pex_python=None):
+        # type: (Optional[str]) -> str
         pex_root = str(tmpdir)
+        args = [pex_file] if pex_python else [sys.executable, pex_file]
         stdout = subprocess.check_output(
-            args=[pex_file, "-c", "import sys; print(sys.executable); print(sys.prefix)"],
-            env=make_env(PEX_ROOT=pex_root, PEX_INTERPRETER=1, **env),
+            args=args + ["-c", "import sys; print(sys.executable); print(sys.prefix)"],
+            env=make_env(PEX_ROOT=pex_root, PEX_INTERPRETER=1, PEX_PYTHON=pex_python),
         )
         pex_interpreter, venv_home = cast(
             "Tuple[str, str]", stdout.decode("utf-8").strip().splitlines()
@@ -1484,12 +1485,15 @@ def test_venv_mode(
             actual_venv_home
         ), "Expected the venv home symlink path length to be shorter than the actual path length"
 
-        with ENV.patch(**env):
+        with ENV.patch(PEX_PYTHON=pex_python):
             pex_info = PexInfo.from_pex(pex_file)
             pex_hash = pex_info.pex_hash
             assert pex_hash is not None
             expected_venv_home = venv_dir(
-                pex_root=pex_root, pex_hash=pex_hash, interpreter_constraints=[], strip_pex_env=True
+                pex_file=pex_file,
+                pex_root=pex_root,
+                pex_hash=pex_hash,
+                has_interpreter_constraints=False,
             )
         assert expected_venv_home == os.path.commonprefix([actual_venv_home, expected_venv_home])
         return pex_interpreter
@@ -1497,10 +1501,10 @@ def test_venv_mode(
     isort_pex_interpreter1 = run_isort_pex()
     assert isort_pex_interpreter1 == run_isort_pex()
 
-    isort_pex_interpreter2 = run_isort_pex(PEX_PYTHON=other_interpreter)
+    isort_pex_interpreter2 = run_isort_pex(pex_python=other_interpreter)
     assert other_interpreter != isort_pex_interpreter2
     assert isort_pex_interpreter1 != isort_pex_interpreter2
-    assert isort_pex_interpreter2 == run_isort_pex(PEX_PYTHON=other_interpreter)
+    assert isort_pex_interpreter2 == run_isort_pex(pex_python=other_interpreter)
 
 
 @pytest.mark.parametrize(

@@ -401,7 +401,7 @@ def _bootstrap(entry_point):
 def ensure_venv(pex):
     # type: (PEX) -> str
     pex_info = pex.pex_info()
-    venv_dir = pex_info.venv_dir
+    venv_dir = pex_info.venv_dir(pex_file=pex.path(), interpreter=pex.interpreter)
     if venv_dir is None:
         raise AssertionError(
             "Expected PEX-INFO for {} to have the components of a venv directory".format(pex.path())

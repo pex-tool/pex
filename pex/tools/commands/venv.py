@@ -196,6 +196,7 @@ def populate_venv_with_pex(
                     "PEX_PYTHON",
                     "PEX_PYTHON_PATH",
                     "PEX_VERBOSE",
+                    "PEX_EMIT_WARNINGS",
                     "__PEX_EXE__",
                     "__PEX_UNVENDORED__",
                     # This is _not_ used (it is ignored), but it's present under CI and simplest to
