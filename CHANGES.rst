@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+2.1.47
+------
+
+This is a hotfix release that fixes a regression for ``--venv`` mode
+PEXes introduced in #1410. These PEXes were not creating new venvs when
+the PEX was unconstrained and executed with any other interpreter than
+the interpreter the venv was first created with.
+
+* Fix ``--venv`` mode venv dir hash. (#1428)
+  `PR #1428 <https://github.com/pantsbuild/pex/pull/1428>`_
+
+* Clarify PEX_PYTHON & PEX_PYTHON_PATH interaction. (#1427)
+  `PR #1427 <https://github.com/pantsbuild/pex/pull/1427>`_
+
 2.1.46
 ------
 
