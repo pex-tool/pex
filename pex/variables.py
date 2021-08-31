@@ -682,7 +682,7 @@ def venv_dir(
     # type: (...) -> str
 
     # The venv contents are affected by which PEX files are in play as well as which interpreter
-    # is selected. The former is influenced via PEX_PATH and the is influenced by interpreter
+    # is selected. The former is influenced via PEX_PATH and the latter is influenced by interpreter
     # constraints, PEX_PYTHON and PEX_PYTHON_PATH.
 
     pex_path_contents = {}  # type: Dict[str, Dict[str, str]]
@@ -713,7 +713,7 @@ def venv_dir(
     venv_contents["PEX_PYTHON_PATH"] = ENV.PEX_PYTHON_PATH
 
     interpreter_path = None  # type: Optional[str]
-    imprecise_pex_python = ENV.PEX_PYTHON and not os.path.isabs(ENV.PEX_PYTHON)
+    imprecise_pex_python = ENV.PEX_PYTHON and not os.path.exists(ENV.PEX_PYTHON)
     if imprecise_pex_python:
         # For PEX_PYTHON=python3.7, for example, we just write down the constraint and let the PEX
         # runtime determine the path of an appropriate python3.7, if any (Pex chooses).
