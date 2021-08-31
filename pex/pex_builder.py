@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import hashlib
 import logging
 import os
-from textwrap import dedent
 
 from pex import pex_warnings
 from pex.common import (
@@ -714,19 +713,6 @@ class PEXBuilder(object):
                 # Zip up the bootstrap which is constant for a given version of Pex.
                 bootstrap_root = os.path.join(self._chroot.chroot, pex_info.bootstrap)
                 bootstrap_fingerprint = CacheHelper.dir_hash(bootstrap_root)
-                cached_bootstrap_dir = os.path.join(
-                    pex_info.pex_root, "bootstraps", bootstrap_fingerprint
-                )
-                with atomic_directory(cached_bootstrap_dir, exclusive=True) as atomic_bootstrap_dir:
-                    if not atomic_bootstrap_dir.is_finalized:
-                        for root, dirs, files in os.walk(bootstrap_root):
-                            destdir = os.path.join(
-                                atomic_bootstrap_dir.work_dir, os.path.relpath(root, bootstrap_root)
-                            )
-                            for d in dirs:
-                                os.mkdir(os.path.join(destdir, d))
-                            for f in files:
-                                safe_copy(os.path.join(root, f), os.path.join(destdir, f))
                 cached_bootstrap_zip_dir = os.path.join(
                     pex_info.pex_root, "bootstrap_zips", bootstrap_fingerprint
                 )
