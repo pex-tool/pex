@@ -673,11 +673,11 @@ def test_warn_unused_pex_env_vars():
         expected_stderr=dedent(
             """\
             Ignoring the following environment variables in Pex venv mode:
-            PEX_EMIT_WARNINGS=0
+            PEX_FORCE_LOCAL=0
             PEX_INHERIT_PATH=fallback
             """
         ),
-        PEX_EMIT_WARNINGS="0",
+        PEX_FORCE_LOCAL="0",
         PEX_INHERIT_PATH="fallback",
         PEX_VERBOSE="0",
     )

@@ -196,6 +196,7 @@ def populate_venv_with_pex(
                     "PEX_PYTHON",
                     "PEX_PYTHON_PATH",
                     "PEX_VERBOSE",
+                    "PEX_EMIT_WARNINGS",
                     # These are used in re-exec.
                     "__PEX_EXE__",
                     "__PEX_SPREAD__",
