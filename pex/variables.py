@@ -17,7 +17,7 @@ from textwrap import dedent
 from pex import pex_warnings
 from pex.common import can_write_dir, die, safe_mkdtemp
 from pex.inherit_path import InheritPath
-from pex.typing import TYPE_CHECKING, Generic, cast, overload
+from pex.typing import TYPE_CHECKING, Generic, overload
 from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
@@ -713,23 +713,29 @@ def venv_dir(
     venv_contents["PEX_PYTHON_PATH"] = ENV.PEX_PYTHON_PATH
 
     interpreter_path = None  # type: Optional[str]
-    imprecise_pex_python = ENV.PEX_PYTHON and not os.path.exists(ENV.PEX_PYTHON)
-    if imprecise_pex_python:
-        # For PEX_PYTHON=python3.7, for example, we just write down the constraint and let the PEX
-        # runtime determine the path of an appropriate python3.7, if any (Pex chooses).
+    precise_pex_python = ENV.PEX_PYTHON and os.path.exists(ENV.PEX_PYTHON)
+    if precise_pex_python:
+        # If there are interpreter_constraints and this interpreter doesn't meet them, then this
+        # venv hash will never be used; so it's OK to hash based on the interpreter.
+        interpreter_path = ENV.PEX_PYTHON
+    elif ENV.PEX_PYTHON:
+        # For an imprecise PEX_PYTHON that requires PATH lookup, PEX_PYTHON=python3.7, for example,
+        # we just write down the constraint and let the PEX runtime determine the path of an
+        # appropriate python3.7, if any (Pex chooses).
         venv_contents["PEX_PYTHON"] = ENV.PEX_PYTHON
     elif not has_interpreter_constraints:
         # Otherwise we can calculate the exact interpreter the PEX runtime will use. This ensures
         # ~unconstrained PEXes get a venv per interpreter used to invoke them with (user chooses).
-        interpreter_binary = os.path.realpath(
-            interpreter.binary if interpreter else (ENV.PEX_PYTHON or sys.executable)
-        )
-        if not ENV.PEX_PYTHON_PATH or interpreter_binary.startswith(
-            tuple(ENV.PEX_PYTHON_PATH.split(":"))
+        interpreter_binary = interpreter.binary if interpreter else sys.executable
+        pex_python_path = tuple(ENV.PEX_PYTHON_PATH.split(":")) if ENV.PEX_PYTHON_PATH else None
+        if (
+            not pex_python_path
+            or interpreter_binary.startswith(pex_python_path)
+            or os.path.realpath(interpreter_binary).startswith(pex_python_path)
         ):
             interpreter_path = interpreter_binary
     if interpreter_path:
-        venv_contents["interpreter"] = interpreter_path
+        venv_contents["interpreter"] = os.path.realpath(interpreter_path)
 
     venv_contents_hash = hashlib.sha1(
         json.dumps(venv_contents, sort_keys=True).encode("utf-8")
@@ -743,8 +749,11 @@ def venv_dir(
         pex_warnings.configure_warnings(PexInfo.from_pex(pex_file), ENV)
         pex_warnings.warn(message)
 
-    # N.B.: We know ENV.PEX_PYTHON is a str when imprecise_pex_python is True but mypy does not.
-    if imprecise_pex_python and not re.match(r".*[^\d][\d]+\.[\d+]$", cast(str, ENV.PEX_PYTHON)):
+    if (
+        ENV.PEX_PYTHON
+        and not precise_pex_python
+        and not re.match(r".*[^\d][\d]+\.[\d+]$", ENV.PEX_PYTHON)
+    ):
         warn(
             dedent(
                 """\
