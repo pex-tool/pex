@@ -171,7 +171,7 @@ elif Variables.PEX_UNZIP.value_or(ENV, {is_unzip!r}):
     __maybe_run_unzipped__(__entry_point__, __pex_root__)
 
 __spread_info__ = os.path.join(__entry_point__, {spread_info!r})
-if os.path.isfile(__spread_info__) and not '__PEX_SPREAD__' in os.environ:
+if os.path.isfile(__spread_info__) and not '__PEX_EXE__' in os.environ:
     from pex.spread import spread
     from pex.tracer import TRACER
 
@@ -180,7 +180,7 @@ if os.path.isfile(__spread_info__) and not '__PEX_SPREAD__' in os.environ:
 
     # N.B.: This is read by pex.PEX and used to point sys.argv[0] back to the original spread pex
     # before unconditionally scrubbing the env var and handing off to user code.
-    os.environ['__PEX_SPREAD__'] = __entry_point__
+    os.environ['__PEX_EXE__'] = __entry_point__
 
     os.execv(sys.executable, [sys.executable, spread_to] + sys.argv[1:])
 

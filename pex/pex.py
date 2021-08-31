@@ -463,9 +463,10 @@ class PEX(object):  # noqa: T000
         teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
 
         # N.B.: This is set in `__main__.py` of the executed PEX by `PEXBuilder` when we've been
-        # executed from within a PEX zip file in `--unzip` mode.  We replace `sys.argv[0]` to avoid
-        # confusion and allow the user code we hand off to to provide useful messages and fully
-        # valid re-execs that always re-directed through the PEX file.
+        # executed from within a PEX zip file in `--unzip` or `--venv` modes or a `--spread` PEX.
+        # We replace `sys.argv[0]` to avoid confusion and allow the user code we hand off to to
+        # provide useful messages and fully valid re-execs that are always re-directed through the
+        # PEX file or spread PEX.
         sys.argv[0] = os.environ.pop("__PEX_EXE__", sys.argv[0])
 
         try:
