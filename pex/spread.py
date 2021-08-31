@@ -12,20 +12,26 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import unzip_dir
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
-    from typing import Iterable, Text, Tuple, Union
-else:
-    from pex.third_party import attr
+    from typing import Iterable, Text, Union
 
 
-@attr.s(frozen=True)
+# N.B.: We avoid attr in this module because it imposes a ~30ms import hit in the bootstrap fast
+# path.
+
+
 class Spread(object):
-    zip_relpath = attr.ib()  # type: str
-    unpack_relpath = attr.ib()  # type: str
-    strip_zip_relpath = attr.ib(default=True)  # type: bool
+    def __init__(
+        self,
+        zip_relpath,  # type: str
+        unpack_relpath,  # type: str
+        strip_zip_relpath=True,  # type: bool
+    ):
+        # type: (...) -> None
+        self.zip_relpath = zip_relpath
+        self.unpack_relpath = unpack_relpath
+        self.strip_zip_relpath = strip_zip_relpath
 
 
-@attr.s(frozen=True)
 class SpreadInfo(object):
     PATH = "PEX-SPREAD-INFO"
 
@@ -41,7 +47,7 @@ class SpreadInfo(object):
         if isinstance(content, bytes):
             content = content.decode("utf-8")
         data = json.loads(content)
-        return cls.create(
+        return cls(
             sources=data["sources"],
             spreads=(
                 Spread(
@@ -53,17 +59,14 @@ class SpreadInfo(object):
             ),
         )
 
-    @classmethod
-    def create(
-        cls,
+    def __init__(
+        self,
         sources,  # type: Iterable[str]
         spreads,  # type: Iterable[Spread]
     ):
-        # type: (...) -> SpreadInfo
-        return cls(sources=tuple(sources), spreads=tuple(spreads))
-
-    sources = attr.ib()  # type: Tuple[str, ...]
-    spreads = attr.ib()  # type: Tuple[Spread, ...]
+        # type: (...) -> None
+        self.sources = tuple(sources)
+        self.spreads = tuple(spreads)
 
     def dump(self, dest_dir):
         # type: (str) -> str
@@ -75,7 +78,7 @@ class SpreadInfo(object):
                     "strip_zip_relpath": s.strip_zip_relpath,
                     "unpack_relpath": s.unpack_relpath,
                 }
-                for s in sorted(self.spreads)
+                for s in sorted(self.spreads, key=lambda s: s.zip_relpath)
             ],
         }
         dest = os.path.join(dest_dir, self.PATH)

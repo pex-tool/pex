@@ -776,7 +776,7 @@ class PEXBuilder(object):
                 )
                 os.symlink("__main__.py", os.path.join(work_dir, "pex"))
 
-                SpreadInfo.create(sources=sources, spreads=spreads).dump(work_dir)
+                SpreadInfo(sources=sources, spreads=spreads).dump(work_dir)
 
     def _build_zipapp(
         self,
