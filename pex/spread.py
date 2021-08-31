@@ -12,7 +12,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import unzip_dir
 
 if TYPE_CHECKING:
-    import attr
+    import attr  # vendor:skip
     from typing import Iterable, Text, Tuple, Union
 else:
     from pex.third_party import attr

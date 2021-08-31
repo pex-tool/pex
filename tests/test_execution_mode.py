@@ -14,7 +14,7 @@ from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import attr
+    import attr  # vendor:skip
     from typing import Any, Callable, Dict, Iterable, Tuple
 
     CreateColorsPex = Callable[[Iterable[str]], str]
