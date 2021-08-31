@@ -42,7 +42,7 @@ def test_undeclared_setuptools_import_on_pex_path(tmpdir):
 
     bigquery_pex = os.path.join(str(tmpdir), "bigquery.pex")
     run_pex_command(
-        args=["google-cloud-bigquery==1.10.0", "-c", constraints, "-o", bigquery_pex]
+        args=["google-cloud-bigquery==1.10.0", "--constraints", constraints, "-o", bigquery_pex]
     ).assert_success()
 
     src_dir = os.path.join(str(tmpdir), "src")
