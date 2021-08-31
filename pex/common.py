@@ -7,6 +7,7 @@ import atexit
 import contextlib
 import errno
 import fcntl
+import itertools
 import os
 import re
 import shutil
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
         Optional,
         Set,
         Sized,
+        Tuple,
     )
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
@@ -651,7 +653,7 @@ class Chroot(object):
         abs_dst = os.path.join(self.chroot, dst)
         os.symlink(abs_src, abs_dst)
 
-    def write(self, data, dst, label=None, mode="wb"):
+    def write(self, data, dst, label=None, mode="wb", executable=False):
         """Write data to ``chroot/dst`` with optional label.
 
         Has similar exceptional cases as ``Chroot.copy``
@@ -661,6 +663,8 @@ class Chroot(object):
         self._ensure_parent(dst)
         with open(os.path.join(self.chroot, dst), mode) as wp:
             wp.write(data)
+        if executable:
+            chmod_plus_x(wp.name)
 
     def touch(self, dst, label=None):
         """Perform 'touch' on ``chroot/dst`` with optional label.
@@ -700,14 +704,28 @@ class Chroot(object):
         mode="w",  # type: str
         deterministic_timestamp=False,  # type: bool
         exclude_file=lambda _: False,  # type: Callable[[str], bool]
+        strip_prefix=None,  # type: Optional[str]
+        labels=None,  # type: Optional[Iterable[str]]
     ):
         # type: (...) -> None
+
+        if labels:
+            selected_files = set(
+                itertools.chain.from_iterable(self.filesets.get(label, ()) for label in labels)
+            )
+        else:
+            selected_files = self.files()
+
         with open_zip(filename, mode) as zf:
 
-            def write_entry(filename, arcname):
+            def write_entry(
+                filename,  # type: str
+                arcname,  # type: str
+            ):
+                # type: (...) -> None
                 zip_entry = zf.zip_entry_from_file(
                     filename=filename,
-                    arcname=arcname,
+                    arcname=os.path.relpath(arcname, strip_prefix) if strip_prefix else arcname,
                     date_time=DETERMINISTIC_DATETIME.timetuple()
                     if deterministic_timestamp
                     else None,
@@ -715,6 +733,7 @@ class Chroot(object):
                 zf.writestr(zip_entry.info, zip_entry.data)
 
             def get_parent_dir(path):
+                # type: (str) -> Optional[str]
                 parent_dir = os.path.normpath(os.path.dirname(path))
                 if parent_dir and parent_dir != os.curdir:
                     return parent_dir
@@ -723,15 +742,18 @@ class Chroot(object):
             written_dirs = set()
 
             def maybe_write_parent_dirs(path):
+                # type: (str) -> None
                 parent_dir = get_parent_dir(path)
                 if parent_dir is None or parent_dir in written_dirs:
                     return
                 maybe_write_parent_dirs(parent_dir)
-                write_entry(filename=os.path.join(self.chroot, parent_dir), arcname=parent_dir)
+                if parent_dir != strip_prefix:
+                    write_entry(filename=os.path.join(self.chroot, parent_dir), arcname=parent_dir)
                 written_dirs.add(parent_dir)
 
             def iter_files():
-                for path in sorted(self.files()):
+                # type: () -> Iterator[Tuple[str, str]]
+                for path in sorted(selected_files):
                     full_path = os.path.join(self.chroot, path)
                     if os.path.isfile(full_path):
                         if exclude_file(full_path):

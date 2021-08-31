@@ -196,7 +196,10 @@ def populate_venv_with_pex(
                     "PEX_PYTHON",
                     "PEX_PYTHON_PATH",
                     "PEX_VERBOSE",
+                    # These are used in re-exec.
                     "__PEX_EXE__",
+                    "__PEX_SPREAD__",
+                    # This is used by the vendoring system.
                     "__PEX_UNVENDORED__",
                     # This is _not_ used (it is ignored), but it's present under CI and simplest to
                     # add an exception for here and not warn about in CI runs.

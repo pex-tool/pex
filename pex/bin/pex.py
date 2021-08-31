@@ -29,17 +29,19 @@ from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv, iter_compatible_interpreters
 from pex.pex_builder import CopyMode, PEXBuilder
+from pex.pex_info import PexInfo
 from pex.pip import ResolverVersion
 from pex.platforms import Platform
 from pex.resolver import Unsatisfiable, parsed_platform, resolve, resolve_from_pex
+from pex.spread import spread
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
 from pex.venv_bin_path import BinPath
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import List, Iterable, Dict
+    from typing import List, Dict
     from argparse import Namespace
 
 
@@ -352,6 +354,21 @@ def configure_clp_pex_options(parser):
         help="Whether or not the sources in the pex file are zip safe.  If they are not zip safe, "
         "they will be written to disk prior to execution. Also see --unzip which will cause the "
         "complete pex file, including dependencies, to be unzipped.",
+    )
+    group.add_argument(
+        "--spread",
+        dest="spread",
+        default=False,
+        action=HandleBoolAction,
+        help=(
+            "Create the PEX in spread layout. A spread layout PEX is an executable directory "
+            "structure designed to have cache-friendly characteristics for syncing incremental "
+            "updates to PEXed applications over a network. At the top level of the spread "
+            "directory there is an executable `pex` script as well as a synonymous executable "
+            "`__main__.py. The directory can also be executed by passing its path to a Python "
+            "executable. This layout unpacks itself as an `--unzip` mode app in the PEX_ROOT by "
+            "default, but composes with `--venv` mode as well and supports `--seed`ing."
+        ),
     )
 
     runtime_mode = group.add_mutually_exclusive_group()
@@ -969,8 +986,8 @@ def build_pex(reqs, options, cache=None):
 
     pex_info = pex_builder.info
     pex_info.zip_safe = options.zip_safe
-    pex_info.unzip = options.unzip
     pex_info.venv = bool(options.venv)
+    pex_info.unzip = options.unzip or (options.spread and not pex_info.venv)
     pex_info.venv_bin_path = options.venv or BinPath.FALSE
     pex_info.venv_copies = options.venv_copies
     pex_info.includes_tools = options.include_tools or options.venv
@@ -1160,6 +1177,7 @@ def main(args=None):
                 options.pex_name,
                 bytecode_compile=options.compile,
                 deterministic_timestamp=not options.use_system_time,
+                spread=options.spread,
             )
             if options.seed != Seed.NONE:
                 seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)
@@ -1187,15 +1205,15 @@ def seed_cache(
     verbose=False,  # type : bool
 ):
     # type: (...) -> str
-    pex_path = pex.path()
+
+    pex_path = cast(str, options.pex_name)
     with TRACER.timed("Seeding local caches for {}".format(pex_path)):
         pex_info = pex.pex_info()
+        pex_root = pex_info.pex_root
 
         def create_verbose_info(final_pex_path):
             # type: (str) -> Dict[str, str]
-            return dict(
-                pex_root=pex_info.pex_root, python=pex.interpreter.binary, pex=final_pex_path
-            )
+            return dict(pex_root=pex_root, python=pex.interpreter.binary, pex=final_pex_path)
 
         if options.unzip:
             unzip_dir = pex_info.unzip_dir
@@ -1208,7 +1226,7 @@ def seed_cache(
             with atomic_directory(unzip_dir, exclusive=True) as chroot:
                 if not chroot.is_finalized:
                     with TRACER.timed("Extracting {}".format(pex_path)):
-                        with open_zip(options.pex_name) as pex_zip:
+                        with open_zip(pex_path) as pex_zip:
                             pex_zip.extractall(chroot.work_dir)
             if verbose:
                 return json.dumps(create_verbose_info(final_pex_path=unzip_dir))
@@ -1221,14 +1239,25 @@ def seed_cache(
                     return json.dumps(create_verbose_info(final_pex_path=venv_pex))
                 else:
                     return venv_pex
+        elif options.spread:
+            pex_hash = pex_info.pex_hash
+            if pex_hash is None:
+                raise AssertionError(
+                    "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex_path)
+                )
+            spread_to = spread(spread_pex=pex_path, pex_root=pex_root, pex_hash=pex_hash)
+            if verbose:
+                return json.dumps(create_verbose_info(final_pex_path=spread_to))
+            else:
+                return "{} {}".format(pex.interpreter.binary, spread_to)
         else:
             with TRACER.timed("Extracting code and distributions for {}".format(pex_path)):
                 pex.activate()
-            pex_path = os.path.abspath(options.pex_name)
+            abs_pex_path = os.path.abspath(pex_path)
             if verbose:
-                return json.dumps(create_verbose_info(final_pex_path=pex_path))
+                return json.dumps(create_verbose_info(final_pex_path=abs_pex_path))
             else:
-                return pex_path
+                return abs_pex_path
 
 
 if __name__ == "__main__":

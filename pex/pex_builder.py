@@ -6,15 +6,20 @@ from __future__ import absolute_import
 import hashlib
 import logging
 import os
+from textwrap import dedent
 
 from pex import pex_warnings
 from pex.common import (
     Chroot,
+    atomic_directory,
     chmod_plus_x,
     is_pyc_temporary_file,
     open_zip,
+    safe_copy,
+    safe_mkdir,
     safe_mkdtemp,
     safe_open,
+    safe_rmtree,
     temporary_dir,
 )
 from pex.compatibility import to_bytes
@@ -26,13 +31,14 @@ from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
+from pex.spread import Spread, SpreadInfo
 from pex.third_party.pkg_resources import DefaultProvider, Distribution, ZipProvider, get_provider
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
-    from typing import Optional, Dict
+    from typing import Optional, Dict, List
 
 
 class CopyMode(object):
@@ -164,6 +170,20 @@ elif Variables.PEX_UNZIP.value_or(ENV, {is_unzip!r}):
   import zipfile
   if zipfile.is_zipfile(__entry_point__):
     __maybe_run_unzipped__(__entry_point__, __pex_root__)
+
+__spread_info__ = os.path.join(__entry_point__, {spread_info!r})
+if os.path.isfile(__spread_info__) and not '__PEX_SPREAD__' in os.environ:
+    from pex.spread import spread
+    from pex.tracer import TRACER
+
+    spread_to = spread(__entry_point__, __pex_root__, {pex_hash!r})
+    TRACER.log('Executing unzipped pex for {{}} at {{}}'.format(__entry_point__, spread_to))
+
+    # N.B.: This is read by pex.PEX and used to point sys.argv[0] back to the original spread pex
+    # before unconditionally scrubbing the env var and handing off to user code.
+    os.environ['__PEX_SPREAD__'] = __entry_point__
+
+    os.execv(sys.executable, [sys.executable, spread_to] + sys.argv[1:])
 
 from pex.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)
@@ -449,14 +469,14 @@ class PEXBuilder(object):
     def _add_dist_dir(self, path, dist_name):
         target_dir = os.path.join(self._pex_info.internal_cache, dist_name)
         if self._copy_mode == CopyMode.SYMLINK:
-            self._copy_or_link(path, target_dir)
+            self._copy_or_link(path, target_dir, label=dist_name)
         else:
             for root, _, files in os.walk(path):
                 for f in files:
                     filename = os.path.join(root, f)
                     relpath = os.path.relpath(filename, path)
                     target = os.path.join(target_dir, relpath)
-                    self._copy_or_link(filename, target)
+                    self._copy_or_link(filename, target, label=dist_name)
         return CacheHelper.dir_hash(path)
 
     def _add_dist_wheel_file(self, path, dist_name):
@@ -557,8 +577,14 @@ class PEXBuilder(object):
             pex_path=self._pex_info.pex_path,
             is_unzip=self._pex_info.unzip,
             is_venv=self._pex_info.venv,
+            spread_info=SpreadInfo.PATH,
         )
-        self._chroot.write(to_bytes(self._preamble + "\n" + bootstrap), "__main__.py", label="main")
+        self._chroot.write(
+            data=to_bytes(self._shebang + "\n" + self._preamble + "\n" + bootstrap),
+            dst="__main__.py",
+            executable=True,
+            label="main",
+        )
 
     def _copy_or_link(self, src, dst, label=None):
         if src is None:
@@ -627,18 +653,151 @@ class PEXBuilder(object):
             self._precompile_source()
         self._frozen = True
 
-    def build(self, filename, bytecode_compile=True, deterministic_timestamp=False):
-        """Package the PEX into a zipfile.
+    def build(
+        self,
+        path,  # type: str
+        bytecode_compile=True,  # type: bool
+        deterministic_timestamp=False,  # type: bool
+        spread=False,  # type: bool
+    ):
+        # type: (...) -> None
+        """Package the PEX application.
 
-        :param filename: The filename where the PEX should be stored.
+        By default, the PEX is packaged as a zipapp for ease of shipping as a single file, but it
+        can also be packaged in spread mode for efficiency of syncing over the network
+        incrementally.
+
+        :param path: The path where the PEX should be stored.
         :param bytecode_compile: If True, precompile .py files into .pyc files.
         :param deterministic_timestamp: If True, will use our hardcoded time for zipfile timestamps.
+        :param spread: If True, will build the PEX in spread directory mode.
 
         If the PEXBuilder is not yet frozen, it will be frozen by ``build``.  This renders the
         PEXBuilder immutable.
         """
         if not self._frozen:
             self.freeze(bytecode_compile=bytecode_compile)
+        if spread:
+            self._build_spreadapp(dirname=path, deterministic_timestamp=deterministic_timestamp)
+        else:
+            self._build_zipapp(filename=path, deterministic_timestamp=deterministic_timestamp)
+
+    def _build_spreadapp(
+        self,
+        dirname,  # type: str
+        deterministic_timestamp=False,  # type: bool
+    ):
+        # type: (...) -> None
+
+        pex_info = self._pex_info
+
+        safe_rmtree(dirname)
+
+        # N.B.: We want an atomic directory, but we don't expect a user to race themselves building
+        # to a single non-PEX_ROOT user-requested output path; so we don't grab an exclusive lock
+        # and dirty the target directory with a `.lck` file.
+        with atomic_directory(dirname, exclusive=False) as atomic_dir:
+            if not atomic_dir.is_finalized:
+                sources = []  # type: List[str]
+                spreads = []  # type: List[Spread]
+
+                work_dir = atomic_dir.work_dir
+
+                # Include user sources, PEX-INFO and __main__ as loose files in src/.
+                for fileset in "source", "resource", "executable", "main", "manifest":
+                    for f in self._chroot.filesets.get(fileset, ()):
+                        dest = os.path.join(work_dir, "src", f)
+                        safe_mkdir(os.path.dirname(dest))
+                        safe_copy(os.path.join(self._chroot.chroot, f), dest)
+                        sources.append(f)
+
+                # Zip up the bootstrap which is constant for a given version of Pex.
+                bootstrap_root = os.path.join(self._chroot.chroot, pex_info.bootstrap)
+                bootstrap_fingerprint = CacheHelper.dir_hash(bootstrap_root)
+                cached_bootstrap_dir = os.path.join(
+                    pex_info.pex_root, "bootstraps", bootstrap_fingerprint
+                )
+                with atomic_directory(cached_bootstrap_dir, exclusive=True) as atomic_bootstrap_dir:
+                    if not atomic_bootstrap_dir.is_finalized:
+                        for root, dirs, files in os.walk(bootstrap_root):
+                            destdir = os.path.join(
+                                atomic_bootstrap_dir.work_dir, os.path.relpath(root, bootstrap_root)
+                            )
+                            for d in dirs:
+                                os.mkdir(os.path.join(destdir, d))
+                            for f in files:
+                                safe_copy(os.path.join(root, f), os.path.join(destdir, f))
+                cached_bootstrap_zip_dir = os.path.join(
+                    pex_info.pex_root, "bootstrap_zips", bootstrap_fingerprint
+                )
+                with atomic_directory(
+                    cached_bootstrap_zip_dir, exclusive=False
+                ) as atomic_bootstrap_zip_dir:
+                    if not atomic_bootstrap_zip_dir.is_finalized:
+                        self._chroot.zip(
+                            os.path.join(atomic_bootstrap_zip_dir.work_dir, pex_info.bootstrap),
+                            deterministic_timestamp=deterministic_timestamp,
+                            exclude_file=is_pyc_temporary_file,
+                            strip_prefix=pex_info.bootstrap,
+                            labels=("bootstrap",),
+                        )
+                safe_copy(
+                    os.path.join(cached_bootstrap_zip_dir, pex_info.bootstrap),
+                    os.path.join(work_dir, pex_info.bootstrap),
+                )
+                spreads.append(
+                    Spread(
+                        zip_relpath=pex_info.bootstrap,
+                        strip_zip_relpath=False,
+                        unpack_relpath=os.path.join("bootstraps", bootstrap_fingerprint),
+                    )
+                )
+
+                # Zip up each installed wheel chroot, which is constant for a given version of a
+                # wheel.
+                if pex_info.distributions:
+                    internal_cache = os.path.join(work_dir, pex_info.internal_cache)
+                    os.mkdir(internal_cache)
+                    for location, fingerprint in pex_info.distributions.items():
+                        cached_installed_wheel_zip_dir = os.path.join(
+                            pex_info.pex_root, "installed_wheel_zips", fingerprint
+                        )
+                        with atomic_directory(
+                            cached_installed_wheel_zip_dir, exclusive=False
+                        ) as atomic_zip_dir:
+                            if not atomic_zip_dir.is_finalized:
+                                self._chroot.zip(
+                                    os.path.join(atomic_zip_dir.work_dir, location),
+                                    deterministic_timestamp=deterministic_timestamp,
+                                    exclude_file=is_pyc_temporary_file,
+                                    labels=(location,),
+                                )
+                        safe_copy(
+                            os.path.join(cached_installed_wheel_zip_dir, location),
+                            os.path.join(internal_cache, location),
+                        )
+                        spreads.append(
+                            Spread(
+                                zip_relpath=os.path.join(pex_info.internal_cache, location),
+                                unpack_relpath=os.path.join(
+                                    PexInfo.INSTALL_CACHE, fingerprint, location
+                                ),
+                            )
+                        )
+
+                os.symlink(
+                    os.path.join("src", "__main__.py"), os.path.join(work_dir, "__main__.py")
+                )
+                os.symlink("__main__.py", os.path.join(work_dir, "pex"))
+
+                SpreadInfo.create(sources=sources, spreads=spreads).dump(work_dir)
+
+    def _build_zipapp(
+        self,
+        filename,  # type: str
+        deterministic_timestamp=False,  # type: bool
+    ):
+        # type: (...) -> None
         tmp_zip = filename + "~"
         try:
             os.unlink(tmp_zip)

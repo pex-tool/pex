@@ -185,7 +185,7 @@ class CacheHelper(object):
                 filter_pyc_files(
                     name
                     for name in zf.namelist()
-                    if not name.endswith("/") and not relpath or name.startswith(relpath)
+                    if not name.endswith("/") and (not relpath or name.startswith(relpath))
                 )
             )
 
