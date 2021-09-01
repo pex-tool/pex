@@ -70,8 +70,8 @@ class Job(object):
         :raises: :class:`Job.Error` if the job exited non-zero.
         """
         try:
-            self._process.wait()
-            self._check_returncode()
+            _, stderr = self._process.communicate()
+            self._check_returncode(stderr)
         finally:
             self._finalize_job()
 
@@ -178,12 +178,28 @@ class SpawnedJob(Generic["_T"]):
         :return: A spawned job whose result is a side effect of the job (a written file, a populated
                  directory, etc.).
         """
+        return cls.and_then(job, lambda: result)
 
-        class Wait(SpawnedJob):
+    @classmethod
+    def and_then(
+        cls,
+        job,  # type: Job
+        result_func,  # type: Callable[[], _T]
+    ):
+        # type: (...) -> SpawnedJob[_T]
+        """Wait for the job to complete and return a result derived from its side effects.
+
+        :param job: The spawned job.
+        :param result_func: A function that will be called to produce the result upon job success.
+        :return: A spawned job whose result is derived from a side effect of the job (a written
+                 file, a populated directory, etc.).
+        """
+
+        class AndThen(SpawnedJob):
             def await_result(self):
                 # type: () -> _T
                 job.wait()
-                return result
+                return result_func()
 
             def kill(self):
                 # type: () -> None
@@ -191,9 +207,9 @@ class SpawnedJob(Generic["_T"]):
 
             def __repr__(self):
                 # type: () -> str
-                return "SpawnedJob.wait({!r})".format(job)
+                return "SpawnedJob.and_then({!r})".format(job)
 
-        return Wait()
+        return AndThen()
 
     @classmethod
     def stdout(
@@ -206,8 +222,8 @@ class SpawnedJob(Generic["_T"]):
         """Wait for the job to complete and return a result derived from its stdout.
 
         :param job: The spawned job.
-        :param result_func: A function taking the stdout byte string collected from the spawned job and
-                            returning the desired result.
+        :param result_func: A function taking the stdout byte string collected from the spawned job
+                            and returning the desired result.
         :param input: Optional input stream data to pass to the process as per the
                       `subprocess.Popen.communicate` API.
         :return: A spawned job whose result is derived from stdout contents.
