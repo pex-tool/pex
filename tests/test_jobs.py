@@ -3,6 +3,7 @@
 
 import json
 import os
+import subprocess
 from textwrap import dedent
 
 import pytest
@@ -97,7 +98,11 @@ def test_spawn_stdout():
     assert (
         "Jane\n"
         == SpawnedJob.stdout(
-            job=spawn_python_job(args=["-c", "import sys; print(sys.stdin.read().decode('utf-8')"]),
+            job=spawn_python_job(
+                args=["-c", "import sys; print(sys.stdin.read())"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            ),
             result_func=lambda stdout: stdout.decode("utf-8"),
             input=b"Jane",
         ).await_result()
