@@ -1182,38 +1182,36 @@ class PythonInterpreter(object):
 
 
 def spawn_python_job(
-    args, env=None, interpreter=None, expose=None, pythonpath=None, **subprocess_kwargs
+    args,  # type: Iterable[str]
+    env=None,  # type: Optional[Mapping[str, str]]
+    interpreter=None,  # type: Optional[PythonInterpreter]
+    expose=None,  # type: Optional[Iterable[str]]
+    pythonpath=None,  # type: Optional[Iterable[str]]
+    **subprocess_kwargs  # type: Any
 ):
+    # type: (...) -> Job
     """Spawns a python job.
 
     :param args: The arguments to pass to the python interpreter.
-    :type args: list of str
     :param env: The environment to spawn the python interpreter process in. Defaults to the ambient
                 environment.
-    :type env: dict of (str, str)
     :param interpreter: The interpreter to use to spawn the python job. Defaults to the current
                         interpreter.
-    :type interpreter: :class:`PythonInterpreter`
     :param expose: The names of any vendored distributions to expose to the spawned python process.
                    These will be appended to `pythonpath` if passed.
-    :type expose: list of str
     :param pythonpath: The PYTHONPATH to expose to the spawned python process. These will be
                        pre-pended to the `expose` path if passed.
-    :type pythonpath: list of str
     :param subprocess_kwargs: Any additional :class:`subprocess.Popen` kwargs to pass through.
     :returns: A job handle to the spawned python process.
-    :rtype: :class:`Job`
     """
     pythonpath = list(pythonpath or ())
+    subprocess_env = dict(env or os.environ)
     if expose:
-        subprocess_env = (env or os.environ).copy()
         # In order to expose vendored distributions with their un-vendored import paths in-tact, we
         # need to set `__PEX_UNVENDORED__`. See: vendor.__main__.ImportRewriter._modify_import.
         subprocess_env["__PEX_UNVENDORED__"] = "1"
 
         pythonpath.extend(third_party.expose(expose))
-    else:
-        subprocess_env = env
 
     interpreter = interpreter or PythonInterpreter.get()
     cmd, process = interpreter.open_process(

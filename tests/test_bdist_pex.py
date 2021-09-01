@@ -17,15 +17,17 @@ if TYPE_CHECKING:
 
 
 def pex_project_dir():
-    # type: () -> Text
-    return subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("utf-8").strip()
+    # type: () -> str
+    return str(
+        subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("ascii").strip()
+    )
 
 
 BDIST_PEX_PYTHONPATH = None
 
 
 def bdist_pex_pythonpath():
-    # type: () -> List[Text]
+    # type: () -> List[str]
     # In order to run the bdist_pex distutils command we need:
     # 1. setuptools on the PYTHONPATH since the test projects use and test setuptools.setup and its
     #    additional features above and beyond distutils.core.setup like entry points declaration.
