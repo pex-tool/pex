@@ -44,7 +44,9 @@ def bdist_pex_pythonpath():
         # pex cache for speed run over run.
         BDIST_PEX_PYTHONPATH.extend(
             installed_distribution.distribution.location
-            for installed_distribution in resolver.resolve(["setuptools==36.2.7"])
+            for installed_distribution in resolver.resolve(
+                ["setuptools==36.2.7"]
+            ).installed_distributions
         )
     return BDIST_PEX_PYTHONPATH
 

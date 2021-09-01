@@ -43,7 +43,7 @@ _PKG_INFO_BY_DIST = {}  # type: Dict[Distribution, Optional[Message]]
 
 def _strip_sdist_path(sdist_path):
     # type: (str) -> Optional[str]
-    if not sdist_path.endswith((".sdist", ".tar.gz", ".zip")):
+    if not sdist_path.endswith((".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip")):
         return None
 
     sdist_basename = os.path.basename(sdist_path)

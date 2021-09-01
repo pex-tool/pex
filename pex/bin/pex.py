@@ -1010,7 +1010,7 @@ def build_pex(reqs, options, cache=None):
                 with TRACER.timed(
                     "Resolving requirements from PEX {}.".format(options.pex_repository)
                 ):
-                    resolveds = resolve_from_pex(
+                    result = resolve_from_pex(
                         pex=options.pex_repository,
                         requirements=reqs,
                         requirement_files=options.requirement_files,
@@ -1024,7 +1024,7 @@ def build_pex(reqs, options, cache=None):
                     )
             else:
                 with TRACER.timed("Resolving requirements."):
-                    resolveds = resolve(
+                    result = resolve(
                         requirements=reqs,
                         requirement_files=options.requirement_files,
                         constraint_files=options.constraint_files,
@@ -1045,10 +1045,10 @@ def build_pex(reqs, options, cache=None):
                         ignore_errors=options.ignore_errors,
                     )
 
-            for resolved_dist in resolveds:
-                pex_builder.add_distribution(resolved_dist.distribution)
-                if resolved_dist.direct_requirement:
-                    pex_builder.add_requirement(resolved_dist.direct_requirement)
+            for installed_dist in result.installed_distributions:
+                pex_builder.add_distribution(installed_dist.distribution)
+                if installed_dist.direct_requirement:
+                    pex_builder.add_requirement(installed_dist.direct_requirement)
         except Unsatisfiable as e:
             die(str(e))
 

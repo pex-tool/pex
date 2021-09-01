@@ -75,7 +75,7 @@ def local_resolve(*args, **kwargs):
     # type: (*Any, **Any) -> List[InstalledDistribution]
     # Skip remote lookups.
     kwargs["indexes"] = []
-    return list(resolve(*args, **kwargs))
+    return list(resolve(*args, **kwargs).installed_distributions)
 
 
 def test_empty_resolve():
@@ -239,7 +239,7 @@ def resolve_wheel_names(**kwargs):
     # type: (**Any) -> List[str]
     return [
         os.path.basename(installed_distribution.distribution.location)
-        for installed_distribution in resolve(**kwargs)
+        for installed_distribution in resolve(**kwargs).installed_distributions
     ]
 
 
@@ -353,12 +353,12 @@ def test_issues_851():
 
     def resolve_pytest(python_version, pytest_version):
         interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(python_version))
-        installed_dists = resolve(
+        result = resolve(
             interpreters=[interpreter], requirements=["pytest=={}".format(pytest_version)]
         )
         project_to_version = {
             installed_dist.distribution.key: installed_dist.distribution.version
-            for installed_dist in installed_dists
+            for installed_dist in result.installed_distributions
         }
         assert project_to_version["pytest"] == pytest_version
         return project_to_version
@@ -434,10 +434,11 @@ def test_download():
     )
 
     downloaded_by_target = defaultdict(list)
-    for local_distribution in download(
+    result = download(
         requirements=["{}[foo]".format(project1_sdist)],
         find_links=[os.path.dirname(project2_wheel)],
-    ):
+    )
+    for local_distribution in result.local_distributions:
         distribution = pkginfo.get_metadata(local_distribution.path)
         downloaded_by_target[local_distribution.target].append(distribution)
 
@@ -548,7 +549,7 @@ def test_resolve_overlapping_requirements_discriminated_by_markers_issues_1196(p
             "setuptools; python_version > '2.7'",
         ],
         interpreters=[py27],
-    )
+    ).installed_distributions
     assert 1 == len(installed_distributions)
     installed_distribution = installed_distributions[0]
     assert (
@@ -578,7 +579,7 @@ def create_pex_repository(
         requirement_files=requirement_files,
         constraint_files=constraint_files,
         manylinux=manylinux,
-    ):
+    ).installed_distributions:
         pex_builder.add_distribution(installed_dist.distribution)
         if installed_dist.direct_requirement:
             pex_builder.add_requirement(installed_dist.direct_requirement)
@@ -663,7 +664,7 @@ def test_resolve_from_pex(
     direct_requirements = pex_info.requirements
     assert 1 == len(direct_requirements)
 
-    installed_distributions = resolve_from_pex(
+    result = resolve_from_pex(
         pex=pex_repository,
         requirements=direct_requirements,
         interpreters=[py27, py38],
@@ -672,7 +673,7 @@ def test_resolve_from_pex(
     )
 
     distribution_locations_by_key = defaultdict(set)  # type: DefaultDict[str, Set[str]]
-    for installed_distribution in installed_distributions:
+    for installed_distribution in result.installed_distributions:
         distribution_locations_by_key[installed_distribution.distribution.key].add(
             installed_distribution.distribution.location
         )
@@ -710,7 +711,7 @@ def test_resolve_from_pex_subset(
 ):
     # type: (...) -> None
 
-    installed_distributions = resolve_from_pex(
+    result = resolve_from_pex(
         pex=pex_repository,
         requirements=["cffi"],
         platforms=[foreign_platform],
@@ -719,7 +720,7 @@ def test_resolve_from_pex_subset(
 
     assert {"cffi", "pycparser"} == {
         installed_distribution.distribution.key
-        for installed_distribution in installed_distributions
+        for installed_distribution in result.installed_distributions
     }
 
 
@@ -771,7 +772,7 @@ def test_resolve_from_pex_intransitive(
         interpreters=[py27, py38],
         platforms=[foreign_platform],
         manylinux=manylinux,
-    )
+    ).installed_distributions
     assert 3 == len(
         installed_distributions
     ), "Expected one resolved distribution per distribution target."
@@ -818,7 +819,7 @@ def test_resolve_from_pex_ignore_errors(
     # type: (...) -> None
 
     # See test_resolve_from_pex_constraints above for the failure this would otherwise cause.
-    installed_distributions = resolve_from_pex(
+    result = resolve_from_pex(
         pex=pex_repository,
         requirements=["requests"],
         constraint_files=[create_constraints_file("urllib3==1.26.2")],
@@ -827,7 +828,7 @@ def test_resolve_from_pex_ignore_errors(
     )
     installed_distributions_by_key = {
         installed_distribution.distribution.key: installed_distribution.distribution.as_requirement()
-        for installed_distribution in installed_distributions
+        for installed_distribution in result.installed_distributions
     }
     assert (
         len(installed_distributions_by_key) > 1
@@ -846,7 +847,7 @@ def test_pip_proprietary_url_with_markers_issues_1415():
             ),
             "ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform),
         ]
-    )
+    ).installed_distributions
     assert len(installed_dists) == 1
 
     installed_dist = installed_dists[0]

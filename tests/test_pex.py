@@ -714,8 +714,8 @@ def test_pex_run_strip_env():
 
 def test_pex_run_custom_setuptools_useable():
     # type: () -> None
-    installed_dists = resolver.resolve(["setuptools==36.2.7"])
-    dists = [installed_dist.distribution for installed_dist in installed_dists]
+    result = resolver.resolve(["setuptools==36.2.7"])
+    dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
             temp_dir,
@@ -737,8 +737,8 @@ def test_pex_run_conflicting_custom_setuptools_useable():
     # > pkg_resources/py31compat.py
     # > pkg_resources/_vendor/appdirs.py
 
-    installed_dists = resolver.resolve(["setuptools==20.3.1"])
-    dists = [installed_dist.distribution for installed_dist in installed_dists]
+    result = resolver.resolve(["setuptools==20.3.1"])
+    dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
             temp_dir,
@@ -769,8 +769,8 @@ def test_pex_run_conflicting_custom_setuptools_useable():
 def test_pex_run_custom_pex_useable():
     # type: () -> None
     old_pex_version = "0.7.0"
-    installed_dists = resolver.resolve(["pex=={}".format(old_pex_version), "setuptools==40.6.3"])
-    dists = [installed_dist.distribution for installed_dist in installed_dists]
+    result = resolver.resolve(["pex=={}".format(old_pex_version), "setuptools==40.6.3"])
+    dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         from pex.version import __version__
 
