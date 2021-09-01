@@ -30,11 +30,10 @@ from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
-from pex.pex_info import PexInfo
 from pex.platforms import Platform
 from pex.third_party import isolated
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING, Generic, cast
 from pex.util import CacheHelper, named_temporary_file
 from pex.variables import ENV
 
@@ -53,6 +52,7 @@ if TYPE_CHECKING:
         Protocol,
         Sequence,
         Tuple,
+        TypeVar,
         Union,
     )
 
@@ -211,18 +211,55 @@ class PackageIndexConfiguration(object):
         self.isolated = isolated  # type: bool
 
 
-class _LogAnalyzer(object):
-    @attr.s(frozen=True)
-    class Complete(object):
-        text = attr.ib(default=None)  # type: Optional[str]
+if TYPE_CHECKING:
+    _T = TypeVar("_T")
 
-    @attr.s(frozen=True)
-    class Continue(object):
-        text = attr.ib(default=None)  # type: Optional[str]
+
+class _LogAnalyzer(object):
+    class Complete(Generic["_T"]):
+        def __init__(self, data=None):
+            # type: (Optional[_T]) -> None
+            self.data = data
+
+    class Continue(Generic["_T"]):
+        def __init__(self, data=None):
+            # type: (Optional[_T]) -> None
+            self.data = data
+
+    @abstractmethod
+    def should_collect(self, returncode):
+        # type: (int) -> bool
+        """"""
 
     @abstractmethod
     def analyze(self, line):
         # type: (str) -> Union[Complete, Continue]
+        """Analyze the given log line.
+
+        Returns a value indicating whether or not analysis is complete.
+        """
+
+    def analysis_completed(self):
+        # type: () -> None
+        """Called to indicate the log analysis is complete."""
+
+
+class ErrorMessage(str):
+    pass
+
+
+if TYPE_CHECKING:
+    ErrorAnalysis = Union[_LogAnalyzer.Complete[ErrorMessage], _LogAnalyzer.Continue[ErrorMessage]]
+
+
+class _ErrorAnalyzer(_LogAnalyzer):
+    def should_collect(self, returncode):
+        # type: (int) -> bool
+        return returncode != 0
+
+    @abstractmethod
+    def analyze(self, line):
+        # type: (str) -> ErrorAnalysis
         """Analyze the given log line.
 
         Returns a value indicating whether or not analysis is complete. The value may contain text
@@ -230,15 +267,14 @@ class _LogAnalyzer(object):
         """
 
 
-class _Issue9420Analyzer(_LogAnalyzer):
+@attr.s
+class _Issue9420Analyzer(_ErrorAnalyzer):
     # Works around: https://github.com/pypa/pip/issues/9420
 
-    def __init__(self):
-        # type: () -> None
-        self._strip = None  # type: Optional[int]
+    _strip = attr.ib(default=None)  # type: Optional[int]
 
     def analyze(self, line):
-        # type: (str) -> Union[_LogAnalyzer.Complete, _LogAnalyzer.Continue]
+        # type: (str) -> ErrorAnalysis
         # N.B.: Pip --log output looks like:
         # 2021-01-04T16:12:01,119 ERROR: Cannot install pantsbuild-pants==1.24.0.dev2 and wheel==0.33.6 because these package versions have conflicting dependencies.
         # 2021-01-04T16:12:01,119
@@ -259,18 +295,18 @@ class _Issue9420Analyzer(_LogAnalyzer):
             if match:
                 return self.Complete()
             else:
-                return self.Continue(line[self._strip :])
+                return self.Continue(ErrorMessage(line[self._strip :]))
         return self.Continue()
 
 
 @attr.s(frozen=True)
-class _Issue10050Analyzer(_LogAnalyzer):
+class _Issue10050Analyzer(_ErrorAnalyzer):
     # Part of the workaround for: https://github.com/pypa/pip/issues/10050
 
     _platform = attr.ib()  # type: Platform
 
     def analyze(self, line):
-        # type: (str) -> Union[_LogAnalyzer.Complete, _LogAnalyzer.Continue]
+        # type: (str) -> ErrorAnalysis
         # N.B.: Pip --log output looks like:
         # 2021-06-20T19:06:00,981 pip._vendor.packaging.markers.UndefinedEnvironmentName: 'python_full_version' does not exist in evaluation environment.
         match = re.match(
@@ -280,8 +316,10 @@ class _Issue10050Analyzer(_LogAnalyzer):
         )
         if match:
             return self.Complete(
-                "Failed to resolve for platform {}. Resolve requires evaluation of unknown "
-                "environment marker: {}.".format(self._platform, match.group("missing_marker"))
+                ErrorMessage(
+                    "Failed to resolve for platform {}. Resolve requires evaluation of unknown "
+                    "environment marker: {}.".format(self._platform, match.group("missing_marker"))
+                )
             )
         return self.Continue()
 
@@ -299,20 +337,27 @@ class _LogScrapeJob(Job):
         super(_LogScrapeJob, self).__init__(command, process)
 
     def _check_returncode(self, stderr=None):
-        if self._process.returncode != 0:
+        activated_analyzers = [
+            analyzer
+            for analyzer in self._log_analyzers
+            if analyzer.should_collect(self._process.returncode)
+        ]
+        if activated_analyzers:
             collected = []
             with open(self._log, "r") as fp:
                 for line in fp:
-                    if not self._log_analyzers:
+                    if not activated_analyzers:
                         break
-                    for index, analyzer in enumerate(self._log_analyzers):
+                    for index, analyzer in enumerate(activated_analyzers):
                         result = analyzer.analyze(line)
-                        if result.text:
-                            collected.append(result.text)
+                        if isinstance(result.data, ErrorMessage):
+                            collected.append(result.data)
                         if isinstance(result, _LogAnalyzer.Complete):
-                            self._log_analyzers.pop(index)
-                            if not self._log_analyzers:
+                            activated_analyzers.pop(index).analysis_completed()
+                            if not activated_analyzers:
                                 break
+            for analyzer in activated_analyzers:
+                analyzer.analysis_completed()
             os.unlink(self._log)
             stderr = (stderr or b"") + "".join(collected).encode("utf-8")
         super(_LogScrapeJob, self)._check_returncode(stderr=stderr)
