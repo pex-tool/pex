@@ -1215,7 +1215,7 @@ def seed_cache(
             # type: (str) -> Dict[str, str]
             return dict(pex_root=pex_root, python=pex.interpreter.binary, pex=final_pex_path)
 
-        if options.unzip:
+        if options.unzip and not options.spread:
             unzip_dir = pex_info.unzip_dir
             if unzip_dir is None:
                 raise AssertionError(

@@ -19,6 +19,7 @@ from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
+from pex.spread import is_spread, spread
 from pex.third_party.packaging import specifiers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
@@ -344,6 +345,23 @@ class PEXEnvironment(object):
                     for dist in self._write_zipped_internal_cache(zf):
                         yield dist
 
+    @staticmethod
+    def _spread_if_needed(
+        pex,  # type: str
+        pex_info,  # type: PexInfo
+    ):
+        # type: (...) -> str
+        if not is_spread(pex):
+            return pex
+
+        with TRACER.timed("Spreading {}".format(pex)):
+            pex_hash = pex_info.pex_hash
+            if pex_hash is None:
+                raise AssertionError(
+                    "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex)
+                )
+            return spread(spread_pex=pex, pex_root=pex_info.pex_root, pex_hash=pex_hash)
+
     def __init__(
         self,
         pex,  # type: str
@@ -351,8 +369,8 @@ class PEXEnvironment(object):
         target=None,  # type: Optional[DistributionTarget]
     ):
         # type: (...) -> None
-        self._pex = os.path.realpath(pex)
         self._pex_info = pex_info or PexInfo.from_pex(pex)
+        self._pex = os.path.realpath(self._spread_if_needed(pex, self._pex_info))
 
         self._available_ranked_dists_by_project_name = defaultdict(
             list

@@ -9,7 +9,7 @@ import os
 from pex.common import atomic_directory, open_zip, safe_copy, safe_mkdir, safe_open
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.variables import unzip_dir
+from pex.variables import ENV, Variables, unzip_dir
 
 if TYPE_CHECKING:
     from typing import Iterable, Text, Union
@@ -85,6 +85,11 @@ class SpreadInfo(object):
         with safe_open(dest, "w") as fp:
             json.dump(data, fp, sort_keys=True)
         return dest
+
+
+def is_spread(pex):
+    # type: (str) -> bool
+    return os.path.isfile(os.path.join(pex, SpreadInfo.PATH))
 
 
 def spread(

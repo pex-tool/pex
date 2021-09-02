@@ -170,9 +170,8 @@ elif Variables.PEX_UNZIP.value_or(ENV, {is_unzip!r}):
   if zipfile.is_zipfile(__entry_point__):
     __maybe_run_unzipped__(__entry_point__, __pex_root__)
 
-__spread_info__ = os.path.join(__entry_point__, {spread_info!r})
-if os.path.isfile(__spread_info__) and not '__PEX_EXE__' in os.environ:
-    from pex.spread import spread
+from pex.spread import is_spread, spread
+if is_spread(__entry_point__) and not '__PEX_EXE__' in os.environ:
     from pex.tracer import TRACER
 
     spread_to = spread(__entry_point__, __pex_root__, {pex_hash!r})
@@ -770,11 +769,14 @@ class PEXBuilder(object):
                             )
                         )
 
-                os.symlink(
-                    os.path.join("src", "__main__.py"), os.path.join(work_dir, "__main__.py")
-                )
+                def link_src_to_spread_root(name):
+                    # type: (str) -> None
+                    os.symlink(os.path.join("src", name), os.path.join(work_dir, name))
+
+                link_src_to_spread_root("__main__.py")
                 os.symlink("__main__.py", os.path.join(work_dir, "pex"))
 
+                link_src_to_spread_root(PexInfo.PATH)
                 SpreadInfo(sources=sources, spreads=spreads).dump(work_dir)
 
     def _build_zipapp(
