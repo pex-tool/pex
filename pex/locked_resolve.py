@@ -27,9 +27,6 @@ class LockConfiguration(object):
 
 @attr.s(frozen=True)
 class Fingerprint(object):
-    algorithm = attr.ib()  # type: str
-    hash = attr.ib()  # type: str
-
     @classmethod
     def from_stream(
         cls,
@@ -40,6 +37,9 @@ class Fingerprint(object):
         digest = hashlib.new(algorithm)
         CacheHelper.update_hash(filelike=stream, digest=digest)
         return cls(algorithm=algorithm, hash=digest.hexdigest())
+
+    algorithm = attr.ib()  # type: str
+    hash = attr.ib()  # type: str
 
 
 @attr.s(frozen=True)

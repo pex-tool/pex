@@ -278,10 +278,6 @@ class _ErrorAnalyzer(_LogAnalyzer):
         Returns a value indicating whether or not analysis is complete.
         """
 
-    def analysis_completed(self):
-        # type: () -> None
-        """Called to indicate the log analysis is complete."""
-
 
 @attr.s
 class _Issue9420Analyzer(_ErrorAnalyzer):
@@ -349,7 +345,11 @@ class PartialArtifact(object):
 @attr.s(frozen=True)
 class ResolvedRequirement(object):
     @classmethod
-    def lock_all(cls, resolved_requirements, url_fetcher):
+    def lock_all(
+        cls,
+        resolved_requirements,  # type: Iterable[ResolvedRequirement]
+        url_fetcher,  # type: URLFetcher
+    ):
         # type: (...) -> Iterator[LockedRequirement]
 
         # TODO(John Sirois): Introduce a thread pool and pump these fetches to workers via a Queue.

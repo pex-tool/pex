@@ -21,7 +21,7 @@ else:
     from pex.third_party import attr
 
 
-def normalized_local_dist(local_dist):
+def normalize_local_dist(local_dist):
     # type: (LocalDistribution) -> LocalDistribution
 
     # Each download uses unique temporary dirs as download targets, so paths vary.
@@ -63,7 +63,7 @@ def normalize_locked_req(
     )
 
 
-def normalized_lock(
+def normalize_lock(
     lock,  # type: LockedResolve
     skip_additional_artifacts=False,  # type: bool
     skip_urls=False,  # type: bool
@@ -84,7 +84,7 @@ def normalized_lock(
     )
 
 
-def normalized(
+def normalize(
     downloaded,  # type: Downloaded
     skip_additional_artifacts=False,  # type: bool
     skip_urls=False,  # type: bool
@@ -94,12 +94,12 @@ def normalized(
         downloaded,
         local_distributions=tuple(
             sorted(
-                normalized_local_dist(local_dist) for local_dist in downloaded.local_distributions
+                normalize_local_dist(local_dist) for local_dist in downloaded.local_distributions
             )
         ),
         locks=tuple(
             sorted(
-                normalized_lock(
+                normalize_lock(
                     lock, skip_additional_artifacts=skip_additional_artifacts, skip_urls=skip_urls
                 )
                 for lock in downloaded.locks
@@ -113,6 +113,7 @@ def normalized(
     (
         pytest.param(["ansicolors==1.1.8"], id="pinned-no-transitive-deps"),
         pytest.param(["isort==4.3.21"], id="pinned-transitive-deps"),
+        pytest.param(["ansicolors"], id="float-no-transitive-deps"),
         pytest.param(["isort"], id="float-transitive-deps"),
     ),
 )
@@ -123,7 +124,7 @@ def normalized(
         pytest.param(LockConfiguration(strict=False), id="non-strict"),
     ),
 )
-def test_lock_single_target_pypi(
+def test_lock_single_target(
     tmpdir,  # type: Any
     requirements,  # type: Iterable[str]
     lock_configuration,  # type: LockConfiguration
@@ -170,7 +171,7 @@ def test_lock_single_target_pypi(
         os.symlink(
             local_dist.path, os.path.join(find_links_repo, os.path.basename(local_dist.path))
         )
-    assert normalized(downloaded, skip_additional_artifacts=True, skip_urls=True) == normalized(
+    assert normalize(downloaded, skip_additional_artifacts=True, skip_urls=True) == normalize(
         resolver.download(
             requirements=requirements,
             lock_configuration=lock_configuration,
@@ -188,7 +189,7 @@ def test_lock_single_target_pypi(
     lock_file = os.path.join(str(tmpdir), "requirements.txt")
     with open(lock_file, "w") as fp:
         lock.emit_requirements(fp)
-    assert normalized(downloaded) == normalized(
+    assert normalize(downloaded) == normalize(
         resolver.download(requirement_files=[lock_file], lock_configuration=lock_configuration),
     ), (
         "Expected the download used to create a lock to be reproduced by a download using the "
