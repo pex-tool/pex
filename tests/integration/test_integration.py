@@ -1511,8 +1511,10 @@ def test_venv_mode(
     "mode_args",
     [
         pytest.param([], id="PEX"),
-        pytest.param(["--unzip"], id="unzip"),
-        pytest.param(["--venv"], id="venv"),
+        pytest.param(["--unzip"], id="UNZIP"),
+        pytest.param(["--venv"], id="VENV"),
+        pytest.param(["--spread"], id="Spread"),
+        pytest.param(["--spread", "--venv"], id="Spread VENV"),
     ],
 )
 def test_seed(
@@ -1528,7 +1530,8 @@ def test_seed(
     seed_argv = shlex.split(results.output, posix=False)
     isort_args = ["--version"]
     seed_stdout, seed_stderr = Executor.execute(seed_argv + isort_args)
-    pex_stdout, pex_stderr = Executor.execute([pex_file] + isort_args)
+    pex_args = [pex_file] if os.path.isfile(pex_file) else [sys.executable, pex_file]
+    pex_stdout, pex_stderr = Executor.execute(pex_args + isort_args)
     assert pex_stdout == seed_stdout
     assert pex_stderr == seed_stderr
 
@@ -1537,8 +1540,10 @@ def test_seed(
     ["mode_args", "seeded_execute_args"],
     [
         pytest.param([], ["python", "pex"], id="PEX"),
-        pytest.param(["--unzip"], ["python", "pex"], id="unzip"),
-        pytest.param(["--venv"], ["pex"], id="venv"),
+        pytest.param(["--unzip"], ["python", "pex"], id="UNZIP"),
+        pytest.param(["--venv"], ["pex"], id="VENV"),
+        pytest.param(["--spread"], ["python", "pex"], id="Spread"),
+        pytest.param(["--spread", "--venv"], ["pex"], id="Spread VENV"),
     ],
 )
 def test_seed_verbose(
@@ -1568,7 +1573,8 @@ def test_seed_verbose(
 
     isort_args = ["--version"]
     seed_stdout, seed_stderr = Executor.execute(seeded_argv0 + isort_args)
-    pex_stdout, pex_stderr = Executor.execute([pex_file] + isort_args)
+    pex_args = [pex_file] if os.path.isfile(pex_file) else [python, pex_file]
+    pex_stdout, pex_stderr = Executor.execute(pex_args + isort_args)
     assert pex_stdout == seed_stdout
     assert pex_stderr == seed_stderr
 

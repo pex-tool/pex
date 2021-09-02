@@ -65,14 +65,13 @@ class PEX(object):  # noqa: T000
         self,
         pex=sys.argv[0],  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
-        pex_info=None,  # type: Optional[PexInfo]
         env=ENV,  # type: Variables
         verify_entry_point=False,  # type: bool
     ):
         # type: (...) -> None
         self._pex = pex
         self._interpreter = interpreter or PythonInterpreter.get()
-        self._pex_info = pex_info or PexInfo.from_pex(self._pex)
+        self._pex_info = PexInfo.from_pex(self._pex)
         self._pex_info_overrides = PexInfo.from_env(env=env)
         self._vars = env
         self._envs = None  # type: Optional[Iterable[PEXEnvironment]]
@@ -463,9 +462,10 @@ class PEX(object):  # noqa: T000
         teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
 
         # N.B.: This is set in `__main__.py` of the executed PEX by `PEXBuilder` when we've been
-        # executed from within a PEX zip file in `--unzip` mode.  We replace `sys.argv[0]` to avoid
-        # confusion and allow the user code we hand off to to provide useful messages and fully
-        # valid re-execs that always re-directed through the PEX file.
+        # executed from within a PEX zip file in `--unzip` or `--venv` modes or a `--spread` PEX.
+        # We replace `sys.argv[0]` to avoid confusion and allow the user code we hand off to to
+        # provide useful messages and fully valid re-execs that are always re-directed through the
+        # PEX file or spread PEX.
         sys.argv[0] = os.environ.pop("__PEX_EXE__", sys.argv[0])
 
         try:
