@@ -16,11 +16,12 @@ from pex.environment import PEXEnvironment, ResolveError
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
+from pex.locked_resolve import LockConfiguration, LockedResolve
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
-from pex.pip import PackageIndexConfiguration, ResolverVersion, get_pip
+from pex.pip import Locker, PackageIndexConfiguration, ResolverVersion, get_pip
 from pex.platforms import Platform
 from pex.requirements import (
     Constraint,
@@ -103,6 +104,7 @@ class DownloadRequest(object):
     cache = attr.ib(default=None)  # type: Optional[str]
     build = attr.ib(default=True)  # type: bool
     use_wheel = attr.ib(default=True)  # type: bool
+    lock_configuration = attr.ib(default=None)  # type: Optional[LockConfiguration]
 
     def iter_local_projects(self):
         # type: () -> Iterator[BuildRequest]
@@ -136,6 +138,17 @@ class DownloadRequest(object):
     ):
         # type: (...) -> SpawnedJob[DownloadResult]
         download_dir = os.path.join(resolved_dists_dir, target.id)
+        locker = (
+            Locker(
+                target=target,
+                lock_configuration=self.lock_configuration,
+                network_configuration=self.package_index_configuration.network_configuration
+                if self.package_index_configuration
+                else None,
+            )
+            if self.lock_configuration
+            else None
+        )
         download_job = get_pip(interpreter=target.get_interpreter()).spawn_download_distributions(
             download_dir=download_dir,
             requirements=self.requirements,
@@ -148,8 +161,14 @@ class DownloadRequest(object):
             cache=self.cache,
             build=self.build,
             use_wheel=self.use_wheel,
+            locker=locker,
         )
-        return SpawnedJob.wait(job=download_job, result=DownloadResult(target, download_dir))
+        return SpawnedJob.and_then(
+            job=download_job,
+            result_func=lambda: DownloadResult(
+                target, download_dir, lock=locker.lock() if locker else None
+            ),
+        )
 
 
 @attr.s(frozen=True)
@@ -161,6 +180,7 @@ class DownloadResult(object):
 
     target = attr.ib()  # type: DistributionTarget
     download_dir = attr.ib()  # type: str
+    lock = attr.ib(default=None)  # type: Optional[LockedResolve]
 
     def _iter_distribution_paths(self):
         # type: () -> Iterator[str]
@@ -785,6 +805,12 @@ def _parse_reqs(
     return parsed_requirements
 
 
+@attr.s(frozen=True)
+class Resolved(object):
+    installed_distributions = attr.ib()  # type: Tuple[InstalledDistribution, ...]
+    locks = attr.ib(default=())  # type: Tuple[LockedResolve, ...]
+
+
 def resolve(
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
@@ -794,7 +820,7 @@ def resolve(
     interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
     platforms=None,  # type: Optional[Iterable[Union[str, Platform]]]
     indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Iterable[str]]
+    find_links=None,  # type: Optional[Sequence[str]]
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     cache=None,  # type: Optional[str]
@@ -805,8 +831,9 @@ def resolve(
     max_parallel_jobs=None,  # type: Optional[int]
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
+    lock_configuration=None,  # type: Optional[LockConfiguration]
 ):
-    # type: (...) -> List[InstalledDistribution]
+    # type: (...) -> Resolved
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
 
     The resulting distributions are installed in individual chroots that can be independently added
@@ -851,6 +878,7 @@ def resolve(
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
     :keyword verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
+    :keyword lock_configuration: If a lock should be generated for the resolve - its configuration.
     :returns: The resolved distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
@@ -912,10 +940,14 @@ def resolve(
         manylinux=manylinux,
         dest=workspace,
         max_parallel_jobs=max_parallel_jobs,
+        lock_configuration=lock_configuration,
     )
 
     install_requests = []  # type: List[InstallRequest]
+    locks = []  # type: List[LockedResolve]
     for download_result in download_results:
+        if download_result.lock:
+            locks.append(download_result.lock)
         build_requests.extend(download_result.build_requests())
         install_requests.extend(download_result.install_requests())
 
@@ -930,11 +962,12 @@ def resolve(
     )
 
     ignore_errors = ignore_errors or not transitive
-    return list(
+    installed_distributions = tuple(
         build_and_install_request.install_distributions(
             ignore_errors=ignore_errors, workspace=workspace, max_parallel_jobs=max_parallel_jobs
         )
     )
+    return Resolved(installed_distributions=installed_distributions, locks=tuple(locks))
 
 
 def _unique_targets(
@@ -987,6 +1020,7 @@ def _download_internal(
     manylinux=None,  # type: Optional[str]
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
+    lock_configuration=None,  # type: Optional[LockConfiguration]
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
 
@@ -1005,6 +1039,7 @@ def _download_internal(
         cache=cache,
         build=build,
         use_wheel=use_wheel,
+        lock_configuration=lock_configuration,
     )
 
     local_projects = list(download_request.iter_local_projects())
@@ -1031,6 +1066,12 @@ class LocalDistribution(object):
         return self.path.endswith(".whl") and zipfile.is_zipfile(self.path)
 
 
+@attr.s(frozen=True)
+class Downloaded(object):
+    local_distributions = attr.ib()  # type: Tuple[LocalDistribution, ...]
+    locks = attr.ib(default=())  # type: Tuple[LockedResolve, ...]
+
+
 def download(
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
@@ -1040,7 +1081,7 @@ def download(
     interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
     platforms=None,  # type: Optional[Iterable[Union[str, Platform]]]
     indexes=None,  # type: Optional[Sequence[str]]
-    find_links=None,  # type: Optional[Iterable[str]]
+    find_links=None,  # type: Optional[Sequence[str]]
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     cache=None,  # type: Optional[str]
@@ -1049,8 +1090,9 @@ def download(
     manylinux=None,  # type: Optional[str]
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
+    lock_configuration=None,  # type: Optional[LockConfiguration]
 ):
-    # type: (...) -> List[LocalDistribution]
+    # type: (...) -> Downloaded
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
 
     :keyword requirements: A sequence of requirement strings.
@@ -1085,6 +1127,7 @@ def download(
     :keyword dest: A directory path to download distributions to.
     :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
+    :keyword lock_configuration: If a lock should be generated for the download - its configuration.
     :returns: The local distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
     :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
@@ -1113,9 +1156,11 @@ def download(
         manylinux=manylinux,
         dest=dest,
         max_parallel_jobs=max_parallel_jobs,
+        lock_configuration=lock_configuration,
     )
 
     local_distributions = []
+    locks = []
 
     def add_build_requests(requests):
         # type: (Iterable[BuildRequest]) -> None
@@ -1130,6 +1175,8 @@ def download(
 
     add_build_requests(build_requests)
     for download_result in download_results:
+        if download_result.lock:
+            locks.append(download_result.lock)
         add_build_requests(download_result.build_requests())
         for install_request in download_result.install_requests():
             local_distributions.append(
@@ -1140,7 +1187,7 @@ def download(
                 )
             )
 
-    return local_distributions
+    return Downloaded(local_distributions=tuple(local_distributions), locks=tuple(locks))
 
 
 def install(
@@ -1224,7 +1271,7 @@ def resolve_from_pex(
     manylinux=None,  # type: Optional[str]
     ignore_errors=False,  # type: bool
 ):
-    # type: (...) -> List[InstalledDistribution]
+    # type: (...) -> Resolved
 
     direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
     direct_requirements_by_project_name = (
@@ -1261,7 +1308,7 @@ def resolve_from_pex(
     unique_targets = _unique_targets(
         interpreters=interpreters, platforms=platforms, manylinux=manylinux
     )
-    resolved_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
+    installed_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
     for target in unique_targets:
         pex_env = PEXEnvironment(pex, target=target)
         try:
@@ -1290,7 +1337,7 @@ def resolve_from_pex(
                     )
                 )
 
-            resolved_distributions.add(
+            installed_distributions.add(
                 InstalledDistribution(target, distribution, direct_requirement=direct_requirement)
             )
-    return list(resolved_distributions)
+    return Resolved(installed_distributions=tuple(installed_distributions))

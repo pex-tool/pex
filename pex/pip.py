@@ -9,13 +9,14 @@ import csv
 import fileinput
 import functools
 import hashlib
+import itertools
 import json
 import os
 import re
 import subprocess
 import sys
 from abc import abstractmethod
-from collections import deque
+from collections import defaultdict, deque
 from contextlib import closing
 from textwrap import dedent
 
@@ -24,14 +25,25 @@ from pex.common import atomic_directory, safe_mkdtemp
 from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
+from pex.fetcher import URLFetcher
 from pex.finders import DistributionScript
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
+from pex.locked_resolve import (
+    Artifact,
+    Fingerprint,
+    LockConfiguration,
+    LockedRequirement,
+    LockedResolve,
+    Pin,
+)
 from pex.network_configuration import NetworkConfiguration
+from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.platforms import Platform
 from pex.third_party import isolated
+from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic, cast
 from pex.util import CacheHelper, named_temporary_file
@@ -43,6 +55,7 @@ if TYPE_CHECKING:
     from typing import (
         Any,
         Callable,
+        DefaultDict,
         Dict,
         Iterable,
         Iterator,
@@ -262,8 +275,7 @@ class _ErrorAnalyzer(_LogAnalyzer):
         # type: (str) -> ErrorAnalysis
         """Analyze the given log line.
 
-        Returns a value indicating whether or not analysis is complete. The value may contain text
-        that should be reported as part of the error analysis.
+        Returns a value indicating whether or not analysis is complete.
         """
 
 
@@ -322,6 +334,183 @@ class _Issue10050Analyzer(_ErrorAnalyzer):
                 )
             )
         return self.Continue()
+
+
+@attr.s(frozen=True)
+class PartialArtifact(object):
+    url = attr.ib()  # type: str
+    fingerprint = attr.ib(default=None)  # type: Optional[Fingerprint]
+
+
+@attr.s(frozen=True)
+class ResolvedRequirement(object):
+    @classmethod
+    def lock_all(
+        cls,
+        resolved_requirements,  # type: Iterable[ResolvedRequirement]
+        url_fetcher,  # type: URLFetcher
+    ):
+        # type: (...) -> Iterator[LockedRequirement]
+
+        # TODO(John Sirois): Introduce a thread pool and pump these fetches to workers via a Queue.
+        def fingerprint_url(url):
+            # type: (str) -> Fingerprint
+            with url_fetcher.get_body_stream(url) as body_stream:
+                return Fingerprint.from_stream(body_stream)
+
+        fingerprint_by_url = {
+            url: fingerprint_url(url)
+            for url in set(
+                itertools.chain.from_iterable(
+                    resolved_requirement._iter_urls_to_fingerprint()
+                    for resolved_requirement in resolved_requirements
+                )
+            )
+        }
+
+        def resolve_fingerprint(partial_artifact):
+            # type: (PartialArtifact) -> Artifact
+            return Artifact(
+                url=partial_artifact.url,
+                fingerprint=partial_artifact.fingerprint
+                or fingerprint_by_url[partial_artifact.url],
+            )
+
+        for resolved_requirement in resolved_requirements:
+            yield LockedRequirement(
+                pin=resolved_requirement.pin,
+                artifact=resolve_fingerprint(resolved_requirement.artifact),
+                requirement=resolved_requirement.requirement,
+                additional_artifacts=tuple(
+                    resolve_fingerprint(artifact)
+                    for artifact in resolved_requirement.additional_artifacts
+                ),
+                via=resolved_requirement.via,
+            )
+
+    pin = attr.ib()  # type: Pin
+    artifact = attr.ib()  # type: PartialArtifact
+    requirement = attr.ib()  # type: Requirement
+    additional_artifacts = attr.ib(default=())  # type: Tuple[PartialArtifact, ...]
+    via = attr.ib(default=())  # type: Tuple[str, ...]
+
+    def _iter_urls_to_fingerprint(self):
+        # type: () -> Iterator[str]
+        if not self.artifact.fingerprint:
+            yield self.artifact.url
+        for artifact in self.additional_artifacts:
+            if not artifact.fingerprint:
+                yield artifact.url
+
+
+class Locker(_LogAnalyzer):
+    class StateError(Exception):
+        """Indicates the Locker lifecycle was violated.
+
+        A Locker 1st should be used to collect data from a Pip debug log and only then can a `lock`
+        be requested.
+        """
+
+    def __init__(
+        self,
+        target,  # type: DistributionTarget
+        lock_configuration,  # type: LockConfiguration
+        network_configuration=None,  # type: Optional[NetworkConfiguration]
+    ):
+        # type: (...) -> None
+        self._target = target
+        self._lock_configuration = lock_configuration
+        self._resolved_requirements = []  # type: List[ResolvedRequirement]
+        self._links = defaultdict(OrderedSet)  # type: DefaultDict[Pin, OrderedSet[PartialArtifact]]
+        self._url_fetcher = URLFetcher(
+            network_configuration=network_configuration, handle_file_urls=True
+        )
+        self._analysis_completed = False
+        self._locked_resolve = None  # type: Optional[LockedResolve]
+
+    def should_collect(self, returncode):
+        # type: (int) -> bool
+        return returncode == 0
+
+    @staticmethod
+    def _extract_resolve_data(url):
+        # type: (str) -> Tuple[Pin, PartialArtifact]
+
+        fingerprint = None  # type: Optional[Fingerprint]
+        fingerprint_match = re.search(r"(?P<url>[^#]+)#(?P<algorithm>[^=]+)=(?P<hash>.*)$", url)
+        if fingerprint_match:
+            url = fingerprint_match.group("url")
+            algorithm = fingerprint_match.group("algorithm")
+            hash_ = fingerprint_match.group("hash")
+            fingerprint = Fingerprint(algorithm=algorithm, hash=hash_)
+
+        pin = Pin.canonicalize(ProjectNameAndVersion.from_filename(urlparse.urlparse(url).path))
+        partial_artifact = PartialArtifact(url, fingerprint)
+        return pin, partial_artifact
+
+    def analyze(self, line):
+        # type: (str) -> _LogAnalyzer.Continue[None]
+
+        if self._analysis_completed:
+            raise self.StateError("Line analysis was requested after the log analysis completed.")
+
+        match = re.search(
+            r"Added (?P<requirement>.*) from (?P<url>[^\s]+) (\(from (?P<from>.*)\) )?to build "
+            r"tracker",
+            line,
+        )
+        if match:
+            requirement = Requirement.parse(match.group("requirement"))
+            project_name_and_version, partial_artifact = self._extract_resolve_data(
+                match.group("url")
+            )
+
+            from_ = match.group("from")
+            if from_:
+                via = tuple(from_.split("->"))
+            else:
+                via = ()
+
+            additional_artifacts = self._links[project_name_and_version]
+            additional_artifacts.discard(partial_artifact)
+
+            self._resolved_requirements.append(
+                ResolvedRequirement(
+                    requirement=requirement,
+                    pin=project_name_and_version,
+                    artifact=partial_artifact,
+                    additional_artifacts=tuple(additional_artifacts),
+                    via=via,
+                )
+            )
+        elif not self._lock_configuration.strict:
+            match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
+            if match:
+                project_name_and_version, partial_artifact = self._extract_resolve_data(
+                    match.group("url")
+                )
+                self._links[project_name_and_version].add(partial_artifact)
+
+        return self.Continue()
+
+    def analysis_completed(self):
+        # type: () -> None
+        self._analysis_completed = True
+
+    def lock(self):
+        # type: () -> LockedResolve
+        if not self._analysis_completed:
+            raise self.StateError(
+                "Lock retrieval was attempted before Pip log analysis was complete."
+            )
+        if self._locked_resolve is None:
+            self._locked_resolve = LockedResolve(
+                target=self._target,
+                locked_requirements=tuple(
+                    ResolvedRequirement.lock_all(self._resolved_requirements, self._url_fetcher)
+                ),
+            )
+        return self._locked_resolve
 
 
 class _LogScrapeJob(Job):
@@ -540,10 +729,11 @@ class Pip(object):
             # See:
             # + https://github.com/pantsbuild/pex/issues/1267
             # + https://github.com/pypa/pip/issues/9420
-            stdout = popen_kwargs.pop("stdout", sys.stderr.fileno())
+            if "stdout" not in popen_kwargs:
+                popen_kwargs["stdout"] = sys.stderr.fileno()
 
             args = [self._pip_pex_path] + command
-            return args, subprocess.Popen(args=args, env=env, stdout=stdout, **popen_kwargs)
+            return args, subprocess.Popen(args=args, env=env, **popen_kwargs)
 
     def _spawn_pip_isolated_job(
         self,
@@ -622,6 +812,7 @@ class Pip(object):
         cache=None,  # type: Optional[str]
         build=True,  # type: bool
         use_wheel=True,  # type: bool
+        locker=None,  # type: Optional[Locker]
     ):
         # type: (...) -> Job
         target = target or DistributionTarget.current()
@@ -680,6 +871,9 @@ class Pip(object):
         extra_env = None
         log_analyzers = []  # type: List[_LogAnalyzer]
 
+        if locker:
+            log_analyzers.append(locker)
+
         # Pip evaluates environment markers in the context of the ambient interpreter instead of
         # failing when encountering them, ignoring them or doing what we do here: evaluate those
         # environment markers positively identified by the platform quadruple and failing for those
@@ -715,16 +909,23 @@ class Pip(object):
             log_analyzers.append(_Issue9420Analyzer())
 
         log = None
+        popen_kwargs = {}
         if log_analyzers:
             log = os.path.join(safe_mkdtemp(), "pip.log")
             download_cmd = ["--log", log] + download_cmd
+            # N.B.: The `pip -q download ...` command is quiet but
+            # `pip -q --log log.txt download ...` leaks download progress bars to stdout. We work
+            # around this by sending stdout to the bit bucket.
+            popen_kwargs["stdout"] = open(os.devnull, "wb")
 
         command, process = self._spawn_pip_isolated(
             download_cmd,
             package_index_configuration=package_index_configuration,
             cache=cache,
             interpreter=target.get_interpreter(),
+            pip_verbosity=0,
             extra_env=extra_env,
+            **popen_kwargs
         )
         if log:
             return _LogScrapeJob(command, process, log, log_analyzers)

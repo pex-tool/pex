@@ -156,7 +156,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
         # type: (PEXBuilder, str) -> None
         for installed_dist in resolver.resolve(
             requirements, cache=cache, interpreters=[builder.interpreter]
-        ):
+        ).installed_distributions:
             builder.add_distribution(installed_dist.distribution)
             if installed_dist.direct_requirement:
                 builder.add_requirement(installed_dist.direct_requirement)
@@ -324,7 +324,7 @@ def test_osx_platform_intel_issue_523():
         ) as pb, temporary_filename() as pex_file:
             for installed_dist in resolver.resolve(
                 ["psutil==5.4.3"], cache=cache, interpreters=[pb.interpreter]
-            ):
+            ).installed_distributions:
                 pb.add_dist_location(installed_dist.distribution.location)
             pb.build(pex_file)
 
@@ -380,7 +380,7 @@ def test_activate_extras_issue_615():
     with yield_pex_builder() as pb:
         for installed_dist in resolver.resolve(
             ["pex[requests]==1.6.3"], interpreters=[pb.interpreter]
-        ):
+        ).installed_distributions:
             if installed_dist.direct_requirement:
                 pb.add_requirement(installed_dist.direct_requirement)
             pb.add_dist_location(installed_dist.distribution.location)
@@ -404,7 +404,7 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
     # type: (str, str, bool) -> None
     requirement = "{}=={}".format(distribution, version)
     pb = PEXBuilder()
-    for installed_dist in resolver.resolve([requirement]):
+    for installed_dist in resolver.resolve([requirement]).installed_distributions:
         pb.add_dist_location(installed_dist.distribution.location)
     pb.freeze()
 
