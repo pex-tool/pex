@@ -511,6 +511,11 @@ def is_script(
         return bool(re.match(pattern, fp.readline().decode("utf-8")))
 
 
+def is_python_script(path):
+    # type: (str) -> bool
+    return is_script(path, pattern=r"(?i)^.*(?:python|pypy)")
+
+
 def can_write_dir(path):
     # type: (str) -> bool
     """Determines if the directory at path can be written to by the current process.

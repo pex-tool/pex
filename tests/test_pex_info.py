@@ -70,25 +70,25 @@ def test_from_env():
             PEX_ROOT=pex_root,
             PEX_MODULE="entry:point",
             PEX_SCRIPT="script.sh",
-            PEX_FORCE_LOCAL="true",
-            PEX_UNZIP="true",
             PEX_INHERIT_PATH="prefer",
             PEX_IGNORE_ERRORS="true",
+            # These are deprecated and should be ignored by PexInfo.
             PEX_ALWAYS_CACHE="true",
+            PEX_FORCE_LOCAL="true",
+            PEX_UNZIP="true",
         )
+        with warnings.catch_warnings(record=True):
+            env = Variables(environ=environ)
 
         info = dict(
             pex_root=pex_root,
             entry_point="entry:point",
             script="script.sh",
-            zip_safe=False,
-            unzip=True,
             inherit_path=True,
             ignore_errors=True,
-            always_write_cache=True,
         )
 
-    assert_same_info(PexInfo(info=info), PexInfo.from_env(env=Variables(environ=environ)))
+    assert_same_info(PexInfo(info=info), PexInfo.from_env(env=env))
 
 
 def test_build_properties():
@@ -144,7 +144,6 @@ def test_copy():
     assert default_info.dump() == default_info_copy.dump()
 
     info = PexInfo.default()
-    info.unzip = True
     info.code_hash = "foo"
     info.inherit_path = InheritPath.FALLBACK
     info.add_requirement("bar==1")
@@ -155,7 +154,6 @@ def test_copy():
     info.add_interpreter_constraint("CPython==2.7.9")
     info_copy = info.copy()
 
-    assert info_copy.unzip is True
     assert "foo" == info_copy.code_hash
     assert InheritPath.FALLBACK == info_copy.inherit_path
     assert OrderedSet(["bar==1", "baz==2"]) == info_copy.requirements

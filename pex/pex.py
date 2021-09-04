@@ -98,7 +98,7 @@ class PEX(object):  # noqa: T000
             # set up the local .pex environment
             pex_info = self.pex_info()
             target = DistributionTarget.for_interpreter(self._interpreter)
-            envs = [PEXEnvironment(self._pex, pex_info, target=target)]
+            envs = [PEXEnvironment.mount(self._pex, pex_info, target=target)]
             # N.B. by this point, `pex_info.pex_path` will contain a single pex path
             # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
             # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
@@ -108,7 +108,7 @@ class PEX(object):  # noqa: T000
                 for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
                     pex_info = PexInfo.from_pex(pex_path)
                     pex_info.update(self._pex_info_overrides)
-                    envs.append(PEXEnvironment(pex_path, pex_info, target=target))
+                    envs.append(PEXEnvironment.mount(pex_path, pex_info, target=target))
             self._envs = tuple(envs)
         return self._envs
 
@@ -460,14 +460,6 @@ class PEX(object):  # noqa: T000
         This function makes assumptions that it is the last function called by the interpreter.
         """
         teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
-
-        # N.B.: This is set in `__main__.py` of the executed PEX by `PEXBuilder` when we've been
-        # executed from within a PEX zip file in `--unzip` or `--venv` modes or a `--spread` PEX.
-        # We replace `sys.argv[0]` to avoid confusion and allow the user code we hand off to to
-        # provide useful messages and fully valid re-execs that are always re-directed through the
-        # PEX file or spread PEX.
-        sys.argv[0] = os.environ.pop("__PEX_EXE__", sys.argv[0])
-
         try:
             if self._vars.PEX_TOOLS:
                 if not self._pex_info.includes_tools:
@@ -478,7 +470,7 @@ class PEX(object):  # noqa: T000
 
                 from pex.tools import main as tools
 
-                exit_value = tools.main(pex=self, pex_prog_path=sys.argv[0])
+                exit_value = tools.main(pex=PEX(sys.argv[0]))
             else:
                 self.activate()
                 exit_value = self._wrap_coverage(self._wrap_profiling, self._execute)

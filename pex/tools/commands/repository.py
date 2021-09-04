@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import subprocess
-import zipfile
 from argparse import ArgumentParser, Namespace, _SubParsersAction
 from contextlib import contextmanager
 from textwrap import dedent
@@ -16,7 +15,6 @@ from threading import Thread
 
 from pex import dist_metadata, pex_warnings
 from pex.common import (
-    DETERMINISTIC_DATETIME,
     DETERMINISTIC_DATETIME_TIMESTAMP,
     pluralize,
     safe_mkdir,
@@ -319,20 +317,19 @@ class Repository(JsonMixin, OutputMixin, Command):
         dest_dir,  # type: str
     ):
         # type: (...) -> None
-        chroot = safe_mkdtemp()
-        src = os.path.join(chroot, "src")
-        safe_mkdir(src)
-        excludes = ["__main__.py", "PEX-INFO"]
-        if zipfile.is_zipfile(pex.path()):
-            PEXEnvironment(pex.path()).explode_code(src, exclude=excludes)
-        else:
-            shutil.copytree(pex.path(), src, ignore=lambda _dir, _names: excludes)
-
         pex_info = pex.pex_info()
 
-        name, _ = os.path.splitext(os.path.basename(pex.path()))
+        chroot = safe_mkdtemp()
+        pex_path = pex.path()
+        src = os.path.join(chroot, "src")
+        excludes = ["__main__.py", pex_info.PATH, pex_info.bootstrap, pex_info.internal_cache]
+        shutil.copytree(
+            PEXEnvironment.mount(pex_path).path, src, ignore=lambda _dir, _names: excludes
+        )
+
+        name, _ = os.path.splitext(os.path.basename(pex_path))
         version = "0.0.0+{}".format(pex_info.code_hash)
-        zip_safe = pex_info.zip_safe
+        zip_safe = False  # Since PEX files never require code to be zip safe, assume it isn't.
         py_modules = [os.path.splitext(f)[0] for f in os.listdir(src) if f.endswith(".py")]
         packages = [
             os.path.relpath(os.path.join(root, d), src).replace(os.sep, ".")
@@ -351,7 +348,7 @@ class Repository(JsonMixin, OutputMixin, Command):
                 "Omitting `python_requires` for {name} sdist since {pex} has multiple "
                 "interpreter constraints:\n{interpreter_constraints}".format(
                     name=name,
-                    pex=os.path.normpath(pex.path()),
+                    pex=os.path.normpath(pex_path),
                     interpreter_constraints="\n".join(
                         "{index}.) {constraint}".format(index=index, constraint=constraint)
                         for index, constraint in enumerate(

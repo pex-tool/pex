@@ -21,12 +21,11 @@ from contextlib import closing
 from textwrap import dedent
 
 from pex import dist_metadata, third_party
-from pex.common import atomic_directory, safe_mkdtemp
+from pex.common import atomic_directory, is_python_script, safe_mkdtemp
 from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
 from pex.fetcher import URLFetcher
-from pex.finders import DistributionScript
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.locked_resolve import (
@@ -1073,7 +1072,7 @@ class Pip(object):
         scripts = []
         for script_name in os.listdir(bin_dir):
             script_path = os.path.join(bin_dir, script_name)
-            if DistributionScript.is_python_script(script_path):
+            if is_python_script(script_path):
                 scripts.append(script_path)
         if not scripts:
             return

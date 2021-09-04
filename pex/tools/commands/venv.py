@@ -96,20 +96,13 @@ def populate_venv_with_pex(
             provenance[dst].append(src)
 
     pex_info = pex.pex_info()
-    if zipfile.is_zipfile(pex.path()):
-        record_provenance(
-            PEXEnvironment(pex.path()).explode_code(
-                venv.site_packages_dir, exclude=("__main__.py", pex_info.PATH)
-            )
+    record_provenance(
+        _copytree(
+            src=PEXEnvironment.mount(pex.path()).path,
+            dst=venv.site_packages_dir,
+            exclude=(pex_info.internal_cache, pex_info.bootstrap, "__main__.py", pex_info.PATH),
         )
-    else:
-        record_provenance(
-            _copytree(
-                src=pex.path(),
-                dst=venv.site_packages_dir,
-                exclude=(pex_info.internal_cache, pex_info.bootstrap, "__main__.py", pex_info.PATH),
-            )
-        )
+    )
 
     with open(os.path.join(venv.venv_dir, pex_info.PATH), "w") as fp:
         fp.write(pex_info.dump())

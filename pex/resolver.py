@@ -1310,7 +1310,7 @@ def resolve_from_pex(
     )
     installed_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
     for target in unique_targets:
-        pex_env = PEXEnvironment(pex, target=target)
+        pex_env = PEXEnvironment.mount(pex, target=target)
         try:
             distributions = pex_env.resolve_dists(all_reqs)
         except ResolveError as e:

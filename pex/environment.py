@@ -3,33 +3,29 @@
 
 from __future__ import absolute_import
 
-import importlib
 import itertools
 import os
 import site
 import sys
-import zipfile
 from collections import OrderedDict, defaultdict
 
 from pex import dist_metadata, pex_warnings
-from pex.bootstrap import Bootstrap
-from pex.common import atomic_directory, open_zip, pluralize
+from pex.common import pluralize
 from pex.distribution_target import DistributionTarget
 from pex.inherit_path import InheritPath
+from pex.layout import maybe_install
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
-from pex.spread import is_spread, spread
 from pex.third_party.packaging import specifiers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper, DistributionHelper
+from pex.util import DistributionHelper
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
     from typing import (
-        Container,
         DefaultDict,
         FrozenSet,
         Iterable,
@@ -181,186 +177,24 @@ class _RequirementKey(ProjectName):
 
 
 class PEXEnvironment(object):
-    class _CachingZipImporter(object):
-        class _CachingLoader(object):
-            def __init__(self, delegate):
-                self._delegate = delegate
-
-            def load_module(self, fullname):
-                loaded = sys.modules.get(fullname)
-                # Technically a PEP-302 loader should re-load the existing module object here - notably
-                # re-exec'ing the code found in the zip against the existing module __dict__. We don't do
-                # this since the zip is assumed immutable during our run and this is enough to work around
-                # the issue.
-                if not loaded:
-                    loaded = self._delegate.load_module(fullname)
-                    loaded.__loader__ = self
-                return loaded
-
-        _REGISTERED = False
-
-        @classmethod
-        def _ensure_namespace_handler_registered(cls):
-            if not cls._REGISTERED:
-                pkg_resources, _ = _import_pkg_resources()
-                pkg_resources.register_namespace_handler(cls, pkg_resources.file_ns_handler)
-                cls._REGISTERED = True
-
-        def __init__(self, path):
-            import zipimport
-
-            self._delegate = zipimport.zipimporter(path)
-
-        def find_module(self, fullname, path=None):
-            loader = self._delegate.find_module(fullname, path)
-            if loader is None:
-                return None
-            self._ensure_namespace_handler_registered()
-            caching_loader = self._CachingLoader(loader)
-            return caching_loader
-
     @classmethod
-    def _install_pypy_zipimporter_workaround(cls, pex_file):
-        # The pypy zipimporter implementation always freshly loads a module instead of re-importing
-        # when the module already exists in sys.modules. This breaks the PEP-302 importer protocol and
-        # violates pkg_resources assumptions based on that protocol in its handling of namespace
-        # packages. See: https://bitbucket.org/pypy/pypy/issues/1686
-
-        def pypy_zipimporter_workaround(path):
-            import os
-
-            if not path.startswith(pex_file) or "." in os.path.relpath(path, pex_file):
-                # We only need to claim the pex zipfile root modules.
-                #
-                # The protocol is to raise if we don't want to hook the given path.
-                # See: https://www.python.org/dev/peps/pep-0302/#specification-part-2-registering-hooks
-                raise ImportError()
-
-            return cls._CachingZipImporter(path)
-
-        for path in list(sys.path_importer_cache):
-            if path.startswith(pex_file):
-                sys.path_importer_cache.pop(path)
-
-        sys.path_hooks.insert(0, pypy_zipimporter_workaround)
-
-    def explode_code(
-        self,
-        dest_dir,  # type: str
-        exclude=(),  # type: Container[str]
-    ):
-        # type: (...) -> Iterable[Tuple[str, str]]
-        with TRACER.timed("Unzipping {}".format(self._pex)):
-            with open_zip(self._pex) as pex_zip:
-                pex_files = (
-                    name
-                    for name in pex_zip.namelist()
-                    if not name.startswith(self._pex_info.bootstrap)
-                    and not name.startswith(self._pex_info.internal_cache)
-                    and name not in exclude
-                )
-                pex_zip.extractall(dest_dir, pex_files)
-                return [
-                    (
-                        "{pex_file}:{zip_path}".format(pex_file=self._pex, zip_path=f),
-                        os.path.join(dest_dir, f),
-                    )
-                    for f in pex_files
-                ]
-
-    def _force_local(self):
-        if self._pex_info.code_hash is None:
-            # Do not support force_local if code_hash is not set. (It should always be set.)
-            return self._pex
-        explode_dir = os.path.join(self._pex_info.zip_unsafe_cache, self._pex_info.code_hash)
-        TRACER.log("PEX is not zip safe, exploding to %s" % explode_dir)
-        with atomic_directory(explode_dir, exclusive=True) as explode_tmp:
-            if not explode_tmp.is_finalized:
-                self.explode_code(explode_tmp.work_dir)
-        return explode_dir
-
-    def _update_module_paths(self):
-        bootstrap = Bootstrap.locate()
-
-        # Un-import any modules already loaded from within the .pex file.
-        to_reimport = []
-        for name, module in reversed(sorted(sys.modules.items())):
-            if bootstrap.imported_from_bootstrap(module):
-                TRACER.log("Not re-importing module %s from bootstrap." % module, V=3)
-                continue
-
-            pkg_path = getattr(module, "__path__", None)
-            if pkg_path and any(
-                os.path.realpath(path_item).startswith(self._pex) for path_item in pkg_path
-            ):
-                sys.modules.pop(name)
-                to_reimport.append((name, pkg_path, True))
-            elif (
-                name != "__main__"
-            ):  # The __main__ module is special in python and is not re-importable.
-                mod_file = getattr(module, "__file__", None)
-                if mod_file and os.path.realpath(mod_file).startswith(self._pex):
-                    sys.modules.pop(name)
-                    to_reimport.append((name, mod_file, False))
-
-        # And re-import them from the exploded pex.
-        for name, existing_path, is_pkg in to_reimport:
-            TRACER.log(
-                "Re-importing %s %s loaded via %r from exploded pex."
-                % ("package" if is_pkg else "module", name, existing_path)
-            )
-            reimported_module = importlib.import_module(name)
-            if is_pkg:
-                for path_item in existing_path:
-                    # NB: It is not guaranteed that __path__ is a list, it may be a PEP-420 namespace package
-                    # object which supports a limited mutation API; so we append each item individually.
-                    reimported_module.__path__.append(path_item)
-
-    def _write_zipped_internal_cache(self, zf):
-        cached_distributions = []
-        for distribution_name, dist_digest in self._pex_info.distributions.items():
-            internal_dist_path = "/".join([self._pex_info.internal_cache, distribution_name])
-            cached_location = os.path.join(
-                self._pex_info.install_cache, dist_digest, distribution_name
-            )
-            dist = CacheHelper.cache_distribution(zf, internal_dist_path, cached_location)
-            cached_distributions.append(dist)
-        return cached_distributions
-
-    def _load_internal_cache(self):
-        """Possibly cache out the internal cache."""
-        internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
-        with TRACER.timed("Searching dependency cache: %s" % internal_cache, V=2):
-            if len(self._pex_info.distributions) == 0:
-                # We have no .deps to load.
-                return
-
-            if os.path.isdir(self._pex):
-                for distribution_name in self._pex_info.distributions:
-                    yield DistributionHelper.distribution_from_path(
-                        os.path.join(internal_cache, distribution_name)
-                    )
-            else:
-                with open_zip(self._pex) as zf:
-                    for dist in self._write_zipped_internal_cache(zf):
-                        yield dist
-
-    @staticmethod
-    def _spread_if_needed(
+    def mount(
+        cls,
         pex,  # type: str
-        pex_info,  # type: PexInfo
+        pex_info=None,  # type: Optional[PexInfo]
+        target=None,  # type: Optional[DistributionTarget]
     ):
-        # type: (...) -> str
-        if not is_spread(pex):
-            return pex
-
-        with TRACER.timed("Spreading {}".format(pex)):
-            pex_hash = pex_info.pex_hash
-            if pex_hash is None:
-                raise AssertionError(
-                    "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex)
-                )
-            return spread(spread_pex=pex, pex_root=pex_info.pex_root, pex_hash=pex_hash)
+        # type: (...) -> PEXEnvironment
+        pi = pex_info or PexInfo.from_pex(pex)
+        pex_hash = pi.pex_hash
+        if pex_hash is None:
+            raise AssertionError(
+                "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex)
+            )
+        pex_root = pi.pex_root
+        pex = maybe_install(pex=pex, pex_root=pex_root, pex_hash=pex_hash) or pex
+        target = target or DistributionTarget.current()
+        return cls(pex=pex, pex_info=pi, target=target)
 
     def __init__(
         self,
@@ -370,7 +204,7 @@ class PEXEnvironment(object):
     ):
         # type: (...) -> None
         self._pex_info = pex_info or PexInfo.from_pex(pex)
-        self._pex = os.path.realpath(self._spread_if_needed(pex, self._pex_info))
+        self._pex = os.path.realpath(pex)
 
         self._available_ranked_dists_by_project_name = defaultdict(
             list
@@ -392,10 +226,22 @@ class PEXEnvironment(object):
         }
         self._platform, _ = self._target.get_platform()
 
-        # For the bug this works around, see: https://bitbucket.org/pypy/pypy/issues/1686
-        # NB: This must be installed early before the underlying pex is loaded in any way.
-        if self._platform.impl == "pp" and zipfile.is_zipfile(self._pex):
-            self._install_pypy_zipimporter_workaround(self._pex)
+    @property
+    def path(self):
+        return self._pex
+
+    def _load_internal_cache(self):
+        """Possibly cache out the internal cache."""
+        internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
+        with TRACER.timed("Searching dependency cache: %s" % internal_cache, V=2):
+            if len(self._pex_info.distributions) == 0:
+                # We have no .deps to load.
+                return
+
+            for distribution_name in self._pex_info.distributions:
+                dist_path = os.path.join(internal_cache, distribution_name)
+                TRACER.log("Attempting load from {}".format(dist_path), V=3)
+                yield DistributionHelper.distribution_from_path(dist_path)
 
     def _update_candidate_distributions(self, distribution_iter):
         # type: (Iterable[Distribution]) -> None
@@ -783,20 +629,8 @@ class PEXEnvironment(object):
     def _activate(self):
         # type: () -> Iterable[Distribution]
 
-        is_zipped_pex = os.path.isfile(self._pex)
-        if not self._pex_info.zip_safe and is_zipped_pex:
-            explode_dir = self._force_local()
-            # Force subsequent imports to come from the exploded .pex directory rather than the
-            # .pex file.
-            TRACER.log("Adding exploded non zip-safe pex to the head of sys.path: %s" % explode_dir)
-            sys.path[:] = [path for path in sys.path if self._pex != os.path.realpath(path)]
-            sys.path.insert(0, explode_dir)
-            self._update_module_paths()
-        elif not any(self._pex == os.path.realpath(path) for path in sys.path):
-            TRACER.log(
-                "Adding pex %s to the head of sys.path: %s"
-                % ("file" if is_zipped_pex else "dir", self._pex)
-            )
+        if not any(self._pex == os.path.realpath(path) for path in sys.path):
+            TRACER.log("Adding pex environment to the head of sys.path: {}".format(self._pex))
             sys.path.insert(0, self._pex)
 
         resolved = self.resolve()

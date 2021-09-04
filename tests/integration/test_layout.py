@@ -8,6 +8,7 @@ import sys
 import pytest
 
 from pex.common import safe_open, safe_rmtree
+from pex.layout import Layout
 from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -16,15 +17,15 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.parametrize(
-    "mode_args",
-    [
-        pytest.param(["--spread"], id="Spread"),
-        pytest.param(["--spread", "--venv"], id="Spread VENV"),
-    ],
+    "execution_mode_args", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")]
+)
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
 )
 def test_resiliency(
     tmpdir,  # type: Any
-    mode_args,  # type: List[str]
+    execution_mode_args,  # type: List[str]
+    layout,  # type: Layout.Value
 ):
     # type: (...) -> None
     src_dir = os.path.join(str(tmpdir), "src")
@@ -32,7 +33,7 @@ def test_resiliency(
         fp.write("import colors; print(colors.__version__)")
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
-    spread = os.path.join(str(tmpdir), "spread")
+    pex_app = os.path.join(str(tmpdir), "pex_app")
 
     run_pex_command(
         args=[
@@ -46,9 +47,11 @@ def test_resiliency(
             "-e",
             "exe",
             "-o",
-            spread,
+            pex_app,
+            "--layout",
+            layout.value,
         ]
-        + mode_args
+        + execution_mode_args
     ).assert_success()
 
     def assert_exe(*args):
@@ -56,10 +59,10 @@ def test_resiliency(
         output = subprocess.check_output(args=args)
         assert b"1.1.8\n" == output
 
-    spread_pex = os.path.join(spread, "pex")
-    assert_exe(sys.executable, spread)
-    assert_exe(spread_pex)
+    executable = pex_app if layout == Layout.ZIPAPP else os.path.join(pex_app, "__main__.py")
+    assert_exe(sys.executable, pex_app)
+    assert_exe(executable)
 
     safe_rmtree(pex_root)
-    assert_exe(spread_pex)
-    assert_exe(sys.executable, spread)
+    assert_exe(executable)
+    assert_exe(sys.executable, pex_app)

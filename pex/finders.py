@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import ast
 import os
 
-from pex.common import is_script
+from pex.common import is_python_script
 from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING, cast
 
@@ -19,10 +19,6 @@ else:
 
 @attr.s(frozen=True)
 class DistributionScript(object):
-    @staticmethod
-    def is_python_script(path):
-        return is_script(path, pattern=r"(?i)^.*(?:python|pypy)")
-
     @classmethod
     def find(
         cls,
@@ -43,7 +39,7 @@ class DistributionScript(object):
 
     def python_script(self):
         # type: () -> Optional[ast.AST]
-        if not self.is_python_script(self.path):
+        if not is_python_script(self.path):
             return None
 
         try:

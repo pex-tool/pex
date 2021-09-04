@@ -388,18 +388,12 @@ def isolated():
 
         pex_path = os.path.join(vendor.VendorSpec.ROOT, "pex")
         with _tracer().timed("Hashing pex"):
-            if os.path.isdir(pex_path):
-                dir_hash = CacheHelper.dir_hash(pex_path)
-            else:
-                pex_zip = os.path.abspath(sys.argv[0])
-                assert zipfile.is_zipfile(pex_zip) and pex_zip == os.path.commonprefix(
-                    (pex_zip, pex_path)
-                ), (
-                    "Expected the `pex` module to be available via an installed distribution or "
-                    "else via a PEX zipfile present as argv0. Loaded the `pex` module from {} and "
-                    "argv0 is {}.".format(pex_path, sys.argv[0])
-                )
-                dir_hash = CacheHelper.zip_hash(pex_zip, os.path.relpath(pex_path, pex_zip))
+            assert os.path.isdir(pex_path), (
+                "Expected the `pex` module to be available via an installed distribution or "
+                "else via an installed or loose PEX. Loaded the `pex` module from {} and argv0 is "
+                "{}.".format(pex_path, sys.argv[0])
+            )
+            dir_hash = CacheHelper.dir_hash(pex_path)
         isolated_dir = os.path.join(ENV.PEX_ROOT, "isolated", dir_hash)
 
         with _tracer().timed("Isolating pex"):

@@ -197,6 +197,7 @@ def test_pex_vars_value_or(tmpdir):
 
 
 def test_patch():
+    # type: () -> None
     v = Variables(environ=dict(PEX_VERBOSE="3", PEX_PYTHON="jython", PEX_EMIT_WARNINGS="True"))
     assert v.PEX_VERBOSE == 3
     assert v.PEX_PYTHON == "jython"
@@ -216,3 +217,30 @@ def test_patch():
         # If the assertion is flipped from `is True` to `is False` this test fails; so MyPy is just
         # confused here about the statement being unreachable.
         assert v.PEX_FORCE_LOCAL is True  # type: ignore[unreachable]
+
+
+def test_warnings():
+    # type: () -> None
+    environ = dict(
+        PEX_IGNORE_ERRORS="true",
+        PEX_ALWAYS_CACHE="true",
+        PEX_FORCE_LOCAL="true",
+        PEX_UNZIP="true",
+    )
+    with warnings.catch_warnings(record=True) as events:
+        env = Variables(environ=environ)
+    assert env.PEX_IGNORE_ERRORS is True
+    assert env.PEX_ALWAYS_CACHE is True
+    assert env.PEX_FORCE_LOCAL is True
+    assert env.PEX_UNZIP is True
+
+    warning_by_message_first_sentence = {
+        str(event.message).split(". ")[0]: event.message for event in events
+    }
+    assert all(
+        isinstance(warning, PEXWarning) for warning in warning_by_message_first_sentence.values()
+    )
+    assert tuple(
+        "The `{}` env var is deprecated".format(env_var)
+        for env_var in ("PEX_ALWAYS_CACHE", "PEX_FORCE_LOCAL", "PEX_UNZIP")
+    ) == tuple(sorted(warning_by_message_first_sentence))
