@@ -1243,6 +1243,7 @@ def test_unzip_mode():
 
                     print(' '.join(sys.argv[1:]))
                     sys.stdout.flush()
+                    sys.stderr.flush()
                     os.execv(sys.executable, [sys.executable] + sys.argv[:-1])
                     """
                 )
