@@ -6,7 +6,9 @@ import warnings
 
 import pytest
 
+from pex import pex_warnings
 from pex.common import temporary_dir
+from pex.pex_info import PexInfo
 from pex.pex_warnings import PEXWarning
 from pex.testing import environment_as
 from pex.typing import TYPE_CHECKING
@@ -228,6 +230,7 @@ def test_warnings():
         PEX_UNZIP="true",
     )
     with warnings.catch_warnings(record=True) as events:
+        pex_warnings.configure_warnings(PexInfo.default(), Variables(environ={}))
         env = Variables(environ=environ)
     assert env.PEX_IGNORE_ERRORS is True
     assert env.PEX_ALWAYS_CACHE is True
@@ -241,6 +244,8 @@ def test_warnings():
         isinstance(warning, PEXWarning) for warning in warning_by_message_first_sentence.values()
     )
     assert tuple(
-        "The `{}` env var is deprecated".format(env_var)
-        for env_var in ("PEX_ALWAYS_CACHE", "PEX_FORCE_LOCAL", "PEX_UNZIP")
+        sorted(
+            "The `{}` env var is deprecated".format(env_var)
+            for env_var in ("PEX_ALWAYS_CACHE", "PEX_FORCE_LOCAL", "PEX_UNZIP")
+        )
     ) == tuple(sorted(warning_by_message_first_sentence))
