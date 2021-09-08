@@ -365,8 +365,8 @@ def configure_clp_pex_options(parser):
         choices=[choice.value for choice in Layout.values],
         help=(
             "By default, a PEX is created as a single file zipapp when `-o` is specified, but "
-            "either a packed or loose directory tree based layout can be chosen. A packed layout "
-            "PEX is an executable directory structure designed to have cache-friendly "
+            "either a packed or loose directory tree based layout can be chosen instead. A packed "
+            "layout PEX is an executable directory structure designed to have cache-friendly "
             "characteristics for syncing incremental updates to PEXed applications over a network. "
             "At the top level of the packed directory tree there is an executable `__main__.py`"
             "script. The directory can also be executed by passing its path to a Python "
@@ -390,7 +390,7 @@ def configure_clp_pex_options(parser):
         default=None,
         action=HandleBoolAction,
         help=(
-            "Deprecated: This option is no longer used since unzipping PEX zip files and before "
+            "Deprecated: This option is no longer used since unzipping PEX zip files before "
             "execution is now the default."
         ),
     )
@@ -998,7 +998,7 @@ def build_pex(reqs, options, cache=None):
     if options.unzip is not None:
         pex_warnings.warn(
             "The `--unzip/--no-unzip` option is deprecated. This option is no longer used since "
-            "unzipping PEX zip files and before execution is now the default."
+            "unzipping PEX zip files before execution is now the default."
         )
 
     if options.always_write_cache is not None:
