@@ -686,7 +686,8 @@ class PEXBuilder(object):
     ):
         # type: (...) -> None
 
-        pex_info = self._pex_info
+        pex_info = self._pex_info.copy()
+        pex_info.update(PexInfo.from_env())
 
         safe_rmtree(dirname)
 
@@ -705,7 +706,7 @@ class PEXBuilder(object):
                     for f in self._chroot.filesets.get(fileset, ()):
                         dest = os.path.join(work_dir, "src", f)
                         safe_mkdir(os.path.dirname(dest))
-                        safe_copy(os.path.join(self._chroot.chroot, f), dest)
+                        safe_copy(os.path.realpath(os.path.join(self._chroot.chroot, f)), dest)
                         sources.append(f)
 
                 # Zip up the bootstrap which is constant for a given version of Pex.
