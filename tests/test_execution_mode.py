@@ -56,8 +56,13 @@ def execute_colors_pex(tmpdir):
 @attr.s(frozen=True)
 class ExecutionMode(object):
     extra_args = attr.ib()  # type: Iterable[str]
-    isort_code_dir = attr.ib()  # type: str
+    isort_code_dir = attr.ib()  # type: Callable[[Layout.Value], str]
     venv_exception_expected = attr.ib()  # type: bool
+
+
+def installed_wheels_or_deps(layout):
+    # type: (Layout.Value) -> str
+    return "{app_root}/.deps/" if layout == Layout.LOOSE else "{pex_root}/installed_wheels/"
 
 
 @pytest.mark.parametrize(
@@ -66,7 +71,7 @@ class ExecutionMode(object):
         pytest.param(
             ExecutionMode(
                 extra_args=[],
-                isort_code_dir="installed_wheels",
+                isort_code_dir=installed_wheels_or_deps,
                 venv_exception_expected=True,
             ),
             id="PEX",
@@ -74,14 +79,16 @@ class ExecutionMode(object):
         pytest.param(
             ExecutionMode(
                 extra_args=["--include-tools"],
-                isort_code_dir="installed_wheels",
+                isort_code_dir=installed_wheels_or_deps,
                 venv_exception_expected=False,
             ),
             id="PEX --include-tools",
         ),
         pytest.param(
             ExecutionMode(
-                extra_args=["--venv"], isort_code_dir="venvs", venv_exception_expected=False
+                extra_args=["--venv"],
+                isort_code_dir=lambda _: "{pex_root}/venvs/",
+                venv_exception_expected=False,
             ),
             id="VENV",
         ),
@@ -97,14 +104,16 @@ def test_execution_mode(
     layout,  # type: Layout.Value
 ):
     # type: (...) -> None
-    pex_file = create_colors_pex(list(execution_mode.extra_args) + ["--layout", layout.value])
+    pex_app = create_colors_pex(list(execution_mode.extra_args) + ["--layout", layout.value])
 
-    output, pex_root = execute_colors_pex(pex_file, {})
-    assert output.startswith(os.path.join(pex_root, execution_mode.isort_code_dir))
+    output, pex_root = execute_colors_pex(pex_app, {})
+    assert output.startswith(
+        execution_mode.isort_code_dir(layout).format(app_root=pex_app, pex_root=pex_root),
+    )
 
     if execution_mode.venv_exception_expected:
         with pytest.raises(CalledProcessError):
-            execute_colors_pex(pex_file, {"PEX_VENV": "1"})
+            execute_colors_pex(pex_app, {"PEX_VENV": "1"})
     else:
-        output, pex_root = execute_colors_pex(pex_file, {"PEX_VENV": "1"})
+        output, pex_root = execute_colors_pex(pex_app, {"PEX_VENV": "1"})
         assert output.startswith(os.path.join(pex_root, "venvs"))
