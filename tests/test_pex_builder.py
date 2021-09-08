@@ -1,21 +1,24 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+import filecmp
 import os
 import stat
 import subprocess
 import zipfile
+from glob import glob
 
 import pytest
 
-from pex.common import safe_open, temporary_dir
+from pex.common import safe_open, temporary_dir, touch
 from pex.compatibility import WINDOWS
 from pex.executor import Executor
 from pex.pex import PEX
 from pex.pex_builder import CopyMode, PEXBuilder
+from pex.pex_info import PexInfo
 from pex.testing import built_wheel, make_bdist
 from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, List
@@ -305,3 +308,55 @@ def test_pex_builder_setuptools_script(tmpdir):
     assert "hello world from shell script\n" == subprocess.check_output(args=[pex_file]).decode(
         "utf-8"
     )
+
+
+def test_pex_builder_spread(tmpdir):
+    # type: (Any) -> None
+
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pex_app = os.path.join(str(tmpdir), "app.pex")
+    source_file = os.path.join(str(tmpdir), "src")
+    touch(source_file)
+
+    with ENV.patch(PEX_ROOT=pex_root), built_wheel(name="my_project") as my_whl:
+        pb = PEXBuilder(copy_mode=CopyMode.SYMLINK)
+        pb.add_source(source_file, "a.file")
+        pb.add_dist_location(my_whl)
+        pb.set_script("shell_script")
+        pb.build(pex_app, spread=True)
+
+    assert "hello world from shell script\n" == subprocess.check_output(
+        args=[os.path.join(pex_app, "__main__.py")]
+    ).decode("utf-8")
+
+    spread_dist_bootstrap = os.path.join(pex_app, pb.info.bootstrap)
+    assert zipfile.is_zipfile(spread_dist_bootstrap)
+
+    cached_bootstrap_zips = glob(os.path.join(pex_root, "bootstrap_zips", "*", pb.info.bootstrap))
+    assert 1 == len(cached_bootstrap_zips)
+    cached_bootstrap_zip = cached_bootstrap_zips[0]
+    assert zipfile.is_zipfile(cached_bootstrap_zip)
+
+    assert filecmp.cmp(spread_dist_bootstrap, cached_bootstrap_zip, shallow=False)
+
+    assert os.path.isfile(os.path.join(pex_app, "src", "a.file"))
+    for root, dirs, files in os.walk(pex_app, followlinks=False):
+        for f in files:
+            path = os.path.join(root, f)
+            assert not os.path.islink(path) or pex_app == os.path.commonprefix(
+                [pex_app, os.path.realpath(path)]
+            ), (
+                "All spread files should be real files inside the spread that are divorced from "
+                "either the PEXBuilder chroot or PEX_ROOT caches."
+            )
+
+    assert 1 == len(pb.info.distributions)
+    location, sha = next(iter(pb.info.distributions.items()))
+
+    spread_dist_zip = os.path.join(pex_app, pb.info.internal_cache, location)
+    assert zipfile.is_zipfile(spread_dist_zip)
+
+    cached_dist_zip = os.path.join(pex_root, "installed_wheel_zips", sha, location)
+    assert zipfile.is_zipfile(cached_dist_zip)
+
+    assert filecmp.cmp(spread_dist_zip, cached_dist_zip, shallow=False)

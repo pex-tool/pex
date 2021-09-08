@@ -669,7 +669,8 @@ class PEXBuilder(object):
     ):
         # type: (...) -> None
 
-        pex_info = self._pex_info
+        pex_info = self._pex_info.copy()
+        pex_info.update(PexInfo.from_env())
 
         # Include user sources, PEX-INFO and __main__ as loose files in src/.
         for fileset in "source", "resource", "executable", "main", "manifest":
