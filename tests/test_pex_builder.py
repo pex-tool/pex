@@ -1,11 +1,11 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import filecmp
 import os
 import stat
 import subprocess
 import zipfile
-from glob import glob
 
 import pytest
 
@@ -15,7 +15,6 @@ from pex.executor import Executor
 from pex.layout import Layout
 from pex.pex import PEX
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.pex_info import PexInfo
 from pex.testing import built_wheel, make_bdist
 from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
