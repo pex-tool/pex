@@ -50,10 +50,12 @@ def pex_info_no_emit_warnings():
 
 skip_py2_warnings = pytest.mark.skipif(
     PY2,
-    reason="The `warnings.catch_warnings` mechanism doesn't work properly under CPython 2.7 & pypy "
-    "across multiple tests. Since we only use `warnings.catch_warnings` in unit tests and "
-    "the mechanisms tested here are also tested in integration tests under CPython 2.7 & pypy "
-    "we accept that these unit tests appear un-fixable without alot of warnings mocking.",
+    reason=(
+        "The `warnings.catch_warnings` mechanism doesn't work properly under CPython 2.7 & pypy2 "
+        "across multiple tests. Since we only use `warnings.catch_warnings` in unit tests and "
+        "the mechanisms tested here are also tested in integration tests under CPython 2.7 & pypy "
+        "we accept that these unit tests appear un-fixable without alot of warnings mocking."
+    ),
 )
 
 

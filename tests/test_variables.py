@@ -8,6 +8,7 @@ import pytest
 
 from pex import pex_warnings
 from pex.common import temporary_dir
+from pex.compatibility import PY2
 from pex.pex_info import PexInfo
 from pex.pex_warnings import PEXWarning
 from pex.testing import environment_as
@@ -221,6 +222,15 @@ def test_patch():
         assert v.PEX_FORCE_LOCAL is True  # type: ignore[unreachable]
 
 
+@pytest.mark.skipif(
+    PY2,
+    reason=(
+        "The `warnings.catch_warnings` mechanism doesn't work properly under CPython 2.7 & pypy2 "
+        "across multiple tests. Since we only use `warnings.catch_warnings` in unit tests and "
+        "the mechanisms tested here are also tested in integration tests under CPython 2.7 & pypy "
+        "we accept that these unit tests appear un-fixable without alot of warnings mocking."
+    ),
+)
 def test_warnings():
     # type: () -> None
     environ = dict(
