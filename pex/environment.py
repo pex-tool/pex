@@ -177,6 +177,18 @@ class _RequirementKey(ProjectName):
 
 
 class PEXEnvironment(object):
+    def _load_internal_cache(self):
+        internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
+        with TRACER.timed("Searching dependency cache: %s" % internal_cache, V=2):
+            if len(self._pex_info.distributions) == 0:
+                # We have no .deps to load.
+                return
+
+            for distribution_name in self._pex_info.distributions:
+                dist_path = os.path.join(internal_cache, distribution_name)
+                TRACER.log("Attempting load from {}".format(dist_path), V=3)
+                yield DistributionHelper.distribution_from_path(dist_path)
+
     @classmethod
     def mount(
         cls,
@@ -229,19 +241,6 @@ class PEXEnvironment(object):
     @property
     def path(self):
         return self._pex
-
-    def _load_internal_cache(self):
-        """Possibly cache out the internal cache."""
-        internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
-        with TRACER.timed("Searching dependency cache: %s" % internal_cache, V=2):
-            if len(self._pex_info.distributions) == 0:
-                # We have no .deps to load.
-                return
-
-            for distribution_name in self._pex_info.distributions:
-                dist_path = os.path.join(internal_cache, distribution_name)
-                TRACER.log("Attempting load from {}".format(dist_path), V=3)
-                yield DistributionHelper.distribution_from_path(dist_path)
 
     def _update_candidate_distributions(self, distribution_iter):
         # type: (Iterable[Distribution]) -> None
