@@ -1,6 +1,22 @@
 Release Notes
 =============
 
+2.1.48
+------
+
+This releases introduces the ``--layout`` flag for selecting amongst the
+traditional zipapp layout as a single PEX zip file and two new directory
+tree based formats that may be useful for more sophisticated deployment
+sceanrios.
+
+The ``--unzip`` / ``PEX_UNZIP`` toggles for PEX runtime execution are
+now the default and deprecated as explicit options as a result. You can
+still select the venv runtime execution mode via the
+``--venv`` / ``PEX_VENV`` toggles though.
+
+* Remove zipapp execution mode & introduce ``--layout``. (#1438)
+  `PR #1438 <https://github.com/pantsbuild/pex/pull/1438>`_
+
 2.1.47
 ------
 
