@@ -10,6 +10,7 @@ from subprocess import CalledProcessError
 
 import pytest
 
+from pex.layout import Layout
 from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -54,87 +55,65 @@ def execute_colors_pex(tmpdir):
 
 @attr.s(frozen=True)
 class ExecutionMode(object):
-    default_isort_code_dir = attr.ib()  # type: str
-    extra_args = attr.ib(default=())  # type: Iterable[str]
-    unzipped_isort_code_dir = attr.ib(default="unzipped_pexes")  # type: str
-    venv_exception_expected = attr.ib(default=True)  # type: bool
+    extra_args = attr.ib()  # type: Iterable[str]
+    isort_code_dir = attr.ib()  # type: Callable[[Layout.Value], str]
+    venv_exception_expected = attr.ib()  # type: bool
+
+
+def installed_wheels_or_deps(layout):
+    # type: (Layout.Value) -> str
+    return "{app_root}/.deps/" if layout == Layout.LOOSE else "{pex_root}/installed_wheels/"
 
 
 @pytest.mark.parametrize(
-    ["execution_mode"],
+    "execution_mode",
     [
-        pytest.param(ExecutionMode(default_isort_code_dir="installed_wheels"), id="ZIPAPP"),
+        pytest.param(
+            ExecutionMode(
+                extra_args=[],
+                isort_code_dir=installed_wheels_or_deps,
+                venv_exception_expected=True,
+            ),
+            id="PEX",
+        ),
         pytest.param(
             ExecutionMode(
                 extra_args=["--include-tools"],
-                default_isort_code_dir="installed_wheels",
+                isort_code_dir=installed_wheels_or_deps,
                 venv_exception_expected=False,
             ),
-            id="ZIPAPP --include-tools",
-        ),
-        pytest.param(
-            ExecutionMode(extra_args=["--unzip"], default_isort_code_dir="unzipped_pexes"),
-            id="UNZIP",
+            id="PEX --include-tools",
         ),
         pytest.param(
             ExecutionMode(
-                extra_args=["--unzip", "--include-tools"],
-                default_isort_code_dir="unzipped_pexes",
+                extra_args=["--venv"],
+                isort_code_dir=lambda _: "{pex_root}/venvs/",
                 venv_exception_expected=False,
-            ),
-            id="UNZIP --include-tools",
-        ),
-        pytest.param(
-            ExecutionMode(
-                extra_args=["--venv"], default_isort_code_dir="venvs", venv_exception_expected=False
             ),
             id="VENV",
         ),
-        pytest.param(
-            ExecutionMode(
-                extra_args=["--spread"],
-                default_isort_code_dir="installed_wheels",
-                unzipped_isort_code_dir="installed_wheels",
-            ),
-            id="Spread",
-        ),
-        pytest.param(
-            ExecutionMode(
-                extra_args=["--spread", "--include-tools"],
-                default_isort_code_dir="installed_wheels",
-                unzipped_isort_code_dir="installed_wheels",
-                venv_exception_expected=False,
-            ),
-            id="Spread --include-tools",
-        ),
-        pytest.param(
-            ExecutionMode(
-                extra_args=["--venv", "--spread"],
-                default_isort_code_dir="venvs",
-                unzipped_isort_code_dir="installed_wheels",
-                venv_exception_expected=False,
-            ),
-            id="Spread VENV",
-        ),
     ],
+)
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
 )
 def test_execution_mode(
     create_colors_pex,  # type: CreateColorsPex
     execute_colors_pex,  # type: ExecuteColorsPex
     execution_mode,  # type: ExecutionMode
+    layout,  # type: Layout.Value
 ):
     # type: (...) -> None
-    pex_file = create_colors_pex(execution_mode.extra_args)
+    pex_app = create_colors_pex(list(execution_mode.extra_args) + ["--layout", layout.value])
 
-    output, pex_root = execute_colors_pex(pex_file, {})
-    assert output.startswith(os.path.join(pex_root, execution_mode.default_isort_code_dir))
-
-    output, pex_root = execute_colors_pex(pex_file, {"PEX_UNZIP": "1"})
-    assert output.startswith(os.path.join(pex_root, execution_mode.unzipped_isort_code_dir))
+    output, pex_root = execute_colors_pex(pex_app, {})
+    assert output.startswith(
+        execution_mode.isort_code_dir(layout).format(app_root=pex_app, pex_root=pex_root),
+    )
 
     if execution_mode.venv_exception_expected:
         with pytest.raises(CalledProcessError):
-            execute_colors_pex(pex_file, {"PEX_VENV": "1"})
+            execute_colors_pex(pex_app, {"PEX_VENV": "1"})
     else:
-        output, pex_root = execute_colors_pex(pex_file, {"PEX_VENV": "1"})
+        output, pex_root = execute_colors_pex(pex_app, {"PEX_VENV": "1"})
         assert output.startswith(os.path.join(pex_root, "venvs"))

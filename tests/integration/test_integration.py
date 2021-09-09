@@ -18,9 +18,9 @@ import pytest
 
 from pex.common import safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, to_bytes
-from pex.executor import Executor
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
+from pex.layout import Layout
 from pex.network_configuration import NetworkConfiguration
 from pex.pex_info import PexInfo
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
@@ -1243,11 +1243,12 @@ def test_unzip_mode():
 
                     print(' '.join(sys.argv[1:]))
                     sys.stdout.flush()
+                    sys.stderr.flush()
                     os.execv(sys.executable, [sys.executable] + sys.argv[:-1])
                     """
                 )
             )
-        run_pex_command(
+        result = run_pex_command(
             args=[
                 "--sources-directory",
                 src_dir,
@@ -1262,28 +1263,37 @@ def test_unzip_mode():
                 "--no-strip-pex-env",
                 "--unzip",
             ]
-        ).assert_success()
-
-        output1 = subprocess.check_output(
-            args=[pex_file, "quit", "re-exec"],
         )
+        result.assert_success()
+        assert "PEXWarning: The `--unzip/--no-unzip` option is deprecated." in result.error
+
+        process1 = subprocess.Popen(
+            args=[pex_file, "quit", "re-exec"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        output1, error1 = process1.communicate()
+        assert 0 == process1.returncode
 
         pex_hash = PexInfo.from_pex(pex_file).pex_hash
         assert pex_hash is not None
         unzipped_cache = unzip_dir(pex_root, pex_hash)
         assert os.path.isdir(unzipped_cache)
-        assert [
-            "quit re-exec",
-            os.path.realpath(os.path.join(unzipped_cache, "example.py")),
-        ] == output1.decode("utf-8").splitlines()
+        example_py_path = os.path.realpath(os.path.join(unzipped_cache, "example.py"))
+        assert ["quit re-exec", example_py_path] == output1.decode("utf-8").splitlines()
+        assert not error1
 
         shutil.rmtree(unzipped_cache)
-
-        output2 = subprocess.check_output(
-            args=[pex_file, "quit", "re-exec"], env=make_env(PEX_UNZIP=False)
+        process2 = subprocess.Popen(
+            args=[pex_file, "quit", "re-exec"],
+            env=make_env(PEX_UNZIP=False),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
-        assert ["quit re-exec", os.path.realpath(pex_file)] == output2.decode("utf-8").splitlines()
-        assert not os.path.exists(unzipped_cache)
+        output2, error2 = process2.communicate()
+        assert 0 == process2.returncode
+
+        assert ["quit re-exec", example_py_path] == output2.decode("utf-8").splitlines()
+        assert os.path.isdir(unzipped_cache)
+        assert "PEXWarning: The `PEX_UNZIP` env var is deprecated." in error2.decode("utf-8")
 
 
 @pytest.fixture
@@ -1508,47 +1518,46 @@ def test_venv_mode(
 
 
 @pytest.mark.parametrize(
-    "mode_args",
-    [
-        pytest.param([], id="PEX"),
-        pytest.param(["--unzip"], id="UNZIP"),
-        pytest.param(["--venv"], id="VENV"),
-        pytest.param(["--spread"], id="Spread"),
-        pytest.param(["--spread", "--venv"], id="Spread VENV"),
-    ],
+    "execution_mode_args", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")]
+)
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
 )
 def test_seed(
     isort_pex_args,  # type: Tuple[str, List[str]]
-    mode_args,  # type: List[str]
+    execution_mode_args,  # type: List[str]
+    layout,  # type: Layout.Value
 ):
     # type: (...) -> None
     pex_file, args = isort_pex_args
-    results = run_pex_command(args=args + mode_args + ["--seed"])
+    results = run_pex_command(
+        args=args + execution_mode_args + ["--layout", layout.value, "--seed"]
+    )
     results.assert_success()
 
     # Setting posix=False works around this issue under pypy: https://bugs.python.org/issue1170.
     seed_argv = shlex.split(results.output, posix=False)
     isort_args = ["--version"]
-    seed_stdout, seed_stderr = Executor.execute(seed_argv + isort_args)
+    seed_stdout = subprocess.check_output(seed_argv + isort_args)
     pex_args = [pex_file] if os.path.isfile(pex_file) else [sys.executable, pex_file]
-    pex_stdout, pex_stderr = Executor.execute(pex_args + isort_args)
+    pex_stdout = subprocess.check_output(pex_args + isort_args)
     assert pex_stdout == seed_stdout
-    assert pex_stderr == seed_stderr
 
 
 @pytest.mark.parametrize(
-    ["mode_args", "seeded_execute_args"],
-    [
-        pytest.param([], ["python", "pex"], id="PEX"),
-        pytest.param(["--unzip"], ["python", "pex"], id="UNZIP"),
-        pytest.param(["--venv"], ["pex"], id="VENV"),
-        pytest.param(["--spread"], ["python", "pex"], id="Spread"),
-        pytest.param(["--spread", "--venv"], ["pex"], id="Spread VENV"),
-    ],
+    "execution_mode_args", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")]
+)
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
+)
+@pytest.mark.parametrize(
+    "seeded_execute_args",
+    [pytest.param(["python", "pex"], id="Python"), pytest.param(["pex"], id="Direct")],
 )
 def test_seed_verbose(
     isort_pex_args,  # type: Tuple[str, List[str]]
-    mode_args,  # type: List[str]
+    execution_mode_args,  # type: List[str]
+    layout,  # type: Layout.Value
     seeded_execute_args,  # type: List[str]
     tmpdir,  # type: Any
 ):
@@ -1556,7 +1565,7 @@ def test_seed_verbose(
     pex_root = str(tmpdir)
     pex_file, args = isort_pex_args
     results = run_pex_command(
-        args=args + mode_args + ["--seed", "verbose"],
+        args=args + execution_mode_args + ["--layout", layout.value, "--seed", "verbose"],
         env=make_env(PEX_ROOT=pex_root, PEX_PYTHON_PATH=sys.executable),
     )
     results.assert_success()
@@ -1572,11 +1581,10 @@ def test_seed_verbose(
     assert {} == verbose_info
 
     isort_args = ["--version"]
-    seed_stdout, seed_stderr = Executor.execute(seeded_argv0 + isort_args)
+    seed_stdout = subprocess.check_output(seeded_argv0 + isort_args)
     pex_args = [pex_file] if os.path.isfile(pex_file) else [python, pex_file]
-    pex_stdout, pex_stderr = Executor.execute(pex_args + isort_args)
+    pex_stdout = subprocess.check_output(pex_args + isort_args)
     assert pex_stdout == seed_stdout
-    assert pex_stderr == seed_stderr
 
 
 def test_pip_issues_9420_workaround():
@@ -1821,19 +1829,24 @@ def test_require_hashes(tmpdir):
 
 
 @pytest.mark.parametrize(
-    "mode_args",
-    [
-        pytest.param([], id="PEX"),
-        pytest.param(["--unzip"], id="unzip"),
-        pytest.param(["--venv"], id="venv"),
-    ],
+    "execution_mode_args", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")]
 )
-def test_binary_scripts(tmpdir, mode_args):
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
+)
+def test_binary_scripts(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+    layout,  # type: Layout.Value
+):
+    # type: (...) -> None
+
     # The py-spy distribution has a `py-spy` "script" that is a native executable that we should
     # not try to parse as a traditional script but should still be able to execute.
     py_spy_pex = os.path.join(str(tmpdir), "py-spy.pex")
     run_pex_command(
-        args=["py-spy==0.3.8", "-c", "py-spy", "-o", py_spy_pex] + mode_args
+        args=["py-spy==0.3.8", "-c", "py-spy", "-o", py_spy_pex, "--layout", layout.value]
+        + execution_mode_args
     ).assert_success()
-    output = subprocess.check_output(args=[py_spy_pex, "-V"])
+    output = subprocess.check_output(args=[sys.executable, py_spy_pex, "-V"])
     assert output == b"py-spy 0.3.8\n"

@@ -6,7 +6,10 @@ import warnings
 
 import pytest
 
+from pex import pex_warnings
 from pex.common import temporary_dir
+from pex.compatibility import PY2
+from pex.pex_info import PexInfo
 from pex.pex_warnings import PEXWarning
 from pex.testing import environment_as
 from pex.typing import TYPE_CHECKING
@@ -197,6 +200,7 @@ def test_pex_vars_value_or(tmpdir):
 
 
 def test_patch():
+    # type: () -> None
     v = Variables(environ=dict(PEX_VERBOSE="3", PEX_PYTHON="jython", PEX_EMIT_WARNINGS="True"))
     assert v.PEX_VERBOSE == 3
     assert v.PEX_PYTHON == "jython"
@@ -216,3 +220,42 @@ def test_patch():
         # If the assertion is flipped from `is True` to `is False` this test fails; so MyPy is just
         # confused here about the statement being unreachable.
         assert v.PEX_FORCE_LOCAL is True  # type: ignore[unreachable]
+
+
+@pytest.mark.skipif(
+    PY2,
+    reason=(
+        "The `warnings.catch_warnings` mechanism doesn't work properly under CPython 2.7 & pypy2 "
+        "across multiple tests. Since we only use `warnings.catch_warnings` in unit tests and "
+        "the mechanisms tested here are also tested in integration tests under CPython 2.7 & pypy "
+        "we accept that these unit tests appear un-fixable without alot of warnings mocking."
+    ),
+)
+def test_warnings():
+    # type: () -> None
+    environ = dict(
+        PEX_IGNORE_ERRORS="true",
+        PEX_ALWAYS_CACHE="true",
+        PEX_FORCE_LOCAL="true",
+        PEX_UNZIP="true",
+    )
+    with warnings.catch_warnings(record=True) as events:
+        pex_warnings.configure_warnings(PexInfo.default(), Variables(environ={}))
+        env = Variables(environ=environ)
+    assert env.PEX_IGNORE_ERRORS is True
+    assert env.PEX_ALWAYS_CACHE is True
+    assert env.PEX_FORCE_LOCAL is True
+    assert env.PEX_UNZIP is True
+
+    warning_by_message_first_sentence = {
+        str(event.message).split(". ")[0]: event.message for event in events
+    }
+    assert all(
+        isinstance(warning, PEXWarning) for warning in warning_by_message_first_sentence.values()
+    )
+    assert tuple(
+        sorted(
+            "The `{}` env var is deprecated".format(env_var)
+            for env_var in ("PEX_ALWAYS_CACHE", "PEX_FORCE_LOCAL", "PEX_UNZIP")
+        )
+    ) == tuple(sorted(warning_by_message_first_sentence))

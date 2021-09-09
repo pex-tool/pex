@@ -39,14 +39,11 @@ def simplify_pex_path(pex_path):
     return pex_path
 
 
-def main(
-    pex=None,  # type: Optional[PEX]
-    pex_prog_path=None,  # type: Optional[str]
-):
-    # type: (...) -> int
+def main(pex=None):
+    # type: (Optional[PEX]) -> int
     logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
     with TRACER.timed("Executing PEX_TOOLS"):
-        pex_prog_path = simplify_pex_path(pex_prog_path or pex.path()) if pex else None
+        pex_prog_path = simplify_pex_path(pex.path()) if pex else None
 
         # By default, let argparse derive prog from sys.argv[0].
         prog = None  # type: Optional[str]

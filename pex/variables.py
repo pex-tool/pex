@@ -4,7 +4,7 @@
 # Due to the PEX_ properties, disable checkstyle.
 # checkstyle: noqa
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import hashlib
 import json
@@ -229,6 +229,23 @@ class Variables(object):
             rc_values.update(self._environ)
             self._environ = rc_values
 
+        if "PEX_ALWAYS_CACHE" in self._environ:
+            pex_warnings.warn(
+                "The `PEX_ALWAYS_CACHE` env var is deprecated. This env var is no longer read; all "
+                "internally cached distributions in a PEX are always installed into the local Pex "
+                "dependency cache."
+            )
+        if "PEX_FORCE_LOCAL" in self._environ:
+            pex_warnings.warn(
+                "The `PEX_FORCE_LOCAL` env var is deprecated. This env var is no longer read since "
+                "user code is now always unzipped before execution."
+            )
+        if "PEX_UNZIP" in self._environ:
+            pex_warnings.warn(
+                "The `PEX_UNZIP` env var is deprecated. This env var is no longer read since "
+                "unzipping PEX zip files before execution is now the default."
+            )
+
     def copy(self):
         # type: () -> Dict[str, str]
         return self._environ.copy()
@@ -318,12 +335,8 @@ class Variables(object):
         # type: () -> bool
         """Boolean.
 
-        Always write PEX dependencies to disk prior to invoking regardless whether or not the
-        dependencies are zip-safe.  For certain dependencies that are very large such as numpy, this
-        can reduce the RAM necessary to launch the PEX.  The data will be written into $PEX_ROOT,
-        which by default is $HOME/.pex.
-
-        Default: false.
+        Deprecated: This env var is no longer used; all internally cached distributions in a PEX
+        are always installed into the local Pex dependency cache.
         """
         return self._get_bool("PEX_ALWAYS_CACHE")
 
@@ -354,13 +367,8 @@ class Variables(object):
         # type: () -> bool
         """Boolean.
 
-        Force this PEX to be not-zip-safe. This forces all code and dependencies to be written into
-        $PEX_ROOT prior to invocation.  This is an option for applications with static assets that
-        refer to paths relative to __file__ instead of using pkgutil/pkg_resources.  Also see
-        PEX_UNZIP which will cause the complete PEX file to be unzipped and re-executed which can
-        often improve startup latency in addition to providing support for __file__ access.
-
-        Default: false.
+        Deprecated: This env var is no longer used since user code is now always unzipped before
+        execution.
         """
         return self._get_bool("PEX_FORCE_LOCAL")
 
@@ -369,11 +377,8 @@ class Variables(object):
         # type: () -> bool
         """Boolean.
 
-        Force this PEX to unzip itself to $PEX_ROOT and re-execute from there.  If the pex file will
-        be run multiple times under a stable $PEX_ROOT the unzipping will only be performed once and
-        subsequent runs will enjoy lower startup latency.
-
-        Default: false.
+        Deprecated: This env var is no longer used since unzipping PEX zip files before execution
+        is now the default.
         """
         return self._get_bool("PEX_UNZIP")
 

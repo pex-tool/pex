@@ -58,7 +58,6 @@ def pex():
                 src_dir,
                 "-o",
                 pex_path,
-                "--unzip",
                 "--include-tools",
             ]
         )
@@ -655,7 +654,7 @@ def test_warn_unused_pex_env_vars():
 
     assert_execute_venv_pex(expected_stderr="")
     assert_execute_venv_pex(expected_stderr="", PEX_ROOT=os.path.join(tmpdir, "pex_root"))
-    assert_execute_venv_pex(expected_stderr="", PEX_UNZIP="1")
+    assert_execute_venv_pex(expected_stderr="", PEX_VENV="1")
     assert_execute_venv_pex(expected_stderr="", PEX_EXTRA_SYS_PATH="more")
     assert_execute_venv_pex(expected_stderr="", PEX_VERBOSE="0")
 
@@ -673,11 +672,11 @@ def test_warn_unused_pex_env_vars():
         expected_stderr=dedent(
             """\
             Ignoring the following environment variables in Pex venv mode:
-            PEX_FORCE_LOCAL=0
+            PEX_COVERAGE=1
             PEX_INHERIT_PATH=fallback
             """
         ),
-        PEX_FORCE_LOCAL="0",
+        PEX_COVERAGE="1",
         PEX_INHERIT_PATH="fallback",
         PEX_VERBOSE="0",
     )

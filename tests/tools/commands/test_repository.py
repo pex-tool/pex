@@ -9,7 +9,6 @@ import json
 import os
 import signal
 import subprocess
-import time
 from textwrap import dedent
 
 import pytest
