@@ -20,9 +20,41 @@ else:
     from pex.third_party import attr
 
 
+class LockStyle(object):
+    class Value(object):
+        def __init__(self, value):
+            # type: (str) -> None
+            self.value = value
+
+        def __str__(self):
+            # type: () -> str
+            return str(self.value)
+
+        def __repr__(self):
+            # type: () -> str
+            return repr(self.value)
+
+    STRICT = Value("strict")
+    SOURCES = Value("sources")
+
+    values = STRICT, SOURCES
+
+    @classmethod
+    def for_value(cls, value):
+        # type: (str) -> LockStyle.Value
+        for v in cls.values:
+            if v.value == value:
+                return v
+        raise ValueError(
+            "{!r} of type {} must be one of {}".format(
+                value, type(value), ", ".join(map(repr, cls.values))
+            )
+        )
+
+
 @attr.s(frozen=True)
 class LockConfiguration(object):
-    strict = attr.ib()  # type: bool
+    style = attr.ib()  # type: LockStyle.Value
 
 
 @attr.s(frozen=True)

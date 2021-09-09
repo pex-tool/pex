@@ -34,6 +34,7 @@ from pex.locked_resolve import (
     LockConfiguration,
     LockedRequirement,
     LockedResolve,
+    LockStyle,
     Pin,
 )
 from pex.network_configuration import NetworkConfiguration
@@ -482,7 +483,7 @@ class Locker(_LogAnalyzer):
                     via=via,
                 )
             )
-        elif not self._lock_configuration.strict:
+        elif LockStyle.SOURCES == self._lock_configuration.style:
             match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
             if match:
                 project_name_and_version, partial_artifact = self._extract_resolve_data(
