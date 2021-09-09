@@ -7,7 +7,14 @@ import pytest
 
 from pex import dist_metadata, resolver
 from pex.distribution_target import DistributionTarget
-from pex.locked_resolve import Artifact, LockConfiguration, LockedRequirement, LockedResolve, Pin
+from pex.locked_resolve import (
+    Artifact,
+    LockConfiguration,
+    LockedRequirement,
+    LockedResolve,
+    LockStyle,
+    Pin,
+)
 from pex.pep_503 import ProjectName
 from pex.resolver import Downloaded, LocalDistribution
 from pex.third_party.pkg_resources import Requirement
@@ -120,8 +127,8 @@ def normalize(
 @pytest.mark.parametrize(
     "lock_configuration",
     (
-        pytest.param(LockConfiguration(strict=True), id="strict"),
-        pytest.param(LockConfiguration(strict=False), id="non-strict"),
+        pytest.param(LockConfiguration(style=LockStyle.STRICT), id="strict"),
+        pytest.param(LockConfiguration(style=LockStyle.SOURCES), id="sources"),
     ),
 )
 def test_lock_single_target(
