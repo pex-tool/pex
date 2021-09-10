@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.49
+------
+
+This is a hotfix release that fixes the new ``--layout {zipapp,packed}``
+modes for PEX files with no user code & just third party dependencies
+when executed against a ``$PEX_ROOT`` where similar PEXes built with the
+old ``--not-zip-safe`` option were were run in the past.
+
+* Avoid re-using old ~/.pex/code/ caches. (#1444)
+  `PR #1444 <https://github.com/pantsbuild/pex/pull/1444>`_
+
 2.1.48
 ------
 
