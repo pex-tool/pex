@@ -418,7 +418,7 @@ class PexInfo(object):
     @property
     def zip_unsafe_cache(self):
         #: type: () -> str
-        return os.path.join(self.pex_root, "code")
+        return os.path.join(self.pex_root, "user_code")
 
     def update(self, other):
         # type: (PexInfo) -> None
