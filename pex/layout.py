@@ -277,7 +277,11 @@ class _PackedPEX(_Layout):
 @contextmanager
 def _identify_layout(pex):
     # type: (str) -> Iterator[Optional[_Layout]]
-    if zipfile.is_zipfile(pex) and is_python_script(pex):
+    if zipfile.is_zipfile(pex) and is_python_script(
+        pex,
+        # N.B.: A PEX file need not be executable since it can always be run via `python a.pex`.
+        check_executable=False,
+    ):
         with open_zip(pex) as zfp:
             yield _ZipAppPEX(pex, zfp)
     elif os.path.isdir(pex) and zipfile.is_zipfile(os.path.join(pex, BOOTSTRAP_DIR)):
