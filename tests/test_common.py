@@ -383,5 +383,6 @@ def test_is_script(tmpdir):
     assert not is_script(exe, pattern=r"^python")
 
     os.chmod(exe, 0o665)
+    assert is_script(exe, check_executable=False)
     assert not is_script(exe)
     assert not is_exe(exe)
