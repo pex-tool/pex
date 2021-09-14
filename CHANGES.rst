@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.50
+------
+
+This is another hotfix of the 2.1.48 release's ``--layout`` feature that
+fixes identification of ``--layout zipapp`` PEXes that have had their
+execute mode bit turned off. A notable example is the Pex PEX when
+downloaded from https://github.com/pantsbuild/pex/releases.
+
+* Fix zipapp layout identification. (#1448)
+  `PR #1448 <https://github.com/pantsbuild/pex/pull/1448>`_
+
 2.1.49
 ------
 
