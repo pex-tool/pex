@@ -96,7 +96,7 @@ class Virtualenv(object):
                 args.append("--copies")
             interpreter.execute(args=args)
         else:
-            virtualenv_py = resource_string(__name__, "virtualenv_16.7.10_py")
+            virtualenv_py = resource_string(__name__, "virtualenv_16.7.12_py")
             with named_temporary_file(mode="wb") as fp:
                 fp.write(virtualenv_py)
                 fp.close()
