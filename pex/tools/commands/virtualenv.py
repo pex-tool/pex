@@ -89,12 +89,24 @@ class Virtualenv(object):
             )
             interpreter = base_interpreter
 
+        # Guard against API calls from environment with ambient PYTHONPATH preventing pip virtualenv
+        # creation. See: https://github.com/pantsbuild/pex/issues/1451
+        env = os.environ.copy()
+        pythonpath = env.pop("PYTHONPATH", None)
+        if pythonpath:
+            TRACER.log(
+                "Scrubbed PYTHONPATH={} from the virtualenv creation environment.".format(
+                    pythonpath
+                ),
+                V=3,
+            )
+
         if interpreter.version[0] >= 3 and not interpreter.identity.interpreter == "PyPy":
             # N.B.: PyPy3 comes equipped with a venv module but it does not seem to work.
             args = ["-m", "venv", "--without-pip", venv_dir]
             if copies:
                 args.append("--copies")
-            interpreter.execute(args=args)
+            interpreter.execute(args=args, env=env)
         else:
             virtualenv_py = resource_string(__name__, "virtualenv_16.7.12_py")
             with named_temporary_file(mode="wb") as fp:
@@ -103,7 +115,7 @@ class Virtualenv(object):
                 args = [fp.name, "--no-pip", "--no-setuptools", "--no-wheel", venv_dir]
                 if copies:
                     args.append("--always-copy")
-                interpreter.execute(args=args)
+                interpreter.execute(args=args, env=env)
         return cls(venv_dir)
 
     @classmethod
