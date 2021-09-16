@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-VIRTUALENV_16_7_10_RELEASE_SHA=941d218accf5e8b5672b3c528a73f7d5e2aa18bb
+VIRTUALENV_16_7_12_RELEASE_SHA=fdfec65ff031997503fb409f365ee3aeb4c2c89f
 
 cd $(git rev-parse --show-toplevel)
 
 curl --fail -L \
-  https://raw.githubusercontent.com/pypa/virtualenv/${VIRTUALENV_16_7_10_RELEASE_SHA}/virtualenv.py \
-  > pex/tools/commands/virtualenv_16.7.10_py
+  https://raw.githubusercontent.com/pypa/virtualenv/${VIRTUALENV_16_7_12_RELEASE_SHA}/virtualenv.py \
+  > pex/tools/commands/virtualenv_16.7.12_py
 
