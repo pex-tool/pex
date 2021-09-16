@@ -1628,7 +1628,8 @@ def test_requirement_file_from_url(tmpdir):
 
     constraints = os.path.join(str(tmpdir), "constraints.txt")
     with open(constraints, "w") as fp:
-        fp.write("translate>=3.2.1,<3.6.0")
+        print("translate>=3.2.1,<3.6.0", file=fp)
+        print("protobuf<=3.17.3", file=fp)
 
     pex_file = os.path.join(str(tmpdir), "pex")
 
