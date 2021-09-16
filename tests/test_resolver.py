@@ -398,10 +398,8 @@ def test_issues_892():
         python27 = PythonInterpreter.from_binary({python27!r})
         result = resolver.resolve(requirements=['packaging==19.2'], interpreters=[python27])
         print('Resolved: {{}}'.format(result))
-  """.format(
-            python27=python27
-        )
-    )
+        """
+    ).format(python27=python27)
 
     python38 = ensure_python_interpreter(PY38)
     cmd, process = PythonInterpreter.from_binary(python38).open_process(
