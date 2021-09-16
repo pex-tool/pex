@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-from argparse import ArgumentParser, ArgumentTypeError
+from argparse import ArgumentParser
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
@@ -10,7 +10,6 @@ import pytest
 
 from pex.bin.pex import (
     build_pex,
-    compute_indexes,
     configure_clp,
     configure_clp_pex_options,
     configure_clp_pex_resolution,
@@ -18,6 +17,7 @@ from pex.bin.pex import (
 from pex.common import safe_copy, temporary_dir
 from pex.compatibility import to_bytes
 from pex.interpreter import PythonInterpreter
+from pex.resolve import resolve_options
 from pex.testing import (
     PY27,
     built_wheel,
@@ -29,84 +29,13 @@ from pex.typing import TYPE_CHECKING
 from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
-    from typing import Iterator, List, Optional, Text
+    from typing import Iterator, List, Optional
 
 
 @contextmanager
 def option_parser():
     # type: () -> Iterator[ArgumentParser]
     yield ArgumentParser()
-
-
-def test_clp_no_pypi_option():
-    # type: () -> None
-    with option_parser() as parser:
-        configure_clp_pex_resolution(parser)
-        options = parser.parse_args(args=[])
-        assert len(compute_indexes(options)) == 1
-        options = parser.parse_args(args=["--no-pypi"])
-        assert len(compute_indexes(options)) == 0, "--no-pypi should remove the pypi index."
-
-
-def test_clp_pypi_option_duplicate():
-    # type: () -> None
-    with option_parser() as parser:
-        configure_clp_pex_resolution(parser)
-        options = parser.parse_args(args=[])
-        indexes = compute_indexes(options)
-        assert len(indexes) == 1
-        options2 = parser.parse_args(args=["--pypi"])
-        indexes2 = compute_indexes(options2)
-        assert len(indexes2) == 1
-        assert indexes == indexes2
-
-
-def test_clp_find_links_option():
-    # type: () -> None
-    with option_parser() as parser:
-        configure_clp_pex_resolution(parser)
-        options = parser.parse_args(args=["-f", "http://www.example.com"])
-        assert len(compute_indexes(options)) == 1
-        assert len(options.find_links) == 1
-
-
-def test_clp_index_option():
-    # type: () -> None
-    with option_parser() as parser:
-        configure_clp_pex_resolution(parser)
-        options = parser.parse_args(args=[])
-        indexes = compute_indexes(options)
-        assert len(indexes) == 1
-        options2 = parser.parse_args(args=["-i", "http://www.example.com"])
-        indexes2 = compute_indexes(options2)
-        assert len(indexes2) == 2
-        assert indexes2[0] == indexes[0]
-        assert indexes2[1] == "http://www.example.com"
-
-
-def test_clp_index_option_render():
-    # type: () -> None
-    with option_parser() as parser:
-        configure_clp_pex_resolution(parser)
-        options = parser.parse_args(args=["--index", "http://www.example.com"])
-        assert ["https://pypi.org/simple", "http://www.example.com"] == compute_indexes(options)
-
-
-def test_clp_build_precedence():
-    # type: () -> None
-    with option_parser() as parser:
-        configure_clp_pex_resolution(parser)
-
-        options = parser.parse_args(args=["--no-build"])
-        assert not options.build
-        options = parser.parse_args(args=["--build"])
-        assert options.build
-
-        options = parser.parse_args(args=["--no-wheel"])
-        assert not options.use_wheel
-
-        options = parser.parse_args(args=["--wheel"])
-        assert options.use_wheel
 
 
 # Make sure that we're doing append and not replace
@@ -145,7 +74,8 @@ def test_clp_preamble_file():
         options = parser.parse_args(args=["--preamble-file", tmpfile.name])
         assert options.preamble_file == tmpfile.name
 
-        pex_builder = build_pex(options.requirements, options)
+        resolve_configuration = resolve_options.create_resolve_configuration(options)
+        pex_builder = build_pex(options.requirements, resolve_configuration, options)
         assert pex_builder._preamble == 'print "foo!"'
 
 
@@ -189,8 +119,9 @@ def test_clp_prereleases_resolver():
         )
         assert not options.allow_prereleases
 
+        resolve_configuration = resolve_options.create_resolve_configuration(options)
         with pytest.raises(SystemExit):
-            build_pex(options.requirements, options)
+            build_pex(options.requirements, resolve_configuration, options)
 
         # When we specify `--pre`, allow_prereleases is True
         options = parser.parse_args(
@@ -214,7 +145,9 @@ def test_clp_prereleases_resolver():
         #     dep==1.2.3b1, dep
         #
         # With a correct behavior the assert line is reached and pex_builder object created.
-        pex_builder = build_pex(options.requirements, options)
+        pex_builder = build_pex(
+            options.requirements, resolve_options.create_resolve_configuration(options), options
+        )
         assert pex_builder is not None
         assert len(pex_builder.info.distributions) == 3, "Should have resolved deps"
 
@@ -278,30 +211,3 @@ def test_run_pex():
     py27 = ensure_python_interpreter(PY27)
     stderr_lines = assert_run_pex(python=py27, pex_args=["--platform=macosx-10.13-x86_64-cp-37-m"])
     assert incompatible_platforms_warning_msg in stderr_lines
-
-
-def test_clp_manylinux():
-    with option_parser() as parser:
-        configure_clp_pex_resolution(parser)
-
-        options = parser.parse_args(args=[])
-        assert options.manylinux, "The --manylinux option should default to some value."
-
-        def assert_manylinux(value):
-            # type: (str) -> None
-            assert value == parser.parse_args(args=["--manylinux", value]).manylinux
-
-        # Legacy manylinux standards should be supported.
-        assert_manylinux("manylinux1_x86_64")
-        assert_manylinux("manylinux2010_x86_64")
-        assert_manylinux("manylinux2014_x86_64")
-
-        # The modern open-ended glibc version based manylinux standards should be supported.
-        assert_manylinux("manylinux_2_5_x86_64")
-        assert_manylinux("manylinux_2_33_x86_64")
-
-        options = parser.parse_args(args=["--no-manylinux"])
-        assert options.manylinux is None
-
-        with pytest.raises(ArgumentTypeError):
-            parser.parse_args(args=["--manylinux", "foo"])
