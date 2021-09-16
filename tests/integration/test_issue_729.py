@@ -1,6 +1,8 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import print_function
+
 import os
 from textwrap import dedent
 
@@ -38,7 +40,8 @@ def test_undeclared_setuptools_import_on_pex_path(tmpdir):
     # compilation terminated.
     constraints = os.path.join(str(tmpdir), "constraints.txt")
     with open(constraints, "w") as fp:
-        fp.write("google-crc32c==1.1.2")
+        print("google-crc32c==1.1.2", file=fp)
+        print("protobuf<=3.17.3", file=fp)
 
     bigquery_pex = os.path.join(str(tmpdir), "bigquery.pex")
     run_pex_command(
