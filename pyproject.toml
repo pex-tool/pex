@@ -43,7 +43,7 @@ pex-tools = "pex.tools.main:main"
 
 [tool.flit.entrypoints."distutils.commands"]
 # Make bdist_pex available for folks who install the pex distribution.
-bdist_pex = "pex.commands.bdist_pex:bdist_pex"
+bdist_pex = "pex.distutils.commands.bdist_pex:bdist_pex"
 
 [tool.flit.sdist]
 include = ["CHANGES.rst"]
