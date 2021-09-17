@@ -15,7 +15,7 @@ from pex.common import safe_mkdir
 from pex.dist_metadata import requires_dists
 from pex.pex import PEX
 from pex.tools.commands.digraph import DiGraph
-from pex.tools.pex_command import PEXCommand
+from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 

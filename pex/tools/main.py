@@ -11,7 +11,7 @@ from pex.commands.command import Main, Result
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.tools import commands
-from pex.tools.pex_command import PEXCommand
+from pex.tools.command import PEXCommand
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 

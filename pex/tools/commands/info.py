@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 
 from pex.commands.command import JsonMixin, Ok, OutputMixin, Result
 from pex.pex import PEX
-from pex.tools.pex_command import PEXCommand
+from pex.tools.command import PEXCommand
 
 
 class Info(JsonMixin, OutputMixin, PEXCommand):
