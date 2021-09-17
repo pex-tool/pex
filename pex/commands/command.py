@@ -235,8 +235,8 @@ class Main(Generic["_C"]):
         # By default, let argparse derive prog from sys.argv[0].
         prog = self._prog
         if os.path.basename(sys.argv[0]) == "__main__.py":
-            prog = "{python} {module}".format(
-                python=sys.executable, module=".".join(__name__.split(".")[:-1])
+            prog = "{python} -m {module}".format(
+                python=sys.executable, module=".".join(type(self).__module__.split(".")[:-1])
             )
 
         parser = ArgumentParser(
