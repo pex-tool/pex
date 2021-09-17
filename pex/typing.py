@@ -28,14 +28,16 @@ To add type comments, use a conditional import like this:
     ```
 """
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
+
+import sys
 
 TYPE_CHECKING = False
 
 # Unlike most type-hints, `cast` and `overload` get used at runtime. We define no-op versions for
 # runtime use.
 if TYPE_CHECKING:
-    from typing import cast as cast
+    from typing import cast as cast, Any
     from typing import overload as overload
     from typing import Generic as Generic
 else:
@@ -53,10 +55,16 @@ else:
 
         return _never_called_since_structurally_shadowed
 
-    class _Generic(object):
-        def __getitem__(self, type_var):
-            return object
+    class _Generic(type):
+        def __getitem__(cls, type_var):
+            return cls
 
-    Generic = _Generic()
+    if sys.version_info[0] == 2:
+
+        class Generic(object):
+            __metaclass__ = _Generic
+
+    else:
+        eval(compile("class Generic(object, metaclass=_Generic): pass", "<Generic>", "exec"))
 
     del _Generic
