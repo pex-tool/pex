@@ -233,13 +233,14 @@ class Main(Generic["_C"]):
         logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
 
         # By default, let argparse derive prog from sys.argv[0].
+        prog = self._prog
         if os.path.basename(sys.argv[0]) == "__main__.py":
             prog = "{python} {module}".format(
                 python=sys.executable, module=".".join(__name__.split(".")[:-1])
             )
 
         parser = ArgumentParser(
-            prog=self._prog,
+            prog=prog,
             formatter_class=ArgumentDefaultsHelpFormatter,
             description=self._description,
         )
