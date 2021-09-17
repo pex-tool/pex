@@ -3,27 +3,24 @@
 
 from __future__ import absolute_import
 
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser
 
 from pex.pex import PEX
-from pex.tools.command import Command, JsonMixin, Ok, OutputMixin, Result
+from pex.tools.command import JsonMixin, Ok, OutputMixin, PEXCommand, Result
 
 
-class Info(JsonMixin, OutputMixin, Command):
+class Info(JsonMixin, OutputMixin, PEXCommand):
     """Dumps the PEX-INFO json contained in a PEX file."""
 
-    def add_arguments(self, parser):
+    @classmethod
+    def add_arguments(cls, parser):
         # type: (ArgumentParser) -> None
-        self.add_output_option(parser, entity="PEX-INFO json")
-        self.add_json_options(parser, entity="PEX-INFO")
+        cls.add_output_option(parser, entity="PEX-INFO json")
+        cls.add_json_options(parser, entity="PEX-INFO")
 
-    def run(
-        self,
-        pex,  # type: PEX
-        options,  # type: Namespace
-    ):
-        # type: (...) -> Result
-        with self.output(options) as out:
-            self.dump_json(options, pex.pex_info().as_json_dict(), out)
+    def run(self, pex):
+        # type: (PEX) -> Result
+        with self.output(self.options) as out:
+            self.dump_json(self.options, pex.pex_info().as_json_dict(), out)
             out.write("\n")
         return Ok()

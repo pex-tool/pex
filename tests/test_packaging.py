@@ -42,7 +42,7 @@ def test_pex_script():
 
 def test_pex_tools_script():
     # type: () -> None
-    command_names = ",".join([command.__class__.__name__.lower() for command in all_commands()])
+    command_names = ",".join([command_type.__name__.lower() for command_type in all_commands()])
 
     output = subprocess.check_output(args=[script_path("pex-tools"), "-h"])
     first_line = output.decode("utf-8").splitlines()[0]

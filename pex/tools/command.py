@@ -3,19 +3,26 @@
 
 from __future__ import absolute_import, print_function
 
+import functools
 import json
+import logging
 import os
 import subprocess
 import sys
-from argparse import ArgumentParser, Namespace
+from abc import abstractmethod
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from contextlib import contextmanager
 
 from pex.common import safe_open
 from pex.pex import PEX
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, Generic, cast
+from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Iterator, IO, NoReturn, Optional
+    import attr  # vendor:skip
+    from typing import Any, Dict, Iterable, Iterator, IO, NoReturn, Optional, Type, TypeVar
+else:
+    from pex.third_party import attr
 
 
 class Result(object):
@@ -110,6 +117,7 @@ def try_open_file(
         return try_run_program(opener, [path], url=url, error=error, stdout=devnull)
 
 
+@attr.s(frozen=True)
 class Command(object):
     @staticmethod
     def show_help(
@@ -120,17 +128,29 @@ class Command(object):
         # type: (...) -> NoReturn
         parser.error("a subcommand is required")
 
-    def add_arguments(self, parser):
+    @classmethod
+    def name(cls):
+        # type: () -> str
+        return cls.__name__.lower()
+
+    @classmethod
+    def description(cls):
+        # type: () -> Optional[str]
+        return cls.__doc__
+
+    @classmethod
+    def add_arguments(cls, parser):
         # type: (ArgumentParser) -> None
         pass
 
-    def run(
-        self,
-        pex,  # type: PEX
-        options,  # type: Namespace
-    ):
-        # type: (...) -> Result
-        pass
+    options = attr.ib()  # type: Namespace
+
+
+class PEXCommand(Command):
+    @abstractmethod
+    def run(self, pex):
+        # type: (PEX) -> Result
+        raise NotImplementedError()
 
 
 class OutputMixin(object):
@@ -193,3 +213,62 @@ class JsonMixin(object):
         **json_dump_kwargs  # type: Any
     ):
         json.dump(data, out, indent=options.indent, **json_dump_kwargs)
+
+
+if TYPE_CHECKING:
+    _C = TypeVar("_C", bound=Command)
+
+
+class Main(Generic["_C"]):
+    def __init__(
+        self,
+        description,  # type: str
+        subparsers_description,  # type: str
+        command_types,  # type: Iterable[Type[_C]]
+        prog=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
+        self._prog = prog
+        self._description = description
+        self._subparsers_description = subparsers_description
+        self._command_types = command_types
+
+    def add_arguments(self, parser):
+        # type: (ArgumentParser) -> None
+        pass
+
+    def parse_command(self):
+        # type: () -> _C
+        logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
+
+        # By default, let argparse derive prog from sys.argv[0].
+        if os.path.basename(sys.argv[0]) == "__main__.py":
+            prog = "{python} {module}".format(
+                python=sys.executable, module=".".join(__name__.split(".")[:-1])
+            )
+
+        parser = ArgumentParser(
+            prog=self._prog,
+            formatter_class=ArgumentDefaultsHelpFormatter,
+            description=self._description,
+        )
+        parser.add_argument("-V", "--version", action="version", version=__version__)
+        parser.set_defaults(command_type=functools.partial(Command.show_help, parser))
+        self.add_arguments(parser)
+        subparsers = parser.add_subparsers(description=self._subparsers_description)
+        for command_type in self._command_types:
+            name = command_type.name()
+            description = command_type.description()
+            help_text = description.splitlines()[0] if description else None
+            command_parser = subparsers.add_parser(
+                name,
+                formatter_class=ArgumentDefaultsHelpFormatter,
+                help=help_text,
+                description=description,
+            )
+            command_type.add_arguments(command_parser)
+            command_parser.set_defaults(command_type=command_type)
+
+        options = parser.parse_args()
+        command_type = cast("Type[_C]", options.command_type)
+        return command_type(options)

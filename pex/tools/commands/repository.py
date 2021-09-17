@@ -8,7 +8,7 @@ import os
 import re
 import shutil
 import subprocess
-from argparse import ArgumentParser, Namespace, _SubParsersAction
+from argparse import ArgumentParser, _SubParsersAction
 from contextlib import contextmanager
 from textwrap import dedent
 from threading import Thread
@@ -27,14 +27,14 @@ from pex.interpreter import PythonIdentity, PythonInterpreter, spawn_python_job
 from pex.jobs import Retain, SpawnedJob, execute_parallel
 from pex.pex import PEX
 from pex.third_party.pkg_resources import Distribution
-from pex.tools.command import Command, Error, JsonMixin, Ok, OutputMixin, Result
+from pex.tools.command import Error, JsonMixin, Ok, OutputMixin, PEXCommand, Result
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
     from typing import Callable, IO, Iterable, Iterator, Text, Tuple
 
-    RepositoryFunc = Callable[[PEX, Namespace], Result]
+    RepositoryFunc = Callable[["Repository", PEX], Result]
 else:
     from pex.third_party import attr
 
@@ -94,7 +94,7 @@ class FindLinksRepo(object):
         self._server_process.kill()
 
 
-class Repository(JsonMixin, OutputMixin, Command):
+class Repository(JsonMixin, OutputMixin, PEXCommand):
     """Interact with the Python distribution repository contained in a PEX file."""
 
     @classmethod
@@ -165,10 +165,11 @@ class Repository(JsonMixin, OutputMixin, Command):
         )
         return extract_parser
 
-    def add_arguments(self, parser):
+    @classmethod
+    def add_arguments(cls, parser):
         # type: (ArgumentParser) -> None
-        self.add_output_option(parser, entity="distribution information")
-        parser.set_defaults(repository_func=functools.partial(self.show_help, parser))
+        cls.add_output_option(parser, entity="distribution information")
+        parser.set_defaults(repository_func=functools.partial(cls.show_help, parser))
 
         subparsers = parser.add_subparsers(
             description=(
@@ -176,41 +177,29 @@ class Repository(JsonMixin, OutputMixin, Command):
                 "subcommands."
             )
         )
-        self._add_info_arguments(subparsers).set_defaults(repository_func=self._info)
-        self._add_extract_arguments(subparsers).set_defaults(repository_func=self._extract)
+        cls._add_info_arguments(subparsers).set_defaults(repository_func=cls._info)
+        cls._add_extract_arguments(subparsers).set_defaults(repository_func=cls._extract)
 
-    def run(
-        self,
-        pex,  # type: PEX
-        options,  # type: Namespace
-    ):
-        # type: (...) -> Result
-        repository_func = cast("RepositoryFunc", options.repository_func)
-        return repository_func(pex, options)
+    def run(self, pex):
+        # type: (PEX) -> Result
+        repository_func = cast("RepositoryFunc", self.options.repository_func)
+        return repository_func(self, pex)
 
     @contextmanager
-    def _distributions_output(
-        self,
-        pex,  # type: PEX
-        options,  # type: Namespace
-    ):
-        # type: (...) -> Iterator[Tuple[Iterable[Distribution], IO]]
-        with self.output(options) as out:
+    def _distributions_output(self, pex):
+        # type: (PEX) -> Iterator[Tuple[Iterable[Distribution], IO]]
+        with self.output(self.options) as out:
             yield tuple(pex.resolve()), out
 
-    def _info(
-        self,
-        pex,  # type: PEX
-        options,  # type: Namespace
-    ):
-        # type: (...) -> Result
-        with self._distributions_output(pex, options) as (distributions, output):
+    def _info(self, pex):
+        # type: (PEX) -> Result
+        with self._distributions_output(pex) as (distributions, output):
             for distribution in distributions:
-                if options.verbose:
+                if self.options.verbose:
                     requires_python = dist_metadata.requires_python(distribution)
                     requires_dists = list(dist_metadata.requires_dists(distribution))
                     self.dump_json(
-                        options,
+                        self.options,
                         dict(
                             project_name=distribution.project_name,
                             version=distribution.version,
@@ -231,29 +220,25 @@ class Repository(JsonMixin, OutputMixin, Command):
                 output.write("\n")
         return Ok()
 
-    def _extract(
-        self,
-        pex,  # type: PEX
-        options,  # type: Namespace
-    ):
-        # type: (...) -> Result
-        if not options.serve and not options.dest_dir:
+    def _extract(self, pex):
+        # type: (PEX) -> Result
+        if not self.options.serve and not self.options.dest_dir:
             return Error("Specify a --find-links directory to extract wheels to.")
 
         dest_dir = (
-            os.path.abspath(os.path.expanduser(options.dest_dir))
-            if options.dest_dir
+            os.path.abspath(os.path.expanduser(self.options.dest_dir))
+            if self.options.dest_dir
             else safe_mkdtemp()
         )
         safe_mkdir(dest_dir)
 
-        if options.sources:
+        if self.options.sources:
             self._extract_sdist(pex, dest_dir)
 
         def spawn_extract(distribution):
             # type: (Distribution) -> SpawnedJob[Text]
             env = os.environ.copy()
-            if not options.use_system_time:
+            if not self.options.use_system_time:
                 # N.B.: The `SOURCE_DATE_EPOCH` env var is semi-standard magic for controlling
                 # build tools. Wheel has supported this since 2016.
                 # See:
@@ -271,7 +256,7 @@ class Repository(JsonMixin, OutputMixin, Command):
                 job, result_func=lambda out: "{}: {}".format(distribution, out.decode())
             )
 
-        with self._distributions_output(pex, options) as (distributions, output):
+        with self._distributions_output(pex) as (distributions, output):
             errors = []
             for result in execute_parallel(distributions, spawn_extract, error_handler=Retain()):
                 if isinstance(result, tuple):
@@ -291,19 +276,19 @@ class Repository(JsonMixin, OutputMixin, Command):
                     )
                 )
 
-        if not options.serve:
+        if not self.options.serve:
             return Ok()
 
         repo = FindLinksRepo.serve(
-            interpreter=pex.interpreter, port=options.port, directory=dest_dir
+            interpreter=pex.interpreter, port=self.options.port, directory=dest_dir
         )
         output.write(
             "Serving find-links repo of {pex} via {find_links} at http://localhost:{port}\n".format(
                 pex=os.path.normpath(pex.path()), find_links=dest_dir, port=repo.port
             )
         )
-        if options.pid_file:
-            with safe_open(options.pid_file, "w") as fp:
+        if self.options.pid_file:
+            with safe_open(self.options.pid_file, "w") as fp:
                 fp.write("{}:{}".format(repo.pid, repo.port))
         try:
             return Result(exit_code=repo.join(), message=" ".join(repo.cmd))
