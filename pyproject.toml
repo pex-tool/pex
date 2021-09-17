@@ -39,6 +39,7 @@ subprocess = ["subprocess32>=3.2.7; python_version<'3'"]
 
 [tool.flit.scripts]
 pex = "pex.bin.pex:main"
+pex3 = "pex.cli.pex:main"
 pex-tools = "pex.tools.main:main"
 
 [tool.flit.entrypoints."distutils.commands"]

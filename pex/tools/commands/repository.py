@@ -14,6 +14,7 @@ from textwrap import dedent
 from threading import Thread
 
 from pex import dist_metadata, pex_warnings
+from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result
 from pex.common import (
     DETERMINISTIC_DATETIME_TIMESTAMP,
     pluralize,
@@ -27,7 +28,7 @@ from pex.interpreter import PythonIdentity, PythonInterpreter, spawn_python_job
 from pex.jobs import Retain, SpawnedJob, execute_parallel
 from pex.pex import PEX
 from pex.third_party.pkg_resources import Distribution
-from pex.tools.command import Error, JsonMixin, Ok, OutputMixin, PEXCommand, Result
+from pex.tools.pex_command import PEXCommand
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:

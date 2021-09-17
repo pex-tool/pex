@@ -10,11 +10,12 @@ import threading
 from argparse import ArgumentParser
 from contextlib import contextmanager
 
+from pex.commands.command import Ok, OutputMixin, Result, try_open_file, try_run_program
 from pex.common import safe_mkdir
 from pex.dist_metadata import requires_dists
 from pex.pex import PEX
-from pex.tools.command import Ok, OutputMixin, PEXCommand, Result, try_open_file, try_run_program
 from pex.tools.commands.digraph import DiGraph
+from pex.tools.pex_command import PEXCommand
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 

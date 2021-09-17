@@ -6,11 +6,10 @@ from __future__ import absolute_import
 from abc import abstractmethod
 
 from pex.commands.command import Command, Result
-from pex.pex import PEX
 
 
-class PEXCommand(Command):
+class BuildTimeCommand(Command):
     @abstractmethod
-    def run(self, pex):
-        # type: (PEX) -> Result
+    def run(self):
+        # type: () -> Result
         raise NotImplementedError()

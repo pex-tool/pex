@@ -11,11 +11,12 @@ from collections import defaultdict
 from textwrap import dedent
 
 from pex import pex_warnings
+from pex.commands.command import Error, Ok, Result
 from pex.common import chmod_plus_x, pluralize, safe_mkdir
 from pex.environment import PEXEnvironment
 from pex.pex import PEX
-from pex.tools.command import Error, Ok, PEXCommand, Result
 from pex.tools.commands.virtualenv import PipUnavailableError, Virtualenv
+from pex.tools.pex_command import PEXCommand
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.venv_bin_path import BinPath
