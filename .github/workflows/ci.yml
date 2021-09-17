@@ -6,6 +6,9 @@ env:
   # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
   # importing builtins like `fcntl` as outlined in https://github.com/pantsbuild/pex/issues/1391.
   _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.8"
+concurrency:
+  group: CI-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   org-check:
     name: Check GitHub Organization
