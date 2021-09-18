@@ -590,7 +590,7 @@ class PEXBuilder(object):
         bootstrap_digest = hashlib.sha1()
         bootstrap_packages = ["", "third_party"]
         if self._pex_info.includes_tools:
-            bootstrap_packages.extend(["tools", "tools/commands"])
+            bootstrap_packages.extend(["commands", "tools", "tools/commands"])
         for package in bootstrap_packages:
             for fn in provider.resource_listdir(package):
                 if not (provider.resource_isdir(os.path.join(package, fn)) or fn.endswith(".pyc")):

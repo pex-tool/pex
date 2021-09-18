@@ -7,10 +7,11 @@ import logging
 from argparse import ArgumentParser
 
 from pex import pex_bootstrapper
+from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.pex import PEX
-from pex.tools.command import Error, JsonMixin, Ok, OutputMixin, PEXCommand, Result
+from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 

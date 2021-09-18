@@ -5,8 +5,9 @@ from __future__ import absolute_import
 
 from argparse import ArgumentParser
 
+from pex.commands.command import JsonMixin, Ok, OutputMixin, Result
 from pex.pex import PEX
-from pex.tools.command import JsonMixin, Ok, OutputMixin, PEXCommand, Result
+from pex.tools.command import PEXCommand
 
 
 class Info(JsonMixin, OutputMixin, PEXCommand):
