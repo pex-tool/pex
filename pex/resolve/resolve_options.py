@@ -64,8 +64,9 @@ def register(parser):
     group.add_argument(
         "--resolver-version",
         dest="resolver_version",
-        default=default_package_index_configuration.resolver_version.value,
-        choices=[choice.value for choice in ResolverVersion.values],
+        default=default_package_index_configuration.resolver_version,
+        choices=ResolverVersion.values(),
+        type=ResolverVersion.for_value,
         help=(
             "The dependency resolver version to use. Read more at "
             "https://pip.pypa.io/en/stable/user_guide/#resolver-changes-2020"
@@ -261,7 +262,7 @@ def create_resolve_configuration(options):
         )  # type: OrderedSet[str]
         find_links = OrderedSet(options.find_links or ())  # type: OrderedSet[str]
         repository = PackageIndexConfiguration(
-            resolver_version=ResolverVersion.for_value(options.resolver_version),
+            resolver_version=options.resolver_version,
             indexes=indexes,
             find_links=find_links,
         )

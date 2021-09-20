@@ -25,6 +25,7 @@ from pex.common import (
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
 from pex.distribution_target import DistributionTarget
+from pex.enum import Enum
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
@@ -38,36 +39,21 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
-    from typing import Optional, Dict
+    from typing import Dict, Iterable, Optional
 
 
-class CopyMode(object):
-    class Value(object):
-        def __init__(self, value):
-            # type: (str) -> None
-            self.value = value
-
-        def __repr__(self):
-            # type: () -> str
-            return repr(self.value)
+class CopyMode(Enum["CopyMode.Value"]):
+    class Value(Enum.Value):
+        pass
 
     COPY = Value("copy")
     LINK = Value("link")
     SYMLINK = Value("symlink")
 
-    values = COPY, LINK, SYMLINK
-
     @classmethod
-    def for_value(cls, value):
-        # type: (str) -> CopyMode.Value
-        for v in cls.values:
-            if v.value == value:
-                return v
-        raise ValueError(
-            "{!r} of type {} must be one of {}".format(
-                value, type(value), ", ".join(map(repr, cls.values))
-            )
-        )
+    def values(cls):
+        # type: () -> Iterable[CopyMode.Value]
+        return cls.COPY, cls.LINK, cls.SYMLINK
 
 
 BOOTSTRAP_ENVIRONMENT = """\

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     "execution_mode_args", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")]
 )
 @pytest.mark.parametrize(
-    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
 def test_resiliency(
     tmpdir,  # type: Any

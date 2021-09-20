@@ -3,40 +3,37 @@
 
 from __future__ import absolute_import
 
+from pex.enum import Enum
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Union
 
 
-class InheritPath(object):
-    class Value(object):
-        def __init__(self, value):
-            # type: (str) -> None
-            self.value = value
-
-        def __repr__(self):
-            # type: () -> str
-            return repr(self.value)
+class InheritPath(Enum["InheritPath.Value"]):
+    class Value(Enum.Value):
+        pass
 
     FALSE = Value("false")
     PREFER = Value("prefer")
     FALLBACK = Value("fallback")
 
-    values = FALSE, PREFER, FALLBACK
+    @classmethod
+    def values(cls):
+        return cls.FALSE, cls.PREFER, cls.FALLBACK
 
     @classmethod
     def for_value(cls, value):
         # type: (Union[str, bool]) -> InheritPath.Value
-        if value is False:
+        if not isinstance(value, bool):
+            return super(InheritPath, cls).for_value(value)
+        elif value is False:
             return InheritPath.FALSE
         elif value is True:
             return InheritPath.PREFER
-        for v in cls.values:
-            if v.value == value:
-                return v
-        raise ValueError(
-            "{!r} of type {} must be one of {}".format(
-                value, type(value), ", ".join(map(repr, cls.values))
+        else:
+            raise ValueError(
+                "An InheritPath.Value must be a str or a bool; given {} of type {}".format(
+                    value, type(value)
+                )
             )
-        )

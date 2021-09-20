@@ -206,7 +206,7 @@ def tmp_chroot(tmpdir):
 
 
 @pytest.mark.parametrize(
-    "copy_mode", [pytest.param(copy_mode, id=copy_mode.value) for copy_mode in CopyMode.values]
+    "copy_mode", [pytest.param(copy_mode, id=copy_mode.value) for copy_mode in CopyMode.values()]
 )
 def test_pex_builder_add_source_relpath_issues_1192(
     tmp_chroot,  # type: str

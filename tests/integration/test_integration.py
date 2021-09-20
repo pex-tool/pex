@@ -1521,7 +1521,7 @@ def test_venv_mode(
     "execution_mode_args", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")]
 )
 @pytest.mark.parametrize(
-    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
 def test_seed(
     isort_pex_args,  # type: Tuple[str, List[str]]
@@ -1548,7 +1548,7 @@ def test_seed(
     "execution_mode_args", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")]
 )
 @pytest.mark.parametrize(
-    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
 @pytest.mark.parametrize(
     "seeded_execute_args",
@@ -1833,7 +1833,7 @@ def test_require_hashes(tmpdir):
     "execution_mode_args", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")]
 )
 @pytest.mark.parametrize(
-    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
 def test_binary_scripts(
     tmpdir,  # type: Any

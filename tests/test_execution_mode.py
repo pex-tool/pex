@@ -95,7 +95,7 @@ def installed_wheels_or_deps(layout):
     ],
 )
 @pytest.mark.parametrize(
-    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
 def test_execution_mode(
     create_colors_pex,  # type: CreateColorsPex

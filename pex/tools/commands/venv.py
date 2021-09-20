@@ -348,8 +348,9 @@ class Venv(PEXCommand):
         parser.add_argument(
             "-b",
             "--bin-path",
-            choices=[choice.value for choice in BinPath.values],
             default=BinPath.FALSE.value,
+            choices=BinPath.values(),
+            type=BinPath.for_value,
             help="Add the venv bin dir to the PATH in the __main__.py script.",
         )
         parser.add_argument(
@@ -401,7 +402,7 @@ class Venv(PEXCommand):
         populate_venv_with_pex(
             venv,
             pex,
-            bin_path=BinPath.for_value(self.options.bin_path),
+            bin_path=self.options.bin_path,
             collisions_ok=self.options.collisions_ok,
         )
         if self.options.pip:
