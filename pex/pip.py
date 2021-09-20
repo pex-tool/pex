@@ -25,6 +25,7 @@ from pex.common import atomic_directory, is_python_script, safe_mkdtemp
 from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
+from pex.enum import Enum
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
@@ -79,32 +80,17 @@ else:
     from pex.third_party import attr
 
 
-class ResolverVersion(object):
-    class Value(object):
-        def __init__(self, value):
-            # type: (str) -> None
-            self.value = value
-
-        def __repr__(self):
-            # type: () -> str
-            return repr(self.value)
+class ResolverVersion(Enum["ResolverVersion.Value"]):
+    class Value(Enum.Value):
+        pass
 
     PIP_LEGACY = Value("pip-legacy-resolver")
     PIP_2020 = Value("pip-2020-resolver")
 
-    values = PIP_LEGACY, PIP_2020
-
     @classmethod
-    def for_value(cls, value):
-        # type: (str) -> ResolverVersion.Value
-        for v in cls.values:
-            if v.value == value:
-                return v
-        raise ValueError(
-            "{!r} of type {} must be one of {}".format(
-                value, type(value), ", ".join(map(repr, cls.values))
-            )
-        )
+    def values(cls):
+        # type: () -> Iterable[ResolverVersion.Value]
+        return cls.PIP_LEGACY, cls.PIP_2020
 
 
 class PackageIndexConfiguration(object):

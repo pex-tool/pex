@@ -9,50 +9,31 @@ from abc import abstractmethod
 from contextlib import contextmanager
 
 from pex.common import atomic_directory, is_python_script, open_zip, safe_copy, safe_mkdir
+from pex.enum import Enum
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import unzip_dir
 
 if TYPE_CHECKING:
-    from typing import Optional, Iterator
-
+    from typing import Optional, Iterable, Iterator
 
 BOOTSTRAP_DIR = ".bootstrap"
 DEPS_DIR = ".deps"
 PEX_INFO_PATH = "PEX-INFO"
 
 
-class Layout(object):
-    class Value(object):
-        def __init__(self, value):
-            # type: (str) -> None
-            self.value = value
-
-        def __str__(self):
-            # type: () -> str
-            return str(self.value)
-
-        def __repr__(self):
-            # type: () -> str
-            return repr(self.value)
+class Layout(Enum["Layout.Value"]):
+    class Value(Enum.Value):
+        pass
 
     ZIPAPP = Value("zipapp")
     PACKED = Value("packed")
     LOOSE = Value("loose")
 
-    values = ZIPAPP, PACKED, LOOSE
-
     @classmethod
-    def for_value(cls, value):
-        # type: (str) -> Layout.Value
-        for v in cls.values:
-            if v.value == value:
-                return v
-        raise ValueError(
-            "{!r} of type {} must be one of {}".format(
-                value, type(value), ", ".join(map(repr, cls.values))
-            )
-        )
+    def values(cls):
+        # type: () -> Iterable[Layout.Value]
+        return cls.ZIPAPP, cls.PACKED, cls.LOOSE
 
 
 class _Layout(object):

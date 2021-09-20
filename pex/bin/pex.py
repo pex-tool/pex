@@ -18,6 +18,7 @@ from textwrap import TextWrapper
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.common import die, safe_mkdtemp
+from pex.enum import Enum
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import (
@@ -144,8 +145,9 @@ def configure_clp_pex_options(parser):
     group.add_argument(
         "--layout",
         dest="layout",
-        default=Layout.ZIPAPP.value,
-        choices=[choice.value for choice in Layout.values],
+        default=Layout.ZIPAPP,
+        choices=Layout.values(),
+        type=Layout.for_value,
         help=(
             "By default, a PEX is created as a single file zipapp when `-o` is specified, but "
             "either a packed or loose directory tree based layout can be chosen instead. A packed "
@@ -224,8 +226,9 @@ def configure_clp_pex_options(parser):
     group.add_argument(
         "--inherit-path",
         dest="inherit_path",
-        default=InheritPath.FALSE.value,
-        choices=[choice.value for choice in InheritPath.values],
+        default=InheritPath.FALSE,
+        choices=InheritPath.values(),
+        type=InheritPath.for_value,
         help="Inherit the contents of sys.path (including site-packages, user site-packages and "
         "PYTHONPATH) running the pex. Possible values: {false} (does not inherit sys.path), "
         "{fallback} (inherits sys.path after packaged dependencies), {prefer} (inherits sys.path "
@@ -447,43 +450,24 @@ def configure_clp_pex_entry_points(parser):
     )
 
 
-class Seed(object):
-    class Value(object):
-        def __init__(self, value):
-            # type: (str) -> None
-            self.value = value
-
-        def __str__(self):
-            # type: () -> str
-            return str(self.value)
-
-        def __repr__(self):
-            # type: () -> str
-            return repr(self.value)
+class Seed(Enum["Seed.Value"]):
+    class Value(Enum.Value):
+        pass
 
     NONE = Value("none")
     ARGS = Value("args")
     VERBOSE = Value("verbose")
 
-    values = NONE, ARGS, VERBOSE
-
     @classmethod
-    def for_value(cls, value):
-        # type: (str) -> Seed.Value
-        for v in cls.values:
-            if v.value == value:
-                return v
-        raise ValueError(
-            "{!r} of type {} must be one of {}".format(
-                value, type(value), ", ".join(map(repr, cls.values))
-            )
-        )
+    def values(cls):
+        # type: () -> Iterable[Seed.Value]
+        return cls.NONE, cls.ARGS, cls.VERBOSE
 
 
 class HandleSeedAction(Action):
     def __init__(self, *args, **kwargs):
         kwargs["nargs"] = "?"
-        kwargs["choices"] = (Seed.NONE.value, Seed.ARGS.value, Seed.VERBOSE.value)
+        kwargs["choices"] = [seed.value for seed in Seed.values()]
         super(HandleSeedAction, self).__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, value, option_str=None):
@@ -800,7 +784,7 @@ def build_pex(
     pex_info.pex_path = options.pex_path
     pex_info.ignore_errors = options.ignore_errors
     pex_info.emit_warnings = options.emit_warnings
-    pex_info.inherit_path = InheritPath.for_value(options.inherit_path)
+    pex_info.inherit_path = options.inherit_path
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
 
@@ -968,7 +952,7 @@ def main(args=None):
                 options.pex_name,
                 bytecode_compile=options.compile,
                 deterministic_timestamp=not options.use_system_time,
-                layout=Layout.for_value(options.layout),
+                layout=options.layout,
             )
             if options.seed != Seed.NONE:
                 seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)

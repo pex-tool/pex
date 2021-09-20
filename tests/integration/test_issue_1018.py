@@ -30,7 +30,7 @@ class EntryPointArgs(object):
     "execution_mode_args", [pytest.param([], id="PEX"), pytest.param(["--venv"], id="VENV")]
 )
 @pytest.mark.parametrize(
-    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values]
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
 )
 @pytest.mark.parametrize(
     "entry_point_args",
