@@ -34,7 +34,7 @@ def run_pex3(
 
 def strip_comments(text):
     # type: (Text) -> Text
-    return "".join(re.sub(r"#.*$", "", line) for line in text.splitlines(keepends=True))
+    return "".join(re.sub(r"#.*$", "", line) for line in text.splitlines(True))
 
 
 def assert_equivalent_requirements(
