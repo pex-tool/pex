@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 from pex.interpreter import PythonInterpreter
+from pex.testing import make_env
 from pex.tools.commands import all_commands
 from pex.tools.commands.virtualenv import Virtualenv
 from pex.version import __version__
@@ -42,13 +43,14 @@ def test_pex_script():
 
 def test_pex_tools_script():
     # type: () -> None
-    command_names = ",".join([command_type.__name__.lower() for command_type in all_commands()])
-
-    output = subprocess.check_output(args=[script_path("pex-tools"), "-h"])
-    first_line = output.decode("utf-8").splitlines()[0]
-    assert (
-        "usage: pex-tools [-h] [-V] PATH {{{command_names}}} ...".format(
-            command_names=command_names
-        )
-        == first_line
+    command_names = ",".join([command_type.name() for command_type in all_commands()])
+    expected_first_line = "usage: pex-tools [-h] [-V] PATH {{{command_names}}} ...".format(
+        command_names=command_names
     )
+
+    # Make sure we don't word-wrap for simplicity of testing.
+    env = make_env(COLUMNS=len(expected_first_line) + 2)
+
+    output = subprocess.check_output(args=[script_path("pex-tools"), "-h"], env=env)
+    first_line = output.decode("utf-8").splitlines()[0]
+    assert expected_first_line == first_line, output.decode("utf-8")

@@ -17,7 +17,7 @@ from pex.bin.pex import (
 from pex.common import safe_copy, temporary_dir
 from pex.compatibility import to_bytes
 from pex.interpreter import PythonInterpreter
-from pex.resolve import requirement_options, resolve_options, target_options
+from pex.resolve import requirement_options, resolver_options, target_options
 from pex.testing import (
     PY27,
     built_wheel,
@@ -29,7 +29,7 @@ from pex.typing import TYPE_CHECKING
 from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
-    from typing import Iterator, List, Optional
+    from typing import Iterator, List, Optional, Text
 
 
 @contextmanager
@@ -75,11 +75,11 @@ def test_clp_preamble_file():
         assert options.preamble_file == tmpfile.name
 
         requirement_configuration = requirement_options.configure(options)
-        resolver_configuration = resolve_options.configure(options)
+        resolver_configuration = resolver_options.configure(options)
         target_configuration = target_options.configure(options)
         pex_builder = build_pex(
             requirement_configuration=requirement_configuration,
-            resolve_configuration=resolver_configuration,
+            resolver_configuration=resolver_configuration,
             target_configuration=target_configuration,
             options=options,
         )
@@ -129,7 +129,7 @@ def test_clp_prereleases_resolver():
         with pytest.raises(SystemExit):
             build_pex(
                 requirement_configuration=requirement_options.configure(options),
-                resolve_configuration=resolve_options.configure(options),
+                resolver_configuration=resolver_options.configure(options),
                 target_configuration=target_options.configure(options),
                 options=options,
             )
@@ -158,7 +158,7 @@ def test_clp_prereleases_resolver():
         # With a correct behavior the assert line is reached and pex_builder object created.
         pex_builder = build_pex(
             requirement_configuration=requirement_options.configure(options),
-            resolve_configuration=resolve_options.configure(options),
+            resolver_configuration=resolver_options.configure(options),
             target_configuration=target_options.configure(options),
             options=options,
         )
@@ -200,7 +200,7 @@ def test_run_pex():
     # type: () -> None
 
     def assert_run_pex(python=None, pex_args=None):
-        # type: (Optional[str], Optional[List[str]]) -> List[str]
+        # type: (Optional[str], Optional[List[str]]) -> List[Text]
         pex_args = list(pex_args) if pex_args else []
         results = run_pex_command(
             python=python,

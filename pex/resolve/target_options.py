@@ -16,7 +16,7 @@ from pex.interpreter_constraints import (
 from pex.orderedset import OrderedSet
 from pex.pex_bootstrapper import iter_compatible_interpreters, parse_path
 from pex.platforms import Platform
-from pex.resolve.resolve_options import _ManylinuxAction
+from pex.resolve.resolver_options import _ManylinuxAction
 from pex.resolve.target_configuration import TargetConfiguration, convert_platforms
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING

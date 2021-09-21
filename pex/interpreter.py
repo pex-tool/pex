@@ -762,7 +762,7 @@ class PythonInterpreter(object):
     @classmethod
     def from_env(
         cls,
-        hashbang,
+        hashbang,  # type: str
         paths=None,  # type: Optional[Iterable[str]]
     ):
         # type: (...) -> Optional[PythonInterpreter]

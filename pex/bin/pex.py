@@ -31,9 +31,9 @@ from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.pex_info import PexInfo
-from pex.resolve import requirement_options, resolve_options, target_options
+from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolve_configuration import PexRepositoryConfiguration, PipConfiguration
+from pex.resolve.resolver_configuration import PexRepositoryConfiguration, PipConfiguration
 from pex.resolve.target_configuration import TargetConfiguration
 from pex.resolver import Unsatisfiable, resolve, resolve_from_pex
 from pex.tracer import TRACER
@@ -88,7 +88,7 @@ def configure_clp_pex_resolution(parser):
         ),
     )
 
-    resolve_options.register(group, include_pex_repository=True)
+    resolver_options.register(group, include_pex_repository=True)
 
     group.add_argument(
         "--pex-path",
@@ -475,7 +475,7 @@ def configure_clp():
 
 def build_pex(
     requirement_configuration,  # type: RequirementConfiguration
-    resolve_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
+    resolver_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
     target_configuration,  # type: TargetConfiguration
     options,  # type: Namespace
     cache=None,  # type: Optional[str]
@@ -562,17 +562,17 @@ def build_pex(
         )
     ):
         try:
-            if isinstance(resolve_configuration, PexRepositoryConfiguration):
+            if isinstance(resolver_configuration, PexRepositoryConfiguration):
                 with TRACER.timed(
                     "Resolving requirements from PEX {}.".format(options.pex_repository)
                 ):
                     result = resolve_from_pex(
-                        pex=resolve_configuration.pex_repository,
+                        pex=resolver_configuration.pex_repository,
                         requirements=requirement_configuration.requirements,
                         requirement_files=requirement_configuration.requirement_files,
                         constraint_files=requirement_configuration.constraint_files,
-                        network_configuration=resolve_configuration.network_configuration,
-                        transitive=resolve_configuration.transitive,
+                        network_configuration=resolver_configuration.network_configuration,
+                        transitive=resolver_configuration.transitive,
                         interpreters=target_configuration.interpreters,
                         platforms=target_configuration.platforms,
                         assume_manylinux=target_configuration.assume_manylinux,
@@ -584,20 +584,20 @@ def build_pex(
                         requirements=requirement_configuration.requirements,
                         requirement_files=requirement_configuration.requirement_files,
                         constraint_files=requirement_configuration.constraint_files,
-                        allow_prereleases=resolve_configuration.allow_prereleases,
-                        transitive=resolve_configuration.transitive,
+                        allow_prereleases=resolver_configuration.allow_prereleases,
+                        transitive=resolver_configuration.transitive,
                         interpreters=target_configuration.interpreters,
                         platforms=target_configuration.platforms,
-                        indexes=resolve_configuration.indexes,
-                        find_links=resolve_configuration.find_links,
-                        resolver_version=resolve_configuration.resolver_version,
-                        network_configuration=resolve_configuration.network_configuration,
+                        indexes=resolver_configuration.indexes,
+                        find_links=resolver_configuration.find_links,
+                        resolver_version=resolver_configuration.resolver_version,
+                        network_configuration=resolver_configuration.network_configuration,
                         cache=cache,
-                        build=resolve_configuration.allow_builds,
-                        use_wheel=resolve_configuration.allow_wheels,
+                        build=resolver_configuration.allow_builds,
+                        use_wheel=resolver_configuration.allow_wheels,
                         compile=options.compile,
                         manylinux=target_configuration.assume_manylinux,
-                        max_parallel_jobs=resolve_configuration.max_jobs,
+                        max_parallel_jobs=resolver_configuration.max_jobs,
                         ignore_errors=options.ignore_errors,
                     )
 
@@ -657,8 +657,8 @@ def main(args=None):
             requirement_configuration = requirement_options.configure(options)
 
             try:
-                resolve_configuration = resolve_options.configure(options)
-            except resolve_options.InvalidConfigurationError as e:
+                resolver_configuration = resolver_options.configure(options)
+            except resolver_options.InvalidConfigurationError as e:
                 die(str(e))
 
             try:
@@ -671,7 +671,7 @@ def main(args=None):
             do_main(
                 options=options,
                 requirement_configuration=requirement_configuration,
-                resolve_configuration=resolve_configuration,
+                resolver_configuration=resolver_configuration,
                 target_configuration=target_configuration,
                 cmdline=cmdline,
                 env=env,
@@ -683,7 +683,7 @@ def main(args=None):
 def do_main(
     options,  # type: Namespace
     requirement_configuration,  # type: RequirementConfiguration
-    resolve_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
+    resolver_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
     target_configuration,  # type: TargetConfiguration
     cmdline,  # type: List[str]
     env,  # type: Dict[str, str]
@@ -691,7 +691,7 @@ def do_main(
     with TRACER.timed("Building pex"):
         pex_builder = build_pex(
             requirement_configuration=requirement_configuration,
-            resolve_configuration=resolve_configuration,
+            resolver_configuration=resolver_configuration,
             target_configuration=target_configuration,
             options=options,
             cache=ENV.PEX_ROOT,
