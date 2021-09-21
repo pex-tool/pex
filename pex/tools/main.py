@@ -7,7 +7,7 @@ import os
 from argparse import ArgumentParser, Namespace
 
 from pex import pex_bootstrapper
-from pex.commands.command import Main, Result
+from pex.commands.command import GlobalConfigurationError, Main, Result
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.tools import commands
@@ -16,7 +16,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Callable, Optional
+    from typing import Callable, Optional, Union
 
     CommandFunc = Callable[[PEX, Namespace], Result]
 
@@ -71,20 +71,24 @@ class PexTools(Main[PEXCommand]):
 
 
 def main(pex=None):
-    # type: (Optional[PEX]) -> int
+    # type: (Optional[PEX]) -> Union[int, str]
 
     pex_tools = PexTools(pex=pex)
-    pex_command = pex_tools.parse_command()
-    with TRACER.timed("Executing PEX_TOOLS {}".format(pex_command.name())):
-        if pex is None:
-            pex_file_path = pex_command.options.pex[0]
-            pex_info = PexInfo.from_pex(pex_file_path)
-            pex_info.update(PexInfo.from_env())
-            interpreter = pex_bootstrapper.find_compatible_interpreter(
-                interpreter_constraints=pex_info.interpreter_constraints
-            )
-            pex = PEX(pex_file_path, interpreter=interpreter)
+    try:
+        with pex_tools.parsed_command() as pex_command, TRACER.timed(
+            "Executing PEX_TOOLS {}".format(pex_command.name())
+        ):
+            if pex is None:
+                pex_file_path = pex_command.options.pex[0]
+                pex_info = PexInfo.from_pex(pex_file_path)
+                pex_info.update(PexInfo.from_env())
+                interpreter = pex_bootstrapper.find_compatible_interpreter(
+                    interpreter_constraints=pex_info.interpreter_constraints
+                )
+                pex = PEX(pex_file_path, interpreter=interpreter)
 
-        result = pex_command.run(pex)
-        result.maybe_display()
-        return result.exit_code
+            result = pex_command.run(pex)
+            result.maybe_display()
+            return result.exit_code
+    except GlobalConfigurationError as e:
+        return str(e)

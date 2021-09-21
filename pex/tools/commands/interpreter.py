@@ -48,6 +48,7 @@ class Interpreter(JsonMixin, OutputMixin, PEXCommand):
             ),
         )
         cls.add_json_options(parser, entity="verbose output")
+        cls.register_global_arguments(parser, include_verbosity=False)
 
     def _find_interpreters(self, pex):
         # type: (PEX) -> Iterator[PythonInterpreter]

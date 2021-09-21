@@ -12,12 +12,16 @@ import itertools
 import json
 import os
 import sys
-import tempfile
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 from textwrap import TextWrapper
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.commands.command import (
+    GlobalConfigurationError,
+    global_environment,
+    register_global_arguments,
+)
 from pex.common import die, safe_mkdtemp
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
@@ -39,7 +43,7 @@ from pex.venv_bin_path import BinPath
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Optional, Union
+    from typing import Dict, Iterable, List, Optional, Union
     from argparse import Namespace
 
 
@@ -92,23 +96,6 @@ def configure_clp_pex_resolution(parser):
         type=str,
         default=None,
         help="A colon separated list of other pex files to merge into the runtime environment.",
-    )
-    group.add_argument(
-        "--disable-cache",
-        dest="disable_cache",
-        default=False,
-        action="store_true",
-        help="Disable caching in the pex tool entirely.",
-    )
-
-    group.add_argument(
-        "--cache-dir",
-        dest="cache_dir",
-        default=None,
-        help=(
-            "DEPRECATED: Use --pex-root instead. The local cache directory to use for speeding up "
-            "requirement lookups."
-        ),
     )
 
 
@@ -288,17 +275,6 @@ def configure_clp_pex_environment(parser):
         "Tailor the interpreter and platform targets for the PEX environment.",
     )
 
-    group.add_argument(
-        "--rcfile",
-        dest="rc_file",
-        default=None,
-        help=(
-            "An additional path to a pexrc file to read during configuration parsing, in addition "
-            "to reading `/etc/pexrc` and `~/.pexrc`. If `PEX_IGNORE_RCFILES=true`, then all rc "
-            "files will be ignored."
-        ),
-    )
-
     target_options.register(group)
 
     group.add_argument(
@@ -462,37 +438,7 @@ def configure_clp():
         help="Add requirements from the given .pex file.  This option can be used multiple times.",
     )
 
-    parser.add_argument(
-        "-v",
-        dest="verbosity",
-        action="count",
-        default=0,
-        help="Turn on logging verbosity, may be specified multiple times.",
-    )
-
-    parser.add_argument(
-        "--emit-warnings",
-        "--no-emit-warnings",
-        dest="emit_warnings",
-        action=HandleBoolAction,
-        default=True,
-        help="Emit runtime UserWarnings on stderr. If false, only emit them when PEX_VERBOSE is set.",
-    )
-
-    parser.add_argument(
-        "--pex-root",
-        dest="pex_root",
-        default=None,
-        help="Specify the pex root used in this invocation of pex "
-        "(if unspecified, uses {}).".format(ENV.PEX_ROOT),
-    )
-
-    parser.add_argument(
-        "--tmpdir",
-        dest="tmpdir",
-        default=tempfile.gettempdir(),
-        help="Specify the temporary directory Pex and its subprocesses should use.",
-    )
+    register_global_arguments(parser, include_verbosity=True)
 
     parser.add_argument(
         "--seed",
@@ -706,104 +652,85 @@ def main(args=None):
         args, cmdline = args, []
 
     options = parser.parse_args(args=args)
-
-    # Ensure the TMPDIR is an absolute path (So subprocesses that change CWD can find it) and
-    # that it exists.
-    tmpdir = os.path.realpath(options.tmpdir)
-    if not os.path.exists(tmpdir):
-        die("The specified --tmpdir does not exist: {}".format(tmpdir))
-    if not os.path.isdir(tmpdir):
-        die("The specified --tmpdir is not a directory: {}".format(tmpdir))
-    tempfile.tempdir = os.environ["TMPDIR"] = tmpdir
-
-    if options.cache_dir:
-        pex_warnings.warn("The --cache-dir option is deprecated, use --pex-root instead.")
-        if options.pex_root and options.cache_dir != options.pex_root:
-            die(
-                "Both --cache-dir and --pex-root were passed with conflicting values. "
-                "Just set --pex-root."
-            )
-
-    if options.disable_cache:
-
-        def warn_ignore_pex_root(set_via):
-            pex_warnings.warn(
-                "The pex root has been set via {via} but --disable-cache is also set. "
-                "Ignoring {via} and disabling caches.".format(via=set_via)
-            )
-
-        if options.cache_dir:
-            warn_ignore_pex_root("--cache-dir")
-        elif options.pex_root:
-            warn_ignore_pex_root("--pex-root")
-        elif os.environ.get("PEX_ROOT"):
-            warn_ignore_pex_root("PEX_ROOT")
-
-        pex_root = safe_mkdtemp()
-    else:
-        pex_root = options.cache_dir or options.pex_root or ENV.PEX_ROOT
-
-    if options.python and options.interpreter_constraint:
-        die('The "--python" and "--interpreter-constraint" options cannot be used together.')
-
     try:
-        resolve_configuration = resolve_options.configure(options)
-    except resolve_options.InvalidConfigurationError as e:
-        die(str(e))
+        with global_environment(options) as env:
+            requirement_configuration = requirement_options.configure(options)
 
-    requirement_configuration = requirement_options.configure(options)
+            try:
+                resolve_configuration = resolve_options.configure(options)
+            except resolve_options.InvalidConfigurationError as e:
+                die(str(e))
 
-    with ENV.patch(
-        PEX_VERBOSE=str(options.verbosity), PEX_ROOT=pex_root, TMPDIR=tmpdir
-    ) as patched_env:
-        try:
-            target_configuration = target_options.configure(options)
-        except target_options.InterpreterNotFound as e:
-            die(str(e))
-        except target_options.InterpreterConstraintsNotSatisfied as e:
-            die(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
+            try:
+                target_configuration = target_options.configure(options)
+            except target_options.InterpreterNotFound as e:
+                die(str(e))
+            except target_options.InterpreterConstraintsNotSatisfied as e:
+                die(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
 
-        with TRACER.timed("Building pex"):
-            pex_builder = build_pex(
+            do_main(
+                options=options,
                 requirement_configuration=requirement_configuration,
                 resolve_configuration=resolve_configuration,
                 target_configuration=target_configuration,
-                options=options,
-                cache=ENV.PEX_ROOT,
+                cmdline=cmdline,
+                env=env,
             )
+    except GlobalConfigurationError as e:
+        die(str(e))
 
-        pex_builder.freeze(bytecode_compile=options.compile)
-        interpreter = pex_builder.interpreter
-        pex = PEX(
-            pex_builder.path(), interpreter=interpreter, verify_entry_point=options.validate_ep
+
+def do_main(
+    options,  # type: Namespace
+    requirement_configuration,  # type: RequirementConfiguration
+    resolve_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
+    target_configuration,  # type: TargetConfiguration
+    cmdline,  # type: List[str]
+    env,  # type: Dict[str, str]
+):
+    with TRACER.timed("Building pex"):
+        pex_builder = build_pex(
+            requirement_configuration=requirement_configuration,
+            resolve_configuration=resolve_configuration,
+            target_configuration=target_configuration,
+            options=options,
+            cache=ENV.PEX_ROOT,
         )
 
-        if options.pex_name is not None:
-            log("Saving PEX file to %s" % options.pex_name, V=options.verbosity)
-            pex_builder.build(
-                options.pex_name,
-                bytecode_compile=options.compile,
-                deterministic_timestamp=not options.use_system_time,
-                layout=options.layout,
-            )
-            if options.seed != Seed.NONE:
-                seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)
-                print(seed_info)
-        else:
-            if not _compatible_with_current_platform(interpreter, target_configuration.platforms):
-                log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
-                log(
-                    "Running on platform {} but built for {}".format(
-                        interpreter.platform, ", ".join(map(str, target_configuration.platforms))
-                    ),
-                    V=1,
-                )
+    pex_builder.freeze(bytecode_compile=options.compile)
+    interpreter = pex_builder.interpreter
+    pex = PEX(
+        pex_builder.path(),
+        interpreter=interpreter,
+        verify_entry_point=options.validate_ep,
+    )
 
+    if options.pex_name is not None:
+        log("Saving PEX file to %s" % options.pex_name, V=options.verbosity)
+        pex_builder.build(
+            options.pex_name,
+            bytecode_compile=options.compile,
+            deterministic_timestamp=not options.use_system_time,
+            layout=options.layout,
+        )
+        if options.seed != Seed.NONE:
+            seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)
+            print(seed_info)
+    else:
+        if not _compatible_with_current_platform(interpreter, target_configuration.platforms):
+            log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
             log(
-                "Running PEX file at %s with args %s" % (pex_builder.path(), cmdline),
-                V=options.verbosity,
+                "Running on platform {} but built for {}".format(
+                    interpreter.platform, ", ".join(map(str, target_configuration.platforms))
+                ),
+                V=1,
             )
-            sys.exit(pex.run(args=list(cmdline), env=patched_env))
+
+        log(
+            "Running PEX file at %s with args %s" % (pex_builder.path(), cmdline),
+            V=options.verbosity,
+        )
+        sys.exit(pex.run(args=list(cmdline), env=env))
 
 
 def seed_cache(

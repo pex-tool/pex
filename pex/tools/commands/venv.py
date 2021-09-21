@@ -388,6 +388,7 @@ class Venv(PEXCommand):
             default=False,
             help="Compile all `.py` files in the venv.",
         )
+        cls.register_global_arguments(parser, include_verbosity=False)
 
     def run(self, pex):
         # type: (PEX) -> Result

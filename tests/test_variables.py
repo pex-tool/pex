@@ -9,7 +9,6 @@ import pytest
 from pex import pex_warnings
 from pex.common import temporary_dir
 from pex.compatibility import PY2
-from pex.pex_info import PexInfo
 from pex.pex_warnings import PEXWarning
 from pex.testing import environment_as
 from pex.typing import TYPE_CHECKING
@@ -240,7 +239,7 @@ def test_warnings():
         PEX_UNZIP="true",
     )
     with warnings.catch_warnings(record=True) as events:
-        pex_warnings.configure_warnings(PexInfo.default(), Variables(environ={}))
+        pex_warnings.configure_warnings(Variables(environ={}))
         env = Variables(environ=environ)
     assert env.PEX_IGNORE_ERRORS is True
     assert env.PEX_ALWAYS_CACHE is True

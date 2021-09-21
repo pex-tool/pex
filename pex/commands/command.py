@@ -9,11 +9,21 @@ import logging
 import os
 import subprocess
 import sys
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+import tempfile
+from argparse import (
+    ArgumentDefaultsHelpFormatter,
+    ArgumentParser,
+    Namespace,
+    _ActionsContainer,
+    _ArgumentGroup,
+)
 from contextlib import contextmanager
 
-from pex.common import safe_open
+from pex import pex_warnings
+from pex.argparse import HandleBoolAction
+from pex.common import safe_mkdtemp, safe_open
 from pex.typing import TYPE_CHECKING, Generic, cast
+from pex.variables import ENV, Variables
 from pex.version import __version__
 
 if TYPE_CHECKING:
@@ -127,6 +137,14 @@ class Command(object):
         parser.error("a subcommand is required")
 
     @classmethod
+    def register_global_arguments(
+        cls,
+        parser,  # type: _ActionsContainer
+        include_verbosity=True,  # type: bool
+    ):
+        register_global_arguments(parser, include_verbosity=include_verbosity)
+
+    @classmethod
     def name(cls):
         # type: () -> str
         return cls.__name__.lower()
@@ -147,7 +165,7 @@ class Command(object):
 class OutputMixin(object):
     @staticmethod
     def add_output_option(
-        parser,  # type: ArgumentParser
+        parser,  # type: _ActionsContainer
         entity,  # type: str
     ):
         # type: (...) -> None
@@ -185,8 +203,8 @@ class OutputMixin(object):
 class JsonMixin(object):
     @staticmethod
     def add_json_options(
-        parser,
-        entity,
+        parser,  # type: _ActionsContainer
+        entity,  # type: str
     ):
         parser.add_argument(
             "-i",
@@ -206,6 +224,165 @@ class JsonMixin(object):
         json.dump(data, out, indent=options.indent, **json_dump_kwargs)
 
 
+def register_global_arguments(
+    parser,  # type: _ActionsContainer
+    include_verbosity=True,  # type: bool
+):
+    # type: (...) -> None
+    """Register Pex global environment configuration options with the given parser.
+
+    :param parser: The parser to register global options with.
+    :param include_verbosity: Whether to include the verbosity option `-v`.
+    """
+
+    group = parser.add_argument_group(title="Global options")
+    if include_verbosity:
+        group.add_argument(
+            "-v",
+            dest="verbosity",
+            action="count",
+            default=0,
+            help="Turn on logging verbosity, may be specified multiple times.",
+        )
+    group.add_argument(
+        "--emit-warnings",
+        "--no-emit-warnings",
+        dest="emit_warnings",
+        action=HandleBoolAction,
+        default=True,
+        help=(
+            "Emit runtime UserWarnings on stderr. If false, only emit them when PEX_VERBOSE "
+            "is set."
+        ),
+    )
+    group.add_argument(
+        "--pex-root",
+        dest="pex_root",
+        default=None,
+        help=(
+            "Specify the pex root used in this invocation of pex "
+            "(if unspecified, uses {}).".format(ENV.PEX_ROOT)
+        ),
+    )
+    group.add_argument(
+        "--disable-cache",
+        dest="disable_cache",
+        default=False,
+        action="store_true",
+        help="Disable caching in the pex tool entirely.",
+    )
+
+    group.add_argument(
+        "--cache-dir",
+        dest="cache_dir",
+        default=None,
+        help=(
+            "DEPRECATED: Use --pex-root instead. The local cache directory to use for speeding up "
+            "requirement lookups."
+        ),
+    )
+    group.add_argument(
+        "--tmpdir",
+        dest="tmpdir",
+        default=tempfile.gettempdir(),
+        help="Specify the temporary directory Pex and its subprocesses should use.",
+    )
+    group.add_argument(
+        "--rcfile",
+        dest="rc_file",
+        default=None,
+        help=(
+            "An additional path to a pexrc file to read during configuration parsing, in addition "
+            "to reading `/etc/pexrc` and `~/.pexrc`. If `PEX_IGNORE_RCFILES=true`, then all rc "
+            "files will be ignored."
+        ),
+    )
+
+
+class GlobalConfigurationError(Exception):
+    """Indicates an error processing global options."""
+
+
+@contextmanager
+def _configured_env(options):
+    # type: (Namespace) -> Iterator[None]
+    if options.rc_file or not ENV.PEX_IGNORE_RCFILES:
+        with ENV.patch(**Variables(rc=options.rc_file).copy()):
+            yield
+    else:
+        yield
+
+
+@contextmanager
+def global_environment(options):
+    # type: (Namespace) -> Iterator[Dict[str, str]]
+    """Configures the Pex global environment.
+
+    This includes configuration of basic Pex infrastructure like logging, warnings and the
+    `PEX_ROOT` to use.
+
+    :param options: The global options registered by `register_global_arguments`.
+    :yields: The configured global environment.
+    :raises: :class:`GlobalConfigurationError` if invalid global option values were specified.
+    """
+    with _configured_env(options):
+        verbosity = Variables.PEX_VERBOSE.strip_default(ENV)
+        if verbosity is None:
+            verbosity = getattr(options, "verbosity", 0)
+
+        emit_warnings = True
+        if not options.emit_warnings:
+            emit_warnings = False
+        if emit_warnings and ENV.PEX_EMIT_WARNINGS is not None:
+            emit_warnings = ENV.PEX_EMIT_WARNINGS
+
+        with ENV.patch(PEX_VERBOSE=str(verbosity), PEX_EMIT_WARNINGS=str(emit_warnings)):
+            pex_warnings.configure_warnings(env=ENV)
+
+            # Ensure the TMPDIR is an absolute path (So subprocesses that change CWD can find it)
+            # and that it exists.
+            tmpdir = os.path.realpath(options.tmpdir)
+            if not os.path.exists(tmpdir):
+                raise GlobalConfigurationError(
+                    "The specified --tmpdir does not exist: {}".format(tmpdir)
+                )
+            if not os.path.isdir(tmpdir):
+                raise GlobalConfigurationError(
+                    "The specified --tmpdir is not a directory: {}".format(tmpdir)
+                )
+            tempfile.tempdir = os.environ["TMPDIR"] = tmpdir
+
+            if options.cache_dir:
+                pex_warnings.warn("The --cache-dir option is deprecated, use --pex-root instead.")
+                if options.pex_root and options.cache_dir != options.pex_root:
+                    raise GlobalConfigurationError(
+                        "Both --cache-dir and --pex-root were passed with conflicting values. "
+                        "Just set --pex-root."
+                    )
+
+            if options.disable_cache:
+
+                def warn_ignore_pex_root(set_via):
+                    pex_warnings.warn(
+                        "The pex root has been set via {via} but --disable-cache is also set. "
+                        "Ignoring {via} and disabling caches.".format(via=set_via)
+                    )
+
+                if options.cache_dir:
+                    warn_ignore_pex_root("--cache-dir")
+                elif options.pex_root:
+                    warn_ignore_pex_root("--pex-root")
+                elif os.environ.get("PEX_ROOT"):
+                    warn_ignore_pex_root("PEX_ROOT")
+
+                pex_root = safe_mkdtemp()
+            else:
+                pex_root = options.cache_dir or options.pex_root or ENV.PEX_ROOT
+
+            with ENV.patch(PEX_ROOT=pex_root, TMPDIR=tmpdir) as env:
+                yield env
+
+
 if TYPE_CHECKING:
     _C = TypeVar("_C", bound=Command)
 
@@ -213,14 +390,14 @@ if TYPE_CHECKING:
 class Main(Generic["_C"]):
     def __init__(
         self,
-        description,  # type: str
         command_types,  # type: Iterable[Type[_C]]
+        description=None,  # type: Optional[str]
         subparsers_description=None,  # type: Optional[str]
         prog=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self._prog = prog
-        self._description = description
+        self._description = description or self.__doc__
         self._subparsers_description = subparsers_description
         self._command_types = command_types
 
@@ -228,8 +405,9 @@ class Main(Generic["_C"]):
         # type: (ArgumentParser) -> None
         pass
 
-    def parse_command(self):
-        # type: () -> _C
+    @contextmanager
+    def parsed_command(self):
+        # type: () -> Iterator[_C]
         logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
 
         # By default, let argparse derive prog from sys.argv[0].
@@ -263,5 +441,6 @@ class Main(Generic["_C"]):
                 command_parser.set_defaults(command_type=command_type)
 
         options = parser.parse_args()
-        command_type = cast("Type[_C]", options.command_type)
-        return command_type(options)
+        with global_environment(options):
+            command_type = cast("Type[_C]", options.command_type)
+            yield command_type(options)

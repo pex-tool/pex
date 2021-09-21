@@ -751,7 +751,7 @@ def venv_dir(
         # type: (str) -> None
         from pex.pex_info import PexInfo
 
-        pex_warnings.configure_warnings(PexInfo.from_pex(pex_file), ENV)
+        pex_warnings.configure_warnings(ENV, PexInfo.from_pex(pex_file))
         pex_warnings.warn(message)
 
     if (

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 def exercise_warnings(pex_info, **env):
     # type: (PexInfo, **str) -> List[warnings.WarningMessage]
     with warnings.catch_warnings(record=True) as events:
-        pex_warnings.configure_warnings(pex_info, env=Variables(environ=env))
+        pex_warnings.configure_warnings(env=Variables(environ=env), pex_info=pex_info)
         pex_warnings.warn("test")
     assert events is not None
     return events
