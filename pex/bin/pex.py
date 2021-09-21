@@ -8,11 +8,12 @@ sources, requirements and their dependencies.
 
 from __future__ import absolute_import, print_function
 
+import itertools
 import json
 import os
 import sys
 import tempfile
-from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser, ArgumentTypeError
+from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 from textwrap import TextWrapper
 
 from pex import pex_warnings
@@ -20,21 +21,17 @@ from pex.argparse import HandleBoolAction
 from pex.common import die, safe_mkdtemp
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
-from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import (
-    UnsatisfiableInterpreterConstraintsError,
-    validate_constraints,
-)
 from pex.layout import Layout, maybe_install
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
-from pex.pex_bootstrapper import ensure_venv, iter_compatible_interpreters
+from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.pex_info import PexInfo
-from pex.platforms import Platform
-from pex.resolve import resolve_options
-from pex.resolve.resolve_configuration import PexRepository, ResolveConfiguration
-from pex.resolver import Unsatisfiable, parsed_platform, resolve, resolve_from_pex
+from pex.resolve import requirement_options, resolve_options, target_options
+from pex.resolve.requirement_configuration import RequirementConfiguration
+from pex.resolve.resolve_configuration import PexRepositoryConfiguration, PipConfiguration
+from pex.resolve.target_configuration import TargetConfiguration
+from pex.resolver import Unsatisfiable, resolve, resolve_from_pex
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
@@ -42,7 +39,7 @@ from pex.venv_bin_path import BinPath
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Optional
+    from typing import Dict, Iterable, Optional, Union
     from argparse import Namespace
 
 
@@ -77,16 +74,17 @@ class PrintVariableHelpAction(Action):
         sys.exit(0)
 
 
-def process_platform(option_str):
-    try:
-        return parsed_platform(option_str)
-    except Platform.InvalidPlatformError as e:
-        raise ArgumentTypeError("{} is an invalid platform:\n{}".format(option_str, e))
-
-
 def configure_clp_pex_resolution(parser):
     # type: (ArgumentParser) -> None
-    group = resolve_options.register(parser)
+    group = parser.add_argument_group(
+        title="Resolver options",
+        description=(
+            "Tailor how to find, resolve and translate the packages that get put into the PEX "
+            "environment."
+        ),
+    )
+
+    resolve_options.register(group, include_pex_repository=True)
 
     group.add_argument(
         "--pex-path",
@@ -291,65 +289,6 @@ def configure_clp_pex_environment(parser):
     )
 
     group.add_argument(
-        "--python",
-        dest="python",
-        default=[],
-        type=str,
-        action="append",
-        help=(
-            "The Python interpreter to use to build the PEX (default: current interpreter). This "
-            "cannot be used with `--interpreter-constraint`, which will instead cause PEX to "
-            "search for valid interpreters. Either specify an absolute path to an interpreter, or "
-            "specify a binary accessible on $PATH like `python3.7`. This option can be passed "
-            "multiple times to create a multi-interpreter compatible PEX."
-        ),
-    )
-    group.add_argument(
-        "--python-path",
-        dest="python_path",
-        default=None,
-        type=str,
-        help=(
-            "Colon-separated paths to search for interpreters when `--interpreter-constraint` "
-            "and/or `--resolve-local-platforms` are specified (default: $PATH). Each element "
-            "can be the absolute path of an interpreter binary or a directory containing "
-            "interpreter binaries."
-        ),
-    )
-
-    current_interpreter = PythonInterpreter.get()
-    program = sys.argv[0]
-    singe_interpreter_info_cmd = (
-        "PEX_TOOLS=1 {current_interpreter} {program} interpreter --verbose --indent 4".format(
-            current_interpreter=current_interpreter.binary, program=program
-        )
-    )
-    all_interpreters_info_cmd = (
-        "PEX_TOOLS=1 {program} interpreter --all --verbose --indent 4".format(program=program)
-    )
-
-    group.add_argument(
-        "--interpreter-constraint",
-        dest="interpreter_constraint",
-        default=[],
-        type=str,
-        action="append",
-        help=(
-            "Constrain the selected Python interpreter. Specify with Requirement-style syntax, "
-            'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3), '
-            '">=2.7,<3" (Any Python interpreter with version >=2.7 AND version <3) or "PyPy" (A '
-            "PyPy interpreter of any version). This argument may be repeated multiple times to OR "
-            "the constraints. Try `{singe_interpreter_info_cmd}` to find the exact interpreter "
-            "constraints of {current_interpreter} and `{all_interpreters_info_cmd}` to find out "
-            "the interpreter constraints of all Python interpreters on the $PATH.".format(
-                current_interpreter=current_interpreter.binary,
-                singe_interpreter_info_cmd=singe_interpreter_info_cmd,
-                all_interpreters_info_cmd=all_interpreters_info_cmd,
-            )
-        ),
-    )
-
-    group.add_argument(
         "--rcfile",
         dest="rc_file",
         default=None,
@@ -360,6 +299,8 @@ def configure_clp_pex_environment(parser):
         ),
     )
 
+    target_options.register(group)
+
     group.add_argument(
         "--python-shebang",
         dest="python_shebang",
@@ -367,44 +308,6 @@ def configure_clp_pex_environment(parser):
         help="The exact shebang (#!...) line to add at the top of the PEX file minus the "
         "#!. This overrides the default behavior, which picks an environment Python "
         "interpreter compatible with the one used to build the PEX file.",
-    )
-
-    group.add_argument(
-        "--platform",
-        dest="platforms",
-        default=[],
-        type=process_platform,
-        action="append",
-        help=(
-            "The platform for which to build the PEX. This option can be passed multiple times "
-            "to create a multi-platform pex. To use the platform corresponding to the current "
-            "interpreter you can pass `current`. To target any other platform you pass a string "
-            "composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. "
-            "These fields stem from wheel name conventions as outlined in "
-            "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
-            "https://www.python.org/dev/peps/pep-0425. For the current interpreter at "
-            "{current_interpreter} the full platform string is {current_platform}. To find out "
-            "more, try `{all_interpreters_info_cmd}` to print out the platform for all "
-            "interpreters on the $PATH or `{singe_interpreter_info_cmd}` to inspect the single "
-            "interpreter {current_interpreter}.".format(
-                current_interpreter=current_interpreter.binary,
-                current_platform=current_interpreter.platform,
-                singe_interpreter_info_cmd=singe_interpreter_info_cmd,
-                all_interpreters_info_cmd=all_interpreters_info_cmd,
-            )
-        ),
-    )
-
-    group.add_argument(
-        "--resolve-local-platforms",
-        dest="resolve_local_platforms",
-        default=False,
-        action=HandleBoolAction,
-        help="When --platforms are specified, attempt to resolve a local interpreter that matches "
-        "each platform specified. If found, use the interpreter to resolve distributions; if "
-        "not (or if this option is not specified), resolve for each platform only allowing "
-        "matching binary distributions and failing if only sdists or non-matching binary "
-        "distributions can be found.",
     )
 
 
@@ -493,7 +396,6 @@ def configure_clp():
     )
 
     parser.add_argument("-V", "--version", action="version", version=__version__)
-    parser.add_argument("requirements", nargs="*", help="Requirements to add to the pex")
 
     configure_clp_pex_resolution(parser)
     configure_clp_pex_options(parser)
@@ -548,28 +450,7 @@ def configure_clp():
         ),
     )
 
-    parser.add_argument(
-        "-r",
-        "--requirement",
-        dest="requirement_files",
-        metavar="FILE or URL",
-        default=[],
-        type=str,
-        action="append",
-        help="Add requirements from the given requirements file.  This option can be used multiple "
-        "times.",
-    )
-
-    parser.add_argument(
-        "--constraints",
-        dest="constraint_files",
-        metavar="FILE or URL",
-        default=[],
-        type=str,
-        action="append",
-        help="Add constraints from the given constraints file.  This option can be used multiple "
-        "times.",
-    )
+    requirement_options.register(parser)
 
     parser.add_argument(
         "--requirements-pex",
@@ -647,86 +528,13 @@ def configure_clp():
 
 
 def build_pex(
-    reqs,  # type: Optional[Iterable[str]]
-    resolve_configuration,  # type: ResolveConfiguration
+    requirement_configuration,  # type: RequirementConfiguration
+    resolve_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
+    target_configuration,  # type: TargetConfiguration
     options,  # type: Namespace
     cache=None,  # type: Optional[str]
 ):
     # type: (...) -> PEXBuilder
-
-    interpreters = None  # Default to the current interpreter.
-
-    pex_python_path = options.python_path  # If None, this will result in using $PATH.
-    # TODO(#1075): stop looking at PEX_PYTHON_PATH and solely consult the `--python-path` flag.
-    if pex_python_path is None and (options.rc_file or not ENV.PEX_IGNORE_RCFILES):
-        rc_variables = Variables(rc=options.rc_file)
-        pex_python_path = rc_variables.PEX_PYTHON_PATH
-
-    # NB: options.python and interpreter constraints cannot be used together.
-    if options.python:
-        with TRACER.timed("Resolving interpreters", V=2):
-
-            def to_python_interpreter(full_path_or_basename):
-                if os.path.isfile(full_path_or_basename):
-                    return PythonInterpreter.from_binary(full_path_or_basename)
-                else:
-                    interp = PythonInterpreter.from_env(full_path_or_basename)
-                    if interp is None:
-                        die("Failed to find interpreter: %s" % full_path_or_basename)
-                    return interp
-
-            interpreters = [to_python_interpreter(interp) for interp in options.python]
-    elif options.interpreter_constraint:
-        with TRACER.timed("Resolving interpreters", V=2):
-            constraints = options.interpreter_constraint
-            validate_constraints(constraints)
-            try:
-                interpreters = list(
-                    iter_compatible_interpreters(
-                        path=pex_python_path, interpreter_constraints=constraints
-                    )
-                )
-            except UnsatisfiableInterpreterConstraintsError as e:
-                die(
-                    e.create_message("Could not find a compatible interpreter."),
-                    CANNOT_SETUP_INTERPRETER,
-                )
-
-    platforms = OrderedSet(options.platforms)  # type: OrderedSet[Platform]
-    interpreters = interpreters or []
-    if options.platforms and options.resolve_local_platforms:
-        with TRACER.timed(
-            "Searching for local interpreters matching {}".format(", ".join(map(str, platforms)))
-        ):
-            candidate_interpreters = OrderedSet(iter_compatible_interpreters(path=pex_python_path))
-            candidate_interpreters.add(PythonInterpreter.get())
-            for candidate_interpreter in candidate_interpreters:
-                resolved_platforms = candidate_interpreter.supported_platforms.intersection(
-                    platforms
-                )
-                if resolved_platforms:
-                    for resolved_platform in resolved_platforms:
-                        TRACER.log(
-                            "Resolved {} for platform {}".format(
-                                candidate_interpreter, resolved_platform
-                            )
-                        )
-                        platforms.remove(resolved_platform)
-                    interpreters.append(candidate_interpreter)
-        if platforms:
-            TRACER.log(
-                "Could not resolve a local interpreter for {}, will resolve only binary distributions "
-                "for {}.".format(
-                    ", ".join(map(str, platforms)),
-                    "this platform" if len(platforms) == 1 else "these platforms",
-                )
-            )
-
-    interpreter = (
-        PythonInterpreter.latest_release_of_min_compatible_version(interpreters)
-        if interpreters
-        else None
-    )
 
     preamble = None  # type: Optional[str]
     if options.preamble_file:
@@ -735,7 +543,7 @@ def build_pex(
 
     pex_builder = PEXBuilder(
         path=safe_mkdtemp(),
-        interpreter=interpreter,
+        interpreter=target_configuration.interpreter,
         preamble=preamble,
         copy_mode=CopyMode.SYMLINK,
     )
@@ -795,43 +603,54 @@ def build_pex(
     for requirements_pex in options.requirements_pexes:
         pex_builder.add_from_requirements_pex(requirements_pex)
 
-    with TRACER.timed("Resolving distributions ({})".format(reqs + options.requirement_files)):
+    with TRACER.timed(
+        "Resolving distributions ({})".format(
+            " ".join(
+                itertools.chain.from_iterable(
+                    (
+                        requirement_configuration.requirements or (),
+                        requirement_configuration.requirement_files or (),
+                    )
+                )
+            )
+        )
+    ):
         try:
-            if isinstance(resolve_configuration.repository, PexRepository):
+            if isinstance(resolve_configuration, PexRepositoryConfiguration):
                 with TRACER.timed(
                     "Resolving requirements from PEX {}.".format(options.pex_repository)
                 ):
                     result = resolve_from_pex(
-                        pex=resolve_configuration.repository,
-                        requirements=reqs,
-                        requirement_files=options.requirement_files,
-                        constraint_files=options.constraint_files,
+                        pex=resolve_configuration.pex_repository,
+                        requirements=requirement_configuration.requirements,
+                        requirement_files=requirement_configuration.requirement_files,
+                        constraint_files=requirement_configuration.constraint_files,
                         network_configuration=resolve_configuration.network_configuration,
                         transitive=resolve_configuration.transitive,
-                        interpreters=interpreters,
-                        platforms=list(platforms),
-                        manylinux=resolve_configuration.assume_manylinux,
+                        interpreters=target_configuration.interpreters,
+                        platforms=target_configuration.platforms,
+                        assume_manylinux=target_configuration.assume_manylinux,
                         ignore_errors=options.ignore_errors,
                     )
             else:
                 with TRACER.timed("Resolving requirements."):
                     result = resolve(
-                        requirements=reqs,
-                        requirement_files=options.requirement_files,
-                        constraint_files=options.constraint_files,
+                        requirements=requirement_configuration.requirements,
+                        requirement_files=requirement_configuration.requirement_files,
+                        constraint_files=requirement_configuration.constraint_files,
                         allow_prereleases=resolve_configuration.allow_prereleases,
                         transitive=resolve_configuration.transitive,
-                        interpreters=interpreters,
-                        platforms=list(platforms),
-                        indexes=resolve_configuration.repository.indexes,
-                        find_links=resolve_configuration.repository.find_links,
-                        resolver_version=resolve_configuration.repository.resolver_version,
+                        interpreters=target_configuration.interpreters,
+                        platforms=target_configuration.platforms,
+                        indexes=resolve_configuration.indexes,
+                        find_links=resolve_configuration.find_links,
+                        resolver_version=resolve_configuration.resolver_version,
                         network_configuration=resolve_configuration.network_configuration,
                         cache=cache,
                         build=resolve_configuration.allow_builds,
                         use_wheel=resolve_configuration.allow_wheels,
                         compile=options.compile,
-                        manylinux=resolve_configuration.assume_manylinux,
+                        manylinux=target_configuration.assume_manylinux,
                         max_parallel_jobs=resolve_configuration.max_jobs,
                         ignore_errors=options.ignore_errors,
                     )
@@ -928,16 +747,29 @@ def main(args=None):
         die('The "--python" and "--interpreter-constraint" options cannot be used together.')
 
     try:
-        resolve_configuration = resolve_options.create_resolve_configuration(options)
+        resolve_configuration = resolve_options.configure(options)
     except resolve_options.InvalidConfigurationError as e:
         die(str(e))
+
+    requirement_configuration = requirement_options.configure(options)
 
     with ENV.patch(
         PEX_VERBOSE=str(options.verbosity), PEX_ROOT=pex_root, TMPDIR=tmpdir
     ) as patched_env:
+        try:
+            target_configuration = target_options.configure(options)
+        except target_options.InterpreterNotFound as e:
+            die(str(e))
+        except target_options.InterpreterConstraintsNotSatisfied as e:
+            die(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
+
         with TRACER.timed("Building pex"):
             pex_builder = build_pex(
-                options.requirements, resolve_configuration, options, cache=ENV.PEX_ROOT
+                requirement_configuration=requirement_configuration,
+                resolve_configuration=resolve_configuration,
+                target_configuration=target_configuration,
+                options=options,
+                cache=ENV.PEX_ROOT,
             )
 
         pex_builder.freeze(bytecode_compile=options.compile)
@@ -958,11 +790,11 @@ def main(args=None):
                 seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)
                 print(seed_info)
         else:
-            if not _compatible_with_current_platform(interpreter, options.platforms):
+            if not _compatible_with_current_platform(interpreter, target_configuration.platforms):
                 log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
                 log(
                     "Running on platform {} but built for {}".format(
-                        interpreter.platform, ", ".join(map(str, options.platforms))
+                        interpreter.platform, ", ".join(map(str, target_configuration.platforms))
                     ),
                     V=1,
                 )

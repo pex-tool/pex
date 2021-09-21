@@ -35,6 +35,16 @@ if TYPE_CHECKING:
     from pex.pex import PEX
 
 
+def parse_path(path):
+    # type: (Optional[str]) -> Optional[OrderedSet[str]]
+    """Parses a PATH string into a de-duped list of paths."""
+    return (
+        OrderedSet(PythonInterpreter.canonicalize_path(p) for p in path.split(os.pathsep))
+        if path
+        else None
+    )
+
+
 # TODO(John Sirois): Move this to interpreter_constraints.py. As things stand, both pex/bin/pex.py
 #  and this file use this function. The Pex CLI should not depend on this file which hosts code
 #  used at PEX runtime.
@@ -76,11 +86,7 @@ def iter_compatible_interpreters(
         # type: () -> Iterator[InterpreterOrError]
         seen = set()  # type: Set[InterpreterOrError]
 
-        normalized_paths = (
-            OrderedSet(PythonInterpreter.canonicalize_path(p) for p in path.split(os.pathsep))
-            if path
-            else None
-        )
+        normalized_paths = parse_path(path)
 
         # Prefer the current interpreter, if valid.
         current_interpreter = preferred_interpreter or PythonInterpreter.get()

@@ -3,23 +3,18 @@
 
 from __future__ import absolute_import
 
-from argparse import Action, ArgumentTypeError
+from argparse import Action, ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pip import ResolverVersion
-from pex.resolve.resolve_configuration import (
-    PYPI,
-    PackageIndexConfiguration,
-    PexRepository,
-    ResolveConfiguration,
-)
+from pex.resolve.resolve_configuration import PYPI, PexRepositoryConfiguration, PipConfiguration
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from argparse import ArgumentParser, Namespace, _ArgumentGroup
+    from typing import Union
 
 
 class _ManylinuxAction(Action):
@@ -48,23 +43,22 @@ class _HandleTransitiveAction(Action):
         setattr(namespace, self.dest, option_str == "--transitive")
 
 
-def register(parser):
-    # type: (ArgumentParser) -> _ArgumentGroup
-    """Register resolve options with the given parse; returning the argument group that was used."""
+def register(
+    parser,  # type: _ActionsContainer
+    include_pex_repository=False,  # type: bool
+):
+    # type: (...) -> None
+    """Register resolver configuration options with the given parser.
 
-    group = parser.add_argument_group(
-        title="Resolver options",
-        description=(
-            "Tailor how to find, resolve and translate the packages that get put into the PEX "
-            "environment."
-        ),
-    )
+    :param parser: The parser to register resolver configuration options with.
+    :param include_pex_repository: Whether to include the `--pex-repository` option.
+    """
 
-    default_package_index_configuration = PackageIndexConfiguration()
-    group.add_argument(
+    default_resolver_configuration = PipConfiguration()
+    parser.add_argument(
         "--resolver-version",
         dest="resolver_version",
-        default=default_package_index_configuration.resolver_version,
+        default=default_resolver_configuration.resolver_version,
         choices=ResolverVersion.values(),
         type=ResolverVersion.for_value,
         help=(
@@ -72,7 +66,7 @@ def register(parser):
             "https://pip.pypa.io/en/stable/user_guide/#resolver-changes-2020"
         ),
     )
-    group.add_argument(
+    parser.add_argument(
         "--pypi",
         "--no-pypi",
         "--no-index",
@@ -81,7 +75,7 @@ def register(parser):
         default=True,
         help="Whether to use PyPI to resolve dependencies.",
     )
-    group.add_argument(
+    parser.add_argument(
         "-f",
         "--find-links",
         "--repo",
@@ -91,7 +85,7 @@ def register(parser):
         type=str,
         help="Additional repository path (directory or URL) to look for requirements.",
     )
-    group.add_argument(
+    parser.add_argument(
         "-i",
         "--index",
         "--index-url",
@@ -102,34 +96,34 @@ def register(parser):
         help="Additional cheeseshop indices to use to satisfy requirements.",
     )
 
-    default_net_config = NetworkConfiguration()
-    group.add_argument(
+    default_net_config = default_resolver_configuration.network_configuration
+    parser.add_argument(
         "--retries",
         default=default_net_config.retries,
         type=int,
         help="Maximum number of retries each connection should attempt.",
     )
-    group.add_argument(
+    parser.add_argument(
         "--timeout",
         metavar="SECS",
         default=default_net_config.timeout,
         type=int,
         help="Set the socket timeout in seconds.",
     )
-    group.add_argument(
+    parser.add_argument(
         "--proxy",
         type=str,
         default=default_net_config.proxy,
         help="Specify a proxy in the form [user:passwd@]proxy.server:port.",
     )
-    group.add_argument(
+    parser.add_argument(
         "--cert",
         metavar="PATH",
         type=str,
         default=default_net_config.cert,
         help="Path to alternate CA bundle.",
     )
-    group.add_argument(
+    parser.add_argument(
         "--client-cert",
         metavar="PATH",
         type=str,
@@ -139,14 +133,14 @@ def register(parser):
             "private key and the certificate in PEM format."
         ),
     )
-    group.add_argument(
+    parser.add_argument(
         "--cache-ttl",
         metavar="DEPRECATED",
         default=None,
         type=int,
         help="Deprecated: No longer used.",
     )
-    group.add_argument(
+    parser.add_argument(
         "-H",
         "--header",
         dest="headers",
@@ -157,70 +151,60 @@ def register(parser):
         help="Deprecated: No longer used.",
     )
 
-    parser.add_argument(
-        "--pex-repository",
-        dest="pex_repository",
-        metavar="FILE",
-        default=None,
-        type=PexRepository,
-        help=(
-            "Resolve requirements from the given PEX file instead of from --index servers or "
-            "--find-links repos."
-        ),
-    )
+    if include_pex_repository:
+        parser.add_argument(
+            "--pex-repository",
+            dest="pex_repository",
+            metavar="FILE",
+            default=None,
+            type=str,
+            help=(
+                "Resolve requirements from the given PEX file instead of from --index servers or "
+                "--find-links repos."
+            ),
+        )
 
-    default_resolve_configuration = ResolveConfiguration()
-    group.add_argument(
+    parser.add_argument(
         "--pre",
         "--no-pre",
         dest="allow_prereleases",
-        default=default_resolve_configuration.allow_prereleases,
+        default=default_resolver_configuration.allow_prereleases,
         action=HandleBoolAction,
         help="Whether to include pre-release and development versions of requirements.",
     )
-    group.add_argument(
+    parser.add_argument(
         "--wheel",
         "--no-wheel",
         "--no-use-wheel",
         dest="allow_wheels",
-        default=default_resolve_configuration.allow_wheels,
+        default=default_resolver_configuration.allow_wheels,
         action=HandleBoolAction,
         help="Whether to allow wheel distributions.",
     )
-    group.add_argument(
+    parser.add_argument(
         "--build",
         "--no-build",
         dest="allow_builds",
-        default=default_resolve_configuration.allow_builds,
+        default=default_resolver_configuration.allow_builds,
         action=HandleBoolAction,
         help="Whether to allow building of distributions from source.",
     )
-    group.add_argument(
-        "--manylinux",
-        "--no-manylinux",
-        "--no-use-manylinux",
-        dest="assume_manylinux",
-        type=str,
-        default=default_resolve_configuration.assume_manylinux,
-        action=_ManylinuxAction,
-        help="Whether to allow resolution of manylinux wheels for linux target platforms.",
-    )
-    group.add_argument(
+    parser.add_argument(
         "--transitive",
         "--no-transitive",
         "--intransitive",
         dest="transitive",
-        default=default_resolve_configuration.transitive,
+        default=default_resolver_configuration.transitive,
         action=_HandleTransitiveAction,
         help="Whether to transitively resolve requirements.",
     )
-    group.add_argument(
+    parser.add_argument(
         "-j",
         "--jobs",
         metavar="JOBS",
         dest="max_jobs",
         type=int,
-        default=default_resolve_configuration.max_jobs,
+        default=default_resolver_configuration.max_jobs,
         help=(
             "The maximum number of parallel jobs to use when resolving, building and "
             "installing distributions. You might want to increase the maximum number of "
@@ -229,45 +213,14 @@ def register(parser):
         ),
     )
 
-    return group
-
 
 class InvalidConfigurationError(Exception):
-    """Indicates an invalid resolve configuration."""
+    """Indicates an invalid resolver configuration."""
 
 
-def create_resolve_configuration(options):
-    # type: (Namespace) -> ResolveConfiguration
-    """Creates a resolve configuration from options registered by `register`.
-
-    :raise: :class:`InvalidConfigurationError` if the resolve configuration is invalid.
-    """
-
-    if options.pex_repository and (options.indexes or options.find_links):
-        raise InvalidConfigurationError(
-            'The "--pex-repository" option cannot be used together with the "--resolver-version", '
-            '"--index" or "--find-links" options.'
-        )
-
-    if options.pex_repository:
-        repository = options.pex_repository
-    else:
-        if options.cache_ttl:
-            pex_warnings.warn("The --cache-ttl option is deprecated and no longer has any effect.")
-        if options.headers:
-            pex_warnings.warn("The --header option is deprecated and no longer has any effect.")
-
-        indexes = OrderedSet(
-            ([PYPI] if options.pypi else []) + (options.indexes or [])
-        )  # type: OrderedSet[str]
-        find_links = OrderedSet(options.find_links or ())  # type: OrderedSet[str]
-        repository = PackageIndexConfiguration(
-            resolver_version=options.resolver_version,
-            indexes=indexes,
-            find_links=find_links,
-        )
-
-    network_configuration = NetworkConfiguration(
+def _create_network_configuration(options):
+    # type: (Namespace) -> NetworkConfiguration
+    return NetworkConfiguration(
         retries=options.retries,
         timeout=options.timeout,
         proxy=options.proxy,
@@ -275,13 +228,56 @@ def create_resolve_configuration(options):
         client_cert=options.client_cert,
     )
 
-    return ResolveConfiguration(
-        repository=repository,
-        network_configuration=network_configuration,
+
+def configure(options):
+    # type: (Namespace) -> Union[PipConfiguration, PexRepositoryConfiguration]
+    """Creates a resolver configuration from options registered by `register`.
+
+    :param options: The resolver configuration options.
+    :raise: :class:`InvalidConfigurationError` if the resolver configuration is invalid.
+    """
+
+    pex_repository = getattr(options, "pex_repository", None)
+    if pex_repository and (options.indexes or options.find_links):
+        raise InvalidConfigurationError(
+            'The "--pex-repository" option cannot be used together with the "--index" or '
+            '"--find-links" options.'
+        )
+
+    if pex_repository:
+        return PexRepositoryConfiguration(
+            pex_repository=pex_repository,
+            network_configuration=_create_network_configuration(options),
+            transitive=options.transitive,
+        )
+    return create_pip_configuration(options)
+
+
+def create_pip_configuration(options):
+    # type: (Namespace) -> PipConfiguration
+    """Creates a pip configuration from options registered by `register`.
+
+    :param options: The Pip resolver configuration options.
+    """
+
+    if options.cache_ttl:
+        pex_warnings.warn("The --cache-ttl option is deprecated and no longer has any effect.")
+    if options.headers:
+        pex_warnings.warn("The --header option is deprecated and no longer has any effect.")
+
+    indexes = OrderedSet(
+        ([PYPI] if options.pypi else []) + (options.indexes or [])
+    )  # type: OrderedSet[str]
+    find_links = OrderedSet(options.find_links or ())  # type: OrderedSet[str]
+
+    return PipConfiguration(
+        resolver_version=options.resolver_version,
+        indexes=indexes,
+        find_links=find_links,
+        network_configuration=_create_network_configuration(options),
         allow_prereleases=options.allow_prereleases,
         allow_wheels=options.allow_wheels,
         allow_builds=options.allow_builds,
-        assume_manylinux=options.assume_manylinux,
         transitive=options.transitive,
         max_jobs=options.max_jobs,
     )

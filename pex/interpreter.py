@@ -760,20 +760,28 @@ class PythonInterpreter(object):
         return []
 
     @classmethod
-    def from_env(cls, hashbang):
+    def from_env(
+        cls,
+        hashbang,
+        paths=None,  # type: Optional[Iterable[str]]
+    ):
+        # type: (...) -> Optional[PythonInterpreter]
         """Resolve a PythonInterpreter as /usr/bin/env would.
 
-        :param hashbang: A string, e.g. "python3.3" representing some binary on the $PATH.
+        :param hashbang: A string, e.g. "python3.3" representing some binary on the search path.
+        :param paths: The search path to use; defaults to $PATH.
         :return: the first matching interpreter found or `None`.
-        :rtype: :class:`PythonInterpreter`
         """
 
         def hashbang_matches(fn):
             basefile = os.path.basename(fn)
             return hashbang == basefile
 
-        for interpreter in cls._identify_interpreters(filter=hashbang_matches):
+        for interpreter in cls._identify_interpreters(
+            filter=hashbang_matches, error_handler=None, paths=paths
+        ):
             return interpreter
+        return None
 
     @classmethod
     def _spawn_from_binary(cls, binary):

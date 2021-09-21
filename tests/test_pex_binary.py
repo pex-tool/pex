@@ -17,7 +17,7 @@ from pex.bin.pex import (
 from pex.common import safe_copy, temporary_dir
 from pex.compatibility import to_bytes
 from pex.interpreter import PythonInterpreter
-from pex.resolve import resolve_options
+from pex.resolve import requirement_options, resolve_options, target_options
 from pex.testing import (
     PY27,
     built_wheel,
@@ -74,8 +74,15 @@ def test_clp_preamble_file():
         options = parser.parse_args(args=["--preamble-file", tmpfile.name])
         assert options.preamble_file == tmpfile.name
 
-        resolve_configuration = resolve_options.create_resolve_configuration(options)
-        pex_builder = build_pex(options.requirements, resolve_configuration, options)
+        requirement_configuration = requirement_options.configure(options)
+        resolver_configuration = resolve_options.configure(options)
+        target_configuration = target_options.configure(options)
+        pex_builder = build_pex(
+            requirement_configuration=requirement_configuration,
+            resolve_configuration=resolver_configuration,
+            target_configuration=target_configuration,
+            options=options,
+        )
         assert pex_builder._preamble == 'print "foo!"'
 
 
@@ -119,9 +126,13 @@ def test_clp_prereleases_resolver():
         )
         assert not options.allow_prereleases
 
-        resolve_configuration = resolve_options.create_resolve_configuration(options)
         with pytest.raises(SystemExit):
-            build_pex(options.requirements, resolve_configuration, options)
+            build_pex(
+                requirement_configuration=requirement_options.configure(options),
+                resolve_configuration=resolve_options.configure(options),
+                target_configuration=target_options.configure(options),
+                options=options,
+            )
 
         # When we specify `--pre`, allow_prereleases is True
         options = parser.parse_args(
@@ -146,7 +157,10 @@ def test_clp_prereleases_resolver():
         #
         # With a correct behavior the assert line is reached and pex_builder object created.
         pex_builder = build_pex(
-            options.requirements, resolve_options.create_resolve_configuration(options), options
+            requirement_configuration=requirement_options.configure(options),
+            resolve_configuration=resolve_options.configure(options),
+            target_configuration=target_options.configure(options),
+            options=options,
         )
         assert pex_builder is not None
         assert len(pex_builder.info.distributions) == 3, "Should have resolved deps"
