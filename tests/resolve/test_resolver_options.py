@@ -1,42 +1,35 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from argparse import ArgumentParser, ArgumentTypeError
+from argparse import ArgumentParser
 
 import pytest
 
 from pex.resolve import resolve_options
-from pex.resolve.resolve_configuration import PackageIndexConfiguration, ResolveConfiguration
+from pex.resolve.resolve_configuration import PexRepositoryConfiguration, PipConfiguration
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import List, Sequence
+    from typing import List, Sequence, Union
 
 
-@pytest.fixture
-def parser():
-    # type: () -> ArgumentParser
-    return ArgumentParser()
-
-
-def compute_resolve_configuration(
+def compute_resolver_configuration(
     parser,  # type: ArgumentParser
     args,  # type: List[str]
 ):
-    # type: (...) -> ResolveConfiguration
+    # type: (...) -> Union[PipConfiguration, PexRepositoryConfiguration]
     options = parser.parse_args(args=args)
-    return resolve_options.create_resolve_configuration(options)
+    return resolve_options.configure(options)
 
 
-def compute_package_index_configuration(
+def compute_pip_configuration(
     parser,  # type: ArgumentParser
     args,  # type: List[str]
 ):
-    # type: (...) -> PackageIndexConfiguration
-    resolve_configuration = compute_resolve_configuration(parser, args)
-    repository = resolve_configuration.repository
-    assert isinstance(repository, PackageIndexConfiguration)
-    return repository
+    # type: (...) -> PipConfiguration
+    resolve_configuration = compute_resolver_configuration(parser, args)
+    assert isinstance(resolve_configuration, PipConfiguration)
+    return resolve_configuration
 
 
 def compute_indexes(
@@ -44,7 +37,7 @@ def compute_indexes(
     args,  # type: List[str]
 ):
     # type: (...) -> Sequence[str]
-    package_index_configuration = compute_package_index_configuration(parser, args)
+    package_index_configuration = compute_pip_configuration(parser, args)
     return package_index_configuration.indexes
 
 
@@ -76,7 +69,7 @@ def test_clp_find_links_option(parser):
     # type: (ArgumentParser) -> None
     resolve_options.register(parser)
 
-    package_index_configuration = compute_package_index_configuration(
+    package_index_configuration = compute_pip_configuration(
         parser, args=["-f", "http://www.example.com"]
     )
     assert len(package_index_configuration.indexes) == 1
@@ -109,44 +102,35 @@ def test_clp_build_precedence(parser):
     # type: (ArgumentParser) -> None
     resolve_options.register(parser)
 
-    resolve_configuration = compute_resolve_configuration(parser, args=["--no-build"])
+    resolve_configuration = compute_pip_configuration(parser, args=["--no-build"])
     assert not resolve_configuration.allow_builds
 
-    resolve_configuration = compute_resolve_configuration(parser, args=["--build"])
+    resolve_configuration = compute_pip_configuration(parser, args=["--build"])
     assert resolve_configuration.allow_builds
 
-    resolve_configuration = compute_resolve_configuration(parser, args=["--no-wheel"])
+    resolve_configuration = compute_pip_configuration(parser, args=["--no-wheel"])
     assert not resolve_configuration.allow_wheels
 
-    resolve_configuration = compute_resolve_configuration(parser, args=["--wheel"])
+    resolve_configuration = compute_pip_configuration(parser, args=["--wheel"])
     assert resolve_configuration.allow_wheels
 
 
-def test_clp_manylinux(parser):
+def test_pex_repository(parser):
     # type: (ArgumentParser) -> None
-    resolve_options.register(parser)
+    resolve_options.register(parser, include_pex_repository=True)
 
-    resolve_configuration = compute_resolve_configuration(parser, args=[])
-    assert (
-        resolve_configuration.assume_manylinux
-    ), "The --manylinux option should default to some value."
+    resolver_configuration = compute_resolver_configuration(
+        parser, args=["--pex-repository", "a.pex"]
+    )
+    assert isinstance(resolver_configuration, PexRepositoryConfiguration)
+    assert "a.pex" == resolver_configuration.pex_repository
 
-    def assert_manylinux(value):
-        # type: (str) -> None
-        rc = compute_resolve_configuration(parser, args=["--manylinux", value])
-        assert value == rc.assume_manylinux
 
-    # Legacy manylinux standards should be supported.
-    assert_manylinux("manylinux1_x86_64")
-    assert_manylinux("manylinux2010_x86_64")
-    assert_manylinux("manylinux2014_x86_64")
+def test_invalid_configuration(parser):
+    # type: (ArgumentParser) -> None
+    resolve_options.register(parser, include_pex_repository=True)
 
-    # The modern open-ended glibc version based manylinux standards should be supported.
-    assert_manylinux("manylinux_2_5_x86_64")
-    assert_manylinux("manylinux_2_33_x86_64")
-
-    resolve_configuration = compute_resolve_configuration(parser, args=["--no-manylinux"])
-    assert resolve_configuration.assume_manylinux is None
-
-    with pytest.raises(ArgumentTypeError):
-        compute_resolve_configuration(parser, args=["--manylinux", "foo"])
+    with pytest.raises(resolve_options.InvalidConfigurationError):
+        compute_resolver_configuration(
+            parser, args=["--pex-repository", "a.pex", "-f", "https://a.find/links/repo"]
+        )
