@@ -3,7 +3,8 @@
 
 from __future__ import absolute_import
 
+import sys
+
 from pex.cli import pex
 
-if __name__ == "__main__":
-    pex.main()
+sys.exit(pex.main())

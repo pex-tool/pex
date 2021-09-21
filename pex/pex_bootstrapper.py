@@ -400,7 +400,7 @@ def _bootstrap(entry_point):
     # type: (str) -> PexInfo
     pex_info = PexInfo.from_pex(entry_point)  # type: PexInfo
     pex_info.update(PexInfo.from_env())
-    pex_warnings.configure_warnings(pex_info, ENV)
+    pex_warnings.configure_warnings(ENV, pex_info=pex_info)
     return pex_info
 
 
