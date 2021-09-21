@@ -35,6 +35,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper, named_temporary_file
 
 if TYPE_CHECKING:
+    import attr  # vendor:skip
     from typing import (
         Any,
         Callable,
@@ -49,6 +50,8 @@ if TYPE_CHECKING:
         Tuple,
         Union,
     )
+else:
+    from pex.third_party import attr
 
 PY_VER = sys.version_info[:2]
 IS_PYPY = hasattr(sys, "pypy_version_info")
@@ -329,16 +332,13 @@ def write_simple_pex(
     return pb
 
 
-# TODO(#1041): use `typing.NamedTuple` once we require Python 3.
+@attr.s(frozen=True)
 class IntegResults(object):
     """Convenience object to return integration run results."""
 
-    def __init__(self, output, error, return_code):
-        # type: (str, str, int) -> None
-        super(IntegResults, self).__init__()
-        self.output = output
-        self.error = error
-        self.return_code = return_code
+    output = attr.ib()  # type: Text
+    error = attr.ib()  # type: Text
+    return_code = attr.ib()  # type: int
 
     def assert_success(self):
         # type: () -> None

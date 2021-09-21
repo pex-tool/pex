@@ -5,8 +5,8 @@ from argparse import ArgumentParser
 
 import pytest
 
-from pex.resolve import resolve_options
-from pex.resolve.resolve_configuration import PexRepositoryConfiguration, PipConfiguration
+from pex.resolve import resolver_options
+from pex.resolve.resolver_configuration import PexRepositoryConfiguration, PipConfiguration
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,7 +19,7 @@ def compute_resolver_configuration(
 ):
     # type: (...) -> Union[PipConfiguration, PexRepositoryConfiguration]
     options = parser.parse_args(args=args)
-    return resolve_options.configure(options)
+    return resolver_options.configure(options)
 
 
 def compute_pip_configuration(
@@ -27,9 +27,9 @@ def compute_pip_configuration(
     args,  # type: List[str]
 ):
     # type: (...) -> PipConfiguration
-    resolve_configuration = compute_resolver_configuration(parser, args)
-    assert isinstance(resolve_configuration, PipConfiguration)
-    return resolve_configuration
+    resolver_configuration = compute_resolver_configuration(parser, args)
+    assert isinstance(resolver_configuration, PipConfiguration)
+    return resolver_configuration
 
 
 def compute_indexes(
@@ -37,13 +37,13 @@ def compute_indexes(
     args,  # type: List[str]
 ):
     # type: (...) -> Sequence[str]
-    package_index_configuration = compute_pip_configuration(parser, args)
-    return package_index_configuration.indexes
+    pip_configuration = compute_pip_configuration(parser, args)
+    return pip_configuration.indexes
 
 
 def test_clp_no_pypi_option(parser):
     # type: (ArgumentParser) -> None
-    resolve_options.register(parser)
+    resolver_options.register(parser)
 
     assert len(compute_indexes(parser, args=[])) == 1
 
@@ -54,7 +54,7 @@ def test_clp_no_pypi_option(parser):
 
 def test_clp_pypi_option_duplicate(parser):
     # type: (ArgumentParser) -> None
-    resolve_options.register(parser)
+    resolver_options.register(parser)
 
     indexes = compute_indexes(parser, args=[])
     assert len(indexes) == 1
@@ -67,18 +67,16 @@ def test_clp_pypi_option_duplicate(parser):
 
 def test_clp_find_links_option(parser):
     # type: (ArgumentParser) -> None
-    resolve_options.register(parser)
+    resolver_options.register(parser)
 
-    package_index_configuration = compute_pip_configuration(
-        parser, args=["-f", "http://www.example.com"]
-    )
-    assert len(package_index_configuration.indexes) == 1
-    assert len(package_index_configuration.find_links) == 1
+    pip_configuration = compute_pip_configuration(parser, args=["-f", "http://www.example.com"])
+    assert len(pip_configuration.indexes) == 1
+    assert len(pip_configuration.find_links) == 1
 
 
 def test_clp_index_option(parser):
     # type: (ArgumentParser) -> None
-    resolve_options.register(parser)
+    resolver_options.register(parser)
 
     indexes = compute_indexes(parser, args=[])
     assert len(indexes) == 1
@@ -92,7 +90,7 @@ def test_clp_index_option(parser):
 
 def test_clp_index_option_render(parser):
     # type: (ArgumentParser) -> None
-    resolve_options.register(parser)
+    resolver_options.register(parser)
 
     indexes = compute_indexes(parser, args=["--index", "http://www.example.com"])
     assert ("https://pypi.org/simple", "http://www.example.com") == indexes
@@ -100,24 +98,24 @@ def test_clp_index_option_render(parser):
 
 def test_clp_build_precedence(parser):
     # type: (ArgumentParser) -> None
-    resolve_options.register(parser)
+    resolver_options.register(parser)
 
-    resolve_configuration = compute_pip_configuration(parser, args=["--no-build"])
-    assert not resolve_configuration.allow_builds
+    pip_configuration = compute_pip_configuration(parser, args=["--no-build"])
+    assert not pip_configuration.allow_builds
 
-    resolve_configuration = compute_pip_configuration(parser, args=["--build"])
-    assert resolve_configuration.allow_builds
+    pip_configuration = compute_pip_configuration(parser, args=["--build"])
+    assert pip_configuration.allow_builds
 
-    resolve_configuration = compute_pip_configuration(parser, args=["--no-wheel"])
-    assert not resolve_configuration.allow_wheels
+    pip_configuration = compute_pip_configuration(parser, args=["--no-wheel"])
+    assert not pip_configuration.allow_wheels
 
-    resolve_configuration = compute_pip_configuration(parser, args=["--wheel"])
-    assert resolve_configuration.allow_wheels
+    pip_configuration = compute_pip_configuration(parser, args=["--wheel"])
+    assert pip_configuration.allow_wheels
 
 
 def test_pex_repository(parser):
     # type: (ArgumentParser) -> None
-    resolve_options.register(parser, include_pex_repository=True)
+    resolver_options.register(parser, include_pex_repository=True)
 
     resolver_configuration = compute_resolver_configuration(
         parser, args=["--pex-repository", "a.pex"]
@@ -128,9 +126,9 @@ def test_pex_repository(parser):
 
 def test_invalid_configuration(parser):
     # type: (ArgumentParser) -> None
-    resolve_options.register(parser, include_pex_repository=True)
+    resolver_options.register(parser, include_pex_repository=True)
 
-    with pytest.raises(resolve_options.InvalidConfigurationError):
+    with pytest.raises(resolver_options.InvalidConfigurationError):
         compute_resolver_configuration(
             parser, args=["--pex-repository", "a.pex", "-f", "https://a.find/links/repo"]
         )

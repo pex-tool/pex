@@ -136,12 +136,12 @@ class Command(object):
         # type: (...) -> NoReturn
         parser.error("a subcommand is required")
 
-    @classmethod
+    @staticmethod
     def register_global_arguments(
-        cls,
         parser,  # type: _ActionsContainer
         include_verbosity=True,  # type: bool
     ):
+        # type: (...) -> None
         register_global_arguments(parser, include_verbosity=include_verbosity)
 
     @classmethod

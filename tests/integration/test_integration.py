@@ -1536,7 +1536,7 @@ def test_seed(
     results.assert_success()
 
     # Setting posix=False works around this issue under pypy: https://bugs.python.org/issue1170.
-    seed_argv = shlex.split(results.output, posix=False)
+    seed_argv = shlex.split(str(results.output), posix=False)
     isort_args = ["--version"]
     seed_stdout = subprocess.check_output(seed_argv + isort_args)
     pex_args = [pex_file] if os.path.isfile(pex_file) else [sys.executable, pex_file]
