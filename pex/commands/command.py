@@ -137,6 +137,14 @@ class Command(object):
         parser.error("a subcommand is required")
 
     @classmethod
+    def register_global_arguments(
+        cls,
+        parser,  # type: _ActionsContainer
+        include_verbosity=True,  # type: bool
+    ):
+        register_global_arguments(parser, include_verbosity=include_verbosity)
+
+    @classmethod
     def name(cls):
         # type: () -> str
         return cls.__name__.lower()

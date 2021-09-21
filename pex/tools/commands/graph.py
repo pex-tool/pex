@@ -99,6 +99,7 @@ class Graph(OutputMixin, PEXCommand):
             action="store_true",
             help="Attempt to open the graph in the system viewer (implies --render).",
         )
+        cls.register_global_arguments(parser)
 
     def _dot(
         self,

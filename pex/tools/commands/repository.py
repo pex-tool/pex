@@ -111,10 +111,11 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
             help="Print the distributions requirements in addition to its name version and path.",
         )
         cls.add_json_options(info_parser, entity="verbose output")
+        cls.register_global_arguments(info_parser, include_verbosity=False)
         return info_parser
 
-    @staticmethod
-    def _add_extract_arguments(subparsers):
+    @classmethod
+    def _add_extract_arguments(cls, subparsers):
         # type: (_SubParsersAction) -> ArgumentParser
         extract_parser = subparsers.add_parser(
             name="extract", help="Extract all distributions from a PEX file."
@@ -164,6 +165,7 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
             metavar="PATH",
             help="The path of a file to write the <pid>:<port> of the find links server to.",
         )
+        cls.register_global_arguments(extract_parser)
         return extract_parser
 
     @classmethod
