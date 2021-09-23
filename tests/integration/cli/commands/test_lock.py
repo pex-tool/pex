@@ -6,8 +6,8 @@ import re
 import subprocess
 import sys
 
-from pex.locked_resolve import Fingerprint
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
+from pex.resolve.locked_resolve import Fingerprint
 from pex.testing import IntegResults, make_env
 from pex.typing import TYPE_CHECKING
 

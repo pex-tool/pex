@@ -5,7 +5,6 @@
 from __future__ import absolute_import
 
 import functools
-import itertools
 import os
 import zipfile
 from collections import OrderedDict, defaultdict
@@ -13,22 +12,18 @@ from collections import OrderedDict, defaultdict
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
 from pex.environment import PEXEnvironment, ResolveError
-from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
-from pex.locked_resolve import LockConfiguration, LockedResolve
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
-from pex.pip import Locker, PackageIndexConfiguration, ResolverVersion, get_pip
+from pex.pip import Locker, PackageIndexConfiguration, get_pip
 from pex.platforms import Platform
-from pex.requirements import (
-    Constraint,
-    LocalProjectRequirement,
-    parse_requirement_file,
-    parse_requirement_strings,
-)
+from pex.requirements import Constraint, LocalProjectRequirement
+from pex.resolve.locked_resolve import LockConfiguration, LockedResolve
+from pex.resolve.requirement_configuration import RequirementConfiguration
+from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.target_configuration import TargetConfiguration
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
@@ -776,20 +771,10 @@ def _parse_reqs(
     network_configuration=None,  # type: Optional[NetworkConfiguration]
 ):
     # type: (...) -> Iterable[ParsedRequirement]
-    parsed_requirements = []  # type: List[ParsedRequirement]
-    if requirements:
-        parsed_requirements.extend(parse_requirement_strings(requirements))
-    if requirement_files:
-        fetcher = URLFetcher(network_configuration=network_configuration)
-        for requirement_file in requirement_files:
-            parsed_requirements.extend(
-                requirement_or_constraint
-                for requirement_or_constraint in parse_requirement_file(
-                    requirement_file, is_constraints=False, fetcher=fetcher
-                )
-                if not isinstance(requirement_or_constraint, Constraint)
-            )
-    return parsed_requirements
+    requirement_configuration = RequirementConfiguration(
+        requirements=requirements, requirement_files=requirement_files
+    )
+    return requirement_configuration.parse_requirements(network_configuration=network_configuration)
 
 
 @attr.s(frozen=True)
@@ -1226,11 +1211,17 @@ def resolve_from_pex(
 ):
     # type: (...) -> Resolved
 
-    direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
+    requirement_configuration = RequirementConfiguration(
+        requirements=requirements,
+        requirement_files=requirement_files,
+        constraint_files=constraint_files,
+    )
     direct_requirements_by_project_name = (
         OrderedDict()
     )  # type: OrderedDict[ProjectName, Requirement]
-    for direct_requirement in direct_requirements:
+    for direct_requirement in requirement_configuration.parse_requirements(
+        network_configuration=network_configuration
+    ):
         if isinstance(direct_requirement, LocalProjectRequirement):
             raise Untranslatable(
                 "Cannot resolve local projects from PEX repositories. Asked to resolve {path} "
@@ -1243,19 +1234,11 @@ def resolve_from_pex(
     constraints_by_project_name = defaultdict(
         list
     )  # type: DefaultDict[ProjectName, List[Constraint]]
-    if not ignore_errors and (requirement_files or constraint_files):
-        fetcher = URLFetcher(network_configuration=network_configuration)
-        for location, is_constraints in itertools.chain(
-            ((requirement_file, False) for requirement_file in requirement_files or ()),
-            ((constraint_file, True) for constraint_file in constraint_files or ()),
+    if not ignore_errors:
+        for contraint in requirement_configuration.parse_constraints(
+            network_configuration=network_configuration
         ):
-            for parsed_item in parse_requirement_file(
-                location, is_constraints=is_constraints, fetcher=fetcher
-            ):
-                if isinstance(parsed_item, Constraint):
-                    constraints_by_project_name[ProjectName(parsed_item.requirement)].append(
-                        parsed_item
-                    )
+            constraints_by_project_name[ProjectName(contraint.requirement)].append(contraint)
 
     all_reqs = direct_requirements_by_project_name.values()
     unique_targets = TargetConfiguration(
