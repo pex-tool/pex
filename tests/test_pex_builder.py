@@ -9,7 +9,7 @@ import zipfile
 
 import pytest
 
-from pex.common import safe_open, temporary_dir, touch
+from pex.common import open_zip, safe_open, temporary_dir, touch
 from pex.compatibility import WINDOWS
 from pex.executor import Executor
 from pex.layout import Layout
@@ -21,7 +21,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, List
+    from typing import Any, Iterator, List, Set
 
 exe_main = """
 import sys
@@ -360,3 +360,47 @@ def test_pex_builder_packed(tmpdir):
     assert zipfile.is_zipfile(cached_dist_zip)
 
     assert filecmp.cmp(spread_dist_zip, cached_dist_zip, shallow=False)
+
+
+@pytest.mark.parametrize(
+    "copy_mode", [pytest.param(copy_mode, id=copy_mode.value) for copy_mode in CopyMode.values()]
+)
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
+)
+def test_pex_builder_exclude_bootstrap_testing(
+    tmpdir,  # type: Any
+    copy_mode,  # type: CopyMode.Value
+    layout,  # type: Layout.Value
+):
+    # type: (...) -> None
+
+    pex_path = os.path.join(str(tmpdir), "empty.pex")
+    pb = PEXBuilder(copy_mode=copy_mode)
+    pb.build(pex_path, layout=layout)
+
+    bootstrap_location = os.path.join(pex_path, pb.info.bootstrap)
+    bootstrap_files = set()  # type: Set[str]
+    if Layout.ZIPAPP == layout:
+        with open_zip(pex_path) as zf:
+            bootstrap_files.update(
+                os.path.relpath(f, pb.info.bootstrap)
+                for f in zf.namelist()
+                if f.startswith(pb.info.bootstrap)
+            )
+    elif Layout.PACKED == layout:
+        with open_zip(bootstrap_location) as zf:
+            bootstrap_files.update(zf.namelist())
+    else:
+        bootstrap_files.update(
+            os.path.relpath(os.path.join(root, f), bootstrap_location)
+            for root, _, files in os.walk(bootstrap_location)
+            for f in files
+        )
+
+    assert {"pex/pex_bootstrapper.py", "pex/pex_info.py", "pex/pex.py"}.issubset(
+        bootstrap_files
+    ), "Expected the `.bootstrap` to contain at least some of the key Pex runtime modules."
+    assert not [
+        f for f in bootstrap_files if f.endswith(("testing.py", "testing.pyc"))
+    ], "Expected testing support files to be stripped from the Pex `.bootstrap`."

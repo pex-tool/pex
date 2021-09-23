@@ -579,8 +579,12 @@ class PEXBuilder(object):
             bootstrap_packages.extend(["commands", "tools", "tools/commands"])
         for package in bootstrap_packages:
             for fn in provider.resource_listdir(package):
-                if not (provider.resource_isdir(os.path.join(package, fn)) or fn.endswith(".pyc")):
-                    rel_path = os.path.join(package, fn)
+                rel_path = os.path.join(package, fn)
+                if not (
+                    provider.resource_isdir(rel_path)
+                    or fn.endswith(".pyc")
+                    or fn.endswith("testing.py")
+                ):
                     data = provider.get_resource_string(source_name, rel_path)
                     self._chroot.write(
                         data,
