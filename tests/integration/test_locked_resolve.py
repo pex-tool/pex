@@ -1,5 +1,6 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import hashlib
 import os
 
@@ -7,7 +8,8 @@ import pytest
 
 from pex import dist_metadata, resolver
 from pex.distribution_target import DistributionTarget
-from pex.locked_resolve import (
+from pex.pep_503 import ProjectName
+from pex.resolve.locked_resolve import (
     Artifact,
     LockConfiguration,
     LockedRequirement,
@@ -15,7 +17,6 @@ from pex.locked_resolve import (
     LockStyle,
     Pin,
 )
-from pex.pep_503 import ProjectName
 from pex.resolver import Downloaded, LocalDistribution
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING

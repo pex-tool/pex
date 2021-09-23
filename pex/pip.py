@@ -25,11 +25,15 @@ from pex.common import atomic_directory, is_python_script, safe_mkdtemp
 from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
-from pex.enum import Enum
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
-from pex.locked_resolve import (
+from pex.network_configuration import NetworkConfiguration
+from pex.orderedset import OrderedSet
+from pex.pex import PEX
+from pex.pex_bootstrapper import ensure_venv
+from pex.platforms import Platform
+from pex.resolve.locked_resolve import (
     Artifact,
     Fingerprint,
     LockConfiguration,
@@ -38,11 +42,7 @@ from pex.locked_resolve import (
     LockStyle,
     Pin,
 )
-from pex.network_configuration import NetworkConfiguration
-from pex.orderedset import OrderedSet
-from pex.pex import PEX
-from pex.pex_bootstrapper import ensure_venv
-from pex.platforms import Platform
+from pex.resolve.resolver_configuration import ResolverVersion
 from pex.third_party import isolated
 from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
@@ -78,19 +78,6 @@ if TYPE_CHECKING:
 
 else:
     from pex.third_party import attr
-
-
-class ResolverVersion(Enum["ResolverVersion.Value"]):
-    class Value(Enum.Value):
-        pass
-
-    PIP_LEGACY = Value("pip-legacy-resolver")
-    PIP_2020 = Value("pip-2020-resolver")
-
-    @classmethod
-    def values(cls):
-        # type: () -> Iterable[ResolverVersion.Value]
-        return cls.PIP_LEGACY, cls.PIP_2020
 
 
 class PackageIndexConfiguration(object):

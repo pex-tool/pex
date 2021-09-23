@@ -8,8 +8,8 @@ from argparse import ArgumentParser, _ActionsContainer, _SubParsersAction
 from pex import resolver
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import Ok, OutputMixin, Result
-from pex.locked_resolve import LockConfiguration, LockStyle
 from pex.resolve import requirement_options, resolver_options, target_options
+from pex.resolve.locked_resolve import LockConfiguration, LockStyle
 from pex.variables import ENV
 
 

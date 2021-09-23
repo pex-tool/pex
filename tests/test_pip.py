@@ -13,7 +13,7 @@ from pex.common import safe_rmtree
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
-from pex.pip import PackageIndexConfiguration, Pip, ResolverVersion
+from pex.pip import PackageIndexConfiguration, Pip
 from pex.platforms import Platform
 from pex.testing import PY38, ensure_python_interpreter, environment_as
 from pex.typing import TYPE_CHECKING

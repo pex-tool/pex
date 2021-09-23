@@ -9,8 +9,12 @@ from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.pip import ResolverVersion
-from pex.resolve.resolver_configuration import PYPI, PexRepositoryConfiguration, PipConfiguration
+from pex.resolve.resolver_configuration import (
+    PYPI,
+    PexRepositoryConfiguration,
+    PipConfiguration,
+    ResolverVersion,
+)
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
