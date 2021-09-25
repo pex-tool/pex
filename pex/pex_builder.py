@@ -39,7 +39,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Optional
+    from typing import Dict, Optional
 
 
 class CopyMode(Enum["CopyMode.Value"]):
@@ -49,11 +49,6 @@ class CopyMode(Enum["CopyMode.Value"]):
     COPY = Value("copy")
     LINK = Value("link")
     SYMLINK = Value("symlink")
-
-    @classmethod
-    def values(cls):
-        # type: () -> Iterable[CopyMode.Value]
-        return cls.COPY, cls.LINK, cls.SYMLINK
 
 
 BOOTSTRAP_ENVIRONMENT = """\

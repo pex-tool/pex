@@ -4,10 +4,6 @@
 from __future__ import absolute_import
 
 from pex.enum import Enum
-from pex.typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from typing import Iterable
 
 
 class BinPath(Enum["BinPath.Value"]):
@@ -17,8 +13,3 @@ class BinPath(Enum["BinPath.Value"]):
     FALSE = Value("false")
     PREPEND = Value("prepend")
     APPEND = Value("append")
-
-    @classmethod
-    def values(cls):
-        # type: () -> Iterable[BinPath.Value]
-        return cls.FALSE, cls.PREPEND, cls.APPEND

@@ -41,7 +41,7 @@ from pex.util import named_temporary_file
 try:
     from unittest import mock
 except ImportError:
-    import mock  # type: ignore[no-redef]
+    import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
     import attr  # vendor:skip

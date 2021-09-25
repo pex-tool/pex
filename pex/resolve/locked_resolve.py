@@ -16,7 +16,7 @@ from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import BinaryIO, IO, Iterable, Tuple
+    from typing import BinaryIO, IO, Tuple
 else:
     from pex.third_party import attr
 
@@ -27,11 +27,6 @@ class LockStyle(Enum["LockStyle.Value"]):
 
     STRICT = Value("strict")
     SOURCES = Value("sources")
-
-    @classmethod
-    def values(cls):
-        # type: () -> Iterable[LockStyle.Value]
-        return cls.STRICT, cls.SOURCES
 
 
 @attr.s(frozen=True)

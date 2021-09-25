@@ -15,7 +15,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import unzip_dir
 
 if TYPE_CHECKING:
-    from typing import Optional, Iterable, Iterator
+    from typing import Optional, Iterator
 
 BOOTSTRAP_DIR = ".bootstrap"
 DEPS_DIR = ".deps"
@@ -29,11 +29,6 @@ class Layout(Enum["Layout.Value"]):
     ZIPAPP = Value("zipapp")
     PACKED = Value("packed")
     LOOSE = Value("loose")
-
-    @classmethod
-    def values(cls):
-        # type: () -> Iterable[Layout.Value]
-        return cls.ZIPAPP, cls.PACKED, cls.LOOSE
 
 
 class _Layout(object):
