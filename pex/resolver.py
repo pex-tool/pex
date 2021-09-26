@@ -148,7 +148,7 @@ class DownloadRequest(object):
         return SpawnedJob.and_then(
             job=download_job,
             result_func=lambda: DownloadResult(
-                target, download_dir, lock=locker.lock() if locker else None
+                target, download_dir, locked_resolve=locker.lock() if locker else None
             ),
         )
 
@@ -162,7 +162,7 @@ class DownloadResult(object):
 
     target = attr.ib()  # type: DistributionTarget
     download_dir = attr.ib()  # type: str
-    lock = attr.ib(default=None)  # type: Optional[LockedResolve]
+    locked_resolve = attr.ib(default=None)  # type: Optional[LockedResolve]
 
     def _iter_distribution_paths(self):
         # type: () -> Iterator[str]
@@ -918,8 +918,8 @@ def resolve(
     install_requests = []  # type: List[InstallRequest]
     locks = []  # type: List[LockedResolve]
     for download_result in download_results:
-        if download_result.lock:
-            locks.append(download_result.lock)
+        if download_result.locked_resolve:
+            locks.append(download_result.locked_resolve)
         build_requests.extend(download_result.build_requests())
         install_requests.extend(download_result.install_requests())
 
@@ -1007,7 +1007,7 @@ class LocalDistribution(object):
 @attr.s(frozen=True)
 class Downloaded(object):
     local_distributions = attr.ib()  # type: Tuple[LocalDistribution, ...]
-    locks = attr.ib(default=())  # type: Tuple[LockedResolve, ...]
+    locked_resolves = attr.ib(default=())  # type: Tuple[LockedResolve, ...]
 
 
 def download(
@@ -1098,7 +1098,7 @@ def download(
     )
 
     local_distributions = []
-    locks = []
+    locked_resolves = []
 
     def add_build_requests(requests):
         # type: (Iterable[BuildRequest]) -> None
@@ -1113,8 +1113,8 @@ def download(
 
     add_build_requests(build_requests)
     for download_result in download_results:
-        if download_result.lock:
-            locks.append(download_result.lock)
+        if download_result.locked_resolve:
+            locked_resolves.append(download_result.locked_resolve)
         add_build_requests(download_result.build_requests())
         for install_request in download_result.install_requests():
             local_distributions.append(
@@ -1125,7 +1125,9 @@ def download(
                 )
             )
 
-    return Downloaded(local_distributions=tuple(local_distributions), locks=tuple(locks))
+    return Downloaded(
+        local_distributions=tuple(local_distributions), locked_resolves=tuple(locked_resolves)
+    )
 
 
 def install(
