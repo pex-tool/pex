@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve
+from pex.sorted_tuple import SortedTuple
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
@@ -41,10 +42,8 @@ def normalize_locked_requirement(
         requirement=Requirement.parse(str(ProjectName(locked_req.requirement.project_name))),
         additional_artifacts=()
         if skip_additional_artifacts
-        else tuple(
-            sorted(
-                normalize_artifact(a, skip_urls=skip_urls) for a in locked_req.additional_artifacts
-            )
+        else SortedTuple(
+            normalize_artifact(a, skip_urls=skip_urls) for a in locked_req.additional_artifacts
         ),
         via=(),
     )
@@ -58,14 +57,12 @@ def normalize_locked_resolve(
     # type: (...) -> LockedResolve
     return attr.evolve(
         lock,
-        locked_requirements=tuple(
-            sorted(
-                normalize_locked_requirement(
-                    locked_req,
-                    skip_additional_artifacts=skip_additional_artifacts,
-                    skip_urls=skip_urls,
-                )
-                for locked_req in lock.locked_requirements
+        locked_requirements=SortedTuple(
+            normalize_locked_requirement(
+                locked_req,
+                skip_additional_artifacts=skip_additional_artifacts,
+                skip_urls=skip_urls,
             )
+            for locked_req in lock.locked_requirements
         ),
     )

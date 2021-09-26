@@ -80,7 +80,7 @@ def test_lock_single_target(
     assert 1 == len(downloaded.locks)
     lock = downloaded.locks[0]
 
-    assert DistributionTarget.current() == lock.target
+    assert DistributionTarget.current().get_supported_tags()[0] == lock.platform_tag
 
     def pin(local_distribution):
         # type: (LocalDistribution) -> Pin

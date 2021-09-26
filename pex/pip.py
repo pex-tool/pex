@@ -350,11 +350,11 @@ class ResolvedRequirement(object):
             )
 
         for resolved_requirement in resolved_requirements:
-            yield LockedRequirement(
+            yield LockedRequirement.create(
                 pin=resolved_requirement.pin,
                 artifact=resolve_fingerprint(resolved_requirement.artifact),
                 requirement=resolved_requirement.requirement,
-                additional_artifacts=tuple(
+                additional_artifacts=(
                     resolve_fingerprint(artifact)
                     for artifact in resolved_requirement.additional_artifacts
                 ),
@@ -477,7 +477,7 @@ class Locker(_LogAnalyzer):
                 "Lock retrieval was attempted before Pip log analysis was complete."
             )
         if self._locked_resolve is None:
-            self._locked_resolve = LockedResolve(
+            self._locked_resolve = LockedResolve.from_target(
                 target=self._target,
                 locked_requirements=tuple(
                     ResolvedRequirement.lock_all(self._resolved_requirements, self._url_fetcher)
