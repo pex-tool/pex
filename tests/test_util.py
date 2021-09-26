@@ -16,7 +16,7 @@ from pex.util import CacheHelper, DistributionHelper, iter_pth_paths, named_temp
 try:
     from unittest import mock
 except ImportError:
-    import mock  # type: ignore[no-redef]
+    import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
     from typing import Any, Dict, List

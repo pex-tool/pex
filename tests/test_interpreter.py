@@ -31,9 +31,9 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 try:
-    from mock import Mock, patch
+    from unittest.mock import Mock, patch  # type: ignore[import]
 except ImportError:
-    from unittest.mock import Mock, patch  # type: ignore[misc,no-redef,import]
+    from mock import Mock, patch  # type: ignore[misc,import]
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, List, Tuple, Optional

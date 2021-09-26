@@ -19,10 +19,6 @@ class InheritPath(Enum["InheritPath.Value"]):
     FALLBACK = Value("fallback")
 
     @classmethod
-    def values(cls):
-        return cls.FALSE, cls.PREFER, cls.FALLBACK
-
-    @classmethod
     def for_value(cls, value):
         # type: (Union[str, bool]) -> InheritPath.Value
         if not isinstance(value, bool):

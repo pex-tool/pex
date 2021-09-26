@@ -10,7 +10,7 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import Iterable, Tuple
+    from typing import Tuple
 else:
     from pex.third_party import attr
 
@@ -24,11 +24,6 @@ class ResolverVersion(Enum["ResolverVersion.Value"]):
 
     PIP_LEGACY = Value("pip-legacy-resolver")
     PIP_2020 = Value("pip-2020-resolver")
-
-    @classmethod
-    def values(cls):
-        # type: () -> Iterable[ResolverVersion.Value]
-        return cls.PIP_LEGACY, cls.PIP_2020
 
 
 @attr.s(frozen=True)

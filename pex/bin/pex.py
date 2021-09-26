@@ -43,7 +43,7 @@ from pex.venv_bin_path import BinPath
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, List, Optional, Union
+    from typing import Dict, List, Optional, Union
     from argparse import Namespace
 
 
@@ -336,11 +336,6 @@ class Seed(Enum["Seed.Value"]):
     NONE = Value("none")
     ARGS = Value("args")
     VERBOSE = Value("verbose")
-
-    @classmethod
-    def values(cls):
-        # type: () -> Iterable[Seed.Value]
-        return cls.NONE, cls.ARGS, cls.VERBOSE
 
 
 class HandleSeedAction(Action):

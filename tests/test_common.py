@@ -29,7 +29,7 @@ from pex.typing import TYPE_CHECKING
 try:
     from unittest import mock
 except ImportError:
-    import mock  # type: ignore[no-redef]
+    import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, Optional, Tuple, Type
