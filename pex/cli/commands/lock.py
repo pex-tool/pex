@@ -6,26 +6,20 @@ from __future__ import absolute_import
 from argparse import ArgumentParser, _ActionsContainer
 from collections import defaultdict
 
-import pex.cli.commands.lockfile
-from pex import resolver
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands import lockfile
-from pex.cli.commands.lockfile import Lockfile, json_codec
-from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result
+from pex.cli.commands.lockfile import Lockfile, create, json_codec
+from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result, try_
 from pex.common import pluralize
 from pex.distribution_target import DistributionTarget
 from pex.enum import Enum
-from pex.requirements import LocalProjectRequirement
 from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
-from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.variables import ENV
-from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import List, DefaultDict
+    from typing import DefaultDict, List, Union
 
 
 class ExportFormat(Enum["ExportFormat.Value"]):
@@ -52,6 +46,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
     @classmethod
+    def _create_resolver_options_group(cls, parser):
+        # type: (_ActionsContainer) -> _ActionsContainer
+        return parser.add_argument_group(
+            title="Resolver options",
+            description="Configure how third party distributions are resolved.",
+        )
+
+    @classmethod
     def _add_resolve_options(cls, parser):
         # type: (_ActionsContainer) -> None
         requirement_options.register(
@@ -62,11 +64,16 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         cls._add_target_options(parser)
         resolver_options.register(
-            parser.add_argument_group(
-                title="Resolver options",
-                description="Configure how third party distributions are resolved.",
-            ),
+            cls._create_resolver_options_group(parser),
             include_pex_repository=False,
+        )
+
+    @classmethod
+    def _add_lockfile_option(cls, parser):
+        parser.add_argument(
+            "lockfile",
+            nargs=1,
+            help="The Pex lock file to export",
         )
 
     @classmethod
@@ -104,11 +111,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "format using `--hash` is supported.".format(pip=ExportFormat.PIP)
             ),
         )
-        export_parser.add_argument(
-            "lockfile",
-            nargs=1,
-            help="The Pex lock file to export",
-        )
+        cls._add_lockfile_option(export_parser)
         cls.add_output_option(export_parser, entity="lock")
         cls._add_target_options(export_parser)
 
@@ -133,75 +136,29 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     def _create(self):
         # type: () -> Result
-        requirement_configuration = requirement_options.configure(self.options)
-        pip_configuration = resolver_options.create_pip_configuration(self.options)
-        network_configuration = pip_configuration.network_configuration
-
-        requirements = []  # type: List[Requirement]
-        local_projects = []  # type: List[LocalProjectRequirement]
-        for parsed_requirement in requirement_configuration.parse_requirements(
-            network_configuration
-        ):
-            if isinstance(parsed_requirement, LocalProjectRequirement):
-                local_projects.append(parsed_requirement)
-            else:
-                requirements.append(parsed_requirement.requirement)
-        if local_projects:
-            return Error(
-                "Cannot create a lock for local project requirements. Given {count}:\n"
-                "{projects}".format(
-                    count=len(local_projects),
-                    projects="\n".join(
-                        "{index}.) {project}".format(index=index, project=project.path)
-                        for index, project in enumerate(local_projects, start=1)
-                    ),
-                )
-            )
-
-        constraints = tuple(
-            constraint.requirement
-            for constraint in requirement_configuration.parse_constraints(network_configuration)
-        )
-
-        target_configuration = target_options.configure(self.options)
         lock_configuration = LockConfiguration(style=self.options.style)
-        downloaded = resolver.download(
-            requirements=requirement_configuration.requirements,
-            requirement_files=requirement_configuration.requirement_files,
-            constraint_files=requirement_configuration.constraint_files,
-            allow_prereleases=pip_configuration.allow_prereleases,
-            transitive=pip_configuration.transitive,
-            interpreters=target_configuration.interpreters,
-            platforms=target_configuration.platforms,
-            indexes=pip_configuration.repos_configuration.indexes,
-            find_links=pip_configuration.repos_configuration.find_links,
-            resolver_version=pip_configuration.resolver_version,
-            network_configuration=network_configuration,
-            cache=ENV.PEX_ROOT,
-            build=pip_configuration.allow_builds,
-            use_wheel=pip_configuration.allow_wheels,
-            assume_manylinux=target_configuration.assume_manylinux,
-            max_parallel_jobs=pip_configuration.max_jobs,
-            lock_configuration=lock_configuration,
-            # We're just out for the lock data and not the distribution files downloaded to produce
-            # that data.
-            dest=None,
-        )
-        lf = Lockfile.create(
-            pex_version=__version__,
-            style=lock_configuration.style,
-            resolver_version=pip_configuration.resolver_version,
-            requirements=requirements,
-            constraints=constraints,
-            allow_prereleases=pip_configuration.allow_prereleases,
-            allow_wheels=pip_configuration.allow_wheels,
-            allow_builds=pip_configuration.allow_builds,
-            transitive=pip_configuration.transitive,
-            locked_resolves=downloaded.locked_resolves,
+        requirement_configuration = requirement_options.configure(self.options)
+        target_configuration = target_options.configure(self.options)
+        pip_configuration = resolver_options.create_pip_configuration(self.options)
+        lock_file = try_(
+            create(
+                lock_configuration=lock_configuration,
+                requirement_configuration=requirement_configuration,
+                target_configuration=target_configuration,
+                pip_configuration=pip_configuration,
+            )
         )
         with self.output(self.options) as output:
-            self.dump_json(self.options, json_codec.as_json_data(lf), output, sort_keys=True)
+            self.dump_json(self.options, json_codec.as_json_data(lock_file), output, sort_keys=True)
         return Ok()
+
+    @staticmethod
+    def _load_lockfile(lockfile_path):
+        # type: (str) -> Union[Lockfile, Error]
+        try:
+            return lockfile.load(lockfile_path)
+        except lockfile.ParseError as e:
+            return Error(str(e))
 
     def _export(self):
         # type: () -> Result
@@ -211,10 +168,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         lockfile_path = self.options.lockfile[0]
-        try:
-            lf = lockfile.load(lockfile_path)
-        except pex.cli.commands.lockfile.ParseError as e:
-            return Error(str(e))
+        lock_file = try_(self._load_lockfile(lockfile_path=lockfile_path))
 
         target_configuration = target_options.configure(self.options)
         targets = target_configuration.unique_targets()
@@ -223,7 +177,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             list
         )  # type: DefaultDict[LockedResolve, List[DistributionTarget]]
         with TRACER.timed("Selecting locks for {count} targets".format(count=len(targets))):
-            for target, locked_resolve in lf.select(targets):
+            for target, locked_resolve in lock_file.select(targets):
                 selected_locks[locked_resolve].append(target)
 
         if len(selected_locks) == 1:
@@ -232,7 +186,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 locked_resolve.emit_requirements(output)
             return Ok()
 
-        locks = lf.locked_resolves
+        locks = lock_file.locked_resolves
         if not selected_locks:
             return Error(
                 "Of the {count} {locks} stored in {lockfile}, none were applicable for the "
