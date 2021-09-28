@@ -148,7 +148,7 @@ if TYPE_CHECKING:
 
 
 class ResolveError(Exception):
-    """Indicates an error resolving requirements for a PEX."""
+    """Indicates an error resolving requirements from within a PEX."""
 
 
 @attr.s(frozen=True)

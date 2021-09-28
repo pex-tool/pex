@@ -9,9 +9,10 @@ import os
 import zipfile
 from collections import OrderedDict, defaultdict
 
+from pex import environment
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
-from pex.environment import PEXEnvironment, ResolveError
+from pex.environment import PEXEnvironment
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
@@ -39,11 +40,15 @@ else:
     from pex.third_party import attr
 
 
-class Untranslatable(Exception):
+class ResolveError(Exception):
+    """Indicates an error resolving requirements for a PEX."""
+
+
+class Untranslatable(ResolveError):
     pass
 
 
-class Unsatisfiable(Exception):
+class Unsatisfiable(ResolveError):
     pass
 
 
@@ -1249,7 +1254,7 @@ def resolve_from_pex(
         pex_env = PEXEnvironment.mount(pex, target=target)
         try:
             distributions = pex_env.resolve_dists(all_reqs)
-        except ResolveError as e:
+        except environment.ResolveError as e:
             raise Unsatisfiable(str(e))
 
         for distribution in distributions:
