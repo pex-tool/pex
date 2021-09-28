@@ -6,11 +6,15 @@ from argparse import ArgumentParser
 import pytest
 
 from pex.resolve import resolver_options
-from pex.resolve.resolver_configuration import PexRepositoryConfiguration, PipConfiguration
+from pex.resolve.resolver_configuration import (
+    PexRepositoryConfiguration,
+    PipConfiguration,
+    ReposConfiguration,
+)
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import List, Sequence, Union
+    from typing import List, Union
 
 
 def compute_resolver_configuration(
@@ -32,68 +36,79 @@ def compute_pip_configuration(
     return resolver_configuration
 
 
-def compute_indexes(
+def compute_repos_configuration(
     parser,  # type: ArgumentParser
     args,  # type: List[str]
 ):
-    # type: (...) -> Sequence[str]
+    # type: (...) -> ReposConfiguration
     pip_configuration = compute_pip_configuration(parser, args)
-    return pip_configuration.indexes
+    return pip_configuration.repos_configuration
 
 
 def test_clp_no_pypi_option(parser):
     # type: (ArgumentParser) -> None
     resolver_options.register(parser)
 
-    assert len(compute_indexes(parser, args=[])) == 1
+    repos_configuration = compute_repos_configuration(parser, args=[])
+    assert len(repos_configuration.indexes) == 1
+    assert len(repos_configuration.find_links) == 0
 
-    assert (
-        len(compute_indexes(parser, args=["--no-pypi"])) == 0
-    ), "--no-pypi should remove the pypi index."
+    repos_configuration = compute_repos_configuration(parser, args=["--no-pypi"])
+    assert len(repos_configuration.indexes) == 0, "--no-pypi should remove the pypi index."
+    assert len(repos_configuration.find_links) == 0
 
 
 def test_clp_pypi_option_duplicate(parser):
     # type: (ArgumentParser) -> None
     resolver_options.register(parser)
 
-    indexes = compute_indexes(parser, args=[])
-    assert len(indexes) == 1
+    repos_configuration = compute_repos_configuration(parser, args=[])
+    assert len(repos_configuration.indexes) == 1
+    assert len(repos_configuration.find_links) == 0
 
-    indexes2 = compute_indexes(parser, args=["--pypi"])
-    assert len(indexes2) == 1
+    repos_configuration2 = compute_repos_configuration(parser, args=["--pypi"])
+    assert len(repos_configuration2.indexes) == 1
+    assert len(repos_configuration2.find_links) == 0
 
-    assert indexes == indexes2
+    assert repos_configuration.indexes == repos_configuration2.indexes
 
 
 def test_clp_find_links_option(parser):
     # type: (ArgumentParser) -> None
     resolver_options.register(parser)
 
-    pip_configuration = compute_pip_configuration(parser, args=["-f", "http://www.example.com"])
-    assert len(pip_configuration.indexes) == 1
-    assert len(pip_configuration.find_links) == 1
+    repos_configuration = compute_repos_configuration(parser, args=["-f", "http://www.example.com"])
+    assert len(repos_configuration.indexes) == 1
+    assert len(repos_configuration.find_links) == 1
 
 
 def test_clp_index_option(parser):
     # type: (ArgumentParser) -> None
     resolver_options.register(parser)
 
-    indexes = compute_indexes(parser, args=[])
-    assert len(indexes) == 1
+    repos_configuration = compute_repos_configuration(parser, args=[])
+    assert len(repos_configuration.indexes) == 1
+    assert len(repos_configuration.find_links) == 0
 
-    indexes2 = compute_indexes(parser, args=["-i", "http://www.example.com"])
-    assert len(indexes2) == 2
+    repos_configuration2 = compute_repos_configuration(
+        parser, args=["-i", "http://www.example.com"]
+    )
+    assert len(repos_configuration2.indexes) == 2
+    assert len(repos_configuration2.find_links) == 0
 
-    assert indexes2[0] == indexes[0]
-    assert indexes2[1] == "http://www.example.com"
+    assert repos_configuration2.indexes[0] == repos_configuration.indexes[0]
+    assert repos_configuration2.indexes[1] == "http://www.example.com"
 
 
 def test_clp_index_option_render(parser):
     # type: (ArgumentParser) -> None
     resolver_options.register(parser)
 
-    indexes = compute_indexes(parser, args=["--index", "http://www.example.com"])
-    assert ("https://pypi.org/simple", "http://www.example.com") == indexes
+    repos_configuration = compute_repos_configuration(
+        parser, args=["--index", "http://www.example.com"]
+    )
+    assert ("https://pypi.org/simple", "http://www.example.com") == repos_configuration.indexes
+    assert () == repos_configuration.find_links
 
 
 def test_clp_build_precedence(parser):

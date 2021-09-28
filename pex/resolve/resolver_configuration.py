@@ -27,10 +27,15 @@ class ResolverVersion(Enum["ResolverVersion.Value"]):
 
 
 @attr.s(frozen=True)
+class ReposConfiguration(object):
+    indexes = attr.ib(default=(PYPI,))  # type: Tuple[str, ...]
+    find_links = attr.ib(default=())  # type: Tuple[str, ...]
+
+
+@attr.s(frozen=True)
 class PipConfiguration(object):
     resolver_version = attr.ib(default=ResolverVersion.PIP_LEGACY)  # type: ResolverVersion.Value
-    indexes = attr.ib(default=(PYPI,), converter=tuple)  # type: Tuple[str, ...]
-    find_links = attr.ib(default=(), converter=tuple)  # type: Tuple[str, ...]
+    repos_configuration = attr.ib(default=ReposConfiguration())  # type: ReposConfiguration
     network_configuration = attr.ib(default=NetworkConfiguration())  # type: NetworkConfiguration
     allow_prereleases = attr.ib(default=False)  # type: bool
     allow_wheels = attr.ib(default=True)  # type: bool

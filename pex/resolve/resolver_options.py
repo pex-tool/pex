@@ -13,9 +13,10 @@ from pex.resolve.resolver_configuration import (
     PYPI,
     PexRepositoryConfiguration,
     PipConfiguration,
+    ReposConfiguration,
     ResolverVersion,
 )
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import Union
@@ -70,73 +71,10 @@ def register(
             "https://pip.pypa.io/en/stable/user_guide/#resolver-changes-2020"
         ),
     )
-    parser.add_argument(
-        "--pypi",
-        "--no-pypi",
-        "--no-index",
-        dest="pypi",
-        action=HandleBoolAction,
-        default=True,
-        help="Whether to use PyPI to resolve dependencies.",
-    )
-    parser.add_argument(
-        "-f",
-        "--find-links",
-        "--repo",
-        metavar="PATH/URL",
-        action="append",
-        dest="find_links",
-        type=str,
-        help="Additional repository path (directory or URL) to look for requirements.",
-    )
-    parser.add_argument(
-        "-i",
-        "--index",
-        "--index-url",
-        metavar="URL",
-        action="append",
-        dest="indexes",
-        type=str,
-        help="Additional cheeseshop indices to use to satisfy requirements.",
-    )
 
-    default_net_config = default_resolver_configuration.network_configuration
-    parser.add_argument(
-        "--retries",
-        default=default_net_config.retries,
-        type=int,
-        help="Maximum number of retries each connection should attempt.",
-    )
-    parser.add_argument(
-        "--timeout",
-        metavar="SECS",
-        default=default_net_config.timeout,
-        type=int,
-        help="Set the socket timeout in seconds.",
-    )
-    parser.add_argument(
-        "--proxy",
-        type=str,
-        default=default_net_config.proxy,
-        help="Specify a proxy in the form [user:passwd@]proxy.server:port.",
-    )
-    parser.add_argument(
-        "--cert",
-        metavar="PATH",
-        type=str,
-        default=default_net_config.cert,
-        help="Path to alternate CA bundle.",
-    )
-    parser.add_argument(
-        "--client-cert",
-        metavar="PATH",
-        type=str,
-        default=default_net_config.client_cert,
-        help=(
-            "Path to an SSL client certificate which should be a single file containing the "
-            "private key and the certificate in PEM format."
-        ),
-    )
+    register_repos_options(parser)
+    register_network_options(parser)
+
     parser.add_argument(
         "--cache-ttl",
         metavar="DEPRECATED",
@@ -202,6 +140,99 @@ def register(
         action=_HandleTransitiveAction,
         help="Whether to transitively resolve requirements.",
     )
+    register_max_jobs_option(parser)
+
+
+def register_repos_options(parser):
+    # type: (_ActionsContainer) -> None
+    """Register repos configuration options with the given parser.
+
+    :param parser: The parser to register repos configuration options with.
+    """
+    parser.add_argument(
+        "--pypi",
+        "--no-pypi",
+        "--no-index",
+        dest="pypi",
+        action=HandleBoolAction,
+        default=True,
+        help="Whether to use PyPI to resolve dependencies.",
+    )
+    parser.add_argument(
+        "-f",
+        "--find-links",
+        "--repo",
+        metavar="PATH/URL",
+        action="append",
+        dest="find_links",
+        type=str,
+        help="Additional repository path (directory or URL) to look for requirements.",
+    )
+    parser.add_argument(
+        "-i",
+        "--index",
+        "--index-url",
+        metavar="URL",
+        action="append",
+        dest="indexes",
+        type=str,
+        help="Additional cheeseshop indices to use to satisfy requirements.",
+    )
+
+
+def register_network_options(parser):
+    # type: (_ActionsContainer) -> None
+    """Register network configuration options with the given parser.
+
+    :param parser: The parser to register network configuration options with.
+    """
+    default_resolver_configuration = PipConfiguration()
+    default_network_configuration = default_resolver_configuration.network_configuration
+    parser.add_argument(
+        "--retries",
+        default=default_network_configuration.retries,
+        type=int,
+        help="Maximum number of retries each connection should attempt.",
+    )
+    parser.add_argument(
+        "--timeout",
+        metavar="SECS",
+        default=default_network_configuration.timeout,
+        type=int,
+        help="Set the socket timeout in seconds.",
+    )
+    parser.add_argument(
+        "--proxy",
+        type=str,
+        default=default_network_configuration.proxy,
+        help="Specify a proxy in the form [user:passwd@]proxy.server:port.",
+    )
+    parser.add_argument(
+        "--cert",
+        metavar="PATH",
+        type=str,
+        default=default_network_configuration.cert,
+        help="Path to alternate CA bundle.",
+    )
+    parser.add_argument(
+        "--client-cert",
+        metavar="PATH",
+        type=str,
+        default=default_network_configuration.client_cert,
+        help=(
+            "Path to an SSL client certificate which should be a single file containing the "
+            "private key and the certificate in PEM format."
+        ),
+    )
+
+
+def register_max_jobs_option(parser):
+    # type: (_ActionsContainer) -> None
+    """Register the max jobs configuration option with the given parser.
+
+    :param parser: The parser to register the max job option with.
+    """
+    default_resolver_configuration = PipConfiguration()
     parser.add_argument(
         "-j",
         "--jobs",
@@ -222,17 +253,6 @@ class InvalidConfigurationError(Exception):
     """Indicates an invalid resolver configuration."""
 
 
-def _create_network_configuration(options):
-    # type: (Namespace) -> NetworkConfiguration
-    return NetworkConfiguration(
-        retries=options.retries,
-        timeout=options.timeout,
-        proxy=options.proxy,
-        cert=options.cert,
-        client_cert=options.client_cert,
-    )
-
-
 def configure(options):
     # type: (Namespace) -> Union[PipConfiguration, PexRepositoryConfiguration]
     """Creates a resolver configuration from options registered by `register`.
@@ -251,7 +271,7 @@ def configure(options):
     if pex_repository:
         return PexRepositoryConfiguration(
             pex_repository=pex_repository,
-            network_configuration=_create_network_configuration(options),
+            network_configuration=create_network_configuration(options),
             transitive=options.transitive,
         )
     return create_pip_configuration(options)
@@ -259,7 +279,7 @@ def configure(options):
 
 def create_pip_configuration(options):
     # type: (Namespace) -> PipConfiguration
-    """Creates a pip configuration from options registered by `register`.
+    """Creates a Pip configuration from options registered by `register`.
 
     :param options: The Pip resolver configuration options.
     """
@@ -269,19 +289,51 @@ def create_pip_configuration(options):
     if options.headers:
         pex_warnings.warn("The --header option is deprecated and no longer has any effect.")
 
-    indexes = OrderedSet(
-        ([PYPI] if options.pypi else []) + (options.indexes or [])
-    )  # type: OrderedSet[str]
-    find_links = OrderedSet(options.find_links or ())  # type: OrderedSet[str]
-
+    repos_configuration = create_repos_configuration(options)
     return PipConfiguration(
         resolver_version=options.resolver_version,
-        indexes=indexes,
-        find_links=find_links,
-        network_configuration=_create_network_configuration(options),
+        repos_configuration=repos_configuration,
+        network_configuration=create_network_configuration(options),
         allow_prereleases=options.allow_prereleases,
         allow_wheels=options.allow_wheels,
         allow_builds=options.allow_builds,
         transitive=options.transitive,
-        max_jobs=options.max_jobs,
+        max_jobs=get_max_jobs_value(options),
     )
+
+
+def create_repos_configuration(options):
+    # type: (Namespace) -> ReposConfiguration
+    """Creates a repos configuration from options registered by `register_repos_options`.
+
+    :param options: The Pip resolver configuration options.
+    """
+    indexes = OrderedSet(
+        ([PYPI] if options.pypi else []) + (options.indexes or [])
+    )  # type: OrderedSet[str]
+    find_links = OrderedSet(options.find_links or ())  # type: OrderedSet[str]
+    return ReposConfiguration(indexes=tuple(indexes), find_links=tuple(find_links))
+
+
+def create_network_configuration(options):
+    # type: (Namespace) -> NetworkConfiguration
+    """Creates a network configuration from options registered by `register_network_options`.
+
+    :param options: The Pip resolver configuration options.
+    """
+    return NetworkConfiguration(
+        retries=options.retries,
+        timeout=options.timeout,
+        proxy=options.proxy,
+        cert=options.cert,
+        client_cert=options.client_cert,
+    )
+
+
+def get_max_jobs_value(options):
+    # type: (Namespace) -> int
+    """Retrieves the max jobs value from the option registered by `register_max_jobs_option`.
+
+    :param options: The max jobs configuration option.
+    """
+    return cast(int, options.max_jobs)
