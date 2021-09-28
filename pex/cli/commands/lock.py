@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from typing import List, DefaultDict
 
 
-class LockFormat(Enum["LockFormat.Value"]):
+class ExportFormat(Enum["ExportFormat.Value"]):
     class Value(Enum.Value):
         pass
 
@@ -96,12 +96,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         # type: (_ActionsContainer) -> None
         export_parser.add_argument(
             "--format",
-            default=LockFormat.PIP,
-            choices=LockFormat.values(),
-            type=LockFormat.for_value,
+            default=ExportFormat.PIP,
+            choices=ExportFormat.values(),
+            type=ExportFormat.for_value,
             help=(
-                "The format of lock file to export. Currently only the {pip!r} requirements file "
-                "format using `--hash` is supported.".format(pip=LockFormat.PIP)
+                "The format to export the lock to. Currently only the {pip!r} requirements file "
+                "format using `--hash` is supported.".format(pip=ExportFormat.PIP)
             ),
         )
         export_parser.add_argument(
@@ -204,9 +204,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     def _export(self):
         # type: () -> Result
-        if self.options.format != LockFormat.PIP:
+        if self.options.format != ExportFormat.PIP:
             return Error(
-                "Only the {pip!r} lock format is supported currently.".format(pip=LockFormat.PIP)
+                "Only the {pip!r} lock format is supported currently.".format(pip=ExportFormat.PIP)
             )
 
         lockfile_path = self.options.lockfile[0]
@@ -256,7 +256,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 count=len(locks),
                 locks=pluralize(locks, "lock"),
                 lockfile=lockfile_path,
-                pip=LockFormat.PIP,
+                pip=ExportFormat.PIP,
                 targets="\n".join(
                     "{index}.) {platform}: {targets}".format(
                         index=index, platform=lock.platform_tag, targets=targets
