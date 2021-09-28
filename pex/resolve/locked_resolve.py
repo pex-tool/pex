@@ -9,6 +9,8 @@ from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
 from pex.enum import Enum
 from pex.pep_503 import ProjectName
+from pex.sorted_tuple import SortedTuple
+from pex.third_party.packaging import tags
 from pex.third_party.packaging import utils as packaging_utils
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING, cast
@@ -16,7 +18,7 @@ from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import BinaryIO, IO, Tuple
+    from typing import BinaryIO, IO, Iterable, Iterator, Tuple
 else:
     from pex.third_party import attr
 
@@ -87,17 +89,62 @@ class Pin(object):
 
 @attr.s(frozen=True)
 class LockedRequirement(object):
+    @classmethod
+    def create(
+        cls,
+        pin,  # type: Pin
+        artifact,  # type: Artifact
+        requirement,  # type: Requirement
+        additional_artifacts=(),  # type: Iterable[Artifact]
+        via=(),  # type: Iterable[str]
+    ):
+        # type: (...) -> LockedRequirement
+        return cls(
+            pin=pin,
+            artifact=artifact,
+            requirement=requirement,
+            additional_artifacts=SortedTuple(additional_artifacts),
+            via=tuple(via),
+        )
+
     pin = attr.ib()  # type: Pin
     artifact = attr.ib()  # type: Artifact
-    requirement = attr.ib()  # type: Requirement
-    additional_artifacts = attr.ib(default=())  # type: Tuple[Artifact, ...]
+    requirement = attr.ib(order=str)  # type: Requirement
+    additional_artifacts = attr.ib(default=())  # type: SortedTuple[Artifact]
     via = attr.ib(default=())  # type: Tuple[str, ...]
+
+    def iter_artifacts(self):
+        # type: () -> Iterator[Artifact]
+        yield self.artifact
+        for artifact in self.additional_artifacts:
+            yield artifact
 
 
 @attr.s(frozen=True)
 class LockedResolve(object):
-    target = attr.ib()  # type: DistributionTarget
-    locked_requirements = attr.ib()  # type: Tuple[LockedRequirement, ...]
+    @classmethod
+    def from_target(
+        cls,
+        target,  # type: DistributionTarget
+        locked_requirements,  # type: Iterable[LockedRequirement]
+    ):
+        # type: (...) -> LockedResolve
+        most_specific_tag = target.get_supported_tags()[0]
+        return cls(
+            platform_tag=most_specific_tag, locked_requirements=SortedTuple(locked_requirements)
+        )
+
+    @classmethod
+    def from_platform_tag(
+        cls,
+        platform_tag,  # type: tags.Tag
+        locked_requirements,  # type: Iterable[LockedRequirement]
+    ):
+        # type: (...) -> LockedResolve
+        return cls(platform_tag=platform_tag, locked_requirements=SortedTuple(locked_requirements))
+
+    platform_tag = attr.ib(order=str)  # type: tags.Tag
+    locked_requirements = attr.ib()  # type: SortedTuple[LockedRequirement]
 
     def emit_requirements(self, stream):
         # type: (IO[str]) -> None
@@ -115,7 +162,7 @@ class LockedResolve(object):
                 )
             )
 
-        for locked_requirement in sorted(self.locked_requirements, key=lambda lr: lr.pin):
+        for locked_requirement in self.locked_requirements:
             stream.write(
                 "{project_name}=={version} # {requirement}".format(
                     project_name=locked_requirement.pin.project_name,

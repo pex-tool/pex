@@ -248,13 +248,14 @@ class JsonMixin(object):
     def add_json_options(
         parser,  # type: _ActionsContainer
         entity,  # type: str
+        include_switch=True,  # type: bool
     ):
+        flags = ("-i", "--indent") if include_switch else ("--indent",)
         parser.add_argument(
-            "-i",
-            "--indent",
+            *flags,
             type=int,
             default=None,
-            help="Pretty-print {entity} json with the given indent.".format(entity=entity),
+            help="Pretty-print {entity} json with the given indent.".format(entity=entity)
         )
 
     @staticmethod

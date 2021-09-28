@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 FILES_TO_CHECK=(
   $(
     find pex/ tests/ -path pex/vendor/_vendored -prune -o -name "*.py" | \

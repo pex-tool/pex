@@ -41,12 +41,12 @@ def normalize(
                 normalize_local_dist(local_dist) for local_dist in downloaded.local_distributions
             )
         ),
-        locks=tuple(
+        locked_resolves=tuple(
             sorted(
                 normalize_locked_resolve(
                     lock, skip_additional_artifacts=skip_additional_artifacts, skip_urls=skip_urls
                 )
-                for lock in downloaded.locks
+                for lock in downloaded.locked_resolves
             )
         ),
     )
@@ -77,10 +77,10 @@ def test_lock_single_target(
 
     downloaded = resolver.download(requirements=requirements, lock_configuration=lock_configuration)
 
-    assert 1 == len(downloaded.locks)
-    lock = downloaded.locks[0]
+    assert 1 == len(downloaded.locked_resolves)
+    lock = downloaded.locked_resolves[0]
 
-    assert DistributionTarget.current() == lock.target
+    assert DistributionTarget.current().get_supported_tags()[0] == lock.platform_tag
 
     def pin(local_distribution):
         # type: (LocalDistribution) -> Pin

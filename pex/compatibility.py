@@ -10,10 +10,10 @@ import os
 from abc import ABCMeta
 from sys import version_info as sys_version_info
 
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Optional, AnyStr, Text
+    from typing import Optional, AnyStr, Text, Tuple, Type
 
 
 try:
@@ -28,7 +28,7 @@ AbstractClass = ABCMeta("AbstractClass", (object,), {})
 PY2 = sys_version_info[0] == 2
 PY3 = sys_version_info[0] == 3
 
-string = (str,) if PY3 else (str, unicode)  # type: ignore[name-defined]
+string = cast("Tuple[Type, ...]", (str,) if PY3 else (str, unicode))  # type: ignore[name-defined]
 
 if PY2:
     from collections import Iterable as Iterable
