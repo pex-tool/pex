@@ -7,7 +7,7 @@ import os
 from argparse import ArgumentParser, Namespace
 
 from pex import pex_bootstrapper
-from pex.commands.command import GlobalConfigurationError, Main, Result
+from pex.commands.command import GlobalConfigurationError, Main, Result, catch
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.tools import commands
@@ -87,7 +87,7 @@ def main(pex=None):
                 )
                 pex = PEX(pex_file_path, interpreter=interpreter)
 
-            result = pex_command.run(pex)
+            result = catch(pex_command.run, pex)
             result.maybe_display()
             return result.exit_code
     except GlobalConfigurationError as e:

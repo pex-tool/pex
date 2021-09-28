@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 from pex.cli import commands
 from pex.cli.command import BuildTimeCommand
-from pex.commands.command import GlobalConfigurationError, Main
+from pex.commands.command import GlobalConfigurationError, Main, catch
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ def main():
     pex3 = Pex3(command_types=commands.all_commands())
     try:
         with pex3.parsed_command() as command:
-            result = command.run()
+            result = catch(command.run)
             result.maybe_display()
             return result.exit_code
     except GlobalConfigurationError as e:
