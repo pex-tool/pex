@@ -8,12 +8,14 @@ import json
 from pex import compatibility
 from pex.cli.commands.lockfile import ParseError
 from pex.cli.commands.lockfile.lockfile import Lockfile
+from pex.enum import Enum
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import (
     Artifact,
     Fingerprint,
     LockedRequirement,
     LockedResolve,
+    LockStyle,
     Pin,
     Version,
 )
@@ -31,8 +33,11 @@ if TYPE_CHECKING:
         Text,
         Tuple,
         Type,
+        TypeVar,
         Union,
     )
+
+    _V = TypeVar("_V", bound=Enum.Value)
 
 
 def _load_json(
@@ -99,10 +104,18 @@ def loads(
                 "{key!r}.".format(path=path, source=source, key=key)
             )
 
-    try:
-        resolver_version = ResolverVersion.for_value(get("resolver_version"))
-    except ValueError as e:
-        raise ParseError("The '.resolver_version' is invalid: {err}".format(err=e))
+    def get_enum_value(
+        enum_type,  # type: Type[Enum[_V]]
+        key,  # type: str
+        path=".",  # type: str
+    ):
+        # type: (...) -> _V
+        try:
+            return enum_type.for_value(get(key, path=path))
+        except ValueError as e:
+            raise ParseError(
+                "The '{path}[\"{key}\"]' is invalid: {err}".format(key=key, path=path, err=e)
+            )
 
     def parse_requirement(
         raw_requirement,  # type: str
@@ -220,7 +233,8 @@ def loads(
 
     return Lockfile.create(
         pex_version=get("pex_version"),
-        resolver_version=resolver_version,
+        style=get_enum_value(LockStyle, "style"),
+        resolver_version=get_enum_value(ResolverVersion, "resolver_version"),
         requirements=requirements,
         constraints=constraints,
         allow_prereleases=get("allow_prereleases", bool),
@@ -246,6 +260,7 @@ def as_json_data(lockfile):
     # type: (Lockfile) -> Dict[str, Any]
     return {
         "pex_version": lockfile.pex_version,
+        "style": str(lockfile.style),
         "resolver_version": str(lockfile.resolver_version),
         "requirements": [str(req) for req in lockfile.requirements],
         "constraints": [str(constraint) for constraint in lockfile.constraints],

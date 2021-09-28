@@ -18,6 +18,7 @@ from pex.resolve.locked_resolve import (
     Fingerprint,
     LockedRequirement,
     LockedResolve,
+    LockStyle,
     Pin,
     Version,
 )
@@ -41,6 +42,7 @@ def test_roundtrip(tmpdir):
 
     lockfile = Lockfile.create(
         pex_version="1.2.3",
+        style=LockStyle.STRICT,
         resolver_version=ResolverVersion.PIP_2020,
         requirements=(
             Requirement.parse("ansicolors"),
@@ -146,6 +148,7 @@ VALID_LOCK = """\
     "ansicolors"
   ],
   "resolver_version": "pip-legacy-resolver",
+  "style": "sources",
   "transitive": true
 }
 """
@@ -357,10 +360,28 @@ def test_load_invalid_resolver_version(patch_tool):
                ],
             -  "resolver_version": "pip-legacy-resolver",
             +  "resolver_version": "apache-ivy",
+               "style": "sources",
+            """
+        ),
+        match=re.escape("The '.[\"resolver_version\"]' is invalid: "),
+    )
+
+
+def test_load_invalid_style(patch_tool):
+    # type: (PatchTool) -> None
+
+    assert_parse_error(
+        patch_tool,
+        dedent(
+            """\
+            @@ -39,3 +39,3 @@
+               "resolver_version": "pip-legacy-resolver",
+            -  "style": "sources",
+            +  "style": "foo",
                "transitive": true
             """
         ),
-        match=re.escape("The '.resolver_version' is invalid: "),
+        match=re.escape("The '.[\"style\"]' is invalid: "),
     )
 
 

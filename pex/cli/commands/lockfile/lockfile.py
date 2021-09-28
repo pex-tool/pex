@@ -7,7 +7,7 @@ import os
 
 from pex.compatibility import urlparse
 from pex.distribution_target import DistributionTarget
-from pex.resolve.locked_resolve import LockedResolve
+from pex.resolve.locked_resolve import LockedResolve, LockStyle
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
@@ -126,6 +126,7 @@ class Lockfile(object):
     def create(
         cls,
         pex_version,  # type: str
+        style,  # type: LockStyle.Value
         resolver_version,  # type: ResolverVersion.Value
         requirements,  # type: Iterable[Requirement]
         constraints,  # type: Iterable[Requirement]
@@ -138,6 +139,7 @@ class Lockfile(object):
         # type: (...) -> Lockfile
         return cls(
             pex_version=pex_version,
+            style=style,
             resolver_version=resolver_version,
             requirements=SortedTuple(requirements, key=str),
             constraints=SortedTuple(constraints, key=str),
@@ -149,6 +151,7 @@ class Lockfile(object):
         )
 
     pex_version = attr.ib()  # type: str
+    style = attr.ib()  # type: LockStyle.Value
     resolver_version = attr.ib()  # type: ResolverVersion.Value
     requirements = attr.ib()  # type: SortedTuple[Requirement]
     constraints = attr.ib()  # type: SortedTuple[Requirement]

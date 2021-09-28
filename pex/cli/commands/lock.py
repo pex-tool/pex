@@ -189,6 +189,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         lf = Lockfile.create(
             pex_version=__version__,
+            style=lock_configuration.style,
             resolver_version=pip_configuration.resolver_version,
             requirements=requirements,
             constraints=constraints,
