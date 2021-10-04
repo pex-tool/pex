@@ -131,12 +131,6 @@ class LockUpdater(object):
                 )
                 raise e
 
-    def _log(self, message):
-        if self.dry_run:
-            print(message)
-        else:
-            logger.info(message)
-
     def update_resolve(
         self,
         locked_resolve,  # type: LockedResolve
