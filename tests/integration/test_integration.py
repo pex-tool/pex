@@ -614,7 +614,7 @@ def test_pex_exit_code_propagation():
     with temporary_content({"tester.py": test_stub}) as output_dir:
         pex_path = os.path.join(output_dir, "test.pex")
         tester_path = os.path.join(output_dir, "tester.py")
-        results = run_pex_command(["pytest==3.9.1", "-e", "pytest:main", "-o", pex_path])
+        results = run_pex_command(["pytest", "-c", "pytest", "-o", pex_path])
         results.assert_success()
 
         assert subprocess.call([pex_path, os.path.realpath(tester_path)]) == 1
@@ -734,7 +734,7 @@ def test_pex_resource_bundling():
                     resources_input_dir,
                     "-e",
                     "exe",
-                    "setuptools==17.0",
+                    "setuptools==44.0",
                 ]
             )
             res.assert_success()
@@ -802,7 +802,7 @@ def test_pex_console_script_custom_setuptools_useable():
             version='0.0.0',
             zip_safe=True,
             packages=[''],
-            install_requires=['setuptools==36.2.7'],
+            install_requires=['setuptools==43.0.0'],
             entry_points={'console_scripts': ['my_app_function = my_app:do_something']},
         )
   """
@@ -810,14 +810,9 @@ def test_pex_console_script_custom_setuptools_useable():
 
     my_app = dedent(
         """
-        import sys
-
         def do_something():
-            try:
-                from setuptools.sandbox import run_setup
-                return 0
-            except:
-                return 1
+            import setuptools
+            assert '43.0.0' == setuptools.__version__
   """
     )
 
@@ -844,8 +839,15 @@ def pex_with_no_entrypoints():
     # type: () -> Iterator[Tuple[str, bytes, str]]
     with temporary_dir() as out:
         pex = os.path.join(out, "pex.pex")
-        run_pex_command(["setuptools==36.2.7", "-o", pex])
-        test_script = b"from setuptools.sandbox import run_setup; print(str(run_setup))"
+        run_pex_command(["setuptools==43.0.0", "-o", pex])
+        test_script = dedent(
+            """\
+            import sys
+            import setuptools
+
+            sys.exit(0 if '43.0.0' == setuptools.__version__ else 1)
+            """
+        ).encode("utf-8")
         yield pex, test_script, out
 
 
