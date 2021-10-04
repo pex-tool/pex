@@ -148,7 +148,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             type=bool,
             help=(
                 "Require all target platforms in the lock be updated at once. If any target "
-                "platform in the lock file does not have a representative local interpreter to"
+                "platform in the lock file does not have a representative local interpreter to "
                 "execute the lock update with, the update will fail."
             ),
         )
