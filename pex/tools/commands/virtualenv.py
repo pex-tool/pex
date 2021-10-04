@@ -10,10 +10,11 @@ import sys
 from contextlib import closing
 
 from pex.common import AtomicDirectory, is_exe, safe_mkdir
+from pex.compatibility import get_stdout_bytes_buffer
 from pex.interpreter import PythonInterpreter
 from pex.third_party.pkg_resources import resource_string
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
@@ -226,20 +227,25 @@ class Virtualenv(object):
                 continue
             python_scripts.append(executable)
         if python_scripts:
-            with closing(fileinput.input(files=sorted(python_scripts), inplace=True)) as fi:
+            with closing(
+                fileinput.input(files=sorted(python_scripts), inplace=True, mode="rb")
+            ) as fi:
                 # N.B.: `fileinput` is strange, but useful: the context manager above monkey-patches
                 # sys.stdout to print to the corresponding original input file, which is has moved
                 # aside.
                 for line in fi:
+                    buffer = get_stdout_bytes_buffer()
                     if fi.isfirstline():
                         shebang = [python or self._interpreter.binary]
                         if python_args:
                             shebang.append(python_args)
-                        print("#!{shebang}".format(shebang=" ".join(shebang)))
+                        buffer.write(
+                            "#!{shebang}\n".format(shebang=" ".join(shebang)).encode("utf-8")
+                        )
                         yield fi.filename()
                     else:
                         # N.B.: These lines include the newline already.
-                        sys.stdout.write(line)
+                        buffer.write(cast(bytes, line))
 
     def install_pip(self):
         # type: () -> None

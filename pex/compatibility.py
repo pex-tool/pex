@@ -7,7 +7,9 @@
 from __future__ import absolute_import
 
 import os
+import sys
 from abc import ABCMeta
+from io import BytesIO
 from sys import version_info as sys_version_info
 
 from pex.typing import TYPE_CHECKING, cast
@@ -146,3 +148,8 @@ WINDOWS = os.name == "nt"
 
 # Universal newlines is the default in Python 3.
 MODE_READ_UNIVERSAL_NEWLINES = "rU" if PY2 else "r"
+
+
+def get_stdout_bytes_buffer():
+    # type: () -> BytesIO
+    return cast(BytesIO, getattr(sys.stdout, "buffer", sys.stdout))
