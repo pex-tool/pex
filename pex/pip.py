@@ -22,7 +22,7 @@ from textwrap import dedent
 
 from pex import dist_metadata, third_party
 from pex.common import atomic_directory, is_python_script, safe_mkdtemp
-from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, urlparse
+from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, get_stdout_bytes_buffer, urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
 from pex.fetcher import URLFetcher
@@ -1051,17 +1051,18 @@ class Pip(object):
         if not scripts:
             return
 
-        with closing(fileinput.input(files=scripts, inplace=True)) as script_fi:
+        with closing(fileinput.input(files=scripts, inplace=True, mode="rb")) as script_fi:
             for line in script_fi:
+                buffer = get_stdout_bytes_buffer()
                 if script_fi.isfirstline():
                     # Ensure python shebangs are reproducible. The only place these can be used is
                     # in venv mode PEXes where the `#!python` placeholder shebang will be re-written
                     # to use the venv's python interpreter.
-                    print("#!python")
+                    buffer.write(b"#!python\n")
                     yield os.path.relpath(script_fi.filename(), install_dir)
                 else:
                     # N.B.: These lines include the newline already.
-                    sys.stdout.write(line)
+                    buffer.write(cast(bytes, line))
 
     def spawn_install_wheel(
         self,
