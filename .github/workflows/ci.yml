@@ -8,7 +8,8 @@ env:
   _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.8"
 concurrency:
   group: CI-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue on all branches and tags, but only cancel overlapping PR burns.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' || !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   org-check:
     name: Check GitHub Organization
