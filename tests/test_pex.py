@@ -714,12 +714,12 @@ def test_pex_run_strip_env():
 
 def test_pex_run_custom_setuptools_useable():
     # type: () -> None
-    result = resolver.resolve(["setuptools==36.2.7"])
+    result = resolver.resolve(["setuptools==43.0.0"])
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
             temp_dir,
-            "from setuptools.sandbox import run_setup",
+            "import setuptools, sys; sys.exit(0 if '43.0.0' == setuptools.__version__ else 1)",
             dists=dists,
         )
         rc = PEX(pex.path()).run()
@@ -729,15 +729,9 @@ def test_pex_run_custom_setuptools_useable():
 def test_pex_run_conflicting_custom_setuptools_useable():
     # type: () -> None
     # Here we use our vendored, newer setuptools to build the pex which has an older setuptools
-    # requirement. These setuptools dists have different pkg_resources APIs:
-    # $ diff \
-    #   <(zipinfo -1 setuptools-20.3.1-py2.py3-none-any.whl | grep pkg_resources/ | sort) \
-    #   <(zipinfo -1 setuptools-40.6.2-py2.py3-none-any.whl | grep pkg_resources/ | sort)
-    # 2a3,4
-    # > pkg_resources/py31compat.py
-    # > pkg_resources/_vendor/appdirs.py
+    # requirement.
 
-    result = resolver.resolve(["setuptools==20.3.1"])
+    result = resolver.resolve(["setuptools==43.0.0"])
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
@@ -745,19 +739,9 @@ def test_pex_run_conflicting_custom_setuptools_useable():
             exe_contents=textwrap.dedent(
                 """
                 import sys
-                import pkg_resources
+                import setuptools
 
-                try:
-                    from pkg_resources import appdirs
-                    sys.exit(1)
-                except ImportError:
-                    pass
-
-                try:
-                    from pkg_resources import py31compat
-                    sys.exit(2)
-                except ImportError:
-                    pass
+                sys.exit(0 if '43.0.0' == setuptools.__version__ else 1)
                 """
             ),
             dists=dists,
@@ -800,6 +784,7 @@ def test_pex_run_custom_pex_useable():
         assert old_pex_version != __version__
 
 
+@pytest.mark.skipif(PY2, reason="ResourceWarning was only introduced in Python 3.2.")
 def test_interpreter_teardown_dev_null_unclosed_resource_warning_suppressed():
     # type: () -> None
 
@@ -810,6 +795,7 @@ def test_interpreter_teardown_dev_null_unclosed_resource_warning_suppressed():
         pex_builder.freeze()
 
         output = subprocess.check_output(
-            args=[sys.executable, "-W" "all", pex_chroot, "-c", ""], stderr=subprocess.STDOUT
+            args=[sys.executable, "-W", "error::ResourceWarning", pex_chroot, "-c", ""],
+            stderr=subprocess.STDOUT,
         )
         assert b"" == output
