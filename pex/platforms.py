@@ -310,10 +310,29 @@ class Platform(object):
 
         if "linux" in self.platform:
             env["os_name"] = "posix"
+            if self.platform.startswith(
+                ("linux_", "manylinux1_", "manylinux2010_", "manylinux2014_")
+            ):
+                # E.G.:
+                # + linux_x86_64
+                # + manylinux{1,2010,2014}_x86_64
+                # For the manylinux* See:
+                # + manylinux1: https://www.python.org/dev/peps/pep-0513/
+                # + manylinux2010: https://www.python.org/dev/peps/pep-0571/
+                # + manylinux2014: https://www.python.org/dev/peps/pep-0599/
+                env["platform_machine"] = self.platform.split("_", 1)[-1]
+            else:
+                # E.G.: manylinux_<glibc major>_<glibc_minor>_x86_64
+                # See: https://www.python.org/dev/peps/pep-0600/
+                env["platform_machine"] = self.platform.split("_", 3)[-1]
             env["platform_system"] = "Linux"
             env["sys_platform"] = "linux2" if major_version == 2 else "linux"
         elif "mac" in self.platform:
             env["os_name"] = "posix"
+            # E.G:
+            # + macosx_10_15_x86_64
+            # + macosx_11_0_arm64
+            env["platform_machine"] = self.platform.split("_", 3)[-1]
             env["platform_system"] = "Darwin"
             env["sys_platform"] = "darwin"
 

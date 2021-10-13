@@ -113,6 +113,7 @@ def test_platform_marker_environment():
     assert_known_marker("python_version == '3.7'")
     assert_known_marker("implementation_name == 'cpython'")
     assert_known_marker("platform_system == 'Linux'")
+    assert_known_marker("platform_machine == 'x86_64'")
 
     def assert_unknown_marker(expression):
         # type: (str) -> None
@@ -123,4 +124,23 @@ def test_platform_marker_environment():
     assert_unknown_marker("python_full_version == '3.7.10'")
     assert_unknown_marker("platform_release == '5.12.12-arch1-1'")
     assert_unknown_marker("platform_version == '#1 SMP PREEMPT Fri, 18 Jun 2021 21:59:22 +0000'")
-    assert_unknown_marker("platform_machine == 'x86_64'")
+
+
+def test_platform_marker_environment_issue_1488():
+    # type: () -> None
+
+    def assert_platform_machine(
+        expected,  # type: str
+        platform,  # type: str
+    ):
+        assert expected == Platform.create(platform).marker_environment()["platform_machine"]
+
+    assert_platform_machine("x86_64", "linux-x86_64-cp-37-cp37m")
+    assert_platform_machine("x86_64", "manylinux1-x86_64-cp-37-cp37m")
+    assert_platform_machine("x86_64", "manylinux2010-x86_64-cp-37-cp37m")
+    assert_platform_machine("x86_64", "manylinux2014-x86_64-cp-37-cp37m")
+    assert_platform_machine("x86_64", "manylinux_2_5-x86_64-cp-37-cp37m")
+    assert_platform_machine("aarch64", "manylinux_2_77-aarch64-cp-37-cp37m")
+
+    assert_platform_machine("x86_64", "macosx-10.15-x86_64-cp-38-m")
+    assert_platform_machine("arm64", "macosx-11.0-arm64-cp-39-cp39")
