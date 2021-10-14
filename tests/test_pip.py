@@ -202,3 +202,38 @@ def test_download_platform_markers_issue_1366_indeterminate(
         "evaluation of unknown environment marker: 'python_full_version' does not exist in "
         "evaluation environment."
     ) in str(exc_info.value)
+
+
+def test_download_platform_markers_issue_1488(
+    create_pip,  # type: CreatePip
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+
+    constraints_file = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints_file, "w") as fp:
+        fp.write("greenlet==1.1.2")
+
+    download_dir = os.path.join(str(tmpdir), "downloads")
+
+    python39_platform = Platform.create("linux-x86_64-cp-39-cp39")
+    create_pip(None).spawn_download_distributions(
+        target=DistributionTarget.for_platform(python39_platform, manylinux="manylinux2014"),
+        requirements=["SQLAlchemy==1.4.25"],
+        constraint_files=[constraints_file],
+        download_dir=download_dir,
+        transitive=True,
+    ).wait()
+
+    assert (
+        sorted(
+            [
+                (
+                    "SQLAlchemy-1.4.25-cp39-cp39-manylinux_2_5_x86_64.manylinux1_x86_64"
+                    ".manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+                ),
+                "greenlet-1.1.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            ]
+        )
+        == sorted(os.listdir(download_dir))
+    )
