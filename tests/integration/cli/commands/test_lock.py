@@ -258,6 +258,7 @@ def test_update_noop_dry_run(lock_file_path):
 
 def test_update_targeted_upgrade(lock_file_path):
     # type: (str) -> None
+    assert SortedTuple() == lockfile.load(lock_file_path).constraints
     result = run_lock_update("-p", "urllib3<1.26.7", lock_file_path)
     result.assert_success()
     assert not result.output
@@ -267,6 +268,7 @@ def test_update_targeted_upgrade(lock_file_path):
     )
 
     lock_file = lockfile.load(lock_file_path)
+    assert SortedTuple([Requirement.parse("urllib3<1.26.7")]) == lock_file.constraints
     assert 1 == len(lock_file.locked_resolves)
     locked_resolve = lock_file.locked_resolves[0]
     assert 5 == len(locked_resolve.locked_requirements)
