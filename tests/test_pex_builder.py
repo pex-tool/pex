@@ -5,6 +5,7 @@ import filecmp
 import os
 import stat
 import subprocess
+import sys
 import zipfile
 
 import pytest
@@ -15,7 +16,7 @@ from pex.executor import Executor
 from pex.layout import Layout
 from pex.pex import PEX
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import built_wheel, make_bdist
+from pex.testing import built_wheel, make_bdist, make_env
 from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -404,3 +405,86 @@ def test_pex_builder_exclude_bootstrap_testing(
     assert not [
         f for f in bootstrap_files if f.endswith(("testing.py", "testing.pyc"))
     ], "Expected testing support files to be stripped from the Pex `.bootstrap`."
+
+
+@pytest.mark.parametrize(
+    "strip_pex_env", [pytest.param(True, id="StripPexEnv"), pytest.param(False, id="NoStripPexEnv")]
+)
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
+)
+@pytest.mark.parametrize("venv", [pytest.param(True, id="VENV"), pytest.param(False, id="UNZIP")])
+def test_pex_env_var_issues_1485(
+    tmpdir,  # type: Any
+    strip_pex_env,  # type: bool
+    venv,  # type: bool
+    layout,  # type: Layout.Value
+):
+    # type: (...) -> None
+
+    pex_path = os.path.join(str(tmpdir), "empty.pex")
+    pb = PEXBuilder()
+    pb.info.strip_pex_env = strip_pex_env
+    pb.info.venv = venv
+    pb.build(pex_path, layout=layout)
+
+    launch_args = [pex_path] if layout == Layout.ZIPAPP else [sys.executable, pex_path]
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
+    def assert_pex_env_var(
+        script,  # type: str
+        expected_pex_env_var,  # type: str
+        expect_empty_pex_root,  # type: bool
+        expected_layout=layout,  # type: Layout.Value
+    ):
+        # type: (...) -> None
+        if expect_empty_pex_root:
+            assert not os.path.exists(pex_root)
+        else:
+            assert len(os.listdir(pex_root)) > 0
+        output = subprocess.check_output(
+            launch_args + ["-c", script], env=make_env(PEX_ROOT=pex_root)
+        )
+        actual = output.decode("utf-8").strip()
+        assert os.path.realpath(expected_pex_env_var) == actual
+        if Layout.ZIPAPP == expected_layout:
+            assert zipfile.is_zipfile(actual)
+        else:
+            assert os.path.isdir(actual)
+
+    print_pex_env_var_script = "import os; print(os.environ['PEX'])"
+
+    assert_pex_env_var(
+        script=print_pex_env_var_script,
+        expected_pex_env_var=pex_path,
+        expect_empty_pex_root=True,
+    )
+    assert_pex_env_var(
+        script=print_pex_env_var_script,
+        expected_pex_env_var=pex_path,
+        expect_empty_pex_root=False,
+    )
+
+    other_pex_path = os.path.join(str(tmpdir), "other.pex")
+    other_pb = PEXBuilder()
+    other_pb.info.includes_tools = True
+    other_pex_main = os.path.join(str(tmpdir), "main.py")
+    with open(other_pex_main, mode="w") as fp:
+        fp.write(print_pex_env_var_script)
+    other_pb.set_executable(other_pex_main)
+    other_pb.build(other_pex_path, layout=Layout.ZIPAPP)
+
+    def assert_pex_env_var_nested(**env):
+        # type: (**Any) -> None
+        assert_pex_env_var(
+            script="import subprocess; subprocess.check_call([{other_pex!r}], env={env!r})".format(
+                other_pex=other_pex_path, env=make_env(**env)
+            ),
+            expected_pex_env_var=other_pex_path,
+            expect_empty_pex_root=False,
+            expected_layout=Layout.ZIPAPP,
+        )
+
+    assert_pex_env_var_nested()
+    assert_pex_env_var_nested(PEX_VENV=False)
+    assert_pex_env_var_nested(PEX_VENV=True)
