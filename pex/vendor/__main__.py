@@ -222,8 +222,11 @@ def vendorize(root_dir, vendor_specs, prefix):
         ]
 
         constraints_file = os.path.join(vendor_spec.target_dir, "constraints.txt")
-        if vendor_spec.constrain and os.path.isfile(constraints_file):
-            cmd.extend(["--constraint", constraints_file])
+        if vendor_spec.constrain:
+            # Use the last checked-in constraints if any.
+            subprocess.call(["git", "checkout", "--", constraints_file])
+            if os.path.isfile(constraints_file):
+                cmd.extend(["--constraint", constraints_file])
 
         result = subprocess.call(cmd)
         if result != 0:
