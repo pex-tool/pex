@@ -216,7 +216,6 @@ jobs:
           tox-env: pypy${{ matrix.pypy-version[0] }}-integration
   final-status:
     name: Gather Final Status
-    if: always()
     needs:
       - checks
       - cpython-unit-tests
