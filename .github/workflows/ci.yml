@@ -13,7 +13,7 @@ concurrency:
 jobs:
   org-check:
     name: Check GitHub Organization
-    if: ${{ github.repository_owner == 'pantsbuild' }}
+    if: github.repository_owner == 'pantsbuild'
     runs-on: ubuntu-20.04
     steps:
       - name: Noop
@@ -215,3 +215,22 @@ jobs:
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
           tox-env: pypy${{ matrix.pypy-version[0] }}-integration
+  final-status:
+    name: Gather Final Status
+    if: always()
+    needs:
+      - checks
+      - cpython-unit-tests
+      - pypy-unit-tests
+      - cpython-integration-tests
+      - pypy-integration-tests
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check Non-Success
+        if: |
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'skipped')
+        run: "false"
+      - name: Success
+        run: "true"
