@@ -1,5 +1,8 @@
 name: CI
 on: [push, pull_request]
+defaults:
+  run:
+    shell: bash
 env:
   _PEX_TEST_PYENV_ROOT: .pyenv_test
   # We use this to skip exposing same-versioned Pythons present on Linux hosts. These otherwise can
@@ -82,7 +85,6 @@ jobs:
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
           echo "::set-output name=skip::${skip}"
-        shell: bash
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
@@ -118,7 +120,6 @@ jobs:
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
           echo "::set-output name=skip::${skip}"
-        shell: bash
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
@@ -155,7 +156,6 @@ jobs:
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
           echo "::set-output name=skip::${skip}"
-        shell: bash
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
@@ -191,7 +191,6 @@ jobs:
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
           echo "::set-output name=skip::${skip}"
-        shell: bash
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
