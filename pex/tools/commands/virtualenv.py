@@ -107,21 +107,16 @@ class Virtualenv(object):
                 V=3,
             )
 
+        custom_prompt = None  # type: Optional[str]
         py_major_minor = interpreter.version[:2]
         if py_major_minor[0] >= 3 and not interpreter.identity.interpreter == "PyPy":
             # N.B.: PyPy3 comes equipped with a venv module but it does not seem to work.
             args = ["-m", "venv", "--without-pip", venv_dir]
             if copies:
                 args.append("--copies")
-            if prompt:
-                if py_major_minor >= (3, 6):
-                    args.extend(["--prompt", prompt])
-                else:
-                    logger.warning(
-                        "Unable to apply custom --prompt {prompt!r} in Python {version} "
-                        "venv; continuing with the default prompt assigned by the venv "
-                        "module".format(prompt=prompt, version=".".join(map(str, py_major_minor)))
-                    )
+            if prompt and py_major_minor >= (3, 6):
+                args.extend(["--prompt", prompt])
+                custom_prompt = prompt
             interpreter.execute(args=args, env=env)
         else:
             virtualenv_py = resource_string(__name__, "virtualenv_16.7.12_py")
@@ -133,8 +128,9 @@ class Virtualenv(object):
                     args.append("--always-copy")
                 if prompt:
                     args.extend(["--prompt", prompt])
+                    custom_prompt = prompt
                 interpreter.execute(args=args, env=env)
-        return cls(venv_dir)
+        return cls(venv_dir, custom_prompt=custom_prompt)
 
     @classmethod
     def create_atomic(
@@ -161,9 +157,11 @@ class Virtualenv(object):
         self,
         venv_dir,  # type: str
         python_exe_name="python",  # type: str
+        custom_prompt=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self._venv_dir = venv_dir
+        self._custom_prompt = custom_prompt
         self._bin_dir = os.path.join(venv_dir, "bin")
         self._interpreter = PythonInterpreter.from_binary(
             os.path.join(self._bin_dir, python_exe_name)
@@ -186,6 +184,11 @@ class Virtualenv(object):
     def venv_dir(self):
         # type: () -> str
         return self._venv_dir
+
+    @property
+    def custom_prompt(self):
+        # type: () -> Optional[str]
+        return self._custom_prompt
 
     def join_path(self, *components):
         # type: (*str) -> str
