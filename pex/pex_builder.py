@@ -59,12 +59,8 @@ import sys
 __INSTALLED_FROM__ = '__PEX_EXE__'
 
 
-def __re_exec__(pex, args):
-  # N.B.: This is read upon re-exec below to point sys.argv[0] back to the original pex before
-  # unconditionally scrubbing the env var and handing off to user code.
-  os.environ[__INSTALLED_FROM__] = pex
-
-  os.execv(args[0], args)
+def __re_exec__(argv0, *extra_launch_args):
+  os.execv(argv0, [argv0] + list(extra_launch_args) + sys.argv[1:])
 
 
 def __maybe_install_pex__(pex, pex_root, pex_hash):
@@ -75,8 +71,12 @@ def __maybe_install_pex__(pex, pex_root, pex_hash):
   if not installed_location:
     return
 
+  # N.B.: This is read upon re-exec below to point sys.argv[0] back to the original pex before
+  # unconditionally scrubbing the env var and handing off to user code.
+  os.environ[__INSTALLED_FROM__] = pex
+
   TRACER.log('Executing installed PEX for {{}} at {{}}'.format(pex, installed_location))
-  __re_exec__(pex, [sys.executable, installed_location] + sys.argv[1:])
+  __re_exec__(sys.executable, installed_location)
 
 
 def __maybe_run_venv__(pex, pex_root, pex_path):
@@ -97,7 +97,7 @@ def __maybe_run_venv__(pex, pex_root, pex_path):
     return
 
   TRACER.log('Executing venv PEX for {{}} at {{}}'.format(pex, venv_pex))
-  __re_exec__(pex, [venv_pex] + sys.argv[1:])
+  __re_exec__(venv_pex)
 
 
 __entry_point__ = None
@@ -121,6 +121,7 @@ sys.path[0] = os.path.abspath(sys.path[0])
 sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, {bootstrap_dir!r})))
 
 if not __installed_from__:
+    os.environ['PEX'] = os.path.realpath(__entry_point__)
     from pex.variables import ENV, Variables
     __pex_root__ = Variables.PEX_ROOT.value_or(ENV, {pex_root!r})
     if not ENV.PEX_TOOLS and Variables.PEX_VENV.value_or(ENV, {is_venv!r}):
@@ -130,6 +131,8 @@ if not __installed_from__:
         pex_path=Variables.PEX_PATH.value_or(ENV, {pex_path!r}),
       )
     __maybe_install_pex__(__entry_point__, pex_root=__pex_root__, pex_hash={pex_hash!r})
+else:
+    os.environ['PEX'] = os.path.realpath(__installed_from__)
 
 from pex.pex_bootstrapper import bootstrap_pex
 bootstrap_pex(__entry_point__)

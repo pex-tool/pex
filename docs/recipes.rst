@@ -3,6 +3,14 @@
 PEX Recipes and Notes
 =====================
 
+PEX-aware application
+---------------------
+
+If your code benefits from knowing whether it is running from within a PEX or not, you can inspect
+the ``PEX`` environment variable. If it is set, it will be the absolute path of the PEX your code
+is running in. Normally this will be a PEX zip file, but it could be a directory path if the PEX was
+built with a ``--layout`` of ``packed`` or ``loose``.
+
 Gunicorn and PEX
 ----------------
 
@@ -14,8 +22,8 @@ can't enter a PEX file to retrieve the wsgi instance, but that doesn't prevent
 the PEX from invoking Gunicorn.
 
 This retains the benefit of zero `pip install`'s to run your service, but it
-requires a bit more setup as you must ensure Gunicorn is packaged as a dependency. 
-The following snippets assume Flask as the wsgi framework, Django setup should be 
+requires a bit more setup as you must ensure Gunicorn is packaged as a dependency.
+The following snippets assume Flask as the wsgi framework, Django setup should be
 similar:
 
 .. code-block:: bash
@@ -30,7 +38,7 @@ configuration can be passed in the same way:
 
   $ service.pex myapp:appinstance -c /path/to/gunicorn_config.py
 
-And there you have it, a fully portable python web service. 
+And there you have it, a fully portable python web service.
 
 PEX and Proxy settings
 ----------------------
@@ -39,22 +47,22 @@ While building pex files, you may need to fetch dependencies through a proxy. Th
 
 1) Install pex with requests
 
-.. code-block:: bash 
+.. code-block:: bash
 
     $ pip install pex[requests]
 
 2) Set the environment variables
 
-.. code-block:: bash 
+.. code-block:: bash
 
     $ # Hopefully your proxy supports https! If not, you can export HTTP_PROXY:
     $ # export HTTP_PROXY='http://user:pass@address:port'
     $ export HTTPS_PROXY='https://user:pass@address:port'
-    
-3) Now you can test by running 
- 
-.. code-block:: bash 
+
+3) Now you can test by running
+
+.. code-block:: bash
 
     $ pex -v pex
-    
+
 For more information on the requests module support for proxies via environment variables, see the official documentation here: http://docs.python-requests.org/en/master/user/advanced/#proxies.
