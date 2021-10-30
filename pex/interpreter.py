@@ -728,7 +728,6 @@ class PythonInterpreter(object):
 
 
                         encoded_identity = PythonIdentity.get(binary={binary!r}).encode()
-                        sys.stdout.write(encoded_identity)
                         with atomic_directory({cache_dir!r}, exclusive=False) as cache_dir:
                             if not cache_dir.is_finalized:
                                 with safe_open(
@@ -749,7 +748,7 @@ class PythonInterpreter(object):
                 cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
             )
             job = Job(command=cmd, process=process, finalizer=lambda: safe_rmtree(cwd))
-            return SpawnedJob.stdout(job, result_func=create_interpreter)
+            return SpawnedJob.file(job, output_file=cache_file, result_func=create_interpreter)
 
     @classmethod
     def _expand_path(cls, path):

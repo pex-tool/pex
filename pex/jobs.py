@@ -8,7 +8,6 @@ import subprocess
 from abc import abstractmethod
 from threading import BoundedSemaphore, Event, Thread
 
-from pex.attrs import str_tuple_from_iterable
 from pex.compatibility import AbstractClass, Queue, cpu_count
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
@@ -105,6 +104,30 @@ class Job(object):
         finally:
             self._finalize_job()
 
+    def create_error(
+        self,
+        msg,  # type: str
+        stderr=None,  # type: Optional[bytes]
+    ):
+        # type: (...) -> Job.Error
+        """Creates an error with this Job's details.
+
+        :param msg: The message for the error.
+        :param stderr: Any stderr output captured from the job.
+        :return: A job error.
+        """
+        err = None
+        if stderr:
+            err = stderr.decode("utf-8")
+            msg += "\nSTDERR:\n{}".format(err)
+        raise self.Error(
+            pid=self._process.pid,
+            command=self._command,
+            exitcode=self._process.returncode,
+            stderr=err,
+            message=msg,
+        )
+
     def _finalize_job(self):
         if self._finalizer is not None:
             self._finalizer()
@@ -113,20 +136,10 @@ class Job(object):
     def _check_returncode(self, stderr=None):
         # type: (Optional[bytes]) -> None
         if self._process.returncode != 0:
-            err = None
             msg = "Executing {} failed with {}".format(
                 " ".join(self._command), self._process.returncode
             )
-            if stderr:
-                err = stderr.decode("utf-8")
-                msg += "\nSTDERR:\n{}".format(err)
-            raise self.Error(
-                pid=self._process.pid,
-                command=self._command,
-                exitcode=self._process.returncode,
-                stderr=err,
-                message=msg,
-            )
+            raise self.create_error(msg, stderr=stderr)
 
     def __str__(self):
         # type: () -> str
@@ -244,6 +257,56 @@ class SpawnedJob(Generic["_T"]):
                 return "SpawnedJob.stdout({!r})".format(job)
 
         return Stdout()
+
+    @classmethod
+    def file(
+        cls,
+        job,  # type: Job
+        output_file,  # type: str
+        result_func,  # type: Callable[[bytes], _T]
+        input=None,  # type: Optional[bytes]
+    ):
+        # type: (...) -> SpawnedJob[_T]
+        """Wait for the job to complete and return a result derived from a file the job creates.
+
+        :param job: The spawned job.
+        :param output_file: The path of the file the job will create.
+        :param result_func: A function taking the byte contents of the file the spawned job
+                            created and returning the desired result.
+        :param input: Optional input stream data to pass to the process as per the
+                      `subprocess.Popen.communicate` API.
+        :return: A spawned job whose result is derived from the contents of a file it creates.
+        """
+
+        def _read_file(stderr=None):
+            # type: (Optional[bytes]) -> bytes
+            try:
+                with open(output_file, "rb") as fp:
+                    return fp.read()
+            except (OSError, IOError) as e:
+                raise job.create_error(
+                    "Expected job to create file {output_file!r} but it did not exist or could not "
+                    "be read: {err}".format(output_file=output_file, err=e),
+                    stderr=stderr,
+                )
+
+        class File(SpawnedJob):
+            def await_result(self):
+                # type: () -> _T
+                _, stderr = job.communicate(input=input)
+                return result_func(_read_file(stderr=stderr))
+
+            def kill(self):
+                # type: () -> None
+                job.kill()
+
+            def __repr__(self):
+                # type: () -> str
+                return "SpawnedJob.file({job!r}, output_file={output_file!r})".format(
+                    job=job, output_file=output_file
+                )
+
+        return File()
 
     def await_result(self):
         # type: () -> _T
