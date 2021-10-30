@@ -4,17 +4,21 @@
 import glob
 import json
 import os
+import re
 import subprocess
+import sys
 from collections import defaultdict
 from contextlib import contextmanager
+from textwrap import dedent
 
 import pytest
 
 from pex import interpreter
-from pex.common import safe_mkdir, safe_mkdtemp, temporary_dir, touch
+from pex.common import chmod_plus_x, safe_mkdir, safe_mkdtemp, temporary_dir, touch
 from pex.compatibility import PY3
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.jobs import Job
 from pex.pyenv import Pyenv
 from pex.testing import (
     PY27,
@@ -417,3 +421,66 @@ def test_identify_cwd_isolation_issues_1231(tmpdir):
     assert 1 == len(interp_info_files)
     with open(interp_info_files.pop()) as fp:
         assert interp.binary == json.load(fp)["binary"]
+
+
+@pytest.fixture(scope="module")
+def macos_monterey_interpeter(tmpdir_factory):
+    # type: (Any) -> str
+    pythonwrapper = os.path.join(str(tmpdir_factory.mktemp("bin")), "pythonwrapper")
+    with open(pythonwrapper, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                #!/usr/bin/env bash
+                echo >&2 "pythonwrapper[3129:20922] \\
+                pythonwrapper is not supposed to be executed directly. Exiting."
+                exit 0
+                """
+            )
+        )
+    chmod_plus_x(pythonwrapper)
+
+    python = os.path.join(str(tmpdir_factory.mktemp("bin")), "python")
+    os.symlink(pythonwrapper, python)
+    return python
+
+
+def test_issue_1494_job_error_not_identification_error(
+    macos_monterey_interpeter,  # type: str
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    with ENV.patch(PEX_ROOT=pex_root):
+        spawned_job = PythonInterpreter._spawn_from_binary(macos_monterey_interpeter)
+        with pytest.raises(Job.Error) as exc_info:
+            spawned_job.await_result()
+        exc_info.match(
+            r"^Expected job to create file '{}/interpreters/[0-9a-f/]+/INTERP-INFO' "
+            r"but it did not exist or could not be read: ".format(re.escape(pex_root))
+        )
+        exc_info.match(
+            r"\n"
+            r"STDERR:\n"
+            r"pythonwrapper\[3129:20922\] "
+            r"pythonwrapper is not supposed to be executed directly. Exiting.\n$"
+        )
+
+
+def test_issue_1494_iter(macos_monterey_interpeter):
+    # type: (str) -> None
+    assert [PythonInterpreter.get()] == list(
+        PythonInterpreter.iter(paths=[sys.executable, macos_monterey_interpeter])
+    )
+
+
+def test_issue_1494_iter_candidates(macos_monterey_interpeter):
+    # type: (str) -> None
+    assert [
+        PythonInterpreter.get(),
+        (
+            macos_monterey_interpeter,
+            "pythonwrapper[3129:20922] pythonwrapper is not supposed to be executed directly. "
+            "Exiting.",
+        ),
+    ] == list(PythonInterpreter.iter_candidates(paths=[sys.executable, macos_monterey_interpeter]))
