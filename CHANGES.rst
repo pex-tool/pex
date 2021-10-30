@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+2.1.53
+------
+
+This release fixes a bug identifying certain interpreters on macOS
+Monterey. Additionally, Pex now exposes the ``PEX`` environment
+variable inside running PEXes to allow application code to both detect
+it's running from a PEX and determine where that PEX is located.
+
+* Guard against fake interpreters. (#1500)
+  `PR #1500 <https://github.com/pantsbuild/pex/pull/1500>`_
+
+* Introduce the ``PEX`` env var. (#1495)
+  `PR #1495 <https://github.com/pantsbuild/pex/pull/1495>`_
+
 2.1.52
 ------
 
