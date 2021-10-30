@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import functools
+import logging
 import os
 import re
 import shutil
@@ -13,7 +14,7 @@ from contextlib import contextmanager
 from textwrap import dedent
 from threading import Thread
 
-from pex import dist_metadata, pex_warnings
+from pex import dist_metadata
 from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result
 from pex.common import (
     DETERMINISTIC_DATETIME_TIMESTAMP,
@@ -38,6 +39,9 @@ if TYPE_CHECKING:
     RepositoryFunc = Callable[["Repository", PEX], Result]
 else:
     from pex.third_party import attr
+
+
+logger = logging.getLogger(__name__)
 
 
 @attr.s(frozen=True)
@@ -332,7 +336,7 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
                 PythonIdentity.parse_requirement(pex_info.interpreter_constraints[0]).specifier
             )
         elif pex_info.interpreter_constraints:
-            pex_warnings.warn(
+            logger.warning(
                 "Omitting `python_requires` for {name} sdist since {pex} has multiple "
                 "interpreter constraints:\n{interpreter_constraints}".format(
                     name=name,

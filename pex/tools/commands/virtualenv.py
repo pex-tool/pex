@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import fileinput
+import logging
 import os
 import re
 import sys
@@ -21,6 +22,9 @@ if TYPE_CHECKING:
     from typing import Iterator, Optional
 
 _MIN_PIP_PYTHON_VERSION = (2, 7, 9)
+
+
+logger = logging.getLogger(__name__)
 
 
 class PipUnavailableError(Exception):
@@ -75,6 +79,7 @@ class Virtualenv(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
         force=False,  # type: bool
         copies=False,  # type: bool
+        prompt=None,  # type: Optional[str]
     ):
         # type: (...) -> Virtualenv
         venv_dir = os.path.abspath(venv_dir)
@@ -102,11 +107,16 @@ class Virtualenv(object):
                 V=3,
             )
 
-        if interpreter.version[0] >= 3 and not interpreter.identity.interpreter == "PyPy":
+        custom_prompt = None  # type: Optional[str]
+        py_major_minor = interpreter.version[:2]
+        if py_major_minor[0] >= 3 and not interpreter.identity.interpreter == "PyPy":
             # N.B.: PyPy3 comes equipped with a venv module but it does not seem to work.
             args = ["-m", "venv", "--without-pip", venv_dir]
             if copies:
                 args.append("--copies")
+            if prompt and py_major_minor >= (3, 6):
+                args.extend(["--prompt", prompt])
+                custom_prompt = prompt
             interpreter.execute(args=args, env=env)
         else:
             virtualenv_py = resource_string(__name__, "virtualenv_16.7.12_py")
@@ -116,8 +126,11 @@ class Virtualenv(object):
                 args = [fp.name, "--no-pip", "--no-setuptools", "--no-wheel", venv_dir]
                 if copies:
                     args.append("--always-copy")
+                if prompt:
+                    args.extend(["--prompt", prompt])
+                    custom_prompt = prompt
                 interpreter.execute(args=args, env=env)
-        return cls(venv_dir)
+        return cls(venv_dir, custom_prompt=custom_prompt)
 
     @classmethod
     def create_atomic(
@@ -126,10 +139,15 @@ class Virtualenv(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
         force=False,  # type: bool
         copies=False,  # type: bool
+        prompt=None,  # type: Optional[str]
     ):
         # type: (...) -> Virtualenv
         virtualenv = cls.create(
-            venv_dir=venv_dir.work_dir, interpreter=interpreter, force=force, copies=copies
+            venv_dir=venv_dir.work_dir,
+            interpreter=interpreter,
+            force=force,
+            copies=copies,
+            prompt=prompt,
         )
         for script in virtualenv._rewrite_base_scripts(real_venv_dir=venv_dir.target_dir):
             TRACER.log("Re-writing {}".format(script))
@@ -139,9 +157,11 @@ class Virtualenv(object):
         self,
         venv_dir,  # type: str
         python_exe_name="python",  # type: str
+        custom_prompt=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self._venv_dir = venv_dir
+        self._custom_prompt = custom_prompt
         self._bin_dir = os.path.join(venv_dir, "bin")
         self._interpreter = PythonInterpreter.from_binary(
             os.path.join(self._bin_dir, python_exe_name)
@@ -164,6 +184,11 @@ class Virtualenv(object):
     def venv_dir(self):
         # type: () -> str
         return self._venv_dir
+
+    @property
+    def custom_prompt(self):
+        # type: () -> Optional[str]
+        return self._custom_prompt
 
     def join_path(self, *components):
         # type: (*str) -> str

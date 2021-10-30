@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import errno
+import logging
 import os
 import shutil
 from argparse import ArgumentParser
@@ -23,6 +24,8 @@ from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 # N.B.: We can't use shutil.copytree since we copy from multiple source locations to the same site
@@ -386,6 +389,10 @@ class Venv(PEXCommand):
             default=False,
             help="Compile all `.py` files in the venv.",
         )
+        parser.add_argument(
+            "--prompt",
+            help="A custom prompt for the venv activation scripts to use.",
+        )
         cls.register_global_arguments(parser, include_verbosity=False)
 
     def run(self, pex):
@@ -397,7 +404,15 @@ class Venv(PEXCommand):
             interpreter=pex.interpreter,
             force=self.options.force,
             copies=self.options.copies,
+            prompt=self.options.prompt,
         )
+        if self.options.prompt != venv.custom_prompt:
+            logger.warning(
+                "Unable to apply custom --prompt {prompt!r} in {python} venv; continuing with the "
+                "default prompt.".format(
+                    prompt=self.options.prompt, python=venv.interpreter.identity
+                )
+            )
         populate_venv_with_pex(
             venv,
             pex,

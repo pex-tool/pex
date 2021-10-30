@@ -20,7 +20,7 @@ from pex.compatibility import PY2
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import IS_PYPY, PY38, ensure_python_interpreter, run_pex_command
+from pex.testing import IS_PYPY, PY38, PY_VER, ensure_python_interpreter, run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
@@ -680,3 +680,46 @@ def test_warn_unused_pex_env_vars():
         PEX_INHERIT_PATH="fallback",
         PEX_VERBOSE="0",
     )
+
+
+def test_custom_prompt(tmpdir):
+    # type: (Any) -> None
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    venv_pex = os.path.join(str(tmpdir), "venv.pex")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "-o",
+            venv_pex,
+            "--include-tools",
+        ]
+    ).assert_success()
+
+    venv_dir = os.path.join(str(tmpdir), "venv_dir")
+    subprocess.check_call(
+        args=[venv_pex, "venv", "--prompt", "jane", venv_dir], env=make_env(PEX_TOOLS=True)
+    )
+
+    if PY_VER == (2, 7) or IS_PYPY:
+        # Neither CPython 2.7 not PyPy interpreters have (functioning) venv modules; so we create
+        # their venvs with an old copy of virtualenv that does not surround the prompt with parens.
+        expected_prompt = "jane"
+    elif PY_VER == (3, 5):
+        # We can't set the prompt for CPython 3.5 so we expect the name of the venv dir.
+        expected_prompt = "(venv_dir)"
+    else:
+        expected_prompt = "(jane)"
+
+    output = subprocess.check_output(
+        args=[
+            "/usr/bin/env",
+            "bash",
+            "-c",
+            "source {} && echo $PS1".format(os.path.join(venv_dir, "bin", "activate")),
+        ],
+        env=make_env(TERM="dumb", COLS=80),
+    )
+    assert expected_prompt == output.decode("utf-8").strip()

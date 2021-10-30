@@ -330,6 +330,19 @@ class Variables(object):
         yield self._environ
         self._environ = old_environ
 
+    @property
+    def PEX(self):
+        # type: () -> Optional[str]
+        """String.
+
+        The absolute path of the PEX that is executing. This will either be the path of the PEX
+        zip for zipapps or else the path of the PEX loose directory for packed or loose PEXes.
+
+        N.B.: The path is not the path of the underlying unzipped PEX or else the PEXes installed
+        venv.
+        """
+        return self._maybe_get_path("PEX")
+
     @defaulted_property(default=False)
     def PEX_ALWAYS_CACHE(self):
         # type: () -> bool
