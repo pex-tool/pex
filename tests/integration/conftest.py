@@ -45,8 +45,8 @@ def pex_bdist(
 ):
     # type: (...) -> str
     pex_bdist_chroot = os.path.join(shared_integration_test_tmpdir, "pex_bdist_chroot")
+    wheels_dir = os.path.join(pex_bdist_chroot, "wheels_dir")
     with atomic_directory(pex_bdist_chroot, exclusive=True) as chroot:
-        wheels_dir = os.path.join(pex_bdist_chroot, "wheels_dir")
         if not chroot.is_finalized:
             pex_pex = os.path.join(pex_bdist_chroot, "pex.pex")
             run_pex_command(
@@ -56,6 +56,6 @@ def pex_bdist(
                 args=[pex_pex, "repository", "extract", "-f", wheels_dir],
                 env=make_env(PEX_TOOLS=True),
             )
-        wheels = os.listdir(wheels_dir)
-        assert 1 == len(wheels)
-        return os.path.join(wheels_dir, wheels[0])
+    wheels = os.listdir(wheels_dir)
+    assert 1 == len(wheels)
+    return os.path.join(wheels_dir, wheels[0])
