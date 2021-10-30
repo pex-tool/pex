@@ -426,6 +426,7 @@ def ensure_venv(pex):
                 venv_dir=venv,
                 interpreter=pex.interpreter,
                 copies=pex_info.venv_copies,
+                prompt=os.path.basename(ENV.PEX) if ENV.PEX else None,
             )
 
             pex_path = os.path.abspath(pex.path())

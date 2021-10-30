@@ -9,18 +9,11 @@ from textwrap import dedent
 from pex import resolver
 from pex.common import open_zip, temporary_dir
 from pex.interpreter import spawn_python_job
-from pex.testing import WheelBuilder, make_project, temporary_content
+from pex.testing import WheelBuilder, make_project, pex_project_dir, temporary_content
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Dict, List, Iterator, Iterable, Optional, Text, Union
-
-
-def pex_project_dir():
-    # type: () -> str
-    return str(
-        subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("ascii").strip()
-    )
 
 
 BDIST_PEX_PYTHONPATH = None

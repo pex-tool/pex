@@ -648,3 +648,10 @@ def run_command_with_jitter(
         extra_env=extra_env,
         delay=delay,
     )
+
+
+def pex_project_dir():
+    # type: () -> str
+    return str(
+        subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("ascii").strip()
+    )
