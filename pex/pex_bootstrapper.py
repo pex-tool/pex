@@ -404,8 +404,11 @@ def _bootstrap(entry_point):
     return pex_info
 
 
-def ensure_venv(pex):
-    # type: (PEX) -> str
+def ensure_venv(
+    pex,  # type: PEX
+    collisions_ok=True,  # type: bool
+):
+    # type: (...) -> str
     pex_info = pex.pex_info()
     venv_dir = pex_info.venv_dir(pex_file=pex.path(), interpreter=pex.interpreter)
     if venv_dir is None:
@@ -431,9 +434,6 @@ def ensure_venv(pex):
 
             pex_path = os.path.abspath(pex.path())
 
-            short_venv_dir = os.path.join(pex_info.pex_root, "venvs", "short")
-            safe_mkdir(short_venv_dir)
-
             # A sha1 hash is 160 bits -> 20 bytes -> 40 hex characters. We start with 8 characters
             # (32 bits) of entropy since that is short and _very_ unlikely to collide with another
             # PEX venv on this machine. If we still collide after using the whole sha1 (for a total
@@ -442,57 +442,58 @@ def ensure_venv(pex):
             collisions = []
             for chars in range(8, len(venv_hash) + 1):
                 entropy = venv_hash[:chars]
-                short_venv_path = os.path.join(short_venv_dir, entropy)
-                try:
-                    os.symlink(venv_dir, short_venv_path)
-                    break
-                except OSError as e:
-                    if e.errno != errno.EEXIST:
-                        raise e
-                    collisions.append(short_venv_path)
-                    if entropy == venv_hash:
-                        raise RuntimeError(
-                            "The venv for {pex} at {venv} has hash collisions with {count} other "
-                            "{venvs}!\n{collisions}".format(
+                short_venv_dir = os.path.join(pex_info.pex_root, "venvs", "s", entropy)
+                with atomic_directory(short_venv_dir, exclusive=True) as short_venv:
+                    if short_venv.is_finalized:
+                        collisions.append(short_venv_dir)
+                        if entropy == venv_hash:
+                            raise RuntimeError(
+                                "The venv for {pex} at {venv} has hash collisions with {count} "
+                                "other {venvs}!\n{collisions}".format(
+                                    pex=pex_path,
+                                    venv=venv_dir,
+                                    count=len(collisions),
+                                    venvs=pluralize(collisions, "venv"),
+                                    collisions="\n".join(
+                                        "{index}.) {venv_path}".format(
+                                            index=index, venv_path=os.path.realpath(path)
+                                        )
+                                        for index, path in enumerate(collisions, start=1)
+                                    ),
+                                )
+                            )
+                        continue
+
+                    os.symlink(venv_dir, os.path.join(short_venv.work_dir, "venv"))
+                    shebang = populate_venv_with_pex(
+                        virtualenv,
+                        pex,
+                        bin_path=pex_info.venv_bin_path,
+                        python=os.path.join(
+                            short_venv_dir, "venv", "bin", os.path.basename(pex.interpreter.binary)
+                        ),
+                        collisions_ok=collisions_ok,
+                    )
+
+                    # There are popular Linux distributions with shebang length limits
+                    # (BINPRM_BUF_SIZE in /usr/include/linux/binfmts.h) set at 128 characters, so
+                    # we warn in the _very_ unlikely case that our shortened shebang is longer than
+                    # this.
+                    if len(shebang) > 128:
+                        pex_warnings.warn(
+                            "The venv for {pex} at {venv} has script shebangs of {shebang!r} with "
+                            "{count} characters. On some systems this may be too long and cause "
+                            "problems running the venv scripts. You may be able adjust PEX_ROOT "
+                            "from {pex_root} to a shorter path as a work-around.".format(
                                 pex=pex_path,
                                 venv=venv_dir,
-                                count=len(collisions),
-                                venvs=pluralize(collisions, "venv"),
-                                collisions="\n".join(
-                                    "{index}.) {venv_path}".format(
-                                        index=index, venv_path=os.path.realpath(path)
-                                    )
-                                    for index, path in enumerate(collisions, start=1)
-                                ),
+                                shebang=shebang,
+                                count=len(shebang),
+                                pex_root=pex_info.pex_root,
                             )
                         )
 
-            shenbang = populate_venv_with_pex(
-                virtualenv,
-                pex,
-                bin_path=pex_info.venv_bin_path,
-                python=os.path.join(
-                    short_venv_path, "bin", os.path.basename(pex.interpreter.binary)
-                ),
-                collisions_ok=True,
-            )
-
-            # There are popular Linux distributions with shebang length limits (BINPRM_BUF_SIZE
-            # in /usr/include/linux/binfmts.h) set at 128 characters, so we warn in the _very_
-            # unlikely case that our shortened shebang is longer than this.
-            if len(shenbang) > 128:
-                pex_warnings.warn(
-                    "The venv for {pex} at {venv} has script shebangs of {shebang!r} with {count} "
-                    "characters. On some systems this may be too long and cause problems running "
-                    "the venv scripts. You may be able adjust PEX_ROOT from {pex_root} to a "
-                    "shorter path as a work-around.".format(
-                        pex=pex_path,
-                        venv=venv_dir,
-                        shebang=shenbang,
-                        count=len(shenbang),
-                        pex_root=pex_info.pex_root,
-                    )
-                )
+                    break
 
     return os.path.join(venv_dir, "pex")
 

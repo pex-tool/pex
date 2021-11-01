@@ -39,7 +39,7 @@ def _copytree(
     # type: (...) -> Iterator[Tuple[str, str]]
     safe_mkdir(dst)
     link = True
-    for root, dirs, files in os.walk(src, topdown=True, followlinks=False):
+    for root, dirs, files in os.walk(src, topdown=True, followlinks=True):
         if src == root:
             dirs[:] = [d for d in dirs if d not in exclude]
             files[:] = [f for f in files if f not in exclude]
