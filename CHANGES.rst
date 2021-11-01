@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.54
+------
+
+This release fixes a bug in ``--venv`` creation that could mask deeper
+errors populating PEX venvs.
+
+* Fix ``--venv`` mode short link creation. (#1505)
+  `PR #1505 <https://github.com/pantsbuild/pex/pull/1505>`_
+
 2.1.53
 ------
 
