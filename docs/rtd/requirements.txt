@@ -1,2 +1,6 @@
+# N.B.: Pex RTD started failing upon release of docutil 0.18; work around by pinning low.
+# See: https://github.com/pantsbuild/pex/issues/1508
+docutils<0.18
+
 sphinx==3.2.1
 sphinx_rtd_theme==0.5.0
