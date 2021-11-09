@@ -5,8 +5,11 @@ from __future__ import absolute_import
 
 import collections
 import os
+import subprocess
+import sys
+from textwrap import dedent
 
-from pex.common import filter_pyc_dirs, filter_pyc_files, touch
+from pex.common import filter_pyc_dirs, filter_pyc_files, safe_mkdtemp, touch
 from pex.compatibility import urlparse
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -56,18 +59,31 @@ class VendorSpec(
         )
 
     @classmethod
-    def vcs(cls, url, rewrite=True):
-        result = urlparse.urlparse(url)
-        fragment_params = urlparse.parse_qs(result.fragment)
-        values = fragment_params.get("egg")
-        if not values or len(values) != 1:
-            raise ValueError(
-                "Expected the vcs requirement url to have an #egg=<name> fragment. "
-                "Got: {}".format(url)
-            )
+    def git(cls, repo, commit, project_name, prep_command=None, rewrite=True):
+        requirement = "git+{repo}@{commit}#egg={project_name}".format(
+            repo=repo, commit=commit, project_name=project_name
+        )
+        if not prep_command:
+            return cls(key=project_name, requirement=requirement, rewrite=rewrite, constrain=False)
 
-        # N.B.: Constraints do not work for vcs urls.
-        return cls(key=values[0], requirement=url, rewrite=rewrite, constrain=False)
+        class PreparedGit(VendorSpec):
+            def prepare(self):
+                clone_dir = safe_mkdtemp()
+                subprocess.check_call(["git", "clone", "--depth", "1", repo, clone_dir])
+                subprocess.check_call(
+                    ["git", "fetch", "--depth", "1", "origin", commit], cwd=clone_dir
+                )
+                subprocess.check_call(["git", "checkout", commit], cwd=clone_dir)
+                if prep_command:
+                    subprocess.check_call(prep_command, cwd=clone_dir)
+                return clone_dir
+
+        return PreparedGit(
+            key=project_name,
+            requirement=requirement,
+            rewrite=rewrite,
+            constrain=False,
+        )
 
     @property
     def _subpath_components(self):
@@ -80,6 +96,9 @@ class VendorSpec(
     @property
     def target_dir(self):
         return os.path.join(self.ROOT, self.relpath)
+
+    def prepare(self):
+        return self.requirement
 
     def create_packages(self):
         """Create missing packages joining the vendor root to the base of the vendored distribution.
@@ -124,15 +143,50 @@ def iter_vendor_specs():
     # in `pip download --constraint...` tracked at https://github.com/pypa/pip/issues/9283 and fixed
     # by https://github.com/pypa/pip/pull/9301 there and https://github.com/pantsbuild/pip/pull/8 in
     # our fork.
-    yield VendorSpec.vcs(
-        "git+https://github.com/pantsbuild/pip@de1c91261f2b54d60fdf2a17fba756ef0decb146#egg=pip",
+    yield VendorSpec.git(
+        repo="https://github.com/pantsbuild/pip",
+        commit="de1c91261f2b54d60fdf2a17fba756ef0decb146",
+        project_name="pip",
         rewrite=False,
     )
 
     # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
     # pex.third_party at runtime in various ways.
-    # N.B.: 44.0.0 is the last setuptools version compatible with Python 2.
-    yield VendorSpec.pinned("setuptools", "44.0.0")
+    # N.B.: 44.0.0 is the last setuptools version compatible with Python 2 and we use a fork of that
+    # with patches needed to support Pex on the v44.0.0/patches/pex-2.x branch.
+    pantsbuild_setuptools_commit = "3acb925dd708430aeaf197ea53ac8a752f7c1863"
+    yield VendorSpec.git(
+        repo="https://github.com/pantsbuild/setuptools",
+        commit=pantsbuild_setuptools_commit,
+        project_name="setuptools",
+        # Setuptools from source requires running bootstrap.py 1st manually due to circularity in
+        # needing setuptools to build setuptools. The bootstrap runs `setup.py egg_info` which
+        # generates a version containing a date stamp. We override setup.cfg's egg_info section to
+        # avoid this instability and instead force using the commit as the stable version
+        # modifier.
+        # N.B.: This code assumes its run under Python 3.5+.
+        prep_command=[
+            sys.executable,
+            "-c",
+            dedent(
+                """\
+                import configparser
+                import subprocess
+                import sys
+
+
+                parser = configparser.ConfigParser()
+                parser.read("setup.cfg")
+                parser["egg_info"]["tag_build"] = "+{commit}"
+                del parser["egg_info"]["tag_date"]
+                with open("setup.cfg", "w") as fp:
+                    parser.write(fp)
+
+                subprocess.check_call([sys.executable, "bootstrap.py"])
+                """
+            ).format(commit=pantsbuild_setuptools_commit),
+        ],
+    )
 
     # We expose this to pip at buildtime for legacy builds.
     yield VendorSpec.pinned("wheel", "0.36.2", rewrite=False)

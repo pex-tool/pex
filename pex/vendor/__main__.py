@@ -210,6 +210,7 @@ def vendorize(root_dir, vendor_specs, prefix):
         # pex.vendor. Since we document that pex.vendor should be run via tox, that environment will
         # contain pinned versions of setuptools and wheel. As a result, vendoring (at least via tox)
         # is hermetic.
+        requirement = vendor_spec.prepare()
         cmd = [
             "pip",
             "install",
@@ -218,7 +219,7 @@ def vendorize(root_dir, vendor_specs, prefix):
             "--no-compile",
             "--target",
             vendor_spec.target_dir,
-            vendor_spec.requirement,
+            requirement,
         ]
 
         constraints_file = os.path.join(vendor_spec.target_dir, "constraints.txt")
@@ -245,11 +246,19 @@ def vendorize(root_dir, vendor_specs, prefix):
         safe_rmtree(os.path.join(vendor_spec.target_dir, "bin"))
         safe_delete(os.path.join(vendor_spec.target_dir, "easy_install.py"))
 
-        # The RECORD contains file hashes of all installed files and is unfortunately unstable in the
-        # case of scripts which get a shebang added with a system-specific path to the python
+        # The RECORD contains file hashes of all installed files and is unfortunately unstable in
+        # the case of scripts which get a shebang added with a system-specific path to the python
         # interpreter to execute.
         for record_file in glob.glob(os.path.join(vendor_spec.target_dir, "*-*.dist-info/RECORD")):
             safe_delete(record_file)
+
+        # The direct_url.json contains an url if a requirement was installed from one. We install
+        # certain vendored projects via git clones we do prep-work on and these clones have a local
+        # temporary directory path that will change on each re-vendor.
+        for direct_url_file in glob.glob(
+            os.path.join(vendor_spec.target_dir, "*-*.dist-info/direct_url.json")
+        ):
+            safe_delete(direct_url_file)
 
         vendor_spec.create_packages()
 
