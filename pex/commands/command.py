@@ -37,6 +37,7 @@ if TYPE_CHECKING:
         IO,
         NoReturn,
         Optional,
+        Sequence,
         Type,
         TypeVar,
         Union,
@@ -450,8 +451,8 @@ class Main(Generic["_C"]):
         pass
 
     @contextmanager
-    def parsed_command(self):
-        # type: () -> Iterator[_C]
+    def parsed_command(self, args=None):
+        # type: (Optional[Sequence[str]]) -> Iterator[_C]
         logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
 
         # By default, let argparse derive prog from sys.argv[0].
@@ -468,6 +469,7 @@ class Main(Generic["_C"]):
         )
         parser.add_argument("-V", "--version", action="version", version=__version__)
         parser.set_defaults(command_type=functools.partial(Command.show_help, parser))
+        register_global_arguments(parser)
         self.add_arguments(parser)
         if self._command_types:
             subparsers = parser.add_subparsers(description=self._subparsers_description)
@@ -484,7 +486,7 @@ class Main(Generic["_C"]):
                 command_type.add_arguments(command_parser)
                 command_parser.set_defaults(command_type=command_type)
 
-        options = parser.parse_args()
+        options = parser.parse_args(args=args)
         with global_environment(options):
             command_type = cast("Type[_C]", options.command_type)
             yield command_type(options)
