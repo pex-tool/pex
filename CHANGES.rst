@@ -1,6 +1,23 @@
 Release Notes
 =============
 
+2.1.55
+------
+
+This release brings official support for Python 3.10 as well as fixing
+https://pex.readthedocs.io doc generation and fixing help for
+``pex-tools`` / ``PEX_TOOLS=1 ./my.pex`` pex tools invocations that have
+too few arguments.
+
+* Add official support for Python 3.10 (#1512)
+  `PR #1512 <https://github.com/pantsbuild/pex/pull/1512>`_
+
+* Always register global options. (#1511)
+  `PR #1511 <https://github.com/pantsbuild/pex/pull/1511>`_
+
+* Fix RTD generation by pinning docutils low. (#1509)
+  `PR #1509 <https://github.com/pantsbuild/pex/pull/1509>`_
+
 2.1.54
 ------
 
