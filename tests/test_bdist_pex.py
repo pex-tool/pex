@@ -38,7 +38,7 @@ def bdist_pex_pythonpath():
         BDIST_PEX_PYTHONPATH.extend(
             installed_distribution.distribution.location
             for installed_distribution in resolver.resolve(
-                ["setuptools==36.2.7"]
+                ["setuptools==43.0.0"]
             ).installed_distributions
         )
     return BDIST_PEX_PYTHONPATH

@@ -16,7 +16,7 @@ from pex.executor import Executor
 from pex.layout import Layout
 from pex.pex import PEX
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import built_wheel, make_bdist, make_env
+from pex.testing import PY_VER, built_wheel, make_bdist, make_env
 from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -67,6 +67,13 @@ def test_pex_builder():
             assert fp.read() == "success"
 
 
+@pytest.mark.skipif(
+    PY_VER >= (3, 10),
+    reason=(
+        "The pyparsing 2.1.10 distribution imports collections.MutableMapping which was (re)moved "
+        "in Python 3.10."
+    ),
+)
 def test_pex_builder_wheeldep():
     # type: () -> None
     """Repeat the pex_builder test, but this time include an import of something from a wheel that

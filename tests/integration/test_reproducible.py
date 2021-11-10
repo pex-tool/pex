@@ -1,5 +1,6 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import filecmp
 import os
 import sys
@@ -95,7 +96,12 @@ def test_reproducible_build_no_args():
 def test_reproducible_build_bdist_requirements():
     # type: () -> None
     # We test both a pure Python wheel (six) and a platform-specific wheel (cryptography).
-    assert_reproducible_build(["six==1.12.0", "cryptography==2.6.1"])
+    assert_reproducible_build(
+        [
+            "six==1.12.0",
+            "cryptography=={version}".format(version="2.6.1" if PY2 else "3.4.8"),
+        ]
+    )
 
 
 def test_reproducible_build_sdist_requirements():
