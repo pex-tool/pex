@@ -454,9 +454,7 @@ class PEXBuilder(object):
         dist_name = dist_name or os.path.basename(dist.location)
         self._distributions[dist.location] = dist
         if dist_name in self._pex_info.distributions:
-            TRACER.log(
-                "Skipping adding {} - already added from requirements pex".format(dist), V=9
-            )
+            TRACER.log("Skipping adding {} - already added from requirements pex".format(dist), V=9)
             return
         if os.path.isdir(dist.location):
             dist_hash = self._add_dist_dir(dist.location, dist_name)
