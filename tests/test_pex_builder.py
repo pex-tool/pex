@@ -280,6 +280,18 @@ def test_pex_builder_from_requirements_pex():
         verify(pb4)
 
 
+def test_pex_builder_dup_requirements():
+    """We may get the same dist from separate sources."""
+    with temporary_dir() as td2:
+        with temporary_dir() as td1, make_bdist("p1") as p1:
+            pb1 = write_pex(td1, dists=[p1])
+            pb2 = PEXBuilder(copy_mode=CopyMode.SYMLINK, path=td2)
+            # Add the same dist with two different methods.
+            pb2.add_from_requirements_pex(pb1.path())
+            pb2.add_distribution(p1)
+            # All is well when we get this far.
+
+
 def test_pex_builder_script_from_pex_path(tmpdir):
     # type: (Any) -> None
 
