@@ -70,7 +70,7 @@ SINGLE_PLATFORM_UNIVERSAL_WHEEL = lockfile.loads(
 )
 
 
-def test_select_no_targets():
+def test_select_all_no_targets():
     # type: () -> None
     assert [] == list(SINGLE_PLATFORM_UNIVERSAL_WHEEL.select([]))
 
@@ -97,14 +97,14 @@ def py38():
     return create_target(PY38)
 
 
-def test_select_same_target(py27):
+def test_select_all_same_target(py27):
     # type: (DistributionTarget) -> None
     assert [(py27, SINGLE_PLATFORM_UNIVERSAL_WHEEL.locked_resolves[0])] == list(
         SINGLE_PLATFORM_UNIVERSAL_WHEEL.select([py27])
     )
 
 
-def test_select_universal_compatible_targets(
+def test_select_all_universal_compatible_targets(
     py37,  # type: DistributionTarget
     py38,  # type: DistributionTarget
 ):
@@ -182,12 +182,12 @@ DUAL_PLATFORM_NATIVE_WHEEL = lockfile.loads(
 )
 
 
-def test_select_incompatible_target(py27):
+def test_select_all_incompatible_target(py27):
     # type: (DistributionTarget) -> None
     assert [] == list(DUAL_PLATFORM_NATIVE_WHEEL.select([py27]))
 
 
-def test_select_compatible_targets(
+def test_select_all_compatible_targets(
     py37,  # type: DistributionTarget
     py38,  # type: DistributionTarget
 ):

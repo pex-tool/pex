@@ -242,6 +242,7 @@ def loads(
         allow_builds=get("allow_builds", bool),
         transitive=get("transitive", bool),
         locked_resolves=locked_resolves,
+        source=source,
     )
 
 

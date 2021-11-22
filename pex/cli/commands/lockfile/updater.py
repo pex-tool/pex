@@ -8,14 +8,18 @@ import os
 from collections import OrderedDict
 from contextlib import contextmanager
 
-from pex.cli.commands.lockfile import create
-from pex.commands.command import Error, ResultError, try_
+from pex.cli.commands.lockfile import Lockfile, create
+from pex.commands.command import Error, ResultError, catch, try_
+from pex.common import pluralize
+from pex.distribution_target import DistributionTarget
+from pex.network_configuration import NetworkConfiguration
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, LockedResolve, Version
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import PipConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.resolve.target_configuration import TargetConfiguration
 from pex.sorted_tuple import SortedTuple
+from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
@@ -37,19 +41,19 @@ class VersionUpdate(object):
 
 
 @attr.s(frozen=True)
-class LockUpdate(object):
+class ResolveUpdate(object):
     updated_resolve = attr.ib()  # type: LockedResolve
     updates = attr.ib()  # type: Mapping[ProjectName, Optional[VersionUpdate]]
 
 
 @attr.s(frozen=True)
-class LockUpdater(object):
-    """Updates a lockfile in whole or in part.
+class ResolveUpdater(object):
+    """Updates a resolve in whole or in part.
 
-    A lock updater with no updates specified just updates the whole lock file with the latest
-    available distributions that satisfy the locked resolve criteria.
+    A resolve updater with no updates specified just updates the whole locked resolve with the
+    latest available distributions that satisfy the locked resolve criteria.
 
-    More interestingly, a lock updater with a set of updates will attempt to alter just the
+    More interestingly, a resolve updater with a set of updates will attempt to alter just the
     distributions for those updates. The update can be just a plain project name in which case the
     latest compatible distribution for that project will be used. The update can also be a
     full-fledged constraint with a specifier, in which case a distribution matching the constraint
@@ -78,16 +82,15 @@ class LockUpdater(object):
 
         update_constraints_by_project_name = {}  # type: Dict[ProjectName, Requirement]
         for update in updates:
-            constraint_req = Requirement.parse(update)
-            project_name = ProjectName(constraint_req.project_name)
+            project_name = ProjectName(update.project_name)
             original_constraint = original_constraints.get(project_name)
             if original_constraint:
                 logger.warning(
                     "Over-riding original constraint {original} with {override}.".format(
-                        original=original_constraint, override=constraint_req
+                        original=original_constraint, override=update
                     )
                 )
-            update_constraints_by_project_name[project_name] = constraint_req
+            update_constraints_by_project_name[project_name] = update
 
         return cls(
             update_constraints_by_project_name=update_constraints_by_project_name,
@@ -136,7 +139,7 @@ class LockUpdater(object):
         locked_resolve,  # type: LockedResolve
         target_configuration,  # type: TargetConfiguration
     ):
-        # type: (...) -> Union[LockUpdate, Error]
+        # type: (...) -> Union[ResolveUpdate, Error]
 
         with self._calculate_update_constraints(locked_resolve) as constraints_files:
             updated_lock_file = try_(
@@ -190,10 +193,130 @@ class LockUpdater(object):
                 via=locked_requirement.via,
             )
 
-        return LockUpdate(
+        return ResolveUpdate(
             updated_resolve=attr.evolve(
                 locked_resolve,
                 locked_requirements=SortedTuple(updated_requirements_by_project_name.values()),
             ),
             updates=updates,
+        )
+
+
+@attr.s(frozen=True)
+class ResolveUpdateRequest(object):
+    target = attr.ib()  # type: DistributionTarget
+    locked_resolve = attr.ib()  # type: LockedResolve
+
+    def target_configuration(self, assume_manylinux=None):
+        # type: (Optional[str]) -> TargetConfiguration
+        return TargetConfiguration(
+            interpreters=(self.target.get_interpreter(),) if self.target.is_interpreter else (),
+            platforms=(self.target.get_platform()[0],) if self.target.is_platform else (),
+            assume_manylinux=assume_manylinux,
+        )
+
+
+@attr.s(frozen=True)
+class LockUpdate(object):
+    resolves = attr.ib()  # type: Iterable[ResolveUpdate]
+
+
+@attr.s(frozen=True)
+class LockUpdater(object):
+    @classmethod
+    def create(
+        cls,
+        lock_file,  # type: Lockfile
+        repos_configuration,  # type: ReposConfiguration
+        network_configuration,  # type: NetworkConfiguration
+        max_jobs,  # type: int
+    ):
+        # type: (...) -> LockUpdater
+
+        lock_configuration = LockConfiguration(style=lock_file.style)
+        pip_configuration = PipConfiguration(
+            resolver_version=lock_file.resolver_version,
+            allow_prereleases=lock_file.allow_prereleases,
+            allow_wheels=lock_file.allow_wheels,
+            allow_builds=lock_file.allow_builds,
+            transitive=lock_file.transitive,
+            repos_configuration=repos_configuration,
+            network_configuration=network_configuration,
+            max_jobs=max_jobs,
+        )
+        return cls(
+            lock_file=lock_file,
+            lock_configuration=lock_configuration,
+            pip_configuration=pip_configuration,
+        )
+
+    lock_file = attr.ib()  # type: Lockfile
+    lock_configuration = attr.ib()  # type: LockConfiguration
+    pip_configuration = attr.ib()  # type: PipConfiguration
+
+    def update(
+        self,
+        update_requests,  # type: Iterable[ResolveUpdateRequest]
+        updates,  # type: Iterable[Requirement]
+        assume_manylinux=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Union[LockUpdate, Error]
+
+        resolve_updater = ResolveUpdater.create(
+            requirements=self.lock_file.requirements,
+            constraints=self.lock_file.constraints,
+            updates=updates,
+            lock_configuration=self.lock_configuration,
+            pip_configuration=self.pip_configuration,
+        )
+
+        error_by_target = OrderedDict()  # type: OrderedDict[DistributionTarget, Error]
+        locked_resolve_by_platform_tag = OrderedDict(
+            (locked_resolve.platform_tag, locked_resolve)
+            for locked_resolve in self.lock_file.locked_resolves
+        )  # type: OrderedDict[tags.Tag, LockedResolve]
+        resolve_updates_by_platform_tag = (
+            {}
+        )  # type: Dict[tags.Tag, Mapping[ProjectName, Optional[VersionUpdate]]]
+
+        # TODO(John Sirois): Consider parallelizing this. The underlying Jobs are down a few layers;
+        #  so this will likely require using multiprocessing.
+        for update_request in update_requests:
+            result = catch(
+                resolve_updater.update_resolve,
+                locked_resolve=update_request.locked_resolve,
+                target_configuration=update_request.target_configuration(
+                    assume_manylinux=assume_manylinux
+                ),
+            )
+            if isinstance(result, Error):
+                error_by_target[update_request.target] = result
+            else:
+                platform_tag = update_request.target.get_supported_tags()[0]
+                locked_resolve_by_platform_tag[platform_tag] = result.updated_resolve
+                resolve_updates_by_platform_tag[platform_tag] = result.updates
+
+        if error_by_target:
+            return Error(
+                "Encountered {count} {errors} updating {lockfile_path}:\n{error_details}".format(
+                    count=len(error_by_target),
+                    errors=pluralize(error_by_target, "error"),
+                    lockfile_path=self.lock_file.source,
+                    error_details="\n".join(
+                        "{index}.) {platform}: {error}".format(
+                            index=index, platform=target.get_supported_tags()[0], error=error
+                        )
+                        for index, (target, error) in enumerate(error_by_target.items(), start=1)
+                    ),
+                ),
+            )
+
+        return LockUpdate(
+            resolves=tuple(
+                ResolveUpdate(
+                    updated_resolve=updated_resolve,
+                    updates=resolve_updates_by_platform_tag.get(platform_tag, {}),
+                )
+                for platform_tag, updated_resolve in locked_resolve_by_platform_tag.items()
+            )
         )
