@@ -10,6 +10,8 @@ import pytest
 
 from pex.cli.commands import lockfile
 from pex.cli.commands.lockfile import Lockfile
+from pex.distribution_target import DistributionTarget
+from pex.interpreter import PythonInterpreter
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, Fingerprint, LockedRequirement, Pin, Version
 from pex.resolve.resolver_configuration import ResolverVersion
@@ -232,12 +234,23 @@ def run_lock_update(
     return run_pex3("lock", "update", *args, **env)
 
 
+def ensure_py38():
+    # type: () -> str
+    return ensure_python_interpreter(PY38)
+
+
+@pytest.fixture
+def py38():
+    # type: () -> str
+    return ensure_py38()
+
+
 def run_lock_update_for_py38(
     *args,  # type: str
     **env  # type: Optional[str]
 ):
     # type: (...) -> IntegResults
-    py38 = ensure_python_interpreter(PY38)
+    py38 = ensure_py38()
     return run_lock_update("--python", py38, *args, **env)
 
 
@@ -361,6 +374,7 @@ def test_update_targeted_closure_shrink(lock_file_path):
 def test_update_targeted_impossible(
     lock_file_path,  # type: str
     tmpdir,  # type: Any
+    py38,
 ):
     # type: (...) -> None
     result = run_lock_update_for_py38("-p", "urllib3<1.16", lock_file_path)
@@ -380,7 +394,14 @@ def test_update_targeted_impossible(
         "urllib3<1.16",
         "Encountered 1 error updating {lock_file_path}:".format(lock_file_path=lock_file_path),
     ] == error_lines[:9]
-    assert re.match(r"^1\.\) cp38-cp38-manylinux_2_33_x86_64: pid [\d]+ -> ", error_lines[9])
+    assert re.match(
+        r"^1\.\) {platform}: pid [\d]+ -> ".format(
+            platform=DistributionTarget.for_interpreter(
+                PythonInterpreter.from_binary(py38)
+            ).get_supported_tags()[0]
+        ),
+        error_lines[9],
+    )
 
     # The pip legacy resolver, though is not strict and will let us get away with this.
     updated_lock_file_path = os.path.join(str(tmpdir), "lock.updated")
