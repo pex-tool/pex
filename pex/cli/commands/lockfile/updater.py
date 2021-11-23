@@ -292,7 +292,7 @@ class LockUpdater(object):
             if isinstance(result, Error):
                 error_by_target[update_request.target] = result
             else:
-                platform_tag = update_request.target.get_supported_tags()[0]
+                platform_tag = update_request.locked_resolve.platform_tag
                 locked_resolve_by_platform_tag[platform_tag] = result.updated_resolve
                 resolve_updates_by_platform_tag[platform_tag] = result.updates
 
