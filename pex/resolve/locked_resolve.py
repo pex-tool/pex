@@ -86,6 +86,12 @@ class Pin(object):
     project_name = attr.ib()  # type: ProjectName
     version = attr.ib()  # type: Version
 
+    def as_requirement(self):
+        # type: () -> Requirement
+        return Requirement.parse(
+            "{project_name}=={version}".format(project_name=self.project_name, version=self.version)
+        )
+
 
 @attr.s(frozen=True)
 class LockedRequirement(object):

@@ -96,7 +96,7 @@ class _RankedLock(object):
                     artifact_stem, _ = os.path.splitext(artifact_file)
                     for tag in tags.parse_tag(artifact_stem.split("-", 2)[-1]):
                         wheel_rank = supported_tags.get(tag)
-                        if wheel_rank:
+                        if wheel_rank is not None:
                             requirement_rank = (
                                 wheel_rank
                                 if requirement_rank is None
@@ -135,6 +135,7 @@ class Lockfile(object):
         allow_builds,  # type: bool
         transitive,  # type: bool
         locked_resolves,  # type: Iterable[LockedResolve]
+        source=None,  # type: Optional[str]
     ):
         # type: (...) -> Lockfile
         return cls(
@@ -148,6 +149,7 @@ class Lockfile(object):
             allow_builds=allow_builds,
             transitive=transitive,
             locked_resolves=SortedTuple(locked_resolves),
+            source=source,
         )
 
     pex_version = attr.ib()  # type: str
@@ -160,6 +162,7 @@ class Lockfile(object):
     allow_builds = attr.ib()  # type: bool
     transitive = attr.ib()  # type: bool
     locked_resolves = attr.ib()  # type: SortedTuple[LockedResolve]
+    source = attr.ib(default=None, eq=False)  # type: Optional[str]
 
     def select(self, targets):
         # type: (Iterable[DistributionTarget]) -> Iterator[Tuple[DistributionTarget, LockedResolve]]

@@ -1,25 +1,35 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
+import sys
 from argparse import ArgumentParser, _ActionsContainer
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 
+from pex.argparse import HandleBoolAction
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands import lockfile
 from pex.cli.commands.lockfile import Lockfile, create, json_codec
+from pex.cli.commands.lockfile.updater import LockUpdater, ResolveUpdateRequest
 from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result, try_
 from pex.common import pluralize
 from pex.distribution_target import DistributionTarget
 from pex.enum import Enum
+from pex.pep_503 import ProjectName
 from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
+from pex.sorted_tuple import SortedTuple
+from pex.third_party.pkg_resources import Requirement, RequirementParseError
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.version import __version__
 
 if TYPE_CHECKING:
+    import attr  # vendor:skip
     from typing import DefaultDict, List, Union
+else:
+    from pex.third_party import attr
 
 
 class ExportFormat(Enum["ExportFormat.Value"]):
@@ -116,6 +126,47 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         cls._add_target_options(export_parser)
 
     @classmethod
+    def _add_update_arguments(cls, update_parser):
+        # type: (_ActionsContainer) -> None
+        update_parser.add_argument(
+            "-p",
+            "--project",
+            dest="projects",
+            action="append",
+            default=[],
+            type=str,
+            help="Just attempt to update these projects in the lock, leaving all others unchanged.",
+        )
+        update_parser.add_argument(
+            "--strict",
+            "--no-strict",
+            "--non-strict",
+            action=HandleBoolAction,
+            default=True,
+            type=bool,
+            help=(
+                "Require all target platforms in the lock be updated at once. If any target "
+                "platform in the lock file does not have a representative local interpreter to "
+                "execute the lock update with, the update will fail."
+            ),
+        )
+        update_parser.add_argument(
+            "-n",
+            "--dry-run",
+            "--no-dry-run",
+            action=HandleBoolAction,
+            default=False,
+            type=bool,
+            help="Don't update the lock file; just report what updates would be made.",
+        )
+        cls._add_lockfile_option(update_parser)
+        cls._add_target_options(update_parser)
+        resolver_options_parser = cls._create_resolver_options_group(update_parser)
+        resolver_options.register_repos_options(resolver_options_parser)
+        resolver_options.register_network_options(resolver_options_parser)
+        resolver_options.register_max_jobs_option(resolver_options_parser)
+
+    @classmethod
     def add_extra_arguments(
         cls,
         parser,  # type: ArgumentParser
@@ -133,6 +184,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             name="export", help="Export a Pex lock file in a different format.", func=cls._export
         ) as export_parser:
             cls._add_export_arguments(export_parser)
+        with subcommands.parser(
+            name="update", help="Update a Pex lock file.", func=cls._update
+        ) as update_parser:
+            cls._add_update_arguments(update_parser)
 
     def _create(self):
         # type: () -> Result
@@ -153,10 +208,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         return Ok()
 
     @staticmethod
-    def _load_lockfile(lockfile_path):
+    def _load_lockfile(lock_file_path):
         # type: (str) -> Union[Lockfile, Error]
         try:
-            return lockfile.load(lockfile_path)
+            return lockfile.load(lock_file_path)
         except lockfile.ParseError as e:
             return Error(str(e))
 
@@ -168,7 +223,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         lockfile_path = self.options.lockfile[0]
-        lock_file = try_(self._load_lockfile(lockfile_path=lockfile_path))
+        lock_file = try_(self._load_lockfile(lock_file_path=lockfile_path))
 
         target_configuration = target_options.configure(self.options)
         targets = target_configuration.unique_targets()
@@ -220,3 +275,145 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 ),
             )
         )
+
+    def _update(self):
+        # type: () -> Result
+        try:
+            updates = tuple(Requirement.parse(project) for project in self.options.projects)
+        except RequirementParseError as e:
+            return Error("Failed to parse project requirement to update: {err}".format(err=e))
+
+        lock_file_path = self.options.lockfile[0]
+        lock_file = try_(self._load_lockfile(lock_file_path=lock_file_path))
+
+        if updates:
+            updates_by_project_name = OrderedDict(
+                (ProjectName(update.project_name), update) for update in updates
+            )
+            for locked_resolve in lock_file.locked_resolves:
+                for locked_requirement in locked_resolve.locked_requirements:
+                    updates_by_project_name.pop(locked_requirement.pin.project_name, None)
+                    if not updates_by_project_name:
+                        break
+            if updates_by_project_name:
+                return Error(
+                    "The following updates were requested but there were no matching locked "
+                    "requirements found in {lock_file}:\n{updates}".format(
+                        lock_file=lock_file_path,
+                        updates="\n".join(
+                            "+ {update}".format(update=update)
+                            for update in updates_by_project_name.values()
+                        ),
+                    )
+                )
+
+        lock_updater = LockUpdater.create(
+            lock_file=lock_file,
+            repos_configuration=resolver_options.create_repos_configuration(self.options),
+            network_configuration=resolver_options.create_network_configuration(self.options),
+            max_jobs=resolver_options.get_max_jobs_value(self.options),
+        )
+
+        target_configuration = target_options.configure(self.options)
+
+        update_requests = [
+            ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
+            for target, locked_resolve in lock_file.select(target_configuration.unique_targets())
+        ]
+        if self.options.strict:
+            missing_updates = set(lock_file.locked_resolves) - {
+                update_request.locked_resolve for update_request in update_requests
+            }
+            if missing_updates:
+                return Error(
+                    "This lock update is --strict but the following platforms present in "
+                    "{lock_file} were not found on the local machine:\n"
+                    "{missing_platforms}\n"
+                    "You might be able to correct this by adjusting target options like "
+                    "--python-path or else by relaxing the update to be --non-strict.".format(
+                        lock_file=lock_file_path,
+                        missing_platforms="\n".join(
+                            sorted(
+                                "+ {platform}".format(platform=locked_resolve.platform_tag)
+                                for locked_resolve in missing_updates
+                            )
+                        ),
+                    )
+                )
+
+        if not update_requests:
+            return Ok(
+                "No lock update was performed.\n"
+                "The following platforms present in {lock_file} were not found on the local "
+                "machine:\n"
+                "{missing_platforms}\n"
+                "You might still be able to update the lock by adjusting target options like "
+                "--python-path.".format(
+                    lock_file=lock_file_path,
+                    missing_platforms="\n".join(
+                        sorted(
+                            "+ {platform}".format(platform=locked_resolve.platform_tag)
+                            for locked_resolve in lock_file.locked_resolves
+                        )
+                    ),
+                )
+            )
+
+        lock_update = try_(
+            lock_updater.update(
+                update_requests=update_requests,
+                updates=updates,
+                assume_manylinux=target_configuration.assume_manylinux,
+            )
+        )
+
+        constraints_by_project_name = {
+            ProjectName(constraint.project_name): constraint for constraint in lock_file.constraints
+        }
+        dry_run = self.options.dry_run
+        output = sys.stdout if dry_run else sys.stderr
+        performed_update = False
+        for resolve_update in lock_update.resolves:
+            platform = resolve_update.updated_resolve.platform_tag
+            for project_name, version_update in resolve_update.updates.items():
+                if version_update:
+                    performed_update = True
+                    print(
+                        "{lead_in} {project_name} from {original_version} to {updated_version} in "
+                        "lock generated by {platform}.".format(
+                            lead_in="Would update" if dry_run else "Updated",
+                            project_name=project_name,
+                            original_version=version_update.original,
+                            updated_version=version_update.updated,
+                            platform=platform,
+                        ),
+                        file=output,
+                    )
+                else:
+                    print(
+                        "There {tense} no updates for {project_name} in lock generated by "
+                        "{platform}.".format(
+                            tense="would be" if dry_run else "were",
+                            project_name=project_name,
+                            platform=platform,
+                        ),
+                        file=output,
+                    )
+        if performed_update:
+            constraints_by_project_name.update(
+                (ProjectName(constraint.project_name), constraint) for constraint in updates
+            )
+
+        if performed_update and not dry_run:
+            lockfile.store(
+                attr.evolve(
+                    lock_file,
+                    pex_version=__version__,
+                    constraints=SortedTuple(constraints_by_project_name.values()),
+                    locked_resolves=SortedTuple(
+                        resolve_update.updated_resolve for resolve_update in lock_update.resolves
+                    ),
+                ),
+                lock_file_path,
+            )
+        return Ok()
