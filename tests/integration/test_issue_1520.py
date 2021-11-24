@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from typing import Any
 
 
-@pytest.mark.skipif(PY_VER < (3, 6), reason="mypy_protobuf 2.4 is only available for Pytho 3.6+")
+@pytest.mark.skipif(PY_VER < (3, 6), reason="mypy_protobuf 2.4 is only available for Python 3.6+")
 def test_hermetic_console_scripts(tmpdir):
     # type: (Any) -> None
 

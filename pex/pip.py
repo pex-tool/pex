@@ -1089,8 +1089,8 @@ class Pip(object):
                 #     sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
                 #     sys.exit(main())
                 #
-                # Instead of guessing that 127 characters is shebang length limit and using Pip's
-                # safety-hatch /bin/sh trick, we forcibly re-write the header to be just the
+                # Instead of guessing that 127 characters is the shebang length limit and using
+                # Pip's safety-hatch `/bin/sh` trick, we forcibly re-write the header to be just the
                 # expected `#!python` shebang. We detect the end of the header with the known 1st
                 # line of console_script shim ~code defined in
                 # pex/vendor/_vendored/pip/pip/_vendor/distlib/scripts.py on line 41:
@@ -1117,8 +1117,6 @@ class Pip(object):
                     # N.B.: These lines include the newline already.
                     buffer.write(cast(bytes, line))
                     first_non_shebang_line = None
-                else:
-                    TRACER.log("Skipping garbage line: {}".format(line.strip()))
 
     def spawn_install_wheel(
         self,
