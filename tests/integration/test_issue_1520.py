@@ -37,7 +37,6 @@ def test_hermetic_console_scripts(tmpdir):
             mypy_protobuf_pex,
             "--venv",
             "prepend",
-            "--seed",
         ],
     ).assert_success()
 
