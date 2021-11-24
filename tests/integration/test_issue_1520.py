@@ -18,10 +18,6 @@ if TYPE_CHECKING:
 def test_hermetic_console_scripts(tmpdir):
     # type: (Any) -> None
 
-    # The docutils distribution contains many scripts, one of which, rst2html5.py, contains
-    # non-ascii unicode characters which could trip up script shebang re-writing in environments
-    # without a default encoding accepting those characters.
-
     # N.B.: See pex/vendor/_vendored/pip/pip/_vendor/distlib/scripts.py lines 127-156.
     # https://github.com/pantsbuild/pex/blob/196b4cd5b8dd4b4af2586460530e9a777262be7d/pex/vendor/_vendored/pip/pip/_vendor/distlib/scripts.py#L127-L156
     length_pad = 127 if IS_LINUX else 512
@@ -55,7 +51,7 @@ def test_hermetic_console_scripts(tmpdir):
         assert "# -*- coding: utf-8 -*-" == fp.readline().strip()
 
     shutil.rmtree(pex_root)
-    # This should no-op since there is no proto sent on stdin and exit success.
+    # This should no-op (since there is no proto sent on stdin) and exit success.
     subprocess.check_call(
         [mypy_protobuf_pex, "-c", "import subprocess; subprocess.check_call(['protoc-gen-mypy'])"]
     )
