@@ -15,8 +15,7 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.skipif(
-    IS_LINUX and PY_VER < (3, 6),
-    reason="The mypy_protobuf 2.4 distribution is only available for Python 3.6+",
+    PY_VER < (3, 6), reason="The mypy_protobuf 2.4 distribution is only available for Python 3.6+"
 )
 def test_hermetic_console_scripts(tmpdir):
     # type: (Any) -> None
