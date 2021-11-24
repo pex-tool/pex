@@ -53,25 +53,6 @@ def test_hermetic_console_scripts(tmpdir):
 
     shutil.rmtree(pex_root)
     # This should no-op (since there is no proto sent on stdin) and exit success.
-    process = subprocess.Popen(
+    subprocess.check_call(
         [mypy_protobuf_pex, "-c", "import subprocess; subprocess.check_call(['protoc-gen-mypy'])"],
-        stderr=subprocess.PIPE,
     )
-    _, stderr = process.communicate()
-    if IS_LINUX:
-        # On modern Linux (starting with the 5.1 kernel shipped on May 19th 2019), the default max
-        # shebang length limit is 256; so this should work fine.
-        assert 0 == process.returncode
-    else:
-        # On Mac, we should hit a too long path since 512 has been a stable max path length there.
-        # Although an (unlikely) error, this is the correct error to communicate to trigger fixes
-        # through shortening the PEX_ROOT (much more likely fix) or somehow fixing Pex to deal with
-        # this and yet still retain hermeticity (much less likely).
-        assert 0 != process.returncode
-        # We should see something like:
-        # [Errno 63] File name too long: '/tmp/pytest-of-runner/pytest-0/popen-gw2/
-        # test_hermetic_console_scripts0/<512 of `_`>/pex_root/isolated/
-        # .488310d43ea7ca80b559c306f2db44914a184e37.atomic_directory.lck'
-        err = stderr.decode("utf-8")
-        assert "File name too long:" in err
-        assert pex_root in err
