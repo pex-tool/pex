@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-from pex.testing import IS_LINUX, PY_VER, run_pex_command
+from pex.testing import IS_LINUX, IS_MAC, PY_VER, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -16,6 +16,18 @@ if TYPE_CHECKING:
 
 @pytest.mark.skipif(
     PY_VER < (3, 6), reason="The mypy_protobuf 2.4 distribution is only available for Python 3.6+"
+)
+@pytest.mark.xfail(
+    IS_MAC,
+    reason=(
+        "On modern Linux (starting with the 5.1 kernel shipped on May 19th 2019), the default max "
+        "shebang length limit is 256 but the hardcoded limit in Pip that #1520 fixes is 127; so "
+        "the work-around here should test green on Linux. On Mac, however, the hardcoded limit in "
+        "Pip that #1520 fixes is 512 and that limit has been stable on macOS; so we expect the PEX "
+        "creation to fail with something like: [Errno 63] File name too long: '/tmp/"
+        "pytest-of-runner/pytest-0/popen-gw2/test_hermetic_console_scripts0/<512 of `_`>/pex_root/"
+        "isolated/.488310d43ea7ca80b559c306f2db44914a184e37.atomic_directory.lck'."
+    ),
 )
 def test_hermetic_console_scripts(tmpdir):
     # type: (Any) -> None
