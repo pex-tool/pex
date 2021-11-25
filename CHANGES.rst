@@ -1,6 +1,12 @@
 Release Notes
 =============
 
+2.1.56
+------
+
+* Fix wheel install hermeticity. (#1521)
+  `PR #1521 <https://github.com/pantsbuild/pex/pull/1521>`_
+
 2.1.55
 ------
 
