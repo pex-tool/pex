@@ -13,7 +13,8 @@ from textwrap import dedent
 
 from pex import pex_warnings
 from pex.commands.command import Error, Ok, Result
-from pex.common import chmod_plus_x, pluralize, safe_mkdir
+from pex.common import chmod_plus_x, pluralize, safe_delete, safe_mkdir, safe_rmtree
+from pex.enum import Enum
 from pex.environment import PEXEnvironment
 from pex.pex import PEX
 from pex.tools.command import PEXCommand
@@ -334,6 +335,14 @@ def populate_venv_with_pex(
     return shebang
 
 
+class RemoveScope(Enum["RemoveScope.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    PEX = Value("pex")
+    PEX_AND_PEX_ROOT = Value("all")
+
+
 class Venv(PEXCommand):
     """Creates a venv from the PEX file."""
 
@@ -393,6 +402,21 @@ class Venv(PEXCommand):
             "--prompt",
             help="A custom prompt for the venv activation scripts to use.",
         )
+        parser.add_argument(
+            "--rm",
+            "--remove",
+            dest="remove",
+            default=None,
+            choices=RemoveScope.values(),
+            type=RemoveScope.for_value,
+            help=(
+                "Remove the PEX after creating a venv from it if the {pex!r} value is specified; "
+                "otherwise, remove the PEX and the PEX_ROOT if the {all!r} value is "
+                "specified.".format(
+                    pex=RemoveScope.PEX.value, all=RemoveScope.PEX_AND_PEX_ROOT.value
+                )
+            ),
+        )
         cls.register_global_arguments(parser, include_verbosity=False)
 
     def run(self, pex):
@@ -429,4 +453,11 @@ class Venv(PEXCommand):
                 )
         if self.options.compile:
             pex.interpreter.execute(["-m", "compileall", venv_dir])
+        if self.options.remove is not None:
+            if os.path.isdir(pex.path()):
+                safe_rmtree(pex.path())
+            else:
+                safe_delete(pex.path())
+            if self.options.remove is RemoveScope.PEX_AND_PEX_ROOT:
+                safe_rmtree(pex.pex_info().pex_root)
         return Ok()

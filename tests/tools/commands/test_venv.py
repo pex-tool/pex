@@ -14,11 +14,13 @@ from subprocess import CalledProcessError
 from textwrap import dedent
 
 import pytest
+from test_execution_mode import ExecutionMode
 
-from pex.common import safe_mkdtemp, safe_open, temporary_dir, touch
+from pex.common import safe_copy, safe_mkdtemp, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import PY2
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.layout import Layout
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.testing import IS_PYPY, PY38, PY_VER, ensure_python_interpreter, run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
@@ -723,3 +725,60 @@ def test_custom_prompt(tmpdir):
         env=make_env(TERM="dumb", COLS=80),
     )
     assert expected_prompt == output.decode("utf-8").strip()
+
+
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in Layout.values()]
+)
+def test_remove(
+    tmpdir,
+    layout,  # type: Layout.Value
+):
+    # type: (...) -> None
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
+    def create_venv_pex():
+        # type: () -> str
+        venv_pex = os.path.join(str(tmpdir), "venv.pex")
+        run_pex_command(
+            args=[
+                "--pex-root",
+                pex_root,
+                "--runtime-pex-root",
+                pex_root,
+                "-o",
+                venv_pex,
+                "--include-tools",
+            ]
+        ).assert_success()
+        return venv_pex
+
+    venv_dir = os.path.join(str(tmpdir), "venv_dir")
+    assert not os.path.exists(venv_dir)
+
+    venv_pex = create_venv_pex()
+    subprocess.check_call(args=[venv_pex, "venv", venv_dir], env=make_env(PEX_TOOLS=True))
+    assert os.path.exists(venv_dir)
+    assert os.path.exists(venv_pex)
+    assert os.path.exists(pex_root)
+
+    shutil.rmtree(venv_dir)
+    assert not os.path.exists(venv_dir)
+
+    subprocess.check_call(
+        args=[venv_pex, "venv", "--rm", "pex", venv_dir], env=make_env(PEX_TOOLS=True)
+    )
+    assert os.path.exists(venv_dir)
+    assert not os.path.exists(venv_pex)
+    assert os.path.exists(pex_root)
+
+    shutil.rmtree(venv_dir)
+    assert not os.path.exists(venv_dir)
+    venv_pex = create_venv_pex()
+
+    subprocess.check_call(
+        args=[venv_pex, "venv", "--rm", "all", venv_dir], env=make_env(PEX_TOOLS=True)
+    )
+    assert os.path.exists(venv_dir)
+    assert not os.path.exists(venv_pex)
+    assert not os.path.exists(pex_root)

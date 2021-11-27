@@ -3,6 +3,28 @@
 PEX Recipes and Notes
 =====================
 
+PEX app in a container
+----------------------
+
+If you want to use a PEX application in a container, you can get the smallest container footprint
+and the lowest latency application start-up by installing it with the ``venv`` Pex tool. First make
+sure you build the pex with ``--include-tools`` (or ``--venv``), and then install it in the
+container like so:
+
+.. code-block:: dockerfile
+
+    COPY my.pex /my-app.pex
+    RUN PEX_TOOLS=1 /mp-app.pex venv --rm all --compile /my-app
+    ENTRYPOINT ["/mp-app/pex"]
+
+The Pex ``venv`` tool will:
+
+1) Install the PEX as a traditional venv at ``/my-app`` with a script at ``/my-app/pex`` that runs
+   just like the original PEX.
+2) Pre-compile all PEX Python code installed in the venv.
+3) Remove the original /my-app.pex as well as and temporary caches created by Pex in the
+   ``PEX_ROOT``, leaving just the newly installed and pre-compiled ``/my-app`` venv.
+
 PEX-aware application
 ---------------------
 
