@@ -1,21 +1,24 @@
 # Copyright 2020 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import errno
+import itertools
 import logging
 import os
 import shutil
 from argparse import ArgumentParser
-from collections import defaultdict
+from collections import Counter, defaultdict
 from textwrap import dedent
 
 from pex import pex_warnings
 from pex.commands.command import Error, Ok, Result
 from pex.common import chmod_plus_x, pluralize, safe_delete, safe_mkdir, safe_rmtree
+from pex.compatibility import is_valid_python_identifier
 from pex.enum import Enum
 from pex.environment import PEXEnvironment
+from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.tools.command import PEXCommand
 from pex.tools.commands.virtualenv import PipUnavailableError, Virtualenv
@@ -24,9 +27,20 @@ from pex.typing import TYPE_CHECKING
 from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
+    import typing
     from typing import Iterable, Iterator, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+def _relative_symlink(
+    src,  # type: str
+    dst,  # type: str
+):
+    # type: (...) -> None
+    dst_parent = os.path.dirname(dst)
+    rel_src = os.path.relpath(src, dst_parent)
+    os.symlink(rel_src, dst)
 
 
 # N.B.: We can't use shutil.copytree since we copy from multiple source locations to the same site
@@ -36,6 +50,7 @@ def _copytree(
     src,  # type: str
     dst,  # type: str
     exclude=(),  # type: Tuple[str, ...]
+    symlink=False,  # type: bool
 ):
     # type: (...) -> Iterator[Tuple[str, str]]
     safe_mkdir(dst)
@@ -45,33 +60,37 @@ def _copytree(
             dirs[:] = [d for d in dirs if d not in exclude]
             files[:] = [f for f in files if f not in exclude]
 
-        for d in dirs:
+        for path, is_dir in itertools.chain(
+            zip(dirs, itertools.repeat(True)), zip(files, itertools.repeat(False))
+        ):
+            src_entry = os.path.join(root, path)
+            dst_entry = os.path.join(dst, os.path.relpath(src_entry, src))
+            yield src_entry, dst_entry
             try:
-                os.mkdir(os.path.join(dst, os.path.relpath(os.path.join(root, d), src)))
+                if symlink:
+                    _relative_symlink(src_entry, dst_entry)
+                elif is_dir:
+                    os.mkdir(dst_entry)
+                else:
+                    # We only try to link regular files since linking a symlink on Linux can produce
+                    # another symlink, which leaves open the possibility the src_entry target could
+                    # later go missing leaving the dst_entry dangling.
+                    if link and not os.path.islink(src_entry):
+                        try:
+                            os.link(src_entry, dst_entry)
+                            continue
+                        except OSError as e:
+                            if e.errno != errno.EXDEV:
+                                raise e
+                            link = False
+                    shutil.copy(src_entry, dst_entry)
             except OSError as e:
                 if e.errno != errno.EEXIST:
                     raise e
 
-        for f in files:
-            src_entry = os.path.join(root, f)
-            dst_entry = os.path.join(dst, os.path.relpath(src_entry, src))
-            yield src_entry, dst_entry
-            try:
-                # We only try to link regular files since linking a symlink on Linux can produce
-                # another symlink, which leaves open the possibility the src_entry target could
-                # later go missing leaving the dst_entry dangling.
-                if link and not os.path.islink(src_entry):
-                    try:
-                        os.link(src_entry, dst_entry)
-                        continue
-                    except OSError as e:
-                        if e.errno != errno.EXDEV:
-                            raise e
-                        link = False
-                shutil.copy(src_entry, dst_entry)
-            except OSError as e:
-                if e.errno != errno.EEXIST:
-                    raise e
+        if symlink:
+            # Once we've symlinked the top-level directories and files, we've "copied" everything.
+            return
 
 
 class CollisionError(Exception):
@@ -84,6 +103,7 @@ def populate_venv_with_pex(
     bin_path=BinPath.FALSE,  # type: BinPath.Value
     python=None,  # type: Optional[str]
     collisions_ok=True,  # type: bool
+    symlink=False,  # type: bool
 ):
     # type: (...) -> str
 
@@ -99,25 +119,83 @@ def populate_venv_with_pex(
         for src, dst in src_to_dst:
             provenance[dst].append(src)
 
+    # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
+    # sources into the venv.
     pex_info = pex.pex_info()
     record_provenance(
         _copytree(
             src=PEXEnvironment.mount(pex.path()).path,
             dst=venv.site_packages_dir,
             exclude=(pex_info.internal_cache, pex_info.bootstrap, "__main__.py", pex_info.PATH),
+            symlink=False,
         )
     )
 
     with open(os.path.join(venv.venv_dir, pex_info.PATH), "w") as fp:
         fp.write(pex_info.dump())
 
+    # Since the pex distributions are all materialized to ~/.pex/installed_wheels, which we control,
+    # we can optionally symlink to take advantage of sharing generated *.pyc files for auto-venvs
+    # created in ~/.pex/venvs.
+    top_level_packages = Counter()  # type: typing.Counter[str]
+    rel_extra_paths = OrderedSet()  # type: OrderedSet[str]
     for dist in pex.resolve():
+        # In the symlink case, in order to share all generated *.pyc files for a given distribution,
+        # we need to be able to have each contribution to a namespace package get its own top-level
+        # symlink. This requires adjoining extra sys.path entries beyond site-packages. We create
+        # the minimal number of extra such paths to satisfy all namespace package contributing dists
+        # for a given namespace package using a .pth file (See:
+        # https://docs.python.org/3/library/site.html).
+        #
+        # For example, given a PEX that depends on 3 different distributions contributing to the foo
+        # namespace package, we generate a layout like:
+        #   site-packages/
+        #     foo -> ../../../../../../installed_wheels/<hash>/foo-1.0-py3-none-any.why/foo
+        #     foo-1.0.dist-info -> ../../../../../../installed_wheels/<hash>/foo1/foo-1.0.dist-info
+        #     pex-ns-pkgs/
+        #       1/
+        #           foo -> ../../../../../../../../installed_wheels/<hash>/foo2-3.0-py3-none-any.whl/foo
+        #           foo2-3.0.dist-info -> ../../../../../../../../installed_wheels/<hash>/foo2-3.0-py3-none-any.whl/foo2-3.0.dist-info
+        #       2/
+        #           foo -> ../../../../../../../../installed_wheels/<hash>/foo3-2.5-py3-none-any.whl/foo
+        #           foo3-2.5.dist-info -> ../../../../../../../../installed_wheels/<hash>/foo3-2.5-py3-none-any.whl/foo2-2.5.dist-info
+        #     pex-ns-pkgs.pth
+        #
+        # Here site-packages/pex-ns-pkgs.pth contains:
+        #   pex-ns-pkgs/1
+        #   pex-ns-pkgs/2
+        #
+        # Although we don't need to do this for the link/copy case since directories (and
+        # subdirectories) then naturally merge, we do so anyhow to keep the code simpler and
+        # arguably provide a more transparently debuggable venv.
+        packages = [
+            name
+            for name in os.listdir(dist.location)
+            if name not in ("bin", "__pycache__")
+            and is_valid_python_identifier(name)
+            and os.path.isdir(os.path.join(dist.location, name))
+        ]
+        count = max(top_level_packages[package] for package in packages) if packages else 0
+        if count > 0:
+            rel_extra_path = os.path.join("pex-ns-pkgs", str(count))
+            dst = os.path.join(venv.site_packages_dir, rel_extra_path)
+            rel_extra_paths.add(rel_extra_path)
+        else:
+            dst = venv.site_packages_dir
+        top_level_packages.update(packages)
+
+        # N.B.: We do not include the top_level __pycache__ for a dist since there may be multiple
+        # dists with top-level modules. In that case, one dists top-level __pycache__ would be
+        # symlinked and all dists with top-level modules would have the .pyc files for those modules
+        # be mixed in. For sanity sake, and since ~no dist provides more than just 1 top-level
+        # module, we keep .pyc anchored to their associated dists when shared and accept the cost
+        # of re-compiling top-level modules in each venv that uses them.
         record_provenance(
-            _copytree(src=dist.location, dst=venv.site_packages_dir, exclude=("bin",))
+            _copytree(src=dist.location, dst=dst, exclude=("bin", "__pycache__"), symlink=symlink)
         )
         dist_bin_dir = os.path.join(dist.location, "bin")
         if os.path.isdir(dist_bin_dir):
-            record_provenance(_copytree(dist_bin_dir, venv.bin_dir))
+            record_provenance(_copytree(src=dist_bin_dir, dst=venv.bin_dir, symlink=symlink))
 
     collisions = {dst: srcs for dst, srcs in provenance.items() if len(srcs) > 1}
     if collisions:
@@ -136,6 +214,24 @@ def populate_venv_with_pex(
         if not collisions_ok:
             raise CollisionError(message)
         pex_warnings.warn(message)
+
+    if rel_extra_paths:
+        with open(os.path.join(venv.site_packages_dir, "pex-ns-pkgs.pth"), "w") as fp:
+            for rel_extra_path in rel_extra_paths:
+                if venv.interpreter.version[0] == 2:
+                    # Unfortunately, the declarative relative paths style does not appear to work
+                    # for Python 2.7. The sys.path entries are added, but they are not in turn
+                    # scanned for their own .pth additions. We work around by abusing the spec for
+                    # import lines taking inspiration from setuptools generated .pth files.
+                    print(
+                        "import os, site, sys; "
+                        "site.addsitedir("
+                        "os.path.join(sys._getframe(1).f_locals['sitedir'], {sitedir!r})"
+                        ")".format(sitedir=rel_extra_path),
+                        file=fp,
+                    )
+                else:
+                    print(rel_extra_path, file=fp)
 
     # 2. Add a __main__ to the root of the venv for running the venv dir like a loose PEX dir
     # and a main.py for running as a script.
@@ -442,6 +538,7 @@ class Venv(PEXCommand):
             pex,
             bin_path=self.options.bin_path,
             collisions_ok=self.options.collisions_ok,
+            symlink=False,
         )
         if self.options.pip:
             try:

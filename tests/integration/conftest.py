@@ -60,21 +60,3 @@ def pex_bdist(
     wheels = os.listdir(wheels_dir)
     assert 1 == len(wheels)
     return os.path.join(wheels_dir, wheels[0])
-
-
-@pytest.fixture(scope="session")
-def pex_src(
-    pex_project_dir,  # type: str
-    shared_integration_test_tmpdir,  # type: str
-):
-    # type: (...) -> str
-    src = os.path.join(shared_integration_test_tmpdir, "pex_src")
-    for root, dirs, files in os.walk(os.path.join(pex_project_dir, "pex")):
-        root_relpath = os.path.relpath(root, pex_project_dir)
-        dirs[:] = [d for d in dirs if d != "__pycache__"]
-        for d in dirs:
-            safe_mkdir(os.path.join(src, root_relpath, d))
-        for f in files:
-            if not f.endswith(".pyc"):
-                shutil.copy(os.path.join(root, f), os.path.join(src, root_relpath, f))
-    return src
