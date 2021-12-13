@@ -4,6 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import errno
+import glob
 import itertools
 import logging
 import os
@@ -14,7 +15,7 @@ from textwrap import dedent
 
 from pex import pex_warnings
 from pex.commands.command import Error, Ok, Result
-from pex.common import chmod_plus_x, pluralize, safe_delete, safe_mkdir, safe_rmtree
+from pex.common import chmod_plus_x, pluralize, safe_copy, safe_delete, safe_mkdir, safe_rmtree
 from pex.compatibility import is_valid_python_identifier
 from pex.enum import Enum
 from pex.environment import PEXEnvironment
@@ -218,7 +219,20 @@ def populate_venv_with_pex(
     if rel_extra_paths:
         with open(os.path.join(venv.site_packages_dir, "pex-ns-pkgs.pth"), "w") as fp:
             for rel_extra_path in rel_extra_paths:
-                print(rel_extra_path, file=fp)
+                if venv.interpreter.version[0] == 2:
+                    # Unfortunately, the declarative relative paths style does not appear to work
+                    # for Python 2.7. The sys.path entries are added, but they are not in turn
+                    # scanned for their own .pth additions. We work around by abusing the spec for
+                    # import lines taking inspiration from setuptools generated .pth files.
+                    print(
+                        "import os, site, sys; "
+                        "site.addsitedir("
+                        "os.path.join(sys._getframe(1).f_locals['sitedir'], {sitedir!r})"
+                        ")".format(sitedir=rel_extra_path),
+                        file=fp,
+                    )
+                else:
+                    print(rel_extra_path, file=fp)
 
     # 2. Add a __main__ to the root of the venv for running the venv dir like a loose PEX dir
     # and a main.py for running as a script.

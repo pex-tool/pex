@@ -150,17 +150,7 @@ def test_ensure_venv_namespace_packages(tmpdir):
     pex_ns_pkgs_pth = os.path.join(venv.site_packages_dir, "pex-ns-pkgs.pth")
     assert os.path.isfile(pex_ns_pkgs_pth)
     with open(pex_ns_pkgs_pth) as fp:
-        assert (
-            dedent(
-                """\
-                pex-ns-pkgs/1
-                pex-ns-pkgs/2
-                pex-ns-pkgs/3
-                pex-ns-pkgs/4
-                """
-            )
-            == fp.read()
-        )
+        assert 4 == len(fp.readlines())
 
     expected_path_entries = [
         os.path.join(venv.site_packages_dir, d)
