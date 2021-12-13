@@ -473,6 +473,7 @@ def ensure_venv(
                             short_venv_dir, "venv", "bin", os.path.basename(pex.interpreter.binary)
                         ),
                         collisions_ok=collisions_ok,
+                        symlink=True,
                     )
 
                     # There are popular Linux distributions with shebang length limits

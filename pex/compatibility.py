@@ -7,6 +7,7 @@
 from __future__ import absolute_import
 
 import os
+import re
 import sys
 from abc import ABCMeta
 from io import BytesIO
@@ -153,3 +154,16 @@ MODE_READ_UNIVERSAL_NEWLINES = "rU" if PY2 else "r"
 def get_stdout_bytes_buffer():
     # type: () -> BytesIO
     return cast(BytesIO, getattr(sys.stdout, "buffer", sys.stdout))
+
+
+if PY3:
+    is_valid_python_identifier = str.isidentifier
+else:
+
+    def is_valid_python_identifier(text):
+        # type: (str) -> bool
+
+        # N.B.: Python 2.7 only supports ASCII characters so the check is easy and this is probably
+        # why it's nt in the stdlib.
+        # See: https://docs.python.org/2.7/reference/lexical_analysis.html#identifiers
+        return re.match(r"^[_a-zA-Z][_a-zA-Z0-9]*$", text) is not None
