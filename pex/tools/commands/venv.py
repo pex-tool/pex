@@ -4,7 +4,6 @@
 from __future__ import absolute_import, print_function
 
 import errno
-import glob
 import itertools
 import logging
 import os
@@ -15,7 +14,7 @@ from textwrap import dedent
 
 from pex import pex_warnings
 from pex.commands.command import Error, Ok, Result
-from pex.common import chmod_plus_x, pluralize, safe_copy, safe_delete, safe_mkdir, safe_rmtree
+from pex.common import chmod_plus_x, pluralize, safe_delete, safe_mkdir, safe_rmtree
 from pex.compatibility import is_valid_python_identifier
 from pex.enum import Enum
 from pex.environment import PEXEnvironment
