@@ -12,7 +12,7 @@ from collections import OrderedDict, defaultdict
 from pex import environment
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget
-from pex.environment import PEXEnvironment
+from pex.environment import FingerprintedDistribution, PEXEnvironment
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
@@ -61,15 +61,25 @@ class InstalledDistribution(object):
     """
 
     target = attr.ib()  # type: DistributionTarget
-    distribution = attr.ib()  # type: Distribution
+    fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
     direct_requirement = attr.ib(default=None)  # type: Optional[Requirement]
+
+    @property
+    def distribution(self):
+        # type: () -> Distribution
+        return self.fingerprinted_distribution.distribution
+
+    @property
+    def fingerprint(self):
+        # type: () -> str
+        return self.fingerprinted_distribution.fingerprint
 
     def with_direct_requirement(self, direct_requirement=None):
         # type: (Optional[Requirement]) -> InstalledDistribution
         if direct_requirement == self.direct_requirement:
             return self
         return InstalledDistribution(
-            self.target, self.distribution, direct_requirement=direct_requirement
+            self.target, self.fingerprinted_distribution, direct_requirement=direct_requirement
         )
 
 
@@ -447,17 +457,22 @@ class InstallResult(object):
                 relative_target_path = os.path.relpath(self.install_chroot, start_dir)
                 os.symlink(relative_target_path, source_path)
 
-        return self._iter_installed_distributions(install_requests)
+        return self._iter_installed_distributions(install_requests, fingerprint=wheel_dir_hash)
 
-    def _iter_installed_distributions(self, install_requests):
-        # type: (Iterable[InstallRequest]) -> Iterator[InstalledDistribution]
+    def _iter_installed_distributions(
+        self,
+        install_requests,  # type: Iterable[InstallRequest]
+        fingerprint,  # type: str
+    ):
+        # type: (...) -> Iterator[InstalledDistribution]
         if self.is_installed:
             distribution = DistributionHelper.distribution_from_path(self.install_chroot)
             if distribution is None:
                 raise AssertionError("No distribution could be found for {}.".format(self))
             for install_request in install_requests:
                 yield InstalledDistribution(
-                    target=install_request.target, distribution=distribution
+                    target=install_request.target,
+                    fingerprinted_distribution=FingerprintedDistribution(distribution, fingerprint),
                 )
 
 
@@ -1255,12 +1270,12 @@ def resolve_from_pex(
     for target in unique_targets:
         pex_env = PEXEnvironment.mount(pex, target=target)
         try:
-            distributions = pex_env.resolve_dists(all_reqs)
+            fingerprinted_distributions = pex_env.resolve_dists(all_reqs)
         except environment.ResolveError as e:
             raise Unsatisfiable(str(e))
 
-        for distribution in distributions:
-            project_name = ProjectName(distribution)
+        for fingerprinted_distribution in fingerprinted_distributions:
+            project_name = fingerprinted_distribution.project_name
             direct_requirement = direct_requirements_by_project_name.get(project_name, None)
             if not transitive and not direct_requirement:
                 continue
@@ -1268,19 +1283,23 @@ def resolve_from_pex(
             unmet_constraints = [
                 constraint
                 for constraint in constraints_by_project_name.get(project_name, ())
-                if distribution not in constraint.requirement
+                if fingerprinted_distribution.distribution not in constraint.requirement
             ]
             if unmet_constraints:
                 raise Unsatisfiable(
                     "The following constraints were not satisfied by {dist} resolved from "
                     "{pex}:\n{constraints}".format(
-                        dist=distribution.location,
+                        dist=fingerprinted_distribution.location,
                         pex=pex,
                         constraints="\n".join(map(str, unmet_constraints)),
                     )
                 )
 
             installed_distributions.add(
-                InstalledDistribution(target, distribution, direct_requirement=direct_requirement)
+                InstalledDistribution(
+                    target=target,
+                    fingerprinted_distribution=fingerprinted_distribution,
+                    direct_requirement=direct_requirement,
+                )
             )
     return Resolved(installed_distributions=tuple(installed_distributions))

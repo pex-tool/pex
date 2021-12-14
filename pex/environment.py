@@ -20,7 +20,7 @@ from pex.pex_info import PexInfo
 from pex.third_party.packaging import specifiers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import DistributionHelper
 
 if TYPE_CHECKING:
@@ -55,6 +55,22 @@ def _import_pkg_resources():
 
 
 @attr.s(frozen=True)
+class FingerprintedDistribution(object):
+    distribution = attr.ib()  # type: Distribution
+    fingerprint = attr.ib()  # type: str
+
+    @property
+    def location(self):
+        # type: () -> str
+        return cast(str, self.distribution.location)
+
+    @property
+    def project_name(self):
+        # type: () -> ProjectName
+        return ProjectName(self.distribution)
+
+
+@attr.s(frozen=True)
 class _RankedDistribution(object):
     # N.B.: A distribution implements rich comparison with the leading component being the
     # `parsed_version`; as such, a _RankedDistribution sorts as a whole 1st by `rank` (which is a
@@ -63,12 +79,22 @@ class _RankedDistribution(object):
     # encoded in the tag specificity rank value.
 
     @classmethod
-    def maximum(cls, distribution=None):
-        # type: (Optional[Distribution]) -> _RankedDistribution
-        return cls(rank=sys.maxsize, distribution=distribution)
+    def maximum(cls, fingerprinted_distribution):
+        # type: (FingerprintedDistribution) -> _RankedDistribution
+        return cls(rank=sys.maxsize, fingerprinted_distribution=fingerprinted_distribution)
 
     rank = attr.ib()  # type: int
-    distribution = attr.ib()  # type: Distribution
+    fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
+
+    @property
+    def distribution(self):
+        # type: () -> Distribution
+        return self.fingerprinted_distribution.distribution
+
+    @property
+    def fingerprint(self):
+        # type: () -> str
+        return self.fingerprinted_distribution.fingerprint
 
     def satisfies(self, requirement):
         # type: (Requirement) -> bool
@@ -77,7 +103,12 @@ class _RankedDistribution(object):
 
 @attr.s(frozen=True)
 class _UnrankedDistribution(object):
-    dist = attr.ib()  # type: Distribution
+    fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
+
+    @property
+    def dist(self):
+        # type: () -> Distribution
+        return self.fingerprinted_distribution.distribution
 
     def render_message(self, target):
         # type: (DistributionTarget) -> str
@@ -232,39 +263,42 @@ class PEXEnvironment(object):
         return self._pex
 
     def _load_internal_cache(self):
-        # type: () -> Iterator[Distribution]
+        # type: () -> Iterator[FingerprintedDistribution]
         internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
         with TRACER.timed("Searching dependency cache: %s" % internal_cache, V=2):
-            for distribution_name in self._pex_info.distributions:
+            for distribution_name, fingerprint in self._pex_info.distributions.items():
                 dist_path = os.path.join(internal_cache, distribution_name)
-                yield DistributionHelper.distribution_from_path(dist_path)
+                yield FingerprintedDistribution(
+                    distribution=DistributionHelper.distribution_from_path(dist_path),
+                    fingerprint=fingerprint,
+                )
 
     def _update_candidate_distributions(self, distribution_iter):
-        # type: (Iterable[Distribution]) -> None
-        for dist in distribution_iter:
-            ranked_dist = self._can_add(dist)
-            project_name = ProjectName(dist)
+        # type: (Iterable[FingerprintedDistribution]) -> None
+        for fingerprinted_dist in distribution_iter:
+            ranked_dist = self._can_add(fingerprinted_dist)
+            project_name = fingerprinted_dist.project_name
             if isinstance(ranked_dist, _RankedDistribution):
-                with TRACER.timed("Adding %s" % dist, V=2):
+                with TRACER.timed("Adding %s" % fingerprinted_dist.distribution, V=2):
                     self._available_ranked_dists_by_project_name[project_name].append(ranked_dist)
             else:
                 self._unavailable_dists_by_project_name[project_name].append(ranked_dist)
 
-    def _can_add(self, dist):
-        # type: (Distribution) -> Union[_RankedDistribution, _UnrankedDistribution]
-        filename, ext = os.path.splitext(os.path.basename(dist.location))
+    def _can_add(self, fingerprinted_dist):
+        # type: (FingerprintedDistribution) -> Union[_RankedDistribution, _UnrankedDistribution]
+        filename, ext = os.path.splitext(os.path.basename(fingerprinted_dist.location))
         if ext.lower() != ".whl":
             # This supports resolving pex's own vendored distributions which are vendored in directory
             # directory with the project name (`pip/` for pip) and not the corresponding wheel name
             # (`pip-19.3.1-py2.py3-none-any.whl/` for pip). Pex only vendors universal wheels for all
             # platforms it supports at buildtime and runtime so this is always safe.
-            return _RankedDistribution.maximum(dist)
+            return _RankedDistribution.maximum(fingerprinted_dist)
 
         # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
         # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
         wheel_components = filename.split("-")
         if len(wheel_components) < 3:
-            return _InvalidWheelName(dist, filename)
+            return _InvalidWheelName(fingerprinted_dist, filename)
 
         # `{python tag}-{abi tag}-{platform tag}`
         wheel_tags = tags.parse_tag("-".join(wheel_components[-3:]))
@@ -272,14 +306,14 @@ class PEXEnvironment(object):
         # with highest rank from that expanded set.
         rank = max(self._supported_tags_to_rank.get(tag, -1) for tag in wheel_tags)
         if rank == -1:
-            return _TagMismatch(dist, wheel_tags)
+            return _TagMismatch(fingerprinted_dist, wheel_tags)
 
         if self._interpreter_version:
-            python_requires = dist_metadata.requires_python(dist)
+            python_requires = dist_metadata.requires_python(fingerprinted_dist.distribution)
             if python_requires and self._interpreter_version not in python_requires:
-                return _PythonRequiresMismatch(dist, python_requires)
+                return _PythonRequiresMismatch(fingerprinted_dist, python_requires)
 
-        return _RankedDistribution(rank, dist)
+        return _RankedDistribution(rank, fingerprinted_dist)
 
     def activate(self):
         # type: () -> Iterable[Distribution]
@@ -307,7 +341,7 @@ class PEXEnvironment(object):
     def _resolve_requirement(
         self,
         requirement,  # type: Requirement
-        resolved_dists_by_key,  # type: MutableMapping[Distribution, _RequirementKey]
+        resolved_dists_by_key,  # type: MutableMapping[_RequirementKey, FingerprintedDistribution]
         required,  # type: Optional[bool]
         required_by=None,  # type: Optional[Distribution]
     ):
@@ -328,12 +362,14 @@ class PEXEnvironment(object):
                 yield _DistributionNotFound(requirement, required_by=required_by)
             return
 
-        resolved_distribution = sorted(available_distributions, reverse=True)[0].distribution
+        resolved_distribution = sorted(available_distributions, reverse=True)[
+            0
+        ].fingerprinted_distribution
         if len(available_distributions) > 1:
             TRACER.log(
                 "Resolved {req} to {dist} and discarded {discarded}.".format(
                     req=requirement,
-                    dist=resolved_distribution,
+                    dist=resolved_distribution.distribution,
                     discarded=", ".join(
                         str(ranked_dist.distribution) for ranked_dist in available_distributions[1:]
                     ),
@@ -345,7 +381,7 @@ class PEXEnvironment(object):
             (key, resolved_distribution) for key in requirement_key.satisfied_keys()
         )
 
-        for dep_requirement in dist_metadata.requires_dists(resolved_distribution):
+        for dep_requirement in dist_metadata.requires_dists(resolved_distribution.distribution):
             # A note regarding extras and why they're passed down one level (we don't pass / use
             # dep_requirement.extras for example):
             #
@@ -465,11 +501,14 @@ class PEXEnvironment(object):
         # type: () -> Iterable[Distribution]
         if self._resolved_dists is None:
             all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
-            self._resolved_dists = self.resolve_dists(all_reqs)
+            self._resolved_dists = tuple(
+                fingerprinted_distribution.distribution
+                for fingerprinted_distribution in self.resolve_dists(all_reqs)
+            )
         return self._resolved_dists
 
     def resolve_dists(self, reqs):
-        # type: (Iterable[Requirement]) -> Iterable[Distribution]
+        # type: (Iterable[Requirement]) -> Iterable[FingerprintedDistribution]
 
         self._update_candidate_distributions(self._load_internal_cache())
 
@@ -485,7 +524,9 @@ class PEXEnvironment(object):
             if dist_not_found.required_by:
                 requirers.add(dist_not_found.required_by)
 
-        resolved_dists_by_key = OrderedDict()  # type: OrderedDict[_RequirementKey, Distribution]
+        resolved_dists_by_key = (
+            OrderedDict()
+        )  # type: OrderedDict[_RequirementKey, FingerprintedDistribution]
         for qualified_req_or_not_found in self._root_requirements_iter(reqs):
             if isinstance(qualified_req_or_not_found, _DistributionNotFound):
                 record_unresolved(qualified_req_or_not_found)
