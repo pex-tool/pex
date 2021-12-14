@@ -10,10 +10,15 @@ from textwrap import dedent
 import pytest
 
 from pex import resolver
-from pex.common import open_zip, temporary_dir
+from pex.common import temporary_dir
 from pex.compatibility import to_bytes
 from pex.distribution_target import DistributionTarget
-from pex.environment import PEXEnvironment, _InvalidWheelName, _RankedDistribution
+from pex.environment import (
+    FingerprintedDistribution,
+    PEXEnvironment,
+    _InvalidWheelName,
+    _RankedDistribution,
+)
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
@@ -365,10 +370,12 @@ def create_dist(
     location,  # type: str
     version="1.0.0",  # type: Optional[str]
 ):
-    # type: (...) -> Distribution
+    # type: (...) -> FingerprintedDistribution
     # N.B.: version must be set simply so that __hash__ / __eq__ work correctly in the
     # `pex.dist_metadata` module.
-    return Distribution(location=location, version=version)
+    return FingerprintedDistribution(
+        distribution=Distribution(location=location, version=version), fingerprint=location
+    )
 
 
 @pytest.fixture
@@ -408,7 +415,7 @@ def cpython_37_environment(python_37_interpreter):
 def test_can_add_handles_optional_build_tag_in_wheel(
     cpython_37_environment, wheel_distribution, wheel_is_linux
 ):
-    # type: (PEXEnvironment, str, bool) -> None
+    # type: (PEXEnvironment, FingerprintedDistribution, bool) -> None
     native_wheel = IS_LINUX and wheel_is_linux
     added = isinstance(cpython_37_environment._can_add(wheel_distribution), _RankedDistribution)
     assert added is native_wheel
@@ -422,7 +429,7 @@ def test_can_add_handles_invalid_wheel_filename(cpython_37_environment):
 
 @pytest.fixture
 def assert_cpython_37_environment_can_add(cpython_37_environment):
-    # type: (PEXEnvironment) -> Callable[[Distribution], _RankedDistribution]
+    # type: (PEXEnvironment) -> Callable[[FingerprintedDistribution], _RankedDistribution]
     def assert_can_add(dist):
         # type: (Distribution) -> _RankedDistribution
         rank = cpython_37_environment._can_add(dist)
@@ -472,6 +479,6 @@ def test_ranking_platform_tag_maximum(cpython_37_environment):
 
     maximum_rank = _RankedDistribution.maximum(dist)
     bigger_than_naturally_possible_rank = _RankedDistribution(
-        rank=maximum_tag_rank + 1, distribution=dist
+        rank=maximum_tag_rank + 1, fingerprinted_distribution=dist
     )
     assert maximum_rank > bigger_than_naturally_possible_rank

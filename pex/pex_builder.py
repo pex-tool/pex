@@ -415,7 +415,7 @@ class PEXBuilder(object):
         """
         self._shebang = "#!%s" % shebang if not shebang.startswith("#!") else shebang
 
-    def _add_dist_dir(self, path, dist_name):
+    def _add_dist_dir(self, path, dist_name, fingerprint=None):
         target_dir = os.path.join(self._pex_info.internal_cache, dist_name)
         if self._copy_mode == CopyMode.SYMLINK:
             self._copy_or_link(path, target_dir, label=dist_name)
@@ -426,23 +426,25 @@ class PEXBuilder(object):
                     relpath = os.path.relpath(filename, path)
                     target = os.path.join(target_dir, relpath)
                     self._copy_or_link(filename, target, label=dist_name)
-        return CacheHelper.dir_hash(path)
+        return fingerprint or CacheHelper.dir_hash(path)
 
-    def _add_dist_wheel_file(self, path, dist_name):
+    def _add_dist_wheel_file(self, path, dist_name, fingerprint=None):
         with temporary_dir() as install_dir:
             get_pip(interpreter=self._interpreter).spawn_install_wheel(
                 wheel=path,
                 install_dir=install_dir,
                 target=DistributionTarget.for_interpreter(self.interpreter),
             ).wait()
-            return self._add_dist_dir(install_dir, dist_name)
+            return self._add_dist_dir(install_dir, dist_name, fingerprint=fingerprint)
 
-    def add_distribution(self, dist, dist_name=None):
+    def add_distribution(self, dist, dist_name=None, fingerprint=None):
         """Add a :class:`pkg_resources.Distribution` from its handle.
 
         :param dist: The distribution to add to this environment.
         :keyword dist_name: (optional) The name of the distribution e.g. 'Flask-0.10.0'.  By default
-          this will be inferred from the distribution itself should it be formatted in a standard way.
+          this will be inferred from the distribution itself should it be formatted in a standard
+          way.
+        :keyword fingerprint: The fingerprint of the distribution, if already known.
         :type dist: :class:`pkg_resources.Distribution`
         """
         if dist.location in self._distributions:
@@ -455,9 +457,9 @@ class PEXBuilder(object):
         self._distributions[dist.location] = dist
 
         if os.path.isdir(dist.location):
-            dist_hash = self._add_dist_dir(dist.location, dist_name)
+            dist_hash = self._add_dist_dir(dist.location, dist_name, fingerprint=fingerprint)
         elif dist.location.endswith(".whl"):
-            dist_hash = self._add_dist_wheel_file(dist.location, dist_name)
+            dist_hash = self._add_dist_wheel_file(dist.location, dist_name, fingerprint=fingerprint)
         else:
             raise self.InvalidDistribution(
                 "Unsupported distribution type: {}, pex can only accept dist "
@@ -467,13 +469,14 @@ class PEXBuilder(object):
         # add dependency key so that it can rapidly be retrieved from cache
         self._pex_info.add_distribution(dist_name, dist_hash)
 
-    def add_dist_location(self, dist, name=None):
+    def add_dist_location(self, dist, name=None, fingerprint=None):
         """Add a distribution by its location on disk.
 
         :param dist: The path to the distribution to add.
         :keyword name: (optional) The name of the distribution, should the dist directory alone be
           ambiguous.  Packages contained within site-packages directories may require specifying
           ``name``.
+        :keyword fingerprint: The fingerprint of the distribution, if already known.
         :raises PEXBuilder.InvalidDistribution: When the path does not contain a matching distribution.
 
         PEX supports packed and unpacked .whl and .egg distributions, as well as any distribution
@@ -490,7 +493,7 @@ class PEXBuilder(object):
             ).wait()
 
         dist = DistributionHelper.distribution_from_path(dist_path)
-        self.add_distribution(dist, dist_name=name)
+        self.add_distribution(dist, dist_name=name, fingerprint=fingerprint)
         self.add_requirement(dist.as_requirement())
 
     def _precompile_source(self):
