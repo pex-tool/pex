@@ -1,6 +1,22 @@
 Release Notes
 =============
 
+2.1.57
+------
+
+This release brings a few performance improvements and a new `venv`
+pex-tools ``--remove`` feature that is useful for creating optimized
+container images from PEX files.
+
+* Do not re-hash installed wheels. (#1534)
+  `PR #1534 <https://github.com/pantsbuild/pex/pull/1534>`_
+
+* Improve space efficiency of ``--venv`` mode. (#1532)
+  `PR #1532 <https://github.com/pantsbuild/pex/pull/1532>`_
+
+* Add venv ``--remove {pex,all}`` option. (#1525)
+  `PR #1525 <https://github.com/pantsbuild/pex/pull/1525>`_
+
 2.1.56
 ------
 
