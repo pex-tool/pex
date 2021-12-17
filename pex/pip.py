@@ -134,25 +134,30 @@ class PackageIndexConfiguration(object):
         yield "--timeout"
         yield str(network_configuration.timeout)
 
-        if network_configuration.proxy:
-            yield "--proxy"
-            yield network_configuration.proxy
-
     @staticmethod
     def _calculate_env(
         network_configuration,  # type: NetworkConfiguration
         isolated,  # type: bool
     ):
         # type: (...) -> Iterator[Tuple[str, str]]
+        if network_configuration.proxy:
+            # We use the backdoor of the universality of http(s)_proxy env var support to continue
+            # to allow Pip to operate in `--isolated` mode.
+            yield "http_proxy", network_configuration.proxy
+            yield "https_proxy", network_configuration.proxy
+
         if network_configuration.cert:
             # We use the backdoor of requests (which is vendored by Pip to handle all network
             # operations) support for REQUESTS_CA_BUNDLE when possible to continue to allow Pip to
             # operate in `--isolated` mode.
-            yield ("REQUESTS_CA_BUNDLE" if isolated else "PIP_CERT"), network_configuration.cert
+            yield (
+                ("REQUESTS_CA_BUNDLE" if isolated else "PIP_CERT"),
+                os.path.abspath(network_configuration.cert),
+            )
 
         if network_configuration.client_cert:
             assert not isolated
-            yield "PIP_CLIENT_CERT", network_configuration.client_cert
+            yield "PIP_CLIENT_CERT", os.path.abspath(network_configuration.client_cert)
 
     @classmethod
     def create(
