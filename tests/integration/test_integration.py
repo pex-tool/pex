@@ -35,7 +35,6 @@ from pex.testing import (
     WheelBuilder,
     built_wheel,
     ensure_python_interpreter,
-    ensure_python_venv,
     get_dep_dist_names_from_pex,
     make_env,
     run_pex_command,
@@ -1298,18 +1297,6 @@ def test_unzip_mode():
         assert "PEXWarning: The `PEX_UNZIP` env var is deprecated." in error2.decode("utf-8")
 
 
-@pytest.fixture
-def tmp_workdir():
-    # type: () -> Iterator[str]
-    cwd = os.getcwd()
-    with temporary_dir() as tmpdir:
-        os.chdir(tmpdir)
-        try:
-            yield os.path.realpath(tmpdir)
-        finally:
-            os.chdir(cwd)
-
-
 def test_tmpdir_absolute(tmp_workdir):
     # type: (str) -> None
     result = run_pex_command(
@@ -1352,61 +1339,6 @@ def test_tmpdir_file(tmp_workdir):
     assert "is not a directory" in result.error
 
 
-@pytest.fixture(scope="module")
-def mitmdump():
-    # type: () -> Tuple[str, str]
-    python, pip = ensure_python_venv(PY38)
-    subprocess.check_call([pip, "install", "mitmproxy==5.3.0"])
-    mitmdump = os.path.join(os.path.dirname(python), "mitmdump")
-    return mitmdump, os.path.expanduser("~/.mitmproxy/mitmproxy-ca-cert.pem")
-
-
-@pytest.fixture
-def run_proxy(mitmdump, tmp_workdir):
-    # type: (Tuple[str, str], str) -> Callable[[Optional[str]], ContextManager[Tuple[int, str]]]
-    messages = os.path.join(tmp_workdir, "messages")
-    addon = os.path.join(tmp_workdir, "addon.py")
-    with open(addon, "w") as fp:
-        fp.write(
-            dedent(
-                """\
-                from mitmproxy import ctx
-        
-                class NotifyUp:
-                    def running(self) -> None:
-                        port = ctx.master.server.address[1]
-                        with open({msg_channel!r}, "w") as fp:
-                            print(str(port), file=fp)
-        
-                addons = [NotifyUp()]
-                """.format(
-                    msg_channel=messages
-                )
-            )
-        )
-
-    @contextmanager
-    def _run_proxy(
-        proxy_auth=None,  # type: Optional[str]
-    ):
-        # type: (...) -> Iterator[Tuple[int, str]]
-        os.mkfifo(messages)
-        proxy, ca_cert = mitmdump
-        args = [proxy, "-p", "0", "-s", addon]
-        if proxy_auth:
-            args.extend(["--proxyauth", proxy_auth])
-        proxy_process = subprocess.Popen(args)
-        try:
-            with open(messages, "r") as fp:
-                port = int(fp.readline().strip())
-                yield port, ca_cert
-        finally:
-            proxy_process.kill()
-            os.unlink(messages)
-
-    return _run_proxy
-
-
 EXAMPLE_PYTHON_REQUIREMENTS_URL = (
     "https://raw.githubusercontent.com/pantsbuild/example-python/"
     "c6052498f25a436f2639ccd0bc846cec1a55d7d5"
@@ -1437,7 +1369,9 @@ def test_requirements_network_configuration(run_proxy, tmp_workdir):
             EXAMPLE_PYTHON_REQUIREMENTS_URL,
             fetcher=URLFetcher(
                 NetworkConfiguration(
-                    proxy="{proxy_auth}@localhost:{port}".format(proxy_auth=proxy_auth, port=port),
+                    proxy="http://{proxy_auth}@localhost:{port}".format(
+                        proxy_auth=proxy_auth, port=port
+                    ),
                     cert=ca_cert,
                 )
             ),

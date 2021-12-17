@@ -205,7 +205,7 @@ def register_network_options(parser):
         "--proxy",
         type=str,
         default=default_network_configuration.proxy,
-        help="Specify a proxy in the form [user:passwd@]proxy.server:port.",
+        help="Specify a proxy in the form http(s)://[user:passwd@]proxy.server:port.",
     )
     parser.add_argument(
         "--cert",
