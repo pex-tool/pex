@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+2.1.58
+------
+
+This release fixes a bug handling relative ``--cert`` paths.
+
+* Always pass absolute cert path to Pip. (#1538)
+  `PR #1538 <https://github.com/pantsbuild/pex/pull/1538>`_
+
 2.1.57
 ------
 
