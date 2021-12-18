@@ -184,7 +184,21 @@ def configure_clp_pex_options(parser):
         action=HandleBoolAction,
         help=(
             "If --venv is specified, create the venv using copies of base interpreter files "
-            "instead of symlinks."
+            "instead of symlinks. This allows --venv mode PEXes to work across interpreter "
+            "upgrades without being forced to remove the PEX_ROOT to allow the venv to re-build "
+            "using the upgraded interpreter."
+        ),
+    )
+    group.add_argument(
+        "--venv-site-packages-copies",
+        "--no-venv-site-packages-copies",
+        dest="venv_site_packages_copies",
+        default=False,
+        action=HandleBoolAction,
+        help=(
+            "If --venv is specified, populate the venv site packages using hard links or copies of "
+            "resolved PEX dependencies instead of symlinks. This can be used to work around "
+            "problems with tools or libraries that are confused by symlinked source files."
         ),
     )
 
@@ -529,6 +543,7 @@ def build_pex(
     pex_info.venv = bool(options.venv)
     pex_info.venv_bin_path = options.venv or BinPath.FALSE
     pex_info.venv_copies = options.venv_copies
+    pex_info.venv_site_packages_copies = options.venv_site_packages_copies
     pex_info.includes_tools = options.include_tools or options.venv
     pex_info.pex_path = options.pex_path
     pex_info.ignore_errors = options.ignore_errors

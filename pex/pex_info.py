@@ -200,6 +200,16 @@ class PexInfo(object):
         # type: (bool) -> None
         self._pex_info["venv_copies"] = value
 
+    @property
+    def venv_site_packages_copies(self):
+        # type: () -> bool
+        return self._pex_info.get("venv_site_packages_copies", False)
+
+    @venv_site_packages_copies.setter
+    def venv_site_packages_copies(self, value):
+        # type: (bool) -> None
+        self._pex_info["venv_site_packages_copies"] = value
+
     def venv_dir(
         self,
         pex_file,  # type: str

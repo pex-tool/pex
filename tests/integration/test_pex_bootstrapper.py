@@ -18,7 +18,7 @@ from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Callable
 
 
 def test_ensure_venv_short_link(
@@ -201,3 +201,40 @@ def test_ensure_venv_namespace_packages(tmpdir):
     } == {
         os.path.basename(d) for d in package_file_installed_wheel_dirs
     }, "Expected 5 unique contributing wheels."
+
+
+def test_ensure_venv_site_packages_copies(
+    pex_bdist,  # type: str
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pex_file = os.path.join(str(tmpdir), "pex")
+
+    def assert_venv_site_packages_copies(copies):
+        # type: (bool) -> None
+        run_pex_command(
+            args=[
+                pex_bdist,
+                "-o",
+                pex_file,
+                "--pex-root",
+                pex_root,
+                "--runtime-pex-root",
+                pex_root,
+                "--venv",
+                "--venv-site-packages-copies" if copies else "--no-venv-site-packages-copies",
+                "--seed",
+            ]
+        ).assert_success()
+
+        venv_dir = PexInfo.from_pex(pex_file).venv_dir(pex_file)
+        assert venv_dir is not None
+        venv = Virtualenv(venv_dir=venv_dir)
+        pex_package = os.path.join(venv.site_packages_dir, "pex")
+        assert os.path.isdir(pex_package)
+        assert copies != os.path.islink(pex_package)
+
+    assert_venv_site_packages_copies(copies=True)
+    assert_venv_site_packages_copies(copies=False)
