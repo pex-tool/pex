@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 
-from pex.testing import PY37, PY38, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import PY37, PY310, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -18,9 +18,9 @@ def test_isolated_pex_zip(tmpdir):
     pex_root = os.path.join(str(tmpdir), "pex_root")
 
     python37 = ensure_python_interpreter(PY37)
-    python38 = ensure_python_interpreter(PY38)
+    python310 = ensure_python_interpreter(PY310)
 
-    pex_env = make_env(PEX_PYTHON_PATH=os.pathsep.join((python37, python38)))
+    pex_env = make_env(PEX_PYTHON_PATH=os.pathsep.join((python37, python310)))
 
     def add_pex_args(*args):
         # type: (*str) -> List[str]
@@ -87,7 +87,7 @@ def test_isolated_pex_zip(tmpdir):
     modified_pex = os.path.join(str(tmpdir), "modified.pex")
     subprocess.check_call(
         args=add_pex_args(
-            python38, current_pex_pex, modified_pex_src, "-c", "pex", "-o", modified_pex
+            python310, current_pex_pex, modified_pex_src, "-c", "pex", "-o", modified_pex
         ),
         env=pex_env,
     )
@@ -108,7 +108,7 @@ def test_isolated_pex_zip(tmpdir):
     ansicolors_pex = os.path.join(str(tmpdir), "ansicolors.pex")
     subprocess.check_call(
         args=add_pex_args(
-            python38,
+            python310,
             modified_pex,
             "ansicolors==1.1.8",
             "-o",
@@ -132,7 +132,7 @@ def test_isolated_pex_zip(tmpdir):
     # ===
     # Force the bootstrap to run interpreter identification which will force a Pex isolation.
     shutil.rmtree(os.path.join(pex_root, "interpreters"))
-    subprocess.check_call(args=[python38, ansicolors_pex, "-c", "import colors"], env=pex_env)
+    subprocess.check_call(args=[python310, ansicolors_pex, "-c", "import colors"], env=pex_env)
     ansicolors_pex_isolated_vendoreds = tally_isolated_vendoreds()
     ansicolors_pex_isolation = set(modified_pex_isolated_vendoreds.keys()) ^ set(
         ansicolors_pex_isolated_vendoreds.keys()
@@ -150,7 +150,7 @@ def test_isolated_pex_zip(tmpdir):
     ansicolors_pex = os.path.join(str(tmpdir), "ansicolors.old.pex")
     subprocess.check_call(
         args=add_pex_args(
-            python38,
+            python310,
             modified_pex,
             "ansicolors==1.0.2",
             "-o",
@@ -161,7 +161,7 @@ def test_isolated_pex_zip(tmpdir):
 
     # Force the bootstrap to run interpreter identification which will force a Pex isolation.
     shutil.rmtree(os.path.join(pex_root, "interpreters"))
-    subprocess.check_call(args=[python38, ansicolors_pex, "-c", "import colors"], env=pex_env)
+    subprocess.check_call(args=[python310, ansicolors_pex, "-c", "import colors"], env=pex_env)
     assert (
         ansicolors_pex_isolated_vendoreds == tally_isolated_vendoreds()
     ), "Expecting no new Pex isolations."

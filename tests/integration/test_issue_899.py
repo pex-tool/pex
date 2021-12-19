@@ -5,7 +5,7 @@ import os
 
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.testing import PY27, PY38, ensure_python_interpreter, run_pex_command, run_simple_pex
+from pex.testing import PY27, PY310, ensure_python_interpreter, run_pex_command, run_simple_pex
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
@@ -16,13 +16,13 @@ if TYPE_CHECKING:
 def test_top_level_environment_markers(tmpdir):
     # type: (Any) -> None
     python27 = ensure_python_interpreter(PY27)
-    python38 = ensure_python_interpreter(PY38)
+    python310 = ensure_python_interpreter(PY310)
 
     pex_file = os.path.join(str(tmpdir), "pex")
 
     requirement = "subprocess32==3.2.7; python_version<'3'"
     results = run_pex_command(
-        args=["--python", python27, "--python", python38, requirement, "-o", pex_file]
+        args=["--python", python27, "--python", python310, requirement, "-o", pex_file]
     )
     results.assert_success()
     requirements = PexInfo.from_pex(pex_file).requirements
@@ -36,19 +36,19 @@ def test_top_level_environment_markers(tmpdir):
     )
     assert 0 == returncode
 
-    py38_interpreter = PythonInterpreter.from_binary(python38)
+    py310_interpreter = PythonInterpreter.from_binary(python310)
 
     output, returncode = run_simple_pex(
         pex_file,
         args=["-c", "import subprocess"],
-        interpreter=py38_interpreter,
+        interpreter=py310_interpreter,
     )
     assert 0 == returncode
 
     output, returncode = run_simple_pex(
         pex_file,
         args=["-c", "import subprocess32"],
-        interpreter=py38_interpreter,
+        interpreter=py310_interpreter,
     )
     assert (
         1 == returncode

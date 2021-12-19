@@ -32,7 +32,7 @@ from pex.testing import (
     IS_PYPY,
     PY27,
     PY37,
-    PY38,
+    PY310,
     PY_VER,
     built_wheel,
     ensure_python_interpreter,
@@ -263,7 +263,7 @@ def test_resolve_current_platform(p537_resolve_cache):
         resolve_p537_wheel_names, cache=p537_resolve_cache, platforms=["current"]
     )
 
-    other_python_version = PY38 if PY_VER == (3, 7) else PY37
+    other_python_version = PY310 if PY_VER == (3, 7) else PY37
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -293,7 +293,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
 
     assert 2 == len(resolve_current_and_foreign())
 
-    other_python_version = PY38 if PY_VER == (3, 7) else PY37
+    other_python_version = PY310 if PY_VER == (3, 7) else PY37
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -401,8 +401,8 @@ def test_issues_892():
         """
     ).format(python27=python27)
 
-    python38 = ensure_python_interpreter(PY38)
-    cmd, process = PythonInterpreter.from_binary(python38).open_process(
+    python310 = ensure_python_interpreter(PY310)
+    cmd, process = PythonInterpreter.from_binary(python310).open_process(
         args=["-c", program], stderr=subprocess.PIPE
     )
     _, stderr = process.communicate()
@@ -601,9 +601,9 @@ def py27():
 
 
 @pytest.fixture(scope="module")
-def py38():
+def py310():
     # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
 
 
 @pytest.fixture(scope="module")
@@ -634,7 +634,7 @@ def foreign_platform(
 
 
 @pytest.fixture(scope="module")
-def pex_repository(py27, py38, foreign_platform, manylinux):
+def pex_repository(py27, py310, foreign_platform, manylinux):
     # type () -> str
 
     # N.B.: requests 2.25.1 constrains urllib3 to <1.27,>=1.21.1 and pick 1.26.2 on its own as of
@@ -642,7 +642,7 @@ def pex_repository(py27, py38, foreign_platform, manylinux):
     constraints_file = create_constraints_file("urllib3==1.26.1")
 
     return create_pex_repository(
-        interpreters=[py27, py38],
+        interpreters=[py27, py310],
         platforms=[foreign_platform],
         requirements=["requests[security,socks]==2.25.1"],
         constraint_files=[constraints_file],
@@ -653,7 +653,7 @@ def pex_repository(py27, py38, foreign_platform, manylinux):
 def test_resolve_from_pex(
     pex_repository,  # type: str
     py27,  # type: PythonInterpreter
-    py38,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
     manylinux,  # type: Optional[str]
 ):
@@ -665,7 +665,7 @@ def test_resolve_from_pex(
     result = resolve_from_pex(
         pex=pex_repository,
         requirements=direct_requirements,
-        interpreters=[py27, py38],
+        interpreters=[py27, py310],
         platforms=[foreign_platform],
         assume_manylinux=manylinux,
     )
@@ -724,7 +724,7 @@ def test_resolve_from_pex_subset(
 
 def test_resolve_from_pex_not_found(
     pex_repository,  # type: str
-    py38,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -732,7 +732,7 @@ def test_resolve_from_pex_not_found(
         resolve_from_pex(
             pex=pex_repository,
             requirements=["pex"],
-            interpreters=[py38],
+            interpreters=[py310],
         )
     assert "A distribution for pex could not be resolved in this environment." in str(
         exec_info.value
@@ -742,13 +742,13 @@ def test_resolve_from_pex_not_found(
         resolve_from_pex(
             pex=pex_repository,
             requirements=["requests==1.0.0"],
-            interpreters=[py38],
+            interpreters=[py310],
         )
     message = str(exec_info.value)
     assert (
         "Failed to resolve requirements from PEX environment @ {}".format(pex_repository) in message
     )
-    assert "Needed {} compatible dependencies for:".format(py38.platform) in message
+    assert "Needed {} compatible dependencies for:".format(py310.platform) in message
     assert "1: requests==1.0.0" in message
     assert "But this pex only contains:" in message
     assert "requests-2.25.1-py2.py3-none-any.whl" in message
@@ -757,7 +757,7 @@ def test_resolve_from_pex_not_found(
 def test_resolve_from_pex_intransitive(
     pex_repository,  # type: str
     py27,  # type: PythonInterpreter
-    py38,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
     foreign_platform,  # type: Platform
     manylinux,  # type: Optional[str]
 ):
@@ -767,7 +767,7 @@ def test_resolve_from_pex_intransitive(
         pex=pex_repository,
         requirements=["requests"],
         transitive=False,
-        interpreters=[py27, py38],
+        interpreters=[py27, py310],
         platforms=[foreign_platform],
         assume_manylinux=manylinux,
     ).installed_distributions

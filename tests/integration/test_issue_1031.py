@@ -7,7 +7,7 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
-from pex.testing import PY27, PY38, ensure_python_venv, make_env, run_simple_pex_test
+from pex.testing import PY27, PY310, ensure_python_venv, make_env, run_simple_pex_test
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     "py_version",
     [
         pytest.param(PY27, id="virtualenv-16.7.10"),
-        pytest.param(PY38, id="pyvenv"),
+        pytest.param(PY310, id="pyvenv"),
     ],
 )
 def test_setuptools_isolation_with_system_site_packages(py_version):

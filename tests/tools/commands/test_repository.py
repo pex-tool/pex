@@ -14,7 +14,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open, temporary_dir
-from pex.testing import PY38, ensure_python_venv, run_command_with_jitter, run_pex_command
+from pex.testing import PY310, ensure_python_venv, run_command_with_jitter, run_pex_command
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.typing import TYPE_CHECKING
@@ -244,7 +244,7 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     )
     result.assert_success()
 
-    _, pip = ensure_python_venv(PY38)
+    _, pip = ensure_python_venv(PY310)
     subprocess.check_call(
         args=[pip, "install", "--no-index", "--find-links", find_links_url, "example"]
     )

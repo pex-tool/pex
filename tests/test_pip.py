@@ -15,7 +15,7 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pip import PackageIndexConfiguration, Pip
 from pex.platforms import Platform
-from pex.testing import PY38, ensure_python_interpreter, environment_as
+from pex.testing import PY310, ensure_python_interpreter, environment_as
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -140,8 +140,8 @@ def assert_download_platform_markers_issue_1366(
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
-    python38_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
-    pip = create_pip(python38_interpreter)
+    python310_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
+    pip = create_pip(python310_interpreter)
 
     python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
     download_dir = os.path.join(str(tmpdir), "downloads")
@@ -184,8 +184,8 @@ def test_download_platform_markers_issue_1366_indeterminate(
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
-    python38_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
-    pip = create_pip(python38_interpreter)
+    python310_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
+    pip = create_pip(python310_interpreter)
 
     python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
     download_dir = os.path.join(str(tmpdir), "downloads")

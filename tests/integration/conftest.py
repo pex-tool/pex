@@ -11,7 +11,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import atomic_directory, temporary_dir
-from pex.testing import PY38, ensure_python_venv, make_env, run_pex_command
+from pex.testing import PY310, ensure_python_venv, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -78,7 +78,7 @@ def tmp_workdir():
 @pytest.fixture(scope="module")
 def mitmdump():
     # type: () -> Tuple[str, str]
-    python, pip = ensure_python_venv(PY38)
+    python, pip = ensure_python_venv(PY310)
     subprocess.check_call([pip, "install", "mitmproxy==5.3.0"])
     mitmdump = os.path.join(os.path.dirname(python), "mitmdump")
     return mitmdump, os.path.expanduser("~/.mitmproxy/mitmproxy-ca-cert.pem")

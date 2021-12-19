@@ -14,7 +14,7 @@ from pex.testing import (
     IS_MAC,
     PY27,
     PY37,
-    PY38,
+    PY310,
     IntegResults,
     ensure_python_interpreter,
     run_pex_command,
@@ -93,8 +93,8 @@ def py37():
 
 
 @pytest.fixture
-def py38():
-    return create_target(PY38)
+def py310():
+    return create_target(PY310)
 
 
 def test_select_same_target(py27):
@@ -106,13 +106,13 @@ def test_select_same_target(py27):
 
 def test_select_universal_compatible_targets(
     py37,  # type: DistributionTarget
-    py38,  # type: DistributionTarget
+    py310,  # type: DistributionTarget
 ):
     # type: (...) -> None
     assert [
         (py37, SINGLE_PLATFORM_UNIVERSAL_WHEEL.locked_resolves[0]),
-        (py38, SINGLE_PLATFORM_UNIVERSAL_WHEEL.locked_resolves[0]),
-    ] == list(SINGLE_PLATFORM_UNIVERSAL_WHEEL.select([py37, py38]))
+        (py310, SINGLE_PLATFORM_UNIVERSAL_WHEEL.locked_resolves[0]),
+    ] == list(SINGLE_PLATFORM_UNIVERSAL_WHEEL.select([py37, py310]))
 
 
 DUAL_PLATFORM_NATIVE_WHEEL = lockfile.loads(
@@ -189,12 +189,12 @@ def test_select_incompatible_target(py27):
 
 def test_select_compatible_targets(
     py37,  # type: DistributionTarget
-    py38,  # type: DistributionTarget
+    py310,  # type: DistributionTarget
 ):
     # type: (...) -> None
     expected_index = 0 if IS_MAC else 1
     assert [(py37, DUAL_PLATFORM_NATIVE_WHEEL.locked_resolves[expected_index])] == list(
-        DUAL_PLATFORM_NATIVE_WHEEL.select([py37, py38])
+        DUAL_PLATFORM_NATIVE_WHEEL.select([py37, py310])
     )
 
 

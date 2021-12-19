@@ -6,7 +6,7 @@ import re
 import subprocess
 import sys
 
-from pex.testing import PY27, PY37, PY38, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import PY27, PY37, PY310, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -58,17 +58,17 @@ def test_unconstrained_universal_venv_pex(tmpdir):
 
     py27 = ensure_python_interpreter(PY27)
     py37 = ensure_python_interpreter(PY37)
-    py38 = ensure_python_interpreter(PY38)
+    py310 = ensure_python_interpreter(PY310)
 
     assert_uses_python(python=sys.executable, expected_version=sys.version_info[:2])
     assert_uses_python(python=py27, expected_version=(2, 7))
     assert_uses_python(python=py37, expected_version=(3, 7))
-    assert_uses_python(python=py38, expected_version=(3, 8))
+    assert_uses_python(python=py310, expected_version=(3, 10))
 
     # When PEX_PYTHON is imprecise, the final python should be chosen by the PEX runtime.
     py27_ppp = os.path.dirname(py27)
     assert_uses_python(
-        python=py38,
+        python=py310,
         expected_version=(2, 7),
         PEX_PYTHON="python3.7",
         PEX_PYTHON_PATH=py27_ppp,
@@ -82,7 +82,7 @@ def test_unconstrained_universal_venv_pex(tmpdir):
     # When PEX_PYTHON is imprecise and not locked down to a minor version, a warning should be
     # issued.
     assert_uses_python(
-        python=py38,
+        python=py310,
         expected_version=(2, 7),
         PEX_PYTHON="python3",
         PEX_PYTHON_PATH=py27_ppp,
@@ -96,13 +96,13 @@ def test_unconstrained_universal_venv_pex(tmpdir):
 
     # When PEX_PYTHON is precise but not on PEX_PYTHON_PATH, the final python should also be chosen
     # by the PEX runtime and selection should fail.
-    _, _, returncode = execute_pex(python=py38, PEX_PYTHON=py37, PEX_PYTHON_PATH=py27_ppp)
+    _, _, returncode = execute_pex(python=py310, PEX_PYTHON=py37, PEX_PYTHON_PATH=py27_ppp)
     assert 0 != returncode
 
     # But when PEX_PYTHON is precise and on the PEX_PYTHON_PATH, the final python should be
     # PEX_PYTHON.
     assert_uses_python(
-        python=py38,
+        python=py310,
         expected_version=(3, 7),
         PEX_PYTHON=py37,
         PEX_PYTHON_PATH=":".join(os.path.dirname(py) for py in (py27, py37)),

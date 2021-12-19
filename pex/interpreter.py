@@ -370,7 +370,7 @@ class PythonInterpreter(object):
                 [2-9]
                 (?:.
                     # Minor version
-                    [0-9]
+                    [0-9]+
                     # Some distributions include a suffix on the interpreter name, similar to
                     # PEP-3149. For example, Gentoo has /usr/bin/python3.6m to indicate it was
                     # built with pymalloc

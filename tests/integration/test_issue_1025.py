@@ -10,7 +10,7 @@ import pytest
 from pex.common import temporary_dir
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
-from pex.testing import PY38, ensure_python_venv, make_env, run_pex_command, run_simple_pex
+from pex.testing import PY310, ensure_python_venv, make_env, run_pex_command, run_simple_pex
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def create_pth():
 
 
 def test_extras_isolation(create_pth):
-    python, pip = ensure_python_venv(PY38)
+    python, pip = ensure_python_venv(PY310)
     interpreter = PythonInterpreter.from_binary(python)
     _, stdout, _ = interpreter.execute(args=["-c", "import site; print(site.getsitepackages()[0])"])
     with temporary_dir() as tmpdir:

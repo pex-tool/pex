@@ -13,7 +13,7 @@ from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.testing import (
     PY27,
-    PY38,
+    PY310,
     ensure_python_interpreter,
     make_env,
     run_pex_command,
@@ -130,27 +130,27 @@ def test_pex_reexec_constraints_match_current_pythonpath_present():
 
 def test_pex_reexec_constraints_dont_match_current_pex_python_path():
     # type: () -> None
-    py38_interpreter = ensure_python_interpreter(PY38)
+    py310_interpreter = ensure_python_interpreter(PY310)
     py27_interpreter = ensure_python_interpreter(PY27)
     _assert_exec_chain(
-        exec_chain=[py38_interpreter],
-        pex_python_path=[py27_interpreter, py38_interpreter],
-        interpreter_constraints=["=={}".format(PY38)],
+        exec_chain=[py310_interpreter],
+        pex_python_path=[py27_interpreter, py310_interpreter],
+        interpreter_constraints=["=={}".format(PY310)],
     )
 
 
 def test_pex_reexec_constraints_dont_match_current_pex_python_path_min_py_version_selected():
     # type: () -> None
-    py38_interpreter = ensure_python_interpreter(PY38)
+    py310_interpreter = ensure_python_interpreter(PY310)
     py27_interpreter = ensure_python_interpreter(PY27)
     _assert_exec_chain(
-        exec_chain=[py27_interpreter], pex_python_path=[py38_interpreter, py27_interpreter]
+        exec_chain=[py27_interpreter], pex_python_path=[py310_interpreter, py27_interpreter]
     )
 
 
 def test_pex_reexec_constraints_dont_match_current_pex_python():
     # type: () -> None
-    version = PY27 if sys.version_info[:2] == (3, 8) else PY38
+    version = PY27 if sys.version_info[:2] == (3, 8) else PY310
     interpreter = ensure_python_interpreter(version)
     _assert_exec_chain(
         exec_chain=[interpreter],
