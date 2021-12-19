@@ -115,6 +115,12 @@ class TestPythonInterpreter(object):
             "python3",
             "python3.6",
             "python3.6m",
+            "python3.10",
+            "python3.10m",
+            "python3.99",
+            "python3.99m",
+            "python3.123",
+            "python3.123m",
         )
 
         matches = PythonInterpreter._matches_binary_name
