@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+2.1.59
+------
+
+This release adds the boolean option ``--venv-site-packages-copies`` to
+control whether ``--venv`` execution mode PEXes create their venv with
+copies (hardlinks when possible) or symlinks. It also fixes a bug that
+prevented Python 3.10 interpreters from being discovered when
+``--interpreter-constraint`` was used.
+
+* Add knob for --venv site-packages symlinking. (#1543)
+  `PR #1543 <https://github.com/pantsbuild/pex/pull/1543>`_
+
+* Fix Pex to identify Python 3.10 interpreters. (#1545)
+  `PR #1545 <https://github.com/pantsbuild/pex/pull/1545>`_
+
 2.1.58
 ------
 
