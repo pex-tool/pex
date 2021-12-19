@@ -21,7 +21,7 @@ def test_interpreter(
 def test_unique_targets(
     py27,  # type: PythonInterpreter
     py37,  # type: PythonInterpreter
-    py38,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
     current_interpreter,  # type: PythonInterpreter
     current_platform,  # type: Platform
 ):
@@ -52,6 +52,6 @@ def test_unique_targets(
     )
 
     assert (
-        OrderedSet(DistributionTarget.for_interpreter(i) for i in (py27, py37, py38))
-        == TargetConfiguration(interpreters=[py27, py37, py38]).unique_targets()
+        OrderedSet(DistributionTarget.for_interpreter(i) for i in (py27, py37, py310))
+        == TargetConfiguration(interpreters=[py27, py37, py310]).unique_targets()
     )

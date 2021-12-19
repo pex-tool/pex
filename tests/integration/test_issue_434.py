@@ -4,7 +4,7 @@
 import os
 
 from pex.common import temporary_dir
-from pex.testing import PY38, ensure_python_interpreter, run_pex_command, run_simple_pex
+from pex.testing import PY310, ensure_python_interpreter, run_pex_command, run_simple_pex
 
 
 def test_entry_point_targeting():
@@ -13,7 +13,7 @@ def test_entry_point_targeting():
     with temporary_dir() as td:
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:
-            pex_python = ensure_python_interpreter(PY38)
+            pex_python = ensure_python_interpreter(PY310)
             pexrc.write("PEX_PYTHON=%s" % pex_python)
 
         # test pex with entry point

@@ -445,10 +445,10 @@ def bootstrap_python_installer(dest):
 # minutes for a shard.
 PY27 = "2.7.18"
 PY37 = "3.7.11"
-PY38 = "3.8.11"
+PY310 = "3.10.1"
 
-_ALL_PY_VERSIONS = (PY27, PY37, PY38)
-_ALL_PY3_VERSIONS = (PY37, PY38)
+_ALL_PY_VERSIONS = (PY27, PY37, PY310)
+_ALL_PY3_VERSIONS = (PY37, PY310)
 
 
 def ensure_python_distribution(version):
@@ -502,7 +502,10 @@ def ensure_python_distribution(version):
             subprocess.check_call([pyenv, "install", "--keep", version], env=env)
             subprocess.check_call([pip, "install", "-U", "pip"])
 
-    python = os.path.join(interpreter_location, "bin", "python" + version[0:3])
+    major, minor = version.split(".")[:2]
+    python = os.path.join(
+        interpreter_location, "bin", "python{major}.{minor}".format(major=major, minor=minor)
+    )
 
     def run_pyenv(args):
         # type: (Iterable[str]) -> Text

@@ -8,7 +8,7 @@ from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.testing import (
     PY27,
-    PY38,
+    PY310,
     IntegResults,
     ensure_python_interpreter,
     make_env,
@@ -24,13 +24,13 @@ if TYPE_CHECKING:
 def test_resolve_local_platform():
     # type: () -> None
     python27 = ensure_python_interpreter(PY27)
-    python38 = ensure_python_interpreter(PY38)
-    pex_python_path = os.pathsep.join((python27, python38))
+    python310 = ensure_python_interpreter(PY310)
+    pex_python_path = os.pathsep.join((python27, python310))
 
     def create_platform_pex(args):
         # type: (List[str]) -> IntegResults
         return run_pex_command(
-            args=["--platform", str(PythonInterpreter.from_binary(python38).platform)] + args,
+            args=["--platform", str(PythonInterpreter.from_binary(python310).platform)] + args,
             python=python27,
             env=make_env(PEX_PYTHON_PATH=pex_python_path),
         )
@@ -54,7 +54,7 @@ def test_resolve_local_platform():
         output, returncode = run_simple_pex(
             pex=pex_file,
             args=("-c", "import psutil; print(psutil.cpu_count())"),
-            interpreter=PythonInterpreter.from_binary(python38),
+            interpreter=PythonInterpreter.from_binary(python310),
         )
         assert 0 == returncode
         assert int(output.strip()) >= multiprocessing.cpu_count()

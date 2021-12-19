@@ -11,7 +11,7 @@ import pytest
 from pex.common import safe_mkdtemp
 from pex.interpreter import PythonInterpreter
 from pex.pex_builder import PEXBuilder
-from pex.testing import PY37, PY38, ensure_python_interpreter
+from pex.testing import PY37, PY310, ensure_python_interpreter
 from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
 
@@ -29,9 +29,9 @@ def python37():
 
 
 @pytest.fixture(scope="module")
-def python38():
+def python310():
     # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
 
 
 @attr.s(frozen=True)
@@ -82,10 +82,10 @@ class InterpreterTool(object):
 @pytest.fixture(scope="module")
 def interpreter_tool(
     python37,  # type: PythonInterpreter
-    python38,  # type: PythonInterpreter
+    python310,  # type: PythonInterpreter
 ):
     # type: (...) -> InterpreterTool
-    return InterpreterTool.create(python37, python38)
+    return InterpreterTool.create(python37, python310)
 
 
 def expected_basic(interpreter):
@@ -104,13 +104,13 @@ def test_basic(
 
 def test_basic_all(
     python37,  # type: PythonInterpreter
-    python38,  # type: PythonInterpreter
+    python310,  # type: PythonInterpreter
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
     output = interpreter_tool.run("-a")
     assert [
-        expected_basic(interpreter) for interpreter in (python37, python38)
+        expected_basic(interpreter) for interpreter in (python37, python310)
     ] == output.splitlines()
 
 
@@ -134,12 +134,12 @@ def test_verbose(
 
 def test_verbose_all(
     python37,  # type: PythonInterpreter
-    python38,  # type: PythonInterpreter
+    python310,  # type: PythonInterpreter
     interpreter_tool,  # type: InterpreterTool
 ):
     # type: (...) -> None
     output = interpreter_tool.run("-va")
-    assert [expected_verbose(interpreter) for interpreter in (python37, python38)] == [
+    assert [expected_verbose(interpreter) for interpreter in (python37, python310)] == [
         json.loads(line) for line in output.splitlines()
     ]
 
@@ -172,10 +172,10 @@ def test_verbose_verbose_verbose(
 
 
 def test_verbose_verbose_verbose_venv(
-    python38,  # type: PythonInterpreter
+    python310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
-    venv = Virtualenv.create(venv_dir=safe_mkdtemp(), interpreter=python38, force=True)
+    venv = Virtualenv.create(venv_dir=safe_mkdtemp(), interpreter=python310, force=True)
     assert venv.interpreter.is_venv
 
     # N.B.: Non-venv-mode PEXes always escape venvs to prevent `sys.path` contamination unless
@@ -186,6 +186,6 @@ def test_verbose_verbose_verbose_venv(
     expected.update(
         env_markers=venv.interpreter.identity.env_markers,
         venv=True,
-        base_interpreter=python38.binary,
+        base_interpreter=python310.binary,
     )
     assert expected == json.loads(output)

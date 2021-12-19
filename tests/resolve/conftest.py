@@ -7,7 +7,7 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
-from pex.testing import PY27, PY37, PY38, ensure_python_interpreter
+from pex.testing import PY27, PY37, PY310, ensure_python_interpreter
 
 
 @pytest.fixture
@@ -41,6 +41,6 @@ def py37():
 
 
 @pytest.fixture
-def py38():
+def py310():
     # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY310))

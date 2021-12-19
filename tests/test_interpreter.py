@@ -23,7 +23,7 @@ from pex.pyenv import Pyenv
 from pex.testing import (
     PY27,
     PY37,
-    PY38,
+    PY310,
     PY_VER,
     ensure_python_distribution,
     ensure_python_interpreter,
@@ -40,7 +40,7 @@ except ImportError:
     from mock import Mock, patch  # type: ignore[misc,import]
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, List, Tuple, Optional
+    from typing import Any, Iterator, List, Tuple
 
     from pex.interpreter import InterpreterOrError
 
@@ -115,6 +115,12 @@ class TestPythonInterpreter(object):
             "python3",
             "python3.6",
             "python3.6m",
+            "python3.10",
+            "python3.10m",
+            "python3.99",
+            "python3.99m",
+            "python3.123",
+            "python3.123m",
         )
 
         matches = PythonInterpreter._matches_binary_name
@@ -212,7 +218,7 @@ class TestPythonInterpreter(object):
     def test_pyenv_shims(self, tmpdir):
         # type: (Any) -> None
         py37, _, run_pyenv = ensure_python_distribution(PY37)
-        py38 = ensure_python_interpreter(PY38)
+        py310 = ensure_python_interpreter(PY310)
 
         pyenv_root = str(run_pyenv(["root"]).strip())
         pyenv_shims = os.path.join(pyenv_root, "shims")
@@ -258,16 +264,16 @@ class TestPythonInterpreter(object):
                 with pytest.raises(PythonInterpreter.IdentificationError):
                     interpreter_for_shim(shim_name)
 
-            pyenv_global(PY37, PY38)
+            pyenv_global(PY37, PY310)
             assert_shim("python", py37)
             assert_shim("python3", py37)
             assert_shim("python3.7", py37)
-            assert_shim("python3.8", py38)
+            assert_shim("python3.10", py310)
 
-            pyenv_global(PY38, PY37)
-            assert_shim("python", py38)
-            assert_shim("python3", py38)
-            assert_shim("python3.8", py38)
+            pyenv_global(PY310, PY37)
+            assert_shim("python", py310)
+            assert_shim("python3", py310)
+            assert_shim("python3.10", py310)
             assert_shim("python3.7", py37)
 
             pyenv_local(PY37)
@@ -276,17 +282,17 @@ class TestPythonInterpreter(object):
             assert_shim("python3.7", py37)
             assert_shim_inactive("python3.8")
 
-            with pyenv_shell(PY38):
-                assert_shim("python", py38)
-                assert_shim("python3", py38)
-                assert_shim("python3.8", py38)
+            with pyenv_shell(PY310):
+                assert_shim("python", py310)
+                assert_shim("python3", py310)
+                assert_shim("python3.10", py310)
                 assert_shim_inactive("python3.7")
 
-            with pyenv_shell(PY37, PY38):
+            with pyenv_shell(PY37, PY310):
                 assert_shim("python", py37)
                 assert_shim("python3", py37)
                 assert_shim("python3.7", py37)
-                assert_shim("python3.8", py38)
+                assert_shim("python3.10", py310)
 
             # The shim pointer is now invalid since python3.7 was uninstalled and so
             # should be re-read and found invalid.
@@ -404,13 +410,13 @@ def test_resolve_venv_ambient():
 def test_identify_cwd_isolation_issues_1231(tmpdir):
     # type: (Any) -> None
 
-    python38, pip = ensure_python_venv(PY38)
+    python37, pip = ensure_python_venv(PY37)
     polluted_cwd = os.path.join(str(tmpdir), "dir")
     subprocess.check_call(args=[pip, "install", "--target", polluted_cwd, "pex==2.1.16"])
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
     with pushd(polluted_cwd), ENV.patch(PEX_ROOT=pex_root):
-        interp = PythonInterpreter.from_binary(python38)
+        interp = PythonInterpreter.from_binary(python37)
 
     interp_info_files = {
         os.path.join(root, f)

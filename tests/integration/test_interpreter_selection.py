@@ -10,7 +10,7 @@ from pex.pex_info import PexInfo
 from pex.testing import (
     PY27,
     PY37,
-    PY38,
+    PY310,
     ensure_python_interpreter,
     make_env,
     run_pex_command,
@@ -44,7 +44,7 @@ def test_interpreter_constraints_to_pex_info_py2():
 
 def test_interpreter_constraints_to_pex_info_py3():
     # type: () -> None
-    py3_interpreter = ensure_python_interpreter(PY38)
+    py3_interpreter = ensure_python_interpreter(PY310)
     with temporary_dir() as output_dir:
         # target python 3
         pex_out_path = os.path.join(output_dir, "pex_py3.pex")
@@ -132,7 +132,7 @@ def test_interpreter_constraints_honored_without_ppp_or_pp(tmpdir):
     # type: (Any) -> None
     # Create a pex with interpreter constraints, but for not the default interpreter in the path.
 
-    py38_path = ensure_python_interpreter(PY38)
+    py310_path = ensure_python_interpreter(PY310)
     py37_path = ensure_python_interpreter(PY37)
 
     pex_out_path = os.path.join(str(tmpdir), "pex.pex")
@@ -141,12 +141,12 @@ def test_interpreter_constraints_honored_without_ppp_or_pp(tmpdir):
         PATH=os.pathsep.join(
             [
                 os.path.dirname(py37_path),
-                os.path.dirname(py38_path),
+                os.path.dirname(py310_path),
             ]
         ),
     )
     res = run_pex_command(
-        ["--disable-cache", "--interpreter-constraint===%s" % PY38, "-o", pex_out_path], env=env
+        ["--disable-cache", "--interpreter-constraint===%s" % PY310, "-o", pex_out_path], env=env
     )
     res.assert_success()
 
@@ -160,10 +160,10 @@ def test_interpreter_constraints_honored_without_ppp_or_pp(tmpdir):
     )
     assert rc == 0
 
-    # If the constraints are honored, it will have run python3.8 and not python3.7
+    # If the constraints are honored, it will have run python3.10 and not python3.7
     # Without constraints, we would expect it to use python3.7 as it is the minimum interpreter
     # in the PATH.
-    assert b"3.8\n" == stdout
+    assert b"3.10\n" == stdout
 
 
 def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdir):
@@ -179,7 +179,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
                 PEX_PYTHON_PATH={ppp}
                 PEX_PYTHON={pp}
                 """.format(
-                    ppp=ppp, pp=ensure_python_interpreter(PY38)
+                    ppp=ppp, pp=ensure_python_interpreter(PY310)
                 )
             )
         )
@@ -247,7 +247,7 @@ def test_pex_exec_with_pex_python_path_only():
         with open(pexrc_path, "w") as pexrc:
             # set pex python path
             pex_python_path = ":".join(
-                [ensure_python_interpreter(PY27), ensure_python_interpreter(PY38)]
+                [ensure_python_interpreter(PY27), ensure_python_interpreter(PY310)]
             )
             pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
 
@@ -274,7 +274,7 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints(tmpdir)
                 PEX_PYTHON_PATH={}
                 PEX_PYTHON=python
                 """.format(
-                    ":".join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY38, PY27))
+                    ":".join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY310, PY27))
                 )
             )
         )
@@ -379,7 +379,7 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
         # execute with. The child interpreter is the interpreter we expect the
         # child pex to execute with.
         if sys.version_info[:2] == (3, 8):
-            child_pex_interpreter_version = PY38
+            child_pex_interpreter_version = PY310
         else:
             child_pex_interpreter_version = PY27
 

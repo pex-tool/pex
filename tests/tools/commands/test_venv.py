@@ -14,15 +14,14 @@ from subprocess import CalledProcessError
 from textwrap import dedent
 
 import pytest
-from test_execution_mode import ExecutionMode
 
-from pex.common import safe_copy, safe_mkdtemp, safe_open, safe_rmtree, temporary_dir, touch
+from pex.common import safe_mkdtemp, safe_open, temporary_dir, touch
 from pex.compatibility import PY2
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import IS_PYPY, PY38, PY_VER, ensure_python_interpreter, run_pex_command
+from pex.testing import IS_PYPY, PY310, PY_VER, ensure_python_interpreter, run_pex_command
 from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
@@ -428,23 +427,25 @@ def test_venv_entrypoint_function_exit_code_issue_1241(tmpdir):
 def test_venv_copies(tmpdir):
     # type: (Any) -> None
 
-    python38 = ensure_python_interpreter(PY38)
+    python310 = ensure_python_interpreter(PY310)
 
     pex_file = os.path.join(str(tmpdir), "venv.pex")
-    result = run_pex_command(args=["-o", pex_file, "--include-tools"], python=python38)
+    result = run_pex_command(args=["-o", pex_file, "--include-tools"], python=python310)
     result.assert_success()
 
     PEX_TOOLS = make_env(PEX_TOOLS=1)
 
     venv_symlinks = os.path.join(str(tmpdir), "venv.symlinks")
-    subprocess.check_call(args=[python38, pex_file, "venv", venv_symlinks], env=PEX_TOOLS)
+    subprocess.check_call(args=[python310, pex_file, "venv", venv_symlinks], env=PEX_TOOLS)
     venv_symlinks_interpreter = PythonInterpreter.from_binary(
         os.path.join(venv_symlinks, "bin", "python")
     )
     assert os.path.islink(venv_symlinks_interpreter.binary)
 
     venv_copies = os.path.join(str(tmpdir), "venv.copies")
-    subprocess.check_call(args=[python38, pex_file, "venv", "--copies", venv_copies], env=PEX_TOOLS)
+    subprocess.check_call(
+        args=[python310, pex_file, "venv", "--copies", venv_copies], env=PEX_TOOLS
+    )
     venv_copies_interpreter = PythonInterpreter.from_binary(
         os.path.join(venv_copies, "bin", "python")
     )
