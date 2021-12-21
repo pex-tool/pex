@@ -8,7 +8,7 @@ env:
   # We use this to skip exposing same-versioned Pythons present on Linux hosts. These otherwise can
   # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
   # importing builtins like `fcntl` as outlined in https://github.com/pantsbuild/pex/issues/1391.
-  _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.8"
+  _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.10"
 concurrency:
   group: CI-${{ github.ref }}
   # Queue on all branches and tags, but only cancel overlapping PR burns.
@@ -101,7 +101,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v2
+          key: ${{ runner.os }}-pyenv-root-v3
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -136,7 +136,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v2
+          key: ${{ runner.os }}-pyenv-root-v3
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -172,7 +172,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v2
+          key: ${{ runner.os }}-pyenv-root-v3
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -211,7 +211,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v2
+          key: ${{ runner.os }}-pyenv-root-v3
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
