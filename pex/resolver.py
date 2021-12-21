@@ -5,6 +5,7 @@
 from __future__ import absolute_import
 
 import functools
+import itertools
 import os
 import zipfile
 from collections import OrderedDict, defaultdict
@@ -26,6 +27,7 @@ from pex.resolve.locked_resolve import LockConfiguration, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.target_configuration import TargetConfiguration
+from pex.sorted_tuple import SortedTuple
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -52,6 +54,11 @@ class Unsatisfiable(ResolveError):
     pass
 
 
+def _sorted_requirements(requirements):
+    # type: (Optional[Iterable[Requirement]]) -> SortedTuple[Requirement]
+    return SortedTuple(requirements, key=lambda req: str(req)) if requirements else SortedTuple()
+
+
 @attr.s(frozen=True)
 class InstalledDistribution(object):
     """A distribution target, and the installed distribution that satisfies it.
@@ -62,7 +69,9 @@ class InstalledDistribution(object):
 
     target = attr.ib()  # type: DistributionTarget
     fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
-    direct_requirement = attr.ib(default=None)  # type: Optional[Requirement]
+    direct_requirements = attr.ib(
+        converter=_sorted_requirements, factory=SortedTuple
+    )  # type: SortedTuple[Requirement]
 
     @property
     def distribution(self):
@@ -74,12 +83,15 @@ class InstalledDistribution(object):
         # type: () -> str
         return self.fingerprinted_distribution.fingerprint
 
-    def with_direct_requirement(self, direct_requirement=None):
-        # type: (Optional[Requirement]) -> InstalledDistribution
-        if direct_requirement == self.direct_requirement:
+    def with_direct_requirements(self, direct_requirements=None):
+        # type: (Optional[Iterable[Requirement]]) -> InstalledDistribution
+        direct_requirements = _sorted_requirements(direct_requirements)
+        if direct_requirements == self.direct_requirements:
             return self
         return InstalledDistribution(
-            self.target, self.fingerprinted_distribution, direct_requirement=direct_requirement
+            self.target,
+            self.fingerprinted_distribution,
+            direct_requirements=direct_requirements,
         )
 
 
@@ -718,24 +730,8 @@ class BuildAndInstallRequest(object):
                 if distribution_satisfies_requirement(distribution, req)
                 and installed_distribution.target.requirement_applies(req)
             ]
-            if len(direct_reqs) > 1:
-                raise AssertionError(
-                    "More than one direct requirement is satisfied by {distribution}:\n"
-                    "{requirements}\n"
-                    "This should never happen since Pip fails when more than one requirement for "
-                    "a given project name key is supplied and applies for a given target "
-                    "interpreter environment.".format(
-                        distribution=distribution,
-                        requirements="\n".join(
-                            "{index}. {direct_req}".format(index=index, direct_req=direct_req)
-                            for index, direct_req in enumerate(direct_reqs)
-                        ),
-                    )
-                )
             installed_distributions.add(
-                installed_distribution.with_direct_requirement(
-                    direct_requirement=direct_reqs[0] if direct_reqs else None
-                )
+                installed_distribution.with_direct_requirements(direct_requirements=direct_reqs)
             )
         return installed_distributions
 
@@ -1240,7 +1236,7 @@ def resolve_from_pex(
     )
     direct_requirements_by_project_name = (
         OrderedDict()
-    )  # type: OrderedDict[ProjectName, Requirement]
+    )  # type: OrderedDict[ProjectName, List[Requirement]]
     for direct_requirement in requirement_configuration.parse_requirements(
         network_configuration=network_configuration
     ):
@@ -1249,9 +1245,9 @@ def resolve_from_pex(
                 "Cannot resolve local projects from PEX repositories. Asked to resolve {path} "
                 "from {pex}.".format(path=direct_requirement.path, pex=pex)
             )
-        direct_requirements_by_project_name[
-            ProjectName(direct_requirement.requirement)
-        ] = direct_requirement.requirement
+        direct_requirements_by_project_name.setdefault(
+            ProjectName(direct_requirement.requirement), []
+        ).append(direct_requirement.requirement)
 
     constraints_by_project_name = defaultdict(
         list
@@ -1262,7 +1258,9 @@ def resolve_from_pex(
         ):
             constraints_by_project_name[ProjectName(contraint.requirement)].append(contraint)
 
-    all_reqs = direct_requirements_by_project_name.values()
+    all_reqs = OrderedSet(
+        itertools.chain.from_iterable(direct_requirements_by_project_name.values())
+    )
     unique_targets = TargetConfiguration(
         interpreters=interpreters, platforms=platforms, assume_manylinux=assume_manylinux
     ).unique_targets()
@@ -1276,8 +1274,8 @@ def resolve_from_pex(
 
         for fingerprinted_distribution in fingerprinted_distributions:
             project_name = fingerprinted_distribution.project_name
-            direct_requirement = direct_requirements_by_project_name.get(project_name, None)
-            if not transitive and not direct_requirement:
+            direct_requirements = direct_requirements_by_project_name.get(project_name, [])
+            if not transitive and not direct_requirements:
                 continue
 
             unmet_constraints = [
@@ -1299,7 +1297,7 @@ def resolve_from_pex(
                 InstalledDistribution(
                     target=target,
                     fingerprinted_distribution=fingerprinted_distribution,
-                    direct_requirement=direct_requirement,
+                    direct_requirements=direct_requirements,
                 )
             )
     return Resolved(installed_distributions=tuple(installed_distributions))
