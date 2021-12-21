@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.60
+------
+
+This release fixes a bug that prevented creating PEXes when duplicate
+compatible requirements were specified using the pip-2020-resolver.
+
+* Fix Pex to be duplicate requirement agnostic. (#1551)
+  `PR #1551 <https://github.com/pantsbuild/pex/pull/1551>`_
+
 2.1.59
 ------
 
