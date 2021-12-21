@@ -615,8 +615,8 @@ def build_pex(
                 pex_builder.add_distribution(
                     installed_dist.distribution, fingerprint=installed_dist.fingerprint
                 )
-                if installed_dist.direct_requirement:
-                    pex_builder.add_requirement(installed_dist.direct_requirement)
+                for direct_req in installed_dist.direct_requirements:
+                    pex_builder.add_requirement(direct_req)
         except Unsatisfiable as e:
             die(str(e))
 

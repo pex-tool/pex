@@ -17,6 +17,7 @@ from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.platforms import Platform
+from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolver import (
     InstalledDistribution,
     IntegrityError,
@@ -27,6 +28,7 @@ from pex.resolver import (
     resolve,
     resolve_from_pex,
 )
+from pex.sorted_tuple import SortedTuple
 from pex.testing import (
     IS_LINUX,
     IS_PYPY,
@@ -111,7 +113,7 @@ def test_resolve_cache():
         assert installed_dists1 != installed_dists2
         assert len(installed_dists1) == 1
         assert len(installed_dists2) == 1
-        assert installed_dists1[0].direct_requirement == installed_dists2[0].direct_requirement
+        assert installed_dists1[0].direct_requirements == installed_dists2[0].direct_requirements
         assert (
             installed_dists1[0].distribution.location != installed_dists2[0].distribution.location
         )
@@ -530,13 +532,13 @@ def test_resolve_arbitrary_equality_issues_940():
     )
 
     assert len(installed_distributions) == 1
-    requirement = installed_distributions[0].direct_requirement
-    assert requirement is not None, (
+    requirements = installed_distributions[0].direct_requirements
+    assert 1 == len(requirements), (
         "The foo requirement was direct; so the resulting resolved distribution should carry the "
         "associated requirement."
     )
-    assert [("===", "1.0.2-fba4511")] == requirement.specs
-    assert requirement.marker is None
+    assert [("===", "1.0.2-fba4511")] == requirements[0].specs
+    assert requirements[0].marker is None
 
 
 def test_resolve_overlapping_requirements_discriminated_by_markers_issues_1196(py27):
@@ -550,9 +552,10 @@ def test_resolve_overlapping_requirements_discriminated_by_markers_issues_1196(p
     ).installed_distributions
     assert 1 == len(installed_distributions)
     installed_distribution = installed_distributions[0]
+    assert 1 == len(installed_distribution.direct_requirements)
     assert (
         Requirement.parse("setuptools<45; python_full_version == '2.7.*'")
-        == installed_distribution.direct_requirement
+        == installed_distribution.direct_requirements[0]
     )
     assert (
         Requirement.parse("setuptools==44.1.1")
@@ -579,8 +582,8 @@ def create_pex_repository(
         manylinux=manylinux,
     ).installed_distributions:
         pex_builder.add_distribution(installed_dist.distribution)
-        if installed_dist.direct_requirement:
-            pex_builder.add_requirement(installed_dist.direct_requirement)
+        for direct_req in installed_dist.direct_requirements:
+            pex_builder.add_requirement(direct_req)
     pex_builder.freeze()
     return os.path.realpath(cast(str, pex_builder.path()))
 
@@ -788,7 +791,8 @@ def test_resolve_from_pex_intransitive(
             Requirement.parse("requests==2.25.1")
             == installed_distribution.distribution.as_requirement()
         )
-        assert Requirement.parse("requests") == installed_distribution.direct_requirement
+        assert 1 == len(installed_distribution.direct_requirements)
+        assert Requirement.parse("requests") == installed_distribution.direct_requirements[0]
 
 
 def test_resolve_from_pex_constraints(
@@ -836,6 +840,7 @@ def test_resolve_from_pex_ignore_errors(
 
 
 def test_pip_proprietary_url_with_markers_issues_1415():
+    # type: () -> None
     installed_dists = resolve(
         requirements=[
             (
@@ -850,7 +855,27 @@ def test_pip_proprietary_url_with_markers_issues_1415():
 
     installed_dist = installed_dists[0]
     assert Requirement.parse("ansicolors==1.1.8") == installed_dist.distribution.as_requirement()
+    assert 1 == len(installed_dist.direct_requirements)
     assert (
         Requirement.parse("ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform))
-        == installed_dist.direct_requirement
+        == installed_dist.direct_requirements[0]
     )
+
+
+def test_duplicate_requirements_issues_1550():
+    # type: () -> None
+
+    with pytest.raises(Unsatisfiable):
+        resolve(requirements=["PyJWT", "PyJWT==1.7.1"], resolver_version=ResolverVersion.PIP_LEGACY)
+
+    installed_dists = resolve(
+        requirements=["PyJWT", "PyJWT==1.7.1"], resolver_version=ResolverVersion.PIP_2020
+    )
+    assert len(installed_dists.installed_distributions) == 1
+    installed_distribution = installed_dists.installed_distributions[0]
+    assert {Requirement.parse("PyJWT"), Requirement.parse("PyJWT==1.7.1")} == set(
+        installed_distribution.direct_requirements
+    )
+    distribution = installed_distribution.distribution
+    assert "PyJWT" == distribution.project_name
+    assert "1.7.1" == distribution.version
