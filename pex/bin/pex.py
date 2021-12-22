@@ -653,6 +653,12 @@ def _compatible_with_current_platform(interpreter, platforms):
 
 
 def main(args=None):
+    if "PEX3_CLI" in os.environ:
+        import pex.cli.pex
+
+        pex.cli.pex.main()
+        return
+
     args = args[:] if args else sys.argv[1:]
     args = [transform_legacy_arg(arg) for arg in args]
     parser = configure_clp()
