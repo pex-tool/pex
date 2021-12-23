@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.61
+------
+
+This release fixes a regression in Pex ``--venv`` mode compatibility
+with distributions that are members of a namespace package that was
+introduced by #1532 in the 2.1.57 release.
+
+* Merge packages for ``--venv-site-packages-copies``. (#1557)
+  `PR #1557 <https://github.com/pantsbuild/pex/pull/1557>`_
+
 2.1.60
 ------
 
