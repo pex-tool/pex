@@ -18,7 +18,7 @@ from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from typing import Any, Callable, Set, Text
 
 
 def test_ensure_venv_short_link(
@@ -122,7 +122,6 @@ def test_ensure_venv_namespace_packages(tmpdir):
     # type: (Any) -> None
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
-    nspkgs_pex = os.path.join(str(tmpdir), "ns-pkgs.pex")
 
     # We know the twitter.common.metrics distributions depends on 4 other distributions contributing
     # to the twitter.common namespace package:
@@ -130,72 +129,93 @@ def test_ensure_venv_namespace_packages(tmpdir):
     # + twitter.common.decorators
     # + twitter.common.lang
     # + twitter.common.quantity
-    run_pex_command(
-        args=[
-            "twitter.common.metrics==0.3.11",
-            "-o",
-            nspkgs_pex,
-            "--runtime-pex-root",
-            pex_root,
-            "--venv",
-        ]
-    ).assert_success()
-    nspkgs_venv_pex = ensure_venv(PEX(nspkgs_pex), collisions_ok=False)
+    def create_ns_pkg_pex(copies):
+        # type: (bool) -> Virtualenv
+        nspkgs_pex = os.path.join(
+            str(tmpdir), "ns-pkgs-{style}.pex".format(style="copies" if copies else "symlinks")
+        )
+        run_pex_command(
+            args=[
+                "twitter.common.metrics==0.3.11",
+                "-o",
+                nspkgs_pex,
+                "--runtime-pex-root",
+                pex_root,
+                "--venv",
+                "--venv-site-packages-copies" if copies else "--no-venv-site-packages-copies",
+            ]
+        ).assert_success()
+        nspkgs_venv_pex = ensure_venv(PEX(nspkgs_pex), collisions_ok=False)
 
-    pex_info = PexInfo.from_pex(nspkgs_pex)
-    venv_dir = pex_info.venv_dir(nspkgs_pex)
-    assert venv_dir is not None
-    venv = Virtualenv(venv_dir=venv_dir)
+        pex_info = PexInfo.from_pex(nspkgs_pex)
+        venv_dir = pex_info.venv_dir(nspkgs_pex)
+        assert venv_dir is not None
+        venv = Virtualenv(venv_dir=venv_dir)
+        assert os.path.realpath(nspkgs_venv_pex) == os.path.realpath(venv.join_path("pex"))
+        return venv
 
-    pex_ns_pkgs_pth = os.path.join(venv.site_packages_dir, "pex-ns-pkgs.pth")
+    venv_copies = create_ns_pkg_pex(copies=True)
+    assert not os.path.exists(os.path.join(venv_copies.site_packages_dir, "pex-ns-pkgs.pth"))
+
+    venv_symlinks = create_ns_pkg_pex(copies=False)
+    pex_ns_pkgs_pth = os.path.join(venv_symlinks.site_packages_dir, "pex-ns-pkgs.pth")
     assert os.path.isfile(pex_ns_pkgs_pth)
     with open(pex_ns_pkgs_pth) as fp:
         assert 4 == len(fp.readlines())
 
     expected_path_entries = [
-        os.path.join(venv.site_packages_dir, d)
+        os.path.join(venv_symlinks.site_packages_dir, d)
         for d in ("", "pex-ns-pkgs/1", "pex-ns-pkgs/2", "pex-ns-pkgs/3", "pex-ns-pkgs/4")
     ]
     for d in expected_path_entries:
-        assert os.path.islink(os.path.join(venv.site_packages_dir, d, "twitter"))
-        assert os.path.isdir(os.path.join(venv.site_packages_dir, d, "twitter", "common"))
+        assert os.path.islink(os.path.join(venv_symlinks.site_packages_dir, d, "twitter"))
+        assert os.path.isdir(os.path.join(venv_symlinks.site_packages_dir, d, "twitter", "common"))
 
-    package_file_paths = set(
-        subprocess.check_output(
-            args=[
-                nspkgs_venv_pex,
-                "-c",
-                dedent(
-                    """\
-                    from __future__ import print_function
-                    import os
-
-                    from twitter.common import decorators, exceptions, lang, metrics, quantity
+    def find_package_paths(venv):
+        # type: (Virtualenv) -> Set[Text]
+        return set(
+            subprocess.check_output(
+                args=[
+                    venv.join_path("pex"),
+                    "-c",
+                    dedent(
+                        """\
+                        from __future__ import print_function
+                        import os
     
-                    
-                    for pkg in decorators, exceptions, lang, metrics, quantity:
-                        print(os.path.realpath(pkg.__file__))
-                    """
-                ),
-            ]
+                        from twitter.common import decorators, exceptions, lang, metrics, quantity
+        
+                        
+                        for pkg in decorators, exceptions, lang, metrics, quantity:
+                            # These are all packages; so __file__ looks like:
+                            #   <sys.path entry>/twitter/common/<pkg>/__init__.pyc
+                            print(os.path.realpath(os.path.dirname(os.path.dirname(pkg.__file__))))
+                        """
+                    ),
+                ]
+            )
+            .decode("utf-8")
+            .splitlines()
         )
-        .decode("utf-8")
-        .splitlines()
-    )
-    assert 5 == len(package_file_paths), "Expected 5 unique __init__.pyc files"
+
+    assert 1 == len(
+        find_package_paths(venv_copies)
+    ), "Expected 1 unique package path for a venv built from copies."
+
+    symlink_package_paths = find_package_paths(venv_symlinks)
+    assert 5 == len(symlink_package_paths), "Expected 5 unique package paths for symlinked venv."
 
     # We expect package paths like:
-    #   .../twitter.common.foo-0.3.11.*.whl/twitter/common/foo/__init__.pyc
+    #   .../twitter.common.foo-0.3.11.*.whl/twitter/common
     package_file_installed_wheel_dirs = {
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(p))))
-        for p in package_file_paths
+        os.path.dirname(os.path.dirname(p)) for p in symlink_package_paths
     }
-    assert os.path.realpath(pex_info.install_cache) == os.path.realpath(
+    assert os.path.realpath(os.path.join(pex_root, PexInfo.INSTALL_CACHE)) == os.path.realpath(
         os.path.commonprefix(list(package_file_installed_wheel_dirs))
     ), "Expected contributing wheel content to be symlinked from the installed wheel cache."
     assert {
         "twitter.common.{package}-0.3.11-py{py_major}-none-any.whl".format(
-            package=p, py_major=venv.interpreter.version[0]
+            package=p, py_major=venv_symlinks.interpreter.version[0]
         )
         for p in ("decorators", "exceptions", "lang", "metrics", "quantity")
     } == {
