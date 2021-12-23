@@ -65,7 +65,8 @@ def _copytree(
         ):
             src_entry = os.path.join(root, path)
             dst_entry = os.path.join(dst, os.path.relpath(src_entry, src))
-            yield src_entry, dst_entry
+            if not is_dir:
+                yield src_entry, dst_entry
             try:
                 if symlink:
                     _relative_symlink(src_entry, dst_entry)
@@ -140,49 +141,45 @@ def populate_venv_with_pex(
     top_level_packages = Counter()  # type: typing.Counter[str]
     rel_extra_paths = OrderedSet()  # type: OrderedSet[str]
     for dist in pex.resolve():
-        # In the symlink case, in order to share all generated *.pyc files for a given distribution,
-        # we need to be able to have each contribution to a namespace package get its own top-level
-        # symlink. This requires adjoining extra sys.path entries beyond site-packages. We create
-        # the minimal number of extra such paths to satisfy all namespace package contributing dists
-        # for a given namespace package using a .pth file (See:
-        # https://docs.python.org/3/library/site.html).
-        #
-        # For example, given a PEX that depends on 3 different distributions contributing to the foo
-        # namespace package, we generate a layout like:
-        #   site-packages/
-        #     foo -> ../../../../../../installed_wheels/<hash>/foo-1.0-py3-none-any.why/foo
-        #     foo-1.0.dist-info -> ../../../../../../installed_wheels/<hash>/foo1/foo-1.0.dist-info
-        #     pex-ns-pkgs/
-        #       1/
-        #           foo -> ../../../../../../../../installed_wheels/<hash>/foo2-3.0-py3-none-any.whl/foo
-        #           foo2-3.0.dist-info -> ../../../../../../../../installed_wheels/<hash>/foo2-3.0-py3-none-any.whl/foo2-3.0.dist-info
-        #       2/
-        #           foo -> ../../../../../../../../installed_wheels/<hash>/foo3-2.5-py3-none-any.whl/foo
-        #           foo3-2.5.dist-info -> ../../../../../../../../installed_wheels/<hash>/foo3-2.5-py3-none-any.whl/foo2-2.5.dist-info
-        #     pex-ns-pkgs.pth
-        #
-        # Here site-packages/pex-ns-pkgs.pth contains:
-        #   pex-ns-pkgs/1
-        #   pex-ns-pkgs/2
-        #
-        # Although we don't need to do this for the link/copy case since directories (and
-        # subdirectories) then naturally merge, we do so anyhow to keep the code simpler and
-        # arguably provide a more transparently debuggable venv.
-        packages = [
-            name
-            for name in os.listdir(dist.location)
-            if name not in ("bin", "__pycache__")
-            and is_valid_python_identifier(name)
-            and os.path.isdir(os.path.join(dist.location, name))
-        ]
-        count = max(top_level_packages[package] for package in packages) if packages else 0
-        if count > 0:
-            rel_extra_path = os.path.join("pex-ns-pkgs", str(count))
-            dst = os.path.join(venv.site_packages_dir, rel_extra_path)
-            rel_extra_paths.add(rel_extra_path)
-        else:
-            dst = venv.site_packages_dir
-        top_level_packages.update(packages)
+        dst = venv.site_packages_dir
+        if symlink:
+            # In the symlink case, in order to share all generated *.pyc files for a given
+            # distribution, we need to be able to have each contribution to a namespace package get
+            # its own top-level symlink. This requires adjoining extra sys.path entries beyond
+            # site-packages. We create the minimal number of extra such paths to satisfy all
+            # namespace package contributing dists for a given namespace package using a .pth
+            # file (See: https://docs.python.org/3/library/site.html).
+            #
+            # For example, given a PEX that depends on 3 different distributions contributing to the
+            # foo namespace package, we generate a layout like:
+            #   site-packages/
+            #     foo -> ../../../../../../installed_wheels/<hash>/foo-1.0-py3-none-any.why/foo
+            #     foo-1.0.dist-info -> ../../../../../../installed_wheels/<hash>/foo1/foo-1.0.dist-info
+            #     pex-ns-pkgs/
+            #       1/
+            #           foo -> ../../../../../../../../installed_wheels/<hash>/foo2-3.0-py3-none-any.whl/foo
+            #           foo2-3.0.dist-info -> ../../../../../../../../installed_wheels/<hash>/foo2-3.0-py3-none-any.whl/foo2-3.0.dist-info
+            #       2/
+            #           foo -> ../../../../../../../../installed_wheels/<hash>/foo3-2.5-py3-none-any.whl/foo
+            #           foo3-2.5.dist-info -> ../../../../../../../../installed_wheels/<hash>/foo3-2.5-py3-none-any.whl/foo2-2.5.dist-info
+            #     pex-ns-pkgs.pth
+            #
+            # Here site-packages/pex-ns-pkgs.pth contains:
+            #   pex-ns-pkgs/1
+            #   pex-ns-pkgs/2
+            packages = [
+                name
+                for name in os.listdir(dist.location)
+                if name not in ("bin", "__pycache__")
+                and is_valid_python_identifier(name)
+                and os.path.isdir(os.path.join(dist.location, name))
+            ]
+            count = max(top_level_packages[package] for package in packages) if packages else 0
+            if count > 0:
+                rel_extra_path = os.path.join("pex-ns-pkgs", str(count))
+                dst = os.path.join(venv.site_packages_dir, rel_extra_path)
+                rel_extra_paths.add(rel_extra_path)
+            top_level_packages.update(packages)
 
         # N.B.: We do not include the top_level __pycache__ for a dist since there may be multiple
         # dists with top-level modules. In that case, one dists top-level __pycache__ would be
