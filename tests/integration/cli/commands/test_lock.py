@@ -110,6 +110,7 @@ UPDATE_LOCKFILE_CONTENTS = """\
   "allow_builds": true,
   "allow_prereleases": false,
   "allow_wheels": true,
+  "build_isolation": true,
   "constraints": [],
   "locked_resolves": [
     {
@@ -196,12 +197,14 @@ UPDATE_LOCKFILE_CONTENTS = """\
     }
   ],
   "pex_version": "2.1.50",
+  "prefer_older_binary": false,
   "requirements": [
     "requests"
   ],
   "resolver_version": "pip-2020-resolver",
   "style": "strict",
-  "transitive": true
+  "transitive": true,
+  "use_pep517": null
 }
 """
 
@@ -423,6 +426,7 @@ DUAL_UPDATE_LOCKFILE_CONTENTS = """\
   "allow_builds": true,
   "allow_prereleases": false,
   "allow_wheels": true,
+  "build_isolation": true,
   "constraints": [],
   "locked_resolves": [
     {
@@ -471,12 +475,14 @@ DUAL_UPDATE_LOCKFILE_CONTENTS = """\
     }
   ],
   "pex_version": "2.1.50",
+  "prefer_older_binary": false,
   "requirements": [
     "p537"
   ],
   "resolver_version": "pip-2020-resolver",
   "style": "strict",
-  "transitive": true
+  "transitive": true,
+  "use_pep517": null
 }
 """
 

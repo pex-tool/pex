@@ -65,6 +65,7 @@ def loads(
         expected_type=compatibility.string,  # type: Union[Type, Tuple[Type, ...]]
         data=_load_json(lockfile_contents, source=source),  # type: Mapping
         path=".",  # type: str
+        optional=False,
     ):
         # type: (...) -> Any
 
@@ -79,30 +80,31 @@ def loads(
                     value=data,
                 )
             )
-        try:
-            value = data[key]
-            if not isinstance(value, expected_type):
-                raise ParseError(
-                    "Expected '{path}[\"{key}\"]' in {source} to be of type {expected_type} "
-                    "but given {type} with value {value}.".format(
-                        path=path,
-                        key=key,
-                        source=source,
-                        expected_type=(
-                            " or ".join(t.__name__ for t in expected_type)
-                            if isinstance(expected_type, tuple)
-                            else expected_type.__name__
-                        ),
-                        type=type(value).__name__,
-                        value=value,
-                    )
-                )
-            return value
-        except KeyError:
+        if key not in data:
+            if optional:
+                return None
             raise ParseError(
                 "The object at '{path}' in {source} did not have the expected key "
                 "{key!r}.".format(path=path, source=source, key=key)
             )
+        value = data[key]
+        if not optional and not isinstance(value, expected_type):
+            raise ParseError(
+                "Expected '{path}[\"{key}\"]' in {source} to be of type {expected_type} "
+                "but given {type} with value {value}.".format(
+                    path=path,
+                    key=key,
+                    source=source,
+                    expected_type=(
+                        " or ".join(t.__name__ for t in expected_type)
+                        if isinstance(expected_type, tuple)
+                        else expected_type.__name__
+                    ),
+                    type=type(value).__name__,
+                    value=value,
+                )
+            )
+        return value
 
     def get_enum_value(
         enum_type,  # type: Type[Enum[_V]]
@@ -240,6 +242,9 @@ def loads(
         allow_prereleases=get("allow_prereleases", bool),
         allow_wheels=get("allow_wheels", bool),
         allow_builds=get("allow_builds", bool),
+        prefer_older_binary=get("prefer_older_binary", bool),
+        use_pep517=get("use_pep517", bool, optional=True),
+        build_isolation=get("build_isolation", bool),
         transitive=get("transitive", bool),
         locked_resolves=locked_resolves,
         source=source,
@@ -268,6 +273,9 @@ def as_json_data(lockfile):
         "allow_prereleases": lockfile.allow_prereleases,
         "allow_wheels": lockfile.allow_wheels,
         "allow_builds": lockfile.allow_builds,
+        "prefer_older_binary": lockfile.prefer_older_binary,
+        "use_pep517": lockfile.use_pep517,
+        "build_isolation": lockfile.build_isolation,
         "transitive": lockfile.transitive,
         "locked_resolves": [
             {

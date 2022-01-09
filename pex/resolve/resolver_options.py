@@ -116,12 +116,15 @@ def register(
     )
     parser.add_argument(
         "--wheel",
+        "--binary",
         "--no-wheel",
         "--no-use-wheel",
+        "--no-binary",
+        "--no-use-binary",
         dest="allow_wheels",
         default=default_resolver_configuration.allow_wheels,
         action=HandleBoolAction,
-        help="Whether to allow wheel distributions.",
+        help="Whether to allow binary distributions.",
     )
     parser.add_argument(
         "--build",
@@ -130,6 +133,50 @@ def register(
         default=default_resolver_configuration.allow_builds,
         action=HandleBoolAction,
         help="Whether to allow building of distributions from source.",
+    )
+    parser.add_argument(
+        "--prefer-wheel",
+        "--prefer-binary",
+        "--no-prefer-wheel",
+        "--no-prefer-binary",
+        dest="prefer_older_binary",
+        default=default_resolver_configuration.prefer_older_binary,
+        action=HandleBoolAction,
+        help=(
+            "Whether to prefer older binary distributions to newer source distributions (prefer "
+            "not building wheels)."
+        ),
+    )
+    parser.add_argument(
+        "--force-pep517",
+        "--use-pep517",
+        "--no-use-pep517",
+        dest="use_pep517",
+        default=default_resolver_configuration.use_pep517,
+        action=HandleBoolAction,
+        help=(
+            "Whether to force use of PEP 517 for building source distributions into wheels ("
+            "https://www.python.org/dev/peps/pep-0518) or force direct invocation of"
+            "`setup.py bdist_wheel` (which requires all source distributions have a `setup.py` "
+            "based build). Defaults to using PEP-517 only when a `pyproject.toml` file is present "
+            "with a `build-system` section. If PEP-517 is forced (--use-pep517 is passed) and no "
+            "`pyproject.toml` file is present or one is but does not have a `build-system` section "
+            "defined, then the build is executed as if a `pyproject.toml` was present with a "
+            '`build-system` section comprised of `requires = ["setuptools>=40.8.0", "wheel"]` and '
+            '`build-backend = "setuptools.build_meta:__legacy__"`.'
+        ),
+    )
+    parser.add_argument(
+        "--build-isolation",
+        "--no-build-isolation",
+        dest="build_isolation",
+        default=default_resolver_configuration.build_isolation,
+        action=HandleBoolAction,
+        help=(
+            "Disable `sys.path` isolation when building a modern source distribution. Build "
+            "dependencies specified by PEP 518 (https://www.python.org/dev/peps/pep-0518) must "
+            "already be installed on the `sys.path` if this option is used."
+        ),
     )
     parser.add_argument(
         "--transitive",
@@ -297,6 +344,9 @@ def create_pip_configuration(options):
         allow_prereleases=options.allow_prereleases,
         allow_wheels=options.allow_wheels,
         allow_builds=options.allow_builds,
+        prefer_older_binary=options.prefer_older_binary,
+        use_pep517=options.use_pep517,
+        build_isolation=options.build_isolation,
         transitive=options.transitive,
         max_jobs=get_max_jobs_value(options),
     )
