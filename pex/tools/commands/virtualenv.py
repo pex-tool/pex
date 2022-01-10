@@ -273,7 +273,7 @@ class Virtualenv(object):
                         buffer.write(cast(bytes, line))
 
     def install_pip(self):
-        # type: () -> None
+        # type: () -> str
         if self._interpreter.version < _MIN_PIP_PYTHON_VERSION:
             raise PipUnavailableError(
                 (
@@ -286,3 +286,4 @@ class Virtualenv(object):
                 ),
             )
         self._interpreter.execute(args=["-m", "ensurepip", "-U", "--default-pip"])
+        return self.bin_path("pip")
