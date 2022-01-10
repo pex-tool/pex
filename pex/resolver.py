@@ -113,6 +113,9 @@ class DownloadRequest(object):
     cache = attr.ib(default=None)  # type: Optional[str]
     build = attr.ib(default=True)  # type: bool
     use_wheel = attr.ib(default=True)  # type: bool
+    prefer_older_binary = attr.ib(default=False)  # type: bool
+    use_pep517 = attr.ib(default=None)  # type: Optional[bool]
+    build_isolation = attr.ib(default=True)  # type: bool
     lock_configuration = attr.ib(default=None)  # type: Optional[LockConfiguration]
 
     def iter_local_projects(self):
@@ -170,6 +173,9 @@ class DownloadRequest(object):
             cache=self.cache,
             build=self.build,
             use_wheel=self.use_wheel,
+            prefer_older_binary=self.prefer_older_binary,
+            use_pep517=self.use_pep517,
+            build_isolation=self.build_isolation,
             locker=locker,
         )
         return SpawnedJob.and_then(
@@ -497,6 +503,9 @@ class BuildAndInstallRequest(object):
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         cache=None,  # type: Optional[str]
         compile=False,  # type: bool
+        prefer_older_binary=False,  # type: bool
+        use_pep517=None,  # type: Optional[bool]
+        build_isolation=True,  # type: bool
         verify_wheels=True,  # type: bool
     ):
         # type: (...) -> None
@@ -506,6 +515,9 @@ class BuildAndInstallRequest(object):
         self._package_index_configuration = package_index_configuration
         self._cache = cache
         self._compile = compile
+        self._prefer_older_binary = prefer_older_binary
+        self._use_pep517 = use_pep517
+        self._build_isolation = build_isolation
         self._verify_wheels = verify_wheels
 
     def _categorize_build_requests(
@@ -545,6 +557,9 @@ class BuildAndInstallRequest(object):
             cache=self._cache,
             package_index_configuration=self._package_index_configuration,
             interpreter=build_request.target.get_interpreter(),
+            prefer_older_binary=self._prefer_older_binary,
+            use_pep517=self._use_pep517,
+            build_isolation=self._build_isolation,
             verify=self._verify_wheels,
         )
         return SpawnedJob.wait(job=build_job, result=build_result)
@@ -814,6 +829,9 @@ def resolve(
     cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
+    prefer_older_binary=False,  # type: bool
+    use_pep517=None,  # type: Optional[bool]
+    build_isolation=True,  # type: bool
     compile=False,  # type: bool
     manylinux=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
@@ -858,6 +876,14 @@ def resolve(
       Defaults to ``True``.
     :keyword use_wheel: Whether to allow resolution of pre-built wheel distributions.
       Defaults to ``True``.
+    :keyword prefer_older_binary: Whether to prefer older binary distributions to newer source
+      distributions (avoid building wheels when possible). Defaults to ``False``.
+    :keyword use_pep517: Whether to force use of PEP 517 for building source distributions into
+      wheels or force direct invocation of ``setup.py bdist_wheel``. Defaults to using PEP-517 only
+      when a ``pyproject.toml`` file is present with a ``build-system`` section.
+    :keyword build_isolation: Disable ``sys.path`` isolation when building a modern source
+      distribution. Build dependencies specified by PEP 518 must already be installed on the
+      ``sys.path`` if `build_isolation` is ``True``.
     :keyword compile: Whether to pre-compile resolved distribution python sources.
       Defaults to ``False``.
     :keyword manylinux: The upper bound manylinux standard to support when targeting foreign linux
@@ -925,6 +951,9 @@ def resolve(
         cache=cache,
         build=build,
         use_wheel=use_wheel,
+        prefer_older_binary=prefer_older_binary,
+        use_pep517=use_pep517,
+        build_isolation=build_isolation,
         assume_manylinux=manylinux,
         dest=workspace,
         max_parallel_jobs=max_parallel_jobs,
@@ -946,6 +975,9 @@ def resolve(
         package_index_configuration=package_index_configuration,
         cache=cache,
         compile=compile,
+        prefer_older_binary=prefer_older_binary,
+        use_pep517=use_pep517,
+        build_isolation=build_isolation,
         verify_wheels=verify_wheels,
     )
 
@@ -971,6 +1003,9 @@ def _download_internal(
     cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
+    prefer_older_binary=False,  # type: bool
+    use_pep517=None,  # type: Optional[bool]
+    build_isolation=True,  # type: bool
     assume_manylinux=None,  # type: Optional[str]
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
@@ -993,6 +1028,9 @@ def _download_internal(
         cache=cache,
         build=build,
         use_wheel=use_wheel,
+        prefer_older_binary=prefer_older_binary,
+        use_pep517=use_pep517,
+        build_isolation=build_isolation,
         lock_configuration=lock_configuration,
     )
 
@@ -1041,6 +1079,9 @@ def download(
     cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
+    prefer_older_binary=False,  # type: bool
+    use_pep517=None,  # type: Optional[bool]
+    build_isolation=True,  # type: bool
     assume_manylinux=None,  # type: Optional[str]
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
@@ -1076,6 +1117,14 @@ def download(
       Defaults to ``True``.
     :keyword use_wheel: Whether to allow resolution of pre-built wheel distributions.
       Defaults to ``True``.
+    :keyword prefer_older_binary: Whether to prefer older binary distributions to newer source
+      distributions (avoid building wheels when possible). Defaults to ``False``.
+    :keyword use_pep517: Whether to force use of PEP 517 for building source distributions into
+      wheels or force direct invocation of ``setup.py bdist_wheel``. Defaults to using PEP-517 only
+      when a ``pyproject.toml`` file is present with a ``build-system`` section.
+    :keyword build_isolation: Disable ``sys.path`` isolation when building a modern source
+      distribution. Build dependencies specified by PEP 518 must already be installed on the
+      ``sys.path`` if `build_isolation` is ``True``.
     :keyword assume_manylinux: The upper bound manylinux standard to support when targeting foreign linux
       platforms. Defaults to ``None``.
     :keyword dest: A directory path to download distributions to.
@@ -1107,6 +1156,9 @@ def download(
         cache=cache,
         build=build,
         use_wheel=use_wheel,
+        prefer_older_binary=prefer_older_binary,
+        use_pep517=use_pep517,
+        build_isolation=build_isolation,
         assume_manylinux=assume_manylinux,
         dest=dest,
         max_parallel_jobs=max_parallel_jobs,

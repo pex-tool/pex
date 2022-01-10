@@ -790,6 +790,9 @@ class Pip(object):
         cache=None,  # type: Optional[str]
         build=True,  # type: bool
         use_wheel=True,  # type: bool
+        prefer_older_binary=False,  # type: bool
+        use_pep517=None,  # type: Optional[bool]
+        build_isolation=True,  # type: bool
         locker=None,  # type: Optional[Locker]
     ):
         # type: (...) -> Job
@@ -809,6 +812,8 @@ class Pip(object):
                 )
 
         download_cmd = ["download", "--dest", download_dir]
+        extra_env = {}  # type: Dict[str, str]
+
         if target.is_platform:
             # We're either resolving for a different host / platform or a different interpreter for
             # the current platform that we have no access to; so we need to let pip know and not
@@ -829,6 +834,16 @@ class Pip(object):
         if not use_wheel:
             download_cmd.extend(["--no-binary", ":all:"])
 
+        if prefer_older_binary:
+            download_cmd.append("--prefer-binary")
+
+        if use_pep517 is not None:
+            download_cmd.append("--use-pep517" if use_pep517 else "--no-use-pep517")
+
+        if not build_isolation:
+            download_cmd.append("--no-build-isolation")
+            extra_env.update(PEP517_BACKEND_PATH=os.pathsep.join(sys.path))
+
         if allow_prereleases:
             download_cmd.append("--pre")
 
@@ -846,7 +861,6 @@ class Pip(object):
         if requirements:
             download_cmd.extend(requirements)
 
-        extra_env = None
         log_analyzers = []  # type: List[_LogAnalyzer]
 
         if locker:
@@ -868,7 +882,7 @@ class Pip(object):
                 os.path.join(env_markers_dir, "env_markers.{}.json".format(platform)), "w"
             ) as fp:
                 json.dump(patched_environment, fp)
-            extra_env = {self._PATCHED_MARKERS_FILE_ENV_VAR_NAME: fp.name}
+            extra_env[self._PATCHED_MARKERS_FILE_ENV_VAR_NAME] = fp.name
             log_analyzers.append(_Issue10050Analyzer(platform=platform))
             TRACER.log(
                 "Patching environment markers for {} with {}".format(target, patched_environment),
@@ -917,12 +931,31 @@ class Pip(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         cache=None,  # type: Optional[str]
+        prefer_older_binary=False,  # type: bool
+        use_pep517=None,  # type: Optional[bool]
+        build_isolation=True,  # type: bool
         verify=True,  # type: bool
     ):
         # type: (...) -> Job
         wheel_cmd = ["wheel", "--no-deps", "--wheel-dir", wheel_dir]
+        extra_env = {}  # type: Dict[str, str]
+
+        # It's not clear if Pip's implementation of PEP-517 builds respects this option for
+        # resolving build dependencies, but in case it is we pass it.
+        if use_pep517 is not False and prefer_older_binary:
+            wheel_cmd.append("--prefer-binary")
+
+        if use_pep517 is not None:
+            wheel_cmd.append("--use-pep517" if use_pep517 else "--no-use-pep517")
+
+        if not build_isolation:
+            wheel_cmd.append("--no-build-isolation")
+            interpreter = interpreter or PythonInterpreter.get()
+            extra_env.update(PEP517_BACKEND_PATH=os.pathsep.join(interpreter.sys_path))
+
         if not verify:
             wheel_cmd.append("--no-verify")
+
         wheel_cmd.extend(distributions)
 
         return self._spawn_pip_isolated_job(
@@ -931,6 +964,7 @@ class Pip(object):
             package_index_configuration=package_index_configuration,
             cache=cache,
             interpreter=interpreter,
+            extra_env=extra_env,
         )
 
     @classmethod
