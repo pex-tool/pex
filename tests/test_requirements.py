@@ -11,6 +11,7 @@ import pytest
 from pex.common import safe_open, temporary_dir, touch
 from pex.fetcher import URLFetcher
 from pex.requirements import (
+    VCS,
     Constraint,
     LocalProjectRequirement,
     LogicalLine,
@@ -18,6 +19,8 @@ from pex.requirements import (
     PyPIRequirement,
     Source,
     URLRequirement,
+    VCSRequirement,
+    VCSScheme,
     parse_requirement_file,
     parse_requirement_from_project_name_and_specifier,
     parse_requirements,
@@ -154,6 +157,27 @@ def url_req(
     # type: (...) -> URLRequirement
     return URLRequirement(
         line=DUMMY_LINE,
+        url=url,
+        requirement=parse_requirement_from_project_name_and_specifier(
+            project_name, extras=extras, specifier=specifier, marker=marker
+        ),
+        editable=editable,
+    )
+
+
+def vcs_req(
+    vcs,  # type: VCS.Value
+    url,  # type: str
+    project_name,  # type: str
+    extras=None,  # type: Optional[Iterable[str]]
+    specifier=None,  # type: Optional[str]
+    marker=None,  # type: Optional[str]
+    editable=False,  # type: bool
+):
+    # type: (...) -> VCSRequirement
+    return VCSRequirement(
+        line=DUMMY_LINE,
+        vcs=vcs,
         url=url,
         requirement=parse_requirement_from_project_name_and_specifier(
             project_name, extras=extras, specifier=specifier, marker=marker
@@ -343,12 +367,13 @@ def test_parse_requirements_stress(chroot):
         url_req(project_name="SomeProject", url="https://example.com/somewhere/over/here"),
         local_req(path=os.path.realpath("somewhere/over/here")),
         req(project_name="FooProject", specifier=">=1.2"),
-        url_req(
+        vcs_req(
+            vcs=VCS.Git,
             project_name="MyProject",
-            url="git+https://git.example.com/MyProject.git@da39a3ee5e6b4b0d3255bfef95601890afd80709",
+            url="https://git.example.com/MyProject.git@da39a3ee5e6b4b0d3255bfef95601890afd80709",
         ),
-        url_req(project_name="MyProject", url="git+ssh://git.example.com/MyProject"),
-        url_req(project_name="MyProject", url="git+file:/home/user/projects/MyProject"),
+        vcs_req(vcs=VCS.Git, project_name="MyProject", url="ssh://git.example.com/MyProject"),
+        vcs_req(vcs=VCS.Git, project_name="MyProject", url="file:///home/user/projects/MyProject"),
         Constraint(DUMMY_LINE, Requirement.parse("AnotherProject")),
         local_req(
             path=os.path.realpath("extra/a/local/project"),
@@ -368,9 +393,10 @@ def test_parse_requirements_stress(chroot):
             extras=["foo"],
             marker="python_version == '3.9'",
         ),
-        url_req(
+        vcs_req(
+            vcs=VCS.Mercurial,
             project_name="AnotherProject",
-            url="hg+http://hg.example.com/MyProject@da39a3ee5e6b",
+            url="http://hg.example.com/MyProject@da39a3ee5e6b",
             extras=["more", "extra"],
             marker="python_version == '3.9.*'",
         ),
@@ -387,11 +413,16 @@ def test_parse_requirements_stress(chroot):
             specifier="==1.9.2",
             marker="python_version == '3.4.*' and sys_platform == 'win32'",
         ),
-        url_req(project_name="Django", url="git+https://github.com/django/django.git"),
-        url_req(project_name="Django", url="git+https://github.com/django/django.git@stable/2.1.x"),
-        url_req(
+        vcs_req(vcs=VCS.Git, project_name="Django", url="https://github.com/django/django.git"),
+        vcs_req(
+            vcs=VCS.Git,
             project_name="Django",
-            url="git+https://github.com/django/django.git@fd209f62f1d83233cc634443cfac5ee4328d98b8",
+            url="https://github.com/django/django.git@stable/2.1.x",
+        ),
+        vcs_req(
+            vcs=VCS.Git,
+            project_name="Django",
+            url="https://github.com/django/django.git@fd209f62f1d83233cc634443cfac5ee4328d98b8",
         ),
         url_req(
             project_name="Django",
