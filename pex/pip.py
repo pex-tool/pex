@@ -63,6 +63,7 @@ if TYPE_CHECKING:
         List,
         Mapping,
         Optional,
+        Pattern,
         Protocol,
         Sequence,
         Tuple,
@@ -405,6 +406,7 @@ class Locker(_LogAnalyzer):
         )
         self._analysis_completed = False
         self._locked_resolve = None  # type: Optional[LockedResolve]
+        self._done_building_re = None  # type: Optional[Pattern]
 
     def should_collect(self, returncode):
         # type: (int) -> bool
@@ -429,19 +431,47 @@ class Locker(_LogAnalyzer):
     def analyze(self, line):
         # type: (str) -> _LogAnalyzer.Continue[None]
 
+        # The log sequence for processing a resolved requirement is as follows (log lines irrelevant
+        # to our purposes omitted):
+        #
+        # 1.) "... Found link <url1> ..."
+        # ...
+        # 1.) "... Found link <urlN> ..."
+        # 2.) "... Added <requirement pin> from <url> ... to build tracker ..."
+        # 3.) Lines related to extracting metadata from <requirement pin>'s artifact
+        # 4.) "... Removed <requirement pin> from <url> ... from build tracker ..."
+        #
+        # The lines in section 3 can contain this same pattern of lines if the metadata extraction
+        # proceeds via PEP-517 which recursively uses Pip to resolve build dependencies. We want to
+        # ignore this recursion since a lock should only contain install requirements and not build
+        # requirements (If a build proceeds differently tomorrow than today then we don't care as
+        # long as the final built artifact hashes the same. In other words, we completely rely on a
+        # cryptographic fingerprint for reproducibility and security guarantees from a lock).
+
         if self._analysis_completed:
             raise self.StateError("Line analysis was requested after the log analysis completed.")
 
+        if self._done_building_re:
+            if self._done_building_re.search(line):
+                self._done_building_re = None
+            return self.Continue()
+
         match = re.search(
-            r"Added (?P<requirement>.*) from (?P<url>[^\s]+) (\(from (?P<from>.*)\) )?to build "
+            r"Added (?P<requirement>.*) from (?P<url>[^\s]+) (?:\(from (?P<from>.*)\) )?to build "
             r"tracker",
             line,
         )
         if match:
-            requirement = Requirement.parse(match.group("requirement"))
-            project_name_and_version, partial_artifact = self._extract_resolve_data(
-                match.group("url")
+            raw_requirement = match.group("requirement")
+            url = match.group("url")
+            self._done_building_re = re.compile(
+                r"Removed {requirement} from {url} (?:.* )?from build tracker".format(
+                    requirement=re.escape(raw_requirement), url=re.escape(url)
+                )
             )
+
+            requirement = Requirement.parse(raw_requirement)
+            project_name_and_version, partial_artifact = self._extract_resolve_data(url)
 
             from_ = match.group("from")
             if from_:
@@ -451,6 +481,7 @@ class Locker(_LogAnalyzer):
 
             additional_artifacts = self._links[project_name_and_version]
             additional_artifacts.discard(partial_artifact)
+            self._links.clear()
 
             self._resolved_requirements.append(
                 ResolvedRequirement(
