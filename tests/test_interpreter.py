@@ -21,6 +21,7 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pyenv import Pyenv
 from pex.testing import (
+    ALL_PY_VERSIONS,
     PY27,
     PY37,
     PY310,
@@ -490,3 +491,15 @@ def test_issue_1494_iter_candidates(macos_monterey_interpeter):
             "Exiting.",
         ),
     ] == list(PythonInterpreter.iter_candidates(paths=[sys.executable, macos_monterey_interpeter]))
+
+
+@pytest.mark.parametrize("py_version", ALL_PY_VERSIONS)
+def test_sys_path(py_version):
+    # type: (str) -> None
+
+    interp = PythonInterpreter.from_binary(ensure_python_interpreter(py_version))
+    _, stdout, _ = interp.execute(args=["-c", "import os, sys; print(os.linesep.join(sys.path))"])
+    assert tuple(entry for entry in stdout.splitlines() if entry) == interp.sys_path, (
+        'Its expected the sys_path matches the runtime sys.path with the exception of the PWD ("") '
+        "head entry."
+    )

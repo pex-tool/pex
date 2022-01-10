@@ -105,6 +105,12 @@ class PythonIdentity(object):
             sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
         )
 
+        # Pex identifies interpreters using a bit of Pex code injected via an extraction of that
+        # code under the `PEX_ROOT` adjoined to `sys.path` via `PYTHONPATH`. We ignore such adjoined
+        # `sys.path` entries to discover the true base interpreter `sys.path`.
+        pythonpath = frozenset(os.environ.get("PYTHONPATH", "").split(os.pathsep))
+        sys_path = [item for item in sys.path if item and item not in pythonpath]
+
         return cls(
             binary=binary or sys.executable,
             prefix=sys.prefix,
@@ -115,6 +121,7 @@ class PythonIdentity(object):
                 # https://www.python.org/dev/peps/pep-0405/.
                 or getattr(sys, "base_prefix", sys.prefix)
             ),
+            sys_path=sys_path,
             python_tag=preferred_tag.interpreter,
             abi_tag=preferred_tag.abi,
             platform_tag=preferred_tag.platform,
@@ -128,7 +135,7 @@ class PythonIdentity(object):
     def decode(cls, encoded):
         TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
         values = json.loads(encoded)
-        if len(values) != 10:
+        if len(values) != 11:
             raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
 
         supported_tags = values.pop("supported_tags")
@@ -161,6 +168,7 @@ class PythonIdentity(object):
         binary,  # type: str
         prefix,  # type: str
         base_prefix,  # type: str
+        sys_path,  # type: Iterable[str]
         python_tag,  # type: str
         abi_tag,  # type: str
         platform_tag,  # type: str
@@ -177,6 +185,7 @@ class PythonIdentity(object):
         self._binary = binary
         self._prefix = prefix
         self._base_prefix = base_prefix
+        self._sys_path = tuple(sys_path)
         self._python_tag = python_tag
         self._abi_tag = abi_tag
         self._platform_tag = platform_tag
@@ -190,6 +199,7 @@ class PythonIdentity(object):
             binary=self._binary,
             prefix=self._prefix,
             base_prefix=self._base_prefix,
+            sys_path=self._sys_path,
             python_tag=self._python_tag,
             abi_tag=self._abi_tag,
             platform_tag=self._platform_tag,
@@ -215,6 +225,11 @@ class PythonIdentity(object):
     def base_prefix(self):
         # type: () -> str
         return self._base_prefix
+
+    @property
+    def sys_path(self):
+        # type: () -> Tuple[str, ...]
+        return self._sys_path
 
     @property
     def python_tag(self):
@@ -973,6 +988,17 @@ class PythonInterpreter(object):
         For virtual environments, this will be the virtual environment directory itself.
         """
         return self._identity.prefix
+
+    @property
+    def sys_path(self):
+        # type: () -> Tuple[str, ...]
+        """Return the interpreter's `sys.path`.
+
+        The implicit `$PWD` entry and any entries injected via PYTHONPATH or in the user site
+        directory are excluded such that the `sys.path` presented is the base interpreter `sys.path`
+        with no adornments.
+        """
+        return self._identity.sys_path
 
     class BaseInterpreterResolutionError(Exception):
         """Indicates the base interpreter for a virtual environment could not be resolved."""

@@ -133,6 +133,9 @@ class Lockfile(object):
         allow_prereleases,  # type: bool
         allow_wheels,  # type: bool
         allow_builds,  # type: bool
+        prefer_older_binary,  # type: bool
+        use_pep517,  # type: Optional[bool]
+        build_isolation,  # type: bool
         transitive,  # type: bool
         locked_resolves,  # type: Iterable[LockedResolve]
         source=None,  # type: Optional[str]
@@ -147,6 +150,9 @@ class Lockfile(object):
             allow_prereleases=allow_prereleases,
             allow_wheels=allow_wheels,
             allow_builds=allow_builds,
+            prefer_older_binary=prefer_older_binary,
+            use_pep517=use_pep517,
+            build_isolation=build_isolation,
             transitive=transitive,
             locked_resolves=SortedTuple(locked_resolves),
             source=source,
@@ -160,6 +166,9 @@ class Lockfile(object):
     allow_prereleases = attr.ib()  # type: bool
     allow_wheels = attr.ib()  # type: bool
     allow_builds = attr.ib()  # type: bool
+    prefer_older_binary = attr.ib()  # type: bool
+    use_pep517 = attr.ib()  # type: Optional[bool]
+    build_isolation = attr.ib()  # type: bool
     transitive = attr.ib()  # type: bool
     locked_resolves = attr.ib()  # type: SortedTuple[LockedResolve]
     source = attr.ib(default=None, eq=False)  # type: Optional[str]

@@ -447,14 +447,14 @@ PY27 = "2.7.18"
 PY37 = "3.7.11"
 PY310 = "3.10.1"
 
-_ALL_PY_VERSIONS = (PY27, PY37, PY310)
+ALL_PY_VERSIONS = (PY27, PY37, PY310)
 _ALL_PY3_VERSIONS = (PY37, PY310)
 
 
 def ensure_python_distribution(version):
     # type: (str) -> Tuple[str, str, Callable[[Iterable[str]], Text]]
-    if version not in _ALL_PY_VERSIONS:
-        raise ValueError("Please constrain version to one of {}".format(_ALL_PY_VERSIONS))
+    if version not in ALL_PY_VERSIONS:
+        raise ValueError("Please constrain version to one of {}".format(ALL_PY_VERSIONS))
 
     pyenv_root = os.path.abspath(
         os.path.join(
