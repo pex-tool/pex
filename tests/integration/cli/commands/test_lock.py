@@ -105,6 +105,36 @@ def test_create_style(tmpdir):
     assert 1 == len(create_lock("sources").additional_artifacts)
 
 
+def test_create_local_unsupported(pex_project_dir):
+    # type: (str) -> None
+
+    result = run_pex3("lock", "create", pex_project_dir)
+    result.assert_failure()
+    assert (
+        "Cannot create a lock for project requirements built from local or version controlled "
+        "sources. Given 1 such project:\n"
+        "1.) local project at {path}\n".format(path=pex_project_dir)
+    ) == result.error
+
+
+def test_create_vcs_unsupported():
+    # type: () -> None
+
+    result = run_pex3(
+        "lock",
+        "create",
+        "pex @ git+https://github.com/pantsbuild/pex@473c6ac7",
+        "git+https://github.com/pypa/pip@f0f67af3#egg=pip",
+    )
+    result.assert_failure()
+    assert (
+        "Cannot create a lock for project requirements built from local or version controlled "
+        "sources. Given 2 such projects:\n"
+        "1.) git project pex at https://github.com/pantsbuild/pex@473c6ac7\n"
+        "2.) git project pip at https://github.com/pypa/pip@f0f67af3\n"
+    ) == result.error
+
+
 UPDATE_LOCKFILE_CONTENTS = """\
 {
   "allow_builds": true,

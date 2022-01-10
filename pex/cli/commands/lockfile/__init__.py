@@ -6,8 +6,8 @@ from __future__ import absolute_import
 from pex import resolver
 from pex.cli.commands.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
 from pex.commands.command import Error
-from pex.common import safe_open
-from pex.requirements import LocalProjectRequirement
+from pex.common import pluralize, safe_open
+from pex.requirements import LocalProjectRequirement, VCSRequirement
 from pex.resolve.locked_resolve import LockConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
@@ -86,20 +86,29 @@ def create(
 
     network_configuration = pip_configuration.network_configuration
     requirements = []  # type: List[Requirement]
-    local_projects = []  # type: List[LocalProjectRequirement]
+    projects = []  # type: List[str]
     for parsed_requirement in requirement_configuration.parse_requirements(network_configuration):
         if isinstance(parsed_requirement, LocalProjectRequirement):
-            local_projects.append(parsed_requirement)
+            projects.append("local project at {path}".format(path=parsed_requirement.path))
+        elif isinstance(parsed_requirement, VCSRequirement):
+            projects.append(
+                "{vcs} project {project_name} at {url}".format(
+                    vcs=parsed_requirement.vcs,
+                    project_name=parsed_requirement.requirement.project_name,
+                    url=parsed_requirement.url,
+                )
+            )
         else:
             requirements.append(parsed_requirement.requirement)
-    if local_projects:
+    if projects:
         return Error(
-            "Cannot create a lock for local project requirements. Given {count}:\n"
-            "{projects}".format(
-                count=len(local_projects),
-                projects="\n".join(
-                    "{index}.) {project}".format(index=index, project=project.path)
-                    for index, project in enumerate(local_projects, start=1)
+            "Cannot create a lock for project requirements built from local or version "
+            "controlled sources. Given {count} such {projects}:\n{project_descriptions}".format(
+                count=len(projects),
+                projects=pluralize(projects, "project"),
+                project_descriptions="\n".join(
+                    "{index}.) {project}".format(index=index, project=project)
+                    for index, project in enumerate(projects, start=1)
                 ),
             )
         )
