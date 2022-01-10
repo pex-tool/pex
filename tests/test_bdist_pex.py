@@ -6,42 +6,39 @@ import subprocess
 from contextlib import contextmanager
 from textwrap import dedent
 
-from pex import resolver
-from pex.common import open_zip, temporary_dir
-from pex.interpreter import spawn_python_job
+from pex.common import open_zip, safe_mkdtemp, temporary_dir
 from pex.testing import WheelBuilder, make_project, pex_project_dir, temporary_content
+from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, List, Iterator, Iterable, Optional, Text, Union
+    from typing import Dict, List, Iterator, Iterable, Optional, Union
 
 
-BDIST_PEX_PYTHONPATH = None
+BDIST_PEX_VENV = None  # type: Optional[Virtualenv]
 
 
-def bdist_pex_pythonpath():
-    # type: () -> List[str]
+def bdist_pex_venv():
+    # type: () -> Virtualenv
     # In order to run the bdist_pex distutils command we need:
-    # 1. setuptools on the PYTHONPATH since the test projects use and test setuptools.setup and its
+    # 1. setuptools on the sys.path since the test projects use and test setuptools.setup and its
     #    additional features above and beyond distutils.core.setup like entry points declaration.
-    # 2. Pex on the PYTHONPATH so its distutils command module(s) can be found.
+    # 2. Pex on the sys.path so its distutils command module(s) can be found.
     # 3. An indication to distutils of where to look for Pex distutils commands.
     #
-    # We take care of 1 and 2 here and 3 is taken care of by passing --command-packages to distutils.
+    # We take care of 1 and 2 here and 3 is taken care of by passing --command-packages to
+    # distutils.
 
-    global BDIST_PEX_PYTHONPATH
-    if BDIST_PEX_PYTHONPATH is None:
-        BDIST_PEX_PYTHONPATH = [pex_project_dir()]
-
-        # Although the setuptools version is not important, we pick one so the test can leverage the
-        # pex cache for speed run over run.
-        BDIST_PEX_PYTHONPATH.extend(
-            installed_distribution.distribution.location
-            for installed_distribution in resolver.resolve(
-                ["setuptools==43.0.0"]
-            ).installed_distributions
-        )
-    return BDIST_PEX_PYTHONPATH
+    global BDIST_PEX_VENV
+    if BDIST_PEX_VENV is None:
+        venv_dir = safe_mkdtemp()
+        venv = Virtualenv.create(venv_dir)
+        pip = venv.install_pip()
+        # N.B.: The setuptools version is not important.
+        subprocess.check_call(args=[pip, "install", "-U", "pip"])
+        subprocess.check_call(args=[pip, "install", pex_project_dir(), "setuptools==43.0.0"])
+        BDIST_PEX_VENV = venv
+    return BDIST_PEX_VENV
 
 
 @contextmanager
@@ -58,7 +55,9 @@ def bdist_pex(project_dir, bdist_args=None):
         if bdist_args:
             cmd.extend(bdist_args)
 
-        spawn_python_job(args=cmd, cwd=project_dir, pythonpath=bdist_pex_pythonpath()).wait()
+        venv = bdist_pex_venv()
+        _, process = venv.interpreter.open_process(args=cmd, cwd=project_dir)
+        process.wait()
         yield [os.path.join(dist_dir, dir_entry) for dir_entry in os.listdir(dist_dir)]
 
 

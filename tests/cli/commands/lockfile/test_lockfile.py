@@ -32,6 +32,7 @@ SINGLE_PLATFORM_UNIVERSAL_WHEEL = lockfile.loads(
           "allow_builds": true,
           "allow_prereleases": false,
           "allow_wheels": true,
+          "build_isolation": true,
           "constraints": [],
           "locked_resolves": [
             {
@@ -58,12 +59,14 @@ SINGLE_PLATFORM_UNIVERSAL_WHEEL = lockfile.loads(
             }
           ],
           "pex_version": "2.1.50",
+          "prefer_older_binary": false,
           "requirements": [
             "ansicolors"
           ],
           "resolver_version": "pip-legacy-resolver",
           "style": "strict",
-          "transitive": true
+          "transitive": true,
+          "use_pep517": null
         }
         """
     )
@@ -122,6 +125,7 @@ DUAL_PLATFORM_NATIVE_WHEEL = lockfile.loads(
           "allow_builds": true,
           "allow_prereleases": false,
           "allow_wheels": true,
+          "build_isolation": true,
           "constraints": [],
           "locked_resolves": [
             {
@@ -170,12 +174,14 @@ DUAL_PLATFORM_NATIVE_WHEEL = lockfile.loads(
             }
           ],
           "pex_version": "2.1.50",
+          "prefer_older_binary": false,
           "requirements": [
             "p537"
           ],
           "resolver_version": "pip-legacy-resolver",
           "style": "strict",
-          "transitive": true
+          "transitive": true,
+          "use_pep517": null
         }
         """
     )
@@ -205,6 +211,7 @@ LOCK_STYLE_SOURCES = lockfile.loads(
           "allow_builds": true,
           "allow_prereleases": false,
           "allow_wheels": true,
+          "build_isolation": true,
           "constraints": [],
           "locked_resolves": [
             {
@@ -236,12 +243,14 @@ LOCK_STYLE_SOURCES = lockfile.loads(
             }
           ],
           "pex_version": "2.1.50",
+          "prefer_older_binary": false,
           "requirements": [
             "p537==1.0.4"
           ],
           "resolver_version": "pip-legacy-resolver",
           "style": "sources",
-          "transitive": true
+          "transitive": true,
+          "use_pep517": null
         }
         """
     )

@@ -10,7 +10,7 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import Tuple
+    from typing import Optional, Tuple
 else:
     from pex.third_party import attr
 
@@ -40,6 +40,9 @@ class PipConfiguration(object):
     allow_prereleases = attr.ib(default=False)  # type: bool
     allow_wheels = attr.ib(default=True)  # type: bool
     allow_builds = attr.ib(default=True)  # type: bool
+    prefer_older_binary = attr.ib(default=False)  # type: bool
+    use_pep517 = attr.ib(default=None)  # type: Optional[bool]
+    build_isolation = attr.ib(default=True)  # type: bool
     transitive = attr.ib(default=True)  # type: bool
     max_jobs = attr.ib(default=DEFAULT_MAX_JOBS)  # type: int
 

@@ -52,6 +52,9 @@ def test_roundtrip(tmpdir):
         allow_prereleases=True,
         allow_wheels=False,
         allow_builds=False,
+        prefer_older_binary=False,
+        use_pep517=None,
+        build_isolation=True,
         transitive=False,
         locked_resolves=[
             LockedResolve.from_platform_tag(
@@ -113,6 +116,7 @@ VALID_LOCK = """\
   "allow_builds": true,
   "allow_prereleases": false,
   "allow_wheels": true,
+  "build_isolation": true,
   "constraints": [],
   "locked_resolves": [
     {
@@ -144,12 +148,14 @@ VALID_LOCK = """\
     }
   ],
   "pex_version": "2.1.50",
+  "prefer_older_binary": false,
   "requirements": [
     "ansicolors"
   ],
   "resolver_version": "pip-legacy-resolver",
   "style": "sources",
-  "transitive": true
+  "transitive": true,
+  "use_pep517": null
 }
 """
 
@@ -307,7 +313,7 @@ def test_load_invalid_requirement(patch_tool):
         patch_tool,
         dedent(
             """\
-            @@ -36,3 +36,4 @@
+            @@ -38,3 +38,4 @@
                "requirements": [
             -    "ansicolors"
             +    "ansicolors",
@@ -322,8 +328,8 @@ def test_load_invalid_requirement(patch_tool):
         patch_tool,
         dedent(
             """\
-            @@ -4,3 +4,3 @@
-               "allow_wheels": true,
+            @@ -5,3 +5,3 @@
+               "build_isolation": true,
             -  "constraints": [],
             +  "constraints": ["@invalid requirement"],
                "locked_resolves": [
@@ -336,7 +342,7 @@ def test_load_invalid_requirement(patch_tool):
         patch_tool,
         dedent(
             """\
-            @@ -22,3 +22,3 @@
+            @@ -23,3 +23,3 @@
                        "project_name": "ansicolors",
             -          "requirement": "ansicolors",
             +          "requirement": "@invalid requirement",
@@ -374,11 +380,11 @@ def test_load_invalid_style(patch_tool):
         patch_tool,
         dedent(
             """\
-            @@ -39,3 +39,3 @@
+            @@ -41,3 +41,3 @@
                "resolver_version": "pip-legacy-resolver",
             -  "style": "sources",
             +  "style": "foo",
-               "transitive": true
+               "transitive": true,
             """
         ),
         match=re.escape("The '.[\"style\"]' is invalid: "),
