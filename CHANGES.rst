@@ -5,7 +5,7 @@ Release Notes
 ------
 
 This release exposes three Pip options as Pex options to allow building
-PEXes for of the Python distribution ecosystem:
+PEXes for more of the Python distribution ecosystem:
 
 #. ``--prefer-binary``: To prefer older wheels to newer sdists in a
    resolve which can help avoid problematic builds.
