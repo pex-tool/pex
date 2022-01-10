@@ -535,12 +535,11 @@ def test_update_partial(tmpdir):
 def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
     # type: (Any) -> None
 
-    lock_file = os.path.join(str(tmpdir), "lock.json")
-
     # Here we resolve ansicolors 1.0.2 and find 2020.12.3 which are both pure legacy sdist
     # distributions that will need to download build requirements using Pip since we force PEP-517.
     # The cowsay 4.0 requirement is satisfied by a universal wheel and has no build requirements as
     # a result.
+
     result = run_pex3(
         "lock",
         "create",
