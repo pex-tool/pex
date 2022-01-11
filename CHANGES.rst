@@ -1,6 +1,25 @@
 Release Notes
 =============
 
+2.1.62
+------
+
+This release exposes three Pip options as Pex options to allow building
+PEXes for more of the Python distribution ecosystem:
+
+#. ``--prefer-binary``: To prefer older wheels to newer sdists in a
+   resolve which can help avoid problematic builds.
+#. ``--[no]-use-pep517``: To control how sdists are built: always using
+   PEP-517, always using setup.py or the default, always using whichever
+   is appropriate.
+#. ``--no-build-isolation``: To allow distributions installed in the
+   environment to be seen during builds of sdists. This allows working
+   around distributions with undeclared build dependencies by
+   pre-installing them in the environment before running Pex.
+
+* Expose more Pip options. (#1561)
+  `PR #1561 <https://github.com/pantsbuild/pex/pull/1561>`_
+
 2.1.61
 ------
 
