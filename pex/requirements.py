@@ -10,12 +10,13 @@ from contextlib import contextmanager
 from pex import attrs, dist_metadata
 from pex.compatibility import urlparse
 from pex.dist_metadata import MetadataError, ProjectNameAndVersion
+from pex.enum import Enum
 from pex.fetcher import URLFetcher
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion, Version
 from pex.third_party.pkg_resources import Requirement, RequirementParseError
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
@@ -143,9 +144,30 @@ class PyPIRequirement(object):
 
 @attr.s(frozen=True)
 class URLRequirement(object):
-    """A requirement realized through an distribution archive at a fixed URL."""
+    """A requirement realized through a distribution archive at a fixed URL."""
 
     line = attr.ib()  # type: LogicalLine
+    url = attr.ib()  # type: Text
+    requirement = attr.ib()  # type: Requirement
+    editable = attr.ib(default=False)  # type: bool
+
+
+class VCS(Enum):
+    class Value(Enum.Value):
+        pass
+
+    Bazaar = Value("bzr")
+    Git = Value("git")
+    Mercurial = Value("hg")
+    Subversion = Value("svn")
+
+
+@attr.s(frozen=True)
+class VCSRequirement(object):
+    """A requirement realized by building a distribution from sources retrieved from a VCS."""
+
+    line = attr.ib()  # type: LogicalLine
+    vcs = attr.ib()  # type: VCS.Value
     url = attr.ib()  # type: Text
     requirement = attr.ib()  # type: Requirement
     editable = attr.ib(default=False)  # type: bool
@@ -208,7 +230,9 @@ class LocalProjectRequirement(object):
 
 
 if TYPE_CHECKING:
-    ParsedRequirement = Union[PyPIRequirement, URLRequirement, LocalProjectRequirement]
+    ParsedRequirement = Union[
+        PyPIRequirement, URLRequirement, VCSRequirement, LocalProjectRequirement
+    ]
 
 
 @attr.s(frozen=True)
@@ -243,29 +267,54 @@ def _strip_requirement_options(line):
     return editable, re.sub(r"\s--(global-option|install-option|hash).*$", "", processed_text)
 
 
-def _is_recognized_non_local_pip_url_scheme(scheme):
-    # type: (str) -> bool
-    return bool(
-        re.match(
-            r"""
-            (
+class ArchiveScheme(Enum):
+    class Value(Enum.Value):
+        pass
+
+    FTP = Value("ftp")
+    HTTP = Value("http")
+    HTTPS = Value("https")
+
+
+@attr.s(frozen=True)
+class VCSScheme(object):
+    vcs = attr.ib()  # type: VCS.Value
+    scheme = attr.ib()  # type: str
+
+
+def _parse_non_local_scheme(scheme):
+    # type: (str) -> Optional[Union[ArchiveScheme.Value, VCSScheme]]
+    match = re.match(
+        r"""
+        ^
+        (?:
+            (?P<archive_scheme>
                 # Archives
                   ftp
                 | https?
-
-                # VCSs: https://pip.pypa.io/en/stable/reference/pip_install/#vcs-support
-                | (
-                      bzr
-                    | git
-                    | hg
-                    | svn
-                  )\+
             )
-            """,
-            scheme,
-            re.VERBOSE,
+            |
+            (?P<vcs_type>
+                # VCSs: https://pip.pypa.io/en/stable/reference/pip_install/#vcs-support       
+                  bzr
+                | git
+                | hg
+                | svn
+            )\+(?P<vcs_scheme>.+)
         )
+        $
+        """,
+        scheme,
+        re.VERBOSE,
     )
+    if not match:
+        return None
+
+    archive_scheme = match.group("archive_scheme")
+    if archive_scheme:
+        return cast(ArchiveScheme.Value, ArchiveScheme.for_value(archive_scheme))
+
+    return VCSScheme(vcs=VCS.for_value(match.group("vcs_type")), scheme=match.group("vcs_scheme"))
 
 
 @attr.s(frozen=True)
@@ -416,8 +465,9 @@ def _parse_requirement_line(
     project_name, direct_reference_url = _split_direct_references(processed_text)
     parsed_url = urlparse.urlparse(direct_reference_url or processed_text)
 
-    # Handle non local URLs (Pip proprietary).
-    if _is_recognized_non_local_pip_url_scheme(parsed_url.scheme):
+    # Handle non local URLs.
+    non_local_scheme = _parse_non_local_scheme(parsed_url.scheme)
+    if non_local_scheme:
         project_name_extras_and_marker = _try_parse_fragment_project_name_and_marker(
             parsed_url.fragment
         )
@@ -454,6 +504,9 @@ def _parse_requirement_line(
             specifier=specifier,
             marker=marker,
         )
+        if isinstance(non_local_scheme, VCSScheme):
+            url = urlparse.urlparse(url)._replace(scheme=non_local_scheme.scheme).geturl()
+            return VCSRequirement(line, non_local_scheme.vcs, url, requirement, editable=editable)
         return URLRequirement(line, url, requirement, editable=editable)
 
     # Handle local archives and project directories via path or file URL (Pip proprietary).
