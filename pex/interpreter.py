@@ -802,7 +802,9 @@ class PythonInterpreter(object):
         # type: (str) -> SpawnedJob[PythonInterpreter]
         canonicalized_binary = cls.canonicalize_path(binary)
         if not os.path.exists(canonicalized_binary):
-            raise cls.InterpreterNotFound(canonicalized_binary)
+            raise cls.InterpreterNotFound(
+                "The interpreter path {} does not exist.".format(canonicalized_binary)
+            )
 
         # N.B.: The cache is written as the last step in PythonInterpreter instance initialization.
         cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(canonicalized_binary)
