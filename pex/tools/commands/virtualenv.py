@@ -244,13 +244,9 @@ class Virtualenv(object):
         python_args=None,  # type: Optional[str]
     ):
         # type: (...) -> Iterator[str]
-        python_scripts = []
-        for executable in self.iter_executables():
-            if executable in self._base_bin:
-                continue
-            if not _is_python_script(executable):
-                continue
-            python_scripts.append(executable)
+        python_scripts = [
+            executable for executable in self.iter_executables() if _is_python_script(executable)
+        ]
         if python_scripts:
             with closing(
                 fileinput.input(files=sorted(python_scripts), inplace=True, mode="rb")

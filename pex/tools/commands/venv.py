@@ -24,6 +24,7 @@ from pex.tools.command import PEXCommand
 from pex.tools.commands.virtualenv import PipUnavailableError, Virtualenv
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
@@ -194,23 +195,39 @@ def populate_venv_with_pex(
         if os.path.isdir(dist_bin_dir):
             record_provenance(_copytree(src=dist_bin_dir, dst=venv.bin_dir, symlink=symlink))
 
-    collisions = {dst: srcs for dst, srcs in provenance.items() if len(srcs) > 1}
-    if collisions:
-        message_lines = [
-            "Encountered {collision} building venv at {venv_dir} from {pex}:".format(
-                collision=pluralize(collisions, "collision"), venv_dir=venv_dir, pex=pex.path()
-            )
-        ]
-        for index, (dst, srcs) in enumerate(collisions.items(), start=1):
-            message_lines.append(
-                "{index}. {dst} was provided by:\n\t{srcs}".format(
-                    index=index, dst=dst, srcs="\n\t".join(srcs)
+    potential_collisions = {dst: srcs for dst, srcs in provenance.items() if len(srcs) > 1}
+    if potential_collisions:
+        collisions = {}
+        for dst, srcs in potential_collisions.items():
+            contents = defaultdict(list)
+            for src in srcs:
+                contents[CacheHelper.hash(src)].append(src)
+            if len(contents) > 1:
+                collisions[dst] = contents
+
+        if collisions:
+            message_lines = [
+                "Encountered {collision} building venv at {venv_dir} from {pex}:".format(
+                    collision=pluralize(collisions, "collision"), venv_dir=venv_dir, pex=pex.path()
                 )
-            )
-        message = "\n".join(message_lines)
-        if not collisions_ok:
-            raise CollisionError(message)
-        pex_warnings.warn(message)
+            ]
+            for index, (dst, contents) in enumerate(collisions.items(), start=1):
+                message_lines.append(
+                    "{index}. {dst} was provided by:\n\t{srcs}".format(
+                        index=index,
+                        dst=dst,
+                        srcs="\n\t".join(
+                            "sha1:{fingerprint} -> {srcs}".format(
+                                fingerprint=fingerprint, srcs=", ".join(srcs)
+                            )
+                            for fingerprint, srcs in contents.items()
+                        ),
+                    )
+                )
+            message = "\n".join(message_lines)
+            if not collisions_ok:
+                raise CollisionError(message)
+            pex_warnings.warn(message)
 
     if rel_extra_paths:
         with open(os.path.join(venv.site_packages_dir, "pex-ns-pkgs.pth"), "w") as fp:
