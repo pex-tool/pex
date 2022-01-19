@@ -88,10 +88,10 @@ def test_collisions(
     result = run_pex_tools(collisions_pex, "venv", venv_dir)
     result.assert_failure()
     assert (
-        "pex.tools.commands.venv.CollisionError: Encountered collision building venv at {venv_dir} "
+        "CollisionError: Encountered collision building venv at {venv_dir} "
         "from {pex}:\n"
         "1. {venv_dir}/bin/pex was provided by:".format(venv_dir=venv_dir, pex=collisions_pex)
-    ) in result.error, result.error
+    ) in result.error
 
     result = run_pex_tools(collisions_pex, "venv", "--collisions-ok", "--force", venv_dir)
     result.assert_success()
