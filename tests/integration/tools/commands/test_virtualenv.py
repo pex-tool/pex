@@ -55,12 +55,13 @@ def index_distributions(venv):
     }
 
 
-def test_iter_distributions_empty(tmpdir):
+def test_iter_distributions_setuptools_not_leaked(tmpdir):
     # type: (Any) -> None
 
     empty_venv_dir = os.path.join(str(tmpdir), "empty.venv")
     empty_venv = Virtualenv.create(venv_dir=empty_venv_dir)
-    assert {} == index_distributions(empty_venv)
+    dists = index_distributions(empty_venv)
+    assert ProjectName("setuptools") not in dists
 
 
 @pytest.mark.parametrize("py_version", ALL_PY_VERSIONS)
