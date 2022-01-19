@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.63
+------
+
+This release fixes spurious collision warnings & errors when building
+venvs from PEXes that contain multiple distributions contributing to the
+same namespace package.
+
+* Allow for duplicate files in venv population. (#1572)
+  `PR #1572 <https://github.com/pantsbuild/pex/pull/1572>`_
+
 2.1.62
 ------
 
