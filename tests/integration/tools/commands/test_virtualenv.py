@@ -76,7 +76,9 @@ def test_iter_distributions(tmpdir, py_version):
     dists = index_distributions(venv)
     pip_dist_info = dists.get(ProjectName("pip"))
     assert pip_dist_info is not None, "Expected venv to have Pip installed."
-    assert venv.site_packages_dir == pip_dist_info.sys_path_entry
+    assert os.path.realpath(venv.site_packages_dir) == os.path.realpath(
+        pip_dist_info.sys_path_entry
+    )
     assert ProjectName("cowsay") not in dists
 
     subprocess.check_call(args=[pip, "install", "cowsay==4.0"])
@@ -84,4 +86,6 @@ def test_iter_distributions(tmpdir, py_version):
     cowsay_dist_info = dists.get(ProjectName("cowsay"))
     assert cowsay_dist_info is not None, "Expected venv to have cowsay installed."
     assert "4.0" == cowsay_dist_info.version
-    assert venv.site_packages_dir == cowsay_dist_info.sys_path_entry
+    assert os.path.realpath(venv.site_packages_dir) == os.path.realpath(
+        cowsay_dist_info.sys_path_entry
+    )
