@@ -5,14 +5,22 @@
 
 from __future__ import absolute_import
 
+import itertools
+
 from pex.common import die
+from pex.enum import Enum
 from pex.interpreter import PythonIdentity, PythonInterpreter
+from pex.orderedset import OrderedSet
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional
+    import attr  # vendor:skip
+    from typing import Iterable, Iterator, Optional, Tuple
 
     from pex.interpreter import InterpreterIdentificationError
+else:
+    from pex.third_party import attr
 
 
 def validate_constraints(constraints):
@@ -138,3 +146,77 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
             ),
             problems=problems,
         )
+
+
+class Lifecycle(Enum):
+    class Value(Enum.Value):
+        pass
+
+    DEV = Value("dev")
+    STABLE = Value("stable")
+    EOL = Value("eol")
+
+
+# This value is based off of:
+# 1. Past releases: https://www.python.org/downloads/ where the max patch level was achieved by
+#    2.7.18.
+# 2. The 3.9+ annual release cycle formalization: https://www.python.org/dev/peps/pep-0602/ where
+#    the last bugfix release will be at a patch level of ~10 and then 3.5 years of security fixes
+#    as needed before going to EOL at the 5-year mark.
+DEFAULT_MAX_PATCH = 30
+
+
+@attr.s(frozen=True)
+class PythonVersion(object):
+    lifecycle = attr.ib()  # type: Lifecycle.Value
+    major = attr.ib()  # type: int
+    minor = attr.ib()  # type: int
+    patch = attr.ib()  # type: int
+
+    def iter_compatible_versions(
+        self,
+        specifier_sets,  # type: Iterable[SpecifierSet]
+        max_patch=DEFAULT_MAX_PATCH,  # type: int
+    ):
+        # type: (...) -> Iterator[Tuple[int, int, int]]
+        last_patch = self.patch if self.lifecycle == Lifecycle.EOL else max_patch
+        for patch in range(last_patch + 1):
+            version = (self.major, self.minor, patch)
+            version_string = ".".join(map(str, version))
+            if not specifier_sets:
+                yield version
+            else:
+                for specifier_set in specifier_sets:
+                    if version_string in specifier_set:
+                        yield version
+                        break
+
+
+# TODO(John Sirois): Integrate a `pyenv install -l` based lint / generate script for CI / local
+# use that emits the current max patch for these versions so we automatically stay up to date
+# mod dormancy in the project.
+
+COMPATIBLE_PYTHON_VERSIONS = (
+    PythonVersion(Lifecycle.EOL, 2, 7, 18),
+    # N.B.: Pex does not support the missing 3.x versions here.
+    PythonVersion(Lifecycle.EOL, 3, 5, 10),
+    PythonVersion(Lifecycle.EOL, 3, 6, 15),
+    PythonVersion(Lifecycle.STABLE, 3, 7, 12),
+    PythonVersion(Lifecycle.STABLE, 3, 8, 11),
+    PythonVersion(Lifecycle.STABLE, 3, 9, 10),
+    PythonVersion(Lifecycle.STABLE, 3, 10, 2),
+    PythonVersion(Lifecycle.DEV, 3, 11, 0),
+)
+
+
+def iter_compatible_versions(
+    requires_python,  # type: Iterable[str]
+    max_patch=DEFAULT_MAX_PATCH,  # type: int
+):
+    # type: (...) -> Iterator[Tuple[int, int, int]]
+
+    specifier_sets = OrderedSet(SpecifierSet(req) for req in requires_python)
+    return itertools.chain.from_iterable(
+        python_version.iter_compatible_versions(specifier_sets, max_patch=max_patch)
+        for python_version in COMPATIBLE_PYTHON_VERSIONS
+    )
