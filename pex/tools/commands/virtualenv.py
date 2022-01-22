@@ -300,7 +300,7 @@ class Virtualenv(object):
             ]
         )
         for line in stdout.splitlines():
-            project_name, version, sys_path_entry = line.split()
+            project_name, version, sys_path_entry = line.split(maxsplit=2)
             yield DistributionInfo(
                 project_name=project_name, version=version, sys_path_entry=sys_path_entry
             )

@@ -65,8 +65,11 @@ def test_iter_distributions_setuptools_not_leaked(tmpdir):
 
 
 @pytest.mark.parametrize("py_version", ALL_PY_VERSIONS)
-def test_iter_distributions(tmpdir, py_version):
-    # type: (Any, str) -> None
+def test_iter_distributions(
+    tmpdir,  # type: Any
+    py_version,  # type: str
+):
+    # type: (...) -> None
 
     python, pip = ensure_python_venv(py_version)
 
@@ -88,4 +91,22 @@ def test_iter_distributions(tmpdir, py_version):
     assert "4.0" == cowsay_dist_info.version
     assert os.path.realpath(venv.site_packages_dir) == os.path.realpath(
         cowsay_dist_info.sys_path_entry
+    )
+
+
+def test_iter_distributions_spaces(tmpdir):
+    # type: (Any) -> None
+
+    venv_dir = os.path.join(str(tmpdir), "face palm")
+    venv = Virtualenv.create(venv_dir=venv_dir)
+    dists = index_distributions(venv)
+    pip_dist_info = dists.get(ProjectName("pip"))
+    assert pip_dist_info is None, "Expected venv to not have Pip installed."
+
+    venv.install_pip()
+    dists = index_distributions(venv)
+    pip_dist_info = dists.get(ProjectName("pip"))
+    assert pip_dist_info is not None, "Expected venv to have Pip installed."
+    assert os.path.realpath(venv.site_packages_dir) == os.path.realpath(
+        pip_dist_info.sys_path_entry
     )
