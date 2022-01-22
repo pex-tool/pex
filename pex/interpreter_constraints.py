@@ -144,6 +144,15 @@ class Lifecycle(Enum):
     EOL = Value("eol")
 
 
+# This value is based off of:
+# 1. Past releases: https://www.python.org/downloads/ where the max patch level was achieved by
+#    2.7.18.
+# 2. The 3.9+ annual release cycle formalization: https://www.python.org/dev/peps/pep-0602/ where
+#    the last bugfix release will be at a patch level of ~10 and then 3.5 years of security fixes
+#    as needed before going to EOL at the 5-year mark.
+DEFAULT_MAX_PATCH = 30
+
+
 @attr.s(frozen=True)
 class PythonVersion(object):
     lifecycle = attr.ib()  # type: Lifecycle.Value
@@ -151,15 +160,14 @@ class PythonVersion(object):
     minor = attr.ib()  # type: int
     patch = attr.ib()  # type: int
 
-    def pad(self, padding):
-        # type: (int) -> PythonVersion
-        if self.lifecycle == Lifecycle.EOL:
-            return self
-        return attr.evolve(self, patch=self.patch + padding)
-
-    def iter_compatible_versions(self, specifier_sets):
-        # type: (Iterable[SpecifierSet]) -> Iterator[Tuple[int, int, int]]
-        for patch in range(self.patch + 1):
+    def iter_compatible_versions(
+        self,
+        specifier_sets,  # type: Iterable[SpecifierSet]
+        max_patch=DEFAULT_MAX_PATCH,  # type: int
+    ):
+        # type: (...) -> Iterator[Tuple[int, int, int]]
+        last_patch = self.patch if self.lifecycle == Lifecycle.EOL else max_patch
+        for patch in range(last_patch + 1):
             version = (self.major, self.minor, patch)
             version_string = ".".join(map(str, version))
             if not specifier_sets:
@@ -175,29 +183,27 @@ class PythonVersion(object):
 # use that emits the current max patch for these versions so we automatically stay up to date
 # mod dormancy in the project.
 
-COMPATIBLE_PYTHON_VERSIONS = tuple(
-    # Each 5 units of padding costs `iter_compatible_versions` ~2 extra ms and a padding of 10 gets
-    # us through most of a brand new stable release's likely active lifecycle.
-    version.pad(10)
-    for version in (
-        PythonVersion(Lifecycle.EOL, 2, 7, 18),
-        # N.B.: Pex does not support the missing 3.x versions here.
-        PythonVersion(Lifecycle.EOL, 3, 5, 10),
-        PythonVersion(Lifecycle.EOL, 3, 6, 15),
-        PythonVersion(Lifecycle.STABLE, 3, 7, 12),
-        PythonVersion(Lifecycle.STABLE, 3, 8, 11),
-        PythonVersion(Lifecycle.STABLE, 3, 9, 10),
-        PythonVersion(Lifecycle.STABLE, 3, 10, 2),
-        PythonVersion(Lifecycle.DEV, 3, 11, 0),
-    )
+COMPATIBLE_PYTHON_VERSIONS = (
+    PythonVersion(Lifecycle.EOL, 2, 7, 18),
+    # N.B.: Pex does not support the missing 3.x versions here.
+    PythonVersion(Lifecycle.EOL, 3, 5, 10),
+    PythonVersion(Lifecycle.EOL, 3, 6, 15),
+    PythonVersion(Lifecycle.STABLE, 3, 7, 12),
+    PythonVersion(Lifecycle.STABLE, 3, 8, 11),
+    PythonVersion(Lifecycle.STABLE, 3, 9, 10),
+    PythonVersion(Lifecycle.STABLE, 3, 10, 2),
+    PythonVersion(Lifecycle.DEV, 3, 11, 0),
 )
 
 
-def iter_compatible_versions(requires_python):
-    # type: (Iterable[str]) -> Iterator[Tuple[int, int, int]]
+def iter_compatible_versions(
+    requires_python,  # type: Iterable[str]
+    max_patch=DEFAULT_MAX_PATCH,  # type: int
+):
+    # type: (...) -> Iterator[Tuple[int, int, int]]
 
     specifier_sets = OrderedSet(SpecifierSet(req) for req in requires_python)
     return itertools.chain.from_iterable(
-        python_version.iter_compatible_versions(specifier_sets)
+        python_version.iter_compatible_versions(specifier_sets, max_patch=max_patch)
         for python_version in COMPATIBLE_PYTHON_VERSIONS
     )
