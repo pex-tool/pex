@@ -714,7 +714,7 @@ def test_pex_run_strip_env():
 
 def test_pex_run_custom_setuptools_useable():
     # type: () -> None
-    result = resolver.resolve(["setuptools==43.0.0"])
+    result = resolver.resolve(requirements=["setuptools==43.0.0"])
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
@@ -731,7 +731,7 @@ def test_pex_run_conflicting_custom_setuptools_useable():
     # Here we use our vendored, newer setuptools to build the pex which has an older setuptools
     # requirement.
 
-    result = resolver.resolve(["setuptools==43.0.0"])
+    result = resolver.resolve(requirements=["setuptools==43.0.0"])
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
@@ -753,7 +753,9 @@ def test_pex_run_conflicting_custom_setuptools_useable():
 def test_pex_run_custom_pex_useable():
     # type: () -> None
     old_pex_version = "0.7.0"
-    result = resolver.resolve(["pex=={}".format(old_pex_version), "setuptools==40.6.3"])
+    result = resolver.resolve(
+        requirements=["pex=={}".format(old_pex_version), "setuptools==40.6.3"]
+    )
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         from pex.version import __version__

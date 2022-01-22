@@ -3,27 +3,15 @@
 
 from __future__ import absolute_import
 
-import os
 import sys
 from argparse import ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex.argparse import HandleBoolAction
-from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import (
-    UnsatisfiableInterpreterConstraintsError,
-    validate_constraints,
-)
+from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.orderedset import OrderedSet
-from pex.pex_bootstrapper import iter_compatible_interpreters, parse_path
 from pex.platforms import Platform
 from pex.resolve.resolver_options import _ManylinuxAction
-from pex.resolve.target_configuration import TargetConfiguration, convert_platforms
-from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING
-from pex.variables import ENV
-
-if TYPE_CHECKING:
-    from typing import Optional
+from pex.resolve.target_configuration import TargetConfiguration
 
 
 def register(parser):
@@ -145,104 +133,37 @@ def register(parser):
     )
 
 
-class TargetConfigurationError(Exception):
-    """Indicates a problem configuring resolve targets."""
-
-
-class InterpreterNotFound(TargetConfigurationError):
-    """Indicates an explicitly requested interpreter could not be found."""
-
-
-class InterpreterConstraintsNotSatisfied(TargetConfigurationError):
-    """Indicates no interpreter meeting the requested constraints could be found."""
-
-
 def configure(options):
     # type: (Namespace) -> TargetConfiguration
     """Creates a target configuration from options registered by `register`.
 
     :param options: The target configuration options.
-    :raise: :class:`InterpreterNotFound` specific --python interpreters were requested but could
-            not be found.
-    :raise: :class:`InterpreterConstraintsNotSatisfied` if --interpreter-constraint were specified
-            but no conforming interpreters could be found.
     """
-
-    interpreters = None  # Default to the current interpreter.
-
-    # TODO(#1075): stop looking at PEX_PYTHON_PATH and solely consult the `--python-path` flag.
-    # If None, this will result in using $PATH.
-    pex_python_path = options.python_path or ENV.PEX_PYTHON_PATH
-
-    # NB: options.python and interpreter constraints cannot be used together.
-    if options.python:
-        with TRACER.timed("Resolving interpreters", V=2):
-
-            def to_python_interpreter(full_path_or_basename):
-                if os.path.isfile(full_path_or_basename):
-                    return PythonInterpreter.from_binary(full_path_or_basename)
-                else:
-                    interp = PythonInterpreter.from_env(
-                        full_path_or_basename, paths=parse_path(pex_python_path)
-                    )
-                    if interp is None:
-                        raise InterpreterNotFound(
-                            "Failed to find interpreter: {}".format(full_path_or_basename)
-                        )
-                    return interp
-
-            interpreters = OrderedSet(to_python_interpreter(interp) for interp in options.python)
-    elif options.interpreter_constraint:
-        with TRACER.timed("Resolving interpreters", V=2):
-            constraints = options.interpreter_constraint
-            validate_constraints(constraints)
-            try:
-                interpreters = OrderedSet(
-                    iter_compatible_interpreters(
-                        path=pex_python_path, interpreter_constraints=constraints
-                    )
-                )
-            except UnsatisfiableInterpreterConstraintsError as e:
-                raise InterpreterConstraintsNotSatisfied(
-                    e.create_message("Could not find a compatible interpreter.")
-                )
+    try:
+        interpreter_constraints = tuple(
+            OrderedSet(
+                PythonIdentity.parse_requirement(interpreter_constraint)
+                for interpreter_constraint in options.interpreter_constraint
+            )
+        )
+    except ValueError as e:
+        raise ArgumentTypeError(str(e))
 
     try:
-        platforms = OrderedSet(
-            convert_platforms(options.platforms)
-        )  # type: OrderedSet[Optional[Platform]]
+        platforms = tuple(
+            OrderedSet(
+                Platform.create(platform) if platform and platform != "current" else None
+                for platform in options.platforms
+            )
+        )
     except Platform.InvalidPlatformError as e:
         raise ArgumentTypeError(str(e))
 
-    interpreters = interpreters or OrderedSet()
-    if platforms and options.resolve_local_platforms:
-        with TRACER.timed(
-            "Searching for local interpreters matching {}".format(", ".join(map(str, platforms)))
-        ):
-            candidate_interpreters = OrderedSet(iter_compatible_interpreters(path=pex_python_path))
-            candidate_interpreters.add(PythonInterpreter.get())
-            for candidate_interpreter in candidate_interpreters:
-                resolved_platforms = candidate_interpreter.supported_platforms.intersection(
-                    platforms
-                )
-                if resolved_platforms:
-                    for resolved_platform in resolved_platforms:
-                        TRACER.log(
-                            "Resolved {} for platform {}".format(
-                                candidate_interpreter, resolved_platform
-                            )
-                        )
-                        platforms.remove(resolved_platform)
-                    interpreters.add(candidate_interpreter)
-        if platforms:
-            TRACER.log(
-                "Could not resolve a local interpreter for {}, will resolve only binary "
-                "distributions for {}.".format(
-                    ", ".join(map(str, platforms)),
-                    "this platform" if len(platforms) == 1 else "these platforms",
-                )
-            )
-
     return TargetConfiguration(
-        interpreters=interpreters, platforms=platforms, assume_manylinux=options.assume_manylinux
+        interpreter_constraints=interpreter_constraints,
+        python_path=options.python_path,
+        pythons=tuple(OrderedSet(options.python)),
+        platforms=platforms,
+        resolve_local_platforms=options.resolve_local_platforms,
+        assume_manylinux=options.assume_manylinux,
     )

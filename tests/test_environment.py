@@ -12,7 +12,7 @@ import pytest
 from pex import resolver
 from pex.common import temporary_dir
 from pex.compatibility import to_bytes
-from pex.distribution_target import DistributionTarget
+from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.environment import (
     FingerprintedDistribution,
     PEXEnvironment,
@@ -137,7 +137,9 @@ def assert_force_local_implicit_ns_packages_issues_598(
     def add_requirements(builder, cache):
         # type: (PEXBuilder, str) -> None
         for installed_dist in resolver.resolve(
-            requirements, cache=cache, interpreters=[builder.interpreter]
+            targets=DistributionTargets(interpreters=(builder.interpreter,)),
+            requirements=requirements,
+            cache=cache,
         ).installed_distributions:
             builder.add_distribution(installed_dist.distribution)
             for direct_req in installed_dist.direct_requirements:
@@ -256,7 +258,9 @@ def test_osx_platform_intel_issue_523():
             interpreter=bad_interpreter()
         ) as pb, temporary_filename() as pex_file:
             for installed_dist in resolver.resolve(
-                ["psutil==5.4.3"], cache=cache, interpreters=[pb.interpreter]
+                targets=DistributionTargets(interpreters=(pb.interpreter,)),
+                requirements=["psutil==5.4.3"],
+                cache=cache,
             ).installed_distributions:
                 pb.add_dist_location(installed_dist.distribution.location)
             pb.build(pex_file)
@@ -312,7 +316,8 @@ def test_activate_extras_issue_615():
     # type: () -> None
     with yield_pex_builder() as pb:
         for installed_dist in resolver.resolve(
-            ["pex[requests]==1.6.3"], interpreters=[pb.interpreter]
+            targets=DistributionTargets(interpreters=(pb.interpreter,)),
+            requirements=["pex[requests]==1.6.3"],
         ).installed_distributions:
             for direct_req in installed_dist.direct_requirements:
                 pb.add_requirement(direct_req)
@@ -337,7 +342,7 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
     # type: (str, str, bool) -> None
     requirement = "{}=={}".format(distribution, version)
     pb = PEXBuilder()
-    for installed_dist in resolver.resolve([requirement]).installed_distributions:
+    for installed_dist in resolver.resolve(requirements=[requirement]).installed_distributions:
         pb.add_dist_location(installed_dist.distribution.location)
     pb.freeze()
 

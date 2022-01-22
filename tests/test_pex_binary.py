@@ -76,11 +76,11 @@ def test_clp_preamble_file():
 
         requirement_configuration = requirement_options.configure(options)
         resolver_configuration = resolver_options.configure(options)
-        target_configuration = target_options.configure(options)
+        targets = target_options.configure(options).resolve_targets()
         pex_builder = build_pex(
             requirement_configuration=requirement_configuration,
             resolver_configuration=resolver_configuration,
-            target_configuration=target_configuration,
+            targets=targets,
             options=options,
         )
         assert pex_builder._preamble == 'print "foo!"'
@@ -130,7 +130,7 @@ def test_clp_prereleases_resolver():
             build_pex(
                 requirement_configuration=requirement_options.configure(options),
                 resolver_configuration=resolver_options.configure(options),
-                target_configuration=target_options.configure(options),
+                targets=target_options.configure(options).resolve_targets(),
                 options=options,
             )
 
@@ -159,7 +159,7 @@ def test_clp_prereleases_resolver():
         pex_builder = build_pex(
             requirement_configuration=requirement_options.configure(options),
             resolver_configuration=resolver_options.configure(options),
-            target_configuration=target_options.configure(options),
+            targets=target_options.configure(options).resolve_targets(),
             options=options,
         )
         assert pex_builder is not None

@@ -6,13 +6,17 @@ from __future__ import absolute_import
 import os
 
 from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
 from pex.platforms import Platform
 from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, Tuple
+    import attr  # vendor:skip
+    from typing import Any, Optional, Tuple, Iterator
+else:
+    from pex.third_party import attr
 
 
 class DistributionTarget(object):
@@ -183,3 +187,43 @@ class DistributionTarget(object):
     def __hash__(self):
         # type: () -> int
         return hash(self._tup())
+
+
+@attr.s(frozen=True)
+class DistributionTargets(object):
+    interpreters = attr.ib(default=())  # type: Tuple[PythonInterpreter, ...]
+    platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
+    assume_manylinux = attr.ib(default=None)  # type: Optional[str]
+
+    @property
+    def interpreter(self):
+        # type: () -> Optional[PythonInterpreter]
+        if not self.interpreters:
+            return None
+        return PythonInterpreter.latest_release_of_min_compatible_version(self.interpreters)
+
+    def unique_targets(self):
+        # type: () -> OrderedSet[DistributionTarget]
+
+        def iter_targets():
+            # type: () -> Iterator[DistributionTarget]
+            if not self.interpreters and not self.platforms:
+                # No specified targets, so just build for the current interpreter (on the current
+                # platform).
+                yield DistributionTarget.current()
+                return
+
+            for interpreter in self.interpreters:
+                # Build for the specified local interpreters (on the current platform).
+                yield DistributionTarget.for_interpreter(interpreter)
+
+            for platform in self.platforms:
+                if platform is None and not self.interpreters:
+                    # Build for the current platform (None) only if not done already (ie: no
+                    # intepreters were specified).
+                    yield DistributionTarget.current()
+                elif platform is not None:
+                    # Build for specific platforms.
+                    yield DistributionTarget.for_platform(platform, manylinux=self.assume_manylinux)
+
+        return OrderedSet(iter_targets())
