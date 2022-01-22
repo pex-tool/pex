@@ -4,12 +4,15 @@
 from __future__ import absolute_import
 
 import fileinput
+import json
 import logging
 import os
 import re
 import sys
 from contextlib import closing
+from textwrap import dedent
 
+from pex import third_party
 from pex.common import AtomicDirectory, is_exe, safe_mkdir
 from pex.compatibility import get_stdout_bytes_buffer
 from pex.interpreter import PythonInterpreter
@@ -19,7 +22,10 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional
+    import attr  # vendor:skip
+    from typing import Iterator, Optional, Union
+else:
+    from pex.third_party import attr
 
 _MIN_PIP_PYTHON_VERSION = (2, 7, 9)
 
@@ -71,7 +77,33 @@ def _is_python_script(executable):
         )
 
 
+class InvalidVirtualenvError(Exception):
+    """Indicates a virtualenv is malformed."""
+
+
+@attr.s(frozen=True)
+class DistributionInfo(object):
+    project_name = attr.ib()  # type: str
+    version = attr.ib()  # type: str
+    sys_path_entry = attr.ib()  # type: str
+
+
 class Virtualenv(object):
+    @classmethod
+    def enclosing(cls, python):
+        # type: (Union[str, PythonInterpreter]) -> Optional[Virtualenv]
+        """Return the virtual environment the given python interpreter is enclosed in."""
+        interpreter = (
+            python
+            if isinstance(python, PythonInterpreter)
+            else PythonInterpreter.from_binary(python)
+        )
+        if not interpreter.is_venv:
+            return None
+        return cls(
+            venv_dir=interpreter.prefix, python_exe_name=os.path.basename(interpreter.binary)
+        )
+
     @classmethod
     def create(
         cls,
@@ -163,9 +195,16 @@ class Virtualenv(object):
         self._venv_dir = venv_dir
         self._custom_prompt = custom_prompt
         self._bin_dir = os.path.join(venv_dir, "bin")
-        self._interpreter = PythonInterpreter.from_binary(
-            os.path.join(self._bin_dir, python_exe_name)
-        )
+        python_exe_path = os.path.join(self._bin_dir, python_exe_name)
+        try:
+            self._interpreter = PythonInterpreter.from_binary(python_exe_path)
+        except PythonInterpreter.InterpreterNotFound as e:
+            raise InvalidVirtualenvError(
+                "The virtualenv at {venv_dir} is not valid. Failed to load an interpreter at "
+                "{python_exe_path}: {err}".format(
+                    venv_dir=self._venv_dir, python_exe_path=python_exe_path, err=e
+                )
+            )
         self._site_packages_dir = (
             os.path.join(venv_dir, "site-packages")
             if self._interpreter.identity.interpreter == "PyPy"
@@ -178,6 +217,13 @@ class Virtualenv(object):
                 "site-packages",
             )
         )
+        if not os.path.isdir(self._site_packages_dir):
+            raise InvalidVirtualenvError(
+                "The virtualenv at {venv_dir} is not valid. The expected site-packages directory "
+                "at {site_packages_dir} does not exist.".format(
+                    venv_dir=venv_dir, site_packages_dir=self._site_packages_dir
+                )
+            )
         self._base_bin = frozenset(_iter_files(self._bin_dir))
 
     @property
@@ -218,6 +264,44 @@ class Virtualenv(object):
         for path in _iter_files(self._bin_dir):
             if is_exe(path):
                 yield path
+
+    def iter_distributions(self):
+        # type: () -> Iterator[DistributionInfo]
+        """"""
+        setuptools_path = tuple(third_party.expose(["setuptools"]))
+        _, stdout, _ = self.interpreter.execute(
+            args=[
+                "-c",
+                dedent(
+                    """\
+                    from __future__ import print_function
+
+                    import sys
+
+                    setuptools_path = {setuptools_path!r}
+                    sys.path.extend(setuptools_path)
+
+                    import json
+                    from pkg_resources import working_set
+
+                    json.dump(
+                        [
+                            dict(
+                                project_name=dist.project_name,
+                                version=dist.version,
+                                sys_path_entry=dist.location,
+                            ) for dist in working_set if dist.location not in setuptools_path
+                        ],
+                        sys.stdout,
+                    )
+                    """.format(
+                        setuptools_path=setuptools_path
+                    )
+                ),
+            ],
+        )
+        for dist_info in json.loads(stdout):
+            yield DistributionInfo(**dist_info)
 
     def _rewrite_base_scripts(self, real_venv_dir):
         # type: (str) -> Iterator[str]
