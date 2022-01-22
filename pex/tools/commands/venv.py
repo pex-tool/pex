@@ -312,6 +312,9 @@ def populate_venv_with_pex(
                     # This is used by Pex's Pip venv to work around
                     # https://github.com/pypa/pip/issues/10050:
                     "_PEX_PATCHED_MARKERS_FILE",
+                    # These are used by Pex's Pip venv to implement universal locks.
+                    "_PEX_SKIP_MARKERS",
+                    "_PEX_PYTHON_VERSIONS_FILE",
                 )
             ]
             if ignored_pex_env_vars:
