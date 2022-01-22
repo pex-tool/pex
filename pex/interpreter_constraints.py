@@ -5,14 +5,22 @@
 
 from __future__ import absolute_import
 
+import itertools
+
 from pex.common import die
+from pex.enum import Enum
 from pex.interpreter import PythonIdentity, PythonInterpreter
+from pex.orderedset import OrderedSet
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional
+    import attr  # vendor:skip
+    from typing import Iterable, Iterator, Optional, Tuple
 
     from pex.interpreter import InterpreterIdentificationError
+else:
+    from pex.third_party import attr
 
 
 def validate_constraints(constraints):
@@ -138,3 +146,71 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
             ),
             problems=problems,
         )
+
+
+class Lifecycle(Enum):
+    class Value(Enum.Value):
+        pass
+
+    DEV = Value("dev")
+    STABLE = Value("stable")
+    EOL = Value("eol")
+
+
+@attr.s(frozen=True)
+class PythonVersion(object):
+    lifecycle = attr.ib()  # type: Lifecycle.Value
+    major = attr.ib()  # type: int
+    minor = attr.ib()  # type: int
+    patch = attr.ib()  # type: int
+
+    def pad(self, padding):
+        # type: (int) -> PythonVersion
+        if self.lifecycle == Lifecycle.EOL:
+            return self
+        return attr.evolve(self, patch=self.patch + padding)
+
+    def iter_compatible_versions(self, specifier_sets):
+        # type: (Iterable[SpecifierSet]) -> Iterator[Tuple[int, int, int]]
+        for patch in range(self.patch + 1):
+            version = (self.major, self.minor, patch)
+            version_string = ".".join(map(str, version))
+            if not specifier_sets:
+                yield version
+            else:
+                for specifier_set in specifier_sets:
+                    if version_string in specifier_set:
+                        yield version
+                        break
+
+
+# TODO(John Sirois): Integrate a `pyenv install -l` based lint / generate script for CI / local
+# use that emits the current max patch for these versions so we automatically stay up to date
+# mod dormancy in the project.
+
+COMPATIBLE_PYTHON_VERSIONS = tuple(
+    # Each 5 units of padding costs `iter_compatible_versions` ~2 extra ms and a padding of 10 gets
+    # us through most of a brand new stable release's likely active lifecycle.
+    version.pad(10)
+    for version in (
+        PythonVersion(Lifecycle.EOL, 2, 7, 18),
+        # N.B.: Pex does not support the missing 3.x versions here.
+        PythonVersion(Lifecycle.EOL, 3, 5, 10),
+        PythonVersion(Lifecycle.EOL, 3, 6, 15),
+        PythonVersion(Lifecycle.STABLE, 3, 7, 12),
+        PythonVersion(Lifecycle.STABLE, 3, 8, 11),
+        PythonVersion(Lifecycle.STABLE, 3, 9, 10),
+        PythonVersion(Lifecycle.STABLE, 3, 10, 2),
+        PythonVersion(Lifecycle.DEV, 3, 11, 0),
+    )
+)
+
+
+def iter_compatible_versions(requires_python):
+    # type: (Iterable[str]) -> Iterator[Tuple[int, int, int]]
+
+    specifier_sets = OrderedSet(SpecifierSet(req) for req in requires_python)
+    return itertools.chain.from_iterable(
+        python_version.iter_compatible_versions(specifier_sets)
+        for python_version in COMPATIBLE_PYTHON_VERSIONS
+    )
