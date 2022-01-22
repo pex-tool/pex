@@ -79,11 +79,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
     @classmethod
-    def _add_lockfile_option(cls, parser):
+    def _add_lockfile_option(cls, parser, verb):
         parser.add_argument(
             "lockfile",
             nargs=1,
-            help="The Pex lock file to export",
+            help="The Pex lock file to {verb}".format(verb=verb),
         )
 
     @classmethod
@@ -126,7 +126,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "format using `--hash` is supported.".format(pip=ExportFormat.PIP)
             ),
         )
-        cls._add_lockfile_option(export_parser)
+        cls._add_lockfile_option(export_parser, verb="export")
         cls.add_output_option(export_parser, entity="lock")
         cls._add_target_options(export_parser)
 
@@ -164,7 +164,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             type=bool,
             help="Don't update the lock file; just report what updates would be made.",
         )
-        cls._add_lockfile_option(update_parser)
+        cls._add_lockfile_option(update_parser, verb="create")
+        cls.add_json_options(update_parser, entity="lock", include_switch=False)
         cls._add_target_options(update_parser)
         resolver_options_parser = cls._create_resolver_options_group(update_parser)
         resolver_options.register_repos_options(resolver_options_parser)
@@ -435,15 +436,21 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         if performed_update and not dry_run:
-            lockfile.store(
-                attr.evolve(
-                    lock_file,
-                    pex_version=__version__,
-                    constraints=SortedTuple(constraints_by_project_name.values()),
-                    locked_resolves=SortedTuple(
-                        resolve_update.updated_resolve for resolve_update in lock_update.resolves
+            with open(lock_file_path, "w") as fp:
+                self.dump_json(
+                    self.options,
+                    json_codec.as_json_data(
+                        attr.evolve(
+                            lock_file,
+                            pex_version=__version__,
+                            constraints=SortedTuple(constraints_by_project_name.values()),
+                            locked_resolves=SortedTuple(
+                                resolve_update.updated_resolve
+                                for resolve_update in lock_update.resolves
+                            ),
+                        ),
                     ),
-                ),
-                lock_file_path,
-            )
+                    fp,
+                    sort_keys=True,
+                )
         return Ok()
