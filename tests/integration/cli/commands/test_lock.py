@@ -18,7 +18,7 @@ from pex.resolve.locked_resolve import Artifact, Fingerprint, LockedRequirement,
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.testing import normalize_locked_resolve
 from pex.sorted_tuple import SortedTuple
-from pex.testing import IS_MAC, PY310, PY_VER, IntegResults, ensure_python_interpreter
+from pex.testing import IS_MAC, IS_PYPY, PY310, PY_VER, IntegResults, ensure_python_interpreter
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
@@ -109,12 +109,13 @@ def test_create_style(tmpdir):
     assert not create_lock("strict").additional_artifacts
 
     # We should have 2 total artifacts for a sources lock for most interpreters since we know
-    # psutil 5.9.0 provides an sdist and wheels for CPython 2.7 (but not for macOS) and 3.6 through
-    # 3.10.
+    # psutil 5.9.0 provides an sdist and wheels for CPython 2.7 (but not for macOS) and CPython 3.6
+    # through 3.10.
     python_identity = PythonInterpreter.get().identity
     expected_additional = (
         1
-        if (PY_VER == (2, 7) and not IS_MAC) or python_identity.matches("CPython>=3.6,<3.11")
+        if not IS_PYPY
+        and ((PY_VER == (2, 7) and not IS_MAC) or python_identity.matches("CPython>=3.6,<3.11"))
         else 0
     )
     assert expected_additional == len(create_lock("sources").additional_artifacts)
