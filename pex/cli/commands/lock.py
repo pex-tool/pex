@@ -194,13 +194,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         # type: () -> Result
         lock_configuration = LockConfiguration(style=self.options.style)
         requirement_configuration = requirement_options.configure(self.options)
-        target_configuration = target_options.configure(self.options)
+        targets = target_options.configure(self.options).resolve_targets()
         pip_configuration = resolver_options.create_pip_configuration(self.options)
         lock_file = try_(
             create(
                 lock_configuration=lock_configuration,
                 requirement_configuration=requirement_configuration,
-                target_configuration=target_configuration,
+                targets=targets,
                 pip_configuration=pip_configuration,
             )
         )
@@ -226,8 +226,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         lockfile_path = self.options.lockfile[0]
         lock_file = try_(self._load_lockfile(lock_file_path=lockfile_path))
 
-        target_configuration = target_options.configure(self.options)
-        targets = target_configuration.unique_targets()
+        targets = target_options.configure(self.options).resolve_targets().unique_targets()
 
         selected_locks = defaultdict(
             list
@@ -315,11 +314,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             max_jobs=resolver_options.get_max_jobs_value(self.options),
         )
 
-        target_configuration = target_options.configure(self.options)
+        distribution_targets = target_options.configure(self.options).resolve_targets()
 
         update_requests = [
             ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
-            for target, locked_resolve in lock_file.select(target_configuration.unique_targets())
+            for target, locked_resolve in lock_file.select(distribution_targets.unique_targets())
         ]
         if self.options.strict:
             missing_updates = set(lock_file.locked_resolves) - {
@@ -364,7 +363,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             lock_updater.update(
                 update_requests=update_requests,
                 updates=updates,
-                assume_manylinux=target_configuration.assume_manylinux,
+                assume_manylinux=distribution_targets.assume_manylinux,
             )
         )
 

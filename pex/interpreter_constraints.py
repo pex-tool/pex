@@ -7,9 +7,8 @@ from __future__ import absolute_import
 
 import itertools
 
-from pex.common import die
 from pex.enum import Enum
-from pex.interpreter import PythonIdentity, PythonInterpreter
+from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
@@ -21,18 +20,6 @@ if TYPE_CHECKING:
     from pex.interpreter import InterpreterIdentificationError
 else:
     from pex.third_party import attr
-
-
-def validate_constraints(constraints):
-    # type: (Iterable[str]) -> None
-    # TODO: add check to see if constraints are mutually exclusive (bad) so no time is wasted:
-    # https://github.com/pantsbuild/pex/issues/432
-    for req in constraints:
-        # Check that the compatibility requirements are well-formed.
-        try:
-            PythonIdentity.parse_requirement(req)
-        except ValueError as e:
-            die("Compatibility requirements are not formatted properly: %s" % str(e))
 
 
 class UnsatisfiableInterpreterConstraintsError(Exception):

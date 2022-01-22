@@ -23,6 +23,7 @@ from pex.commands.command import (
     register_global_arguments,
 )
 from pex.common import die, safe_mkdtemp
+from pex.distribution_target import DistributionTargets
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
 from pex.layout import Layout, maybe_install
@@ -31,10 +32,9 @@ from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.pex_info import PexInfo
-from pex.resolve import requirement_options, resolver_options, target_options
+from pex.resolve import requirement_options, resolver_options, target_configuration, target_options
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PexRepositoryConfiguration, PipConfiguration
-from pex.resolve.target_configuration import TargetConfiguration
 from pex.resolver import Unsatisfiable, resolve, resolve_from_pex
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -485,7 +485,7 @@ def configure_clp():
 def build_pex(
     requirement_configuration,  # type: RequirementConfiguration
     resolver_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
-    target_configuration,  # type: TargetConfiguration
+    targets,  # type: DistributionTargets
     options,  # type: Namespace
     cache=None,  # type: Optional[str]
 ):
@@ -498,7 +498,7 @@ def build_pex(
 
     pex_builder = PEXBuilder(
         path=safe_mkdtemp(),
-        interpreter=target_configuration.interpreter,
+        interpreter=targets.interpreter,
         preamble=preamble,
         copy_mode=CopyMode.SYMLINK,
     )
@@ -577,27 +577,24 @@ def build_pex(
                     "Resolving requirements from PEX {}.".format(options.pex_repository)
                 ):
                     result = resolve_from_pex(
+                        targets=targets,
                         pex=resolver_configuration.pex_repository,
                         requirements=requirement_configuration.requirements,
                         requirement_files=requirement_configuration.requirement_files,
                         constraint_files=requirement_configuration.constraint_files,
                         network_configuration=resolver_configuration.network_configuration,
                         transitive=resolver_configuration.transitive,
-                        interpreters=target_configuration.interpreters,
-                        platforms=target_configuration.platforms,
-                        assume_manylinux=target_configuration.assume_manylinux,
                         ignore_errors=options.ignore_errors,
                     )
             else:
                 with TRACER.timed("Resolving requirements."):
                     result = resolve(
+                        targets=targets,
                         requirements=requirement_configuration.requirements,
                         requirement_files=requirement_configuration.requirement_files,
                         constraint_files=requirement_configuration.constraint_files,
                         allow_prereleases=resolver_configuration.allow_prereleases,
                         transitive=resolver_configuration.transitive,
-                        interpreters=target_configuration.interpreters,
-                        platforms=target_configuration.platforms,
                         indexes=resolver_configuration.repos_configuration.indexes,
                         find_links=resolver_configuration.repos_configuration.find_links,
                         resolver_version=resolver_configuration.resolver_version,
@@ -609,7 +606,6 @@ def build_pex(
                         use_pep517=resolver_configuration.use_pep517,
                         build_isolation=resolver_configuration.build_isolation,
                         compile=options.compile,
-                        manylinux=target_configuration.assume_manylinux,
                         max_parallel_jobs=resolver_configuration.max_jobs,
                         ignore_errors=options.ignore_errors,
                     )
@@ -677,17 +673,17 @@ def main(args=None):
                 die(str(e))
 
             try:
-                target_configuration = target_options.configure(options)
-            except target_options.InterpreterNotFound as e:
+                targets = target_options.configure(options).resolve_targets()
+            except target_configuration.InterpreterNotFound as e:
                 die(str(e))
-            except target_options.InterpreterConstraintsNotSatisfied as e:
+            except target_configuration.InterpreterConstraintsNotSatisfied as e:
                 die(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
 
             do_main(
                 options=options,
                 requirement_configuration=requirement_configuration,
                 resolver_configuration=resolver_configuration,
-                target_configuration=target_configuration,
+                targets=targets,
                 cmdline=cmdline,
                 env=env,
             )
@@ -699,7 +695,7 @@ def do_main(
     options,  # type: Namespace
     requirement_configuration,  # type: RequirementConfiguration
     resolver_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
-    target_configuration,  # type: TargetConfiguration
+    targets,  # type: DistributionTargets
     cmdline,  # type: List[str]
     env,  # type: Dict[str, str]
 ):
@@ -707,7 +703,7 @@ def do_main(
         pex_builder = build_pex(
             requirement_configuration=requirement_configuration,
             resolver_configuration=resolver_configuration,
-            target_configuration=target_configuration,
+            targets=targets,
             options=options,
             cache=ENV.PEX_ROOT,
         )
@@ -732,11 +728,11 @@ def do_main(
             seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)
             print(seed_info)
     else:
-        if not _compatible_with_current_platform(interpreter, target_configuration.platforms):
+        if not _compatible_with_current_platform(interpreter, targets.platforms):
             log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
             log(
                 "Running on platform {} but built for {}".format(
-                    interpreter.platform, ", ".join(map(str, target_configuration.platforms))
+                    interpreter.platform, ", ".join(map(str, targets.platforms))
                 ),
                 V=1,
             )

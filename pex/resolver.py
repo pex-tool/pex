@@ -12,21 +12,18 @@ from collections import OrderedDict, defaultdict
 
 from pex import environment
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
-from pex.distribution_target import DistributionTarget
+from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.environment import FingerprintedDistribution, PEXEnvironment
-from pex.interpreter import PythonInterpreter
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
 from pex.pip import Locker, PackageIndexConfiguration, get_pip
-from pex.platforms import Platform
 from pex.requirements import Constraint, LocalProjectRequirement
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.resolve.target_configuration import TargetConfiguration
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
@@ -35,7 +32,7 @@ from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import DefaultDict, Iterable, Iterator, List, Optional, Sequence, Tuple, Union
+    from typing import DefaultDict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
     from pex.requirements import ParsedRequirement
 else:
@@ -815,13 +812,12 @@ class Resolved(object):
 
 
 def resolve(
+    targets=DistributionTargets(),  # type: DistributionTargets
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     allow_prereleases=False,  # type: bool
     transitive=True,  # type: bool
-    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
-    platforms=None,  # type: Optional[Iterable[Union[str, Optional[Platform]]]]
     indexes=None,  # type: Optional[Sequence[str]]
     find_links=None,  # type: Optional[Sequence[str]]
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
@@ -833,7 +829,6 @@ def resolve(
     use_pep517=None,  # type: Optional[bool]
     build_isolation=True,  # type: bool
     compile=False,  # type: bool
-    manylinux=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
@@ -845,6 +840,7 @@ def resolve(
     The resulting distributions are installed in individual chroots that can be independently added
     to `sys.path`
 
+    :keyword targets: The distribution target environments to resolve for.
     :keyword requirements: A sequence of requirement strings.
     :keyword requirement_files: A sequence of requirement file paths.
     :keyword constraint_files: A sequence of constraint file paths.
@@ -853,15 +849,6 @@ def resolve(
       prerelease or development versions will override this setting.
     :keyword transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword interpreters: If specified, distributions will be resolved for these interpreters, and
-      non-wheel distributions will be built against each interpreter. If both `interpreters` and
-      `platforms` are ``None`` (the default) or an empty iterable, this defaults to a list
-      containing only the current interpreter.
-    :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
-      for, in addition to the platforms of any given interpreters. If any distributions need to be
-      built, use the interpreters argument instead, providing the corresponding interpreter.
-      However, if any platform matches the current interpreter, the current interpreter will be used
-      to build any non-wheels for that platform.
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search for
       distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn off
       use of all indexes, pass an empty list.
@@ -886,8 +873,6 @@ def resolve(
       ``sys.path`` if `build_isolation` is ``True``.
     :keyword compile: Whether to pre-compile resolved distribution python sources.
       Defaults to ``False``.
-    :keyword manylinux: The upper bound manylinux standard to support when targeting foreign linux
-      platforms. Defaults to ``None``.
     :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
@@ -939,8 +924,7 @@ def resolve(
         network_configuration=network_configuration,
     )
     build_requests, download_results = _download_internal(
-        interpreters=interpreters,
-        platforms=platforms,
+        targets=targets,
         direct_requirements=direct_requirements,
         requirements=requirements,
         requirement_files=requirement_files,
@@ -954,7 +938,6 @@ def resolve(
         prefer_older_binary=prefer_older_binary,
         use_pep517=use_pep517,
         build_isolation=build_isolation,
-        assume_manylinux=manylinux,
         dest=workspace,
         max_parallel_jobs=max_parallel_jobs,
         lock_configuration=lock_configuration,
@@ -991,14 +974,13 @@ def resolve(
 
 
 def _download_internal(
+    targets,  # type: DistributionTargets
     direct_requirements,  # type: Iterable[ParsedRequirement]
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     allow_prereleases=False,  # type: bool
     transitive=True,  # type: bool
-    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
-    platforms=None,  # type: Optional[Iterable[Union[str, Optional[Platform]]]]
     package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
     cache=None,  # type: Optional[str]
     build=True,  # type: bool
@@ -1006,16 +988,13 @@ def _download_internal(
     prefer_older_binary=False,  # type: bool
     use_pep517=None,  # type: Optional[bool]
     build_isolation=True,  # type: bool
-    assume_manylinux=None,  # type: Optional[str]
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     lock_configuration=None,  # type: Optional[LockConfiguration]
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
 
-    unique_targets = TargetConfiguration(
-        interpreters=interpreters, platforms=platforms, assume_manylinux=assume_manylinux
-    ).unique_targets()
+    unique_targets = targets.unique_targets()
     download_request = DownloadRequest(
         targets=unique_targets,
         direct_requirements=direct_requirements,
@@ -1065,13 +1044,12 @@ class Downloaded(object):
 
 
 def download(
+    targets=DistributionTargets(),  # type: DistributionTargets
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     allow_prereleases=False,  # type: bool
     transitive=True,  # type: bool
-    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
-    platforms=None,  # type: Optional[Iterable[Union[str, Optional[Platform]]]]
     indexes=None,  # type: Optional[Sequence[str]]
     find_links=None,  # type: Optional[Sequence[str]]
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
@@ -1082,7 +1060,6 @@ def download(
     prefer_older_binary=False,  # type: bool
     use_pep517=None,  # type: Optional[bool]
     build_isolation=True,  # type: bool
-    assume_manylinux=None,  # type: Optional[str]
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     lock_configuration=None,  # type: Optional[LockConfiguration]
@@ -1090,6 +1067,7 @@ def download(
     # type: (...) -> Downloaded
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
 
+    :keyword targets: The distribution target environments to download for.
     :keyword requirements: A sequence of requirement strings.
     :keyword requirement_files: A sequence of requirement file paths.
     :keyword constraint_files: A sequence of constraint file paths.
@@ -1098,11 +1076,6 @@ def download(
       prerelease or development versions will override this setting.
     :keyword transitive: Whether to resolve transitive dependencies of requirements.
       Defaults to ``True``.
-    :keyword interpreters: If specified, distributions will be resolved for these interpreters.
-      If both `interpreters` and `platforms` are ``None`` (the default) or an empty iterable, this
-      defaults to a list containing only the current interpreter.
-    :keyword platforms: An iterable of PEP425-compatible platform strings to resolve distributions
-      for, in addition to the platforms of any given interpreters.
     :keyword indexes: A list of urls or paths pointing to PEP 503 compliant repositories to search
       for distributions. Defaults to ``None`` which indicates to use the default pypi index. To turn
       off use of all indexes, pass an empty list.
@@ -1125,8 +1098,6 @@ def download(
     :keyword build_isolation: Disable ``sys.path`` isolation when building a modern source
       distribution. Build dependencies specified by PEP 518 must already be installed on the
       ``sys.path`` if `build_isolation` is ``True``.
-    :keyword assume_manylinux: The upper bound manylinux standard to support when targeting foreign linux
-      platforms. Defaults to ``None``.
     :keyword dest: A directory path to download distributions to.
     :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
@@ -1144,8 +1115,7 @@ def download(
         network_configuration=network_configuration,
     )
     build_requests, download_results = _download_internal(
-        interpreters=interpreters,
-        platforms=platforms,
+        targets=targets,
         direct_requirements=direct_requirements,
         requirements=requirements,
         requirement_files=requirement_files,
@@ -1159,7 +1129,6 @@ def download(
         prefer_older_binary=prefer_older_binary,
         use_pep517=use_pep517,
         build_isolation=build_isolation,
-        assume_manylinux=assume_manylinux,
         dest=dest,
         max_parallel_jobs=max_parallel_jobs,
         lock_configuration=lock_configuration,
@@ -1268,15 +1237,13 @@ def install(
 
 
 def resolve_from_pex(
+    targets,  # type: DistributionTargets
     pex,  # type: str
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     transitive=True,  # type: bool
-    interpreters=None,  # type: Optional[Iterable[PythonInterpreter]]
-    platforms=None,  # type: Optional[Iterable[Union[str, Optional[Platform]]]]
-    assume_manylinux=None,  # type: Optional[str]
     ignore_errors=False,  # type: bool
 ):
     # type: (...) -> Resolved
@@ -1313,11 +1280,8 @@ def resolve_from_pex(
     all_reqs = OrderedSet(
         itertools.chain.from_iterable(direct_requirements_by_project_name.values())
     )
-    unique_targets = TargetConfiguration(
-        interpreters=interpreters, platforms=platforms, assume_manylinux=assume_manylinux
-    ).unique_targets()
     installed_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
-    for target in unique_targets:
+    for target in targets.unique_targets():
         pex_env = PEXEnvironment.mount(pex, target=target)
         try:
             fingerprinted_distributions = pex_env.resolve_dists(all_reqs)

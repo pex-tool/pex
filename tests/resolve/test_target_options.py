@@ -7,10 +7,11 @@ from argparse import ArgumentParser, ArgumentTypeError
 
 import pytest
 
+import pex.resolve.target_configuration
+from pex.distribution_target import DistributionTargets
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.resolve import target_options
-from pex.resolve.target_configuration import TargetConfiguration
 from pex.testing import IS_MAC, environment_as
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -23,18 +24,18 @@ def compute_target_configuration(
     parser,  # type: ArgumentParser
     args,  # type: List[str]
 ):
-    # type: (...) -> TargetConfiguration
+    # type: (...) -> DistributionTargets
     options = parser.parse_args(args=args)
-    return target_options.configure(options)
+    return target_options.configure(options).resolve_targets()
 
 
 def test_clp_manylinux(parser):
     # type: (ArgumentParser) -> None
     target_options.register(parser)
 
-    target_configuration = compute_target_configuration(parser, args=[])
+    distribution_targets = compute_target_configuration(parser, args=[])
     assert (
-        target_configuration.assume_manylinux
+        distribution_targets.assume_manylinux
     ), "The --manylinux option should default to some value."
 
     def assert_manylinux(value):
@@ -51,8 +52,8 @@ def test_clp_manylinux(parser):
     assert_manylinux("manylinux_2_5_x86_64")
     assert_manylinux("manylinux_2_33_x86_64")
 
-    target_configuration = compute_target_configuration(parser, args=["--no-manylinux"])
-    assert target_configuration.assume_manylinux is None
+    distribution_targets = compute_target_configuration(parser, args=["--no-manylinux"])
+    assert distribution_targets.assume_manylinux is None
 
     with pytest.raises(ArgumentTypeError):
         compute_target_configuration(parser, args=["--manylinux", "foo"])
@@ -68,9 +69,9 @@ def test_configure_platform(parser):
     ):
         # type: (...) -> None
         args = list(itertools.chain.from_iterable(("--platform", p) for p in platforms))
-        target_configuration = compute_target_configuration(parser, args)
-        assert not target_configuration.interpreters
-        assert expected_platforms == target_configuration.platforms
+        distribution_targets = compute_target_configuration(parser, args)
+        assert not distribution_targets.interpreters
+        assert expected_platforms == distribution_targets.platforms
 
     # The special 'current' platform should map to a `None` platform entry.
     assert_platforms(["current"], None)
@@ -85,22 +86,22 @@ def test_configure_platform(parser):
 
 
 def assert_interpreters_configured(
-    target_configuration,  # type: TargetConfiguration
+    distribution_targets,  # type: DistributionTargets
     expected_interpreter,  # type: Optional[PythonInterpreter]
     expected_interpreters=None,  # type: Optional[Tuple[PythonInterpreter, ...]]
 ):
     # type: (...) -> None
     if expected_interpreter is None:
-        assert target_configuration.interpreter is None
+        assert distribution_targets.interpreter is None
         assert not expected_interpreters
         return
 
-    assert expected_interpreter == target_configuration.interpreter
+    assert expected_interpreter == distribution_targets.interpreter
     if expected_interpreters:
         assert expected_interpreter in expected_interpreters
-        assert expected_interpreters == target_configuration.interpreters
+        assert expected_interpreters == distribution_targets.interpreters
     else:
-        assert (expected_interpreter,) == target_configuration.interpreters
+        assert (expected_interpreter,) == distribution_targets.interpreters
 
 
 def assert_interpreter(
@@ -110,10 +111,10 @@ def assert_interpreter(
     *expected_interpreters  # type: PythonInterpreter
 ):
     # type: (...) -> None
-    target_configuration = compute_target_configuration(parser, args=args)
-    assert not target_configuration.platforms
+    distribution_targets = compute_target_configuration(parser, args=args)
+    assert not distribution_targets.platforms
     assert_interpreters_configured(
-        target_configuration, expected_interpreter, expected_interpreters
+        distribution_targets, expected_interpreter, expected_interpreters
     )
 
 
@@ -142,7 +143,7 @@ def test_configure_interpreter_path(
         assert_interpreter(parser, ["--python", "python2"], py27)
         assert_interpreter(parser, ["--python", "python3"], py37)
         assert_interpreter(parser, ["--python", "python3.10"], py310)
-        with pytest.raises(target_options.InterpreterNotFound):
+        with pytest.raises(pex.resolve.target_configuration.InterpreterNotFound):
             compute_target_configuration(parser, args=["--python", "python3.9"])
 
 
@@ -162,7 +163,7 @@ def test_configure_interpreter_pex_python_path(
         assert_interpreter(parser, ["--python", "python2"], py27)
         assert_interpreter(parser, ["--python", "python3"], py37)
         assert_interpreter(parser, ["--python", "python3.10"], py310)
-        with pytest.raises(target_options.InterpreterNotFound):
+        with pytest.raises(pex.resolve.target_configuration.InterpreterNotFound):
             compute_target_configuration(parser, args=["--python", "python3.9"])
 
     with ENV.patch(PEX_PYTHON_PATH=py27.binary):
@@ -217,7 +218,7 @@ def test_configure_interpreter_constraints(
 
     def assert_interpreter_constraint_not_satisfied(interpreter_constraints):
         # type: (List[str]) -> None
-        with pytest.raises(target_options.InterpreterConstraintsNotSatisfied):
+        with pytest.raises(pex.resolve.target_configuration.InterpreterConstraintsNotSatisfied):
             compute_target_configuration(
                 parser, interpreter_constraint_args(interpreter_constraints)
             )
@@ -249,13 +250,13 @@ def test_configure_resolve_local_platforms(
         args = ["--python-path", path_env_var, "--resolve-local-platforms"]
         args.extend(itertools.chain.from_iterable(("--platform", p) for p in platforms))
         args.extend(extra_args or ())
-        target_configuration = compute_target_configuration(parser, args)
+        distribution_targets = compute_target_configuration(parser, args)
         assert (
             tuple(Platform.create(ep) for ep in expected_platforms)
-            == target_configuration.platforms
+            == distribution_targets.platforms
         )
         assert_interpreters_configured(
-            target_configuration, expected_interpreter, expected_interpreters
+            distribution_targets, expected_interpreter, expected_interpreters
         )
 
     assert_local_platforms(

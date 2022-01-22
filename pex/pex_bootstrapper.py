@@ -3,13 +3,12 @@
 
 from __future__ import absolute_import
 
-import errno
 import hashlib
 import os
 import sys
 
 from pex import pex_warnings
-from pex.common import atomic_directory, die, pluralize, safe_mkdir
+from pex.common import atomic_directory, die, pluralize
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
@@ -33,6 +32,7 @@ if TYPE_CHECKING:
 
     from pex.interpreter import InterpreterIdentificationError, InterpreterOrError, PathFilter
     from pex.pex import PEX
+    from pex.third_party.pkg_resources import Requirement
 
 
 def parse_path(path):
@@ -51,7 +51,7 @@ def parse_path(path):
 def iter_compatible_interpreters(
     path=None,  # type: Optional[str]
     valid_basenames=None,  # type: Optional[Iterable[str]]
-    interpreter_constraints=None,  # type: Optional[Iterable[str]]
+    interpreter_constraints=None,  # type: Optional[Iterable[Union[str, Requirement]]]
     preferred_interpreter=None,  # type: Optional[PythonInterpreter]
 ):
     # type: (...) -> Iterator[PythonInterpreter]
@@ -156,7 +156,9 @@ def iter_compatible_interpreters(
     if not found and (interpreter_constraints or valid_basenames):
         constraints = []  # type: List[str]
         if interpreter_constraints:
-            constraints.append("Version matches {}".format(" or ".join(interpreter_constraints)))
+            constraints.append(
+                "Version matches {}".format(" or ".join(map(str, interpreter_constraints)))
+            )
         if valid_basenames:
             constraints.append("Basename is {}".format(" or ".join(valid_basenames)))
         raise UnsatisfiableInterpreterConstraintsError(constraints, candidates, failures)

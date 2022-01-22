@@ -11,13 +11,12 @@ from contextlib import contextmanager
 from pex.cli.commands.lockfile import Lockfile, create
 from pex.commands.command import Error, ResultError, catch, try_
 from pex.common import pluralize
-from pex.distribution_target import DistributionTarget
+from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, LockedResolve, Version
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
-from pex.resolve.target_configuration import TargetConfiguration
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import Requirement
@@ -137,7 +136,7 @@ class ResolveUpdater(object):
     def update_resolve(
         self,
         locked_resolve,  # type: LockedResolve
-        target_configuration,  # type: TargetConfiguration
+        targets,  # type: DistributionTargets
     ):
         # type: (...) -> Union[ResolveUpdate, Error]
 
@@ -149,7 +148,7 @@ class ResolveUpdater(object):
                         requirements=self.original_requirements,
                         constraint_files=constraints_files,
                     ),
-                    target_configuration=target_configuration,
+                    targets=targets,
                     pip_configuration=self.pip_configuration,
                 )
             )
@@ -207,9 +206,9 @@ class ResolveUpdateRequest(object):
     target = attr.ib()  # type: DistributionTarget
     locked_resolve = attr.ib()  # type: LockedResolve
 
-    def target_configuration(self, assume_manylinux=None):
-        # type: (Optional[str]) -> TargetConfiguration
-        return TargetConfiguration(
+    def targets(self, assume_manylinux=None):
+        # type: (Optional[str]) -> DistributionTargets
+        return DistributionTargets(
             interpreters=(self.target.get_interpreter(),) if self.target.is_interpreter else (),
             platforms=(self.target.get_platform()[0],) if self.target.is_platform else (),
             assume_manylinux=assume_manylinux,
@@ -288,9 +287,7 @@ class LockUpdater(object):
             result = catch(
                 resolve_updater.update_resolve,
                 locked_resolve=update_request.locked_resolve,
-                target_configuration=update_request.target_configuration(
-                    assume_manylinux=assume_manylinux
-                ),
+                targets=update_request.targets(assume_manylinux=assume_manylinux),
             )
             if isinstance(result, Error):
                 error_by_target[update_request.target] = result

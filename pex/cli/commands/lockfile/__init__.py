@@ -7,11 +7,11 @@ from pex import resolver
 from pex.cli.commands.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
 from pex.commands.command import Error
 from pex.common import pluralize, safe_open
+from pex.distribution_target import DistributionTargets
 from pex.requirements import LocalProjectRequirement, VCSRequirement
 from pex.resolve.locked_resolve import LockConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.resolve.target_configuration import TargetConfiguration
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -78,7 +78,7 @@ def store(
 def create(
     lock_configuration,  # type: LockConfiguration
     requirement_configuration,  # type: RequirementConfiguration
-    target_configuration,  # type: TargetConfiguration
+    targets,  # type: DistributionTargets
     pip_configuration,  # type: PipConfiguration
 ):
     # type: (...) -> Union[Lockfile, Error]
@@ -120,13 +120,12 @@ def create(
 
     try:
         downloaded = resolver.download(
+            targets=targets,
             requirements=requirement_configuration.requirements,
             requirement_files=requirement_configuration.requirement_files,
             constraint_files=requirement_configuration.constraint_files,
             allow_prereleases=pip_configuration.allow_prereleases,
             transitive=pip_configuration.transitive,
-            interpreters=target_configuration.interpreters,
-            platforms=target_configuration.platforms,
             indexes=pip_configuration.repos_configuration.indexes,
             find_links=pip_configuration.repos_configuration.find_links,
             resolver_version=pip_configuration.resolver_version,
@@ -137,7 +136,6 @@ def create(
             prefer_older_binary=pip_configuration.prefer_older_binary,
             use_pep517=pip_configuration.use_pep517,
             build_isolation=pip_configuration.build_isolation,
-            assume_manylinux=target_configuration.assume_manylinux,
             max_parallel_jobs=pip_configuration.max_jobs,
             lock_configuration=lock_configuration,
             # We're just out for the lock data and not the distribution files downloaded to produce
