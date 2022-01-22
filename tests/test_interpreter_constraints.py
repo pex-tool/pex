@@ -5,21 +5,11 @@ import itertools
 import sys
 
 from pex import interpreter_constraints
-from pex.interpreter_constraints import Lifecycle, PythonVersion
+from pex.interpreter_constraints import COMPATIBLE_PYTHON_VERSIONS, Lifecycle
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import List, Tuple
-
-
-def test_python_version_pad():
-    # type: () -> None
-
-    assert PythonVersion(Lifecycle.EOL, 1, 2, 3) == PythonVersion(Lifecycle.EOL, 1, 2, 3).pad(5)
-    assert PythonVersion(Lifecycle.STABLE, 1, 2, 8) == PythonVersion(Lifecycle.STABLE, 1, 2, 3).pad(
-        5
-    )
-    assert PythonVersion(Lifecycle.DEV, 3, 2, 6) == PythonVersion(Lifecycle.DEV, 3, 2, 1).pad(5)
 
 
 def iter_compatible_versions(*requires_python):
@@ -81,3 +71,40 @@ def test_iter_compatible_versions_current():
     assert sys.version_info[:3] in set(
         iter_compatible_versions()
     ), "Expected every interpreter we test on to always be compatible"
+
+
+def test_iter_compatible_versions_non_eol():
+    # type: () -> None
+
+    oldest_python_version = COMPATIBLE_PYTHON_VERSIONS[0]
+    assert Lifecycle.EOL == oldest_python_version.lifecycle
+
+    newest_python_version = COMPATIBLE_PYTHON_VERSIONS[-1]
+    assert Lifecycle.EOL != newest_python_version.lifecycle
+
+    max_patch = oldest_python_version.patch + newest_python_version.patch + 1
+
+    assert list(
+        itertools.chain(
+            [
+                (oldest_python_version.major, oldest_python_version.minor, patch)
+                for patch in range(oldest_python_version.patch + 1)
+            ],
+            [
+                (newest_python_version.major, newest_python_version.minor, patch)
+                for patch in range(max_patch + 1)
+            ],
+        )
+    ) == list(
+        interpreter_constraints.iter_compatible_versions(
+            [
+                "=={major}.{minor}.*".format(major=python_version.major, minor=python_version.minor)
+                for python_version in (oldest_python_version, newest_python_version)
+            ],
+            max_patch=max_patch,
+        )
+    ), (
+        "Expected the oldest python version to always be EOL and thus iterate its versions exactly "
+        "and the newest python version to be non-EOL and iterate its versions past its patch all "
+        "the way to the max patch."
+    )
