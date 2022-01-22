@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import sys
+from textwrap import dedent
 
 import pytest
 
@@ -17,9 +18,10 @@ from pex.resolve.locked_resolve import Artifact, Fingerprint, LockedRequirement,
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.testing import normalize_locked_resolve
 from pex.sorted_tuple import SortedTuple
-from pex.testing import PY310, IntegResults, ensure_python_interpreter, make_env
+from pex.testing import IS_MAC, PY310, PY_VER, IntegResults, ensure_python_interpreter
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
+from pex.version import __version__
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
@@ -30,14 +32,14 @@ else:
 
 def run_pex3(
     *args,  # type: str
-    **env  # type: Optional[str]
+    **popen_kwargs  # type: Any
 ):
     # type: (...) -> IntegResults
     process = subprocess.Popen(
         args=[sys.executable, "-mpex.cli"] + list(args),
-        env=make_env(**env),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        **popen_kwargs
     )
     stdout, stderr = process.communicate()
     return IntegResults(
@@ -86,23 +88,44 @@ def test_create(tmpdir):
 def test_create_style(tmpdir):
     # type: (Any) -> None
 
-    def create_lock(style):
-        # type: (str) -> LockedRequirement
+    def create_lock(
+        style,  # type: str
+        interpreter_constraint=None,  # type: Optional[str]
+    ):
+        # type: (...) -> LockedRequirement
         lock_file = os.path.join(str(tmpdir), "{}.lock".format(style))
-        run_pex3(
-            "lock", "create", "ansicolors==1.1.8", "-o", lock_file, "--style", style
-        ).assert_success()
+        args = ["lock", "create", "psutil==5.9.0", "-o", lock_file, "--style", style]
+        if interpreter_constraint:
+            args.extend(["--interpreter-constraint", interpreter_constraint])
+        run_pex3(*args).assert_success()
         lock = lockfile.load(lock_file)
         assert 1 == len(lock.locked_resolves)
         locked_resolve = lock.locked_resolves[0]
         assert 1 == len(locked_resolve.locked_requirements)
         return locked_resolve.locked_requirements[0]
 
+    # See: https://pypi.org/project/psutil/5.9.0/#files
+
     assert not create_lock("strict").additional_artifacts
 
-    # We should have 2 total artifacts for sources lock since we know ansicolors 1.1.8 provides
-    # both a universal wheel and an sdist.
-    assert 1 == len(create_lock("sources").additional_artifacts)
+    # We should have 2 total artifacts for a sources lock for most interpreters since we know
+    # psutil 5.9.0 provides an sdist and wheels for CPython 2.7 (but not for macOS) and 3.6 through
+    # 3.10.
+    python_identity = PythonInterpreter.get().identity
+    expected_additional = (
+        1
+        if (PY_VER == (2, 7) and not IS_MAC) or python_identity.matches("CPython>=3.6,<3.11")
+        else 0
+    )
+    assert expected_additional == len(create_lock("sources").additional_artifacts)
+
+    # We should have 32 total artifacts for a universal lock since we know psutil 5.9.0 provides
+    # an sdist and 31 wheels.
+    assert 31 == len(create_lock("universal").additional_artifacts)
+
+    # We should have 6 total artifacts for a constrained universal lock since we know psutil 5.9.0
+    # provides an sdist and 5 Python 3.10 wheels.
+    assert 5 == len(create_lock("universal", interpreter_constraint="~=3.10").additional_artifacts)
 
 
 def test_create_local_unsupported(pex_project_dir):
@@ -132,6 +155,40 @@ def test_create_vcs_unsupported():
         "sources. Given 2 such projects:\n"
         "1.) git project pex at https://github.com/pantsbuild/pex@473c6ac7\n"
         "2.) git project pip at https://github.com/pypa/pip@f0f67af3\n"
+    ) == result.error
+
+
+def test_create_universal_python_unsupported():
+    # type: () -> None
+
+    result = run_pex3(
+        "lock", "create", "--style", "universal", "--python", "python3.10", "ansicolors"
+    )
+    result.assert_failure()
+    assert (
+        "When creating a universal lock, the interpreters the resulting lock applies to can only "
+        "be constrained via --interpreter-constraint. There was 1 --python and 0 --platform "
+        "specified.\n"
+    ) == result.error
+
+
+def test_create_universal_platform_unsupported():
+    # type: () -> None
+
+    result = run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--platform",
+        "linux_x86_64-cp-310-cp310.",
+        "ansicolors",
+    )
+    result.assert_failure()
+    assert (
+        "When creating a universal lock, the interpreters the resulting lock applies to can only "
+        "be constrained via --interpreter-constraint. There was 0 --python and 1 --platform "
+        "specified.\n"
     ) == result.error
 
 
@@ -231,6 +288,7 @@ UPDATE_LOCKFILE_CONTENTS = """\
   "requirements": [
     "requests"
   ],
+  "requires_python": [],
   "resolver_version": "pip-2020-resolver",
   "style": "strict",
   "transitive": true,
@@ -261,10 +319,10 @@ def lock_file_path(tmpdir):
 
 def run_lock_update(
     *args,  # type: str
-    **env  # type: Optional[str]
+    **popen_kwargs  # type: Any
 ):
     # type: (...) -> IntegResults
-    return run_pex3("lock", "update", *args, **env)
+    return run_pex3("lock", "update", *args, **popen_kwargs)
 
 
 def ensure_py310():
@@ -280,11 +338,11 @@ def py310():
 
 def run_lock_update_for_py310(
     *args,  # type: str
-    **env  # type: Optional[str]
+    **popen_kwargs  # type: Any
 ):
     # type: (...) -> IntegResults
     py38 = ensure_py310()
-    return run_lock_update("--python", py38, *args, **env)
+    return run_lock_update("--python", py38, *args, **popen_kwargs)
 
 
 def test_update_noop(lock_file_path):
@@ -509,6 +567,7 @@ DUAL_UPDATE_LOCKFILE_CONTENTS = """\
   "requirements": [
     "p537"
   ],
+  "requires_python": [],
   "resolver_version": "pip-2020-resolver",
   "style": "strict",
   "transitive": true,
@@ -642,4 +701,293 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
             ]
         )
         == lock.locked_resolves[0].locked_requirements
+    )
+
+
+UNIVERSAL_LOCKFILE_CONTENTS = """\
+{
+    "allow_builds": true,
+    "allow_prereleases": false,
+    "allow_wheels": true,
+    "build_isolation": true,
+    "constraints": [
+        "cffi==1.15",
+        "cryptography==36.0.1",
+        "ndg-httpsclient==0.5.1",
+        "pyasn1==0.4.8",
+        "pycparser==2.21",
+        "pyopenssl==21",
+        "six==1.16"
+    ],
+    "locked_resolves": [
+        {
+            "locked_requirements": [
+                {
+                    "artifacts": [
+                        {
+                            "algorithm": "sha256",
+                            "hash": "45e8636704eacc432a206ac7345a5d3d2c62d95a507ec70d62f23cd91770482a",
+                            "url": "https://files.pythonhosted.org/packages/61/51/cff222be618f0e060a6991ab387f9574776fd0711a63b2be80df47ec5fad/cffi-1.15.0-cp39-cp39-macosx_10_9_x86_64.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "920f0d66a896c2d99f0adbb391f990a84091179542c205fa53ce5787aff87954",
+                            "url": "https://files.pythonhosted.org/packages/00/9e/92de7e1217ccc3d5f352ba21e52398372525765b2e0c4530e6eb2ba9282a/cffi-1.15.0.tar.gz"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "2a23af14f408d53d5e6cd4e3d9a24ff9e05906ad574822a10563efcef137979a",
+                            "url": "https://files.pythonhosted.org/packages/03/31/b714d1f35e896fa36c302e024a9ccad3c6952660bcbb1a43188ef20f3ec3/cffi-1.15.0-cp39-cp39-win32.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "6dc2737a3674b3e344847c8686cf29e500584ccad76204efea14f451d4cc669a",
+                            "url": "https://files.pythonhosted.org/packages/39/02/960252ec9b39840e20a279de29a6fda9b4e49be79e0f32f0cfdf3e61cc4f/cffi-1.15.0-cp39-cp39-manylinux_2_12_i686.manylinux2010_i686.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "31fb708d9d7c3f49a60f04cf5b119aeefe5644daba1cd2a0fe389b674fd1de37",
+                            "url": "https://files.pythonhosted.org/packages/3e/9b/660d6da900af1976a8b4efea713a7ce9e514bf4659eff9b17f90f00be1cf/cffi-1.15.0-cp39-cp39-macosx_11_0_arm64.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "ffaa5c925128e29efbde7301d8ecaf35c8c60ffbcd6a1ffd3a552177c8e5e796",
+                            "url": "https://files.pythonhosted.org/packages/6a/5e/d33fdd7461fba6e3b0f8fc4141eba410be16af81cf1ed32223a40abe27ac/cffi-1.15.0-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "ef1f279350da2c586a69d32fc8733092fd32cc8ac95139a00377841f59a3f8d8",
+                            "url": "https://files.pythonhosted.org/packages/93/bc/a6b9abd8f692278a8e63759136f47ce69e564a7bcfa7ae7e5561243c74f3/cffi-1.15.0-cp39-cp39-manylinux_2_17_s390x.manylinux2014_s390x.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "3773c4d81e6e818df2efbc7dd77325ca0dcb688116050fb2b3011218eda36139",
+                            "url": "https://files.pythonhosted.org/packages/bd/92/25f744cbe55e7e54b35f256f9fdd50a590c434cf47afb78b8a6278a87c2d/cffi-1.15.0-cp39-cp39-win_amd64.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "3f7d084648d77af029acb79a0ff49a0ad7e9d09057a9bf46596dac9514dc07df",
+                            "url": "https://files.pythonhosted.org/packages/de/a9/ab4725702c9e5b77643136228a983194fa6e39ea387d964b3c827159d780/cffi-1.15.0-cp39-cp39-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "74fdfdbfdc48d3f47148976f49fab3251e550a8720bebc99bf1483f5bfb5db3e",
+                            "url": "https://files.pythonhosted.org/packages/e2/25/00fd291e0872d43dabe070e7b761ba37453a1a94bd6e28c31b73112d8f0c/cffi-1.15.0-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.whl"
+                        }
+                    ],
+                    "project_name": "cffi",
+                    "requirement": "cffi==1.15",
+                    "version": "1.15",
+                    "via": [
+                        "-c constraints.txt (line 1)"
+                    ]
+                },
+                {
+                    "artifacts": [
+                        {
+                            "algorithm": "sha256",
+                            "hash": "53e5c1dc3d7a953de055d77bef2ff607ceef7a2aac0353b5d630ab67f7423638",
+                            "url": "https://files.pythonhosted.org/packages/f9/4b/1cf8e281f7ae4046a59e5e39dd7471d46db9f61bb564fddbff9084c4334f/cryptography-36.0.1.tar.gz"
+                        }
+                    ],
+                    "project_name": "cryptography",
+                    "requirement": "cryptography==36.0.1",
+                    "version": "36.0.1",
+                    "via": [
+                        "-c constraints.txt (line 2)"
+                    ]
+                },
+                {
+                    "artifacts": [
+                        {
+                            "algorithm": "sha256",
+                            "hash": "dd174c11d971b6244a891f7be2b32ca9853d3797a72edb34fa5d7b07d8fff7d4",
+                            "url": "https://files.pythonhosted.org/packages/fb/67/c2f508c00ed2a6911541494504b7cac16fe0b0473912568df65fd1801132/ndg_httpsclient-0.5.1-py3-none-any.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "d72faed0376ab039736c2ba12e30695e2788c4aa569c9c3e3d72131de2592210",
+                            "url": "https://files.pythonhosted.org/packages/b9/f8/8f49278581cb848fb710a362bfc3028262a82044167684fb64ad068dbf92/ndg_httpsclient-0.5.1.tar.gz"
+                        }
+                    ],
+                    "project_name": "ndg-httpsclient",
+                    "requirement": "ndg-httpsclient==0.5.1",
+                    "version": "0.5.1",
+                    "via": [
+                        "-c constraints.txt (line 3)"
+                    ]
+                },
+                {
+                    "artifacts": [
+                        {
+                            "algorithm": "sha256",
+                            "hash": "39c7e2ec30515947ff4e87fb6f456dfc6e84857d34be479c9d4a4ba4bf46aa5d",
+                            "url": "https://files.pythonhosted.org/packages/62/1e/a94a8d635fa3ce4cfc7f506003548d0a2447ae76fd5ca53932970fe3053f/pyasn1-0.4.8-py2.py3-none-any.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "aef77c9fb94a3ac588e87841208bdec464471d9871bd5050a287cc9a475cd0ba",
+                            "url": "https://files.pythonhosted.org/packages/a4/db/fffec68299e6d7bad3d504147f9094830b704527a7fc098b721d38cc7fa7/pyasn1-0.4.8.tar.gz"
+                        }
+                    ],
+                    "project_name": "pyasn1",
+                    "requirement": "pyasn1==0.4.8",
+                    "version": "0.4.8",
+                    "via": [
+                        "-c constraints.txt (line 4)"
+                    ]
+                },
+                {
+                    "artifacts": [
+                        {
+                            "algorithm": "sha256",
+                            "hash": "8ee45429555515e1f6b185e78100aea234072576aa43ab53aefcae078162fca9",
+                            "url": "https://files.pythonhosted.org/packages/62/d5/5f610ebe421e85889f2e55e33b7f9a6795bd982198517d912eb1c76e1a53/pycparser-2.21-py2.py3-none-any.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "e644fdec12f7872f86c58ff790da456218b10f863970249516d60a5eaca77206",
+                            "url": "https://files.pythonhosted.org/packages/5e/0b/95d387f5f4433cb0f53ff7ad859bd2c6051051cebbb564f139a999ab46de/pycparser-2.21.tar.gz"
+                        }
+                    ],
+                    "project_name": "pycparser",
+                    "requirement": "pycparser==2.21",
+                    "version": "2.21",
+                    "via": [
+                        "-c constraints.txt (line 5)"
+                    ]
+                },
+                {
+                    "artifacts": [
+                        {
+                            "algorithm": "sha256",
+                            "hash": "8935bd4920ab9abfebb07c41a4f58296407ed77f04bd1a92914044b848ba1ed6",
+                            "url": "https://files.pythonhosted.org/packages/85/3a/fe3c98435856a1ed798977981f3da82d2685cf9df97e4d9546340d2b83db/pyOpenSSL-21.0.0-py2.py3-none-any.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "5e2d8c5e46d0d865ae933bef5230090bdaf5506281e9eec60fa250ee80600cb3",
+                            "url": "https://files.pythonhosted.org/packages/54/9a/2a43c5dbf4507f86f7c43cba4195d5e25a81c988fd7b0ea779dfc9c6973f/pyOpenSSL-21.0.0.tar.gz"
+                        }
+                    ],
+                    "project_name": "pyopenssl",
+                    "requirement": "pyopenssl==21",
+                    "version": "21",
+                    "via": [
+                        "-c constraints.txt (line 6)"
+                    ]
+                },
+                {
+                    "artifacts": [
+                        {
+                            "algorithm": "sha256",
+                            "hash": "66cbb850987e47177a3b4112392490bcb76eb75b37cc53da007e35f3ec894bc1",
+                            "url": "https://files.pythonhosted.org/packages/32/0e/11cfb3a5e269605d0bbe3bbca9845da9b57aed90e75bd489e5e7e3509c13/requests-2.5.0-py2.py3-none-any.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "d2daef4919fc87262b8b3cb5a9d214cac8ce1e50950f8423bbc1d31c2e63d38e",
+                            "url": "https://files.pythonhosted.org/packages/c8/fb/d14d1c5166a8449d36c9a3b2656706c506a2cf261d37a79d16c18c37b646/requests-2.5.0.tar.gz"
+                        }
+                    ],
+                    "project_name": "requests",
+                    "requirement": "requests[security]==2.5.0",
+                    "version": "2.5",
+                    "via": []
+                },
+                {
+                    "artifacts": [
+                        {
+                            "algorithm": "sha256",
+                            "hash": "8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254",
+                            "url": "https://files.pythonhosted.org/packages/d9/5a/e7c31adbe875f2abbb91bd84cf2dc52d792b5a01506781dbcf25c91daf11/six-1.16.0-py2.py3-none-any.whl"
+                        },
+                        {
+                            "algorithm": "sha256",
+                            "hash": "1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926",
+                            "url": "https://files.pythonhosted.org/packages/71/39/171f1c67cd00715f190ba0b100d606d440a28c93c7714febeca8b79af85e/six-1.16.0.tar.gz"
+                        }
+                    ],
+                    "project_name": "six",
+                    "requirement": "six==1.16",
+                    "version": "1.16",
+                    "via": [
+                        "-c constraints.txt (line 7)"
+                    ]
+                }
+            ],
+            "platform_tag": [
+                "cp310",
+                "cp310",
+                "manylinux_2_33_x86_64"
+            ]
+        }
+    ],
+    "pex_version": "2.1.63",
+    "prefer_older_binary": false,
+    "requirements": [
+        "requests[security]==2.5.0"
+    ],
+    "requires_python": [
+        "==3.9.*"
+    ],
+    "resolver_version": "pip-legacy-resolver",
+    "style": "universal",
+    "transitive": true,
+    "use_pep517": null
+}
+"""
+
+
+UNIVERSAL_LOCKFILE = lockfile.loads(UNIVERSAL_LOCKFILE_CONTENTS)
+
+
+@pytest.mark.skipif(
+    PY_VER < (3, 6),
+    reason="Some sdists in this lock use f-strings in their builds which requires >=3.6",
+)
+def test_universal_lock(tmpdir):
+    # type: (Any) -> None
+
+    constraints_file = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints_file, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                cffi==1.15
+                cryptography==36.0.1
+                ndg-httpsclient==0.5.1
+                pyasn1==0.4.8
+                pycparser==2.21
+                pyopenssl==21
+                six==1.16
+                """
+            )
+        )
+    result = run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--interpreter-constraint",
+        "==3.9.*",
+        "requests[security]==2.5.0",
+        "--constraints",
+        os.path.basename(constraints_file),
+        cwd=os.path.dirname(constraints_file),
+    )
+    result.assert_success()
+    lock = lockfile.loads(result.output)
+
+    platform_tag = PythonInterpreter.get().identity.supported_tags[0]
+    assert (
+        attr.evolve(
+            UNIVERSAL_LOCKFILE,
+            pex_version=__version__,
+            locked_resolves=SortedTuple(
+                attr.evolve(locked_resolve, platform_tag=platform_tag)
+                for locked_resolve in UNIVERSAL_LOCKFILE.locked_resolves
+            ),
+        )
+        == lock
     )

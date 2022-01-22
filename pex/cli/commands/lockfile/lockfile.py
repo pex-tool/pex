@@ -11,7 +11,7 @@ from pex.resolve.locked_resolve import LockedResolve, LockStyle
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
-from pex.third_party.pkg_resources import Requirement, RequirementParseError
+from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
@@ -127,6 +127,7 @@ class Lockfile(object):
         cls,
         pex_version,  # type: str
         style,  # type: LockStyle.Value
+        requires_python,  # type: Iterable[str]
         resolver_version,  # type: ResolverVersion.Value
         requirements,  # type: Iterable[Requirement]
         constraints,  # type: Iterable[Requirement]
@@ -144,6 +145,7 @@ class Lockfile(object):
         return cls(
             pex_version=pex_version,
             style=style,
+            requires_python=SortedTuple(requires_python),
             resolver_version=resolver_version,
             requirements=SortedTuple(requirements, key=str),
             constraints=SortedTuple(constraints, key=str),
@@ -160,6 +162,7 @@ class Lockfile(object):
 
     pex_version = attr.ib()  # type: str
     style = attr.ib()  # type: LockStyle.Value
+    requires_python = attr.ib()  # type: SortedTuple[str]
     resolver_version = attr.ib()  # type: ResolverVersion.Value
     requirements = attr.ib()  # type: SortedTuple[Requirement]
     constraints = attr.ib()  # type: SortedTuple[Requirement]

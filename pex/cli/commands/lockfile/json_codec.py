@@ -236,6 +236,7 @@ def loads(
     return Lockfile.create(
         pex_version=get("pex_version"),
         style=get_enum_value(LockStyle, "style"),
+        requires_python=get("requires_python", list),
         resolver_version=get_enum_value(ResolverVersion, "resolver_version"),
         requirements=requirements,
         constraints=constraints,
@@ -267,6 +268,7 @@ def as_json_data(lockfile):
     return {
         "pex_version": lockfile.pex_version,
         "style": str(lockfile.style),
+        "requires_python": list(lockfile.requires_python),
         "resolver_version": str(lockfile.resolver_version),
         "requirements": [str(req) for req in lockfile.requirements],
         "constraints": [str(constraint) for constraint in lockfile.constraints],

@@ -18,7 +18,7 @@ from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import BinaryIO, IO, Iterable, Iterator, Tuple
+    from typing import Any, BinaryIO, IO, Iterable, Iterator, Tuple
 else:
     from pex.third_party import attr
 
@@ -29,11 +29,29 @@ class LockStyle(Enum["LockStyle.Value"]):
 
     STRICT = Value("strict")
     SOURCES = Value("sources")
+    UNIVERSAL = Value("universal")
 
 
 @attr.s(frozen=True)
 class LockConfiguration(object):
     style = attr.ib()  # type: LockStyle.Value
+    requires_python = attr.ib(default=())  # type: Tuple[str, ...]
+
+    @requires_python.validator
+    def _validate_requires_python(
+        self,
+        _attribute,  # type: Any
+        value,  # type: Tuple[str, ...]
+    ):
+        if len(value) > 0 and self.style != LockStyle.UNIVERSAL:
+            raise ValueError(
+                "The requires_python field should only be populated for {universal} style locks; "
+                "this lock is {style} style and given requires_python of {requires_python}".format(
+                    universal=LockStyle.UNIVERSAL.value,
+                    style=self.style.value,
+                    requires_python=value,
+                )
+            )
 
 
 @attr.s(frozen=True)

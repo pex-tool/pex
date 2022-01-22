@@ -148,6 +148,7 @@ def create(
     return Lockfile.create(
         pex_version=__version__,
         style=lock_configuration.style,
+        requires_python=lock_configuration.requires_python,
         resolver_version=pip_configuration.resolver_version,
         requirements=requirements,
         constraints=constraints,
