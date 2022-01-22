@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import fileinput
+import json
 import logging
 import os
 import re
@@ -277,33 +278,30 @@ class Virtualenv(object):
 
                     import sys
 
-
                     setuptools_path = {setuptools_path!r}
                     sys.path.extend(setuptools_path)
 
+                    import json
                     from pkg_resources import working_set
 
-
-                    for dist in working_set:
-                        if dist.location not in setuptools_path:
-                            print(
-                                "{{project_name}} {{version}} {{sys_path_entry}}".format(
-                                    project_name=dist.project_name,
-                                    version=dist.version,
-                                    sys_path_entry=dist.location,
-                                )
-                            )
+                    json.dump(
+                        [
+                            dict(
+                                project_name=dist.project_name,
+                                version=dist.version,
+                                sys_path_entry=dist.location,
+                            ) for dist in working_set if dist.location not in setuptools_path
+                        ],
+                        sys.stdout,
+                    )
                     """.format(
                         setuptools_path=setuptools_path
                     )
                 ),
-            ]
+            ],
         )
-        for line in stdout.splitlines():
-            project_name, version, sys_path_entry = line.split(maxsplit=2)
-            yield DistributionInfo(
-                project_name=project_name, version=version, sys_path_entry=sys_path_entry
-            )
+        for dist_info in json.loads(stdout):
+            yield DistributionInfo(**dist_info)
 
     def _rewrite_base_scripts(self, real_venv_dir):
         # type: (str) -> Iterator[str]
