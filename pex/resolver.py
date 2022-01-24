@@ -32,7 +32,17 @@ from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import DefaultDict, Iterable, Iterator, List, Optional, Sequence, Tuple
+    from typing import (
+        DefaultDict,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Sequence,
+        Tuple,
+    )
 
     from pex.requirements import ParsedRequirement
 else:
@@ -491,40 +501,32 @@ class InstallResult(object):
                 )
 
 
-class BuildAndInstallRequest(object):
+class WheelBuilder(object):
     def __init__(
         self,
-        build_requests,  # type: Iterable[BuildRequest]
-        install_requests,  # type:  Iterable[InstallRequest]
-        direct_requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         cache=None,  # type: Optional[str]
-        compile=False,  # type: bool
         prefer_older_binary=False,  # type: bool
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         verify_wheels=True,  # type: bool
     ):
         # type: (...) -> None
-        self._build_requests = tuple(build_requests)
-        self._install_requests = tuple(install_requests)
-        self._direct_requirements = tuple(direct_requirements or ())
         self._package_index_configuration = package_index_configuration
         self._cache = cache
-        self._compile = compile
         self._prefer_older_binary = prefer_older_binary
         self._use_pep517 = use_pep517
         self._build_isolation = build_isolation
         self._verify_wheels = verify_wheels
 
+    @staticmethod
     def _categorize_build_requests(
-        self,
         build_requests,  # type: Iterable[BuildRequest]
         dist_root,  # type: str
     ):
-        # type: (...) -> Tuple[Iterable[BuildRequest], Iterable[InstallRequest]]
+        # type: (...) -> Tuple[Iterable[BuildRequest], Dict[str, InstallRequest]]
         unsatisfied_build_requests = []
-        install_requests = []  # type: List[InstallRequest]
+        build_results = {}  # type: Dict[str, InstallRequest]
         for build_request in build_requests:
             build_result = build_request.result(dist_root)
             if not build_result.is_built:
@@ -538,8 +540,8 @@ class BuildAndInstallRequest(object):
                         build_request.source_path, build_result.dist_dir
                     )
                 )
-                install_requests.append(build_result.finalize_build())
-        return unsatisfied_build_requests, install_requests
+                build_results[build_request.source_path] = build_result.finalize_build()
+        return unsatisfied_build_requests, build_results
 
     def _spawn_wheel_build(
         self,
@@ -561,8 +563,72 @@ class BuildAndInstallRequest(object):
         )
         return SpawnedJob.wait(job=build_job, result=build_result)
 
-    def _categorize_install_requests(
+    def build_wheels(
         self,
+        build_requests,  # type: Iterable[BuildRequest]
+        workspace=None,  # type: Optional[str]
+        max_parallel_jobs=None,  # type: Optional[int]
+    ):
+        # type: (...) -> Mapping[str, InstallRequest]
+
+        if not build_requests:
+            # Nothing to build or install.
+            return {}
+
+        cache = self._cache or workspace or safe_mkdtemp()
+
+        built_wheels_dir = os.path.join(cache, "built_wheels")
+        spawn_wheel_build = functools.partial(self._spawn_wheel_build, built_wheels_dir)
+
+        with TRACER.timed(
+            "Building distributions for:" "\n  {}".format("\n  ".join(map(str, build_requests)))
+        ):
+            build_requests, build_results = self._categorize_build_requests(
+                build_requests=build_requests, dist_root=built_wheels_dir
+            )
+
+            for build_result in execute_parallel(
+                inputs=build_requests,
+                spawn_func=spawn_wheel_build,
+                error_handler=Raise(Untranslatable),
+                max_jobs=max_parallel_jobs,
+            ):
+                build_results[build_result.request.source_path] = build_result.finalize_build()
+
+        return build_results
+
+
+class BuildAndInstallRequest(object):
+    def __init__(
+        self,
+        build_requests,  # type: Iterable[BuildRequest]
+        install_requests,  # type:  Iterable[InstallRequest]
+        direct_requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
+        package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
+        cache=None,  # type: Optional[str]
+        compile=False,  # type: bool
+        prefer_older_binary=False,  # type: bool
+        use_pep517=None,  # type: Optional[bool]
+        build_isolation=True,  # type: bool
+        verify_wheels=True,  # type: bool
+    ):
+        # type: (...) -> None
+        self._build_requests = tuple(build_requests)
+        self._install_requests = tuple(install_requests)
+        self._direct_requirements = tuple(direct_requirements or ())
+        self._cache = cache
+        self._compile = compile
+        self._wheel_builder = WheelBuilder(
+            package_index_configuration=package_index_configuration,
+            cache=self._cache,
+            prefer_older_binary=prefer_older_binary,
+            use_pep517=use_pep517,
+            build_isolation=build_isolation,
+            verify_wheels=verify_wheels,
+        )
+
+    @staticmethod
+    def _categorize_install_requests(
         install_requests,  # type: Iterable[InstallRequest]
         installed_wheels_dir,  # type: str
     ):
@@ -618,9 +684,6 @@ class BuildAndInstallRequest(object):
 
         cache = self._cache or workspace or safe_mkdtemp()
 
-        built_wheels_dir = os.path.join(cache, "built_wheels")
-        spawn_wheel_build = functools.partial(self._spawn_wheel_build, built_wheels_dir)
-
         installed_wheels_dir = os.path.join(cache, PexInfo.INSTALL_CACHE)
         spawn_install = functools.partial(self._spawn_install, installed_wheels_dir)
 
@@ -628,24 +691,12 @@ class BuildAndInstallRequest(object):
         installations = []  # type: List[InstalledDistribution]
 
         # 1. Build local projects and sdists.
-        if self._build_requests:
-            with TRACER.timed(
-                "Building distributions for:"
-                "\n  {}".format("\n  ".join(map(str, self._build_requests)))
-            ):
-
-                build_requests, install_requests = self._categorize_build_requests(
-                    build_requests=self._build_requests, dist_root=built_wheels_dir
-                )
-                to_install.extend(install_requests)
-
-                for build_result in execute_parallel(
-                    inputs=build_requests,
-                    spawn_func=spawn_wheel_build,
-                    error_handler=Raise(Untranslatable),
-                    max_jobs=max_parallel_jobs,
-                ):
-                    to_install.append(build_result.finalize_build())
+        build_results = self._wheel_builder.build_wheels(
+            build_requests=self._build_requests,
+            workspace=workspace,
+            max_parallel_jobs=max_parallel_jobs,
+        )
+        to_install.extend(build_results.values())
 
         # 2. All requirements are now in wheel form: calculate any missing direct requirement
         #    project names from the wheel names.
@@ -653,9 +704,6 @@ class BuildAndInstallRequest(object):
             "Calculating project names for direct requirements:"
             "\n  {}".format("\n  ".join(map(str, self._direct_requirements)))
         ):
-            build_requests_by_path = {
-                build_request.source_path: build_request for build_request in self._build_requests
-            }
 
             def iter_direct_requirements():
                 # type: () -> Iterator[Requirement]
@@ -664,23 +712,24 @@ class BuildAndInstallRequest(object):
                         yield requirement.requirement
                         continue
 
-                    build_request = build_requests_by_path.get(requirement.path)
-                    if build_request is None:
+                    install_req = build_results.get(requirement.path)
+                    if install_req is None:
                         raise AssertionError(
                             "Failed to compute a project name for {requirement}. No corresponding "
-                            "build request was found from amongst:\n{build_requests}".format(
+                            "wheel was found from amongst:\n{install_requests}".format(
                                 requirement=requirement,
-                                build_requests="\n".join(
+                                install_requests="\n".join(
                                     sorted(
-                                        "{path} -> {build_request}".format(
-                                            path=path, build_request=build_request
+                                        "{path} -> {wheel_path} {fingerprint}".format(
+                                            path=path,
+                                            wheel_path=build_result.wheel_path,
+                                            fingerprint=build_result.fingerprint,
                                         )
-                                        for path, build_request in build_requests_by_path.items()
+                                        for path, build_result in build_results.items()
                                     )
                                 ),
                             )
                         )
-                    install_req = build_request.result(built_wheels_dir).finalize_build()
                     yield requirement.as_requirement(dist=install_req.wheel_path)
 
             direct_requirements_by_project_name = defaultdict(
@@ -699,10 +748,9 @@ class BuildAndInstallRequest(object):
             OrderedDict()
         )  # type: OrderedDict[str, List[InstallRequest]]
         for install_request in to_install:
-            install_requests = install_requests_by_wheel_file.setdefault(
-                install_request.wheel_file, []
+            install_requests_by_wheel_file.setdefault(install_request.wheel_file, []).append(
+                install_request
             )
-            install_requests.append(install_request)
 
         representative_install_requests = [
             requests[0] for requests in install_requests_by_wheel_file.values()
@@ -747,7 +795,8 @@ class BuildAndInstallRequest(object):
             )
         return installed_distributions
 
-    def _check_install(self, installed_distributions):
+    @staticmethod
+    def _check_install(installed_distributions):
         # type: (Iterable[InstalledDistribution]) -> None
         installed_distribution_by_project_name = OrderedDict(
             (ProjectName(resolved_distribution.distribution), resolved_distribution)
