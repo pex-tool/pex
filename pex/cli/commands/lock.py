@@ -9,15 +9,14 @@ from collections import OrderedDict, defaultdict
 
 from pex.argparse import HandleBoolAction
 from pex.cli.command import BuildTimeCommand
-from pex.cli.commands import lockfile
-from pex.cli.commands.lockfile import Lockfile, create, json_codec
-from pex.cli.commands.lockfile.updater import LockUpdater, ResolveUpdateRequest
 from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result, try_
 from pex.common import pluralize
 from pex.enum import Enum
 from pex.pep_503 import ProjectName
-from pex.resolve import requirement_options, resolver_options, target_options
+from pex.resolve import lockfile, requirement_options, resolver_options, target_options
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
+from pex.resolve.lockfile import Lockfile, create, json_codec
+from pex.resolve.lockfile.updater import LockUpdater, ResolveUpdateRequest
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
 from pex.third_party.pkg_resources import Requirement, RequirementParseError

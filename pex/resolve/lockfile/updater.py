@@ -8,13 +8,13 @@ import os
 from collections import OrderedDict
 from contextlib import contextmanager
 
-from pex.cli.commands.lockfile import Lockfile, create
 from pex.commands.command import Error, ResultError, catch, try_
 from pex.common import pluralize
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, LockedResolve
+from pex.resolve.lockfile import Lockfile, create
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.sorted_tuple import SortedTuple

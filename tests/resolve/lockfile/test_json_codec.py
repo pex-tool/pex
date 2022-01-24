@@ -9,8 +9,7 @@ from textwrap import dedent
 
 import pytest
 
-import pex.cli.commands.lockfile
-from pex.cli.commands.lockfile import Lockfile, json_codec
+import pex.resolve.lockfile
 from pex.compatibility import PY2
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -22,6 +21,7 @@ from pex.resolve.locked_resolve import (
     LockStyle,
     Pin,
 )
+from pex.resolve.lockfile import Lockfile, json_codec
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
@@ -202,7 +202,7 @@ def assert_parse_error(
     patch,  # type: str
     match,  # type: str
 ):
-    with pytest.raises(pex.cli.commands.lockfile.ParseError, match=match):
+    with pytest.raises(pex.resolve.lockfile.ParseError, match=match):
         json_codec.loads(patch_tool.apply(patch))
 
 
