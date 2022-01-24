@@ -13,7 +13,7 @@ from collections import OrderedDict, defaultdict
 from pex import targets
 from pex.common import AtomicDirectory, atomic_directory, pluralize, safe_mkdtemp
 from pex.dist_metadata import DistMetadata
-from pex.environment import FingerprintedDistribution
+from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
