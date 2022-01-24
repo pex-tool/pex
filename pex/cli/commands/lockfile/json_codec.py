@@ -21,6 +21,7 @@ from pex.resolve.locked_resolve import (
 )
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.third_party.packaging import tags
+from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.third_party.pkg_resources import Requirement, RequirementParseError
 from pex.typing import TYPE_CHECKING, cast
 
@@ -131,6 +132,18 @@ def loads(
                 "The requirement string at '{path}' is invalid: {err}".format(path=path, err=e)
             )
 
+    def parse_version_specifier(
+        raw_version_specifier,  # type: str
+        path,  # type: str
+    ):
+        # type: (...) -> SpecifierSet
+        try:
+            return SpecifierSet(raw_version_specifier)
+        except InvalidSpecifier as e:
+            raise ParseError(
+                "The version specifier at '{path}' is invalid: {err}".format(path=path, err=e)
+            )
+
     requirements = [
         parse_requirement(req, path=".requirements[{index}]".format(index=index))
         for index, req in enumerate(get("requirements", list))
@@ -178,11 +191,6 @@ def loads(
         ):
             req_path = "{lock_path}[{req_index}]".format(lock_path=lock_path, req_index=req_index)
 
-            requirement = parse_requirement(
-                raw_requirement=get("requirement", data=req, path=req_path),
-                path='{path}["requirement"]'.format(path=req_path),
-            )
-
             artifacts = []
             for i, artifact in enumerate(get("artifacts", list, data=req, path=req_path)):
                 ap = '{path}["artifacts"][{index}]'.format(path=req_path, index=i)
@@ -202,15 +210,31 @@ def loads(
                         path=req_path, source=source
                     )
                 )
+
+            requires_python = None
+            version_specifier = get("requires_python", data=req, path=req_path, optional=True)
+            if version_specifier:
+                requires_python = parse_version_specifier(
+                    version_specifier, path='{path}["requires_python"]'.format(path=req_path)
+                )
+
             locked_reqs.append(
                 LockedRequirement.create(
                     pin=Pin(
                         project_name=ProjectName(get("project_name", data=req, path=req_path)),
                         version=Version(get("version", data=req, path=req_path)),
                     ),
-                    requirement=requirement,
+                    requires_python=requires_python,
+                    requires_dists=[
+                        parse_requirement(
+                            requires_dist,
+                            path='{path}["requires_dists"][{index}]'.format(path=req_path, index=i),
+                        )
+                        for i, requires_dist in enumerate(
+                            get("requires_dists", list, data=req, path=req_path)
+                        )
+                    ],
                     artifact=artifacts[0],
-                    via=tuple(get("via", list, data=req, path=req_path)),
                     additional_artifacts=artifacts[1:],
                 )
             )
@@ -288,8 +312,10 @@ def as_json_data(lockfile):
                     {
                         "project_name": str(req.pin.project_name),
                         "version": str(req.pin.version),
-                        "requirement": str(req.requirement),
-                        "via": req.via,
+                        "requires_dists": [str(dependency) for dependency in req.requires_dists],
+                        "requires_python": str(req.requires_python)
+                        if req.requires_python
+                        else None,
                         "artifacts": [
                             {
                                 "url": artifact.url,

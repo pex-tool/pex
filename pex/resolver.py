@@ -11,7 +11,8 @@ import zipfile
 from collections import OrderedDict, defaultdict
 
 from pex import environment
-from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
+from pex.common import AtomicDirectory, atomic_directory, pluralize, safe_mkdtemp
+from pex.dist_metadata import DistMetadata
 from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.environment import FingerprintedDistribution, PEXEnvironment
 from pex.jobs import Raise, SpawnedJob, execute_parallel
@@ -139,7 +140,7 @@ class DownloadRequest(object):
             return []
 
         dest = dest or safe_mkdtemp()
-        spawn_download = functools.partial(self._spawn_download, dest)
+        spawn_download = functools.partial(self._spawn_download, dest, max_parallel_jobs)
         with TRACER.timed("Resolving for:\n  {}".format("\n  ".join(map(str, self.targets)))):
             return list(
                 execute_parallel(
@@ -153,6 +154,7 @@ class DownloadRequest(object):
     def _spawn_download(
         self,
         resolved_dists_dir,  # type: str
+        max_parallel_jobs,  # type: Optional[int]
         target,  # type: DistributionTarget
     ):
         # type: (...) -> SpawnedJob[DownloadResult]
@@ -185,12 +187,56 @@ class DownloadRequest(object):
             build_isolation=self.build_isolation,
             locker=locker,
         )
-        return SpawnedJob.and_then(
-            job=download_job,
-            result_func=lambda: DownloadResult(
-                target, download_dir, locked_resolve=locker.lock() if locker else None
-            ),
+
+        wheel_builder = WheelBuilder(
+            package_index_configuration=self.package_index_configuration,
+            cache=self.cache,
+            prefer_older_binary=self.prefer_older_binary,
+            use_pep517=self.use_pep517,
+            build_isolation=self.build_isolation,
         )
+
+        def result_func():
+            return DownloadResult(target, download_dir)
+
+        if locker:
+            result_func = functools.partial(
+                self._finalize_lock,
+                locker=locker,
+                download_result=result_func(),
+                wheel_builder=wheel_builder,
+                max_parallel_jobs=max_parallel_jobs,
+            )
+
+        return SpawnedJob.and_then(job=download_job, result_func=result_func)
+
+    @staticmethod
+    def _finalize_lock(
+        locker,  # type: Locker
+        download_result,  # type: DownloadResult
+        wheel_builder,  # type: WheelBuilder
+        max_parallel_jobs,  # type: Optional[int]
+    ):
+        # type: (...) -> DownloadResult
+
+        build_requests = tuple(download_result.build_requests())
+        with TRACER.timed(
+            "Building {count} source {distributions} to gather metadata for lock.".format(
+                count=len(build_requests), distributions=pluralize(build_requests, "distribution")
+            )
+        ):
+            build_results = wheel_builder.build_wheels(
+                build_requests=build_requests,
+                max_parallel_jobs=max_parallel_jobs,
+            )
+            dist_metadatas = tuple(
+                DistMetadata.for_dist(install_request.wheel_path)
+                for install_request in itertools.chain(
+                    tuple(download_result.install_requests()),
+                    build_results.values(),
+                )
+            )
+        return attr.evolve(download_result, locked_resolve=locker.lock(dist_metadatas))
 
 
 @attr.s(frozen=True)

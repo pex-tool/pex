@@ -66,9 +66,7 @@ def test_roundtrip(tmpdir):
                             url="https://example.org/colors-1.1.8-cp36-cp36m-macosx_10_6_x86_64.whl",
                             fingerprint=Fingerprint(algorithm="blake256", hash="cafebabe"),
                         ),
-                        requirement=Requirement.parse("ansicolors"),
                         additional_artifacts=(),
-                        via=(),
                     ),
                     LockedRequirement.create(
                         pin=Pin(project_name=ProjectName("requests"), version=Version("2.0.0")),
@@ -76,14 +74,12 @@ def test_roundtrip(tmpdir):
                             url="https://example.org/requests-2.0.0-py2.py3-none-any.whl",
                             fingerprint=Fingerprint(algorithm="sha256", hash="456"),
                         ),
-                        requirement=Requirement.parse("requests>=2; sys_platform == 'darwin'"),
                         additional_artifacts=(
                             Artifact(
                                 url="file://find-links/requests-2.0.0.tar.gz",
                                 fingerprint=Fingerprint(algorithm="sha512", hash="123"),
                             ),
                         ),
-                        via=("direct", "from", "a", "test"),
                     ),
                 ],
             ),
@@ -96,9 +92,7 @@ def test_roundtrip(tmpdir):
                             url="https://example.org/colors-1.1.8-cp37-cp37m-manylinux1_x86_64.whl",
                             fingerprint=Fingerprint(algorithm="md5", hash="hackme"),
                         ),
-                        requirement=Requirement.parse("ansicolors"),
                         additional_artifacts=(),
-                        via=(),
                     ),
                 ],
             ),
@@ -135,9 +129,9 @@ VALID_LOCK = """\
             }
           ],
           "project_name": "ansicolors",
-          "requirement": "ansicolors",
-          "version": "1.1.8",
-          "via": []
+          "requires_dists": [],
+          "requires_python": null,
+          "version": "1.1.8"
         }
       ],
       "platform_tag": [
@@ -342,15 +336,40 @@ def test_load_invalid_requirement(patch_tool):
         patch_tool,
         dedent(
             """\
-            @@ -23,3 +23,3 @@
+            @@ -23,3 +23,6 @@
                        "project_name": "ansicolors",
-            -          "requirement": "ansicolors",
-            +          "requirement": "@invalid requirement",
-                       "version": "1.1.8",
+            -          "requires_dists": [],
+            +          "requires_dists": [
+            +            "valid_requirement",
+            +            "@invalid_requirement"
+            +          ],
+                       "requires_python": null,
             """
         ),
         match=re.escape(
-            "The requirement string at '.locked_resolves[0][0][\"requirement\"]' is invalid: "
+            "The requirement string at '.locked_resolves[0][0][\"requires_dists\"][1]' is invalid:"
+        ),
+    )
+
+
+def test_load_invalid_requires_python(patch_tool):
+    # type: (PatchTool) -> None
+
+    assert_parse_error(
+        patch_tool,
+        dedent(
+            """\
+            --- lock.orig.json	2022-01-23 16:25:23.099399463 -0800
+            +++ lock.json	2022-01-23 16:39:35.547488554 -0800
+            @@ -24,3 +24,3 @@
+                       "requires_dists": [],
+            -          "requires_python": null,
+            +          "requires_python": "@invalid specifier",
+                       "version": "1.1.8"
+            """
+        ),
+        match=re.escape(
+            "The version specifier at '.locked_resolves[0][0][\"requires_python\"]' is invalid:"
         ),
     )
 
@@ -498,9 +517,9 @@ def test_load_invalid_no_locked_requirements(patch_tool):
             -            }
             -          ],
             -          "project_name": "ansicolors",
-            -          "requirement": "ansicolors",
-            -          "version": "1.1.8",
-            -          "via": []
+            -          "requires_dists": [],
+            -          "requires_python": null,
+            -          "version": "1.1.8"
             -        }
                    ],
             """
@@ -537,9 +556,9 @@ def test_load_invalid_no_locked_resolves(patch_tool):
             -            }
             -          ],
             -          "project_name": "ansicolors",
-            -          "requirement": "ansicolors",
-            -          "version": "1.1.8",
-            -          "via": []
+            -          "requires_dists": [],
+            -          "requires_python": null,
+            -          "version": "1.1.8"
             -        }
             -      ],
             -      "platform_tag": [
