@@ -12,6 +12,7 @@ import pytest
 import pex.cli.commands.lockfile
 from pex.cli.commands.lockfile import Lockfile, json_codec
 from pex.compatibility import PY2
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import (
     Artifact,
@@ -20,7 +21,6 @@ from pex.resolve.locked_resolve import (
     LockedResolve,
     LockStyle,
     Pin,
-    Version,
 )
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.third_party.packaging import tags

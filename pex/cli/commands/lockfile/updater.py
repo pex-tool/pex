@@ -13,8 +13,9 @@ from pex.commands.command import Error, ResultError, catch, try_
 from pex.common import pluralize
 from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.network_configuration import NetworkConfiguration
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, LockedResolve, Version
+from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.sorted_tuple import SortedTuple

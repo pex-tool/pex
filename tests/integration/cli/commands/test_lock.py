@@ -12,8 +12,9 @@ from pex.cli.commands import lockfile
 from pex.cli.commands.lockfile import Lockfile
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import Artifact, Fingerprint, LockedRequirement, Pin, Version
+from pex.resolve.locked_resolve import Artifact, Fingerprint, LockedRequirement, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.testing import normalize_locked_resolve
 from pex.sorted_tuple import SortedTuple

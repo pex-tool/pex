@@ -8,10 +8,10 @@ import hashlib
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
 from pex.enum import Enum
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
-from pex.third_party.packaging import utils as packaging_utils
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
@@ -57,20 +57,6 @@ class Fingerprint(object):
 class Artifact(object):
     url = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: Fingerprint
-
-
-def _canonicalize_version(version):
-    # type: (str) -> str
-    return cast(str, packaging_utils.canonicalize_version(version))
-
-
-@attr.s(frozen=True)
-class Version(object):
-    version = attr.ib(converter=_canonicalize_version)  # type: str
-
-    def __str__(self):
-        # type: () -> str
-        return self.version
 
 
 @attr.s(frozen=True)
