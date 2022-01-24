@@ -5,6 +5,7 @@
 from __future__ import absolute_import
 
 import functools
+import itertools
 import os
 import zipfile
 from collections import OrderedDict, defaultdict
