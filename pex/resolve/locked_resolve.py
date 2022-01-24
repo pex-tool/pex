@@ -8,17 +8,18 @@ import hashlib
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
 from pex.enum import Enum
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
-from pex.third_party.packaging import utils as packaging_utils
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import Requirement
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import BinaryIO, IO, Iterable, Iterator, Tuple
+    from typing import BinaryIO, IO, Iterable, Iterator, Optional
 else:
     from pex.third_party import attr
 
@@ -59,20 +60,6 @@ class Artifact(object):
     fingerprint = attr.ib()  # type: Fingerprint
 
 
-def _canonicalize_version(version):
-    # type: (str) -> str
-    return cast(str, packaging_utils.canonicalize_version(version))
-
-
-@attr.s(frozen=True)
-class Version(object):
-    version = attr.ib(converter=_canonicalize_version)  # type: str
-
-    def __str__(self):
-        # type: () -> str
-        return self.version
-
-
 @attr.s(frozen=True)
 class Pin(object):
     @classmethod
@@ -100,24 +87,24 @@ class LockedRequirement(object):
         cls,
         pin,  # type: Pin
         artifact,  # type: Artifact
-        requirement,  # type: Requirement
+        requires_dists=(),  # type: Iterable[Requirement]
+        requires_python=None,  # type: Optional[SpecifierSet]
         additional_artifacts=(),  # type: Iterable[Artifact]
-        via=(),  # type: Iterable[str]
     ):
         # type: (...) -> LockedRequirement
         return cls(
             pin=pin,
             artifact=artifact,
-            requirement=requirement,
+            requires_dists=SortedTuple(requires_dists, key=lambda req: str(req)),
+            requires_python=requires_python,
             additional_artifacts=SortedTuple(additional_artifacts),
-            via=tuple(via),
         )
 
     pin = attr.ib()  # type: Pin
     artifact = attr.ib()  # type: Artifact
-    requirement = attr.ib(order=str)  # type: Requirement
-    additional_artifacts = attr.ib(default=())  # type: SortedTuple[Artifact]
-    via = attr.ib(default=())  # type: Tuple[str, ...]
+    requires_dists = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
+    requires_python = attr.ib(default=None)  # type: Optional[SpecifierSet]
+    additional_artifacts = attr.ib(default=SortedTuple())  # type: SortedTuple[Artifact]
 
     def iter_artifacts(self):
         # type: () -> Iterator[Artifact]
@@ -160,25 +147,20 @@ class LockedResolve(object):
         ):
             # type: (...) -> None
             stream.write(
-                "    --hash:{algorithm}={hash} # {url}{line_continuation}\n".format(
+                "    --hash={algorithm}:{hash} {line_continuation}\n".format(
                     algorithm=artifact.fingerprint.algorithm,
                     hash=artifact.fingerprint.hash,
-                    url=artifact.url,
                     line_continuation=" \\" if line_continuation else "",
                 )
             )
 
         for locked_requirement in self.locked_requirements:
             stream.write(
-                "{project_name}=={version} # {requirement}".format(
+                "{project_name}=={version} \\\n".format(
                     project_name=locked_requirement.pin.project_name,
                     version=locked_requirement.pin.version,
-                    requirement=locked_requirement.requirement,
                 )
             )
-            if locked_requirement.via:
-                stream.write(" via -> {}".format(" via -> ".join(locked_requirement.via)))
-            stream.write(" \\\n")
             emit_artifact(
                 locked_requirement.artifact,
                 line_continuation=bool(locked_requirement.additional_artifacts),

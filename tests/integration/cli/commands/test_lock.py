@@ -12,8 +12,9 @@ from pex.cli.commands import lockfile
 from pex.cli.commands.lockfile import Lockfile
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import Artifact, Fingerprint, LockedRequirement, Pin, Version
+from pex.resolve.locked_resolve import Artifact, Fingerprint, LockedRequirement, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.testing import normalize_locked_resolve
 from pex.sorted_tuple import SortedTuple
@@ -154,11 +155,9 @@ UPDATE_LOCKFILE_CONTENTS = """\
             }
           ],
           "project_name": "certifi",
-          "requirement": "certifi>=2017.4.17",
-          "version": "2021.5.30",
-          "via": [
-            "requests"
-          ]
+          "requires_dists": [],
+          "requires_python": null,
+          "version": "2021.5.30"
         },
         {
           "artifacts": [
@@ -169,11 +168,11 @@ UPDATE_LOCKFILE_CONTENTS = """\
             }
           ],
           "project_name": "charset-normalizer",
-          "requirement": "charset-normalizer~=2.0.0",
-          "version": "2.0.6",
-          "via": [
-            "requests"
-          ]
+          "requires_dists": [
+            "unicodedata2; extra == \\"unicode_backport\\""
+          ],
+          "requires_python": ">=3.5.0",
+          "version": "2.0.6"
         },
         {
           "artifacts": [
@@ -184,11 +183,9 @@ UPDATE_LOCKFILE_CONTENTS = """\
             }
           ],
           "project_name": "idna",
-          "requirement": "idna<4,>=2.5",
-          "version": "3.2",
-          "via": [
-            "requests"
-          ]
+          "requires_dists": [],
+          "requires_python": ">=3.5",
+          "version": "3.2"
         },
         {
           "artifacts": [
@@ -199,9 +196,19 @@ UPDATE_LOCKFILE_CONTENTS = """\
             }
           ],
           "project_name": "requests",
-          "requirement": "requests",
-          "version": "2.26",
-          "via": []
+          "requires_dists": [
+            "PySocks!=1.5.7,>=1.5.6; extra == \\"socks\\"",
+            "certifi>=2017.4.17",
+            "chardet<5,>=3.0.2; extra == \\"use_chardet_on_py3\\"",
+            "chardet<5,>=3.0.2; python_version < \\"3\\"",
+            "charset-normalizer~=2.0.0; python_version >= \\"3\\"",
+            "idna<3,>=2.5; python_version < \\"3\\"",
+            "idna<4,>=2.5; python_version >= \\"3\\"",
+            "urllib3<1.27,>=1.21.1",
+            "win-inet-pton; (sys_platform == \\"win32\\" and python_version == \\"2.7\\") and extra == \\"socks\\""
+          ],
+          "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7",
+          "version": "2.26"
         },
         {
           "artifacts": [
@@ -212,11 +219,9 @@ UPDATE_LOCKFILE_CONTENTS = """\
             }
           ],
           "project_name": "urllib3",
-          "requirement": "urllib3<1.27,>=1.21.1",
-          "version": "1.25.11",
-          "via": [
-            "requests"
-          ]
+          "requires_dists": [],
+          "requires_python": null,
+          "version": "1.25.11"
         }
       ],
       "platform_tag": [
@@ -399,7 +404,6 @@ def test_update_targeted_closure_shrink(lock_file_path):
                     hash="2ef65639cb9600443f85451df487818c31f993ab288f313d29cc9db4f3cbe6ed",
                 ),
             ),
-            requirement=Requirement.parse("requests"),
         )
     ] == list(locked_resolve.locked_requirements)
 
@@ -470,9 +474,9 @@ DUAL_UPDATE_LOCKFILE_CONTENTS = """\
             }
           ],
           "project_name": "p537",
-          "requirement": "p537",
-          "version": "1.0.4",
-          "via": []
+          "requires_dists": [],
+          "requires_python": null,
+          "version": "1.0.4"
         }
       ],
       "platform_tag": [
@@ -492,9 +496,9 @@ DUAL_UPDATE_LOCKFILE_CONTENTS = """\
             }
           ],
           "project_name": "p537",
-          "requirement": "p537",
-          "version": "1.0.4",
-          "via": []
+          "requires_dists": [],
+          "requires_python": null,
+          "version": "1.0.4"
         }
       ],
       "platform_tag": [
@@ -601,7 +605,6 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
                             hash="7664530bb992e3847b61e3aab1580b4df9ed00c5898e80194a9933bc9c80950a",
                         ),
                     ),
-                    requirement=Requirement.parse("ansicolors==1.0.2"),
                 ),
                 LockedRequirement.create(
                     pin=Pin(
@@ -619,7 +622,6 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
                             hash="7dadadb63e13de019463f13d83e0e0567a963cad99a568d0f0001ac1104d8210",
                         ),
                     ),
-                    requirement=Requirement.parse("find==2020.12.3"),
                 ),
                 LockedRequirement.create(
                     pin=Pin(
@@ -637,7 +639,6 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
                             hash="2594b11d6624fff4bf5147b6bdd510ada54a7b5b4e3f2b15ac2a6d3cf99e0bf8",
                         ),
                     ),
-                    requirement=Requirement.parse("cowsay==4.0"),
                 ),
             ]
         )
