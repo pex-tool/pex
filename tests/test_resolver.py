@@ -17,11 +17,10 @@ from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.platforms import Platform
 from pex.resolve.resolver_configuration import ResolverVersion
+from pex.resolve.resolvers import InstalledDistribution, Unsatisfiable
 from pex.resolver import (
-    InstalledDistribution,
     IntegrityError,
     LocalDistribution,
-    Unsatisfiable,
     download,
     install,
     resolve,

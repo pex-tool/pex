@@ -24,8 +24,8 @@ from pex.requirements import Constraint, LocalProjectRequirement
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.sorted_tuple import SortedTuple
-from pex.third_party.pkg_resources import Distribution, Requirement
+from pex.resolve.resolvers import InstalledDistribution, Resolved, Unsatisfiable, Untranslatable
+from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
@@ -37,59 +37,6 @@ if TYPE_CHECKING:
     from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
-
-
-class ResolveError(Exception):
-    """Indicates an error resolving requirements for a PEX."""
-
-
-class Untranslatable(ResolveError):
-    pass
-
-
-class Unsatisfiable(ResolveError):
-    pass
-
-
-def _sorted_requirements(requirements):
-    # type: (Optional[Iterable[Requirement]]) -> SortedTuple[Requirement]
-    return SortedTuple(requirements, key=lambda req: str(req)) if requirements else SortedTuple()
-
-
-@attr.s(frozen=True)
-class InstalledDistribution(object):
-    """A distribution target, and the installed distribution that satisfies it.
-
-    If installed distribution directly satisfies a user-specified requirement, that requirement is
-    included.
-    """
-
-    target = attr.ib()  # type: DistributionTarget
-    fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
-    direct_requirements = attr.ib(
-        converter=_sorted_requirements, factory=SortedTuple
-    )  # type: SortedTuple[Requirement]
-
-    @property
-    def distribution(self):
-        # type: () -> Distribution
-        return self.fingerprinted_distribution.distribution
-
-    @property
-    def fingerprint(self):
-        # type: () -> str
-        return self.fingerprinted_distribution.fingerprint
-
-    def with_direct_requirements(self, direct_requirements=None):
-        # type: (Optional[Iterable[Requirement]]) -> InstalledDistribution
-        direct_requirements = _sorted_requirements(direct_requirements)
-        if direct_requirements == self.direct_requirements:
-            return self
-        return InstalledDistribution(
-            self.target,
-            self.fingerprinted_distribution,
-            direct_requirements=direct_requirements,
-        )
 
 
 def _uniqued_targets(targets=None):
@@ -803,12 +750,6 @@ def _parse_reqs(
         requirements=requirements, requirement_files=requirement_files
     )
     return requirement_configuration.parse_requirements(network_configuration=network_configuration)
-
-
-@attr.s(frozen=True)
-class Resolved(object):
-    installed_distributions = attr.ib()  # type: Tuple[InstalledDistribution, ...]
-    locks = attr.ib(default=())  # type: Tuple[LockedResolve, ...]
 
 
 def resolve(

@@ -9,6 +9,7 @@ from pex.commands.command import Error
 from pex.common import pluralize, safe_open
 from pex.distribution_target import DistributionTargets
 from pex.requirements import LocalProjectRequirement, VCSRequirement
+from pex.resolve import resolvers
 from pex.resolve.locked_resolve import LockConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
@@ -142,7 +143,7 @@ def create(
             # that data.
             dest=None,
         )
-    except resolver.ResolveError as e:
+    except resolvers.ResolveError as e:
         return Error(str(e))
 
     return Lockfile.create(

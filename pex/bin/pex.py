@@ -35,7 +35,8 @@ from pex.pex_info import PexInfo
 from pex.resolve import requirement_options, resolver_options, target_configuration, target_options
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PexRepositoryConfiguration, PipConfiguration
-from pex.resolver import Unsatisfiable, resolve, resolve_from_pex
+from pex.resolve.resolvers import Unsatisfiable
+from pex.resolver import resolve, resolve_from_pex
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
