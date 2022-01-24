@@ -3,21 +3,20 @@
 
 from __future__ import absolute_import
 
-import hashlib
+import itertools
 
-from pex.dist_metadata import ProjectNameAndVersion
+from pex.dist_metadata import DistMetadata
 from pex.enum import Enum
-from pex.pep_440 import Version
-from pex.pep_503 import ProjectName
+from pex.fetcher import URLFetcher
+from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import IO, Any, BinaryIO, Iterable, Iterator, Optional, Tuple
+    from typing import IO, Any, Callable, Iterable, Iterator, Optional, Tuple
 
     import attr  # vendor:skip
 else:
@@ -56,46 +55,15 @@ class LockConfiguration(object):
 
 
 @attr.s(frozen=True)
-class Fingerprint(object):
-    @classmethod
-    def from_stream(
-        cls,
-        stream,  # type: BinaryIO
-        algorithm="sha256",  # type: str
-    ):
-        # type: (...) -> Fingerprint
-        digest = hashlib.new(algorithm)
-        CacheHelper.update_hash(filelike=stream, digest=digest)
-        return cls(algorithm=algorithm, hash=digest.hexdigest())
-
-    algorithm = attr.ib()  # type: str
-    hash = attr.ib()  # type: str
+class LockRequest(object):
+    lock_configuration = attr.ib()  # type: LockConfiguration
+    resolve_handler = attr.ib()  # type: Callable[[Iterable[ResolvedRequirement]], None]
 
 
 @attr.s(frozen=True)
 class Artifact(object):
     url = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: Fingerprint
-
-
-@attr.s(frozen=True)
-class Pin(object):
-    @classmethod
-    def canonicalize(cls, project_name_and_version):
-        # type: (ProjectNameAndVersion) -> Pin
-        return cls(
-            project_name=ProjectName(project_name_and_version.project_name),
-            version=Version(project_name_and_version.version),
-        )
-
-    project_name = attr.ib()  # type: ProjectName
-    version = attr.ib()  # type: Version
-
-    def as_requirement(self):
-        # type: () -> Requirement
-        return Requirement.parse(
-            "{project_name}=={version}".format(project_name=self.project_name, version=self.version)
-        )
 
 
 @attr.s(frozen=True)
@@ -133,6 +101,72 @@ class LockedRequirement(object):
 
 @attr.s(frozen=True)
 class LockedResolve(object):
+    @classmethod
+    def create(
+        cls,
+        platform_tag,  # type: tags.Tag
+        resolved_requirements,  # type: Iterable[ResolvedRequirement]
+        dist_metadatas,  # type: Iterable[DistMetadata]
+        url_fetcher,  # type: URLFetcher
+    ):
+        # type: (...) -> LockedResolve
+
+        # TODO(John Sirois): Introduce a thread pool and pump these fetches to workers via a Queue.
+        def fingerprint_url(url):
+            # type: (str) -> Fingerprint
+            with url_fetcher.get_body_stream(url) as body_stream:
+                return Fingerprint.from_stream(body_stream)
+
+        fingerprint_by_url = {
+            url: fingerprint_url(url)
+            for url in set(
+                itertools.chain.from_iterable(
+                    resolved_requirement._iter_urls_to_fingerprint()
+                    for resolved_requirement in resolved_requirements
+                )
+            )
+        }
+
+        def resolve_fingerprint(partial_artifact):
+            # type: (PartialArtifact) -> Artifact
+            return Artifact(
+                url=partial_artifact.url,
+                fingerprint=partial_artifact.fingerprint
+                or fingerprint_by_url[partial_artifact.url],
+            )
+
+        dist_metadata_by_pin = {
+            Pin(dist_info.project_name, dist_info.version): dist_info
+            for dist_info in dist_metadatas
+        }
+        locked_requirements = []
+        for resolved_requirement in resolved_requirements:
+            distribution_metadata = dist_metadata_by_pin.get(resolved_requirement.pin)
+            if distribution_metadata is None:
+                raise ValueError(
+                    "No distribution metadata found for {project}.\n"
+                    "Given distribution metadata for:\n"
+                    "{projects}".format(
+                        project=resolved_requirement.pin.as_requirement(),
+                        projects="\n".join(
+                            sorted(str(pin.as_requirement()) for pin in dist_metadata_by_pin)
+                        ),
+                    )
+                )
+            locked_requirements.append(
+                LockedRequirement.create(
+                    pin=resolved_requirement.pin,
+                    artifact=resolve_fingerprint(resolved_requirement.artifact),
+                    requires_dists=distribution_metadata.requires_dists,
+                    requires_python=distribution_metadata.requires_python,
+                    additional_artifacts=(
+                        resolve_fingerprint(artifact)
+                        for artifact in resolved_requirement.additional_artifacts
+                    ),
+                )
+            )
+        return cls(platform_tag=platform_tag, locked_requirements=SortedTuple(locked_requirements))
+
     platform_tag = attr.ib(order=str)  # type: tags.Tag
     locked_requirements = attr.ib()  # type: SortedTuple[LockedRequirement]
 

@@ -7,7 +7,8 @@ import os
 import pytest
 
 from pex import dist_metadata, resolver, targets
-from pex.resolve.locked_resolve import LockConfiguration, LockStyle, Pin
+from pex.resolve.locked_resolve import LockConfiguration, LockStyle
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.testing import normalize_locked_resolve
 from pex.resolver import Downloaded, LocalDistribution
 from pex.typing import TYPE_CHECKING

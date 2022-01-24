@@ -9,7 +9,6 @@ import csv
 import fileinput
 import functools
 import hashlib
-import itertools
 import json
 import os
 import re
@@ -23,8 +22,7 @@ from textwrap import dedent
 from pex import dist_metadata, targets, third_party
 from pex.common import atomic_directory, is_python_script, safe_mkdtemp
 from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, get_stdout_bytes_buffer, urlparse
-from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
-from pex.fetcher import URLFetcher
+from pex.dist_metadata import ProjectNameAndVersion
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.jobs import Job
@@ -33,17 +31,9 @@ from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.platforms import Platform
-from pex.resolve.locked_resolve import (
-    Artifact,
-    Fingerprint,
-    LockConfiguration,
-    LockedRequirement,
-    LockedResolve,
-    LockStyle,
-    Pin,
-)
+from pex.resolve.locked_resolve import LockRequest, LockStyle
+from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target
 from pex.third_party import isolated
 from pex.third_party.pkg_resources import EntryPoint, Requirement
@@ -316,90 +306,6 @@ class _Issue10050Analyzer(_ErrorAnalyzer):
         return self.Continue()
 
 
-@attr.s(frozen=True)
-class PartialArtifact(object):
-    url = attr.ib()  # type: str
-    fingerprint = attr.ib(default=None)  # type: Optional[Fingerprint]
-
-
-@attr.s(frozen=True)
-class ResolvedRequirement(object):
-    @classmethod
-    def lock_all(
-        cls,
-        resolved_requirements,  # type: Iterable[ResolvedRequirement]
-        dist_metadatas,  # type: Iterable[DistMetadata]
-        url_fetcher,  # type: URLFetcher
-    ):
-        # type: (...) -> Iterator[LockedRequirement]
-
-        # TODO(John Sirois): Introduce a thread pool and pump these fetches to workers via a Queue.
-        def fingerprint_url(url):
-            # type: (str) -> Fingerprint
-            with url_fetcher.get_body_stream(url) as body_stream:
-                return Fingerprint.from_stream(body_stream)
-
-        fingerprint_by_url = {
-            url: fingerprint_url(url)
-            for url in set(
-                itertools.chain.from_iterable(
-                    resolved_requirement._iter_urls_to_fingerprint()
-                    for resolved_requirement in resolved_requirements
-                )
-            )
-        }
-
-        def resolve_fingerprint(partial_artifact):
-            # type: (PartialArtifact) -> Artifact
-            return Artifact(
-                url=partial_artifact.url,
-                fingerprint=partial_artifact.fingerprint
-                or fingerprint_by_url[partial_artifact.url],
-            )
-
-        dist_metadata_by_pin = {
-            Pin(dist_info.project_name, dist_info.version): dist_info
-            for dist_info in dist_metadatas
-        }
-        for resolved_requirement in resolved_requirements:
-            distribution_metadata = dist_metadata_by_pin.get(resolved_requirement.pin)
-            if distribution_metadata is None:
-                raise ValueError(
-                    "No distribution metadata found for {project}.\n"
-                    "Given distribution metadata for:\n"
-                    "{projects}".format(
-                        project=resolved_requirement.pin.as_requirement(),
-                        projects="\n".join(
-                            sorted(str(pin.as_requirement()) for pin in dist_metadata_by_pin)
-                        ),
-                    )
-                )
-            yield LockedRequirement.create(
-                pin=resolved_requirement.pin,
-                artifact=resolve_fingerprint(resolved_requirement.artifact),
-                requires_dists=distribution_metadata.requires_dists,
-                requires_python=distribution_metadata.requires_python,
-                additional_artifacts=(
-                    resolve_fingerprint(artifact)
-                    for artifact in resolved_requirement.additional_artifacts
-                ),
-            )
-
-    pin = attr.ib()  # type: Pin
-    artifact = attr.ib()  # type: PartialArtifact
-    requirement = attr.ib()  # type: Requirement
-    additional_artifacts = attr.ib(default=())  # type: Tuple[PartialArtifact, ...]
-    via = attr.ib(default=())  # type: Tuple[str, ...]
-
-    def _iter_urls_to_fingerprint(self):
-        # type: () -> Iterator[str]
-        if not self.artifact.fingerprint:
-            yield self.artifact.url
-        for artifact in self.additional_artifacts:
-            if not artifact.fingerprint:
-                yield artifact.url
-
-
 class Locker(_LogAnalyzer):
     class StateError(Exception):
         """Indicates the Locker lifecycle was violated.
@@ -408,33 +314,23 @@ class Locker(_LogAnalyzer):
         be requested.
         """
 
-    def __init__(
-        self,
-        target,  # type: Target
-        lock_configuration,  # type: LockConfiguration
-        network_configuration=None,  # type: Optional[NetworkConfiguration]
-    ):
-        # type: (...) -> None
-        self._target = target
-        self._lock_configuration = lock_configuration
+    def __init__(self, lock_request):
+        # type: (LockRequest) -> None
+        self._lock_request = lock_request
+
         self._resolved_requirements = []  # type: List[ResolvedRequirement]
         self._links = defaultdict(OrderedSet)  # type: DefaultDict[Pin, OrderedSet[PartialArtifact]]
-        self._url_fetcher = URLFetcher(
-            network_configuration=network_configuration, handle_file_urls=True
-        )
-        self._analysis_completed = False
-        self._locked_resolve = None  # type: Optional[LockedResolve]
         self._done_building_re = None  # type: Optional[Pattern]
 
     @property
     def style(self):
         # type: () -> LockStyle.Value
-        return self._lock_configuration.style
+        return self._lock_request.lock_configuration.style
 
     @property
     def requires_python(self):
         # type: () -> Tuple[str, ...]
-        return self._lock_configuration.requires_python
+        return self._lock_request.lock_configuration.requires_python
 
     def should_collect(self, returncode):
         # type: (int) -> bool
@@ -475,9 +371,6 @@ class Locker(_LogAnalyzer):
         # requirements (If a build proceeds differently tomorrow than today then we don't care as
         # long as the final built artifact hashes the same. In other words, we completely rely on a
         # cryptographic fingerprint for reproducibility and security guarantees from a lock).
-
-        if self._analysis_completed:
-            raise self.StateError("Line analysis was requested after the log analysis completed.")
 
         if self._done_building_re:
             if self._done_building_re.search(line):
@@ -542,27 +435,7 @@ class Locker(_LogAnalyzer):
 
     def analysis_completed(self):
         # type: () -> None
-        self._analysis_completed = True
-
-    def lock(
-        self,
-        dist_metadatas,  # type: Iterable[DistMetadata]
-    ):
-        # type: (...) -> LockedResolve
-        if not self._analysis_completed:
-            raise self.StateError(
-                "Lock retrieval was attempted before Pip log analysis was complete."
-            )
-        if self._locked_resolve is None:
-            self._locked_resolve = LockedResolve(
-                platform_tag=self._target.platform.tag,
-                locked_requirements=SortedTuple(
-                    ResolvedRequirement.lock_all(
-                        self._resolved_requirements, dist_metadatas, self._url_fetcher
-                    )
-                ),
-            )
-        return self._locked_resolve
+        self._lock_request.resolve_handler(self._resolved_requirements)
 
 
 class _LogScrapeJob(Job):
@@ -1067,10 +940,11 @@ class Pip(object):
         prefer_older_binary=False,  # type: bool
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
-        locker=None,  # type: Optional[Locker]
+        lock_request=None,  # type: Optional[LockRequest]
     ):
         # type: (...) -> Job
         target = target or targets.current()
+        locker = Locker(lock_request) if lock_request else None
 
         if not use_wheel:
             if not build:

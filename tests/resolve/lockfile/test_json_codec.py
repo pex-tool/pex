@@ -13,15 +13,9 @@ import pex.resolve.lockfile
 from pex.compatibility import PY2
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import (
-    Artifact,
-    Fingerprint,
-    LockedRequirement,
-    LockedResolve,
-    LockStyle,
-    Pin,
-)
+from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
 from pex.resolve.lockfile import Lockfile, json_codec
+from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
