@@ -33,9 +33,11 @@ from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve import requirement_options, resolver_options, target_configuration, target_options
+from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PexRepositoryConfiguration, PipConfiguration
-from pex.resolver import Unsatisfiable, resolve, resolve_from_pex
+from pex.resolve.resolvers import Unsatisfiable
+from pex.resolver import resolve
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables

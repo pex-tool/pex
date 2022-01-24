@@ -5,27 +5,25 @@
 from __future__ import absolute_import
 
 import functools
-import itertools
 import os
 import zipfile
 from collections import OrderedDict, defaultdict
 
-from pex import environment
 from pex.common import AtomicDirectory, atomic_directory, safe_mkdtemp
 from pex.distribution_target import DistributionTarget, DistributionTargets
-from pex.environment import FingerprintedDistribution, PEXEnvironment
+from pex.environment import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
 from pex.pip import Locker, PackageIndexConfiguration, get_pip
-from pex.requirements import Constraint, LocalProjectRequirement
+from pex.requirements import LocalProjectRequirement
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.sorted_tuple import SortedTuple
-from pex.third_party.pkg_resources import Distribution, Requirement
+from pex.resolve.resolvers import InstalledDistribution, Resolved, Unsatisfiable, Untranslatable
+from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
@@ -37,59 +35,6 @@ if TYPE_CHECKING:
     from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
-
-
-class ResolveError(Exception):
-    """Indicates an error resolving requirements for a PEX."""
-
-
-class Untranslatable(ResolveError):
-    pass
-
-
-class Unsatisfiable(ResolveError):
-    pass
-
-
-def _sorted_requirements(requirements):
-    # type: (Optional[Iterable[Requirement]]) -> SortedTuple[Requirement]
-    return SortedTuple(requirements, key=lambda req: str(req)) if requirements else SortedTuple()
-
-
-@attr.s(frozen=True)
-class InstalledDistribution(object):
-    """A distribution target, and the installed distribution that satisfies it.
-
-    If installed distribution directly satisfies a user-specified requirement, that requirement is
-    included.
-    """
-
-    target = attr.ib()  # type: DistributionTarget
-    fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
-    direct_requirements = attr.ib(
-        converter=_sorted_requirements, factory=SortedTuple
-    )  # type: SortedTuple[Requirement]
-
-    @property
-    def distribution(self):
-        # type: () -> Distribution
-        return self.fingerprinted_distribution.distribution
-
-    @property
-    def fingerprint(self):
-        # type: () -> str
-        return self.fingerprinted_distribution.fingerprint
-
-    def with_direct_requirements(self, direct_requirements=None):
-        # type: (Optional[Iterable[Requirement]]) -> InstalledDistribution
-        direct_requirements = _sorted_requirements(direct_requirements)
-        if direct_requirements == self.direct_requirements:
-            return self
-        return InstalledDistribution(
-            self.target,
-            self.fingerprinted_distribution,
-            direct_requirements=direct_requirements,
-        )
 
 
 def _uniqued_targets(targets=None):
@@ -805,12 +750,6 @@ def _parse_reqs(
     return requirement_configuration.parse_requirements(network_configuration=network_configuration)
 
 
-@attr.s(frozen=True)
-class Resolved(object):
-    installed_distributions = attr.ib()  # type: Tuple[InstalledDistribution, ...]
-    locks = attr.ib(default=())  # type: Tuple[LockedResolve, ...]
-
-
 def resolve(
     targets=DistributionTargets(),  # type: DistributionTargets
     requirements=None,  # type: Optional[Iterable[str]]
@@ -1234,86 +1173,3 @@ def install(
             ignore_errors=ignore_errors, max_parallel_jobs=max_parallel_jobs
         )
     )
-
-
-def resolve_from_pex(
-    targets,  # type: DistributionTargets
-    pex,  # type: str
-    requirements=None,  # type: Optional[Iterable[str]]
-    requirement_files=None,  # type: Optional[Iterable[str]]
-    constraint_files=None,  # type: Optional[Iterable[str]]
-    network_configuration=None,  # type: Optional[NetworkConfiguration]
-    transitive=True,  # type: bool
-    ignore_errors=False,  # type: bool
-):
-    # type: (...) -> Resolved
-
-    requirement_configuration = RequirementConfiguration(
-        requirements=requirements,
-        requirement_files=requirement_files,
-        constraint_files=constraint_files,
-    )
-    direct_requirements_by_project_name = (
-        OrderedDict()
-    )  # type: OrderedDict[ProjectName, List[Requirement]]
-    for direct_requirement in requirement_configuration.parse_requirements(
-        network_configuration=network_configuration
-    ):
-        if isinstance(direct_requirement, LocalProjectRequirement):
-            raise Untranslatable(
-                "Cannot resolve local projects from PEX repositories. Asked to resolve {path} "
-                "from {pex}.".format(path=direct_requirement.path, pex=pex)
-            )
-        direct_requirements_by_project_name.setdefault(
-            ProjectName(direct_requirement.requirement), []
-        ).append(direct_requirement.requirement)
-
-    constraints_by_project_name = defaultdict(
-        list
-    )  # type: DefaultDict[ProjectName, List[Constraint]]
-    if not ignore_errors:
-        for contraint in requirement_configuration.parse_constraints(
-            network_configuration=network_configuration
-        ):
-            constraints_by_project_name[ProjectName(contraint.requirement)].append(contraint)
-
-    all_reqs = OrderedSet(
-        itertools.chain.from_iterable(direct_requirements_by_project_name.values())
-    )
-    installed_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
-    for target in targets.unique_targets():
-        pex_env = PEXEnvironment.mount(pex, target=target)
-        try:
-            fingerprinted_distributions = pex_env.resolve_dists(all_reqs)
-        except environment.ResolveError as e:
-            raise Unsatisfiable(str(e))
-
-        for fingerprinted_distribution in fingerprinted_distributions:
-            project_name = fingerprinted_distribution.project_name
-            direct_requirements = direct_requirements_by_project_name.get(project_name, [])
-            if not transitive and not direct_requirements:
-                continue
-
-            unmet_constraints = [
-                constraint
-                for constraint in constraints_by_project_name.get(project_name, ())
-                if fingerprinted_distribution.distribution not in constraint.requirement
-            ]
-            if unmet_constraints:
-                raise Unsatisfiable(
-                    "The following constraints were not satisfied by {dist} resolved from "
-                    "{pex}:\n{constraints}".format(
-                        dist=fingerprinted_distribution.location,
-                        pex=pex,
-                        constraints="\n".join(map(str, unmet_constraints)),
-                    )
-                )
-
-            installed_distributions.add(
-                InstalledDistribution(
-                    target=target,
-                    fingerprinted_distribution=fingerprinted_distribution,
-                    direct_requirements=direct_requirements,
-                )
-            )
-    return Resolved(installed_distributions=tuple(installed_distributions))
