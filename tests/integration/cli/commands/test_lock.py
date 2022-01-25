@@ -714,7 +714,7 @@ UNIVERSAL_LOCKFILE_CONTENTS = """\
   "build_isolation": true,
   "constraints": [
     "cffi==1.15",
-    "cryptography==36.0.1",
+    "cryptography==3.4.8",
     "ndg-httpsclient==0.5.1",
     "pyasn1==0.4.8",
     "pycparser==2.21",
@@ -788,8 +788,8 @@ UNIVERSAL_LOCKFILE_CONTENTS = """\
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "53e5c1dc3d7a953de055d77bef2ff607ceef7a2aac0353b5d630ab67f7423638",
-              "url": "https://files.pythonhosted.org/packages/f9/4b/1cf8e281f7ae4046a59e5e39dd7471d46db9f61bb564fddbff9084c4334f/cryptography-36.0.1.tar.gz"
+              "hash": "94cc5ed4ceaefcbe5bf38c8fba6a21fc1d365bb8fb826ea1688e3370b2e24a1c",
+              "url": "https://files.pythonhosted.org/packages/cc/98/8a258ab4787e6f835d350639792527d2eb7946ff9fc0caca9c3f4cf5dcfe/cryptography-3.4.8.tar.gz"
             }
           ],
           "project_name": "cryptography",
@@ -797,6 +797,7 @@ UNIVERSAL_LOCKFILE_CONTENTS = """\
             "bcrypt>=3.1.5; extra == \\"ssh\\"",
             "black; extra == \\"pep8test\\"",
             "cffi>=1.12",
+            "doc8; extra == \\"docstest\\"",
             "flake8-import-order; extra == \\"pep8test\\"",
             "flake8; extra == \\"pep8test\\"",
             "hypothesis!=3.79.2,>=1.11.4; extra == \\"test\\"",
@@ -807,7 +808,7 @@ UNIVERSAL_LOCKFILE_CONTENTS = """\
             "pytest-cov; extra == \\"test\\"",
             "pytest-subtests; extra == \\"test\\"",
             "pytest-xdist; extra == \\"test\\"",
-            "pytest>=6.2.0; extra == \\"test\\"",
+            "pytest>=6.0; extra == \\"test\\"",
             "pytz; extra == \\"test\\"",
             "setuptools-rust>=0.11.4; extra == \\"sdist\\"",
             "sphinx!=1.8.0,!=3.1.0,!=3.1.1,>=1.6.5; extra == \\"docs\\"",
@@ -816,7 +817,7 @@ UNIVERSAL_LOCKFILE_CONTENTS = """\
             "twine>=1.12.0; extra == \\"docstest\\""
           ],
           "requires_python": ">=3.6",
-          "version": "36.0.1"
+          "version": "3.4.8"
         },
         {
           "artifacts": [
@@ -981,7 +982,7 @@ def test_universal_lock(tmpdir):
             dedent(
                 """\
                 cffi==1.15
-                cryptography==36.0.1
+                cryptography==3.4.8
                 ndg-httpsclient==0.5.1
                 pyasn1==0.4.8
                 pycparser==2.21
