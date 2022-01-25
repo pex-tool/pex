@@ -744,6 +744,7 @@ class Pip(object):
                                         def supported(self, *_args, **_kwargs):
                                             if not hasattr(self, "_versions"):
                                                 versions = set()
+                                                is_abi3 = ["abi3"] == list(self.abis)
                                                 for pyversion in self.pyversions:
                                                     if pyversion[:2] in ("cp", "pp", "py"):
                                                         version_str = pyversion[2:]
@@ -757,7 +758,9 @@ class Pip(object):
                                                         )
                                                         major = int(match.group("major"))
                                                         minor = match.group("minor")
-                                                        if minor:
+                                                        if is_abi3 and major == 3:
+                                                            versions.add(major)
+                                                        elif minor:
                                                             versions.add((major, int(minor)))
                                                         else:
                                                             versions.add(major)

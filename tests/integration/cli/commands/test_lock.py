@@ -714,7 +714,7 @@ UNIVERSAL_LOCKFILE_CONTENTS = """\
   "build_isolation": true,
   "constraints": [
     "cffi==1.15",
-    "cryptography==3.4.8",
+    "cryptography==35.0.0",
     "ndg-httpsclient==0.5.1",
     "pyasn1==0.4.8",
     "pycparser==2.21",
@@ -788,8 +788,63 @@ UNIVERSAL_LOCKFILE_CONTENTS = """\
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "94cc5ed4ceaefcbe5bf38c8fba6a21fc1d365bb8fb826ea1688e3370b2e24a1c",
-              "url": "https://files.pythonhosted.org/packages/cc/98/8a258ab4787e6f835d350639792527d2eb7946ff9fc0caca9c3f4cf5dcfe/cryptography-3.4.8.tar.gz"
+              "hash": "d57e0cdc1b44b6cdf8af1d01807db06886f10177469312fbde8f44ccbb284bc9",
+              "url": "https://files.pythonhosted.org/packages/21/d8/ac396584e4559711240018bef74f7359c1dc769febb49973ff0ec397e7bb/cryptography-35.0.0-cp36-abi3-macosx_10_10_x86_64.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "4a2d0e0acc20ede0f06ef7aa58546eee96d2592c00f450c9acb89c5879b61992",
+              "url": "https://files.pythonhosted.org/packages/07/fa/f63509370561201ffa852e4f3fb105c76ced6927f951e4cc6a3973d1a527/cryptography-35.0.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "c10c797ac89c746e488d2ee92bd4abd593615694ee17b2500578b63cad6b93a8",
+              "url": "https://files.pythonhosted.org/packages/0d/7b/355c4a20149417ddae61090089c23d42c7e138f33b37bd62f63638f3982f/cryptography-35.0.0-cp36-abi3-win32.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "9933f28f70d0517686bd7de36166dda42094eac49415459d9bdf5e7df3e0086d",
+              "url": "https://files.pythonhosted.org/packages/10/91/90b8d4cd611ac2aa526290ae4b4285aa5ea57ee191c63c2f3d04170d7683/cryptography-35.0.0.tar.gz"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "ced40344e811d6abba00295ced98c01aecf0c2de39481792d87af4fa58b7b4d6",
+              "url": "https://files.pythonhosted.org/packages/79/92/7238415a8a624dd74fcb0603fcb222df399210b4713adf8d82e16fd1c76a/cryptography-35.0.0-cp36-abi3-macosx_11_0_arm64.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "07bb7fbfb5de0980590ddfc7f13081520def06dc9ed214000ad4372fb4e3c7f6",
+              "url": "https://files.pythonhosted.org/packages/7b/1a/bf49bade5080a5cfb226a975c118fc56c3df2878b91809a5030dd87e551b/cryptography-35.0.0-cp36-abi3-manylinux_2_24_x86_64.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "7eba2cebca600a7806b893cb1d541a6e910afa87e97acf2021a22b32da1df52d",
+              "url": "https://files.pythonhosted.org/packages/83/7c/eb142fff52eb1dda06eaa32ceceec2f9019711dd00c4a12bd9312930a3cc/cryptography-35.0.0-cp36-abi3-musllinux_1_1_aarch64.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "7075b304cd567694dc692ffc9747f3e9cb393cc4aa4fb7b9f3abd6f5c4e43588",
+              "url": "https://files.pythonhosted.org/packages/93/4b/8f402b9b22cec331d00c6ec2f26184db6e78f53ba24abba8f51b4416bb7b/cryptography-35.0.0-cp36-abi3-win_amd64.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "2d69645f535f4b2c722cfb07a8eab916265545b3475fdb34e0be2f4ee8b0b15e",
+              "url": "https://files.pythonhosted.org/packages/94/bd/0d36bb113967ab8bc75f58d692846fd27ed64b8d5a7436a672b66976f802/cryptography-35.0.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "54b2605e5475944e2213258e0ab8696f4f357a31371e538ef21e8d61c843c28d",
+              "url": "https://files.pythonhosted.org/packages/c6/dc/4ca9999befed87830c9ecdf9d2e85019b4090f6439754ee9308e1dafba06/cryptography-35.0.0-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "7b7ceeff114c31f285528ba8b390d3e9cfa2da17b56f11d366769a807f17cbaa",
+              "url": "https://files.pythonhosted.org/packages/d5/7d/0d8895b3b4aac0cab30a5c285f9a7fc381792e66f6c8d0c055b55259e0d7/cryptography-35.0.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.manylinux_2_24_aarch64.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "18d90f4711bf63e2fb21e8c8e51ed8189438e6b35a6d996201ebd98a26abbbe6",
+              "url": "https://files.pythonhosted.org/packages/eb/b2/1812dfe3eefa9256e565c0c81bf2ae40698fc174e8407996d14a63faa126/cryptography-35.0.0-cp36-abi3-musllinux_1_1_x86_64.whl"
             }
           ],
           "project_name": "cryptography",
@@ -808,7 +863,7 @@ UNIVERSAL_LOCKFILE_CONTENTS = """\
             "pytest-cov; extra == \\"test\\"",
             "pytest-subtests; extra == \\"test\\"",
             "pytest-xdist; extra == \\"test\\"",
-            "pytest>=6.0; extra == \\"test\\"",
+            "pytest>=6.2.0; extra == \\"test\\"",
             "pytz; extra == \\"test\\"",
             "setuptools-rust>=0.11.4; extra == \\"sdist\\"",
             "sphinx!=1.8.0,!=3.1.0,!=3.1.1,>=1.6.5; extra == \\"docs\\"",
@@ -817,7 +872,7 @@ UNIVERSAL_LOCKFILE_CONTENTS = """\
             "twine>=1.12.0; extra == \\"docstest\\""
           ],
           "requires_python": ">=3.6",
-          "version": "3.4.8"
+          "version": "35"
         },
         {
           "artifacts": [
@@ -982,7 +1037,7 @@ def test_universal_lock(tmpdir):
             dedent(
                 """\
                 cffi==1.15
-                cryptography==3.4.8
+                cryptography==35.0.0
                 ndg-httpsclient==0.5.1
                 pyasn1==0.4.8
                 pycparser==2.21
