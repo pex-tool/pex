@@ -8,13 +8,14 @@ import os
 import pkgutil
 import subprocess
 import sys
+from argparse import ArgumentParser
 from collections import OrderedDict
 
 from colors import bold, green, yellow
 from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
 from pex import third_party
-from pex.common import safe_delete, safe_rmtree
+from pex.common import safe_delete, safe_open, safe_rmtree
 from pex.vendor import VendorSpec, iter_vendor_specs
 
 
@@ -194,7 +195,7 @@ class VendorizeError(Exception):
     """Indicates an error was encountered updating vendored libraries."""
 
 
-def vendorize(root_dir, vendor_specs, prefix):
+def vendorize(root_dir, vendor_specs, prefix, update):
     for vendor_spec in vendor_specs:
         # NB: We set --no-build-isolation to prevent pip from installing the requirements listed in
         # its [build-system] config in its pyproject.toml.
@@ -223,7 +224,14 @@ def vendorize(root_dir, vendor_specs, prefix):
         ]
 
         constraints_file = os.path.join(vendor_spec.target_dir, "constraints.txt")
-        if vendor_spec.constrain:
+        if update and (vendor_spec.constrain or vendor_spec.constraints):
+            safe_delete(constraints_file)
+            if vendor_spec.constraints:
+                with safe_open(constraints_file, "w") as fp:
+                    for constraint in vendor_spec.constraints:
+                        print(constraint, file=fp)
+                cmd.extend(["--constraint", constraints_file])
+        elif vendor_spec.constrain:
             # Use the last checked-in constraints if any.
             subprocess.call(["git", "checkout", "--", constraints_file])
             if os.path.isfile(constraints_file):
@@ -293,15 +301,26 @@ def vendorize(root_dir, vendor_specs, prefix):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 1:
-        print("Usage: {}".format(sys.argv[0]), file=sys.stderr)
-        sys.exit(1)
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--no-update",
+        dest="update",
+        default=True,
+        action="store_false",
+        help="Do not update vendored project versions, just vendorize the existing versions afresh.",
+    )
+    options = parser.parse_args()
 
     root_directory = VendorSpec.ROOT
     import_prefix = third_party.import_prefix()
     try:
         safe_rmtree(VendorSpec.vendor_root())
-        vendorize(root_directory, list(iter_vendor_specs()), import_prefix)
+        vendorize(
+            root_dir=root_directory,
+            vendor_specs=list(iter_vendor_specs()),
+            prefix=import_prefix,
+            update=options.update,
+        )
         sys.exit(0)
     except VendorizeError as e:
         print("Problem encountered vendorizing: {}".format(e), file=sys.stderr)
