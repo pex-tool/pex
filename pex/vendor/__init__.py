@@ -149,7 +149,7 @@ def iter_vendor_specs():
 
     # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
     # time to implement resolving distributions from a PEX repository.
-    yield VendorSpec.pinned("packaging", "20.8")
+    yield VendorSpec.pinned("packaging", "20.9", constraints=["pyparsing<3"])
 
     # We shell out to pip at buildtime to resolve and install dependencies.
     # N.B.: We're currently using a patched version of Pip 20.3.4 housed at
@@ -210,7 +210,7 @@ def iter_vendor_specs():
     )
 
     # We expose this to pip at buildtime for legacy builds.
-    yield VendorSpec.pinned("wheel", "0.36.2", rewrite=False)
+    yield VendorSpec.pinned("wheel", "0.37.1", rewrite=False)
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names, include_dist_info=False):
