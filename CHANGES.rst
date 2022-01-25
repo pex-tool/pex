@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+2.1.64
+------
+
+This release brings support for mac universal2 wheels.
+
+* Update vendored Pip to 386a54f0. (#1589)
+  `PR #1589 <https://github.com/pantsbuild/pex/pull/1589>`_
+
 2.1.63
 ------
 
