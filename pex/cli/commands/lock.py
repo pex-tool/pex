@@ -97,12 +97,26 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             help=(
                 "The style of lock to generate. The {strict!r} style is the default and generates "
                 "a lock file that contains exactly the distributions that would be used in a local "
-                "resolve. If an sdist would be used, the sdist is included, but if a wheel would "
-                "be used, an accompanying sdist will not be included. The {sources} style includes "
-                "locks containing both wheels and the associated sdists when available. The "
-                "{universal} style generates a universal lock for all possible target interpreters "
-                "and platforms, although the scope can be constrained via one or more "
-                "--interpreter-constraint.".format(
+                "PEX build. If an sdist would be used, the sdist is included, but if a wheel would "
+                "be used, an accompanying sdist will not be included. The {sources!r} style "
+                "includes locks containing both wheels and the associated sdists when available. "
+                "The {universal!r} style generates a universal lock for all possible target "
+                "interpreters and platforms, although the scope can be constrained via one or more "
+                "--interpreter-constraint. Of the three lock styles, only {strict!r} can give you "
+                "full confidence in the lock since it includes exactly the artifacts that are "
+                "included in the local PEX you'll build to test the lock result with before "
+                "checking in the lock. With the other two styles you lock un-vetted artifacts in "
+                "addition to the {strict!r} ones; so, even though you can be sure to reproducibly "
+                "resolve those same un-vetted artifacts in the future, they're still un-vetted and "
+                "could be innocently or maliciously different from the {strict!r} artifacts you "
+                "can locally vet before committing the lock to version control. The effects of the "
+                "differences could range from failing a resolve using the lock when the un-vetted "
+                "artifacts have different dependencies from their sibling artifacts, to your "
+                "application crashing due to different code in the sibling artifacts to being "
+                "compromised by differing code in the sibling artifacts. So, although the more "
+                "permissive lock styles will allow the lock to work on a wider range of machines /"
+                "are apparently more convenient, the convenience comes with a potential price and "
+                "using these styles should be considered carefully.".format(
                     strict=LockStyle.STRICT,
                     sources=LockStyle.SOURCES,
                     universal=LockStyle.UNIVERSAL,
