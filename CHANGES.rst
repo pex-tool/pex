@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.65
+------
+
+This release really brings support for mac universal2 wheels. The fix
+provided by 2.1.64 was partial; universal2 wheels could be resolved at
+build time, but not at runtime.
+
+* Upgrade vendored packaging to 20.9. (#1591)
+  `PR #1591 <https://github.com/pantsbuild/pex/pull/1591>`_
+
 2.1.64
 ------
 
