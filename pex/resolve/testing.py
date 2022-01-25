@@ -3,10 +3,8 @@
 
 from __future__ import absolute_import
 
-from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve
 from pex.sorted_tuple import SortedTuple
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -29,23 +27,14 @@ def normalize_locked_requirement(
     skip_urls=False,  # type: bool
 ):
     # type: (...) -> LockedRequirement
-
-    # We always normalize the following:
-    # 1. If an input requirement is not pinned, its locked equivalent always will be; so just check
-    #    matching project names.
-    # 2. Creating a lock using a lock file as input will differ from a creating a lock using
-    #    requirement strings in its via descriptions for each requirement; so don't compare vias at
-    #    all.
     return attr.evolve(
         locked_req,
         artifact=normalize_artifact(locked_req.artifact, skip_urls=skip_urls),
-        requirement=Requirement.parse(str(ProjectName(locked_req.requirement.project_name))),
         additional_artifacts=()
         if skip_additional_artifacts
         else SortedTuple(
             normalize_artifact(a, skip_urls=skip_urls) for a in locked_req.additional_artifacts
         ),
-        via=(),
     )
 
 

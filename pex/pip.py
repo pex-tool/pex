@@ -23,7 +23,7 @@ from textwrap import dedent
 from pex import dist_metadata, third_party
 from pex.common import atomic_directory, is_python_script, safe_mkdtemp
 from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, get_stdout_bytes_buffer, urlparse
-from pex.dist_metadata import ProjectNameAndVersion
+from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
 from pex.distribution_target import DistributionTarget
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
@@ -328,6 +328,7 @@ class ResolvedRequirement(object):
     def lock_all(
         cls,
         resolved_requirements,  # type: Iterable[ResolvedRequirement]
+        dist_metadatas,  # type: Iterable[DistMetadata]
         url_fetcher,  # type: URLFetcher
     ):
         # type: (...) -> Iterator[LockedRequirement]
@@ -356,16 +357,32 @@ class ResolvedRequirement(object):
                 or fingerprint_by_url[partial_artifact.url],
             )
 
+        dist_metadata_by_pin = {
+            Pin(dist_info.project_name, dist_info.version): dist_info
+            for dist_info in dist_metadatas
+        }
         for resolved_requirement in resolved_requirements:
+            distribution_metadata = dist_metadata_by_pin.get(resolved_requirement.pin)
+            if distribution_metadata is None:
+                raise ValueError(
+                    "No distribution metadata found for {project}.\n"
+                    "Given distribution metadata for:\n"
+                    "{projects}".format(
+                        project=resolved_requirement.pin.as_requirement(),
+                        projects="\n".join(
+                            sorted(str(pin.as_requirement()) for pin in dist_metadata_by_pin)
+                        ),
+                    )
+                )
             yield LockedRequirement.create(
                 pin=resolved_requirement.pin,
                 artifact=resolve_fingerprint(resolved_requirement.artifact),
-                requirement=resolved_requirement.requirement,
+                requires_dists=distribution_metadata.requires_dists,
+                requires_python=distribution_metadata.requires_python,
                 additional_artifacts=(
                     resolve_fingerprint(artifact)
                     for artifact in resolved_requirement.additional_artifacts
                 ),
-                via=resolved_requirement.via,
             )
 
     pin = attr.ib()  # type: Pin
@@ -527,8 +544,11 @@ class Locker(_LogAnalyzer):
         # type: () -> None
         self._analysis_completed = True
 
-    def lock(self):
-        # type: () -> LockedResolve
+    def lock(
+        self,
+        dist_metadatas,  # type: Iterable[DistMetadata]
+    ):
+        # type: (...) -> LockedResolve
         if not self._analysis_completed:
             raise self.StateError(
                 "Lock retrieval was attempted before Pip log analysis was complete."
@@ -537,7 +557,9 @@ class Locker(_LogAnalyzer):
             self._locked_resolve = LockedResolve.from_target(
                 target=self._target,
                 locked_requirements=tuple(
-                    ResolvedRequirement.lock_all(self._resolved_requirements, self._url_fetcher)
+                    ResolvedRequirement.lock_all(
+                        self._resolved_requirements, dist_metadatas, self._url_fetcher
+                    )
                 ),
             )
         return self._locked_resolve

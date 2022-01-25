@@ -50,12 +50,13 @@ def pex_bdist(
     wheels_dir = os.path.join(pex_bdist_chroot, "wheels_dir")
     with atomic_directory(pex_bdist_chroot, exclusive=True) as chroot:
         if not chroot.is_finalized:
-            pex_pex = os.path.join(pex_bdist_chroot, "pex.pex")
+            pex_pex = os.path.join(chroot.work_dir, "pex.pex")
             run_pex_command(
                 args=[pex_project_dir, "-o", pex_pex, "--include-tools"]
             ).assert_success()
+            extract_dir = os.path.join(chroot.work_dir, "wheels_dir")
             subprocess.check_call(
-                args=[pex_pex, "repository", "extract", "-f", wheels_dir],
+                args=[pex_pex, "repository", "extract", "-f", extract_dir],
                 env=make_env(PEX_TOOLS=True),
             )
     wheels = os.listdir(wheels_dir)

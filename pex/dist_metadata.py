@@ -17,13 +17,15 @@ from textwrap import dedent
 from pex import pex_warnings
 from pex.common import open_zip, pluralize
 from pex.compatibility import to_unicode
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import DistInfoDistribution, Distribution, Requirement
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import attr  # vendor:skip
-    from typing import Dict, Iterable, Iterator, List, Optional, Union
+    from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
     DistributionLike = Union[Distribution, str]
 else:
@@ -329,3 +331,29 @@ def requires_dists(dist):
                 ),
             )
         )
+
+
+@attr.s(frozen=True)
+class DistMetadata(object):
+    @classmethod
+    def for_dist(cls, dist):
+        # type: (DistributionLike) -> DistMetadata
+
+        project_name_and_ver = project_name_and_version(dist)
+        if not project_name_and_ver:
+            raise MetadataError(
+                "Failed to determine project name and version for distribution {dist}.".format(
+                    dist=dist
+                )
+            )
+        return cls(
+            project_name=ProjectName(project_name_and_ver.project_name),
+            version=Version(project_name_and_ver.version),
+            requires_dists=tuple(requires_dists(dist)),
+            requires_python=requires_python(dist),
+        )
+
+    project_name = attr.ib()  # type: ProjectName
+    version = attr.ib()  # type: Version
+    requires_dists = attr.ib()  # type: Tuple[Requirement, ...]
+    requires_python = attr.ib()  # type: Optional[SpecifierSet]

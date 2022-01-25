@@ -13,8 +13,9 @@ from pex.commands.command import Error, ResultError, catch, try_
 from pex.common import pluralize
 from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.network_configuration import NetworkConfiguration
+from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, LockedResolve, Version
+from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.sorted_tuple import SortedTuple
@@ -185,12 +186,6 @@ class ResolveUpdater(object):
                 )
             elif project_name in self.update_constraints_by_project_name:
                 updates[project_name] = None
-
-            updated_requirements_by_project_name[project_name] = attr.evolve(
-                updated_requirement,
-                requirement=locked_requirement.requirement,
-                via=locked_requirement.via,
-            )
 
         return ResolveUpdate(
             updated_resolve=attr.evolve(
