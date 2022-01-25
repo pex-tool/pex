@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: packaging
-Version: 20.8
+Version: 20.9
 Summary: Core utilities for Python packages
 Home-page: https://github.com/pypa/packaging
 Author: Donald Stufft and individual contributors
@@ -103,6 +103,14 @@ recent changes and project history.
 
 Changelog
 ---------
+
+20.9 - 2021-01-29
+~~~~~~~~~~~~~~~~~
+
+* Run [isort](https://pypi.org/project/isort/) over the code base (`#377 <https://github.com/pypa/packaging/issues/377>`__)
+* Add support for the ``macosx_10_*_universal2`` platform tags (`#379 <https://github.com/pypa/packaging/issues/379>`__)
+* Introduce ``packaging.utils.parse_wheel_filename()`` and ``parse_sdist_filename()``
+  (`#387 <https://github.com/pypa/packaging/issues/387>`__ and `#389 <https://github.com/pypa/packaging/issues/389>`__)
 
 20.8 - 2020-12-11
 ~~~~~~~~~~~~~~~~~

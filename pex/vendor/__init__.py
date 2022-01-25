@@ -28,7 +28,9 @@ def _root():
 
 
 class VendorSpec(
-    collections.namedtuple("VendorSpec", ["key", "requirement", "rewrite", "constrain"])
+    collections.namedtuple(
+        "VendorSpec", ["key", "requirement", "rewrite", "constrain", "constraints"]
+    )
 ):
     """Represents a vendored distribution.
 
@@ -39,6 +41,7 @@ class VendorSpec(
       `pex.third_party` importer.
     :field bool constrain: Whether to attempt to constrain the requirement via pip's --constraint
       mechanism.
+    :field constraints: An optional list of extra constraints on the vendored requirement.
 
     NB: Vendored distributions should comply with the host distribution platform constraints. In the
     case of pex, which is a py2.py3 platform agnostic wheel, vendored libraries should be as well.
@@ -53,18 +56,28 @@ class VendorSpec(
         return os.path.join(cls.ROOT, *(_PACKAGE_COMPONENTS + [cls._VENDOR_DIR]))
 
     @classmethod
-    def pinned(cls, key, version, rewrite=True):
+    def pinned(cls, key, version, rewrite=True, constraints=None):
         return cls(
-            key=key, requirement="{}=={}".format(key, version), rewrite=rewrite, constrain=True
+            key=key,
+            requirement="{}=={}".format(key, version),
+            rewrite=rewrite,
+            constrain=True,
+            constraints=constraints,
         )
 
     @classmethod
-    def git(cls, repo, commit, project_name, prep_command=None, rewrite=True):
+    def git(cls, repo, commit, project_name, prep_command=None, rewrite=True, constraints=None):
         requirement = "git+{repo}@{commit}#egg={project_name}".format(
             repo=repo, commit=commit, project_name=project_name
         )
         if not prep_command:
-            return cls(key=project_name, requirement=requirement, rewrite=rewrite, constrain=False)
+            return cls(
+                key=project_name,
+                requirement=requirement,
+                rewrite=rewrite,
+                constrain=False,
+                constraints=constraints,
+            )
 
         class PreparedGit(VendorSpec):
             def prepare(self):
@@ -83,6 +96,7 @@ class VendorSpec(
             requirement=requirement,
             rewrite=rewrite,
             constrain=False,
+            constraints=constraints,
         )
 
     @property
@@ -135,7 +149,7 @@ def iter_vendor_specs():
 
     # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
     # time to implement resolving distributions from a PEX repository.
-    yield VendorSpec.pinned("packaging", "20.8")
+    yield VendorSpec.pinned("packaging", "20.9", constraints=["pyparsing<3"])
 
     # We shell out to pip at buildtime to resolve and install dependencies.
     # N.B.: We're currently using a patched version of Pip 20.3.4 housed at
@@ -196,7 +210,7 @@ def iter_vendor_specs():
     )
 
     # We expose this to pip at buildtime for legacy builds.
-    yield VendorSpec.pinned("wheel", "0.36.2", rewrite=False)
+    yield VendorSpec.pinned("wheel", "0.37.1", rewrite=False)
 
 
 def vendor_runtime(chroot, dest_basedir, label, root_module_names, include_dist_info=False):

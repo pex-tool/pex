@@ -3,25 +3,37 @@
 # for complete details.
 from __future__ import absolute_import, division, print_function
 
-import string
 import re
+import string
 import sys
 
 if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from pyparsing import stringStart, stringEnd, originalTextFor, ParseException  # vendor:skip
+  from pyparsing import (  # noqa: N817
+    Combine,
+    Literal as L,
+    Optional,
+    ParseException,
+    Regex,
+    Word,
+    ZeroOrMore,
+    originalTextFor,
+    stringEnd,
+    stringStart,
+)  # vendor:skip
 else:
-  from pex.third_party.pyparsing import stringStart, stringEnd, originalTextFor, ParseException
+  from pex.third_party.pyparsing import (  # noqa: N817
+    Combine,
+    Literal as L,
+    Optional,
+    ParseException,
+    Regex,
+    Word,
+    ZeroOrMore,
+    originalTextFor,
+    stringEnd,
+    stringStart,
+)
 
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from pyparsing import ZeroOrMore, Word, Optional, Regex, Combine  # vendor:skip
-else:
-  from pex.third_party.pyparsing import ZeroOrMore, Word, Optional, Regex, Combine
-
-if "__PEX_UNVENDORED__" in __import__("os").environ:
-  from pyparsing import Literal as L  # vendor:skip
-else:
-  from pex.third_party.pyparsing import Literal as L
-  # noqa
 
 from ._typing import TYPE_CHECKING
 from .markers import MARKER_EXPR, Marker
