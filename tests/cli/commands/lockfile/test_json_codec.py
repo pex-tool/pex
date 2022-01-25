@@ -43,6 +43,7 @@ def test_roundtrip(tmpdir):
     lockfile = Lockfile.create(
         pex_version="1.2.3",
         style=LockStyle.STRICT,
+        requires_python=(),
         resolver_version=ResolverVersion.PIP_2020,
         requirements=(
             Requirement.parse("ansicolors"),
@@ -146,6 +147,7 @@ VALID_LOCK = """\
   "requirements": [
     "ansicolors"
   ],
+  "requires_python": [],
   "resolver_version": "pip-legacy-resolver",
   "style": "sources",
   "transitive": true,
@@ -381,8 +383,8 @@ def test_load_invalid_resolver_version(patch_tool):
         patch_tool,
         dedent(
             """\
-            @@ -38,3 +38,3 @@
-               ],
+            @@ -39,3 +39,3 @@
+               "requires_python": [],
             -  "resolver_version": "pip-legacy-resolver",
             +  "resolver_version": "apache-ivy",
                "style": "sources",

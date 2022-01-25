@@ -14,7 +14,7 @@ from pex.cli.commands.lockfile import Lockfile, create, json_codec
 from pex.cli.commands.lockfile.updater import LockUpdater, ResolveUpdateRequest
 from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result, try_
 from pex.common import pluralize
-from pex.distribution_target import DistributionTarget
+from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.enum import Enum
 from pex.pep_503 import ProjectName
 from pex.resolve import requirement_options, resolver_options, target_options
@@ -97,10 +97,29 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             help=(
                 "The style of lock to generate. The {strict!r} style is the default and generates "
                 "a lock file that contains exactly the distributions that would be used in a local "
-                "resolve. If an sdist would be used, the sdist is included, but if a wheel would "
-                "be used, an accompanying sdist will not be included. The {sources} style includes "
-                "locks containing wheels and the associated sdists when available.".format(
-                    strict=LockStyle.STRICT, sources=LockStyle.SOURCES
+                "PEX build. If an sdist would be used, the sdist is included, but if a wheel would "
+                "be used, an accompanying sdist will not be included. The {sources!r} style "
+                "includes locks containing both wheels and the associated sdists when available. "
+                "The {universal!r} style generates a universal lock for all possible target "
+                "interpreters and platforms, although the scope can be constrained via one or more "
+                "--interpreter-constraint. Of the three lock styles, only {strict!r} can give you "
+                "full confidence in the lock since it includes exactly the artifacts that are "
+                "included in the local PEX you'll build to test the lock result with before "
+                "checking in the lock. With the other two styles you lock un-vetted artifacts in "
+                "addition to the {strict!r} ones; so, even though you can be sure to reproducibly "
+                "resolve those same un-vetted artifacts in the future, they're still un-vetted and "
+                "could be innocently or maliciously different from the {strict!r} artifacts you "
+                "can locally vet before committing the lock to version control. The effects of the "
+                "differences could range from failing a resolve using the lock when the un-vetted "
+                "artifacts have different dependencies from their sibling artifacts, to your "
+                "application crashing due to different code in the sibling artifacts to being "
+                "compromised by differing code in the sibling artifacts. So, although the more "
+                "permissive lock styles will allow the lock to work on a wider range of machines /"
+                "are apparently more convenient, the convenience comes with a potential price and "
+                "using these styles should be considered carefully.".format(
+                    strict=LockStyle.STRICT,
+                    sources=LockStyle.SOURCES,
+                    universal=LockStyle.UNIVERSAL,
                 )
             ),
         )
@@ -192,9 +211,32 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     def _create(self):
         # type: () -> Result
-        lock_configuration = LockConfiguration(style=self.options.style)
+        target_configuration = target_options.configure(self.options)
+        if self.options.style == LockStyle.UNIVERSAL:
+            if target_configuration.pythons or target_configuration.platforms:
+                return Error(
+                    "When creating a {universal} lock, the interpreters the resulting lock applies "
+                    "to can only be constrained via --interpreter-constraint. There {were} "
+                    "{num_pythons} --python and {num_platforms} --platform specified.".format(
+                        universal=LockStyle.UNIVERSAL.value,
+                        were="were" if len(target_configuration.pythons) > 1 else "was",
+                        num_pythons=len(target_configuration.pythons),
+                        num_platforms=len(target_configuration.platforms),
+                    )
+                )
+            lock_configuration = LockConfiguration(
+                style=LockStyle.UNIVERSAL,
+                requires_python=tuple(
+                    str(interpreter_constraint.specifier)
+                    for interpreter_constraint in target_configuration.interpreter_constraints
+                ),
+            )
+            targets = DistributionTargets()
+        else:
+            lock_configuration = LockConfiguration(style=self.options.style)
+            targets = target_configuration.resolve_targets()
+
         requirement_configuration = requirement_options.configure(self.options)
-        targets = target_options.configure(self.options).resolve_targets()
         pip_configuration = resolver_options.create_pip_configuration(self.options)
         lock_file = try_(
             create(
@@ -314,8 +356,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             max_jobs=resolver_options.get_max_jobs_value(self.options),
         )
 
-        distribution_targets = target_options.configure(self.options).resolve_targets()
-
+        distribution_targets = (
+            DistributionTargets()
+            if lock_file.style == LockStyle.UNIVERSAL
+            else target_options.configure(self.options).resolve_targets()
+        )
         update_requests = [
             ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
             for target, locked_resolve in lock_file.select(distribution_targets.unique_targets())

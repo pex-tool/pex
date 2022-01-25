@@ -227,7 +227,9 @@ class LockUpdater(object):
     ):
         # type: (...) -> LockUpdater
 
-        lock_configuration = LockConfiguration(style=lock_file.style)
+        lock_configuration = LockConfiguration(
+            style=lock_file.style, requires_python=lock_file.requires_python
+        )
         pip_configuration = PipConfiguration(
             resolver_version=lock_file.resolver_version,
             allow_prereleases=lock_file.allow_prereleases,

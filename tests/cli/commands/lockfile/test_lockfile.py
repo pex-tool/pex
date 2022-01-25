@@ -63,6 +63,7 @@ SINGLE_PLATFORM_UNIVERSAL_WHEEL = lockfile.loads(
           "requirements": [
             "ansicolors"
           ],
+          "requires_python": [],
           "resolver_version": "pip-legacy-resolver",
           "style": "strict",
           "transitive": true,
@@ -178,6 +179,7 @@ DUAL_PLATFORM_NATIVE_WHEEL = lockfile.loads(
           "requirements": [
             "p537"
           ],
+          "requires_python": [],
           "resolver_version": "pip-legacy-resolver",
           "style": "strict",
           "transitive": true,
@@ -247,6 +249,7 @@ LOCK_STYLE_SOURCES = lockfile.loads(
           "requirements": [
             "p537==1.0.4"
           ],
+          "requires_python": [],
           "resolver_version": "pip-legacy-resolver",
           "style": "sources",
           "transitive": true,
