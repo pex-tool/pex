@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: wheel
-Version: 0.36.2
+Version: 0.37.1
 Summary: A built-package format for Python
 Home-page: https://github.com/pypa/wheel
 Author: Daniel Holth
@@ -26,6 +26,7 @@ Classifier: Programming Language :: Python :: 3.6
 Classifier: Programming Language :: Python :: 3.7
 Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
 Requires-Python: !=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7
 Provides-Extra: test
 Requires-Dist: pytest (>=3.0.0) ; extra == 'test'
