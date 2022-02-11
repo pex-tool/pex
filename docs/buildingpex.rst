@@ -402,6 +402,12 @@ like ``PLATFORM-IMPL-PYVER-ABI``, where ``PLATFORM`` is the platform (e.g. ``lin
 is a two-digit string representing the python version (e.g., ``36``) and ``ABI`` is the ABI tag (e.g., ``cp36m``,
 ``cp27mu``, ``abi3``, ``none``). A complete example: ``linux_x86_64-cp-36-cp36m``.
 
+**Constraints**: when ``--platform`` is used the `environment marker <https://www.python.org/dev/peps/pep-0508/#environment-markers>`_
+``python_full_version`` is not available, because its value cannot be determined from a platform where only a two-digit string
+representing the python version can be specified (e.g., ``38``), while ``python_full_version`` is meant to have 3 digits (e.g., ``3.8.10``).
+If ``python_full_version`` is found an ``UndefinedEnvironmentName`` exception will be raised.
+
+
 Tailoring PEX execution at runtime
 ----------------------------------
 
