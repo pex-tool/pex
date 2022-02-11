@@ -17,11 +17,11 @@ def test_mount_respects_env(
     # type: (...) -> None
 
     home = os.path.join(str(tmpdir), "home")
-    os.mkdir(home)
 
     pex_root = os.path.join(home, ".pex")
-    os.mkdir(pex_root)
+    os.makedirs(pex_root)
     os.chmod(pex_root, 0o555)
+    unwritable_pex_root_warning = "PEXWarning: PEX_ROOT is configured as {}".format(pex_root)
 
     pex_file = os.path.join(str(tmpdir), "pex.pex")
 
@@ -29,7 +29,8 @@ def test_mount_respects_env(
         args=[pex_project_dir, "-o", pex_file], env=make_env(HOME=home), quiet=True
     )
     result.assert_success()
-    assert "PEXWarning: PEX_ROOT is configured as {}".format(pex_root) in result.error
+
+    assert unwritable_pex_root_warning in result.error
 
     pex_root_override = os.path.join(str(tmpdir), "pex_root_override")
     result = run_pex_command(
@@ -38,4 +39,4 @@ def test_mount_respects_env(
         quiet=True,
     )
     result.assert_success()
-    assert "" == result.error
+    assert unwritable_pex_root_warning not in result.error
