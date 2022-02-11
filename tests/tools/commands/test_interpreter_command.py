@@ -167,7 +167,7 @@ def test_verbose_verbose_verbose(
     # type: (...) -> None
     output = interpreter_tool.run("-vvv")
     expected = expected_verbose_verbose(python37)
-    expected.update(env_markers=python37.identity.env_markers, venv=False)
+    expected.update(env_markers=python37.identity.env_markers.as_dict(), venv=False)
     assert expected == json.loads(output)
 
 
@@ -184,7 +184,7 @@ def test_verbose_verbose_verbose_venv(
 
     expected = expected_verbose_verbose(venv.interpreter)
     expected.update(
-        env_markers=venv.interpreter.identity.env_markers,
+        env_markers=venv.interpreter.identity.env_markers.as_dict(),
         venv=True,
         base_interpreter=python310.binary,
     )

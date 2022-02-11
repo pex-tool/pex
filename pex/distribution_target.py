@@ -7,6 +7,7 @@ import os
 
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
+from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import Requirement
@@ -142,15 +143,16 @@ class DistributionTarget(object):
         if requirement.marker is None:
             return True
 
+        marker_environment = (
+            MarkerEnvironment.from_platform(self._platform)
+            if self._platform is not None
+            else self.get_interpreter().identity.env_markers
+        )
         if not extras:
             # Provide an empty extra to safely evaluate the markers without matching any extra.
             extras = ("",)
         for extra in extras:
-            # N.B.: These each net us a copy of the markers so we're free to mutate.
-            if self._platform is not None:
-                environment = self._platform.marker_environment()
-            else:
-                environment = self.get_interpreter().identity.env_markers
+            environment = marker_environment.as_dict()
             environment["extra"] = extra
             if requirement.marker.evaluate(environment=environment):
                 return True

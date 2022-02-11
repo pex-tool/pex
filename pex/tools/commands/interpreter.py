@@ -89,7 +89,9 @@ class Interpreter(JsonMixin, OutputMixin, PEXCommand):
                                 str(tag) for tag in interpreter.identity.supported_tags
                             ]
                         if self.options.verbose >= 3:
-                            interpreter_info["env_markers"] = interpreter.identity.env_markers
+                            interpreter_info[
+                                "env_markers"
+                            ] = interpreter.identity.env_markers.as_dict()
                             interpreter_info["venv"] = interpreter.is_venv
                             if interpreter.is_venv:
                                 interpreter_info[
