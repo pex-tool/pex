@@ -216,16 +216,18 @@ class PEXEnvironment(object):
         target=None,  # type: Optional[DistributionTarget]
     ):
         # type: (...) -> PEXEnvironment
-        pi = pex_info or PexInfo.from_pex(pex)
-        pex_hash = pi.pex_hash
+        if not pex_info:
+            pex_info = PexInfo.from_pex(pex)
+            pex_info.update(PexInfo.from_env())
+        pex_hash = pex_info.pex_hash
         if pex_hash is None:
             raise AssertionError(
                 "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex)
             )
-        pex_root = pi.pex_root
+        pex_root = pex_info.pex_root
         pex = maybe_install(pex=pex, pex_root=pex_root, pex_hash=pex_hash) or pex
         target = target or DistributionTarget.current()
-        return cls(pex=pex, pex_info=pi, target=target)
+        return cls(pex=pex, pex_info=pex_info, target=target)
 
     def __init__(
         self,
