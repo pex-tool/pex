@@ -31,6 +31,7 @@ from pex.interpreter_constraints import iter_compatible_versions
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pep_508 import MarkerEnvironment
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.platforms import Platform
@@ -1125,7 +1126,7 @@ class Pip(object):
             # those we cannot know.
             env_markers_dir = safe_mkdtemp()
             platform, _ = target.get_platform()
-            patched_environment = platform.marker_environment(
+            patched_environment = MarkerEnvironment.from_platform(platform).as_dict(
                 # We want to fail a resolve when it needs to evaluate environment markers we can't
                 # calculate given just the platform information.
                 default_unknown=False
