@@ -364,7 +364,6 @@ class AtomicDirectory(object):
         # type: () -> str
         return self._target_dir
 
-    @property
     def is_finalized(self):
         # type: () -> bool
         return os.path.exists(self._target_dir)
@@ -379,7 +378,7 @@ class AtomicDirectory(object):
         If a race is lost and `target_dir` already exists, the `target_dir` dir is left unchanged and
         the `work_dir` directory will simply be removed.
         """
-        if self.is_finalized:
+        if self.is_finalized():
             return
 
         source = os.path.join(self._work_dir, source) if source else self._work_dir
@@ -429,7 +428,7 @@ def atomic_directory(target_dir, exclusive, source=None):
     pass `exclusive=True` to ensure mutations that race the creation process are not lost.
     """
     atomic_dir = AtomicDirectory(target_dir=target_dir)
-    if atomic_dir.is_finalized:
+    if atomic_dir.is_finalized():
         # Our work is already done for us so exit early.
         yield atomic_dir
         return
@@ -459,7 +458,7 @@ def atomic_directory(target_dir, exclusive, source=None):
         # closed by the operating system when the owning process exits, this lock is immune to
         # staleness.
         fcntl.lockf(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
-        if atomic_dir.is_finalized:
+        if atomic_dir.is_finalized():
             # We lost the double-checked locking race and our work was done for us by the race
             # winner so exit early.
             try:

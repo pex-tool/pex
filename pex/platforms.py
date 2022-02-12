@@ -190,7 +190,7 @@ class Platform(object):
             components.append(manylinux)
         disk_cache_key = os.path.join(ENV.PEX_ROOT, "platforms", self.SEP.join(components))
         with atomic_directory(target_dir=disk_cache_key, exclusive=False) as cache_dir:
-            if not cache_dir.is_finalized:
+            if not cache_dir.is_finalized():
                 # Missed both caches - spawn calculation.
                 plat_info = attr.asdict(self)
                 plat_info.update(

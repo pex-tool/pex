@@ -423,7 +423,7 @@ def ensure_venv(
             "support (Re-build the PEX file with `pex --venv ...`)"
         )
     with atomic_directory(venv_dir, exclusive=True) as venv:
-        if not venv.is_finalized:
+        if not venv.is_finalized():
             from .tools.commands.venv import populate_venv_with_pex
             from .tools.commands.virtualenv import Virtualenv
 
@@ -446,7 +446,7 @@ def ensure_venv(
                 entropy = venv_hash[:chars]
                 short_venv_dir = os.path.join(pex_info.pex_root, "venvs", "s", entropy)
                 with atomic_directory(short_venv_dir, exclusive=True) as short_venv:
-                    if short_venv.is_finalized:
+                    if short_venv.is_finalized():
                         collisions.append(short_venv_dir)
                         if entropy == venv_hash:
                             raise RuntimeError(

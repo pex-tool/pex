@@ -627,7 +627,7 @@ class Pip(object):
         pip_interpreter = interpreter or PythonInterpreter.get()
         pip_pex_path = os.path.join(path, isolated().pex_hash)
         with atomic_directory(pip_pex_path, exclusive=True) as chroot:
-            if not chroot.is_finalized:
+            if not chroot.is_finalized():
                 from pex.pex_builder import PEXBuilder
 
                 isolated_pip_builder = PEXBuilder(path=chroot.work_dir)

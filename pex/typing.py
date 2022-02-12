@@ -40,6 +40,11 @@ if TYPE_CHECKING:
     from typing import cast as cast, Any
     from typing import overload as overload
     from typing import Generic as Generic
+
+    if sys.version_info[:2] >= (3, 8):
+        from typing import Literal as Literal
+    else:
+        from typing_extensions import Literal as Literal
 else:
 
     def cast(_type, value):

@@ -210,7 +210,7 @@ class CacheHelper(object):
         :returns: The cached distribution.
         """
         with atomic_directory(target_dir, source=source, exclusive=True) as target_dir_tmp:
-            if target_dir_tmp.is_finalized:
+            if target_dir_tmp.is_finalized():
                 TRACER.log("Using cached {}".format(target_dir), V=3)
             else:
                 with TRACER.timed("Caching {}:{} in {}".format(zf.filename, source, target_dir)):

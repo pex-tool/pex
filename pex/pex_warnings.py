@@ -6,7 +6,7 @@ from __future__ import absolute_import
 
 import warnings
 
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from pex.pex_info import PexInfo
@@ -32,7 +32,7 @@ def configure_warnings(
     else:
         emit_warnings = True
 
-    action = "default" if emit_warnings else "ignore"
+    action = "default" if emit_warnings else "ignore"  # type: Literal["default", "ignore"]
     warnings.filterwarnings(action, category=PEXWarning)
 
 

@@ -117,10 +117,10 @@ class PythonIdentity(object):
             prefix=sys.prefix,
             base_prefix=(
                 # Old virtualenv (16 series and lower) sets `sys.real_prefix` in all cases.
-                getattr(sys, "real_prefix", None)
+                cast("Optional[str]", getattr(sys, "real_prefix", None))
                 # Both pyvenv and virtualenv 20+ set `sys.base_prefix` as per
                 # https://www.python.org/dev/peps/pep-0405/.
-                or getattr(sys, "base_prefix", sys.prefix)
+                or cast(str, getattr(sys, "base_prefix", sys.prefix))
             ),
             sys_path=sys_path,
             python_tag=preferred_tag.interpreter,

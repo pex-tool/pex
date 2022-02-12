@@ -398,7 +398,7 @@ def isolated():
 
         with _tracer().timed("Isolating pex"):
             with atomic_directory(isolated_dir, exclusive=True) as chroot:
-                if not chroot.is_finalized:
+                if not chroot.is_finalized():
                     with _tracer().timed("Extracting pex to {}".format(isolated_dir)):
                         recursive_copy("", os.path.join(chroot.work_dir, "pex"))
 
