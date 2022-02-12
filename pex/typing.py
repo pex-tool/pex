@@ -73,3 +73,5 @@ else:
         eval(compile("class Generic(object, metaclass=_Generic): pass", "<Generic>", "exec"))
 
     del _Generic
+
+    Literal = {}
