@@ -18,8 +18,9 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
+    from typing import IO, Any, BinaryIO, Iterable, Iterator, Optional, Tuple
+
     import attr  # vendor:skip
-    from typing import Any, BinaryIO, IO, Iterable, Iterator, Optional, Tuple
 else:
     from pex.third_party import attr
 

@@ -37,9 +37,10 @@ TYPE_CHECKING = False
 # Unlike most type-hints, `cast` and `overload` get used at runtime. We define no-op versions for
 # runtime use.
 if TYPE_CHECKING:
-    from typing import cast as cast, Any
-    from typing import overload as overload
+    from typing import Any
     from typing import Generic as Generic
+    from typing import cast as cast
+    from typing import overload as overload
 else:
 
     def cast(_type, value):

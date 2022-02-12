@@ -22,8 +22,9 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import Iterator, Optional, Union
+
+    import attr  # vendor:skip
 else:
     from pex.third_party import attr
 

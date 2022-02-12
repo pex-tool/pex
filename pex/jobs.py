@@ -13,8 +13,9 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import Any, Callable, Iterable, Optional, Text, Tuple, TypeVar
+
+    import attr  # vendor:skip
 
     _T = TypeVar("_T")
 else:

@@ -14,8 +14,9 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import Iterable, Iterator, Optional, Tuple
+
+    import attr  # vendor:skip
 
     from pex.interpreter import InterpreterIdentificationError
 else:

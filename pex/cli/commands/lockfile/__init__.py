@@ -70,6 +70,7 @@ def store(
     :param path: The path to store the lock file at.
     """
     import json
+
     from pex.cli.commands.lockfile import json_codec
 
     with safe_open(path, "w") as fp:

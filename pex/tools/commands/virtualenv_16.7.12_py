@@ -1048,6 +1048,7 @@ def _install_wheel_with_search_dir(download, project_names, py_executable, searc
     # with spaces in them. Convert any of those to local file:// URL form.
     try:
         from urllib import pathname2url
+
         from urlparse import urljoin
     except ImportError:
         from urllib.parse import urljoin

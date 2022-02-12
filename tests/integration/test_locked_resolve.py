@@ -15,8 +15,9 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
+    from typing import Any, Dict, Iterable
+
     import attr  # vendor:skip
-    from typing import Any, Iterable, Dict
 else:
     from pex.third_party import attr
 

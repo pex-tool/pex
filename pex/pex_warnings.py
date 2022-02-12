@@ -9,9 +9,10 @@ import warnings
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from typing import Optional
+
     from pex.pex_info import PexInfo
     from pex.variables import Variables
-    from typing import Optional
 
 
 class PEXWarning(Warning):

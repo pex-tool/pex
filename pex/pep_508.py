@@ -8,8 +8,9 @@ from pex.third_party.packaging import markers
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from typing import Dict, Optional
+
     import attr  # vendor:skip
-    from typing import Optional, Dict
 else:
     from pex.third_party import attr
 

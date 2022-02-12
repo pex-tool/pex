@@ -22,7 +22,7 @@ from pex.testing import (
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional, List
+    from typing import Iterable, List, Optional
 
 
 def _assert_exec_chain(

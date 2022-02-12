@@ -9,8 +9,9 @@ from pex.network_configuration import NetworkConfiguration
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import Optional, Tuple
+
+    import attr  # vendor:skip
 else:
     from pex.third_party import attr
 

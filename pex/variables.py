@@ -21,17 +21,7 @@ from pex.typing import TYPE_CHECKING, Generic, overload
 from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:
-    from typing import (
-        Callable,
-        Dict,
-        Iterator,
-        Optional,
-        Tuple,
-        TypeVar,
-        Type,
-        Union,
-        Any,
-    )
+    from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Type, TypeVar, Union
 
     _O = TypeVar("_O")
     _P = TypeVar("_P")

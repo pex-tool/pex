@@ -20,7 +20,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Iterator, IO, Tuple
+    from typing import IO, Iterator, Tuple
 
 logger = logging.getLogger(__name__)
 

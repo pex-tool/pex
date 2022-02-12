@@ -38,7 +38,7 @@ if TYPE_CHECKING:
         from hashlib import _hash as _Hash
     else:
         from hashlib import _Hash
-    from typing import Any, BinaryIO, Callable, IO, Iterable, Iterator, Optional, Text
+    from typing import IO, Any, BinaryIO, Callable, Iterable, Iterator, Optional, Text
 
 
 class DistributionHelper(object):

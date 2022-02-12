@@ -57,10 +57,10 @@ Documentation = "https://pex.readthedocs.io/en/latest/"
 [tool.black]
 line-length = 100
 target-version = ["py27"]
-exclude = '''
+extend-exclude = '''
 /(
   | \.git
-  | \pex/vendor/_vendored
+  | pex/vendor/_vendored
   | \.pyenv_test
 )/
 '''
@@ -73,3 +73,4 @@ use_parentheses = true
 line_length = 100
 default_section = "THIRDPARTY"
 known_first_party = "pex"
+skip_glob = ["pex/vendor/_vendored/**"]

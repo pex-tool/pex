@@ -19,16 +19,9 @@ from pex.third_party.pkg_resources import Requirement, RequirementParseError
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    from typing import Iterable, Iterator, Match, Optional, Text, Tuple, Union
+
     import attr  # vendor:skip
-    from typing import (
-        Iterable,
-        Iterator,
-        Match,
-        Optional,
-        Text,
-        Tuple,
-        Union,
-    )
 else:
     from pex.third_party import attr
 

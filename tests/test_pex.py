@@ -44,8 +44,9 @@ except ImportError:
     import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import Dict, Iterable, Iterator, Union
+
+    import attr  # vendor:skip
 else:
     from pex.third_party import attr
 
