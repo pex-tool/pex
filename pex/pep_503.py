@@ -8,8 +8,9 @@ from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import Union
+
+    import attr  # vendor:skip
 else:
     from pex.third_party import attr
 

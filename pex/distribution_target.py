@@ -14,8 +14,9 @@ from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    from typing import Any, Iterator, Optional, Tuple
+
     import attr  # vendor:skip
-    from typing import Any, Optional, Tuple, Iterator
 else:
     from pex.third_party import attr
 

@@ -53,8 +53,6 @@ from pex.util import CacheHelper, named_temporary_file
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
-
     from typing import (
         Any,
         Callable,
@@ -73,11 +71,12 @@ if TYPE_CHECKING:
         Union,
     )
 
+    import attr  # vendor:skip
+
     class CSVWriter(Protocol):
         def writerow(self, row):
             # type: (Iterable[Union[str, int]]) -> None
             pass
-
 
 else:
     from pex.third_party import attr

@@ -6,7 +6,7 @@ from __future__ import absolute_import
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, IO, List, Mapping, Optional, Tuple
+    from typing import IO, Dict, List, Mapping, Optional, Tuple
 
     Value = Optional[str]
     Attributes = Mapping[str, Value]

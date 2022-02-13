@@ -33,8 +33,9 @@ from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    from typing import IO, Callable, Iterable, Iterator, Text, Tuple
+
     import attr  # vendor:skip
-    from typing import Callable, IO, Iterable, Iterator, Text, Tuple
 
     RepositoryFunc = Callable[["Repository", PEX], Result]
 else:

@@ -12,7 +12,7 @@ from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, List, Iterator, Iterable, Optional, Union
+    from typing import Dict, Iterable, Iterator, List, Optional, Union
 
 
 BDIST_PEX_VENV = None  # type: Optional[Virtualenv]

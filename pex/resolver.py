@@ -31,7 +31,6 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import (
         DefaultDict,
         Dict,
@@ -43,6 +42,8 @@ if TYPE_CHECKING:
         Sequence,
         Tuple,
     )
+
+    import attr  # vendor:skip
 
     from pex.requirements import ParsedRequirement
 else:

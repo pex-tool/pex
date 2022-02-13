@@ -57,12 +57,11 @@ Documentation = "https://pex.readthedocs.io/en/latest/"
 [tool.black]
 line-length = 100
 target-version = ["py27"]
-exclude = '''
+extend-exclude = '''
 /(
-  | \.git
-  | \pex/vendor/_vendored
-  | \.pyenv_test
-)/
+  | pex/tools/commands/virtualenv_16.7.12_py
+  | pex/vendor/_vendored/
+)
 '''
 
 [tool.isort]
@@ -73,3 +72,7 @@ use_parentheses = true
 line_length = 100
 default_section = "THIRDPARTY"
 known_first_party = "pex"
+skip_glob = [
+  "pex/tools/commands/virtualenv_16.7.12_py",
+  "pex/vendor/_vendored/**"
+]

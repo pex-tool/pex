@@ -16,8 +16,9 @@ from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from typing import Any, Dict, Iterable
+
     import attr  # vendor:skip
-    from typing import Iterable, Dict, Any
 else:
     from pex.third_party import attr
 

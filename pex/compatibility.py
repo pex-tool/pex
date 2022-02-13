@@ -16,7 +16,7 @@ from sys import version_info as sys_version_info
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Optional, AnyStr, Text, Tuple, Type
+    from typing import AnyStr, Optional, Text, Tuple, Type
 
 
 try:
@@ -60,7 +60,6 @@ if PY2:
         else:
             raise ValueError("Cannot convert %s to a unicode string" % type(st))
 
-
 else:
 
     def to_bytes(st, encoding="utf-8"):
@@ -96,7 +95,6 @@ if PY3:
         exec (ast, globals_map, locals_map)
         return locals_map
 
-
 else:
 
     def exec_function(ast, globals_map):
@@ -108,22 +106,20 @@ else:
 
 if PY3:
     from urllib import parse as urlparse
-
     from urllib.error import HTTPError as HTTPError
-    from urllib.request import build_opener as build_opener
     from urllib.request import FileHandler as FileHandler
     from urllib.request import HTTPSHandler as HTTPSHandler
     from urllib.request import ProxyHandler as ProxyHandler
     from urllib.request import Request as Request
+    from urllib.request import build_opener as build_opener
 else:
     import urlparse as urlparse
-
-    from urllib2 import build_opener as build_opener
     from urllib2 import FileHandler as FileHandler
     from urllib2 import HTTPError as HTTPError
     from urllib2 import HTTPSHandler as HTTPSHandler
     from urllib2 import ProxyHandler as ProxyHandler
     from urllib2 import Request as Request
+    from urllib2 import build_opener as build_opener
 
 if PY3:
     from queue import Queue as Queue
@@ -139,10 +135,10 @@ if PY3:
             cpu_set = os.sched_getaffinity(0)
             return len(cpu_set)
 
-
 else:
-    from Queue import Queue as Queue
     from multiprocessing import cpu_count as cpu_count
+
+    from Queue import Queue as Queue
 
 WINDOWS = os.name == "nt"
 

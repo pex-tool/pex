@@ -19,16 +19,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import (
-        Iterable,
-        Iterator,
-        List,
-        NoReturn,
-        Optional,
-        Set,
-        Tuple,
-        Union,
-    )
+    from typing import Iterable, Iterator, List, NoReturn, Optional, Set, Tuple, Union
 
     from pex.interpreter import InterpreterIdentificationError, InterpreterOrError, PathFilter
     from pex.pex import PEX

@@ -118,6 +118,5 @@ if TYPE_CHECKING:
             # type: (bool) -> _I
             return cast("_I", super(OrderedSet, self).pop(last=last))
 
-
 else:
     OrderedSet = _OrderedSet

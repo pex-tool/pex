@@ -15,7 +15,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import unzip_dir
 
 if TYPE_CHECKING:
-    from typing import Optional, Iterator
+    from typing import Iterator, Optional
 
 BOOTSTRAP_DIR = ".bootstrap"
 DEPS_DIR = ".deps"

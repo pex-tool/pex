@@ -35,7 +35,6 @@ from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper, named_temporary_file
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import (
         Any,
         Callable,
@@ -50,6 +49,8 @@ if TYPE_CHECKING:
         Tuple,
         Union,
     )
+
+    import attr  # vendor:skip
 else:
     from pex.third_party import attr
 

@@ -14,7 +14,7 @@ from pex.variables import ENV
 __all__ = ("TRACER", "TraceLogger")
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, IO, Iterator, List, Optional
+    from typing import IO, Any, Callable, Iterator, List, Optional
 
 
 class Trace(object):

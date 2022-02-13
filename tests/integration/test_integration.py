@@ -49,15 +49,7 @@ from pex.util import DistributionHelper, named_temporary_file
 from pex.variables import ENV, unzip_dir, venv_dir
 
 if TYPE_CHECKING:
-    from typing import (
-        Any,
-        Callable,
-        ContextManager,
-        Iterator,
-        List,
-        Optional,
-        Tuple,
-    )
+    from typing import Any, Callable, ContextManager, Iterator, List, Optional, Tuple
 
 
 def test_pex_execute():
