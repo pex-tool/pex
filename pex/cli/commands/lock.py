@@ -26,8 +26,9 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import DefaultDict, List, Union
+
+    import attr  # vendor:skip
 else:
     from pex.third_party import attr
 

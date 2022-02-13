@@ -27,14 +27,13 @@ from pex.variables import ENV, Variables
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import (
+        IO,
         Any,
         Callable,
         Dict,
         Iterable,
         Iterator,
-        IO,
         NoReturn,
         Optional,
         Sequence,
@@ -42,6 +41,8 @@ if TYPE_CHECKING:
         TypeVar,
         Union,
     )
+
+    import attr  # vendor:skip
 else:
     from pex.third_party import attr
 

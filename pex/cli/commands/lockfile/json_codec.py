@@ -26,17 +26,7 @@ from pex.third_party.pkg_resources import Requirement, RequirementParseError
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import (
-        Any,
-        Dict,
-        List,
-        Mapping,
-        Text,
-        Tuple,
-        Type,
-        TypeVar,
-        Union,
-    )
+    from typing import Any, Dict, List, Mapping, Text, Tuple, Type, TypeVar, Union
 
     _V = TypeVar("_V", bound=Enum.Value)
 

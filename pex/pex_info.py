@@ -19,9 +19,9 @@ from pex.venv_bin_path import BinPath
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:
-    from pex.interpreter import PythonInterpreter
-
     from typing import Any, Dict, Mapping, Optional, Text, Union
+
+    from pex.interpreter import PythonInterpreter
 
 
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.

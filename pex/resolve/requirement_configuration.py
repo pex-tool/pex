@@ -9,8 +9,10 @@ from pex.requirements import Constraint, parse_requirement_file, parse_requireme
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from typing import Iterable, List, Optional
+
     import attr  # vendor:skip
-    from typing import Optional, Iterable, List
+
     from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr

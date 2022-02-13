@@ -28,8 +28,9 @@ from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import Any
+
+    import attr  # vendor:skip
 else:
     if "__PEX_UNVENDORED__" in __import__("os").environ:
         import attr  # vendor:skip

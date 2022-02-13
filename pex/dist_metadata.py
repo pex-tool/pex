@@ -24,8 +24,9 @@ from pex.third_party.pkg_resources import DistInfoDistribution, Distribution, Re
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
+
+    import attr  # vendor:skip
 
     DistributionLike = Union[Distribution, str]
 else:

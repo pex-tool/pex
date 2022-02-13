@@ -31,8 +31,9 @@ from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import attr  # vendor:skip
     from typing import Any, Iterable, Iterator, List, Optional, Union
+
+    import attr  # vendor:skip
 
     from pex.requirements import ParsedRequirement
 

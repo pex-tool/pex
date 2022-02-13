@@ -12,8 +12,9 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from typing import Iterable, Iterator, Optional, Tuple
+
     import attr  # vendor:skip
-    from typing import Iterable, Iterator, Optional, Tuple, Iterable
 else:
     from pex.third_party import attr
 

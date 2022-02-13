@@ -20,7 +20,7 @@ from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Optional, Iterable, DefaultDict, Set
+    from typing import DefaultDict, Iterable, Optional, Set
 
 
 def create_pex_repository(

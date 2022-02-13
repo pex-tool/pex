@@ -45,8 +45,8 @@ from pex.venv_bin_path import BinPath
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Dict, List, Optional, Union
     from argparse import Namespace
+    from typing import Dict, List, Optional, Union
 
 
 CANNOT_SETUP_INTERPRETER = 102

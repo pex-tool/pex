@@ -10,7 +10,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Iterable, Text, List
+    from typing import Iterable, List, Text
 
 
 _COMPILER_MAIN = """

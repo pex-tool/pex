@@ -29,7 +29,7 @@ from pex.util import DistributionHelper
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Tuple, Iterator, Any
+    from typing import Any, Iterator, Tuple
 
 
 @contextmanager
