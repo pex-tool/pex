@@ -3,6 +3,36 @@
 PEX Recipes and Notes
 =====================
 
+Long running PEX applications and daemons
+-----------------------------------------
+
+If your PEXed application will run a long time, at some point you'll likely need to debug or
+otherwise inspect it using operating system tools. Unless you built your application as a
+non-``--venv`` ``--layout loose`` PEX, its final process information will be inscrutable in ``ps``
+output since all other PEX forms re-execute themselves against an installed version of themselves in
+the configured ``PEX_ROOT``.
+
+You'll see something like this as a result:
+
+.. code-block:: bash
+
+    $ ./my.pex --foo bar &
+    $ ps -o command | grep pex
+    /home/jsirois/.pyenv/versions/3.10.2/bin/python3.10 /home/jsirois/.pex/unzipped_pexes/94790b07dc3768a9926dab999b41a87e399e0aa9 --foo bar
+
+The original PEX file is not mentioned anywhere in the ``ps`` output. Worse, if you have many PEX
+processes it will be unclear which process corresponds to which PEX.
+
+To remedy this, simply add `setproctitle <https://pypi.org/project/setproctitle/>`_ as a dependency
+for your PEX. The PEX runtime will then detect the presence of ``setproctitle`` and alter the
+process title so you see both the Python being used to run your PEX and the PEX file being run:
+
+.. code-block:: bash
+
+    $ ./my.pex --foo bar &
+    $ ps -o command | grep pex
+    /home/jsirois/.pyenv/versions/3.10.2/bin/python3.10 /home/jsirois/dev/pantsbuild/jsirois-pex/my.pex --foo bar
+
 PEX app in a container
 ----------------------
 

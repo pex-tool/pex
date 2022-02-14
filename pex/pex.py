@@ -473,6 +473,26 @@ class PEX(object):  # noqa: T000
                 exit_value = tools.main(pex=PEX(sys.argv[0]))
             else:
                 self.activate()
+
+                pex_file = os.environ.get("PEX", None)
+                if pex_file:
+                    try:
+                        from setproctitle import setproctitle  # type: ignore[import]
+
+                        setproctitle(
+                            "{python} {pex_file} {args}".format(
+                                python=sys.executable,
+                                pex_file=pex_file,
+                                args=" ".join(sys.argv[1:]),
+                            )
+                        )
+                    except ImportError:
+                        TRACER.log(
+                            "Not setting process title since setproctitle is not available in "
+                            "{pex_file}".format(pex_file=pex_file),
+                            V=3,
+                        )
+
                 exit_value = self._wrap_coverage(self._wrap_profiling, self._execute)
             sys.exit(exit_value)
         except Exception:
