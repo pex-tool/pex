@@ -282,6 +282,17 @@ def populate_venv_with_pex(
                 os.environ[current_interpreter_blessed_env_var] = "1"
                 os.execv(python, [python, "-sE"] + sys.argv)
 
+            pex_file = os.environ.get("PEX", None)
+            if pex_file:
+                try:
+                    from setproctitle import setproctitle
+
+                    setproctitle("{{python}} {{pex_file}} {{args}}".format(
+                        python=sys.executable, pex_file=pex_file, args=" ".join(sys.argv[1:]))
+                    )
+                except ImportError:
+                    pass
+
             ignored_pex_env_vars = [
                 "{{}}={{}}".format(name, value)
                 for name, value in os.environ.items()
