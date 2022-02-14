@@ -59,9 +59,9 @@ line-length = 100
 target-version = ["py27"]
 extend-exclude = '''
 /(
-  | pex/tools/commands/virtualenv_16.7.12_py
-  | pex/vendor/_vendored/
-)
+  | pex/tools/commands/virtualenv_.*_py
+  | pex/vendor/_vendored
+)/
 '''
 
 [tool.isort]
