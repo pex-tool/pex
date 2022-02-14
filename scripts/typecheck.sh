@@ -10,6 +10,9 @@ FILES_TO_CHECK=(
   )
 )
 
+echo "Typechecking using $(python --version) against Python 3.10 ..."
+mypy --python-version 3.10 "${FILES_TO_CHECK[@]}"
+
 echo "Typechecking using $(python --version) against Python 3.5 ..."
 mypy --python-version 3.5 "${FILES_TO_CHECK[@]}"
 

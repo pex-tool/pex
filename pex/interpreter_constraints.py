@@ -136,7 +136,7 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         )
 
 
-class Lifecycle(Enum):
+class Lifecycle(Enum["Lifecycle.Value"]):
     class Value(Enum.Value):
         pass
 

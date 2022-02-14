@@ -41,6 +41,11 @@ if TYPE_CHECKING:
     from typing import Generic as Generic
     from typing import cast as cast
     from typing import overload as overload
+
+    if sys.version_info[:2] >= (3, 8):
+        from typing import Literal as Literal
+    else:
+        from typing_extensions import Literal as Literal
 else:
 
     def cast(_type, value):
@@ -69,3 +74,5 @@ else:
         eval(compile("class Generic(object, metaclass=_Generic): pass", "<Generic>", "exec"))
 
     del _Generic
+
+    Literal = {}

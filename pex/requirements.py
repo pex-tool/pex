@@ -145,7 +145,7 @@ class URLRequirement(object):
     editable = attr.ib(default=False)  # type: bool
 
 
-class VCS(Enum):
+class VCS(Enum["VCS.Value"]):
     class Value(Enum.Value):
         pass
 
@@ -260,7 +260,7 @@ def _strip_requirement_options(line):
     return editable, re.sub(r"\s--(global-option|install-option|hash).*$", "", processed_text)
 
 
-class ArchiveScheme(Enum):
+class ArchiveScheme(Enum["ArchiveScheme.Value"]):
     class Value(Enum.Value):
         pass
 

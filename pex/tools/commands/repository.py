@@ -106,8 +106,11 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
     @classmethod
     def _add_info_arguments(cls, subparsers):
         # type: (_SubParsersAction) -> ArgumentParser
-        info_parser = subparsers.add_parser(
-            name="info", help="Print information about the distributions in a PEX file."
+        info_parser = cast(
+            ArgumentParser,
+            subparsers.add_parser(
+                name="info", help="Print information about the distributions in a PEX file."
+            ),
         )
         info_parser.add_argument(
             "-v",
@@ -122,8 +125,11 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
     @classmethod
     def _add_extract_arguments(cls, subparsers):
         # type: (_SubParsersAction) -> ArgumentParser
-        extract_parser = subparsers.add_parser(
-            name="extract", help="Extract all distributions from a PEX file."
+        extract_parser = cast(
+            ArgumentParser,
+            subparsers.add_parser(
+                name="extract", help="Extract all distributions from a PEX file."
+            ),
         )
         extract_parser.add_argument(
             "-f",

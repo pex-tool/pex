@@ -641,7 +641,7 @@ class PEXBuilder(object):
             # building to a single non-PEX_ROOT user-requested output path; so we don't grab an
             # exclusive lock and dirty the target directory with a `.lck` file.
             with atomic_directory(path, source="app", exclusive=False) as app_chroot:
-                if not app_chroot.is_finalized:
+                if not app_chroot.is_finalized():
                     dirname = os.path.join(app_chroot.work_dir, "app")
                     if layout == Layout.LOOSE:
                         shutil.copytree(self.path(), dirname)
@@ -680,7 +680,7 @@ class PEXBuilder(object):
         with atomic_directory(
             cached_bootstrap_zip_dir, exclusive=False
         ) as atomic_bootstrap_zip_dir:
-            if not atomic_bootstrap_zip_dir.is_finalized:
+            if not atomic_bootstrap_zip_dir.is_finalized():
                 self._chroot.zip(
                     os.path.join(atomic_bootstrap_zip_dir.work_dir, pex_info.bootstrap),
                     deterministic_timestamp=deterministic_timestamp,
@@ -705,7 +705,7 @@ class PEXBuilder(object):
                 with atomic_directory(
                     cached_installed_wheel_zip_dir, exclusive=False
                 ) as atomic_zip_dir:
-                    if not atomic_zip_dir.is_finalized:
+                    if not atomic_zip_dir.is_finalized():
                         self._chroot.zip(
                             os.path.join(atomic_zip_dir.work_dir, location),
                             deterministic_timestamp=deterministic_timestamp,

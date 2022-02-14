@@ -117,10 +117,10 @@ class PythonIdentity(object):
             prefix=sys.prefix,
             base_prefix=(
                 # Old virtualenv (16 series and lower) sets `sys.real_prefix` in all cases.
-                getattr(sys, "real_prefix", None)
+                cast("Optional[str]", getattr(sys, "real_prefix", None))
                 # Both pyvenv and virtualenv 20+ set `sys.base_prefix` as per
                 # https://www.python.org/dev/peps/pep-0405/.
-                or getattr(sys, "base_prefix", sys.prefix)
+                or cast(str, getattr(sys, "base_prefix", sys.prefix))
             ),
             sys_path=sys_path,
             python_tag=preferred_tag.interpreter,
@@ -747,7 +747,7 @@ class PythonInterpreter(object):
 
                         encoded_identity = PythonIdentity.get(binary={binary!r}).encode()
                         with atomic_directory({cache_dir!r}, exclusive=False) as cache_dir:
-                            if not cache_dir.is_finalized:
+                            if not cache_dir.is_finalized():
                                 with safe_open(
                                     os.path.join(cache_dir.work_dir, {info_file!r}), 'w'
                                 ) as fp:

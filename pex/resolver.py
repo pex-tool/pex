@@ -299,7 +299,7 @@ class BuildResult(object):
     @property
     def is_built(self):
         # type: () -> bool
-        return self._atomic_dir.is_finalized
+        return self._atomic_dir.is_finalized()
 
     @property
     def build_dir(self):
@@ -396,7 +396,7 @@ class InstallResult(object):
     @property
     def is_installed(self):
         # type: () -> bool
-        return self._atomic_dir.is_finalized
+        return self._atomic_dir.is_finalized()
 
     @property
     def build_chroot(self):
@@ -466,7 +466,7 @@ class InstallResult(object):
         wheel_dir_hash = CacheHelper.dir_hash(self.install_chroot)
         runtime_key_dir = os.path.join(self._installation_root, wheel_dir_hash)
         with atomic_directory(runtime_key_dir, exclusive=False) as atomic_dir:
-            if not atomic_dir.is_finalized:
+            if not atomic_dir.is_finalized():
                 # Note: Create a relative path symlink between the two directories so that the
                 # PEX_ROOT can be used within a chroot environment where the prefix of the path may
                 # change between programs running inside and outside of the chroot.

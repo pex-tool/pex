@@ -89,7 +89,7 @@ def _install(
         pex = layout.path
         install_to = unzip_dir(pex_root=pex_root, pex_hash=pex_hash)
         with atomic_directory(install_to, exclusive=True) as chroot:
-            if not chroot.is_finalized:
+            if not chroot.is_finalized():
                 with TRACER.timed("Installing {} to {}".format(pex, install_to)):
                     from pex.pex_info import PexInfo
 
@@ -110,7 +110,7 @@ def _install(
                     with atomic_directory(
                         bootstrap_cache, source=layout.bootstrap_strip_prefix(), exclusive=True
                     ) as bootstrap_zip_chroot:
-                        if not bootstrap_zip_chroot.is_finalized:
+                        if not bootstrap_zip_chroot.is_finalized():
                             layout.extract_bootstrap(bootstrap_zip_chroot.work_dir)
                     os.symlink(
                         os.path.join(os.path.relpath(bootstrap_cache, install_to)),
@@ -125,7 +125,7 @@ def _install(
                             source=layout.dist_strip_prefix(location),
                             exclusive=True,
                         ) as spread_chroot:
-                            if not spread_chroot.is_finalized:
+                            if not spread_chroot.is_finalized():
                                 layout.extract_dist(spread_chroot.work_dir, dist_relpath)
                         symlink_dest = os.path.join(chroot.work_dir, dist_relpath)
                         safe_mkdir(os.path.dirname(symlink_dest))
@@ -139,7 +139,7 @@ def _install(
 
                     code_dest = os.path.join(pex_info.zip_unsafe_cache, code_hash)
                     with atomic_directory(code_dest, exclusive=True) as code_chroot:
-                        if not code_chroot.is_finalized:
+                        if not code_chroot.is_finalized():
                             layout.extract_code(code_chroot.work_dir)
                     for path in os.listdir(code_dest):
                         os.symlink(

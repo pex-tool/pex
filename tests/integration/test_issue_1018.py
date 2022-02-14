@@ -13,7 +13,7 @@ from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, List, Optional
+    from typing import Any, Iterable, List
 
     import attr  # vendor:skip
 else:
