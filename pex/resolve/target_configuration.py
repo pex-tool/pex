@@ -24,44 +24,28 @@ else:
     from pex.third_party import attr
 
 
-class TargetConfigurationError(Exception):
-    """Indicates a problem configuring resolve targets."""
-
-
-class InterpreterNotFound(TargetConfigurationError):
-    """Indicates an explicitly requested interpreter could not be found."""
-
-
-class InterpreterConstraintsNotSatisfied(TargetConfigurationError):
-    """Indicates no interpreter meeting the requested constraints could be found."""
-
-
 @attr.s(frozen=True)
-class TargetConfiguration(object):
-    python_path = attr.ib(default=None)  # type: str
+class InterpreterConfiguration(object):
+    _python_path = attr.ib(default=None)  # type: Optional[str]
     pythons = attr.ib(default=())  # type: Tuple[str, ...]
     interpreter_constraints = attr.ib(default=())  # type: Tuple[Requirement, ...]
 
-    platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
-    assume_manylinux = attr.ib(default="manylinux2014")  # type: Optional[str]
-    resolve_local_platforms = attr.ib(default=False)  # type: bool
+    @property
+    def python_path(self):
+        # type: () -> Optional[str]
+        # TODO(#1075): stop looking at PEX_PYTHON_PATH and solely consult the `--python-path` flag.
+        return self._python_path or ENV.PEX_PYTHON_PATH
 
-    def resolve_targets(self):
-        # type: () -> DistributionTargets
-        """Resolves the distribution targets satisfying the target configuration.
+    def resolve_interpreters(self):
+        # type: () -> OrderedSet[PythonInterpreter]
+        """Resolves the interpreters satisfying the interpreter configuration.
 
         :raise: :class:`InterpreterNotFound` specific --python interpreters were requested but could
             not be found.
         :raise: :class:`InterpreterConstraintsNotSatisfied` if --interpreter-constraint were
             specified but no conforming interpreters could be found.
         """
-
-        # TODO(#1075): stop looking at PEX_PYTHON_PATH and solely consult the `--python-path` flag.
-        # If None, this will result in using $PATH.
-        pex_python_path = self.python_path or ENV.PEX_PYTHON_PATH
-
         interpreters = OrderedSet()  # type: OrderedSet[PythonInterpreter]
-        platforms = OrderedSet(self.platforms)
 
         if self.pythons:
             with TRACER.timed("Resolving interpreters", V=2):
@@ -71,7 +55,7 @@ class TargetConfiguration(object):
                         return PythonInterpreter.from_binary(full_path_or_basename)
                     else:
                         interp = PythonInterpreter.from_env(
-                            full_path_or_basename, paths=parse_path(pex_python_path)
+                            full_path_or_basename, paths=parse_path(self.python_path)
                         )
                         if interp is None:
                             raise InterpreterNotFound(
@@ -86,7 +70,7 @@ class TargetConfiguration(object):
                 try:
                     interpreters.update(
                         iter_compatible_interpreters(
-                            path=pex_python_path,
+                            path=self.python_path,
                             interpreter_constraints=self.interpreter_constraints,
                         )
                     )
@@ -95,6 +79,55 @@ class TargetConfiguration(object):
                         e.create_message("Could not find a compatible interpreter.")
                     )
 
+        return interpreters
+
+
+class TargetConfigurationError(Exception):
+    """Indicates a problem configuring resolve targets."""
+
+
+class InterpreterNotFound(TargetConfigurationError):
+    """Indicates an explicitly requested interpreter could not be found."""
+
+
+class InterpreterConstraintsNotSatisfied(TargetConfigurationError):
+    """Indicates no interpreter meeting the requested constraints could be found."""
+
+
+@attr.s(frozen=True)
+class TargetConfiguration(object):
+    interpreter_configuration = attr.ib(
+        default=InterpreterConfiguration()
+    )  # type: InterpreterConfiguration
+
+    @property
+    def pythons(self):
+        # type: () -> Tuple[str, ...]
+        return self.interpreter_configuration.pythons
+
+    @property
+    def interpreter_constraints(self):
+        # type: () -> Tuple[Requirement, ...]
+        return self.interpreter_configuration.interpreter_constraints
+
+    platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
+    assume_manylinux = attr.ib(default="manylinux2014")  # type: Optional[str]
+    resolve_local_platforms = attr.ib(default=False)  # type: bool
+
+    def resolve_targets(self):
+        # type: () -> DistributionTargets
+        """Resolves the distribution targets satisfying the target configuration.
+
+        :raise: :class:`InterpreterNotFound` specific --python interpreters were requested but could
+            not be found.
+        :raise: :class:`InterpreterConstraintsNotSatisfied` if --interpreter-constraint were
+            specified but no conforming interpreters could be found.
+        """
+        interpreters = OrderedSet(
+            self.interpreter_configuration.resolve_interpreters()
+        )  # type: OrderedSet[PythonInterpreter]
+        platforms = OrderedSet(self.platforms)
+
         if platforms and self.resolve_local_platforms:
             with TRACER.timed(
                 "Searching for local interpreters matching {}".format(
@@ -102,7 +135,7 @@ class TargetConfiguration(object):
                 )
             ):
                 candidate_interpreters = OrderedSet(
-                    iter_compatible_interpreters(path=pex_python_path)
+                    iter_compatible_interpreters(path=self.interpreter_configuration.python_path)
                 )
                 candidate_interpreters.add(PythonInterpreter.get())
                 for candidate_interpreter in candidate_interpreters:
