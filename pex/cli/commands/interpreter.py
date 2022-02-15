@@ -11,6 +11,7 @@ from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.resolve import target_options
+from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, InterpreterNotFound
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -98,7 +99,11 @@ class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
         # type: () -> Result
 
         interpreter_configuration = target_options.configure_interpreters(self.options)
-        interpreters = interpreter_configuration.resolve_interpreters()
+        try:
+            interpreters = interpreter_configuration.resolve_interpreters()
+        except (InterpreterNotFound, InterpreterConstraintsNotSatisfied) as e:
+            return Error(str(e))
+
         if self.options.all:
             python_path = (
                 interpreter_configuration.python_path.split(":")
@@ -117,34 +122,42 @@ class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             )
         with self.output(self.options) as out:
-            try:
-                for interpreter in interpreters:
-                    if verbose:
-                        interpreter_info = {"path": interpreter.binary}  # type: Dict[str, Any]
-                        if self.options.verbose:
-                            interpreter_info.update(
-                                version=interpreter.identity.version_str,
-                                requirement=str(interpreter.identity.requirement),
-                                platform=str(interpreter.platform),
-                                venv=interpreter.is_venv,
-                            )
-                            if interpreter.is_venv:
+            for interpreter in interpreters:
+                if verbose:
+                    interpreter_info = {"path": interpreter.binary}  # type: Dict[str, Any]
+                    if self.options.verbose:
+                        interpreter_info.update(
+                            version=interpreter.identity.version_str,
+                            requirement=str(interpreter.identity.requirement),
+                            platform=str(interpreter.platform),
+                            venv=interpreter.is_venv,
+                        )
+                        if interpreter.is_venv:
+                            try:
                                 interpreter_info[
                                     "base_interpreter"
                                 ] = interpreter.resolve_base_interpreter().binary
-                        if self.options.tags:
-                            interpreter_info["compatible_tags"] = [
-                                str(tag) for tag in interpreter.identity.supported_tags
-                            ]
-                        if self.options.markers:
+                            except PythonInterpreter.BaseInterpreterResolutionError as e:
+                                logger.warning(
+                                    "Failed to determine base interpreter for venv interpreter "
+                                    "{interpreter}: {err}".format(
+                                        interpreter=interpreter.binary, err=e
+                                    )
+                                )
                             interpreter_info[
-                                "marker_environment"
-                            ] = interpreter.identity.env_markers.as_dict()
-                        self.dump_json(self.options, interpreter_info, out)
-                    else:
-                        out.write(interpreter.binary)
-                    out.write("\n")
-            except UnsatisfiableInterpreterConstraintsError as e:
-                return Error(str(e))
+                                "base_interpreter"
+                            ] = interpreter.resolve_base_interpreter().binary
+                    if self.options.tags:
+                        interpreter_info["compatible_tags"] = [
+                            str(tag) for tag in interpreter.identity.supported_tags
+                        ]
+                    if self.options.markers:
+                        interpreter_info[
+                            "marker_environment"
+                        ] = interpreter.identity.env_markers.as_dict()
+                    self.dump_json(self.options, interpreter_info, out)
+                else:
+                    out.write(interpreter.binary)
+                out.write("\n")
 
         return Ok()

@@ -289,7 +289,7 @@ def configure_clp_pex_environment(parser):
     group = parser.add_argument_group(
         "PEX target environment options",
         "Specify which target environments the PEX should run on. If more than one interpreter or "
-        "platform is specified a multi-platform PEX will be created that can run on all specified "
+        "platform is specified, a multi-platform PEX will be created that can run on all specified "
         "targets. N.B.: You may need to adjust the `--python-shebang` so that it works in all "
         "the specified target environments.",
     )
