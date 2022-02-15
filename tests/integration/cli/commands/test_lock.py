@@ -3,14 +3,13 @@
 
 import os
 import re
-import subprocess
-import sys
 from textwrap import dedent
 
 import pytest
 
 from pex.cli.commands import lockfile
 from pex.cli.commands.lockfile import Lockfile
+from pex.cli.testing import run_pex3
 from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
@@ -30,23 +29,6 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
-
-
-def run_pex3(
-    *args,  # type: str
-    **popen_kwargs  # type: Any
-):
-    # type: (...) -> IntegResults
-    process = subprocess.Popen(
-        args=[sys.executable, "-mpex.cli"] + list(args),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        **popen_kwargs
-    )
-    stdout, stderr = process.communicate()
-    return IntegResults(
-        output=stdout.decode("utf-8"), error=stderr.decode("utf-8"), return_code=process.returncode
-    )
 
 
 def normalize_lockfile(
