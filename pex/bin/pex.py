@@ -287,8 +287,11 @@ def configure_clp_pex_options(parser):
 def configure_clp_pex_environment(parser):
     # type: (ArgumentParser) -> None
     group = parser.add_argument_group(
-        "PEX environment options",
-        "Tailor the interpreter and platform targets for the PEX environment.",
+        "PEX target environment options",
+        "Specify which target environments the PEX should run on. If more than one interpreter or "
+        "platform is specified, a multi-platform PEX will be created that can run on all specified "
+        "targets. N.B.: You may need to adjust the `--python-shebang` so that it works in all "
+        "the specified target environments.",
     )
 
     target_options.register(group)

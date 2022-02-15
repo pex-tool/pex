@@ -11,14 +11,18 @@ from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.platforms import Platform
 from pex.resolve.resolver_options import _ManylinuxAction
-from pex.resolve.target_configuration import TargetConfiguration
+from pex.resolve.target_configuration import InterpreterConfiguration, TargetConfiguration
 
 
-def register(parser):
-    # type: (_ActionsContainer) -> None
+def register(
+    parser,  # type: _ActionsContainer
+    include_platforms=True,  # type: bool
+):
+    # type: (...) -> None
     """Register resolve target selection options with the given parser.
 
     :param parser: The parser to register target selection options with.
+    :param include_platforms: Whether to include options to select targets by platform.
     """
 
     parser.add_argument(
@@ -28,11 +32,9 @@ def register(parser):
         type=str,
         action="append",
         help=(
-            "The Python interpreter to use to build the PEX (default: current interpreter). This "
-            "cannot be used with `--interpreter-constraint`, which will instead cause PEX to "
-            "search for valid interpreters. Either specify an absolute path to an interpreter, or "
-            "specify a binary accessible on $PATH like `python3.7`. This option can be passed "
-            "multiple times to create a multi-interpreter compatible PEX."
+            "The Python interpreter to use (default: current interpreter). Either specify an "
+            "absolute path to an interpreter, or specify a binary accessible on $PATH like "
+            "`python3.7`. This option can be passed multiple times."
         ),
     )
     parser.add_argument(
@@ -41,10 +43,14 @@ def register(parser):
         default=None,
         type=str,
         help=(
-            "Colon-separated paths to search for interpreters when `--interpreter-constraint` "
-            "and/or `--resolve-local-platforms` are specified (default: $PATH). Each element "
+            "Colon-separated paths to search for interpreters in when `--interpreter-constraint` "
+            "{and_maybe_platforms} specified (default: $PATH). Each element "
             "can be the absolute path of an interpreter binary or a directory containing "
-            "interpreter binaries."
+            "interpreter binaries.".format(
+                and_maybe_platforms="and/or `--resolve-local-platforms` are"
+                if include_platforms
+                else "is"
+            )
         ),
     )
 
@@ -80,6 +86,19 @@ def register(parser):
         ),
     )
 
+    if include_platforms:
+        _register_platform_options(
+            parser, current_interpreter, singe_interpreter_info_cmd, all_interpreters_info_cmd
+        )
+
+
+def _register_platform_options(
+    parser,  # type: _ActionsContainer
+    current_interpreter,  # type: PythonInterpreter
+    singe_interpreter_info_cmd,  # type: str
+    all_interpreters_info_cmd,  # type: str
+):
+    # type: (...) -> None
     parser.add_argument(
         "--platform",
         dest="platforms",
@@ -133,11 +152,11 @@ def register(parser):
     )
 
 
-def configure(options):
-    # type: (Namespace) -> TargetConfiguration
-    """Creates a target configuration from options registered by `register`.
+def configure_interpreters(options):
+    # type: (Namespace) -> InterpreterConfiguration
+    """Creates an interpreter configuration from options registered by `register`.
 
-    :param options: The target configuration options.
+    :param options: The interpreter configuration options.
     """
     try:
         interpreter_constraints = tuple(
@@ -149,20 +168,33 @@ def configure(options):
     except ValueError as e:
         raise ArgumentTypeError(str(e))
 
+    return InterpreterConfiguration(
+        interpreter_constraints=interpreter_constraints,
+        python_path=options.python_path,
+        pythons=tuple(OrderedSet(options.python)),
+    )
+
+
+def configure(options):
+    # type: (Namespace) -> TargetConfiguration
+    """Creates a target configuration from options via `register(..., include_platforms=True)`.
+
+    :param options: The target configuration options.
+    """
+    interpreter_configuration = configure_interpreters(options)
+
     try:
         platforms = tuple(
             OrderedSet(
                 Platform.create(platform) if platform and platform != "current" else None
-                for platform in options.platforms
+                for platform in getattr(options, "platforms", ())
             )
         )
     except Platform.InvalidPlatformError as e:
         raise ArgumentTypeError(str(e))
 
     return TargetConfiguration(
-        interpreter_constraints=interpreter_constraints,
-        python_path=options.python_path,
-        pythons=tuple(OrderedSet(options.python)),
+        interpreter_configuration=interpreter_configuration,
         platforms=platforms,
         resolve_local_platforms=options.resolve_local_platforms,
         assume_manylinux=options.assume_manylinux,
