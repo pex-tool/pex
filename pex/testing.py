@@ -23,13 +23,13 @@ from pex.common import (
     temporary_dir,
 )
 from pex.compatibility import to_unicode
-from pex.distribution_target import DistributionTarget
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
+from pex.targets import LocalInterpreter
 from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper, named_temporary_file
@@ -264,7 +264,7 @@ def make_bdist(
         get_pip(interpreter=interpreter).spawn_install_wheel(
             wheel=dist_location,
             install_dir=install_dir,
-            target=DistributionTarget(interpreter=interpreter),
+            target=LocalInterpreter.create(interpreter),
         ).wait()
         dist = DistributionHelper.distribution_from_path(install_dir)
         assert dist is not None

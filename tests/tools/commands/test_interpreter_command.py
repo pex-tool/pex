@@ -148,7 +148,7 @@ def test_verbose_all(
 def expected_verbose_verbose(interpreter):
     # type: (PythonInterpreter) -> Dict[str, Any]
     expected = expected_verbose(interpreter)
-    expected.update(supported_tags=[str(tag) for tag in interpreter.identity.supported_tags])
+    expected.update(supported_tags=interpreter.identity.supported_tags.to_string_list())
     return expected
 
 

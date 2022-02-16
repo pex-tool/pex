@@ -9,7 +9,6 @@ from argparse import ArgumentParser, _ActionsContainer
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.resolve import target_options
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, InterpreterNotFound
 from pex.typing import TYPE_CHECKING
@@ -148,9 +147,9 @@ class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
                                 "base_interpreter"
                             ] = interpreter.resolve_base_interpreter().binary
                     if self.options.tags:
-                        interpreter_info["compatible_tags"] = [
-                            str(tag) for tag in interpreter.identity.supported_tags
-                        ]
+                        interpreter_info[
+                            "compatible_tags"
+                        ] = interpreter.identity.supported_tags.to_string_list()
                     if self.options.markers:
                         interpreter_info[
                             "marker_environment"

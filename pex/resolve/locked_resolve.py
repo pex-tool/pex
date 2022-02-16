@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import hashlib
 
 from pex.dist_metadata import ProjectNameAndVersion
-from pex.distribution_target import DistributionTarget
 from pex.enum import Enum
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -134,27 +133,6 @@ class LockedRequirement(object):
 
 @attr.s(frozen=True)
 class LockedResolve(object):
-    @classmethod
-    def from_target(
-        cls,
-        target,  # type: DistributionTarget
-        locked_requirements,  # type: Iterable[LockedRequirement]
-    ):
-        # type: (...) -> LockedResolve
-        most_specific_tag = target.get_supported_tags()[0]
-        return cls(
-            platform_tag=most_specific_tag, locked_requirements=SortedTuple(locked_requirements)
-        )
-
-    @classmethod
-    def from_platform_tag(
-        cls,
-        platform_tag,  # type: tags.Tag
-        locked_requirements,  # type: Iterable[LockedRequirement]
-    ):
-        # type: (...) -> LockedResolve
-        return cls(platform_tag=platform_tag, locked_requirements=SortedTuple(locked_requirements))
-
     platform_tag = attr.ib(order=str)  # type: tags.Tag
     locked_requirements = attr.ib()  # type: SortedTuple[LockedRequirement]
 

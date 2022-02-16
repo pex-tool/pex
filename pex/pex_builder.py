@@ -24,7 +24,6 @@ from pex.common import (
 )
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
-from pex.distribution_target import DistributionTarget
 from pex.enum import Enum
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
@@ -33,6 +32,7 @@ from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.pip import get_pip
+from pex.targets import LocalInterpreter
 from pex.third_party.pkg_resources import DefaultProvider, Distribution, ZipProvider, get_provider
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -433,7 +433,7 @@ class PEXBuilder(object):
             get_pip(interpreter=self._interpreter).spawn_install_wheel(
                 wheel=path,
                 install_dir=install_dir,
-                target=DistributionTarget.for_interpreter(self.interpreter),
+                target=LocalInterpreter.create(self.interpreter),
             ).wait()
             return self._add_dist_dir(install_dir, dist_name, fingerprint=fingerprint)
 
@@ -489,7 +489,7 @@ class PEXBuilder(object):
             get_pip(interpreter=self._interpreter).spawn_install_wheel(
                 wheel=dist,
                 install_dir=dist_path,
-                target=DistributionTarget.for_interpreter(self.interpreter),
+                target=LocalInterpreter.create(self.interpreter),
             ).wait()
 
         dist = DistributionHelper.distribution_from_path(dist_path)

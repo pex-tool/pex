@@ -1,15 +1,14 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import itertools
 import json
 import os
 
 from pex.cli.testing import run_pex3
 from pex.interpreter import PythonInterpreter
+from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.testing import IntegResults
-from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -74,8 +73,8 @@ def test_inspect_default_markers():
 
 
 def assert_compatible_tags(data):
-    assert PythonInterpreter.get().identity.supported_tags == tuple(
-        itertools.chain.from_iterable(tags.parse_tag(tag) for tag in data.pop("compatible_tags"))
+    assert PythonInterpreter.get().identity.supported_tags == CompatibilityTags.from_stings(
+        data.pop("compatible_tags")
     )
 
 

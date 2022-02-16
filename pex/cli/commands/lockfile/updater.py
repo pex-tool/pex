@@ -11,7 +11,6 @@ from contextlib import contextmanager
 from pex.cli.commands.lockfile import Lockfile, create
 from pex.commands.command import Error, ResultError, catch, try_
 from pex.common import pluralize
-from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -19,6 +18,7 @@ from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, Loc
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.sorted_tuple import SortedTuple
+from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target, Targets
 from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
@@ -138,7 +138,7 @@ class ResolveUpdater(object):
     def update_resolve(
         self,
         locked_resolve,  # type: LockedResolve
-        targets,  # type: DistributionTargets
+        targets,  # type: Targets
     ):
         # type: (...) -> Union[ResolveUpdate, Error]
 
@@ -199,14 +199,18 @@ class ResolveUpdater(object):
 
 @attr.s(frozen=True)
 class ResolveUpdateRequest(object):
-    target = attr.ib()  # type: DistributionTarget
+    target = attr.ib()  # type: Target
     locked_resolve = attr.ib()  # type: LockedResolve
 
     def targets(self, assume_manylinux=None):
-        # type: (Optional[str]) -> DistributionTargets
-        return DistributionTargets(
-            interpreters=(self.target.get_interpreter(),) if self.target.is_interpreter else (),
-            platforms=(self.target.get_platform()[0],) if self.target.is_platform else (),
+        # type: (Optional[str]) -> Targets
+        return Targets(
+            interpreters=(self.target.interpreter,)
+            if isinstance(self.target, LocalInterpreter)
+            else (),
+            platforms=(self.target.platform,)
+            if isinstance(self.target, AbbreviatedPlatform)
+            else (),
             assume_manylinux=assume_manylinux,
         )
 
@@ -270,7 +274,7 @@ class LockUpdater(object):
             pip_configuration=self.pip_configuration,
         )
 
-        error_by_target = OrderedDict()  # type: OrderedDict[DistributionTarget, Error]
+        error_by_target = OrderedDict()  # type: OrderedDict[Target, Error]
         locked_resolve_by_platform_tag = OrderedDict(
             (locked_resolve.platform_tag, locked_resolve)
             for locked_resolve in self.lock_file.locked_resolves
@@ -302,7 +306,7 @@ class LockUpdater(object):
                     lockfile_path=self.lock_file.source,
                     error_details="\n".join(
                         "{index}.) {platform}: {error}".format(
-                            index=index, platform=target.get_supported_tags()[0], error=error
+                            index=index, platform=target.platform.tag, error=error
                         )
                         for index, (target, error) in enumerate(error_by_target.items(), start=1)
                     ),

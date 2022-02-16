@@ -7,9 +7,9 @@ from textwrap import dedent
 import pytest
 
 from pex.cli.commands import lockfile
-from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
 from pex.resolve.locked_resolve import LockedResolve
+from pex.targets import LocalInterpreter, Target
 from pex.testing import (
     IS_MAC,
     PY27,
@@ -80,8 +80,8 @@ def test_select_no_targets():
 
 
 def create_target(python_version):
-    # type: (str) -> DistributionTarget
-    return DistributionTarget.for_interpreter(
+    # type: (str) -> Target
+    return LocalInterpreter.create(
         PythonInterpreter.from_binary(ensure_python_interpreter(python_version))
     )
 
@@ -102,15 +102,15 @@ def py310():
 
 
 def test_select_same_target(py27):
-    # type: (DistributionTarget) -> None
+    # type: (Target) -> None
     assert [(py27, SINGLE_PLATFORM_UNIVERSAL_WHEEL.locked_resolves[0])] == list(
         SINGLE_PLATFORM_UNIVERSAL_WHEEL.select([py27])
     )
 
 
 def test_select_universal_compatible_targets(
-    py37,  # type: DistributionTarget
-    py310,  # type: DistributionTarget
+    py37,  # type: Target
+    py310,  # type: Target
 ):
     # type: (...) -> None
     assert [
@@ -191,13 +191,13 @@ DUAL_PLATFORM_NATIVE_WHEEL = lockfile.loads(
 
 
 def test_select_incompatible_target(py27):
-    # type: (DistributionTarget) -> None
+    # type: (Target) -> None
     assert [] == list(DUAL_PLATFORM_NATIVE_WHEEL.select([py27]))
 
 
 def test_select_compatible_targets(
-    py37,  # type: DistributionTarget
-    py310,  # type: DistributionTarget
+    py37,  # type: Target
+    py310,  # type: Target
 ):
     # type: (...) -> None
     expected_index = 0 if IS_MAC else 1
@@ -261,22 +261,22 @@ LOCK_STYLE_SOURCES = lockfile.loads(
 
 
 def test_lockfile_style_sources(
-    py27,  # type: DistributionTarget
-    py37,  # type: DistributionTarget
+    py27,  # type: Target
+    py37,  # type: Target
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
 
     selected = {
         target: locked_resolve for target, locked_resolve in LOCK_STYLE_SOURCES.select([py27, py37])
-    }  # type: Mapping[DistributionTarget, LockedResolve]
+    }  # type: Mapping[Target, LockedResolve]
     assert {
         py27: LOCK_STYLE_SOURCES.locked_resolves[0],
         py37: LOCK_STYLE_SOURCES.locked_resolves[0],
     } == selected
 
     def use_lock(target):
-        # type: (DistributionTarget) -> IntegResults
+        # type: (Target) -> IntegResults
         locked_requirements_file = os.path.join(
             str(tmpdir), "requirements.{}.lock".format(target.id)
         )

@@ -22,6 +22,7 @@ from pex.compatibility import string
 from pex.executor import Executor
 from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
+from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.pyenv import Pyenv
@@ -193,7 +194,7 @@ class PythonIdentity(object):
         self._abi_tag = abi_tag
         self._platform_tag = platform_tag
         self._version = tuple(version)
-        self._supported_tags = tuple(supported_tags)
+        self._supported_tags = CompatibilityTags(tags=supported_tags)
         self._env_markers = env_markers
         self._configured_macosx_deployment_target = configured_macosx_deployment_target
 
@@ -262,7 +263,7 @@ class PythonIdentity(object):
 
     @property
     def supported_tags(self):
-        # type: () -> Tuple[tags.Tag, ...]
+        # type: () -> CompatibilityTags
         return self._supported_tags
 
     @property

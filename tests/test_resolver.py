@@ -11,12 +11,12 @@ import pkginfo
 import pytest
 
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
-from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.platforms import Platform
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import InstalledDistribution, Unsatisfiable
 from pex.resolver import IntegrityError, LocalDistribution, download, install, resolve
+from pex.targets import Target, Targets
 from pex.testing import (
     IS_LINUX,
     IS_PYPY,
@@ -265,9 +265,7 @@ def test_resolve_current_platform(p537_resolve_cache):
         current_platform = (None,)
         return resolve_p537_wheel_names(
             cache=p537_resolve_cache,
-            targets=DistributionTargets(
-                platforms=current_platform, interpreters=tuple(interpreters)
-            ),
+            targets=Targets(platforms=current_platform, interpreters=tuple(interpreters)),
         )
 
     other_python_version = PY310 if PY_VER == (3, 7) else PY37
@@ -303,7 +301,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
         platforms = (None, Platform.create(foreign_platform))
         return resolve_p537_wheel_names(
             cache=p537_resolve_cache,
-            targets=DistributionTargets(platforms=platforms, interpreters=tuple(interpreters)),
+            targets=Targets(platforms=platforms, interpreters=tuple(interpreters)),
         )
 
     assert 2 == len(resolve_current_and_foreign())
@@ -334,7 +332,7 @@ def test_resolve_foreign_abi3():
     def resolve_cryptography_wheel_names(manylinux):
         return resolve_wheel_names(
             requirements=["cryptography==2.8"],
-            targets=DistributionTargets(
+            targets=Targets(
                 platforms=(
                     Platform.create("linux_x86_64-cp-{}-m".format(foreign_ver)),
                     Platform.create("macosx_10.11_x86_64-cp-{}-m".format(foreign_ver)),
@@ -373,7 +371,7 @@ def test_issues_851():
     def resolve_pytest(python_version, pytest_version):
         interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(python_version))
         result = resolve(
-            targets=DistributionTargets(interpreters=(interpreter,)),
+            targets=Targets(interpreters=(interpreter,)),
             requirements=["pytest=={}".format(pytest_version)],
         )
         project_to_version = {
@@ -413,12 +411,12 @@ def test_issues_892():
 
         from pex import resolver
         from pex.interpreter import PythonInterpreter
-        from pex.distribution_target import DistributionTargets
+        from pex.targets import Targets
 
 
         python27 = PythonInterpreter.from_binary({python27!r})
         result = resolver.resolve(
-            targets=DistributionTargets(interpreters=(python27,)),
+            targets=Targets(interpreters=(python27,)),
             requirements=['packaging==19.2'],
         )
         print('Resolved: {{}}'.format(result))
@@ -467,7 +465,7 @@ def test_download():
     assert 1 == len(downloaded_by_target)
 
     target, distributions = downloaded_by_target.popitem()
-    assert DistributionTarget.current() == target
+    assert Target.current() == target
 
     distributions_by_name = {distribution.name: distribution for distribution in distributions}
     assert 3 == len(distributions_by_name)
@@ -498,7 +496,7 @@ def test_install():
     assert 1 == len(installed_by_target)
 
     target, distributions = installed_by_target.popitem()
-    assert DistributionTarget.current() == target
+    assert Target.current() == target
 
     distributions_by_name = {distribution.key: distribution for distribution in distributions}
     assert 2 == len(distributions_by_name)
@@ -570,7 +568,7 @@ def test_resolve_overlapping_requirements_discriminated_by_markers_issues_1196(p
             "setuptools<45; python_full_version == '2.7.*'",
             "setuptools; python_version > '2.7'",
         ],
-        targets=DistributionTargets(
+        targets=Targets(
             interpreters=(py27,),
         ),
     ).installed_distributions

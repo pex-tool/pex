@@ -6,6 +6,7 @@ import pkgutil
 
 import pytest
 
+from pex.pep_425 import CompatibilityTags
 from pex.platforms import Platform
 from pex.third_party.packaging import tags
 
@@ -63,7 +64,7 @@ def test_platform_supported_tags():
     golden_tags = pkgutil.get_data(__name__, "data/platforms/macosx_10_13_x86_64-cp-36-m.tags.txt")
     assert golden_tags is not None
     assert (
-        tuple(
+        CompatibilityTags(
             itertools.chain.from_iterable(
                 tags.parse_tag(tag)
                 for tag in golden_tags.decode("utf-8").splitlines()

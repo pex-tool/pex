@@ -10,11 +10,11 @@ import warnings
 import pytest
 
 from pex.common import safe_rmtree
-from pex.distribution_target import DistributionTarget
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pip import PackageIndexConfiguration, Pip
 from pex.platforms import Platform
+from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.testing import PY310, ensure_python_interpreter, environment_as
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -84,7 +84,7 @@ def test_download_platform_issues_1355(
     download_dir = os.path.join(str(tmpdir), "downloads")
 
     def download_ansicolors(
-        target=None,  # type: Optional[DistributionTarget]
+        target=None,  # type: Optional[Target]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
     ):
         # type: (...) -> Job
@@ -98,6 +98,7 @@ def test_download_platform_issues_1355(
         )
 
     def assert_ansicolors_downloaded(target=None):
+        # type: (Optional[Target]) -> None
         download_ansicolors(target=target).wait()
         assert ["ansicolors-1.0.2.tar.gz"] == os.listdir(download_dir)
 
@@ -105,8 +106,8 @@ def test_download_platform_issues_1355(
     # those with the current interpreter since we have an interpreter in hand to build a wheel from
     # it with later.
     assert_ansicolors_downloaded()
-    assert_ansicolors_downloaded(target=DistributionTarget.current())
-    assert_ansicolors_downloaded(target=DistributionTarget.for_interpreter(current_interpreter))
+    assert_ansicolors_downloaded(target=Target.current())
+    assert_ansicolors_downloaded(target=LocalInterpreter.create(current_interpreter))
 
     wheel_dir = os.path.join(str(tmpdir), "wheels")
     pip.spawn_build_wheels(
@@ -119,7 +120,7 @@ def test_download_platform_issues_1355(
 
     ansicolors_wheel = built_wheels[0]
     local_wheel_repo = PackageIndexConfiguration.create(find_links=[wheel_dir])
-    current_platform = DistributionTarget.for_platform(current_interpreter.platform)
+    current_platform = AbbreviatedPlatform.create(current_interpreter.platform)
 
     # We should fail to find a wheel for ansicolors 1.0.2 and thus fail to download for a target
     # Platform, even if that target platform happens to match the current interpreter we're
@@ -146,7 +147,7 @@ def assert_download_platform_markers_issue_1366(
     python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
     download_dir = os.path.join(str(tmpdir), "downloads")
     pip.spawn_download_distributions(
-        target=DistributionTarget.for_platform(python27_platform),
+        target=AbbreviatedPlatform.create(python27_platform),
         requirements=["typing_extensions==3.7.4.2; python_version < '3.8'"],
         download_dir=download_dir,
         transitive=False,
@@ -192,7 +193,7 @@ def test_download_platform_markers_issue_1366_indeterminate(
 
     with pytest.raises(Job.Error) as exc_info:
         pip.spawn_download_distributions(
-            target=DistributionTarget.for_platform(python27_platform),
+            target=AbbreviatedPlatform.create(python27_platform),
             requirements=["typing_extensions==3.7.4.2; python_full_version < '3.8'"],
             download_dir=download_dir,
             transitive=False,
@@ -218,7 +219,7 @@ def test_download_platform_markers_issue_1488(
 
     python39_platform = Platform.create("linux-x86_64-cp-39-cp39")
     create_pip(None).spawn_download_distributions(
-        target=DistributionTarget.for_platform(python39_platform, manylinux="manylinux2014"),
+        target=AbbreviatedPlatform.create(python39_platform, manylinux="manylinux2014"),
         requirements=["SQLAlchemy==1.4.25"],
         constraint_files=[constraints_file],
         download_dir=download_dir,

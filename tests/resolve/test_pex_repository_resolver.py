@@ -7,7 +7,6 @@ from collections import defaultdict
 import pytest
 
 from pex.common import safe_mkdtemp
-from pex.distribution_target import DistributionTargets
 from pex.interpreter import PythonInterpreter
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
@@ -15,6 +14,7 @@ from pex.platforms import Platform
 from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
+from pex.targets import Targets
 from pex.testing import IS_LINUX, PY27, PY310, ensure_python_interpreter
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING, cast
@@ -34,7 +34,7 @@ def create_pex_repository(
     # type: (...) -> str
     pex_builder = PEXBuilder()
     for installed_dist in resolve(
-        targets=DistributionTargets(
+        targets=Targets(
             interpreters=tuple(interpreters) if interpreters else (),
             platforms=tuple(platforms) if platforms else (),
             assume_manylinux=manylinux,
@@ -130,7 +130,7 @@ def test_resolve_from_pex(
     result = resolve_from_pex(
         pex=pex_repository,
         requirements=direct_requirements,
-        targets=DistributionTargets(
+        targets=Targets(
             interpreters=(py27, py310),
             platforms=(foreign_platform,),
             assume_manylinux=manylinux,
@@ -179,7 +179,7 @@ def test_resolve_from_pex_subset(
     result = resolve_from_pex(
         pex=pex_repository,
         requirements=["cffi"],
-        targets=DistributionTargets(
+        targets=Targets(
             platforms=(foreign_platform,),
             assume_manylinux=manylinux,
         ),
@@ -201,7 +201,7 @@ def test_resolve_from_pex_not_found(
         resolve_from_pex(
             pex=pex_repository,
             requirements=["pex"],
-            targets=DistributionTargets(
+            targets=Targets(
                 interpreters=(py310,),
             ),
         )
@@ -213,7 +213,7 @@ def test_resolve_from_pex_not_found(
         resolve_from_pex(
             pex=pex_repository,
             requirements=["requests==1.0.0"],
-            targets=DistributionTargets(
+            targets=Targets(
                 interpreters=(py310,),
             ),
         )
@@ -221,7 +221,7 @@ def test_resolve_from_pex_not_found(
     assert (
         "Failed to resolve requirements from PEX environment @ {}".format(pex_repository) in message
     )
-    assert "Needed {} compatible dependencies for:".format(py310.platform) in message
+    assert "Needed {} compatible dependencies for:".format(py310.platform.tag) in message
     assert "1: requests==1.0.0" in message
     assert "But this pex only contains:" in message
     assert "requests-2.25.1-py2.py3-none-any.whl" in message
@@ -240,7 +240,7 @@ def test_resolve_from_pex_intransitive(
         pex=pex_repository,
         requirements=["requests"],
         transitive=False,
-        targets=DistributionTargets(
+        targets=Targets(
             interpreters=(py27, py310),
             platforms=(foreign_platform,),
             assume_manylinux=manylinux,
@@ -278,7 +278,7 @@ def test_resolve_from_pex_constraints(
             pex=pex_repository,
             requirements=["requests"],
             constraint_files=[create_constraints_file("urllib3==1.26.2")],
-            targets=DistributionTargets(
+            targets=Targets(
                 interpreters=(py27,),
             ),
         )
@@ -299,7 +299,7 @@ def test_resolve_from_pex_ignore_errors(
         pex=pex_repository,
         requirements=["requests"],
         constraint_files=[create_constraints_file("urllib3==1.26.2")],
-        targets=DistributionTargets(
+        targets=Targets(
             interpreters=(py27,),
         ),
         ignore_errors=True,

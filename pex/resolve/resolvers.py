@@ -3,10 +3,10 @@
 
 from __future__ import absolute_import
 
-from pex.distribution_target import DistributionTarget
 from pex.environment import FingerprintedDistribution
 from pex.resolve.locked_resolve import LockedResolve
 from pex.sorted_tuple import SortedTuple
+from pex.targets import Target
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.typing import TYPE_CHECKING
 
@@ -43,7 +43,7 @@ class InstalledDistribution(object):
     included.
     """
 
-    target = attr.ib()  # type: DistributionTarget
+    target = attr.ib()  # type: Target
     fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
     direct_requirements = attr.ib(
         converter=_sorted_requirements, factory=SortedTuple

@@ -14,12 +14,12 @@ from pex.cli.commands.lockfile import Lockfile, create, json_codec
 from pex.cli.commands.lockfile.updater import LockUpdater, ResolveUpdateRequest
 from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result, try_
 from pex.common import pluralize
-from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.enum import Enum
 from pex.pep_503 import ProjectName
 from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
 from pex.sorted_tuple import SortedTuple
+from pex.targets import Target, Targets
 from pex.third_party.pkg_resources import Requirement, RequirementParseError
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -232,7 +232,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     for interpreter_constraint in target_configuration.interpreter_constraints
                 ),
             )
-            targets = DistributionTargets()
+            targets = Targets()
         else:
             lock_configuration = LockConfiguration(style=self.options.style)
             targets = target_configuration.resolve_targets()
@@ -271,9 +271,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
         targets = target_options.configure(self.options).resolve_targets().unique_targets()
 
-        selected_locks = defaultdict(
-            list
-        )  # type: DefaultDict[LockedResolve, List[DistributionTarget]]
+        selected_locks = defaultdict(list)  # type: DefaultDict[LockedResolve, List[Target]]
         with TRACER.timed("Selecting locks for {count} targets".format(count=len(targets))):
             for target, locked_resolve in lock_file.select(targets):
                 selected_locks[locked_resolve].append(target)
@@ -358,7 +356,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
         distribution_targets = (
-            DistributionTargets()
+            Targets()
             if lock_file.style == LockStyle.UNIVERSAL
             else target_options.configure(self.options).resolve_targets()
         )

@@ -32,7 +32,7 @@ def supports_platform(
     tag = "{python}-{abi}-{platform}".format(
         python=python_identity.python_tag, abi=python_identity.abi_tag, platform=platform_tag
     )
-    return len(frozenset(python_identity.supported_tags).intersection(tags.parse_tag(tag))) > 0
+    return len(python_identity.supported_tags.compatible_tags(tags.parse_tag(tag))) > 0
 
 
 @pytest.mark.skipif(
