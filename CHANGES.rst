@@ -10,7 +10,7 @@ platform specification is needed to satisfy a resolve (most commonly,
 when ``python_full_version`` environment markers are in-play). This,
 paired with the new ``pex3 interpreter inspect`` command that can be
 used to generate complete platform data on the foreign platform machine
-being targeted should allow all foreign platform PEX builds to succeed
+being targeted, should allow all foreign platform PEX builds to succeed
 exactly as they would if run on that foreign platform as long as
 pre-built wheels are available for that foreign platform.
 
@@ -20,7 +20,7 @@ PEX contains the `psutil` distribution. See
 for more information.
 
 * Add support for ``--complete-platform``. (#1609)
-  `PR #1609 <https://github.com/pantsbuild/pex/pull/1609>`
+  `PR #1609 <https://github.com/pantsbuild/pex/pull/1609>`_
 
 * Introduce ``pex3 interpreter inspect``. (#1607)
   `PR #1607 <https://github.com/pantsbuild/pex/pull/1607>`_
