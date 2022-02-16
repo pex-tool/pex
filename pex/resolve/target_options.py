@@ -3,15 +3,20 @@
 
 from __future__ import absolute_import
 
+import json
+import os.path
 import sys
 from argparse import ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex.argparse import HandleBoolAction
 from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.orderedset import OrderedSet
+from pex.pep_425 import CompatibilityTags
+from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.resolve.resolver_options import _ManylinuxAction
 from pex.resolve.target_configuration import InterpreterConfiguration, TargetConfiguration
+from pex.targets import CompletePlatform
 
 
 def register(
@@ -101,6 +106,7 @@ def _register_platform_options(
     # type: (...) -> None
     parser.add_argument(
         "--platform",
+        "--abbreviated-platform",
         dest="platforms",
         default=[],
         type=str,
@@ -122,6 +128,30 @@ def _register_platform_options(
                 singe_interpreter_info_cmd=singe_interpreter_info_cmd,
                 all_interpreters_info_cmd=all_interpreters_info_cmd,
             )
+        ),
+    )
+
+    parser.add_argument(
+        "--complete-platform",
+        dest="complete_platforms",
+        default=[],
+        type=str,
+        action="append",
+        help=(
+            "The complete platform information describing the platform for which to build the PEX. "
+            "This option can be passed multiple times to create a multi-platform pex. Values "
+            "should be either JSON object literal strings or paths to files containing them. The "
+            "JSON object is expected to have two fields with any other fields ignored. The "
+            "'marker_environment' field should have an object value with string field values "
+            "corresponding to PEP-508 marker environment entries (See: "
+            "https://www.python.org/dev/peps/pep-0508/#environment-markers). It is OK to only have "
+            "a subset of valid marker environment fields but it is not valid to present entries "
+            "not defined in PEP-508. The 'compatible_tags' field should have an array of strings "
+            "value containing the compatible tags in order from most specific first to least "
+            "specific last as defined in PEP-425 (See: https://www.python.org/dev/peps/pep-0425). "
+            "Pex can create complete platform JSON for you by running it on the target platform "
+            "like so: `pex3 interpreter inspect --markers --tags`. For more options, particularly "
+            "to select the desired target interpreter see: `pex3 interpreter inspect --help`."
         ),
     )
 
@@ -175,6 +205,49 @@ def configure_interpreters(options):
     )
 
 
+def _create_complete_platform(value):
+    # type: (str) -> CompletePlatform
+    if os.path.isfile(value):
+        try:
+            with open(value) as fp:
+                data = json.load(fp)
+        except (OSError, ValueError) as e:
+            raise ArgumentTypeError(
+                "Failed to load complete platform data from {path}: {err}".format(path=value, err=e)
+            )
+    else:
+        try:
+            data = json.loads(value)
+        except ValueError as e:
+            raise ArgumentTypeError(
+                "Failed to load complete platform data from json string: {err}".format(err=e)
+            )
+
+    try:
+        marker_environment = MarkerEnvironment(**data["marker_environment"])
+    except KeyError:
+        raise ArgumentTypeError(
+            "The complete platform JSON object did not have the required 'marker_environment' "
+            "key:\n{json_object}".format(json_object=json.dumps(data, indent=4))
+        )
+    except TypeError as e:
+        raise ArgumentTypeError(
+            "Invalid environment entry provided: {err}\n"
+            "See https://www.python.org/dev/peps/pep-0508/#environment-markers for valid "
+            "entries.".format(err=e)
+        )
+
+    try:
+        supported_tags = CompatibilityTags.from_stings(data["compatible_tags"])
+    except KeyError:
+        raise ArgumentTypeError(
+            "The complete platform JSON object did not have the required 'compatible_tags' "
+            "key:\n{json_object}".format(json_object=json.dumps(data, indent=4))
+        )
+
+    return CompletePlatform.create(marker_environment, supported_tags)
+
+
 def configure(options):
     # type: (Namespace) -> TargetConfiguration
     """Creates a target configuration from options via `register(..., include_platforms=True)`.
@@ -187,15 +260,20 @@ def configure(options):
         platforms = tuple(
             OrderedSet(
                 Platform.create(platform) if platform and platform != "current" else None
-                for platform in getattr(options, "platforms", ())
+                for platform in options.platforms
             )
         )
     except Platform.InvalidPlatformError as e:
         raise ArgumentTypeError(str(e))
 
+    complete_platforms = tuple(
+        OrderedSet(_create_complete_platform(value) for value in options.complete_platforms)
+    )
+
     return TargetConfiguration(
         interpreter_configuration=interpreter_configuration,
         platforms=platforms,
+        complete_platforms=complete_platforms,
         resolve_local_platforms=options.resolve_local_platforms,
         assume_manylinux=options.assume_manylinux,
     )

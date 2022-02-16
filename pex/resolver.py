@@ -10,6 +10,7 @@ import os
 import zipfile
 from collections import OrderedDict, defaultdict
 
+from pex import targets
 from pex.common import AtomicDirectory, atomic_directory, pluralize, safe_mkdtemp
 from pex.dist_metadata import DistMetadata
 from pex.environment import FingerprintedDistribution
@@ -1062,7 +1063,7 @@ def _download_internal(
 class LocalDistribution(object):
     path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: str
-    target = attr.ib(default=Target.current())  # type: Target
+    target = attr.ib(default=targets.current())  # type: Target
 
     @fingerprint.default
     def _calculate_fingerprint(self):

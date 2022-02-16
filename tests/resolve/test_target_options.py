@@ -2,22 +2,26 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import itertools
+import json
 import os
+import re
 from argparse import ArgumentParser, ArgumentTypeError
 
 import pytest
 
 import pex.resolve.target_configuration
 from pex.interpreter import PythonInterpreter
+from pex.pep_425 import CompatibilityTags
+from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.resolve import target_options
-from pex.targets import Targets
+from pex.targets import CompletePlatform, Targets
 from pex.testing import IS_MAC, environment_as
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Iterable, List, Optional, Tuple
+    from typing import Any, Iterable, List, Optional, Tuple
 
 
 def compute_target_configuration(
@@ -33,10 +37,8 @@ def test_clp_manylinux(parser):
     # type: (ArgumentParser) -> None
     target_options.register(parser)
 
-    distribution_targets = compute_target_configuration(parser, args=[])
-    assert (
-        distribution_targets.assume_manylinux
-    ), "The --manylinux option should default to some value."
+    targets = compute_target_configuration(parser, args=[])
+    assert targets.assume_manylinux, "The --manylinux option should default to some value."
 
     def assert_manylinux(value):
         # type: (str) -> None
@@ -52,8 +54,8 @@ def test_clp_manylinux(parser):
     assert_manylinux("manylinux_2_5_x86_64")
     assert_manylinux("manylinux_2_33_x86_64")
 
-    distribution_targets = compute_target_configuration(parser, args=["--no-manylinux"])
-    assert distribution_targets.assume_manylinux is None
+    targets = compute_target_configuration(parser, args=["--no-manylinux"])
+    assert targets.assume_manylinux is None
 
     with pytest.raises(ArgumentTypeError):
         compute_target_configuration(parser, args=["--manylinux", "foo"])
@@ -69,9 +71,11 @@ def test_configure_platform(parser):
     ):
         # type: (...) -> None
         args = list(itertools.chain.from_iterable(("--platform", p) for p in platforms))
-        distribution_targets = compute_target_configuration(parser, args)
-        assert not distribution_targets.interpreters
-        assert expected_platforms == distribution_targets.platforms
+        targets = compute_target_configuration(parser, args)
+        assert not targets.interpreters
+        assert expected_platforms == targets.platforms
+
+    assert_platforms([])
 
     # The special 'current' platform should map to a `None` platform entry.
     assert_platforms(["current"], None)
@@ -85,23 +89,121 @@ def test_configure_platform(parser):
     )
 
 
+def test_configure_complete_platform(
+    tmpdir,  # type: Any
+    parser,  # type: ArgumentParser
+    py27,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
+    current_interpreter,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+    target_options.register(parser)
+
+    def parse_complete_platforms(*platforms):
+        # type: (*str) -> Targets
+        args = list(itertools.chain.from_iterable(("--complete-platform", p) for p in platforms))
+        return compute_target_configuration(parser, args)
+
+    def assert_complete_platforms(
+        platforms,  # type: Iterable[str]
+        *expected_platforms  # type: CompletePlatform
+    ):
+        # type: (...) -> None
+        targets = parse_complete_platforms(*platforms)
+        assert not targets.interpreters
+        assert expected_platforms == targets.complete_platforms
+
+    def complete_platform_json(
+        interpreter,  # type: PythonInterpreter
+        **extra_fields  # type: Any
+    ):
+        # type: (...) -> str
+        return json.dumps(
+            dict(
+                marker_environment=interpreter.identity.env_markers.as_dict(),
+                compatible_tags=interpreter.identity.supported_tags.to_string_list(),
+                **extra_fields
+            )
+        )
+
+    def dump_complete_platform(
+        interpreter,  # type: PythonInterpreter
+        **extra_fields  # type: Any
+    ):
+        # type: (...) -> str
+        path = os.path.join(str(tmpdir), interpreter.binary.replace(os.sep, ".").lstrip("."))
+        with open(path, "w") as fp:
+            fp.write(complete_platform_json(interpreter, **extra_fields))
+        return path
+
+    assert_complete_platforms([])
+
+    assert_complete_platforms(
+        [complete_platform_json(current_interpreter)],
+        CompletePlatform.from_interpreter(current_interpreter),
+    )
+    assert_complete_platforms(
+        [dump_complete_platform(current_interpreter)],
+        CompletePlatform.from_interpreter(current_interpreter),
+    )
+    assert_complete_platforms(
+        [dump_complete_platform(py310), complete_platform_json(py27)],
+        CompletePlatform.from_interpreter(py310),
+        CompletePlatform.from_interpreter(py27),
+    )
+
+    assert_complete_platforms(
+        ['{"marker_environment": {}, "compatible_tags": ["this-is.a-tag"], "ignored": 42}'],
+        CompletePlatform.create(
+            marker_environment=MarkerEnvironment(),
+            supported_tags=CompatibilityTags.from_stings(["this-is.a-tag"]),
+        ),
+    )
+
+    def assert_argument_type_error(
+        expected_message_prefix,  # type: str
+        *platforms  # type: str
+    ):
+        # type: (...) -> None
+        with pytest.raises(
+            ArgumentTypeError,
+            match=r"{}.*".format(re.escape(expected_message_prefix)),
+        ):
+            parse_complete_platforms(*platforms)
+
+    assert_argument_type_error(
+        "The complete platform JSON object did not have the required 'compatible_tags' key:",
+        '{"marker_environment": {}}',
+    )
+
+    assert_argument_type_error(
+        "The complete platform JSON object did not have the required 'marker_environment' " "key:",
+        '{"compatible_tags": ["this-is.a-tag"]}',
+    )
+
+    assert_argument_type_error(
+        "Invalid environment entry provided:",
+        '{"marker_environment": {"bad_key": "42"}, "compatible_tags": ["this-is.a-tag"]}',
+    )
+
+
 def assert_interpreters_configured(
-    distribution_targets,  # type: Targets
+    targets,  # type: Targets
     expected_interpreter,  # type: Optional[PythonInterpreter]
     expected_interpreters=None,  # type: Optional[Tuple[PythonInterpreter, ...]]
 ):
     # type: (...) -> None
     if expected_interpreter is None:
-        assert distribution_targets.interpreter is None
+        assert targets.interpreter is None
         assert not expected_interpreters
         return
 
-    assert expected_interpreter == distribution_targets.interpreter
+    assert expected_interpreter == targets.interpreter
     if expected_interpreters:
         assert expected_interpreter in expected_interpreters
-        assert expected_interpreters == distribution_targets.interpreters
+        assert expected_interpreters == targets.interpreters
     else:
-        assert (expected_interpreter,) == distribution_targets.interpreters
+        assert (expected_interpreter,) == targets.interpreters
 
 
 def assert_interpreter(
@@ -111,11 +213,9 @@ def assert_interpreter(
     *expected_interpreters  # type: PythonInterpreter
 ):
     # type: (...) -> None
-    distribution_targets = compute_target_configuration(parser, args=args)
-    assert not distribution_targets.platforms
-    assert_interpreters_configured(
-        distribution_targets, expected_interpreter, expected_interpreters
-    )
+    targets = compute_target_configuration(parser, args=args)
+    assert not targets.platforms
+    assert_interpreters_configured(targets, expected_interpreter, expected_interpreters)
 
 
 def test_configure_interpreter_empty(parser):
@@ -250,14 +350,9 @@ def test_configure_resolve_local_platforms(
         args = ["--python-path", path_env_var, "--resolve-local-platforms"]
         args.extend(itertools.chain.from_iterable(("--platform", p) for p in platforms))
         args.extend(extra_args or ())
-        distribution_targets = compute_target_configuration(parser, args)
-        assert (
-            tuple(Platform.create(ep) for ep in expected_platforms)
-            == distribution_targets.platforms
-        )
-        assert_interpreters_configured(
-            distribution_targets, expected_interpreter, expected_interpreters
-        )
+        targets = compute_target_configuration(parser, args)
+        assert tuple(Platform.create(ep) for ep in expected_platforms) == targets.platforms
+        assert_interpreters_configured(targets, expected_interpreter, expected_interpreters)
 
     assert_local_platforms(
         platforms=[str(py27.platform)],

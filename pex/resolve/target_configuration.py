@@ -4,13 +4,14 @@
 from __future__ import absolute_import
 
 import os
+from collections import OrderedDict
 
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
 from pex.pex_bootstrapper import iter_compatible_interpreters, parse_path
 from pex.platforms import Platform
-from pex.targets import Targets
+from pex.targets import CompletePlatform, Targets
 from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -110,13 +111,14 @@ class TargetConfiguration(object):
         # type: () -> Tuple[Requirement, ...]
         return self.interpreter_configuration.interpreter_constraints
 
+    complete_platforms = attr.ib(default=())  # type: Tuple[CompletePlatform, ...]
     platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
     assume_manylinux = attr.ib(default="manylinux2014")  # type: Optional[str]
     resolve_local_platforms = attr.ib(default=False)  # type: bool
 
     def resolve_targets(self):
         # type: () -> Targets
-        """Resolves the distribution targets satisfying the target configuration.
+        """Resolves the targets satisfying the target configuration.
 
         :raise: :class:`InterpreterNotFound` specific --python interpreters were requested but could
             not be found.
@@ -126,21 +128,28 @@ class TargetConfiguration(object):
         interpreters = OrderedSet(
             self.interpreter_configuration.resolve_interpreters()
         )  # type: OrderedSet[PythonInterpreter]
-        platforms = OrderedSet(self.platforms)
 
-        if platforms and self.resolve_local_platforms:
+        all_platforms = (
+            OrderedDict()
+        )  # type: OrderedDict[Optional[Platform], Optional[CompletePlatform]]
+        all_platforms.update(
+            (complete_platform.platform, complete_platform)
+            for complete_platform in self.complete_platforms
+        )
+        all_platforms.update((platform, None) for platform in self.platforms)
+        if all_platforms and self.resolve_local_platforms:
             with TRACER.timed(
                 "Searching for local interpreters matching {}".format(
-                    ", ".join(map(str, platforms))
+                    ", ".join(map(str, all_platforms))
                 )
             ):
                 candidate_interpreters = OrderedSet(
                     iter_compatible_interpreters(path=self.interpreter_configuration.python_path)
-                )
+                )  # type: OrderedSet[PythonInterpreter]
                 candidate_interpreters.add(PythonInterpreter.get())
                 for candidate_interpreter in candidate_interpreters:
                     resolved_platforms = candidate_interpreter.supported_platforms.intersection(
-                        platforms
+                        all_platforms
                     )
                     if resolved_platforms:
                         for resolved_platform in resolved_platforms:
@@ -149,18 +158,28 @@ class TargetConfiguration(object):
                                     candidate_interpreter, resolved_platform
                                 )
                             )
-                            platforms.remove(resolved_platform)
+                            all_platforms.pop(resolved_platform)
                         interpreters.add(candidate_interpreter)
-            if platforms:
+            if all_platforms:
                 TRACER.log(
                     "Could not resolve a local interpreter for {}, will resolve only binary "
                     "distributions for {}.".format(
-                        ", ".join(map(str, platforms)),
-                        "this platform" if len(platforms) == 1 else "these platforms",
+                        ", ".join(map(str, all_platforms)),
+                        "this platform" if len(all_platforms) == 1 else "these platforms",
                     )
                 )
+
+        complete_platforms = []
+        platforms = []
+        for platform, complete_platform in all_platforms.items():
+            if complete_platform:
+                complete_platforms.append(complete_platform)
+            else:
+                platforms.append(platform)
+
         return Targets(
             interpreters=tuple(interpreters),
+            complete_platforms=tuple(complete_platforms),
             platforms=tuple(platforms),
             assume_manylinux=self.assume_manylinux,
         )

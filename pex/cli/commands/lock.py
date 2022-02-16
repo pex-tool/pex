@@ -355,14 +355,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             max_jobs=resolver_options.get_max_jobs_value(self.options),
         )
 
-        distribution_targets = (
+        targets = (
             Targets()
             if lock_file.style == LockStyle.UNIVERSAL
             else target_options.configure(self.options).resolve_targets()
         )
         update_requests = [
             ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
-            for target, locked_resolve in lock_file.select(distribution_targets.unique_targets())
+            for target, locked_resolve in lock_file.select(targets.unique_targets())
         ]
         if self.options.strict:
             missing_updates = set(lock_file.locked_resolves) - {
@@ -407,7 +407,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             lock_updater.update(
                 update_requests=update_requests,
                 updates=updates,
-                assume_manylinux=distribution_targets.assume_manylinux,
+                assume_manylinux=targets.assume_manylinux,
             )
         )
 
