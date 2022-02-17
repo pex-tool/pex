@@ -23,11 +23,6 @@ else:
 
 @attr.s(frozen=True)
 class Target(object):
-    @classmethod
-    def current(cls):
-        # type: () -> Target
-        return LocalInterpreter.create()
-
     id = attr.ib()  # type: str
     platform = attr.ib()  # type: Platform
     marker_environment = attr.ib()  # type: MarkerEnvironment
@@ -130,7 +125,7 @@ class AbbreviatedPlatform(Target):
     ):
         # type: (...) -> AbbreviatedPlatform
         return cls(
-            id=str(platform),
+            id=str(platform.tag),
             marker_environment=MarkerEnvironment.from_platform(platform),
             platform=platform,
             manylinux=manylinux,
@@ -143,9 +138,48 @@ class AbbreviatedPlatform(Target):
         return self.platform.supported_tags(manylinux=self.manylinux)
 
 
+def current():
+    # type: () -> LocalInterpreter
+    return LocalInterpreter.create()
+
+
+@attr.s(frozen=True)
+class CompletePlatform(Target):
+    @classmethod
+    def from_interpreter(cls, interpreter):
+        # type: (PythonInterpreter) -> CompletePlatform
+        return cls.create(
+            marker_environment=interpreter.identity.env_markers,
+            supported_tags=interpreter.identity.supported_tags,
+        )
+
+    @classmethod
+    def create(
+        cls,
+        marker_environment,  # type: MarkerEnvironment
+        supported_tags,  # type: CompatibilityTags
+    ):
+        # type: (...) -> CompletePlatform
+
+        platform = Platform.from_tag(supported_tags[0])
+        return cls(
+            id=str(platform.tag),
+            marker_environment=marker_environment,
+            platform=platform,
+            supported_tags=supported_tags,
+        )
+
+    _supported_tags = attr.ib()  # type: CompatibilityTags
+
+    def get_supported_tags(self):
+        # type: () -> CompatibilityTags
+        return self._supported_tags
+
+
 @attr.s(frozen=True)
 class Targets(object):
     interpreters = attr.ib(default=())  # type: Tuple[PythonInterpreter, ...]
+    complete_platforms = attr.ib(default=())  # type: Tuple[CompletePlatform, ...]
     platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
     assume_manylinux = attr.ib(default=None)  # type: Optional[str]
 
@@ -161,10 +195,10 @@ class Targets(object):
 
         def iter_targets():
             # type: () -> Iterator[Target]
-            if not self.interpreters and not self.platforms:
+            if not self.interpreters and not self.platforms and not self.complete_platforms:
                 # No specified targets, so just build for the current interpreter (on the current
                 # platform).
-                yield Target.current()
+                yield current()
                 return
 
             for interpreter in self.interpreters:
@@ -174,10 +208,13 @@ class Targets(object):
             for platform in self.platforms:
                 if platform is None and not self.interpreters:
                     # Build for the current platform (None) only if not done already (ie: no
-                    # intepreters were specified).
-                    yield Target.current()
+                    # interpreters were specified).
+                    yield current()
                 elif platform is not None:
                     # Build for specific platforms.
                     yield AbbreviatedPlatform.create(platform, manylinux=self.assume_manylinux)
+
+            for complete_platform in self.complete_platforms:
+                yield complete_platform
 
         return OrderedSet(iter_targets())

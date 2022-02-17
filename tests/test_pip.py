@@ -9,6 +9,7 @@ import warnings
 
 import pytest
 
+from pex import targets
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
@@ -106,7 +107,7 @@ def test_download_platform_issues_1355(
     # those with the current interpreter since we have an interpreter in hand to build a wheel from
     # it with later.
     assert_ansicolors_downloaded()
-    assert_ansicolors_downloaded(target=Target.current())
+    assert_ansicolors_downloaded(target=targets.current())
     assert_ansicolors_downloaded(target=LocalInterpreter.create(current_interpreter))
 
     wheel_dir = os.path.join(str(tmpdir), "wheels")

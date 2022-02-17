@@ -9,7 +9,7 @@ import site
 import sys
 from collections import OrderedDict, defaultdict
 
-from pex import dist_metadata, pex_warnings
+from pex import dist_metadata, pex_warnings, targets
 from pex.common import pluralize
 from pex.inherit_path import InheritPath
 from pex.layout import maybe_install
@@ -227,7 +227,7 @@ class PEXEnvironment(object):
             )
         pex_root = pex_info.pex_root
         pex = maybe_install(pex=pex, pex_root=pex_root, pex_hash=pex_hash) or pex
-        target = target or Target.current()
+        target = target or targets.current()
         return cls(pex=pex, pex_info=pex_info, target=target)
 
     def __init__(
@@ -249,7 +249,7 @@ class PEXEnvironment(object):
         self._resolved_dists = None  # type: Optional[Iterable[Distribution]]
         self._activated_dists = None  # type: Optional[Iterable[Distribution]]
 
-        self._target = target or Target.current()
+        self._target = target or targets.current()
         self._interpreter_version = self._target.get_python_version_str()
 
         # The supported_tags come ordered most specific (platform specific) to least specific

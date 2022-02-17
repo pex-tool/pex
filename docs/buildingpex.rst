@@ -393,20 +393,41 @@ in certain situations when particular extensions may not be necessary to run a p
 ``--platform``
 ~~~~~~~~~~~~~~
 
-The platform to build the pex for. Right now it defaults to the current system, but you can specify
-something like ``linux-x86_64`` or ``macosx-10.6-x86_64``. This will look for bdists for the particular platform.
+The (abbreviated) platform to build the PEX for. This will look for wheels for the particular
+platform.
 
-To resolve wheels for specific interpreter/platform tags, you can append them to the platform name with hyphens
-like ``PLATFORM-IMPL-PYVER-ABI``, where ``PLATFORM`` is the platform (e.g. ``linux-x86_64``,
-``macosx-10.4-x86_64``), ``IMPL`` is the python implementation abbreviation (e.g. ``cp``, ``pp``, ``jp``), ``PYVER``
-is a two-digit string representing the python version (e.g., ``36``) and ``ABI`` is the ABI tag (e.g., ``cp36m``,
-``cp27mu``, ``abi3``, ``none``). A complete example: ``linux_x86_64-cp-36-cp36m``.
+The abbreviated platform is described by a string of the form ``PLATFORM-IMPL-PYVER-ABI``, where
+``PLATFORM`` is the platform (e.g. ``linux-x86_64``, ``macosx-10.4-x86_64``), ``IMPL`` is the python
+implementation abbreviation (``cp`` or ``pp``), ``PYVER`` is a two-digit string representing the
+python version (e.g., ``36``) and ``ABI`` is the ABI tag (e.g., ``cp36m``, ``cp27mu``, ``abi3``,
+``none``). A complete example: ``linux_x86_64-cp-36-cp36m``.
 
-**Constraints**: when ``--platform`` is used the `environment marker <https://www.python.org/dev/peps/pep-0508/#environment-markers>`_
-``python_full_version`` is not available, because its value cannot be determined from a platform where only a two-digit string
-representing the python version can be specified (e.g., ``38``), while ``python_full_version`` is meant to have 3 digits (e.g., ``3.8.10``).
-If ``python_full_version`` is found an ``UndefinedEnvironmentName`` exception will be raised.
+**Constraints**: when ``--platform`` is used the
+`environment marker <https://www.python.org/dev/peps/pep-0508/#environment-markers>`_
+``python_full_version`` is not available, because its value cannot be determined from a platform
+where only a two-digit string representing the python version can be specified (e.g., ``38``), while
+``python_full_version`` is meant to have 3 digits (e.g., ``3.8.10``). If ``python_full_version`` is
+found an ``UndefinedEnvironmentName`` exception will be raised. To remedy this, use
+``--complete-platform`` instead.
 
+``--complete-platform``
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The completely specified platform to build the PEX for. This will look for wheels for the particular
+platform.
+
+The complete platform can be either a path to a file containing JSON data or else a JSON object
+literal. In either case, the JSON object is expected to have two fields with any other fields
+ignored. The ``marker_environment`` field should have an object value with string field values
+corresponding to
+`PEP-508 marker environment <https://www.python.org/dev/peps/pep-0508/#environment-markers>`_
+entries. It is OK to only have a subset of valid marker environment fields but it is not valid to
+present entries not defined in PEP-508. The ``compatible_tags`` field should have an array of
+strings value containing the compatible tags in order from most specific first to least
+specific last as defined in `PEP-425 <https://www.python.org/dev/peps/pep-0425>`_. Pex can create
+complete platform JSON for you by running it on the target platform like so:
+``pex3 interpreter inspect --markers --tags``. For more options, particularly to select the desired
+target interpreter see: ``pex3 interpreter inspect --help``.
 
 Tailoring PEX execution at runtime
 ----------------------------------

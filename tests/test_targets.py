@@ -5,16 +5,23 @@ from __future__ import absolute_import
 
 import pytest
 
+from pex import targets
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.platforms import Platform
-from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target, Targets
+from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Targets
 
 
 @pytest.fixture
 def current_interpreter():
     # type: () -> PythonInterpreter
     return PythonInterpreter.get()
+
+
+def test_current(current_interpreter):
+    # type: (PythonInterpreter) -> None
+    assert LocalInterpreter.create() == targets.current()
+    assert LocalInterpreter.create(current_interpreter) == targets.current()
 
 
 def test_interpreter(
@@ -36,10 +43,10 @@ def test_unique_targets(
 ):
     # type: (...) -> None
     assert (
-        OrderedSet([Target.current()]) == Targets().unique_targets()
+        OrderedSet([targets.current()]) == Targets().unique_targets()
     ), "Expected the default TargetConfiguration to produce the current interpreter."
 
-    assert OrderedSet([Target.current()]) == Targets(platforms=(None,)).unique_targets(), (
+    assert OrderedSet([targets.current()]) == Targets(platforms=(None,)).unique_targets(), (
         "Expected the 'current' platform - which maps to `None` - to produce the current "
         "interpreter when no interpreters were configured."
     )
@@ -60,4 +67,13 @@ def test_unique_targets(
     assert (
         OrderedSet(LocalInterpreter.create(i) for i in (py27, py37, py310))
         == Targets(interpreters=(py27, py37, py310)).unique_targets()
+    )
+
+    complete_platform_current = CompletePlatform.from_interpreter(current_interpreter)
+    complete_platform_py27 = CompletePlatform.from_interpreter(py27)
+    assert (
+        OrderedSet([complete_platform_current, complete_platform_py27])
+        == Targets(
+            complete_platforms=(complete_platform_current, complete_platform_py27)
+        ).unique_targets()
     )

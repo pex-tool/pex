@@ -20,7 +20,7 @@ from collections import defaultdict, deque
 from contextlib import closing
 from textwrap import dedent
 
-from pex import dist_metadata, third_party
+from pex import dist_metadata, targets, third_party
 from pex.common import atomic_directory, is_python_script, safe_mkdtemp
 from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, get_stdout_bytes_buffer, urlparse
 from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
@@ -44,7 +44,7 @@ from pex.resolve.locked_resolve import (
 )
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
-from pex.targets import AbbreviatedPlatform, Target
+from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target
 from pex.third_party import isolated
 from pex.third_party.pkg_resources import EntryPoint, Requirement
 from pex.tracer import TRACER
@@ -607,6 +607,7 @@ class _LogScrapeJob(Job):
 @attr.s(frozen=True)
 class Pip(object):
     _PATCHED_MARKERS_FILE_ENV_VAR_NAME = "_PEX_PATCHED_MARKERS_FILE"
+    _PATCHED_TAGS_FILE_ENV_VAR_NAME = "_PEX_PATCHED_TAGS_FILE"
     _SKIP_MARKERS_ENV_VAR_NAME = "_PEX_SKIP_MARKERS"
     _PYTHON_VERSIONS_FILE_ENV_VAR_NAME = "_PEX_PYTHON_VERSIONS_FILE"
 
@@ -635,6 +636,7 @@ class Pip(object):
                     isolated_pip_builder.add_dist_location(dist=dist_location)
                 env_var_names = dict(
                     patched_markers_env_var_name=cls._PATCHED_MARKERS_FILE_ENV_VAR_NAME,
+                    patched_tags_env_var_name=cls._PATCHED_TAGS_FILE_ENV_VAR_NAME,
                     skip_markers_env_var_name=cls._SKIP_MARKERS_ENV_VAR_NAME,
                     python_versions_env_var_name=cls._PYTHON_VERSIONS_FILE_ENV_VAR_NAME,
                 )
@@ -650,10 +652,18 @@ class Pip(object):
                             patched_markers_file = os.environ.pop(
                                 {patched_markers_env_var_name!r}, None
                             )
+                            patched_tags_file = os.environ.pop(
+                                {patched_tags_env_var_name!r}, None
+                            )
                             if skip_markers is not None and patched_markers_file is not None:
                                 raise AssertionError(
                                     "Pex should never both set both {skip_markers_env_var_name} "
                                     "and {patched_markers_env_var_name} environment variables."
+                                )
+                            if skip_markers is not None and patched_tags_file is not None:
+                                raise AssertionError(
+                                    "Pex should never both set both {skip_markers_env_var_name} "
+                                    "and {patched_tags_env_var_name} environment variables."
                                 )
 
                             if skip_markers:
@@ -807,19 +817,43 @@ class Pip(object):
 
                                 patch_requires_python()
                                 del patch_requires_python
-                            elif patched_markers_file:
-                                def patch_markers_default_environment():
-                                    import json
-
-                                    from pip._vendor.packaging import markers
-
-                                    with open(patched_markers_file) as fp:
-                                        patched_markers = json.load(fp)
-
-                                    markers.default_environment = patched_markers.copy
-
-                                patch_markers_default_environment()
-                                del patch_markers_default_environment
+                            else:
+                                if patched_markers_file:
+                                    def patch_markers_default_environment():
+                                        import json
+    
+                                        from pip._vendor.packaging import markers
+    
+                                        with open(patched_markers_file) as fp:
+                                            patched_markers = json.load(fp)
+    
+                                        markers.default_environment = patched_markers.copy
+    
+                                    patch_markers_default_environment()
+                                    del patch_markers_default_environment
+                            
+                                if patched_tags_file:
+                                    def patch_compatibility_tags():
+                                        import itertools
+                                        import json
+    
+                                        from pip._internal.utils import compatibility_tags
+                                        from pip._vendor.packaging import tags
+                                        
+                                        with open(patched_tags_file) as fp:
+                                            tags = tuple(
+                                                itertools.chain.from_iterable(
+                                                    tags.parse_tag(tag) for tag in json.load(fp)
+                                                )
+                                            )
+    
+                                        def get_supported(*args, **kwargs):
+                                            return list(tags)
+    
+                                        compatibility_tags.get_supported = get_supported
+    
+                                    patch_compatibility_tags()
+                                    del patch_compatibility_tags
 
                             runpy.run_module(mod_name="pip", run_name="__main__", alter_sys=True)
                             """.format(
@@ -1036,7 +1070,7 @@ class Pip(object):
         locker=None,  # type: Optional[Locker]
     ):
         # type: (...) -> Job
-        target = target or Target.current()
+        target = target or targets.current()
 
         if not use_wheel:
             if not build:
@@ -1044,7 +1078,7 @@ class Pip(object):
                     "Cannot both ignore wheels (use_wheel=False) and refrain from building "
                     "distributions (build=False)."
                 )
-            elif isinstance(target, AbbreviatedPlatform):
+            elif not isinstance(target, LocalInterpreter):
                 raise ValueError(
                     "Cannot ignore wheels (use_wheel=False) when resolving for a platform: "
                     "{}".format(target.platform)
@@ -1053,24 +1087,8 @@ class Pip(object):
         download_cmd = ["download", "--dest", download_dir]
         extra_env = {}  # type: Dict[str, str]
 
-        if isinstance(target, AbbreviatedPlatform):
-            # We're either resolving for a different host / platform or a different interpreter
-            # for the current platform that we have no access to; so we need to let pip know
-            # and not otherwise pickup platform info from the interpreter we execute pip with.
-            # Pip will determine the compatible platform tags using this information.
-            platform = target.platform
-            manylinux = target.manylinux
-            download_cmd.extend(
-                self._iter_platform_args(
-                    platform=platform.platform,
-                    impl=platform.impl,
-                    version=platform.version,
-                    abi=platform.abi,
-                    manylinux=manylinux,
-                )
-            )
-
-        if isinstance(target, AbbreviatedPlatform) or not build:
+        if not isinstance(target, LocalInterpreter) or not build:
+            # If we're not targeting a local interpreter, we can't build wheels from sdists.
             download_cmd.extend(["--only-binary", ":all:"])
 
         if not use_wheel:
@@ -1120,22 +1138,43 @@ class Pip(object):
                 with open(os.path.join(version_info_dir, "python_full_versions.json"), "w") as fp:
                     json.dump(python_full_versions, fp)
                 extra_env[self._PYTHON_VERSIONS_FILE_ENV_VAR_NAME] = fp.name
-        elif isinstance(target, AbbreviatedPlatform):
+        elif not isinstance(target, LocalInterpreter):
             # Pip evaluates environment markers in the context of the ambient interpreter instead of
             # failing when encountering them, ignoring them or doing what we do here: evaluate those
-            # environment markers positively identified by the platform quadruple and failing for
-            # those we cannot know.
-            env_markers_dir = safe_mkdtemp()
+            # environment markers we know but fail for those we don't.
+            patches_dir = safe_mkdtemp()
             patched_environment = target.marker_environment.as_dict(
-                # We want to fail a resolve when it needs to evaluate environment markers we can't
-                # calculate given just the platform information.
+                # We want to fail a resolve when it needs to evaluate environment markers we don't
+                # know.
                 default_unknown=False
             )
-            with open(
-                os.path.join(env_markers_dir, "env_markers.{}.json".format(target.platform)), "w"
-            ) as fp:
-                json.dump(patched_environment, fp)
-            extra_env[self._PATCHED_MARKERS_FILE_ENV_VAR_NAME] = fp.name
+            with open(os.path.join(patches_dir, "markers.json"), "w") as markers_fp:
+                json.dump(patched_environment, markers_fp)
+            extra_env[self._PATCHED_MARKERS_FILE_ENV_VAR_NAME] = markers_fp.name
+
+            if isinstance(target, AbbreviatedPlatform):
+                # We're either resolving for a different host / platform or a different interpreter
+                # for the current platform that we have no access to; so we need to let pip know
+                # and not otherwise pickup platform info from the interpreter we execute pip with.
+                # Pip will determine the compatible platform tags using this information.
+                platform = target.platform
+                manylinux = target.manylinux
+                download_cmd.extend(
+                    self._iter_platform_args(
+                        platform=platform.platform,
+                        impl=platform.impl,
+                        version=platform.version,
+                        abi=platform.abi,
+                        manylinux=manylinux,
+                    )
+                )
+            elif isinstance(target, CompletePlatform):
+                compatible_tags = target.get_supported_tags()
+                if compatible_tags:
+                    with open(os.path.join(patches_dir, "tags.json"), "w") as tags_fp:
+                        json.dump(compatible_tags.to_string_list(), tags_fp)
+                    extra_env[self._PATCHED_TAGS_FILE_ENV_VAR_NAME] = tags_fp.name
+
             log_analyzers.append(_Issue10050Analyzer(platform=target.platform))
             TRACER.log(
                 "Patching environment markers for {} with {}".format(target, patched_environment),
@@ -1419,7 +1458,7 @@ class Pip(object):
         target=None,  # type: Optional[Target]
     ):
         # type: (...) -> Job
-        target = target or Target.current()
+        target = target or targets.current()
 
         install_cmd = [
             "install",

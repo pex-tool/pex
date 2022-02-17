@@ -73,7 +73,7 @@ def test_inspect_default_markers():
 
 
 def assert_compatible_tags(data):
-    assert PythonInterpreter.get().identity.supported_tags == CompatibilityTags.from_stings(
+    assert PythonInterpreter.get().identity.supported_tags == CompatibilityTags.from_strings(
         data.pop("compatible_tags")
     )
 

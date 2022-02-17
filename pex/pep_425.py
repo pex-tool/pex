@@ -30,7 +30,7 @@ class CompatibilityTags(object):
     """
 
     @classmethod
-    def from_stings(cls, tags):
+    def from_strings(cls, tags):
         # type: (Iterable[str]) -> CompatibilityTags
         return cls(tags=itertools.chain.from_iterable(parse_tag(tag) for tag in tags))
 

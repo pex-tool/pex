@@ -10,13 +10,14 @@ from textwrap import dedent
 import pkginfo
 import pytest
 
+from pex import targets
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.platforms import Platform
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import InstalledDistribution, Unsatisfiable
 from pex.resolver import IntegrityError, LocalDistribution, download, install, resolve
-from pex.targets import Target, Targets
+from pex.targets import Targets
 from pex.testing import (
     IS_LINUX,
     IS_PYPY,
@@ -465,7 +466,7 @@ def test_download():
     assert 1 == len(downloaded_by_target)
 
     target, distributions = downloaded_by_target.popitem()
-    assert Target.current() == target
+    assert targets.current() == target
 
     distributions_by_name = {distribution.name: distribution for distribution in distributions}
     assert 3 == len(distributions_by_name)
@@ -496,7 +497,7 @@ def test_install():
     assert 1 == len(installed_by_target)
 
     target, distributions = installed_by_target.popitem()
-    assert Target.current() == target
+    assert targets.current() == target
 
     distributions_by_name = {distribution.key: distribution for distribution in distributions}
     assert 2 == len(distributions_by_name)
