@@ -24,14 +24,12 @@ from pex import dist_metadata, third_party
 from pex.common import atomic_directory, is_python_script, safe_mkdtemp
 from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, get_stdout_bytes_buffer, urlparse
 from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
-from pex.distribution_target import DistributionTarget
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.pep_508 import MarkerEnvironment
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.platforms import Platform
@@ -45,6 +43,8 @@ from pex.resolve.locked_resolve import (
     Pin,
 )
 from pex.resolve.resolver_configuration import ResolverVersion
+from pex.sorted_tuple import SortedTuple
+from pex.targets import AbbreviatedPlatform, Target
 from pex.third_party import isolated
 from pex.third_party.pkg_resources import EntryPoint, Requirement
 from pex.tracer import TRACER
@@ -410,7 +410,7 @@ class Locker(_LogAnalyzer):
 
     def __init__(
         self,
-        target,  # type: DistributionTarget
+        target,  # type: Target
         lock_configuration,  # type: LockConfiguration
         network_configuration=None,  # type: Optional[NetworkConfiguration]
     ):
@@ -554,9 +554,9 @@ class Locker(_LogAnalyzer):
                 "Lock retrieval was attempted before Pip log analysis was complete."
             )
         if self._locked_resolve is None:
-            self._locked_resolve = LockedResolve.from_target(
-                target=self._target,
-                locked_requirements=tuple(
+            self._locked_resolve = LockedResolve(
+                platform_tag=self._target.platform.tag,
+                locked_requirements=SortedTuple(
                     ResolvedRequirement.lock_all(
                         self._resolved_requirements, dist_metadatas, self._url_fetcher
                     )
@@ -1025,7 +1025,7 @@ class Pip(object):
         constraint_files=None,  # type: Optional[Iterable[str]]
         allow_prereleases=False,  # type: bool
         transitive=True,  # type: bool
-        target=None,  # type: Optional[DistributionTarget]
+        target=None,  # type: Optional[Target]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
         cache=None,  # type: Optional[str]
         build=True,  # type: bool
@@ -1036,28 +1036,30 @@ class Pip(object):
         locker=None,  # type: Optional[Locker]
     ):
         # type: (...) -> Job
-        target = target or DistributionTarget.current()
+        target = target or Target.current()
 
-        platform, manylinux = target.get_platform()
         if not use_wheel:
             if not build:
                 raise ValueError(
                     "Cannot both ignore wheels (use_wheel=False) and refrain from building "
                     "distributions (build=False)."
                 )
-            elif target.is_platform:
+            elif isinstance(target, AbbreviatedPlatform):
                 raise ValueError(
                     "Cannot ignore wheels (use_wheel=False) when resolving for a platform: "
-                    "{}".format(platform)
+                    "{}".format(target.platform)
                 )
 
         download_cmd = ["download", "--dest", download_dir]
         extra_env = {}  # type: Dict[str, str]
 
-        if target.is_platform:
-            # We're either resolving for a different host / platform or a different interpreter for
-            # the current platform that we have no access to; so we need to let pip know and not
-            # otherwise pickup platform info from the interpreter we execute pip with.
+        if isinstance(target, AbbreviatedPlatform):
+            # We're either resolving for a different host / platform or a different interpreter
+            # for the current platform that we have no access to; so we need to let pip know
+            # and not otherwise pickup platform info from the interpreter we execute pip with.
+            # Pip will determine the compatible platform tags using this information.
+            platform = target.platform
+            manylinux = target.manylinux
             download_cmd.extend(
                 self._iter_platform_args(
                     platform=platform.platform,
@@ -1068,7 +1070,7 @@ class Pip(object):
                 )
             )
 
-        if target.is_platform or not build:
+        if isinstance(target, AbbreviatedPlatform) or not build:
             download_cmd.extend(["--only-binary", ":all:"])
 
         if not use_wheel:
@@ -1118,24 +1120,23 @@ class Pip(object):
                 with open(os.path.join(version_info_dir, "python_full_versions.json"), "w") as fp:
                     json.dump(python_full_versions, fp)
                 extra_env[self._PYTHON_VERSIONS_FILE_ENV_VAR_NAME] = fp.name
-        elif target.is_platform:
+        elif isinstance(target, AbbreviatedPlatform):
             # Pip evaluates environment markers in the context of the ambient interpreter instead of
             # failing when encountering them, ignoring them or doing what we do here: evaluate those
             # environment markers positively identified by the platform quadruple and failing for
             # those we cannot know.
             env_markers_dir = safe_mkdtemp()
-            platform, _ = target.get_platform()
-            patched_environment = MarkerEnvironment.from_platform(platform).as_dict(
+            patched_environment = target.marker_environment.as_dict(
                 # We want to fail a resolve when it needs to evaluate environment markers we can't
                 # calculate given just the platform information.
                 default_unknown=False
             )
             with open(
-                os.path.join(env_markers_dir, "env_markers.{}.json".format(platform)), "w"
+                os.path.join(env_markers_dir, "env_markers.{}.json".format(target.platform)), "w"
             ) as fp:
                 json.dump(patched_environment, fp)
             extra_env[self._PATCHED_MARKERS_FILE_ENV_VAR_NAME] = fp.name
-            log_analyzers.append(_Issue10050Analyzer(platform=platform))
+            log_analyzers.append(_Issue10050Analyzer(platform=target.platform))
             TRACER.log(
                 "Patching environment markers for {} with {}".format(target, patched_environment),
                 V=3,
@@ -1415,10 +1416,10 @@ class Pip(object):
         install_dir,  # type: str
         compile=False,  # type: bool
         cache=None,  # type: Optional[str]
-        target=None,  # type: Optional[DistributionTarget]
+        target=None,  # type: Optional[Target]
     ):
         # type: (...) -> Job
-        target = target or DistributionTarget.current()
+        target = target or Target.current()
 
         install_cmd = [
             "install",

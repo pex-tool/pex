@@ -11,12 +11,12 @@ from collections import OrderedDict, defaultdict
 
 from pex import dist_metadata, pex_warnings
 from pex.common import pluralize
-from pex.distribution_target import DistributionTarget
 from pex.inherit_path import InheritPath
 from pex.layout import maybe_install
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
+from pex.targets import Target
 from pex.third_party.packaging import specifiers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
@@ -112,7 +112,7 @@ class _UnrankedDistribution(object):
         return self.fingerprinted_distribution.distribution
 
     def render_message(self, target):
-        # type: (DistributionTarget) -> str
+        # type: (Target) -> str
         return "The distribution {dist} cannot be used by {target}.".format(
             dist=self.dist, target=target
         )
@@ -123,7 +123,7 @@ class _InvalidWheelName(_UnrankedDistribution):
     filename = attr.ib()  # type: str
 
     def render_message(self, _target):
-        # type: (DistributionTarget) -> str
+        # type: (Target) -> str
         return (
             "The filename of {dist} is not a valid wheel file name that can be parsed for "
             "tags.".format(dist=self.dist)
@@ -135,7 +135,7 @@ class _TagMismatch(_UnrankedDistribution):
     wheel_tags = attr.ib()  # type: FrozenSet[tags.Tag]
 
     def render_message(self, target):
-        # type: (DistributionTarget) -> str
+        # type: (Target) -> str
         return (
             "The wheel tags for {dist} are {wheel_tags} which do not match the supported tags of "
             "{target}:\n{supported_tags}".format(
@@ -152,7 +152,7 @@ class _PythonRequiresMismatch(_UnrankedDistribution):
     python_requires = attr.ib()  # type: specifiers.SpecifierSet
 
     def render_message(self, target):
-        # type: (DistributionTarget) -> str
+        # type: (Target) -> str
         return (
             "The distribution has a python requirement of {python_requires} which does not match "
             "the python version of {python_version} for {target}.".format(
@@ -166,7 +166,7 @@ class _PythonRequiresMismatch(_UnrankedDistribution):
 @attr.s(frozen=True)
 class _QualifiedRequirement(object):
     requirement = attr.ib()  # type: Requirement
-    required = attr.ib(default=True)  # type: Optional[bool]
+    required = attr.ib(default=True)  # type: bool
 
 
 @attr.s(frozen=True)
@@ -214,7 +214,7 @@ class PEXEnvironment(object):
         cls,
         pex,  # type: str
         pex_info=None,  # type: Optional[PexInfo]
-        target=None,  # type: Optional[DistributionTarget]
+        target=None,  # type: Optional[Target]
     ):
         # type: (...) -> PEXEnvironment
         if not pex_info:
@@ -227,14 +227,14 @@ class PEXEnvironment(object):
             )
         pex_root = pex_info.pex_root
         pex = maybe_install(pex=pex, pex_root=pex_root, pex_hash=pex_hash) or pex
-        target = target or DistributionTarget.current()
+        target = target or Target.current()
         return cls(pex=pex, pex_info=pex_info, target=target)
 
     def __init__(
         self,
         pex,  # type: str
         pex_info=None,  # type: Optional[PexInfo]
-        target=None,  # type: Optional[DistributionTarget]
+        target=None,  # type: Optional[Target]
     ):
         # type: (...) -> None
         self._pex_info = pex_info or PexInfo.from_pex(pex)
@@ -249,7 +249,7 @@ class PEXEnvironment(object):
         self._resolved_dists = None  # type: Optional[Iterable[Distribution]]
         self._activated_dists = None  # type: Optional[Iterable[Distribution]]
 
-        self._target = target or DistributionTarget.current()
+        self._target = target or Target.current()
         self._interpreter_version = self._target.get_python_version_str()
 
         # The supported_tags come ordered most specific (platform specific) to least specific
@@ -258,7 +258,6 @@ class PEXEnvironment(object):
         self._supported_tags_to_rank = {
             tag: rank for rank, tag in enumerate(reversed(self._target.get_supported_tags()))
         }
-        self._platform, _ = self._target.get_platform()
 
     @property
     def path(self):
@@ -330,9 +329,9 @@ class PEXEnvironment(object):
         requirement,  # type: Requirement
         extras=None,  # type: Optional[Tuple[str, ...]]
     ):
-        # type: (...) -> Optional[bool]
+        # type: (...) -> bool
         applies = self._target.requirement_applies(requirement, extras=extras)
-        if applies is False:
+        if not applies:
             TRACER.log(
                 "Skipping activation of `{}` due to environment marker de-selection".format(
                     requirement
@@ -345,7 +344,7 @@ class PEXEnvironment(object):
         self,
         requirement,  # type: Requirement
         resolved_dists_by_key,  # type: MutableMapping[_RequirementKey, FingerprintedDistribution]
-        required,  # type: Optional[bool]
+        required,  # type: bool
         required_by=None,  # type: Optional[Distribution]
     ):
         # type: (...) -> Iterator[_DistributionNotFound]
@@ -361,7 +360,7 @@ class PEXEnvironment(object):
             if ranked_dist.satisfies(requirement)
         ]
         if not available_distributions:
-            if required is True:
+            if required:
                 yield _DistributionNotFound(requirement, required_by=required_by)
             return
 
@@ -402,7 +401,7 @@ class PEXEnvironment(object):
             # are part of the 'security' extra. In order to resolve the latter we need to include
             # the 'security' extra environment marker.
             required = self._evaluate_marker(dep_requirement, extras=requirement.extras)
-            if required is False:
+            if not required:
                 continue
 
             for not_found in self._resolve_requirement(
@@ -432,7 +431,7 @@ class PEXEnvironment(object):
         )  # type: OrderedDict[ProjectName, List[_QualifiedRequirement]]
         for req in reqs:
             required = self._evaluate_marker(req)
-            if required is False:
+            if not required:
                 continue
             project_name = ProjectName(req)
             requirements = qualified_reqs_by_project_name.get(project_name)
@@ -596,7 +595,9 @@ class PEXEnvironment(object):
                 raise ResolveError(
                     "Failed to resolve requirements from PEX environment @ {pex}.\n"
                     "Needed {platform} compatible dependencies for:\n"
-                    "{items}".format(pex=self._pex, platform=self._platform, items="\n".join(items))
+                    "{items}".format(
+                        pex=self._pex, platform=self._target.platform.tag, items="\n".join(items)
+                    )
                 )
 
         return OrderedSet(resolved_dists_by_key.values())

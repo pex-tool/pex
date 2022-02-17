@@ -6,10 +6,10 @@ from __future__ import absolute_import, print_function
 import os
 
 from pex.compatibility import urlparse
-from pex.distribution_target import DistributionTarget
 from pex.resolve.locked_resolve import LockedResolve, LockStyle
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
+from pex.targets import Target
 from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
@@ -171,7 +171,7 @@ class Lockfile(object):
     source = attr.ib(default=None, eq=False)  # type: Optional[str]
 
     def select(self, targets):
-        # type: (Iterable[DistributionTarget]) -> Iterator[Tuple[DistributionTarget, LockedResolve]]
+        # type: (Iterable[Target]) -> Iterator[Tuple[Target, LockedResolve]]
         """Finds the most appropriate lock, if any, for each of the given targets.
 
         :param targets: The targets to select locked resolves for.
@@ -183,7 +183,7 @@ class Lockfile(object):
                 yield target, lock
 
     def _select(self, target):
-        # type: (DistributionTarget) -> Optional[LockedResolve]
+        # type: (Target) -> Optional[LockedResolve]
         ranked_locks = []  # type: List[_RankedLock]
 
         supported_tags = {tag: index for index, tag in enumerate(target.get_supported_tags())}

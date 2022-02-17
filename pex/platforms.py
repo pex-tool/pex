@@ -10,6 +10,7 @@ from textwrap import dedent
 
 from pex import compatibility
 from pex.common import atomic_directory, safe_open, safe_rmtree
+from pex.pep_425 import CompatibilityTags
 from pex.third_party.packaging import tags
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -170,10 +171,10 @@ class Platform(object):
 
     _SUPPORTED_TAGS_BY_PLATFORM = (
         {}
-    )  # type: Dict[Tuple[Platform, Optional[str]], Tuple[tags.Tag, ...]]
+    )  # type: Dict[Tuple[Platform, Optional[str]], CompatibilityTags]
 
     def supported_tags(self, manylinux=None):
-        # type: (Optional[str]) -> Tuple[tags.Tag, ...]
+        # type: (Optional[str]) -> CompatibilityTags
 
         # We use a 2 level cache, probing memory first and then a json file on disk in order to
         # avoid calculating tags when possible since it's an O(500ms) operation that involves
@@ -250,7 +251,9 @@ class Platform(object):
             return tags.Tag(interpreter=interpreter, abi=abi, platform=platform)
 
         try:
-            supported_tags = tuple(parse_tag(index, tag) for index, tag in enumerate(sup_tags))
+            supported_tags = CompatibilityTags(
+                tags=[parse_tag(index, tag) for index, tag in enumerate(sup_tags)]
+            )
             # Write level 1.
             self._SUPPORTED_TAGS_BY_PLATFORM[memory_cache_key] = supported_tags
             return supported_tags

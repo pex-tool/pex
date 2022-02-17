@@ -23,7 +23,6 @@ from pex.commands.command import (
     register_global_arguments,
 )
 from pex.common import die, safe_mkdtemp
-from pex.distribution_target import DistributionTargets
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
 from pex.layout import Layout, maybe_install
@@ -38,6 +37,7 @@ from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PexRepositoryConfiguration, PipConfiguration
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
+from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
@@ -490,7 +490,7 @@ def configure_clp():
 def build_pex(
     requirement_configuration,  # type: RequirementConfiguration
     resolver_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
-    targets,  # type: DistributionTargets
+    targets,  # type: Targets
     options,  # type: Namespace
     cache=None,  # type: Optional[str]
 ):
@@ -700,7 +700,7 @@ def do_main(
     options,  # type: Namespace
     requirement_configuration,  # type: RequirementConfiguration
     resolver_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
-    targets,  # type: DistributionTargets
+    targets,  # type: Targets
     cmdline,  # type: List[str]
     env,  # type: Dict[str, str]
 ):

@@ -7,12 +7,12 @@ from pex import resolver
 from pex.cli.commands.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
 from pex.commands.command import Error
 from pex.common import pluralize, safe_open
-from pex.distribution_target import DistributionTargets
 from pex.requirements import LocalProjectRequirement, VCSRequirement
 from pex.resolve import resolvers
 from pex.resolve.locked_resolve import LockConfiguration
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
+from pex.targets import Targets
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -80,7 +80,7 @@ def store(
 def create(
     lock_configuration,  # type: LockConfiguration
     requirement_configuration,  # type: RequirementConfiguration
-    targets,  # type: DistributionTargets
+    targets,  # type: Targets
     pip_configuration,  # type: PipConfiguration
 ):
     # type: (...) -> Union[Lockfile, Error]

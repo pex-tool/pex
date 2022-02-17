@@ -7,7 +7,6 @@ import itertools
 from collections import OrderedDict, defaultdict
 
 from pex import environment
-from pex.distribution_target import DistributionTargets
 from pex.environment import PEXEnvironment
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -15,6 +14,7 @@ from pex.pep_503 import ProjectName
 from pex.requirements import Constraint, LocalProjectRequirement
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import InstalledDistribution, Resolved, Unsatisfiable, Untranslatable
+from pex.targets import Targets
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 
 def resolve_from_pex(
-    targets,  # type: DistributionTargets
+    targets,  # type: Targets
     pex,  # type: str
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]

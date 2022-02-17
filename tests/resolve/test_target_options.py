@@ -8,10 +8,10 @@ from argparse import ArgumentParser, ArgumentTypeError
 import pytest
 
 import pex.resolve.target_configuration
-from pex.distribution_target import DistributionTargets
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.resolve import target_options
+from pex.targets import Targets
 from pex.testing import IS_MAC, environment_as
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -24,7 +24,7 @@ def compute_target_configuration(
     parser,  # type: ArgumentParser
     args,  # type: List[str]
 ):
-    # type: (...) -> DistributionTargets
+    # type: (...) -> Targets
     options = parser.parse_args(args=args)
     return target_options.configure(options).resolve_targets()
 
@@ -86,7 +86,7 @@ def test_configure_platform(parser):
 
 
 def assert_interpreters_configured(
-    distribution_targets,  # type: DistributionTargets
+    distribution_targets,  # type: Targets
     expected_interpreter,  # type: Optional[PythonInterpreter]
     expected_interpreters=None,  # type: Optional[Tuple[PythonInterpreter, ...]]
 ):

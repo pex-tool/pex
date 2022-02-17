@@ -5,12 +5,12 @@ from __future__ import absolute_import
 
 import os
 
-from pex.distribution_target import DistributionTargets
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
 from pex.pex_bootstrapper import iter_compatible_interpreters, parse_path
 from pex.platforms import Platform
+from pex.targets import Targets
 from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -115,7 +115,7 @@ class TargetConfiguration(object):
     resolve_local_platforms = attr.ib(default=False)  # type: bool
 
     def resolve_targets(self):
-        # type: () -> DistributionTargets
+        # type: () -> Targets
         """Resolves the distribution targets satisfying the target configuration.
 
         :raise: :class:`InterpreterNotFound` specific --python interpreters were requested but could
@@ -159,7 +159,7 @@ class TargetConfiguration(object):
                         "this platform" if len(platforms) == 1 else "these platforms",
                     )
                 )
-        return DistributionTargets(
+        return Targets(
             interpreters=tuple(interpreters),
             platforms=tuple(platforms),
             assume_manylinux=self.assume_manylinux,

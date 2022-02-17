@@ -20,6 +20,7 @@ from pex.resolve.locked_resolve import (
     Pin,
 )
 from pex.resolve.resolver_configuration import ResolverVersion
+from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.third_party.pkg_resources import Requirement, RequirementParseError
@@ -235,9 +236,7 @@ def loads(
                 "locked requirement.".format(lock_path=lock_path, source=source)
             )
         locked_resolves.append(
-            LockedResolve.from_platform_tag(
-                platform_tag=platform_tag, locked_requirements=locked_reqs
-            )
+            LockedResolve(platform_tag=platform_tag, locked_requirements=SortedTuple(locked_reqs))
         )
 
     if not locked_resolves:

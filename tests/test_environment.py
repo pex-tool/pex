@@ -12,7 +12,6 @@ import pytest
 from pex import resolver
 from pex.common import temporary_dir
 from pex.compatibility import to_bytes
-from pex.distribution_target import DistributionTarget, DistributionTargets
 from pex.environment import (
     FingerprintedDistribution,
     PEXEnvironment,
@@ -24,6 +23,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
+from pex.targets import LocalInterpreter, Targets
 from pex.testing import (
     IS_LINUX,
     IS_PYPY3,
@@ -137,7 +137,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
     def add_requirements(builder, cache):
         # type: (PEXBuilder, str) -> None
         for installed_dist in resolver.resolve(
-            targets=DistributionTargets(interpreters=(builder.interpreter,)),
+            targets=Targets(interpreters=(builder.interpreter,)),
             requirements=requirements,
             cache=cache,
         ).installed_distributions:
@@ -258,7 +258,7 @@ def test_osx_platform_intel_issue_523():
             interpreter=bad_interpreter()
         ) as pb, temporary_filename() as pex_file:
             for installed_dist in resolver.resolve(
-                targets=DistributionTargets(interpreters=(pb.interpreter,)),
+                targets=Targets(interpreters=(pb.interpreter,)),
                 requirements=["psutil==5.4.3"],
                 cache=cache,
             ).installed_distributions:
@@ -316,7 +316,7 @@ def test_activate_extras_issue_615():
     # type: () -> None
     with yield_pex_builder() as pb:
         for installed_dist in resolver.resolve(
-            targets=DistributionTargets(interpreters=(pb.interpreter,)),
+            targets=Targets(interpreters=(pb.interpreter,)),
             requirements=["pex[requests]==1.6.3"],
         ).installed_distributions:
             for direct_req in installed_dist.direct_requirements:
@@ -388,7 +388,7 @@ def cpython_37_environment(python_37_interpreter):
     return PEXEnvironment(
         pex="",
         pex_info=PexInfo.default(python_37_interpreter),
-        target=DistributionTarget.for_interpreter(python_37_interpreter),
+        target=LocalInterpreter.create(python_37_interpreter),
     )
 
 
