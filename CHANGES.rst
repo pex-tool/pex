@@ -15,7 +15,7 @@ exactly as they would if run on that foreign platform as long as
 pre-built wheels are available for that foreign platform.
 
 Additionally, PEXes now know how to set a useable process name when the
-PEX contains the `psutil` distribution. See
+PEX contains the `setproctitle` distribution. See
 `here <https://pex.readthedocs.io/en/v2.1.66/recipes.html#long-running-pex-applications-and-daemons>`_
 for more information.
 
