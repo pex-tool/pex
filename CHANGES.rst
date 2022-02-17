@@ -1,6 +1,36 @@
 Release Notes
 =============
 
+2.1.66
+------
+
+This release brings a new ``--complete-platform`` Pex CLI option that
+can be used instead of ``--platform`` when more detailed foreign
+platform specification is needed to satisfy a resolve (most commonly,
+when ``python_full_version`` environment markers are in-play). This,
+paired with the new ``pex3 interpreter inspect`` command that can be
+used to generate complete platform data on the foreign platform machine
+being targeted, should allow all foreign platform PEX builds to succeed
+exactly as they would if run on that foreign platform as long as
+pre-built wheels are available for that foreign platform.
+
+Additionally, PEXes now know how to set a useable process name when the
+PEX contains the `psutil` distribution. See
+`here <https://pex.readthedocs.io/en/v2.1.66/recipes.html#long-running-pex-applications-and-daemons>`_
+for more information.
+
+* Add support for ``--complete-platform``. (#1609)
+  `PR #1609 <https://github.com/pantsbuild/pex/pull/1609>`_
+
+* Introduce ``pex3 interpreter inspect``. (#1607)
+  `PR #1607 <https://github.com/pantsbuild/pex/pull/1607>`_
+
+* Use setproctitle to sanitize ``ps`` info. (#1605)
+  `PR #1605 <https://github.com/pantsbuild/pex/pull/1605>`_
+
+* Respect ``PEX_ROOT`` in ``PEXEnvironment.mount``. (#1599)
+  `PR #1599 <https://github.com/pantsbuild/pex/pull/1599>`_
+
 2.1.65
 ------
 
