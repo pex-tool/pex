@@ -238,7 +238,7 @@ def _create_complete_platform(value):
         )
 
     try:
-        supported_tags = CompatibilityTags.from_stings(data["compatible_tags"])
+        supported_tags = CompatibilityTags.from_strings(data["compatible_tags"])
     except KeyError:
         raise ArgumentTypeError(
             "The complete platform JSON object did not have the required 'compatible_tags' "

@@ -156,7 +156,7 @@ def test_configure_complete_platform(
         ['{"marker_environment": {}, "compatible_tags": ["this-is.a-tag"], "ignored": 42}'],
         CompletePlatform.create(
             marker_environment=MarkerEnvironment(),
-            supported_tags=CompatibilityTags.from_stings(["this-is.a-tag"]),
+            supported_tags=CompatibilityTags.from_strings(["this-is.a-tag"]),
         ),
     )
 
