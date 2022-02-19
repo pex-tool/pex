@@ -294,6 +294,13 @@ class PythonIdentity(object):
         # type: () -> Iterator[Platform]
         """All platforms supported by the associated interpreter ordered from most specific to
         least."""
+        yield Platform(
+            platform=self._platform_tag,
+            impl=self.python_tag[:2],
+            version=self.version_str,
+            version_info=self.version,
+            abi=self.abi_tag,
+        )
         for tag in self._supported_tags:
             yield Platform.from_tag(tag)
 

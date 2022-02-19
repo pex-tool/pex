@@ -153,10 +153,10 @@ def test_configure_complete_platform(
     )
 
     assert_complete_platforms(
-        ['{"marker_environment": {}, "compatible_tags": ["this-is.a-tag"], "ignored": 42}'],
+        ['{"marker_environment": {}, "compatible_tags": ["py2.py3-none-any"], "ignored": 42}'],
         CompletePlatform.create(
             marker_environment=MarkerEnvironment(),
-            supported_tags=CompatibilityTags.from_strings(["this-is.a-tag"]),
+            supported_tags=CompatibilityTags.from_strings(["py2.py3-none-any"]),
         ),
     )
 
@@ -178,12 +178,12 @@ def test_configure_complete_platform(
 
     assert_argument_type_error(
         "The complete platform JSON object did not have the required 'marker_environment' " "key:",
-        '{"compatible_tags": ["this-is.a-tag"]}',
+        '{"compatible_tags": ["py2.py3-none-any"]}',
     )
 
     assert_argument_type_error(
         "Invalid environment entry provided:",
-        '{"marker_environment": {"bad_key": "42"}, "compatible_tags": ["this-is.a-tag"]}',
+        '{"marker_environment": {"bad_key": "42"}, "compatible_tags": ["py2.py3-none-any"]}',
     )
 
 
