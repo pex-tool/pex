@@ -167,7 +167,7 @@ def make_project(
         "extras_require": extras_require or {},
         "entry_points": entry_points or {},
         "python_requires": python_requires,
-        "universal": universal
+        "universal": universal,
     }
 
     with temporary_content(project_content, interp=interp) as td:
