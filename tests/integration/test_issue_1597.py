@@ -30,6 +30,7 @@ def build_pex(
         name="project_has_python_full_version_marker",
         version="0.1.0",
         install_reqs=["ansicolors==1.1.8; {marker}".format(marker=marker)],
+        universal=True,
     ) as wheel:
         return run_pex_command(
             args=["-f", os.path.dirname(wheel), "project_has_python_full_version_marker"] + args,
