@@ -10,7 +10,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import atomic_directory, temporary_dir
+from pex.common import atomic_directory, safe_mkdtemp, temporary_dir
 from pex.testing import PY310, ensure_python_venv, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -80,7 +80,46 @@ def tmp_workdir():
 def mitmdump():
     # type: () -> Tuple[str, str]
     python, pip = ensure_python_venv(PY310)
-    subprocess.check_call([pip, "install", "mitmproxy==5.3.0"])
+    with open(os.path.join(safe_mkdtemp(), "constraints.txt"), "w") as fp:
+        fp.write(
+            """\
+            Brotli==1.0.9
+            Jinja2==2.11.3
+            MarkupSafe==2.0.1
+            Werkzeug==1.0.1
+            asgiref==3.3.4
+            blinker==1.4
+            certifi==2021.10.8
+            cffi==1.15.0
+            click==7.1.2
+            cryptography==3.2.1
+            flask==1.1.4
+            h11==0.13.0
+            h2==4.1.0
+            hpack==4.0.0
+            hyperframe==6.0.1
+            itsdangerous==1.1.0
+            kaitaistruct==0.9
+            ldap3==2.8.1
+            msgpack==1.0.3
+            passlib==1.7.4
+            protobuf==3.13.0
+            publicsuffix2==2.20191221
+            pyOpenSSL==19.1.0
+            pyasn1==0.4.8
+            pycparser==2.21
+            pyparsing==2.4.7
+            pyperclip==1.8.2
+            ruamel.yaml==0.16.13
+            six==1.16.0
+            sortedcontainers==2.2.2
+            tornado==6.1
+            urwid==2.1.2
+            wsproto==0.15.0
+            zstandard==0.14.1
+            """
+        )
+    subprocess.check_call([pip, "install", "mitmproxy==5.3.0", "--constraint", fp.name])
     mitmdump = os.path.join(os.path.dirname(python), "mitmdump")
     return mitmdump, os.path.expanduser("~/.mitmproxy/mitmproxy-ca-cert.pem")
 
