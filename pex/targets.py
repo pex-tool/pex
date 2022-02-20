@@ -10,6 +10,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
@@ -19,6 +20,10 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
+
+
+class RequiresPythonError(Exception):
+    """Indicates the impossibility of evaluating Requires-Python metadata."""
 
 
 @attr.s(frozen=True)
@@ -40,13 +45,65 @@ class Target(object):
         """
         return self.platform not in self.get_interpreter().supported_platforms
 
-    def get_python_version_str(self):
+    @property
+    def python_version_str(self):
         # type: () -> Optional[str]
-        return self.marker_environment.python_full_version
+        return self.marker_environment.python_full_version or self.marker_environment.python_version
 
     def get_interpreter(self):
         # type: () -> PythonInterpreter
         return PythonInterpreter.get()
+
+    def requires_python_applies(
+        self,
+        requires_python,  # type: SpecifierSet
+        source,  # type: Requirement
+    ):
+        # type: (...) -> bool
+        """Determines if the given python requirement applies to this target.
+
+        :param requires_python: The Python requirement to evaluate.
+        :param source: The source of the Python requirement restriction.
+        :returns: `True` if the Python requirement applies.
+        """
+
+        if not self.python_version_str:
+            raise RequiresPythonError(
+                "Encountered `Requires-Python: {requires_python}` when evaluating {source} "
+                "for applicability but the Python version information needed to evaluate this "
+                "requirement is not contained in the target being evaluated for: {target}".format(
+                    requires_python=requires_python, source=source, target=self
+                )
+            )
+
+        # N.B.: The `python_version_str` will be of the form `X.Y` for traditional
+        # AbbreviatedPlatform targets with a PYVER of the form `XY`. The Requires-Python metadata
+        # (see: https://www.python.org/dev/peps/pep-0345/#requires-python) can contain full versions
+        # in its version specifier like `>=3.8.1`. PEP-440 (
+        # https://www.python.org/dev/peps/pep-0440/#version-specifiers) specifier missing version
+        # components are padded with zeros for all comparison operators besides `===` which can
+        # silently lead to incorrect results. If the target platform has a PYVER of 38 we don't know
+        # if that platform represents a final target of 3.8.0 or 3.8.1 or some other 3.8 version,
+        # but Pip, which follows PEP-440, will evaluate `>=3.8.1` as false and exclude the
+        # distribution from consideration.
+        #
+        # Since our evaluation of `requires_python_applies` (and `requirement_applies`) is always
+        # upon _results_ of an underlying Pip resolve (when we resolve from a PEX repository or a
+        # lock file), the damage is already done when the distribution has already been incorrectly
+        # excluded as in the example above; so we will not have to evaluate it. The other case is
+        # when the distribution was incorrectly included. It's this case we need to contend with.
+        #
+        # If we use the same logic as Pip for an abbreviated platform resolve against a PEX or
+        # lockfile, we'll include too much in the resulting PEX or lockfile. However, when the
+        # resulting PEX or lockfile gets used "for real" there will be a local interpreter involved
+        # and the `Requires-Python` will be correctly evaluated leading to the distribution not
+        # being activated. This result is correct at the expense of wasting the space needed to
+        # carry along the distribution that was not activated.
+        #
+        # It turns out that by just passing "X.Y" to SpecifierSet.__contains__ does evaluate "X.Y"
+        # as if it were "X.Y.0" when zero-padding is appropriate (since it implements PEP-440); so
+        # we get the Pip emulating behavior described above.
+        return self.python_version_str in requires_python
 
     def requirement_applies(
         self,
@@ -99,7 +156,8 @@ class LocalInterpreter(Target):
         # type: () -> bool
         return False
 
-    def get_python_version_str(self):
+    @property
+    def python_version_str(self):
         # type: () -> str
         return self.interpreter.identity.version_str
 
