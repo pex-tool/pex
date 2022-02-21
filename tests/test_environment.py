@@ -12,12 +12,8 @@ import pytest
 from pex import resolver
 from pex.common import temporary_dir
 from pex.compatibility import to_bytes
-from pex.environment import (
-    FingerprintedDistribution,
-    PEXEnvironment,
-    _InvalidWheelName,
-    _RankedDistribution,
-)
+from pex.environment import PEXEnvironment, _InvalidWheelName, _RankedDistribution
+from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX

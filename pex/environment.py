@@ -11,6 +11,7 @@ from collections import OrderedDict, defaultdict
 
 from pex import dist_metadata, pex_warnings, targets
 from pex.common import pluralize
+from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.layout import maybe_install
 from pex.orderedset import OrderedSet
@@ -20,7 +21,7 @@ from pex.targets import Target
 from pex.third_party.packaging import specifiers, tags
 from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper
 
 if TYPE_CHECKING:
@@ -53,22 +54,6 @@ def _import_pkg_resources():
         import pkg_resources  # vendor:skip
 
         return pkg_resources, True
-
-
-@attr.s(frozen=True)
-class FingerprintedDistribution(object):
-    distribution = attr.ib()  # type: Distribution
-    fingerprint = attr.ib()  # type: str
-
-    @property
-    def location(self):
-        # type: () -> str
-        return cast(str, self.distribution.location)
-
-    @property
-    def project_name(self):
-        # type: () -> ProjectName
-        return ProjectName(self.distribution)
 
 
 @attr.s(frozen=True)

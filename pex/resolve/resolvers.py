@@ -3,7 +3,7 @@
 
 from __future__ import absolute_import
 
-from pex.environment import FingerprintedDistribution
+from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.resolve.locked_resolve import LockedResolve
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
