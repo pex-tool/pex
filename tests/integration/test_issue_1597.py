@@ -75,7 +75,7 @@ def test_platform_complete(
             json.dumps(
                 dict(
                     marker_environment=complete_platform.marker_environment.as_dict(),
-                    compatible_tags=complete_platform.get_supported_tags().to_string_list(),
+                    compatible_tags=complete_platform.supported_tags.to_string_list(),
                 )
             ),
         ]

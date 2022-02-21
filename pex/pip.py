@@ -1039,7 +1039,7 @@ class Pip(object):
                     )
                 )
             elif isinstance(target, CompletePlatform):
-                compatible_tags = target.get_supported_tags()
+                compatible_tags = target.supported_tags
                 if compatible_tags:
                     with open(os.path.join(patches_dir, "tags.json"), "w") as tags_fp:
                         json.dump(compatible_tags.to_string_list(), tags_fp)

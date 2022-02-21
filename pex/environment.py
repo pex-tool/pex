@@ -15,6 +15,7 @@ from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.layout import maybe_install
 from pex.orderedset import OrderedSet
+from pex.pep_425 import TagRank
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
 from pex.targets import Target
@@ -64,13 +65,26 @@ class _RankedDistribution(object):
     # finally by redundant components of distribution metadata we never get to since they are
     # encoded in the tag specificity rank value.
 
-    @classmethod
-    def maximum(cls, fingerprinted_distribution):
-        # type: (FingerprintedDistribution) -> _RankedDistribution
-        return cls(rank=sys.maxsize, fingerprinted_distribution=fingerprinted_distribution)
+    # The attr project type stub file simply misses this.
+    _fd_cmp = attr.cmp_using(  # type: ignore[attr-defined]
+        eq=FingerprintedDistribution.__eq__,
+        # Since we want to rank higher versions higher (earlier) we need to reverse the natural
+        # ordering of Version in Distribution which is least to greatest.
+        lt=FingerprintedDistribution.__ge__,
+    )
 
-    rank = attr.ib()  # type: int
-    fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
+    @classmethod
+    def highest_rank(cls, fingerprinted_distribution):
+        # type: (FingerprintedDistribution) -> _RankedDistribution
+        return cls(
+            rank=TagRank.highest_natural().higher(),
+            fingerprinted_distribution=fingerprinted_distribution,
+        )
+
+    rank = attr.ib()  # type: TagRank
+    fingerprinted_distribution = attr.ib(
+        eq=_fd_cmp, order=_fd_cmp
+    )  # type: FingerprintedDistribution
 
     @property
     def distribution(self):
@@ -127,7 +141,7 @@ class _TagMismatch(_UnrankedDistribution):
                 dist=self.dist,
                 wheel_tags=", ".join(map(str, self.wheel_tags)),
                 target=target,
-                supported_tags="\n".join(map(str, target.get_supported_tags())),
+                supported_tags="\n".join(map(str, target.supported_tags)),
             )
         )
 
@@ -222,8 +236,9 @@ class PEXEnvironment(object):
         target=None,  # type: Optional[Target]
     ):
         # type: (...) -> None
-        self._pex_info = pex_info or PexInfo.from_pex(pex)
         self._pex = os.path.realpath(pex)
+        self._pex_info = pex_info or PexInfo.from_pex(pex)
+        self._target = target or targets.current()
 
         self._available_ranked_dists_by_project_name = defaultdict(
             list
@@ -233,15 +248,6 @@ class PEXEnvironment(object):
         )  # type: DefaultDict[ProjectName, List[_UnrankedDistribution]]
         self._resolved_dists = None  # type: Optional[Iterable[Distribution]]
         self._activated_dists = None  # type: Optional[Iterable[Distribution]]
-
-        self._target = target or targets.current()
-
-        # The supported_tags come ordered most specific (platform specific) to least specific
-        # (universal). We want to rank most specific highest; so we need to reverse iteration order
-        # here.
-        self._supported_tags_to_rank = {
-            tag: rank for rank, tag in enumerate(reversed(self._target.get_supported_tags()))
-        }
 
     @property
     def path(self):
@@ -274,11 +280,11 @@ class PEXEnvironment(object):
         # type: (FingerprintedDistribution) -> Union[_RankedDistribution, _UnrankedDistribution]
         filename, ext = os.path.splitext(os.path.basename(fingerprinted_dist.location))
         if ext.lower() != ".whl":
-            # This supports resolving pex's own vendored distributions which are vendored in directory
+            # This supports resolving pex's own vendored distributions which are vendored in a
             # directory with the project name (`pip/` for pip) and not the corresponding wheel name
-            # (`pip-19.3.1-py2.py3-none-any.whl/` for pip). Pex only vendors universal wheels for all
-            # platforms it supports at buildtime and runtime so this is always safe.
-            return _RankedDistribution.maximum(fingerprinted_dist)
+            # (`pip-19.3.1-py2.py3-none-any.whl/` for pip). Pex only vendors universal wheels for
+            # all platforms it supports at buildtime and runtime so this is always safe.
+            return _RankedDistribution.highest_rank(fingerprinted_dist)
 
         # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
         # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
@@ -290,8 +296,8 @@ class PEXEnvironment(object):
         wheel_tags = tags.parse_tag("-".join(wheel_components[-3:]))
         # There will be multiple parsed tags for compressed tag sets. Ensure we grab the parsed tag
         # with highest rank from that expanded set.
-        rank = max(self._supported_tags_to_rank.get(tag, -1) for tag in wheel_tags)
-        if rank == -1:
+        best_match = self._target.supported_tags.best_match(wheel_tags)
+        if best_match is None:
             return _TagMismatch(fingerprinted_dist, wheel_tags)
 
         python_requires = dist_metadata.requires_python(fingerprinted_dist.distribution)
@@ -300,7 +306,7 @@ class PEXEnvironment(object):
         ):
             return _PythonRequiresMismatch(fingerprinted_dist, python_requires)
 
-        return _RankedDistribution(rank, fingerprinted_dist)
+        return _RankedDistribution(best_match.rank, fingerprinted_dist)
 
     def activate(self):
         # type: () -> Iterable[Distribution]
@@ -349,9 +355,7 @@ class PEXEnvironment(object):
                 yield _DistributionNotFound(requirement, required_by=required_by)
             return
 
-        resolved_distribution = sorted(available_distributions, reverse=True)[
-            0
-        ].fingerprinted_distribution
+        resolved_distribution = sorted(available_distributions)[0].fingerprinted_distribution
         if len(available_distributions) > 1:
             TRACER.log(
                 "Resolved {req} to {dist} and discarded {discarded}.".format(
@@ -465,9 +469,7 @@ class PEXEnvironment(object):
                     yield _DistributionNotFound(qualified_requirement.requirement)
                 continue
 
-            ranked_dist, qualified_requirement = sorted(
-                candidates, key=lambda tup: tup[0], reverse=True
-            )[0]
+            ranked_dist, qualified_requirement = sorted(candidates, key=lambda tup: tup[0])[0]
             if len(candidates) > 1:
                 TRACER.log(
                     "Selected {dist} via {req} and discarded {discarded}.".format(
