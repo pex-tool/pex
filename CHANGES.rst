@@ -4,15 +4,15 @@ Release Notes
 2.1.67
 ------
 
-This release brings support for `--platform` arguments with a
+This release brings support for ``--platform`` arguments with a
 3-component PYVER portion. This supports working around
-`python_full_version` environment marker evaluation failures for
-`--platform` resolves by changing, for example, a platform of
-`linux_x86_64-cp-38-cp38` to `linux_x86_64-cp-3.8.10-cp38`. This is
+``python_full_version`` environment marker evaluation failures for
+``--platform`` resolves by changing, for example, a platform of
+``linux_x86_64-cp-38-cp38`` to ``linux_x86_64-cp-3.8.10-cp38``. This is
 likely a simpler way to work around these issues than using the
-`--complete-platform` facility introduced in 2.1.66 by #1609.
+``--complete-platform`` facility introduced in 2.1.66 by #1609.
 
-* Expand `--platform` syntax: support full versions. (#1614)
+* Expand ``--platform`` syntax: support full versions. (#1614)
   `PR #1614 <https://github.com/pantsbuild/pex/pull/1614>`_
 
 2.1.66
