@@ -32,7 +32,8 @@ class Target(object):
     platform = attr.ib()  # type: Platform
     marker_environment = attr.ib()  # type: MarkerEnvironment
 
-    def get_supported_tags(self):
+    @property
+    def supported_tags(self):
         # type: () -> CompatibilityTags
         raise NotImplementedError()
 
@@ -165,7 +166,8 @@ class LocalInterpreter(Target):
         # type: () -> PythonInterpreter
         return self.interpreter
 
-    def get_supported_tags(self):
+    @property
+    def supported_tags(self):
         return self.interpreter.identity.supported_tags
 
     def __str__(self):
@@ -191,7 +193,8 @@ class AbbreviatedPlatform(Target):
 
     manylinux = attr.ib()  # type: Optional[str]
 
-    def get_supported_tags(self):
+    @property
+    def supported_tags(self):
         # type: () -> CompatibilityTags
         return self.platform.supported_tags(manylinux=self.manylinux)
 
@@ -229,7 +232,8 @@ class CompletePlatform(Target):
 
     _supported_tags = attr.ib()  # type: CompatibilityTags
 
-    def get_supported_tags(self):
+    @property
+    def supported_tags(self):
         # type: () -> CompatibilityTags
         return self._supported_tags
 

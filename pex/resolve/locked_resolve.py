@@ -4,19 +4,39 @@
 from __future__ import absolute_import
 
 import itertools
+import os
+from collections import OrderedDict, defaultdict
 
+from pex.commands.command import Error
+from pex.compatibility import urlparse
 from pex.dist_metadata import DistMetadata
 from pex.enum import Enum
 from pex.fetcher import URLFetcher
+from pex.pep_425 import TagRank
+from pex.pep_503 import ProjectName
+from pex.rank import Rank
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
 from pex.sorted_tuple import SortedTuple
+from pex.targets import Target
 from pex.third_party.packaging import tags
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import IO, Any, Callable, Iterable, Iterator, Optional, Tuple
+    from typing import (
+        IO,
+        Any,
+        Callable,
+        DefaultDict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 else:
@@ -67,6 +87,18 @@ class Artifact(object):
 
 
 @attr.s(frozen=True)
+class RankedArtifact(object):
+    artifact = attr.ib()  # type: Artifact
+    rank = attr.ib()  # type: TagRank
+
+    def select_higher_ranked(self, other):
+        # type: (RankedArtifact) -> RankedArtifact
+        return Rank.select_highest_rank(
+            self, other, extract_rank=lambda ranked_artifact: ranked_artifact.rank
+        )
+
+
+@attr.s(frozen=True)
 class LockedRequirement(object):
     @classmethod
     def create(
@@ -97,6 +129,53 @@ class LockedRequirement(object):
         yield self.artifact
         for artifact in self.additional_artifacts:
             yield artifact
+
+    def select_artifact(self, target):
+        # type: (Target) -> Optional[RankedArtifact]
+        """Select the highest ranking (most platform specific) artifact satisfying supported tags.
+
+        Artifacts are ranked as follows:
+
+        + If the artifact is a wheel, rank it based on its best matching tag.
+        + If the artifact is an sdist, rank it as usable, but a worse match than any wheel.
+        + Otherwise treat the artifact as unusable.
+
+        :param target: The target looking to pick a resolve to use.
+        :return: The highest ranked artifact if the requirement is compatible with the target else
+            `None`.
+        """
+        highest_rank_artifact = None  # type: Optional[RankedArtifact]
+        for artifact in self.iter_artifacts():
+            url_info = urlparse.urlparse(artifact.url)
+            artifact_file = os.path.basename(url_info.path)
+            if artifact_file.endswith((".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip")):
+                # N.B.: Ensure sdists are picked last amongst a set of artifacts. We do this, since
+                # a wheel is known to work with a target by the platform tags on the tin, whereas an
+                # sdist may not successfully build for a given target at all. This is an affordance
+                # for LockStyle.SOURCES and LockStyle.CROSS_PLATFORM lock styles.
+                sdist_rank = target.supported_tags.lowest_rank.lower()
+                ranked_artifact = RankedArtifact(artifact=artifact, rank=sdist_rank)
+                if (
+                    highest_rank_artifact is None
+                    or ranked_artifact
+                    is highest_rank_artifact.select_higher_ranked(ranked_artifact)
+                ):
+                    highest_rank_artifact = ranked_artifact
+            elif artifact_file.endswith(".whl"):
+                artifact_stem, _ = os.path.splitext(artifact_file)
+                for tag in tags.parse_tag(artifact_stem.split("-", 2)[-1]):
+                    wheel_rank = target.supported_tags.rank(tag)
+                    if wheel_rank is None:
+                        continue
+                    ranked_artifact = RankedArtifact(artifact=artifact, rank=wheel_rank)
+                    if (
+                        highest_rank_artifact is None
+                        or ranked_artifact
+                        is highest_rank_artifact.select_higher_ranked(ranked_artifact)
+                    ):
+                        highest_rank_artifact = ranked_artifact
+
+        return highest_rank_artifact
 
 
 @attr.s(frozen=True)

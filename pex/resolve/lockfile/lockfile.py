@@ -3,20 +3,16 @@
 
 from __future__ import absolute_import, print_function
 
-import os
-
-from pex.compatibility import urlparse
 from pex.resolve.locked_resolve import LockedResolve, LockStyle
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
-from pex.third_party.packaging import tags
 from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, Mapping, Optional, Tuple
+    from typing import Iterable, Iterator, List, Optional, Tuple
 
     import attr  # vendor:skip
 else:
@@ -29,7 +25,7 @@ class _RankedLock(object):
     def rank(
         cls,
         locked_resolve,  # type: LockedResolve
-        supported_tags,  # type: Mapping[tags.Tag, int]
+        target,  # type: Target
     ):
         # type: (...) -> Optional[_RankedLock]
         """Rank the given resolve for the supported tags of a distribution target.
@@ -62,52 +58,22 @@ class _RankedLock(object):
         resolve has an unsatisfied requirement and `None` is returned.
 
         :param locked_resolve: The resolve to rank.
-        :param supported_tags: The supported tags of the distribution target looking to pick a
-                               resolve to use.
-        :return: A ranked lock if the resolve is applicable to the distribution target else `None`.
+        :param target: The target looking to pick a resolve to use.
+        :return: A ranked lock if the resolve is applicable to the target else `None`.
         """
-        resolve_rank = None  # type: Optional[int]
+        requirement_ranks = []
         for req in locked_resolve.locked_requirements:
-            requirement_rank = None  # type: Optional[int]
-            for artifact in req.iter_artifacts():
-                url_info = urlparse.urlparse(artifact.url)
-                artifact_file = os.path.basename(url_info.path)
-                if artifact_file.endswith(
-                    (".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip")
-                ):
-                    # N.B.: This is greater (worse) than any wheel rank can be by 1, ensuring sdists
-                    # are picked last amongst a set of artifacts. We do this, since a wheel is known
-                    # to work with a target by the platform tags on the tin, whereas an sdist may
-                    # not successfully build for a given target at all. This is an affordance for
-                    # LockStyle.SOURCES and LockStyle.CROSS_PLATFORM lock styles.
-                    sdist_rank = len(supported_tags)
-                    requirement_rank = (
-                        sdist_rank
-                        if requirement_rank is None
-                        else min(sdist_rank, requirement_rank)
-                    )
-                elif artifact_file.endswith(".whl"):
-                    artifact_stem, _ = os.path.splitext(artifact_file)
-                    for tag in tags.parse_tag(artifact_stem.split("-", 2)[-1]):
-                        wheel_rank = supported_tags.get(tag)
-                        if wheel_rank is not None:
-                            requirement_rank = (
-                                wheel_rank
-                                if requirement_rank is None
-                                else min(wheel_rank, requirement_rank)
-                            )
-
-            if requirement_rank is None:
+            ranked_artifact = req.select_artifact(target)
+            if not ranked_artifact:
                 return None
+            requirement_ranks.append(ranked_artifact.rank)
 
-            resolve_rank = (
-                requirement_rank if resolve_rank is None else resolve_rank + requirement_rank
-            )
-
-        if resolve_rank is None:
+        if not requirement_ranks:
             return None
 
-        average_requirement_rank = float(resolve_rank) / len(locked_resolve.locked_requirements)
+        average_requirement_rank = float(sum(rank.value for rank in requirement_ranks)) / len(
+            locked_resolve.locked_requirements
+        )
         return cls(average_requirement_rank=average_requirement_rank, locked_resolve=locked_resolve)
 
     average_requirement_rank = attr.ib()  # type: float
@@ -186,9 +152,8 @@ class Lockfile(object):
         # type: (Target) -> Optional[LockedResolve]
         ranked_locks = []  # type: List[_RankedLock]
 
-        supported_tags = {tag: index for index, tag in enumerate(target.get_supported_tags())}
         for locked_resolve in self.locked_resolves:
-            ranked_lock = _RankedLock.rank(locked_resolve, supported_tags)
+            ranked_lock = _RankedLock.rank(locked_resolve, target)
             if ranked_lock is not None:
                 ranked_locks.append(ranked_lock)
 
@@ -196,7 +161,7 @@ class Lockfile(object):
             return None
 
         ranked_lock = sorted(ranked_locks)[0]
-        count = len(supported_tags)
+        count = len(target.supported_tags)
         TRACER.log(
             "Selected lock generated by {platform} with an average requirement rank of "
             "{average_requirement_rank:.2f} (out of {count}, so ~{percent:.1%} platform specific) "
