@@ -398,17 +398,19 @@ platform.
 
 The abbreviated platform is described by a string of the form ``PLATFORM-IMPL-PYVER-ABI``, where
 ``PLATFORM`` is the platform (e.g. ``linux-x86_64``, ``macosx-10.4-x86_64``), ``IMPL`` is the python
-implementation abbreviation (``cp`` or ``pp``), ``PYVER`` is a two-digit string representing the
-python version (e.g., ``36``) and ``ABI`` is the ABI tag (e.g., ``cp36m``, ``cp27mu``, ``abi3``,
-``none``). A complete example: ``linux_x86_64-cp-36-cp36m``.
+implementation abbreviation (``cp`` or ``pp``), ``PYVER`` is either a two or more digit string
+representing the python version (e.g., ``36`` or ``310``) or else a component dotted version
+string (e.g., ``3.6`` or ``3.10.1``) and ``ABI`` is the ABI tag (e.g., ``cp36m``, ``cp27mu``,
+``abi3``, ``none``). A complete example: ``linux_x86_64-cp-36-cp36m``.
 
 **Constraints**: when ``--platform`` is used the
 `environment marker <https://www.python.org/dev/peps/pep-0508/#environment-markers>`_
-``python_full_version`` is not available, because its value cannot be determined from a platform
-where only a two-digit string representing the python version can be specified (e.g., ``38``), while
-``python_full_version`` is meant to have 3 digits (e.g., ``3.8.10``). If ``python_full_version`` is
-found an ``UndefinedEnvironmentName`` exception will be raised. To remedy this, use
-``--complete-platform`` instead.
+``python_full_version`` will not be available if ``PYVER`` is not given as a three component dotted
+version since ``python_full_version`` is meant to have 3 digits (e.g., ``3.8.10``). If a
+``python_full_version`` environment marker is encountered during a resolve, an
+``UndefinedEnvironmentName`` exception will be raised. To remedy this, either specify the full
+version in the platform (e.g, ``linux_x86_64-cp-3.8.10-cp38``) or use ``--complete-platform``
+instead.
 
 ``--complete-platform``
 ~~~~~~~~~~~~~~~~~~~~~~~

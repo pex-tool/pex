@@ -125,6 +125,7 @@ def make_project(
     extras_require=None,  # type: Optional[Dict[str, List[str]]]
     entry_points=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
     python_requires=None,  # type: Optional[str]
+    universal=False,  # type: bool
 ):
     # type: (...) -> Iterator[str]
     project_content = {
@@ -146,6 +147,7 @@ def make_project(
             extras_require=%(extras_require)r,
             entry_points=%(entry_points)r,
             python_requires=%(python_requires)r,
+            options={'bdist_wheel': {'universal': %(universal)r}},
             )
             """
         ),
@@ -165,6 +167,7 @@ def make_project(
         "extras_require": extras_require or {},
         "entry_points": entry_points or {},
         "python_requires": python_requires,
+        "universal": universal,
     }
 
     with temporary_content(project_content, interp=interp) as td:
@@ -217,6 +220,7 @@ def built_wheel(
     entry_points=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
     interpreter=None,  # type: Optional[PythonInterpreter]
     python_requires=None,  # type: Optional[str]
+    universal=False,  # type: bool
     **kwargs  # type: Any
 ):
     # type: (...) -> Iterator[str]
@@ -228,6 +232,7 @@ def built_wheel(
         extras_require=extras_require,
         entry_points=entry_points,
         python_requires=python_requires,
+        universal=universal,
     ) as td:
         builder = WheelBuilder(td, interpreter=interpreter, **kwargs)
         yield builder.bdist()

@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
+
+    VersionInfo = Union[Tuple[int], Tuple[int, int], Tuple[int, int, int]]
 else:
     from pex.third_party import attr
 
@@ -37,6 +39,55 @@ class Platform(object):
     class InvalidPlatformError(Exception):
         """Indicates an invalid platform string."""
 
+        @classmethod
+        def create(cls, platform, cause=None):
+            message_parts = ["Not a valid platform specifier: {platform}".format(platform=platform)]
+            if cause:
+                message_parts.append(cause)
+            message_parts.append(
+                dedent(
+                    """\
+                    Platform strings must be in one of two forms:
+                    1. Canonical: <platform>-<python impl abbr>-<python version>-<abi>
+                    2. Abbreviated: <platform>-<python impl abbr>-<python version>-<abbr abi>
+
+                    These fields stem from wheel name conventions as outlined in
+                    https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by
+                    https://www.python.org/dev/peps/pep-0425 except as otherwise noted below.
+
+                    Given a canonical platform string for CPython 3.7.5 running on 64 bit Linux of:
+                      linux-x86_64-cp-37-cp37m
+
+                    Where the fields above are:
+                    + <platform>: linux-x86_64
+                    + <python impl abbr>: cp (e.g.: cp for CPython or pp for PyPY)
+                    + <python version>: 37 (a 2 or more digit major/minor version or a component 
+                                            dotted version)
+                    + <abi>: cp37m
+
+                    The abbreviated platform string is:
+                      linux-x86_64-cp-37-m
+
+                    Some other canonical platform string examples:
+                    + OSX CPython: macosx-10.13-x86_64-cp-36-cp36m
+                    + Linux PyPy: linux-x86_64-pp-273-pypy_73.
+
+                    Unlike in the conventions set forth in PEP-425 and PEP-427, the python version 
+                    field can take on a component dotted value. So, for the example of CPython 3.7.5
+                    running on 64 bit Linux, you could also specify:
+                    + canonical: linux-x86_64-cp-3.7.5-cp37m
+                    + abbreviated: linux-x86_64-cp-3.7.5-m
+
+                    You may be forced to specify this form when resolves encounter environment
+                    markers that use `python_full_version`. See the `--complete-platform` help as
+                    well as:
+                    + https://pex.readthedocs.io/en/v2.1.66/buildingpex.html#complete-platform
+                    + https://www.python.org/dev/peps/pep-0508/#environment-markers
+                    """
+                )
+            )
+            return cls("\n\n".join(message_parts))
+
     SEP = "-"
 
     @classmethod
@@ -45,44 +96,45 @@ class Platform(object):
         if isinstance(platform, Platform):
             return platform
 
-        platform = platform.lower()
+        platform_components = platform.rsplit(cls.SEP, 3)
         try:
-            platform, impl, version, abi = platform.rsplit(cls.SEP, 3)
-            return cls(platform, impl, version, abi)
+            plat, impl, version, abi = platform_components
         except ValueError:
-            raise cls.InvalidPlatformError(
-                dedent(
-                    """\
-                    Not a valid platform specifier: {}
-                    
-                    Platform strings must be in one of two forms:
-                    1. Canonical: <platform>-<python impl abbr>-<python version>-<abi>
-                    2. Abbreviated: <platform>-<python impl abbr>-<python version>-<abbr abi>
-                    
-                    Given a canonical platform string for CPython 3.7.5 running on 64 bit linux of:
-                      linux-x86_64-cp-37-cp37m
-                    
-                    Where the fields above are:
-                    + <platform>: linux-x86_64 
-                    + <python impl abbr>: cp
-                    + <python version>: 37
-                    + <abi>: cp37m
-                    
-                    The abbreviated platform string is:
-                      linux-x86_64-cp-37-m
-                    
-                    Some other canonical platform string examples:
-                    + OSX CPython: macosx-10.13-x86_64-cp-36-cp36m
-                    + Linux PyPy: linux-x86_64-pp-273-pypy_73.
-                    
-                    These fields stem from wheel name conventions as outlined in
-                    https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by
-                    https://www.python.org/dev/peps/pep-0425.
-                    """.format(
-                        platform
-                    )
-                )
+            raise cls.InvalidPlatformError.create(
+                platform,
+                cause="There are missing platform fields. Expected 4 but given {count}.".format(
+                    count=len(platform_components)
+                ),
             )
+
+        version_components = version.split(".")
+        if len(version_components) == 1:
+            component = version_components[0]
+            if len(component) < 2:
+                raise cls.InvalidPlatformError.create(
+                    platform,
+                    cause=(
+                        "The version field must either be a 2 or more digit digit major/minor "
+                        "version or else a component dotted version. "
+                        "Given: {version!r}".format(version=version)
+                    ),
+                )
+
+            # Here version is py_version_nodot (e.g.: "37" or "310") as outlined in
+            # https://www.python.org/dev/peps/pep-0425/#python-tag
+            version_components = [component[0], component[1:]]
+
+        try:
+            version_info = cast("VersionInfo", tuple(map(int, version_components)))
+        except ValueError:
+            raise cls.InvalidPlatformError.create(
+                platform,
+                cause="The version specified had non-integer components. Given: {version!r}".format(
+                    version=version
+                ),
+            )
+
+        return cls(platform=plat, impl=impl, version=version, version_info=version_info, abi=abi)
 
     @classmethod
     def from_tag(cls, tag):
@@ -92,11 +144,32 @@ class Platform(object):
         See: https://www.python.org/dev/peps/pep-0425/#details
         """
         impl, version = tag.interpreter[:2], tag.interpreter[2:]
-        return cls(platform=tag.platform, impl=impl, version=version, abi=tag.abi)
+
+        major, minor = version[0], version[1:]
+        components = [major] if not minor else [major, minor]
+        try:
+            version_info = cast("VersionInfo", tuple(map(int, components)))
+        except ValueError:
+            raise cls.InvalidPlatformError.create(
+                tag,
+                cause=(
+                    "The tag's interpreter field has an non-integer version suffix following the "
+                    "impl {impl!r} of {version!r}.".format(impl=impl, version=version)
+                ),
+            )
+
+        return cls(
+            platform=tag.platform,
+            impl=impl,
+            version=version,
+            version_info=version_info,
+            abi=tag.abi,
+        )
 
     platform = attr.ib(converter=_normalize_platform)  # type: str
     impl = attr.ib()  # type: str
     version = attr.ib()  # type: str
+    version_info = attr.ib()  # type: VersionInfo
     abi = attr.ib()  # type: str
 
     @platform.validator
@@ -105,10 +178,13 @@ class Platform(object):
     @abi.validator
     def _non_blank(self, attribute, value):
         if not value:
-            raise self.InvalidPlatformError(
-                "Platform specifiers cannot have blank fields. Given {field}={value!r}".format(
-                    field=attribute.name, value=value
-                )
+            raise self.InvalidPlatformError.create(
+                platform=str(self),
+                cause=(
+                    "Platform specifiers cannot have blank fields. Given a blank {field}.".format(
+                        field=attribute.name
+                    )
+                ),
             )
 
     def __attrs_post_init__(self):
@@ -121,7 +197,9 @@ class Platform(object):
     @property
     def interpreter(self):
         # type: () -> str
-        return self.impl + self.version
+        return "{impl}{version}".format(
+            impl=self.impl, version="".join(map(str, self.version_info[:2]))
+        )
 
     @property
     def tag(self):
@@ -187,7 +265,7 @@ class Platform(object):
             return supported_tags
 
         # Read level 2.
-        components = list(attr.astuple(self))
+        components = [str(self)]
         if manylinux:
             components.append(manylinux)
         disk_cache_key = os.path.join(ENV.PEX_ROOT, "platforms", self.SEP.join(components))
@@ -267,4 +345,4 @@ class Platform(object):
 
     def __str__(self):
         # type: () -> str
-        return cast(str, self.SEP.join(attr.astuple(self)))
+        return cast(str, self.SEP.join((self.platform, self.impl, self.version, self.abi)))

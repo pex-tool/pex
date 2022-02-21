@@ -112,10 +112,10 @@ def _register_platform_options(
         type=str,
         action="append",
         help=(
-            "The platform for which to build the PEX. This option can be passed multiple times "
-            "to create a multi-platform pex. To use the platform corresponding to the current "
-            "interpreter you can pass `current`. To target any other platform you pass a string "
-            "composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. "
+            "The (abbreviated) platform to build the PEX for. This option can be passed multiple "
+            "times to create a multi-platform pex. To use the platform corresponding to the "
+            "current interpreter you can pass `current`. To target any other platform you pass a "
+            "string composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. "
             "These fields stem from wheel name conventions as outlined in "
             "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
             "https://www.python.org/dev/peps/pep-0425. For the current interpreter at "

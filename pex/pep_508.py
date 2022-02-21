@@ -41,7 +41,7 @@ class MarkerEnvironment(object):
         wild. For those we can't, we leave the markers unset (`None`).
         """
 
-        major_version = int(platform.version[0])
+        major_version = platform.version_info[0]
 
         implementation_name = None
         implementation_version = None
@@ -97,7 +97,11 @@ class MarkerEnvironment(object):
         elif platform.impl == "pp":
             platform_python_implementation = "PyPy"
 
-        python_version = ".".join(platform.version)
+        python_version = ".".join(map(str, platform.version_info[:2]))
+
+        python_full_version = None
+        if len(platform.version_info) == 3:
+            python_full_version = ".".join(map(str, platform.version_info))
 
         return cls(
             implementation_name=implementation_name,
@@ -108,7 +112,7 @@ class MarkerEnvironment(object):
             platform_release=None,
             platform_system=platform_system,
             platform_version=None,
-            python_full_version=None,
+            python_full_version=python_full_version,
             python_version=python_version,
             sys_platform=sys_platform,
         )
