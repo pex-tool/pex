@@ -157,7 +157,7 @@ class _PythonRequiresMismatch(_UnrankedDistribution):
             "The distribution has a python requirement of {python_requires} which does not match "
             "the python version of {python_version} for {target}.".format(
                 python_requires=self.python_requires,
-                python_version=target.get_python_version_str(),
+                python_version=target.python_version_str,
                 target=target,
             )
         )
@@ -250,7 +250,6 @@ class PEXEnvironment(object):
         self._activated_dists = None  # type: Optional[Iterable[Distribution]]
 
         self._target = target or targets.current()
-        self._interpreter_version = self._target.get_python_version_str()
 
         # The supported_tags come ordered most specific (platform specific) to least specific
         # (universal). We want to rank most specific highest; so we need to reverse iteration order
@@ -310,10 +309,11 @@ class PEXEnvironment(object):
         if rank == -1:
             return _TagMismatch(fingerprinted_dist, wheel_tags)
 
-        if self._interpreter_version:
-            python_requires = dist_metadata.requires_python(fingerprinted_dist.distribution)
-            if python_requires and self._interpreter_version not in python_requires:
-                return _PythonRequiresMismatch(fingerprinted_dist, python_requires)
+        python_requires = dist_metadata.requires_python(fingerprinted_dist.distribution)
+        if python_requires and not self._target.requires_python_applies(
+            python_requires, source=fingerprinted_dist.distribution.as_requirement()
+        ):
+            return _PythonRequiresMismatch(fingerprinted_dist, python_requires)
 
         return _RankedDistribution(rank, fingerprinted_dist)
 
