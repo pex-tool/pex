@@ -1143,11 +1143,7 @@ class Pip(object):
             # failing when encountering them, ignoring them or doing what we do here: evaluate those
             # environment markers we know but fail for those we don't.
             patches_dir = safe_mkdtemp()
-            patched_environment = target.marker_environment.as_dict(
-                # We want to fail a resolve when it needs to evaluate environment markers we don't
-                # know.
-                default_unknown=False
-            )
+            patched_environment = target.marker_environment.as_dict()
             with open(os.path.join(patches_dir, "markers.json"), "w") as markers_fp:
                 json.dump(patched_environment, markers_fp)
             extra_env[self._PATCHED_MARKERS_FILE_ENV_VAR_NAME] = markers_fp.name

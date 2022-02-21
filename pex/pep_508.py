@@ -129,34 +129,11 @@ class MarkerEnvironment(object):
     python_version = attr.ib(default=None)  # type: Optional[str]
     sys_platform = attr.ib(default=None)  # type: Optional[str]
 
-    def as_dict(self, default_unknown=True):
-        # type: (bool) -> Dict[str, str]
+    def as_dict(self):
+        # type: () -> Dict[str, str]
         """Render this marker environment as a dictionary.
 
-        For any environment markers that are unset (`None`), the value is either defaulted as
-        specified in PEP 508 or else omitted entirely as per `default_unknown`. Defaulting will
-        cause tests against those environment markers to always fail (return `False`); thus marking
-        the requirement as not applying. Leaving the marker out will cause the same test to error;
-        thus failing the resolve outright.
+        For any environment markers that are unset (`None`), the entry is omitted from the
+        environment so that any attempt to evaluate a marker needing the entry's value will fail.
         """
-        env = (
-            # N.B.: The PEP-508 defaulting scheme is "0" for versions and the empty string for
-            # everything else.
-            {
-                "implementation_name": "",
-                "implementation_version": "0",
-                "os_name": "",
-                "platform_machine": "",
-                "platform_python_implementation": "",
-                "platform_release": "",
-                "platform_system": "",
-                "platform_version": "0",
-                "python_full_version": "0",
-                "python_version": "0",
-                "sys_platform": "",
-            }
-            if default_unknown
-            else {}
-        )
-        env.update(attr.asdict(self, filter=lambda _attribute, value: value is not None))
-        return env
+        return attr.asdict(self, filter=lambda _attribute, value: value is not None)

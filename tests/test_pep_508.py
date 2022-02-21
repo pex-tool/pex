@@ -25,15 +25,11 @@ def test_platform_marker_environment():
     # type: () -> None
     platform = Platform.create("linux-x86_64-cp-37-cp37m")
     marker_environment = MarkerEnvironment.from_platform(platform)
-    env_defaulted = marker_environment.as_dict(default_unknown=True)
-    env_sparse = marker_environment.as_dict(default_unknown=False)
-
-    assert set(env_sparse.items()).issubset(set(env_defaulted.items()))
+    env = marker_environment.as_dict()
 
     def assert_known_marker(expression):
         # type: (str) -> None
-        assert evaluate_marker(expression, env_defaulted)
-        assert evaluate_marker(expression, env_sparse)
+        assert evaluate_marker(expression, env)
 
     assert_known_marker("python_version == '3.7'")
     assert_known_marker("implementation_name == 'cpython'")
@@ -42,9 +38,8 @@ def test_platform_marker_environment():
 
     def assert_unknown_marker(expression):
         # type: (str) -> None
-        assert not evaluate_marker(expression, env_defaulted)
         with pytest.raises(markers.UndefinedEnvironmentName):
-            evaluate_marker(expression, env_sparse)
+            evaluate_marker(expression, env)
 
     assert_unknown_marker("python_full_version == '3.7.10'")
     assert_unknown_marker("platform_release == '5.12.12-arch1-1'")
