@@ -50,13 +50,11 @@ def test_extended_platform_marker_environment():
     # type: () -> None
     platform = Platform.create("linux-x86_64-cp-3.10.1-cp310")
     marker_environment = MarkerEnvironment.from_platform(platform)
-    env_defaulted = marker_environment.as_dict(default_unknown=True)
-    env_sparse = marker_environment.as_dict(default_unknown=False)
+    env = marker_environment.as_dict()
 
     def assert_known_marker(expression):
         # type: (str) -> None
-        assert evaluate_marker(expression, env_defaulted)
-        assert evaluate_marker(expression, env_sparse)
+        assert evaluate_marker(expression, env)
 
     assert_known_marker("python_full_version == '3.10.1'")
     assert_known_marker("python_version == '3.10'")
@@ -66,9 +64,8 @@ def test_extended_platform_marker_environment():
 
     def assert_unknown_marker(expression):
         # type: (str) -> None
-        assert not evaluate_marker(expression, env_defaulted)
         with pytest.raises(markers.UndefinedEnvironmentName):
-            evaluate_marker(expression, env_sparse)
+            evaluate_marker(expression, env)
 
     assert_unknown_marker("platform_release == '5.12.12-arch1-1'")
     assert_unknown_marker("platform_version == '#1 SMP PREEMPT Fri, 18 Jun 2021 21:59:22 +0000'")
