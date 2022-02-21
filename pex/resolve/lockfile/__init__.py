@@ -4,12 +4,12 @@
 from __future__ import absolute_import
 
 from pex import resolver
-from pex.cli.commands.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
 from pex.commands.command import Error
 from pex.common import pluralize, safe_open
 from pex.requirements import LocalProjectRequirement, VCSRequirement
 from pex.resolve import resolvers
 from pex.resolve.locked_resolve import LockConfiguration
+from pex.resolve.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import Targets
@@ -34,7 +34,7 @@ def load(lockfile_path):
     :return: The parsed lock file.
     :raises: :class:`ParseError` if there was a problem parsing the lock file.
     """
-    from pex.cli.commands.lockfile import json_codec
+    from pex.resolve.lockfile import json_codec
 
     return json_codec.load(lockfile_path=lockfile_path)
 
@@ -51,7 +51,7 @@ def loads(
     :return: The parsed lock file.
     :raises: :class:`ParseError` if there was a problem parsing the lock file.
     """
-    from pex.cli.commands.lockfile import json_codec
+    from pex.resolve.lockfile import json_codec
 
     return json_codec.loads(lockfile_contents=lockfile_contents, source=source)
 
@@ -71,7 +71,7 @@ def store(
     """
     import json
 
-    from pex.cli.commands.lockfile import json_codec
+    from pex.resolve.lockfile import json_codec
 
     with safe_open(path, "w") as fp:
         json.dump(json_codec.as_json_data(lockfile), fp, sort_keys=True)

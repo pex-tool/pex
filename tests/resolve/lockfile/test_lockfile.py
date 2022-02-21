@@ -6,8 +6,8 @@ from textwrap import dedent
 
 import pytest
 
-from pex.cli.commands import lockfile
 from pex.interpreter import PythonInterpreter
+from pex.resolve import lockfile
 from pex.resolve.locked_resolve import LockedResolve
 from pex.targets import LocalInterpreter, Target
 from pex.testing import (

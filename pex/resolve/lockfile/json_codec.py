@@ -6,8 +6,6 @@ from __future__ import absolute_import
 import json
 
 from pex import compatibility
-from pex.cli.commands.lockfile import ParseError
-from pex.cli.commands.lockfile.lockfile import Lockfile
 from pex.enum import Enum
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -19,6 +17,8 @@ from pex.resolve.locked_resolve import (
     LockStyle,
     Pin,
 )
+from pex.resolve.lockfile import ParseError
+from pex.resolve.lockfile.lockfile import Lockfile
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
