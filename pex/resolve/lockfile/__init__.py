@@ -8,7 +8,14 @@ import shutil
 
 from pex import resolver
 from pex.common import pluralize, safe_mkdtemp, safe_open
-from pex.requirements import LocalProjectRequirement, VCSRequirement
+from pex.network_configuration import NetworkConfiguration
+from pex.requirements import (
+    Constraint,
+    LocalProjectRequirement,
+    PyPIRequirement,
+    URLRequirement,
+    VCSRequirement,
+)
 from pex.resolve import resolvers
 from pex.resolve.locked_resolve import Artifact, LockConfiguration
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
@@ -16,7 +23,7 @@ from pex.resolve.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolver import Downloaded
-from pex.result import Error
+from pex.result import Error, try_
 from pex.targets import Targets
 from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
@@ -26,7 +33,11 @@ from pex.variables import ENV
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import List, Mapping, Optional, Text, Union
+    from typing import Iterable, List, Mapping, Optional, Text, Tuple, Union
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 class ParseError(Exception):
@@ -84,6 +95,72 @@ def store(
         json.dump(json_codec.as_json_data(lockfile), fp, sort_keys=True)
 
 
+@attr.s(frozen=True)
+class Requirements(object):
+    @classmethod
+    def create(
+        cls,
+        parsed_requirements,  # type: Iterable[Union[PyPIRequirement, URLRequirement]]
+        parsed_constraints,  # type: Iterable[Constraint]
+    ):
+        # type: (...) -> Requirements
+        return cls(
+            parsed_requirements=tuple(parsed_requirements),
+            requirements=tuple(
+                parsed_requirement.requirement for parsed_requirement in parsed_requirements
+            ),
+            parsed_constraints=tuple(parsed_constraints),
+            constraints=tuple(
+                parsed_constraint.requirement for parsed_constraint in parsed_constraints
+            ),
+        )
+
+    parsed_requirements = attr.ib()  # type: Tuple[Union[PyPIRequirement, URLRequirement], ...]
+    requirements = attr.ib()  # type: Tuple[Requirement, ...]
+    parsed_constraints = attr.ib()  # type: Tuple[Constraint, ...]
+    constraints = attr.ib()  # type: Tuple[Requirement, ...]
+
+
+def parse_lockable_requirements(
+    requirement_configuration,  # type: RequirementConfiguration
+    network_configuration=None,  # type: Optional[NetworkConfiguration]
+):
+    # type: (...) -> Union[Requirements, Error]
+
+    parsed_requirements = []  # type: List[Union[PyPIRequirement, URLRequirement]]
+    projects = []  # type: List[str]
+    for parsed_requirement in requirement_configuration.parse_requirements(network_configuration):
+        if isinstance(parsed_requirement, LocalProjectRequirement):
+            projects.append("local project at {path}".format(path=parsed_requirement.path))
+        elif isinstance(parsed_requirement, VCSRequirement):
+            projects.append(
+                "{vcs} project {project_name} at {url}".format(
+                    vcs=parsed_requirement.vcs,
+                    project_name=parsed_requirement.requirement.project_name,
+                    url=parsed_requirement.url,
+                )
+            )
+        else:
+            parsed_requirements.append(parsed_requirement)
+    if projects:
+        return Error(
+            "Cannot create a lock for project requirements built from local or version "
+            "controlled sources. Given {count} such {projects}:\n{project_descriptions}".format(
+                count=len(projects),
+                projects=pluralize(projects, "project"),
+                project_descriptions="\n".join(
+                    "{index}.) {project}".format(index=index, project=project)
+                    for index, project in enumerate(projects, start=1)
+                ),
+            )
+        )
+
+    return Requirements.create(
+        parsed_requirements=parsed_requirements,
+        parsed_constraints=requirement_configuration.parse_constraints(network_configuration),
+    )
+
+
 class CreateLockDownloadManager(DownloadManager):
     @classmethod
     def create(
@@ -139,37 +216,10 @@ def create(
     """Create a lock file for the given resolve configurations."""
 
     network_configuration = pip_configuration.network_configuration
-    requirements = []  # type: List[Requirement]
-    projects = []  # type: List[str]
-    for parsed_requirement in requirement_configuration.parse_requirements(network_configuration):
-        if isinstance(parsed_requirement, LocalProjectRequirement):
-            projects.append("local project at {path}".format(path=parsed_requirement.path))
-        elif isinstance(parsed_requirement, VCSRequirement):
-            projects.append(
-                "{vcs} project {project_name} at {url}".format(
-                    vcs=parsed_requirement.vcs,
-                    project_name=parsed_requirement.requirement.project_name,
-                    url=parsed_requirement.url,
-                )
-            )
-        else:
-            requirements.append(parsed_requirement.requirement)
-    if projects:
-        return Error(
-            "Cannot create a lock for project requirements built from local or version "
-            "controlled sources. Given {count} such {projects}:\n{project_descriptions}".format(
-                count=len(projects),
-                projects=pluralize(projects, "project"),
-                project_descriptions="\n".join(
-                    "{index}.) {project}".format(index=index, project=project)
-                    for index, project in enumerate(projects, start=1)
-                ),
-            )
+    parsed_requirements = try_(
+        parse_lockable_requirements(
+            requirement_configuration, network_configuration=network_configuration
         )
-
-    constraints = tuple(
-        constraint.requirement
-        for constraint in requirement_configuration.parse_constraints(network_configuration)
     )
 
     dest = safe_mkdtemp()
@@ -210,8 +260,8 @@ def create(
         style=lock_configuration.style,
         requires_python=lock_configuration.requires_python,
         resolver_version=pip_configuration.resolver_version,
-        requirements=requirements,
-        constraints=constraints,
+        requirements=parsed_requirements.requirements,
+        constraints=parsed_requirements.constraints,
         allow_prereleases=pip_configuration.allow_prereleases,
         allow_wheels=pip_configuration.allow_wheels,
         allow_builds=pip_configuration.allow_builds,
