@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     )
 
     import attr  # vendor:skip
-    from packaging import tags
+    from packaging import tags  # vendor:skip
     from packaging import version as packaging_version  # vendor:skip
     from packaging.specifiers import SpecifierSet  # vendor:skip
     from pkg_resources import Requirement  # vendor:skip
