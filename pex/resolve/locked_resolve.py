@@ -91,6 +91,25 @@ class LockRequest(object):
 class Artifact(object):
     url = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: Fingerprint
+    filename = attr.ib(init=False)  # type: str
+
+    def __attrs_post_init__(self):
+        # type: () -> None
+        url_info = urlparse.urlparse(self.url)
+        filename = os.path.basename(url_info.path)
+        object.__setattr__(self, "filename", filename)
+
+    @property
+    def is_source(self):
+        # type: () -> bool
+        return self.filename.endswith((".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip"))
+
+    def parse_tags(self):
+        # type: () -> Iterator[tags.Tag]
+        if self.filename.endswith(".whl"):
+            artifact_stem, _ = os.path.splitext(self.filename)
+            for tag in tags.parse_tag(artifact_stem.split("-", 2)[-1]):
+                yield tag
 
 
 @attr.s(frozen=True)
@@ -160,11 +179,7 @@ class LockedRequirement(object):
         """
         highest_rank_artifact = None  # type: Optional[RankedArtifact]
         for artifact in self.iter_artifacts():
-            url_info = urlparse.urlparse(artifact.url)
-            artifact_file = os.path.basename(url_info.path)
-            if build and artifact_file.endswith(
-                (".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip")
-            ):
+            if build and artifact.is_source:
                 # N.B.: Ensure sdists are picked last amongst a set of artifacts. We do this, since
                 # a wheel is known to work with a target by the platform tags on the tin, whereas an
                 # sdist may not successfully build for a given target at all. This is an affordance
@@ -177,9 +192,8 @@ class LockedRequirement(object):
                     is highest_rank_artifact.select_higher_ranked(ranked_artifact)
                 ):
                     highest_rank_artifact = ranked_artifact
-            elif use_wheel and artifact_file.endswith(".whl"):
-                artifact_stem, _ = os.path.splitext(artifact_file)
-                for tag in tags.parse_tag(artifact_stem.split("-", 2)[-1]):
+            elif use_wheel:
+                for tag in artifact.parse_tags():
                     wheel_rank = target.supported_tags.rank(tag)
                     if wheel_rank is None:
                         continue
@@ -246,9 +260,7 @@ class _ResolvedArtifact(object):
     ):
         # type: (...) -> _ResolvedArtifact
 
-        if prefer_older_binary:
-            if self.ranked_artifact.rank == other.ranked_artifact.rank:
-                return self if self.version > other.version else other
+        if prefer_older_binary and self.artifact.is_source ^ other.artifact.is_source:
             return Rank.select_highest_rank(self, other, lambda ra: ra.ranked_artifact.rank)
 
         if self.version == other.version:

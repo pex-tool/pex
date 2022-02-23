@@ -7,6 +7,7 @@ import pytest
 from pex import targets
 from pex.commands.command import Error, try_
 from pex.interpreter import PythonInterpreter
+from pex.pep_425 import TagRank
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.platforms import Platform
@@ -15,7 +16,9 @@ from pex.resolve.locked_resolve import (
     DownloadableArtifact,
     LockedRequirement,
     LockedResolve,
+    RankedArtifact,
     Resolved,
+    _ResolvedArtifact,
 )
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.sorted_tuple import SortedTuple
@@ -478,6 +481,89 @@ def test_prefer_older_binary(current_target):
             ),
             satisfied_direct_requirements=requirements("ansicolors>1"),
         ),
+    )
+
+
+def resolved_artifact(
+    project_name,  # type: str
+    version,  # type: str
+    artifact_basename,  # type: str
+    rank_value,  # type: int
+):
+    # type: (...) -> _ResolvedArtifact
+    primary_artifact = artifact(
+        url="https://example.org/{artifact_basename}".format(artifact_basename=artifact_basename),
+        algorithm="sha256",
+        hash="cafebabe",
+    )
+    return _ResolvedArtifact(
+        ranked_artifact=RankedArtifact(artifact=primary_artifact, rank=TagRank(rank_value)),
+        locked_requirement=LockedRequirement.create(
+            pin=pin(project_name, version), artifact=primary_artifact
+        ),
+    )
+
+
+def test_resolved_artifact_select_higher_rank():
+    specific_wheel_117 = resolved_artifact(
+        "ansicolors", "1.1.7", "ansicolors-1.1.7-cp38-cp38-linux_x86_64.whl", 0
+    )
+    specific_wheel_118 = resolved_artifact(
+        "ansicolors", "1.1.8", "ansicolors-1.1.8-cp38-cp38-linux_x86_64.whl", 0
+    )
+
+    general_wheel_117 = resolved_artifact(
+        "ansicolors", "1.1.7", "ansicolors-1.1.7-py3-none-any.whl", 122
+    )
+    general_wheel_118 = resolved_artifact(
+        "ansicolors", "1.1.8", "ansicolors-1.1.8-py3-none-any.whl", 122
+    )
+
+    source_117 = resolved_artifact("ansicolors", "1.1.7", "ansicolors-1.1.7.tar.gz", 123)
+    source_118 = resolved_artifact("ansicolors", "1.1.8", "ansicolors-1.1.8.tar.gz", 123)
+
+    # Same rank, different versions.
+    assert specific_wheel_118 is specific_wheel_117.select_higher_rank(specific_wheel_118)
+    assert specific_wheel_118 is specific_wheel_117.select_higher_rank(
+        specific_wheel_118, prefer_older_binary=True
+    )
+    assert general_wheel_118 is general_wheel_118.select_higher_rank(general_wheel_117)
+    assert general_wheel_118 is general_wheel_118.select_higher_rank(
+        general_wheel_117, prefer_older_binary=True
+    )
+    assert source_118 is source_117.select_higher_rank(source_118)
+    assert source_118 is source_117.select_higher_rank(source_118, prefer_older_binary=True)
+
+    # Same version, different ranks.
+    assert general_wheel_117 is source_117.select_higher_rank(general_wheel_117)
+    assert general_wheel_117 is source_117.select_higher_rank(
+        general_wheel_117, prefer_older_binary=True
+    )
+    assert specific_wheel_117 is general_wheel_117.select_higher_rank(specific_wheel_117)
+    assert specific_wheel_117 is general_wheel_117.select_higher_rank(
+        specific_wheel_117, prefer_older_binary=True
+    )
+
+    # Same rank, same version.
+    assert source_117 is source_117.select_higher_rank(source_117)
+    assert source_117 is source_117.select_higher_rank(source_117, prefer_older_binary=True)
+
+    # Rank and version covariant
+    assert specific_wheel_118 is source_117.select_higher_rank(specific_wheel_118)
+    assert specific_wheel_118 is source_117.select_higher_rank(
+        specific_wheel_118, prefer_older_binary=True
+    )
+
+    # Rank and version contravariant all wheel.
+    assert general_wheel_118 is general_wheel_118.select_higher_rank(specific_wheel_117)
+    assert general_wheel_118 is general_wheel_118.select_higher_rank(
+        specific_wheel_117, prefer_older_binary=True
+    )
+
+    # Rank and version contravariant mixed source and wheel.
+    assert source_118 is source_118.select_higher_rank(specific_wheel_117)
+    assert specific_wheel_117 is source_118.select_higher_rank(
+        specific_wheel_117, prefer_older_binary=True
     )
 
 
