@@ -26,7 +26,7 @@ from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockReq
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import ResolvedRequirement
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.resolve.resolvers import InstalledDistribution, Resolved, Unsatisfiable, Untranslatable
+from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable, Untranslatable
 from pex.targets import Target, Targets
 from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
@@ -881,7 +881,7 @@ def resolve(
     verify_wheels=True,  # type: bool
     lock_configuration=None,  # type: Optional[LockConfiguration]
 ):
-    # type: (...) -> Resolved
+    # type: (...) -> Installed
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
 
     The resulting distributions are installed in individual chroots that can be independently added
@@ -925,7 +925,7 @@ def resolve(
     :keyword ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
     :keyword verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
     :keyword lock_configuration: If a lock should be generated for the resolve - its configuration.
-    :returns: The resolved distributions meeting all requirements and constraints.
+    :returns: The installed distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
       a particular requirement.
@@ -1017,7 +1017,7 @@ def resolve(
             ignore_errors=ignore_errors, workspace=workspace, max_parallel_jobs=max_parallel_jobs
         )
     )
-    return Resolved(installed_distributions=installed_distributions, locks=tuple(locks))
+    return Installed(installed_distributions=installed_distributions, locks=tuple(locks))
 
 
 def _download_internal(

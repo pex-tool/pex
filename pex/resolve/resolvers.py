@@ -72,6 +72,6 @@ class InstalledDistribution(object):
 
 
 @attr.s(frozen=True)
-class Resolved(object):
+class Installed(object):
     installed_distributions = attr.ib()  # type: Tuple[InstalledDistribution, ...]
     locks = attr.ib(default=())  # type: Tuple[LockedResolve, ...]

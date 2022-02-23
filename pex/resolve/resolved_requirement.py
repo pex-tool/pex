@@ -39,6 +39,12 @@ class Pin(object):
             "{project_name}=={version}".format(project_name=self.project_name, version=self.version)
         )
 
+    def __str__(self):
+        # type: () -> str
+        return "{project_name} {version}".format(
+            project_name=self.project_name, version=self.version
+        )
+
 
 @attr.s(frozen=True)
 class Fingerprint(object):
