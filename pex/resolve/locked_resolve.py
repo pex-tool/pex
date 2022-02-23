@@ -282,7 +282,6 @@ class Resolved(object):
     @classmethod
     def create(
         cls,
-        target,  # type: Target
         direct_requirements,  # type: Iterable[Requirement]
         downloadable_requirements,  # type: Iterable[_ResolvedArtifact]
     ):
@@ -297,7 +296,6 @@ class Resolved(object):
             )
 
         downloadable_artifacts = []
-        requirement_ranks = []
         for downloadable_requirement in downloadable_requirements:
             pin = downloadable_requirement.locked_requirement.pin
             downloadable_artifacts.append(
@@ -309,20 +307,11 @@ class Resolved(object):
                     ],
                 )
             )
-            requirement_ranks.append(downloadable_requirement.ranked_artifact.rank.value)
-
-        average_requirement_rank = sum(requirement_ranks) / float(len(requirement_ranks))
-
-        # N.B.: Lowest rank means highest rank value. I.E.: The 1st tag is the most specific and
-        # the 765th tag is the least specific.
-        largest_value = target.supported_tags.lowest_rank.value
 
         return cls(
-            target_specificity=(largest_value - average_requirement_rank) / largest_value,
             downloadable_artifacts=tuple(downloadable_artifacts),
         )
 
-    target_specificity = attr.ib()  # type: float
     downloadable_artifacts = attr.ib()  # type: Tuple[DownloadableArtifact, ...]
 
 
@@ -626,7 +615,6 @@ class LockedResolve(object):
             )
 
         return Resolved.create(
-            target=target,
             direct_requirements=requirements,
             downloadable_requirements=resolved_artifacts,
         )
