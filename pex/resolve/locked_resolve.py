@@ -5,9 +5,10 @@ from __future__ import absolute_import
 
 import itertools
 import os
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, deque
 
 from pex.commands.command import Error
+from pex.common import pluralize
 from pex.compatibility import urlparse
 from pex.dist_metadata import DistMetadata
 from pex.enum import Enum
@@ -17,10 +18,7 @@ from pex.pep_503 import ProjectName
 from pex.rank import Rank
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
 from pex.sorted_tuple import SortedTuple
-from pex.targets import Target
-from pex.third_party.packaging import tags
-from pex.third_party.packaging.specifiers import SpecifierSet
-from pex.third_party.pkg_resources import Requirement
+from pex.targets import LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -29,18 +27,27 @@ if TYPE_CHECKING:
         Any,
         Callable,
         DefaultDict,
+        Deque,
         Iterable,
         Iterator,
         List,
-        Mapping,
         Optional,
+        Set,
         Tuple,
         Union,
     )
 
     import attr  # vendor:skip
+    from packaging import tags
+    from packaging import version as packaging_version  # vendor:skip
+    from packaging.specifiers import SpecifierSet  # vendor:skip
+    from pkg_resources import Requirement  # vendor:skip
 else:
     from pex.third_party import attr
+    from pex.third_party.packaging import tags
+    from pex.third_party.packaging import version as packaging_version
+    from pex.third_party.packaging.specifiers import SpecifierSet
+    from pex.third_party.pkg_resources import Requirement
 
 
 class LockStyle(Enum["LockStyle.Value"]):
@@ -113,7 +120,7 @@ class LockedRequirement(object):
         return cls(
             pin=pin,
             artifact=artifact,
-            requires_dists=SortedTuple(requires_dists, key=lambda req: str(req)),
+            requires_dists=SortedTuple(requires_dists, key=str),
             requires_python=requires_python,
             additional_artifacts=SortedTuple(additional_artifacts),
         )
@@ -130,8 +137,13 @@ class LockedRequirement(object):
         for artifact in self.additional_artifacts:
             yield artifact
 
-    def select_artifact(self, target):
-        # type: (Target) -> Optional[RankedArtifact]
+    def select_artifact(
+        self,
+        target,  # type: Target
+        build=True,  # type: bool
+        use_wheel=True,  # type: bool
+    ):
+        # type: (...) -> Optional[RankedArtifact]
         """Select the highest ranking (most platform specific) artifact satisfying supported tags.
 
         Artifacts are ranked as follows:
@@ -141,6 +153,8 @@ class LockedRequirement(object):
         + Otherwise treat the artifact as unusable.
 
         :param target: The target looking to pick a resolve to use.
+        :param build: Whether sdists are allowed.
+        :param use_wheel: Whether wheels are allowed.
         :return: The highest ranked artifact if the requirement is compatible with the target else
             `None`.
         """
@@ -148,7 +162,9 @@ class LockedRequirement(object):
         for artifact in self.iter_artifacts():
             url_info = urlparse.urlparse(artifact.url)
             artifact_file = os.path.basename(url_info.path)
-            if artifact_file.endswith((".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip")):
+            if build and artifact_file.endswith(
+                (".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip")
+            ):
                 # N.B.: Ensure sdists are picked last amongst a set of artifacts. We do this, since
                 # a wheel is known to work with a target by the platform tags on the tin, whereas an
                 # sdist may not successfully build for a given target at all. This is an affordance
@@ -161,7 +177,7 @@ class LockedRequirement(object):
                     is highest_rank_artifact.select_higher_ranked(ranked_artifact)
                 ):
                     highest_rank_artifact = ranked_artifact
-            elif artifact_file.endswith(".whl"):
+            elif use_wheel and artifact_file.endswith(".whl"):
                 artifact_stem, _ = os.path.splitext(artifact_file)
                 for tag in tags.parse_tag(artifact_stem.split("-", 2)[-1]):
                     wheel_rank = target.supported_tags.rank(tag)
@@ -176,6 +192,138 @@ class LockedRequirement(object):
                         highest_rank_artifact = ranked_artifact
 
         return highest_rank_artifact
+
+
+@attr.s(frozen=True)
+class _ResolveRequest(object):
+    @classmethod
+    def root(cls, requirement):
+        # type: (Requirement) -> _ResolveRequest
+        return cls(required_by=(requirement,), requirement=requirement)
+
+    required_by = attr.ib()  # type: Tuple[Requirement, ...]
+    requirement = attr.ib()  # type: Requirement
+    extras = attr.ib(default=None)  # type: Optional[Tuple[str, ...]]
+
+    @property
+    def project_name(self):
+        # type: () -> ProjectName
+        return ProjectName(self.requirement.project_name)
+
+    def request_dependencies(self, locked_requirement):
+        # type: (LockedRequirement) -> Iterator[_ResolveRequest]
+        for requires_dist in locked_requirement.requires_dists:
+            yield _ResolveRequest(
+                required_by=self.required_by + (requires_dist,),
+                requirement=requires_dist,
+                extras=self.requirement.extras,
+            )
+
+    def render_via(self):
+        # type: () -> str
+        return "via: {via}".format(via=" -> ".join(map(str, self.required_by)))
+
+
+@attr.s(frozen=True)
+class _ResolvedArtifact(object):
+    ranked_artifact = attr.ib()  # type: RankedArtifact
+    locked_requirement = attr.ib()  # type: LockedRequirement
+
+    @property
+    def artifact(self):
+        # type: () -> Artifact
+        return self.ranked_artifact.artifact
+
+    @property
+    def version(self):
+        # type: () -> Union[packaging_version.LegacyVersion, packaging_version.Version]
+        return self.locked_requirement.pin.version.parsed_version
+
+    def select_higher_rank(
+        self,
+        other,  # type: _ResolvedArtifact
+        prefer_older_binary=False,  # type: bool
+    ):
+        # type: (...) -> _ResolvedArtifact
+
+        if prefer_older_binary:
+            if self.ranked_artifact.rank == other.ranked_artifact.rank:
+                return self if self.version > other.version else other
+            return Rank.select_highest_rank(self, other, lambda ra: ra.ranked_artifact.rank)
+
+        if self.version == other.version:
+            return Rank.select_highest_rank(self, other, lambda ra: ra.ranked_artifact.rank)
+        return self if self.version > other.version else other
+
+
+@attr.s(frozen=True)
+class DownloadableArtifact(object):
+    @classmethod
+    def create(
+        cls,
+        pin,  # type: Pin
+        artifact,  # type: Artifact
+        satisfied_direct_requirements=(),  # type: Iterable[Requirement]
+    ):
+        # type: (...) -> DownloadableArtifact
+        return cls(
+            pin=pin,
+            artifact=artifact,
+            satisfied_direct_requirements=SortedTuple(satisfied_direct_requirements, key=str),
+        )
+
+    pin = attr.ib()  # type: Pin
+    artifact = attr.ib()  # type: Artifact
+    satisfied_direct_requirements = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
+
+
+@attr.s(frozen=True)
+class Resolved(object):
+    @classmethod
+    def create(
+        cls,
+        target,  # type: Target
+        direct_requirements,  # type: Iterable[Requirement]
+        downloadable_requirements,  # type: Iterable[_ResolvedArtifact]
+    ):
+        # type: (...) -> Resolved
+
+        direct_requirements_by_project_name = defaultdict(
+            list
+        )  # type: DefaultDict[ProjectName, List[Requirement]]
+        for requirement in direct_requirements:
+            direct_requirements_by_project_name[ProjectName(requirement.project_name)].append(
+                requirement
+            )
+
+        downloadable_artifacts = []
+        requirement_ranks = []
+        for downloadable_requirement in downloadable_requirements:
+            pin = downloadable_requirement.locked_requirement.pin
+            downloadable_artifacts.append(
+                DownloadableArtifact.create(
+                    pin=pin,
+                    artifact=downloadable_requirement.artifact,
+                    satisfied_direct_requirements=direct_requirements_by_project_name[
+                        pin.project_name
+                    ],
+                )
+            )
+            requirement_ranks.append(downloadable_requirement.ranked_artifact.rank.value)
+
+        average_requirement_rank = sum(requirement_ranks) / float(len(requirement_ranks))
+
+        # N.B.: Lowest rank means highest rank value. I.E.: The 1st tag is the most specific and
+        # the 765th tag is the least specific.
+        largest_value = target.supported_tags.lowest_rank.value
+
+        return cls(
+            target_specificity=(largest_value - average_requirement_rank) / largest_value,
+            downloadable_artifacts=tuple(downloadable_artifacts),
+        )
+
+    target_specificity = attr.ib()  # type: float
+    downloadable_artifacts = attr.ib()  # type: Tuple[DownloadableArtifact, ...]
 
 
 @attr.s(frozen=True)
@@ -282,3 +430,203 @@ class LockedResolve(object):
                     additional_artifact,
                     line_continuation=index != len(locked_requirement.additional_artifacts),
                 )
+
+    def resolve(
+        self,
+        target,  # type: Target
+        requirements,  # type: Iterable[Requirement]
+        transitive=True,  # type: bool
+        build=True,  # type: bool
+        use_wheel=True,  # type: bool
+        prefer_older_binary=False,  # type: bool
+    ):
+        # type: (...) -> Union[Resolved, Error]
+
+        is_local_interpreter = isinstance(target, LocalInterpreter)
+        if not use_wheel:
+            if not build:
+                return Error(
+                    "Cannot both ignore wheels (use_wheel=False) and refrain from building "
+                    "distributions (build=False)."
+                )
+            elif not is_local_interpreter:
+                return Error(
+                    "Cannot ignore wheels (use_wheel=False) when resolving for a platform: given "
+                    "{platform_description}".format(
+                        platform_description=target.render_description()
+                    )
+                )
+        if not is_local_interpreter:
+            build = False
+
+        repository = defaultdict(list)  # type: DefaultDict[ProjectName, List[LockedRequirement]]
+        for locked_requirement in self.locked_requirements:
+            repository[locked_requirement.pin.project_name].append(locked_requirement)
+
+        # 1. Gather all required projects and their requirers.
+        required = OrderedDict()  # type: OrderedDict[ProjectName, List[_ResolveRequest]]
+        to_be_resolved = deque()  # type: Deque[_ResolveRequest]
+
+        def request_resolve(requests):
+            # type: (Iterable[_ResolveRequest]) -> None
+            to_be_resolved.extend(
+                request
+                for request in requests
+                if target.requirement_applies(request.requirement, extras=request.extras)
+            )
+
+        visited = set()  # type: Set[ProjectName]
+        request_resolve(_ResolveRequest.root(requirement) for requirement in requirements)
+        while to_be_resolved:
+            resolve_request = to_be_resolved.popleft()
+            project_name = resolve_request.project_name
+            required.setdefault(project_name, []).append(resolve_request)
+
+            if not transitive or project_name in visited:
+                continue
+            visited.add(project_name)
+
+            for locked_requirement in repository[project_name]:
+                request_resolve(resolve_request.request_dependencies(locked_requirement))
+
+        # 2. Select either the best fit artifact for each requirement or collect an error.
+        resolved_artifacts = []
+        errors = []
+        for project_name, resolve_requests in required.items():
+            reasons = []  # type: List[str]
+            best_match = None  # type: Optional[_ResolvedArtifact]
+            for locked_requirement in repository[project_name]:
+
+                def attributed_reason(reason):
+                    # type: (str) -> str
+                    if len(resolve_requests) == 1:
+                        return "{pin} ({via}) {reason}".format(
+                            pin=locked_requirement.pin,
+                            via=resolve_requests[0].render_via(),
+                            reason=reason,
+                        )
+                    return (
+                        "{pin} {reason}\n"
+                        "    requirers:\n"
+                        "    {vias}".format(
+                            pin=locked_requirement.pin,
+                            reason=reason,
+                            vias="\n    ".join(rr.render_via() for rr in resolve_requests),
+                        )
+                    )
+
+                if locked_requirement.requires_python and not target.requires_python_applies(
+                    locked_requirement.requires_python,
+                    source=locked_requirement.pin.as_requirement(),
+                ):
+                    reasons.append(
+                        attributed_reason(
+                            "requires Python {specifier}".format(
+                                specifier=locked_requirement.requires_python,
+                            )
+                        )
+                    )
+                    continue
+
+                version_mismatches = []
+                for resolve_request in resolve_requests:
+                    if (
+                        str(locked_requirement.pin.version)
+                        not in resolve_request.requirement.specifier
+                    ):
+                        version_mismatches.append(
+                            "{specifier} ({via})".format(
+                                specifier=resolve_request.requirement.specifier,
+                                via=resolve_request.render_via(),
+                            )
+                        )
+                if version_mismatches:
+                    reasons.append(
+                        "{pin} does not satisfy the following requirements:\n{mismatches}".format(
+                            pin=locked_requirement.pin,
+                            mismatches="\n".join(
+                                "    {version_mismatch}".format(version_mismatch=version_mismatch)
+                                for version_mismatch in version_mismatches
+                            ),
+                        )
+                    )
+                    continue
+
+                ranked_artifact = locked_requirement.select_artifact(
+                    target,
+                    build=build,
+                    use_wheel=use_wheel,
+                )
+                if not ranked_artifact:
+                    reasons.append(
+                        attributed_reason(
+                            "does not have any compatible artifacts:\n{artifacts}".format(
+                                artifacts="\n".join(
+                                    "    {url}".format(url=artifact.url)
+                                    for artifact in locked_requirement.iter_artifacts()
+                                )
+                            )
+                        )
+                    )
+                    continue
+                resolved_artifact = _ResolvedArtifact(ranked_artifact, locked_requirement)
+                if best_match is None or resolved_artifact is best_match.select_higher_rank(
+                    resolved_artifact, prefer_older_binary=prefer_older_binary
+                ):
+                    best_match = resolved_artifact
+
+            if not best_match:
+                if reasons:
+                    errors.append(
+                        "Dependency on {project_name} not satisfied, {count} incompatible "
+                        "{candidates} found:\n{reasons}".format(
+                            project_name=project_name,
+                            count=len(reasons),
+                            candidates=pluralize(reasons, "candidate"),
+                            reasons="\n".join(
+                                "{index}.) {reason}".format(index=index, reason=reason)
+                                for index, reason in enumerate(reasons, start=1)
+                            ),
+                        )
+                    )
+                elif len(resolve_requests) == 1:
+                    errors.append(
+                        "Dependency on {project_name} ({via}) not satisfied, no candidates "
+                        "found.".format(
+                            project_name=project_name, via=resolve_requests[0].render_via()
+                        )
+                    )
+                else:
+                    errors.append(
+                        "Dependency on {project_name} not satisfied, no candiates found:\n"
+                        "    requirers:\n"
+                        "    {vias}".format(
+                            project_name=project_name,
+                            vias="\n    ".join(rr.render_via() for rr in resolve_requests),
+                        )
+                    )
+                continue
+
+            resolved_artifacts.append(best_match)
+
+        if errors:
+            return Error(
+                "Failed to resolve all requirements for {target}:\n"
+                "\n"
+                "Configured with:\n"
+                "    build: {build}\n"
+                "    use_wheel: {use_wheel}\n"
+                "\n"
+                "{errors}".format(
+                    build=build,
+                    use_wheel=use_wheel,
+                    target=target.render_description(),
+                    errors="\n\n".join("{error}".format(error=error) for error in errors),
+                )
+            )
+
+        return Resolved.create(
+            target=target,
+            direct_requirements=requirements,
+            downloadable_requirements=resolved_artifacts,
+        )

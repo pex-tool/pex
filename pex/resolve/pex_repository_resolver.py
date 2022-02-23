@@ -13,7 +13,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.requirements import Constraint, LocalProjectRequirement
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolvers import InstalledDistribution, Resolved, Unsatisfiable, Untranslatable
+from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable, Untranslatable
 from pex.targets import Targets
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
@@ -32,7 +32,7 @@ def resolve_from_pex(
     transitive=True,  # type: bool
     ignore_errors=False,  # type: bool
 ):
-    # type: (...) -> Resolved
+    # type: (...) -> Installed
 
     requirement_configuration = RequirementConfiguration(
         requirements=requirements,
@@ -102,4 +102,4 @@ def resolve_from_pex(
                     direct_requirements=direct_requirements,
                 )
             )
-    return Resolved(installed_distributions=tuple(installed_distributions))
+    return Installed(installed_distributions=tuple(installed_distributions))

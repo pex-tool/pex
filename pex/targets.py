@@ -136,6 +136,9 @@ class Target(object):
         # type: () -> str
         return str(self.platform.tag)
 
+    def render_description(self):
+        raise NotImplementedError()
+
 
 @attr.s(frozen=True)
 class LocalInterpreter(Target):
@@ -174,6 +177,11 @@ class LocalInterpreter(Target):
         # type: () -> str
         return self.interpreter.binary
 
+    def render_description(self):
+        return "{platform} interpreter at {path}".format(
+            platform=self.interpreter.platform.tag, path=self.interpreter.binary
+        )
+
 
 @attr.s(frozen=True)
 class AbbreviatedPlatform(Target):
@@ -197,6 +205,9 @@ class AbbreviatedPlatform(Target):
     def supported_tags(self):
         # type: () -> CompatibilityTags
         return self.platform.supported_tags(manylinux=self.manylinux)
+
+    def render_description(self):
+        return "abbreviated platform {platform}".format(platform=self.platform.tag)
 
 
 def current():
@@ -236,6 +247,9 @@ class CompletePlatform(Target):
     def supported_tags(self):
         # type: () -> CompatibilityTags
         return self._supported_tags
+
+    def render_description(self):
+        return "complete platform {platform}".format(platform=self.platform.tag)
 
 
 @attr.s(frozen=True)
