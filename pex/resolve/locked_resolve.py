@@ -424,6 +424,7 @@ class LockedResolve(object):
         self,
         target,  # type: Target
         requirements,  # type: Iterable[Requirement]
+        source=None,  # type: Optional[str]
         transitive=True,  # type: bool
         build=True,  # type: bool
         use_wheel=True,  # type: bool
@@ -599,17 +600,19 @@ class LockedResolve(object):
             resolved_artifacts.append(best_match)
 
         if errors:
+            from_source = " from {source}".format(source=source) if source else ""
             return Error(
-                "Failed to resolve all requirements for {target}:\n"
+                "Failed to resolve all requirements for {target}{from_source}:\n"
                 "\n"
                 "Configured with:\n"
                 "    build: {build}\n"
                 "    use_wheel: {use_wheel}\n"
                 "\n"
                 "{errors}".format(
+                    target=target.render_description(),
+                    from_source=from_source,
                     build=build,
                     use_wheel=use_wheel,
-                    target=target.render_description(),
                     errors="\n\n".join("{error}".format(error=error) for error in errors),
                 )
             )

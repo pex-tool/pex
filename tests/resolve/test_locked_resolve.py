@@ -296,6 +296,27 @@ def test_not_found(
     )
 
 
+def test_source(
+    current_target,  # type: Target
+    ansicolors_exotic,  # type: LockedResolve
+):
+    # type: (...) -> None
+    assert_error(
+        ansicolors_exotic.resolve(current_target, [req("requests>1")], source="lock.json"),
+        dedent(
+            """\
+            Failed to resolve all requirements for {target_description} from lock.json:
+
+            Configured with:
+                build: True
+                use_wheel: True
+
+            Dependency on requests (via: requests>1) not satisfied, no candidates found.
+            """
+        ).format(target_description=current_target.render_description()),
+    )
+
+
 def test_version_mismatch(
     current_target,  # type: Target
     ansicolors_exotic,  # type: LockedResolve
