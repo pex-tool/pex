@@ -7,10 +7,11 @@ import logging
 from argparse import ArgumentParser, _ActionsContainer
 
 from pex.cli.command import BuildTimeCommand
-from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result
+from pex.commands.command import JsonMixin, OutputMixin
 from pex.interpreter import PythonInterpreter
 from pex.resolve import target_options
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, InterpreterNotFound
+from pex.result import Error, Ok, Result
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

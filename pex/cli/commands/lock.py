@@ -9,7 +9,7 @@ from collections import OrderedDict, defaultdict
 
 from pex.argparse import HandleBoolAction
 from pex.cli.command import BuildTimeCommand
-from pex.commands.command import Error, JsonMixin, Ok, OutputMixin, Result, try_
+from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import pluralize
 from pex.enum import Enum
 from pex.pep_503 import ProjectName
@@ -17,6 +17,7 @@ from pex.resolve import lockfile, requirement_options, resolver_options, target_
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
 from pex.resolve.lockfile import Lockfile, create, json_codec
 from pex.resolve.lockfile.updater import LockUpdater, ResolveUpdateRequest
+from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
 from pex.third_party.pkg_resources import Requirement, RequirementParseError

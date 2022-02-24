@@ -5,7 +5,6 @@ from textwrap import dedent
 import pytest
 
 from pex import targets
-from pex.commands.command import Error, try_
 from pex.interpreter import PythonInterpreter
 from pex.pep_425 import TagRank
 from pex.pep_440 import Version
@@ -21,6 +20,7 @@ from pex.resolve.locked_resolve import (
     _ResolvedArtifact,
 )
 from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.result import Error, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.third_party.packaging.specifiers import SpecifierSet

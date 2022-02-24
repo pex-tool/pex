@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 from pex import resolver
-from pex.commands.command import Error
 from pex.common import pluralize, safe_open
 from pex.requirements import LocalProjectRequirement, VCSRequirement
 from pex.resolve import resolvers
@@ -12,6 +11,7 @@ from pex.resolve.locked_resolve import LockConfiguration
 from pex.resolve.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
+from pex.result import Error
 from pex.targets import Targets
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING

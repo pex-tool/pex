@@ -7,7 +7,6 @@ import itertools
 import os
 from collections import OrderedDict, defaultdict, deque
 
-from pex.commands.command import Error
 from pex.common import pluralize
 from pex.compatibility import urlparse
 from pex.dist_metadata import DistMetadata
@@ -17,6 +16,7 @@ from pex.pep_425 import TagRank
 from pex.pep_503 import ProjectName
 from pex.rank import Rank
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
+from pex.result import Error
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING

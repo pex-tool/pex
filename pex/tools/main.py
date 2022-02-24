@@ -7,9 +7,10 @@ import os
 from argparse import ArgumentParser, Namespace
 
 from pex import pex_bootstrapper
-from pex.commands.command import GlobalConfigurationError, Main, Result, catch
+from pex.commands.command import GlobalConfigurationError, Main
 from pex.pex import PEX
 from pex.pex_info import PexInfo
+from pex.result import Result, catch
 from pex.tools import commands
 from pex.tools.command import PEXCommand
 from pex.tracer import TRACER

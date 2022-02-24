@@ -5,8 +5,9 @@ from __future__ import absolute_import
 
 from abc import abstractmethod
 
-from pex.commands.command import Command, Result
+from pex.commands.command import Command
 from pex.pex import PEX
+from pex.result import Result
 
 
 class PEXCommand(Command):
