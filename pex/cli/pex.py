@@ -5,7 +5,8 @@ from __future__ import absolute_import
 
 from pex.cli import commands
 from pex.cli.command import BuildTimeCommand
-from pex.commands.command import GlobalConfigurationError, Main, catch
+from pex.commands.command import GlobalConfigurationError, Main
+from pex.result import catch
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

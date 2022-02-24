@@ -3,7 +3,8 @@
 
 import pytest
 
-from pex.commands.command import Command, Error, Main, ResultError, catch, try_
+from pex.commands.command import Command, Main
+from pex.result import Error, ResultError, catch, try_
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

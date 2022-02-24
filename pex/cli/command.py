@@ -4,10 +4,11 @@
 from __future__ import absolute_import
 
 import functools
-from argparse import ArgumentParser, _ActionsContainer, _SubParsersAction
+from argparse import ArgumentParser, _SubParsersAction
 from contextlib import contextmanager
 
-from pex.commands.command import Command, Result
+from pex.commands.command import Command
+from pex.result import Result
 from pex.typing import TYPE_CHECKING, Generic, cast
 
 if TYPE_CHECKING:
