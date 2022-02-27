@@ -6,5 +6,5 @@ cd $(git rev-parse --show-toplevel)
 
 curl --fail -L \
   https://raw.githubusercontent.com/pypa/virtualenv/${VIRTUALENV_16_7_12_RELEASE_SHA}/virtualenv.py \
-  > pex/tools/commands/virtualenv_16.7.12_py
+  > pex/venv/virtualenv_16.7.12_py
 

@@ -9,8 +9,8 @@ import pytest
 
 from pex.pep_503 import ProjectName
 from pex.testing import ALL_PY_VERSIONS, ensure_python_venv
-from pex.tools.commands.virtualenv import DistributionInfo, InvalidVirtualenvError, Virtualenv
 from pex.typing import TYPE_CHECKING
+from pex.venv.virtualenv import DistributionInfo, InvalidVirtualenvError, Virtualenv
 
 if TYPE_CHECKING:
     from typing import Any, Dict

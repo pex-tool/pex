@@ -21,10 +21,10 @@ from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.result import Error, Ok, Result
 from pex.tools.command import PEXCommand
-from pex.tools.commands.virtualenv import PipUnavailableError, Virtualenv
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
+from pex.venv.virtualenv import PipUnavailableError, Virtualenv
 from pex.venv_bin_path import BinPath
 
 if TYPE_CHECKING:

@@ -575,7 +575,7 @@ class PEXBuilder(object):
             provider = ZipProvider(mod)
 
         bootstrap_digest = hashlib.sha1()
-        bootstrap_packages = ["", "third_party"]
+        bootstrap_packages = ["", "third_party", "venv"]
         if self._pex_info.includes_tools:
             bootstrap_packages.extend(["commands", "tools", "tools/commands"])
         for package in bootstrap_packages:

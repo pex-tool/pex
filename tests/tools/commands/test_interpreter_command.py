@@ -12,8 +12,8 @@ from pex.common import safe_mkdtemp
 from pex.interpreter import PythonInterpreter
 from pex.pex_builder import PEXBuilder
 from pex.testing import PY37, PY310, ensure_python_interpreter
-from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable

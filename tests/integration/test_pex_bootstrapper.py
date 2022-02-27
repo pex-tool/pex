@@ -14,11 +14,11 @@ from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
 from pex.testing import make_env, run_pex_command
 from pex.tools.commands.venv import CollisionError
-from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Set, Text
+    from typing import Any, Set, Text
 
 
 def test_ensure_venv_short_link(

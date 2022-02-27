@@ -1,5 +1,6 @@
-The [Venv](venv.py) command uses the [virtualenv](https://github.com/pypa/virtualenv) project to
-suppport creating Python 2.7 virtual environments (The Python `venv` stdlib module was added only
+The [Venv](../tools/commands/venv.py) command uses the
+[virtualenv](https://github.com/pypa/virtualenv) project to suppport creating Python 2.7 virtual
+environments (The Python `venv` stdlib module was added only
 in Python 3).
 
 We use the last virtualenv version to support Python 2.7, embedding it as the
