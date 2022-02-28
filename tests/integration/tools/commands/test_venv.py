@@ -6,13 +6,16 @@ import subprocess
 import sys
 from textwrap import dedent
 
-from pex.common import safe_open
-from pex.testing import IntegResults, run_pex_command
+from colors import cyan
+
+from pex.common import filter_pyc_files, safe_open
+from pex.testing import IntegResults, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, List
 
 
 def run_pex_tools(*args):
@@ -133,3 +136,86 @@ def test_collisions_mergeable_issue_1570(tmpdir):
         os.path.join(venv.site_packages_dir, "opencensus", "__init__.py"),
         os.path.join(venv.site_packages_dir, "opencensus", "common", "__init__.py"),
     ] == stdout.splitlines()
+
+
+def test_scope_issue_1631(tmpdir):
+    # type: (Any) -> None
+
+    src_dir = os.path.join(str(tmpdir), "src")
+    with safe_open(os.path.join(src_dir, "app.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from colors import cyan
+
+                print(cyan("Colluphid: Cupitt or Dawkins?"))
+                """
+            )
+        )
+
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    app_pex = os.path.join(str(tmpdir), "app.pex")
+    run_pex_command(
+        args=[
+            "-D",
+            src_dir,
+            "-m" "app",
+            "ansicolors==1.1.8",
+            "--include-tools",
+            "-o",
+            app_pex,
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+        ]
+    ).assert_success()
+
+    def execute_venv_tool(
+        venv_dir,  # type: str
+        *args  # type: str
+    ):
+        # type: (...) -> None
+        subprocess.check_call(
+            args=[app_pex, "venv", venv_dir] + list(args), env=make_env(PEX_TOOLS=1)
+        )
+
+    def assert_app(venv_dir):
+        # type: (str) -> Virtualenv
+        assert (
+            cyan("Colluphid: Cupitt or Dawkins?")
+            == subprocess.check_output(args=[os.path.join(venv_dir, "pex")]).decode("utf-8").strip()
+        )
+        return Virtualenv(venv_dir)
+
+    def recursive_listing(venv_dir):
+        # type: (str) -> List[str]
+        return sorted(
+            os.path.relpath(os.path.join(root, f), venv_dir)
+            for root, _, files in os.walk(venv_dir)
+            for f in filter_pyc_files(files)
+        )
+
+    venv_dir = os.path.join(str(tmpdir), "venv")
+    execute_venv_tool(venv_dir)
+    canonical_venv_listing = recursive_listing(venv_dir)
+    venv = assert_app(venv_dir)
+    # N.B.: Some of the venv activation scripts in bin/ differ since they hard code the venv python
+    # interpreter path in them. Since we have a full canonical_venv_listing to check, we settle on
+    # testing contents are identical just for site-packages which is what is important anyhow: it's
+    # where the deps and user code are installed to.
+    canonical_venv_hash = CacheHelper.dir_hash(venv.site_packages_dir)
+
+    venv_dir_deps_then_srcs = os.path.join(str(tmpdir), "venv.deps-srcs")
+    execute_venv_tool(venv_dir_deps_then_srcs, "--scope=deps")
+    execute_venv_tool(venv_dir_deps_then_srcs, "--scope=srcs")
+    assert canonical_venv_listing == recursive_listing(venv_dir_deps_then_srcs)
+    venv_deps_then_srcs = assert_app(venv_dir_deps_then_srcs)
+    assert canonical_venv_hash == CacheHelper.dir_hash(venv_deps_then_srcs.site_packages_dir)
+
+    venv_dir_srcs_then_deps = os.path.join(str(tmpdir), "venv.srcs-deps")
+    execute_venv_tool(venv_dir_srcs_then_deps, "--scope=srcs")
+    execute_venv_tool(venv_dir_srcs_then_deps, "--scope=deps")
+    assert canonical_venv_listing == recursive_listing(venv_dir_srcs_then_deps)
+    venv_srcs_then_deps = assert_app(venv_dir_srcs_then_deps)
+    assert canonical_venv_hash == CacheHelper.dir_hash(venv_srcs_then_deps.site_packages_dir)
