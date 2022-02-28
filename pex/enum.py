@@ -51,6 +51,10 @@ class Enum(Generic["_V"]):
             # type: (Any) -> bool
             return self is other
 
+        def __hash__(self):
+            # type: () -> int
+            return hash(self.value)
+
         @classmethod
         def _create_type_error(cls, other):
             # type: (Any) -> TypeError

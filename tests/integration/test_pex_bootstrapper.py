@@ -13,8 +13,8 @@ from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
 from pex.testing import make_env, run_pex_command
-from pex.tools.commands.venv import CollisionError
 from pex.typing import TYPE_CHECKING
+from pex.venv.pex import CollisionError
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:

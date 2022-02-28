@@ -15,7 +15,7 @@ from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
-from pex.venv_bin_path import BinPath
+from pex.venv.bin_path import BinPath
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:

@@ -26,7 +26,7 @@ from pex.testing import (
     run_simple_pex,
 )
 from pex.typing import TYPE_CHECKING
-from pex.venv_bin_path import BinPath
+from pex.venv.bin_path import BinPath
 
 if TYPE_CHECKING:
     from typing import Iterator, List, Optional, Text

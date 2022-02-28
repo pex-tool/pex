@@ -415,9 +415,8 @@ def ensure_venv(
         )
     with atomic_directory(venv_dir, exclusive=True) as venv:
         if not venv.is_finalized():
+            from pex.venv.pex import populate_venv
             from pex.venv.virtualenv import Virtualenv
-
-            from .tools.commands.venv import populate_venv_with_pex
 
             virtualenv = Virtualenv.create_atomic(
                 venv_dir=venv,
@@ -459,7 +458,7 @@ def ensure_venv(
                         continue
 
                     os.symlink(venv_dir, os.path.join(short_venv.work_dir, "venv"))
-                    shebang = populate_venv_with_pex(
+                    shebang = populate_venv(
                         virtualenv,
                         pex,
                         bin_path=pex_info.venv_bin_path,
