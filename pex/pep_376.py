@@ -340,7 +340,7 @@ class Record(object):
         """Re-installs the installed wheel in a venv.
 
         N.B.: A record of reinstalled files is returned in the form of an iterator that must be
-        consumed to drive the installation to completetion.
+        consumed to drive the installation to completion.
 
         :return: An iterator over src -> dst pairs.
         """
