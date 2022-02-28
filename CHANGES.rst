@@ -1,6 +1,22 @@
 Release Notes
 =============
 
+2.1.68
+------
+
+This release brings a fix for installation of additional data files in
+PEX venvs (More on additional data files `here
+<https://setuptools.pypa.io/en/latest/deprecated/distutils/setupscript.html?highlight=data_files#installing-additional-files>`_)
+as well as a new venv install ``--scope`` that can be used to create fully
+optimized container images with PEXed applications (See how to use this feature `here
+<https://pex.readthedocs.io/en/latest/recipes.html#pex-app-in-a-container>`_).
+
+* Support splitting venv creation into deps & srcs. (#1634)
+  `PR #1634 <https://github.com/pantsbuild/pex/pull/1634>`_
+
+* Fix handling of data files when creating venvs. (#1632)
+  `PR #1632 <https://github.com/pantsbuild/pex/pull/1632>`_
+
 2.1.67
 ------
 
