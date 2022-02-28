@@ -43,17 +43,33 @@ container like so:
 
 .. code-block:: dockerfile
 
-    COPY my.pex /my-app.pex
-    RUN PEX_TOOLS=1 /mp-app.pex venv --rm all --compile /my-app
-    ENTRYPOINT ["/mp-app/pex"]
+    FROM python:3.10-slim as deps
+    COPY /my-app.pex /
+    RUN PEX_TOOLS=1 /usr/local/bin/python3.10 /my-app.pex venv --scope=deps --compile /my-app
+
+    FROM python:3.10-slim as srcs
+    COPY /my-app.pex /
+    RUN PEX_TOOLS=1 /usr/local/bin/python3.10 /my-app.pex venv --scope=srcs --compile /my-app
+
+    FROM python:3.10-slim
+    COPY --from=deps /my-app /my-app
+    COPY --from=srcs /my-app /my-app
+    ENTRYPOINT ["/my-app/pex"]
+
+Here, the first two ``FROM`` images are illustrative. The only requirement is they need to contain
+the Python interpreter your app should be run with (``/usr/local/bin/python3.10`` in this example).
 
 The Pex ``venv`` tool will:
 
 1) Install the PEX as a traditional venv at ``/my-app`` with a script at ``/my-app/pex`` that runs
    just like the original PEX.
 2) Pre-compile all PEX Python code installed in the venv.
-3) Remove the original ``/my-app.pex`` as well as any temporary caches created by Pex in the
-   ``PEX_ROOT``, leaving just the newly installed and pre-compiled ``/my-app`` venv.
+
+Notably, the PEX venv install is done in using a
+`multi-stage build <https://docs.docker.com/develop/develop-images/multistage-build/>`_ to ensure
+only the final venv remains on disk and it uses two layers to ensure changes to application code
+do not lead to re-builds of lower layers. This accommodates the common case of modifying and
+re-deploying first party code more often than third party dependencies.
 
 PEX-aware application
 ---------------------
