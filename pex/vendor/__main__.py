@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import, print_function
 
-import glob
 import os
 import pkgutil
 import subprocess
@@ -250,24 +249,6 @@ def vendorize(root_dir, vendor_specs, prefix, update):
             with open(constraints_file, "wb") as fp:
                 fp.write(stdout)
 
-        # We know we can get these as a by-product of a pip install but never need them.
-        safe_rmtree(os.path.join(vendor_spec.target_dir, "bin"))
-        safe_delete(os.path.join(vendor_spec.target_dir, "easy_install.py"))
-
-        # The RECORD contains file hashes of all installed files and is unfortunately unstable in
-        # the case of scripts which get a shebang added with a system-specific path to the python
-        # interpreter to execute.
-        for record_file in glob.glob(os.path.join(vendor_spec.target_dir, "*-*.dist-info/RECORD")):
-            safe_delete(record_file)
-
-        # The direct_url.json contains an url if a requirement was installed from one. We install
-        # certain vendored projects via git clones we do prep-work on and these clones have a local
-        # temporary directory path that will change on each re-vendor.
-        for direct_url_file in glob.glob(
-            os.path.join(vendor_spec.target_dir, "*-*.dist-info/direct_url.json")
-        ):
-            safe_delete(direct_url_file)
-
         vendor_spec.create_packages()
 
     vendored_path = [vendor_spec.target_dir for vendor_spec in vendor_specs if vendor_spec.rewrite]
@@ -298,6 +279,31 @@ def vendorize(root_dir, vendor_specs, prefix, update):
                         )
                         for _from, _to in modifications.items():
                             print("    {} -> {}".format(_from, _to))
+
+    for vendor_spec in vendor_specs:
+        print(
+            bold(
+                green(
+                    "Fixing up scripts and distribution metadata for {requirement}".format(
+                        requirement=vendor_spec.requirement
+                    )
+                )
+            )
+        )
+        from pex.third_party.pkg_resources import find_distributions
+
+        for dist in find_distributions(vendor_spec.target_dir):
+            from pex.pep_376 import Record
+
+            record = Record.load(dist=dist)
+            print(
+                green(
+                    "Working on {project_name} {version}...".format(
+                        project_name=record.project_name, version=record.version
+                    )
+                )
+            )
+            record.fixup_install()
 
 
 if __name__ == "__main__":

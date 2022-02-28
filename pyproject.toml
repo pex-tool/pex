@@ -59,8 +59,8 @@ line-length = 100
 target-version = ["py27"]
 extend-exclude = '''
 /(
-  | pex/tools/commands/virtualenv_.*_py
   | pex/vendor/_vendored
+  | pex/venv/virtualenv_.*_py
 )/
 '''
 
@@ -73,6 +73,6 @@ line_length = 100
 default_section = "THIRDPARTY"
 known_first_party = "pex"
 skip_glob = [
-  "pex/tools/commands/virtualenv_16.7.12_py",
-  "pex/vendor/_vendored/**"
+  "pex/vendor/_vendored/**",
+  "pex/venv/virtualenv_16.7.12_py"
 ]

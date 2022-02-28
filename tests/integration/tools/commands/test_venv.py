@@ -8,8 +8,8 @@ from textwrap import dedent
 
 from pex.common import safe_open
 from pex.testing import IntegResults, run_pex_command
-from pex.tools.commands.virtualenv import Virtualenv
 from pex.typing import TYPE_CHECKING
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     from typing import Any

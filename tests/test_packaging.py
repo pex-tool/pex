@@ -10,7 +10,7 @@ import sys
 from pex.interpreter import PythonInterpreter
 from pex.testing import make_env
 from pex.tools.commands import all_commands
-from pex.tools.commands.virtualenv import Virtualenv
+from pex.venv.virtualenv import Virtualenv
 from pex.version import __version__
 
 # N.B.: Our test environments include Pex installed from our pyproject.toml in a Tox managed venv.
