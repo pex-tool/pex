@@ -130,8 +130,26 @@ def find_dist_info_file(
     # combo of `-`, `_`, and `.` as name component separators.
     project_name_pattern = re.sub(r"[-_.]+", "[-_.]+", project_name)
 
+    # The relevant PEP for versions is https://www.python.org/dev/peps/pep-0440 which does not allow
+    # a `-` in modern versions but also stipulates that all versions (legacy) must be handled. It
+    # turns out wheel normalizes `-` to `_` and Pip has had to deal with this:
+    #   https://github.com/pypa/pip/issues/1150
+    #
+    # We also deal with this, accepting either `-` or `_` when a `-` is expected.
+    version_pattern = re.sub(
+        r"(?P<left>[^-]+)-(?P<right>[^-]+)",
+        lambda match: "{left}[-_]{right}".format(
+            left=re.escape(match.group("left")), right=re.escape(match.group("right"))
+        ),
+        version,
+    )
+    if version_pattern == version:
+        version_pattern = re.escape(version)
+
     wheel_metadata_pattern = "^{}$".format(
-        os.path.join("{}-{}.dist-info".format(project_name_pattern, re.escape(version)), filename)
+        os.path.join(
+            "{}-{}\\.dist-info".format(project_name_pattern, version_pattern), re.escape(filename)
+        )
     )
     wheel_metadata_re = re.compile(wheel_metadata_pattern, re.IGNORECASE)
     for item in listing:
