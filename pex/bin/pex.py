@@ -41,7 +41,7 @@ from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
-from pex.venv_bin_path import BinPath
+from pex.venv.bin_path import BinPath
 from pex.version import __version__
 
 if TYPE_CHECKING:

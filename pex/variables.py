@@ -18,7 +18,7 @@ from pex import pex_warnings
 from pex.common import can_write_dir, die, safe_mkdtemp
 from pex.inherit_path import InheritPath
 from pex.typing import TYPE_CHECKING, Generic, overload
-from pex.venv_bin_path import BinPath
+from pex.venv.bin_path import BinPath
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Type, TypeVar, Union
