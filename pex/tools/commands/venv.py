@@ -18,6 +18,7 @@ from pex.compatibility import is_valid_python_identifier
 from pex.enum import Enum
 from pex.environment import PEXEnvironment
 from pex.orderedset import OrderedSet
+from pex.pep_376 import Record
 from pex.pex import PEX
 from pex.result import Error, Ok, Result
 from pex.tools.command import PEXCommand
@@ -142,7 +143,7 @@ def populate_venv_with_pex(
     top_level_packages = Counter()  # type: typing.Counter[str]
     rel_extra_paths = OrderedSet()  # type: OrderedSet[str]
     for dist in pex.resolve():
-        dst = venv.site_packages_dir
+        rel_extra_path = None
         if symlink:
             # In the symlink case, in order to share all generated *.pyc files for a given
             # distribution, we need to be able to have each contribution to a namespace package get
@@ -178,22 +179,11 @@ def populate_venv_with_pex(
             count = max(top_level_packages[package] for package in packages) if packages else 0
             if count > 0:
                 rel_extra_path = os.path.join("pex-ns-pkgs", str(count))
-                dst = os.path.join(venv.site_packages_dir, rel_extra_path)
                 rel_extra_paths.add(rel_extra_path)
             top_level_packages.update(packages)
 
-        # N.B.: We do not include the top_level __pycache__ for a dist since there may be multiple
-        # dists with top-level modules. In that case, one dists top-level __pycache__ would be
-        # symlinked and all dists with top-level modules would have the .pyc files for those modules
-        # be mixed in. For sanity sake, and since ~no dist provides more than just 1 top-level
-        # module, we keep .pyc anchored to their associated dists when shared and accept the cost
-        # of re-compiling top-level modules in each venv that uses them.
-        record_provenance(
-            _copytree(src=dist.location, dst=dst, exclude=("bin", "__pycache__"), symlink=symlink)
-        )
-        dist_bin_dir = os.path.join(dist.location, "bin")
-        if os.path.isdir(dist_bin_dir):
-            record_provenance(_copytree(src=dist_bin_dir, dst=venv.bin_dir, symlink=symlink))
+        record = Record.load(dist)
+        record_provenance(record.reinstall(venv, symlink=symlink, rel_extra_path=rel_extra_path))
 
     potential_collisions = {dst: srcs for dst, srcs in provenance.items() if len(srcs) > 1}
     if potential_collisions:

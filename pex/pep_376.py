@@ -5,21 +5,25 @@ from __future__ import absolute_import
 
 import base64
 import csv
+import errno
 import fileinput
 import hashlib
 import json
 import os
+import shutil
 import sys
 from contextlib import closing
 from fileinput import FileInput
 
 from pex import dist_metadata
-from pex.common import is_python_script
+from pex.common import is_python_script, safe_mkdir
 from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, PY2, get_stdout_bytes_buffer, urlparse
 from pex.enum import Enum
+from pex.orderedset import OrderedSet
 from pex.third_party.pkg_resources import Distribution, EntryPoint
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     if PY2:
@@ -303,3 +307,91 @@ class Record(object):
                             str(installed_file.size) if installed_file.size is not None else "",
                         )
                     )
+
+    def reinstall(
+        self,
+        venv,  # type: Virtualenv
+        exclude=None,  # type: Optional[Callable[[str], bool]]
+        symlink=False,  # type: bool
+        rel_extra_path=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Iterator[Tuple[str, str]]
+        if self.install_scheme is not InstallationScheme.TARGET:
+            raise ReinstallError(
+                "Cannot reinstall from {self}. It was installed via an unsupported scheme of "
+                "`pip install {scheme}`.".format(self=self, scheme=self.install_scheme)
+            )
+
+        site_packages_dir = (
+            os.path.join(venv.site_packages_dir, rel_extra_path)
+            if rel_extra_path
+            else venv.site_packages_dir
+        )
+
+        # I.E.: ../..
+        scheme_prefix = os.path.join(os.path.pardir, os.path.pardir)
+        # I.E.: 6 (../../)
+        scheme_prefix_len = len(scheme_prefix) + len(os.path.sep)
+
+        link = True
+        symlinks = OrderedSet()  # type: OrderedSet[str]
+
+        record_path = os.path.join(self.base_location, self.relative_path)
+        with open(record_path, MODE_READ_UNIVERSAL_NEWLINES) as fp:
+            for line, installed_file in enumerate(self.read(fp, exclude=exclude), start=1):
+                if os.path.isabs(installed_file.path):
+                    raise ReinstallError(
+                        "Cannot re-install file from {record}:{line}, refusing to install to "
+                        "absolute path {path}.".format(
+                            record=record_path, line=line, path=installed_file.path
+                        )
+                    )
+                if installed_file.path.startswith(scheme_prefix):
+                    installed_file_relpath = installed_file.path[scheme_prefix_len:]
+                    if installed_file_relpath.startswith(os.path.pardir):
+                        raise ReinstallError(
+                            "Cannot re-install file from {record}:{line}, path does not match "
+                            "{scheme} scheme: {path}".format(
+                                record=record_path,
+                                line=line,
+                                scheme=self.install_scheme,
+                                path=installed_file.path,
+                            )
+                        )
+                    dst = os.path.join(venv.venv_dir, installed_file_relpath)
+                elif symlink:
+                    top_level = installed_file.path.split(os.path.sep, 1)[0]
+                    symlinks.add(top_level)
+                    continue
+                else:
+                    installed_file_relpath = installed_file.path
+                    dst = os.path.join(site_packages_dir, installed_file_relpath)
+
+                src = os.path.join(self.base_location, installed_file_relpath)
+                yield src, dst
+                safe_mkdir(os.path.dirname(dst))
+                try:
+                    # We only try to link regular files since linking a symlink on Linux can produce
+                    # another symlink, which leaves open the possibility the src target could later
+                    # go missing leaving the dst dangling.
+                    if link and not os.path.islink(src):
+                        try:
+                            os.link(src, dst)
+                            continue
+                        except OSError as e:
+                            if e.errno != errno.EXDEV:
+                                raise e
+                            link = False
+                    shutil.copy(src, dst)
+                except OSError as e:
+                    if e.errno != errno.EEXIST:
+                        raise e
+
+        for top_level in symlinks:
+            src = os.path.join(self.base_location, top_level)
+            dst = os.path.join(site_packages_dir, top_level)
+            if not os.path.isdir(src):
+                yield src, dst
+            rel_src = os.path.relpath(src, site_packages_dir)
+            safe_mkdir(site_packages_dir)
+            os.symlink(rel_src, dst)
