@@ -20,6 +20,7 @@ from pex.pex import PEX
 from pex.tracer import TRACER
 from pex.util import CacheHelper
 from pex.venv.bin_path import BinPath
+from pex.venv.install_scope import InstallScope
 from pex.venv.virtualenv import Virtualenv
 
 from pex.typing import TYPE_CHECKING
@@ -101,14 +102,13 @@ def populate_venv(
     python=None,  # type: Optional[str]
     collisions_ok=True,  # type: bool
     symlink=False,  # type: bool
+    scope=InstallScope.ALL,  # type: InstallScope.Value
 ):
     # type: (...) -> str
 
     venv_python = python or venv.interpreter.binary
-    venv_bin_dir = os.path.dirname(python) if python else venv.bin_dir
-    venv_dir = os.path.dirname(venv_bin_dir) if python else venv.venv_dir
+    shebang = "#!{} -sE".format(venv_python)
 
-    # 1. Populate the venv with the PEX contents.
     provenance = defaultdict(list)
 
     def record_provenance(src_to_dst):
@@ -116,21 +116,57 @@ def populate_venv(
         for src, dst in src_to_dst:
             provenance[dst].append(src)
 
-    # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
-    # sources into the venv.
-    pex_info = pex.pex_info()
-    record_provenance(
-        _copytree(
-            src=PEXEnvironment.mount(pex.path()).path,
-            dst=venv.site_packages_dir,
-            exclude=(pex_info.internal_cache, pex_info.bootstrap, "__main__.py", pex_info.PATH),
-            symlink=False,
-        )
-    )
+    if scope in (InstallScope.ALL, InstallScope.DEPS_ONLY):
+        record_provenance(_populate_deps(venv, pex, venv_python, symlink))
 
-    with open(os.path.join(venv.venv_dir, pex_info.PATH), "w") as fp:
-        fp.write(pex_info.dump())
+    if scope in (InstallScope.ALL, InstallScope.SOURCE_ONLY):
+        record_provenance(_populate_sources(venv, pex, shebang, venv_python, bin_path))
 
+    potential_collisions = {dst: srcs for dst, srcs in provenance.items() if len(srcs) > 1}
+    if potential_collisions:
+        collisions = {}
+        for dst, srcs in potential_collisions.items():
+            contents = defaultdict(list)
+            for src in srcs:
+                contents[CacheHelper.hash(src)].append(src)
+            if len(contents) > 1:
+                collisions[dst] = contents
+
+        if collisions:
+            venv_bin_dir = os.path.dirname(python) if python else venv.bin_dir
+            venv_dir = os.path.dirname(venv_bin_dir) if python else venv.venv_dir
+            message_lines = [
+                "Encountered {collision} building venv at {venv_dir} from {pex}:".format(
+                    collision=pluralize(collisions, "collision"), venv_dir=venv_dir, pex=pex.path()
+                )
+            ]
+            for index, (dst, contents) in enumerate(collisions.items(), start=1):
+                message_lines.append(
+                    "{index}. {dst} was provided by:\n\t{srcs}".format(
+                        index=index,
+                        dst=dst,
+                        srcs="\n\t".join(
+                            "sha1:{fingerprint} -> {srcs}".format(
+                                fingerprint=fingerprint, srcs=", ".join(srcs)
+                            )
+                            for fingerprint, srcs in contents.items()
+                        ),
+                    )
+                )
+            message = "\n".join(message_lines)
+            if not collisions_ok:
+                raise CollisionError(message)
+            pex_warnings.warn(message)
+
+    return shebang
+
+
+def _populate_deps(
+    venv,  # type: Virtualenv
+    pex,  # type: PEX
+    venv_python,  # type: str
+    symlink=False,  # type: bool
+):
     # Since the pex distributions are all materialized to ~/.pex/installed_wheels, which we control,
     # we can optionally symlink to take advantage of sharing generated *.pyc files for auto-venvs
     # created in ~/.pex/venvs.
@@ -167,8 +203,8 @@ def populate_venv(
                 name
                 for name in os.listdir(dist.location)
                 if name not in ("bin", "__pycache__")
-                and is_valid_python_identifier(name)
-                and os.path.isdir(os.path.join(dist.location, name))
+                   and is_valid_python_identifier(name)
+                   and os.path.isdir(os.path.join(dist.location, name))
             ]
             count = max(top_level_packages[package] for package in packages) if packages else 0
             if count > 0:
@@ -177,41 +213,8 @@ def populate_venv(
             top_level_packages.update(packages)
 
         record = Record.load(dist)
-        record_provenance(record.reinstall(venv, symlink=symlink, rel_extra_path=rel_extra_path))
-
-    potential_collisions = {dst: srcs for dst, srcs in provenance.items() if len(srcs) > 1}
-    if potential_collisions:
-        collisions = {}
-        for dst, srcs in potential_collisions.items():
-            contents = defaultdict(list)
-            for src in srcs:
-                contents[CacheHelper.hash(src)].append(src)
-            if len(contents) > 1:
-                collisions[dst] = contents
-
-        if collisions:
-            message_lines = [
-                "Encountered {collision} building venv at {venv_dir} from {pex}:".format(
-                    collision=pluralize(collisions, "collision"), venv_dir=venv_dir, pex=pex.path()
-                )
-            ]
-            for index, (dst, contents) in enumerate(collisions.items(), start=1):
-                message_lines.append(
-                    "{index}. {dst} was provided by:\n\t{srcs}".format(
-                        index=index,
-                        dst=dst,
-                        srcs="\n\t".join(
-                            "sha1:{fingerprint} -> {srcs}".format(
-                                fingerprint=fingerprint, srcs=", ".join(srcs)
-                            )
-                            for fingerprint, srcs in contents.items()
-                        ),
-                    )
-                )
-            message = "\n".join(message_lines)
-            if not collisions_ok:
-                raise CollisionError(message)
-            pex_warnings.warn(message)
+        for src, dst in record.reinstall(venv, symlink=symlink, rel_extra_path=rel_extra_path):
+            yield src, dst
 
     if rel_extra_paths:
         with open(os.path.join(venv.site_packages_dir, "pex-ns-pkgs.pth"), "w") as fp:
@@ -231,9 +234,34 @@ def populate_venv(
                 else:
                     print(rel_extra_path, file=fp)
 
+    # 3. Re-write any (console) scripts to use the venv Python.
+    for script in venv.rewrite_scripts(python=venv_python, python_args="-sE"):
+        TRACER.log("Re-writing {}".format(script))
+
+
+def _populate_sources(
+    venv,  # type: Virtualenv
+    pex,  # type: PEX
+    shebang,  # type: str
+    venv_python,  # type: str
+    bin_path,  # type: BinPath.Value
+):
+    # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
+    # sources into the venv.
+    pex_info = pex.pex_info()
+    for src, dst in _copytree(
+        src=PEXEnvironment.mount(pex.path()).path,
+        dst=venv.site_packages_dir,
+        exclude=(pex_info.internal_cache, pex_info.bootstrap, "__main__.py", pex_info.PATH),
+        symlink=False,
+    ):
+        yield src, dst
+
+    with open(os.path.join(venv.venv_dir, pex_info.PATH), "w") as fp:
+        fp.write(pex_info.dump())
+
     # 2. Add a __main__ to the root of the venv for running the venv dir like a loose PEX dir
     # and a main.py for running as a script.
-    shebang = "#!{} -sE".format(venv_python)
     main_contents = dedent(
         """\
         {shebang}
@@ -436,9 +464,3 @@ def populate_venv(
         fp.write(main_contents)
     chmod_plus_x(fp.name)
     os.symlink(os.path.basename(fp.name), venv.join_path("pex"))
-
-    # 3. Re-write any (console) scripts to use the venv Python.
-    for script in venv.rewrite_scripts(python=venv_python, python_args="-sE"):
-        TRACER.log("Re-writing {}".format(script))
-
-    return shebang

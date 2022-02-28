@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import errno
 import logging
 import os
 from argparse import ArgumentParser
@@ -14,11 +15,17 @@ from pex.result import Error, Ok, Result
 from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING
 from pex.venv.bin_path import BinPath
+from pex.venv.install_scope import InstallScope
 from pex.venv.pex import populate_venv
 from pex.venv.virtualenv import PipUnavailableError, Virtualenv
 
 if TYPE_CHECKING:
-    pass
+    from typing import Optional
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +36,39 @@ class RemoveScope(Enum["RemoveScope.Value"]):
 
     PEX = Value("pex")
     PEX_AND_PEX_ROOT = Value("all")
+
+
+@attr.s(frozen=True)
+class InstallScopeState(object):
+    @classmethod
+    def load(cls, venv_dir):
+        # type: (str) -> InstallScopeState
+
+        state_file = os.path.join(venv_dir, ".pex-venv-scope")
+        prior_state = None  # type: Optional[InstallScope.Value]
+        try:
+            with open(state_file) as fp:
+                prior_state = InstallScope.for_value(fp.read().strip())
+        except IOError as e:
+            if e.errno != errno.ENOENT:
+                raise e
+
+        return cls(venv_dir=venv_dir, state_file=state_file, prior_state=prior_state)
+
+    venv_dir = attr.ib()  # type: str
+    _state_file = attr.ib()  # type: str
+    _prior_state = attr.ib(default=None)  # type: Optional[InstallScope.Value]
+
+    @property
+    def is_partial_install(self):
+        return self._prior_state in (InstallScope.DEPS_ONLY, InstallScope.SOURCE_ONLY)
+
+    def save(self, install_scope):
+        # type: (InstallScope.Value) -> None
+        if {InstallScope.DEPS_ONLY, InstallScope.SOURCE_ONLY} == {self._prior_state, install_scope}:
+            install_scope = InstallScope.ALL
+        with open(self._state_file, "w") as fp:
+            fp.write(str(install_scope))
 
 
 class Venv(PEXCommand):
@@ -42,6 +82,25 @@ class Venv(PEXCommand):
             nargs=1,
             metavar="PATH",
             help="The directory to create the virtual environment in.",
+        )
+        parser.add_argument(
+            "--scope",
+            default=InstallScope.ALL.value,
+            choices=InstallScope.values(),
+            type=InstallScope.for_value,
+            help=(
+                "The scope of code contained in the Pex that is installed in the venv. By default"
+                "{all} code is installed and this is generally what you want. However, in some "
+                "situations it's beneficial to split the venv installation into {deps} and "
+                "{sources} steps. This is particularly useful when installing a PEX in a container "
+                "image. See "
+                "https://pex.readthedocs.io/en/latest/recipes.html#pex-app-in-a-container for more "
+                "information.".format(
+                    all=InstallScope.ALL,
+                    deps=InstallScope.DEPS_ONLY,
+                    sources=InstallScope.SOURCE_ONLY,
+                )
+            ),
         )
         parser.add_argument(
             "-b",
@@ -111,13 +170,18 @@ class Venv(PEXCommand):
         # type: (PEX) -> Result
 
         venv_dir = self.options.venv[0]
-        venv = Virtualenv.create(
-            venv_dir,
-            interpreter=pex.interpreter,
-            force=self.options.force,
-            copies=self.options.copies,
-            prompt=self.options.prompt,
-        )
+        install_scope_state = InstallScopeState.load(venv_dir)
+        if install_scope_state.is_partial_install and not self.options.force:
+            venv = Virtualenv(venv_dir)
+        else:
+            venv = Virtualenv.create(
+                venv_dir,
+                interpreter=pex.interpreter,
+                force=self.options.force,
+                copies=self.options.copies,
+                prompt=self.options.prompt,
+            )
+
         if self.options.prompt != venv.custom_prompt:
             logger.warning(
                 "Unable to apply custom --prompt {prompt!r} in {python} venv; continuing with the "
@@ -131,6 +195,7 @@ class Venv(PEXCommand):
             bin_path=self.options.bin_path,
             collisions_ok=self.options.collisions_ok,
             symlink=False,
+            scope=self.options.scope,
         )
         if self.options.pip:
             try:
@@ -149,4 +214,6 @@ class Venv(PEXCommand):
                 safe_delete(pex.path())
             if self.options.remove is RemoveScope.PEX_AND_PEX_ROOT:
                 safe_rmtree(pex.pex_info().pex_root)
+
+        install_scope_state.save(self.options.scope)
         return Ok()
