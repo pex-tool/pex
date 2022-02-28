@@ -69,12 +69,27 @@ class Hash(object):
 
 @attr.s(frozen=True)
 class InstalledFile(object):
+    """The record of a single installed file from a PEP 376 RECORD file.
+
+    See: https://www.python.org/dev/peps/pep-0376/#record
+    """
+
     path = attr.ib()  # type: str
     hash = attr.ib(default=None)  # type: Optional[Hash]
     size = attr.ib(default=None)  # type: Optional[int]
 
 
 class InstallationScheme(Enum["InstallationScheme.Value"]):
+    """Represents the Pip installation scheme used for installing a wheel.
+
+    For more about installation schemes, see:
+        https://docs.python.org/3/install/index.html#alternate-installation
+
+    N.B.: Pex only uses the --target scheme but all schemes are represented for documentation
+    purposes. Notably, Pex _could_ change to using the --prefix scheme with changes to its runtime
+    `sys.path` adjustments in order to afford less hackery when reading the RECORD.
+    """
+
     class Value(Enum.Value):
         pass
 
@@ -98,6 +113,11 @@ class RecordNotFoundError(RecordError):
 
 @attr.s(frozen=True)
 class Record(object):
+    """Represents the PEP-376 RECORD of an installed wheel.
+
+    See: https://www.python.org/dev/peps/pep-0376/#record
+    """
+
     @classmethod
     def read(
         cls,
@@ -170,6 +190,7 @@ class Record(object):
 
     def fixup_install(self):
         # type: () -> None
+        """Fixes a wheel install to be reproducible."""
 
         modified_scripts = list(self._fixup_scripts())
         self._fixup_record(modified_scripts=modified_scripts)
@@ -316,6 +337,14 @@ class Record(object):
         rel_extra_path=None,  # type: Optional[str]
     ):
         # type: (...) -> Iterator[Tuple[str, str]]
+        """Re-installs the installed wheel in a venv.
+
+        N.B.: A record of reinstalled files is returned in the form of an iterator that must be
+        consumed to drive the installation to completetion.
+
+        :return: An iterator over src -> dst pairs.
+        """
+
         if self.install_scheme is not InstallationScheme.TARGET:
             raise ReinstallError(
                 "Cannot reinstall from {self}. It was installed via an unsupported scheme of "
@@ -327,6 +356,10 @@ class Record(object):
             if rel_extra_path
             else venv.site_packages_dir
         )
+
+        # N.B.: It's known that the Pip --target installation scheme results in faulty RECORD
+        # entries. These are consistently faulty though; so we adjust here.
+        # See: https://github.com/pypa/pip/issues/7658
 
         # I.E.: ../..
         scheme_prefix = os.path.join(os.path.pardir, os.path.pardir)
