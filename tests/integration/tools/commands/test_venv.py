@@ -15,7 +15,7 @@ from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Any, List
+    from typing import Any, Set
 
 
 def run_pex_tools(*args):
@@ -189,33 +189,69 @@ def test_scope_issue_1631(tmpdir):
         return Virtualenv(venv_dir)
 
     def recursive_listing(venv_dir):
-        # type: (str) -> List[str]
-        return sorted(
+        # type: (str) -> Set[str]
+        return {
             os.path.relpath(os.path.join(root, f), venv_dir)
             for root, _, files in os.walk(venv_dir)
             for f in filter_pyc_files(files)
-        )
+        }
 
-    venv_dir = os.path.join(str(tmpdir), "venv")
-    execute_venv_tool(venv_dir)
-    canonical_venv_listing = recursive_listing(venv_dir)
-    venv = assert_app(venv_dir)
-    # N.B.: Some of the venv activation scripts in bin/ differ since they hard code the venv python
+    def site_packages_path(
+        venv_dir,  # type: str
+        *relpath  # type: str
+    ):
+        # type: (...) -> str
+        venv = Virtualenv(venv_dir)
+        return os.path.relpath(os.path.join(venv.site_packages_dir, *relpath), venv.venv_dir)
+
+    def app_py_path(venv_dir):
+        # type: (str) -> str
+        return site_packages_path(venv_dir, "app.py")
+
+    def colors_package_path(venv_dir):
+        # type: (str) -> str
+        return site_packages_path(venv_dir, "colors", "__init__.py")
+
+    venv_directory = os.path.join(str(tmpdir), "venv")
+    execute_venv_tool(venv_directory)
+    canonical_venv_listing = recursive_listing(venv_directory)
+    venv = assert_app(venv_directory)
+    # N.B.: Some venv activation scripts in bin/ differ since they hard code the venv python
     # interpreter path in them. Since we have a full canonical_venv_listing to check, we settle on
     # testing contents are identical just for site-packages which is what is important anyhow: it's
     # where the deps and user code are installed to.
     canonical_venv_hash = CacheHelper.dir_hash(venv.site_packages_dir)
 
-    venv_dir_deps_then_srcs = os.path.join(str(tmpdir), "venv.deps-srcs")
-    execute_venv_tool(venv_dir_deps_then_srcs, "--scope=deps")
-    execute_venv_tool(venv_dir_deps_then_srcs, "--scope=srcs")
-    assert canonical_venv_listing == recursive_listing(venv_dir_deps_then_srcs)
-    venv_deps_then_srcs = assert_app(venv_dir_deps_then_srcs)
-    assert canonical_venv_hash == CacheHelper.dir_hash(venv_deps_then_srcs.site_packages_dir)
+    # 1st populate dependencies, then sources.
+    venv_directory = os.path.join(str(tmpdir), "venv.deps-srcs")
+    execute_venv_tool(venv_directory, "--scope=deps")
+    colors_package = colors_package_path(venv_directory)
+    app_module = app_py_path(venv_directory)
 
-    venv_dir_srcs_then_deps = os.path.join(str(tmpdir), "venv.srcs-deps")
-    execute_venv_tool(venv_dir_srcs_then_deps, "--scope=srcs")
-    execute_venv_tool(venv_dir_srcs_then_deps, "--scope=deps")
-    assert canonical_venv_listing == recursive_listing(venv_dir_srcs_then_deps)
-    venv_srcs_then_deps = assert_app(venv_dir_srcs_then_deps)
-    assert canonical_venv_hash == CacheHelper.dir_hash(venv_srcs_then_deps.site_packages_dir)
+    assert colors_package in recursive_listing(venv_directory)
+    assert app_module not in recursive_listing(venv_directory)
+
+    execute_venv_tool(venv_directory, "--scope=srcs")
+    assert colors_package in recursive_listing(venv_directory)
+    assert app_module in recursive_listing(venv_directory)
+
+    assert canonical_venv_listing == recursive_listing(venv_directory)
+    venv = assert_app(venv_directory)
+    assert canonical_venv_hash == CacheHelper.dir_hash(venv.site_packages_dir)
+
+    # 1st populate sources, then dependencies.
+    venv_directory = os.path.join(str(tmpdir), "venv.srcs-deps")
+    execute_venv_tool(venv_directory, "--scope=srcs")
+    colors_package = colors_package_path(venv_directory)
+    app_module = app_py_path(venv_directory)
+
+    assert app_module in recursive_listing(venv_directory)
+    assert colors_package not in recursive_listing(venv_directory)
+
+    execute_venv_tool(venv_directory, "--scope=deps")
+    assert app_module in recursive_listing(venv_directory)
+    assert colors_package in recursive_listing(venv_directory)
+
+    assert canonical_venv_listing == recursive_listing(venv_directory)
+    venv = assert_app(venv_directory)
+    assert canonical_venv_hash == CacheHelper.dir_hash(venv.site_packages_dir)
