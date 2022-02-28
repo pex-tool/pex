@@ -65,7 +65,7 @@ The Pex ``venv`` tool will:
    just like the original PEX.
 2) Pre-compile all PEX Python code installed in the venv.
 
-Notably, the PEX venv install is done in using a
+Notably, the PEX venv install is done using a
 `multi-stage build <https://docs.docker.com/develop/develop-images/multistage-build/>`_ to ensure
 only the final venv remains on disk and it uses two layers to ensure changes to application code
 do not lead to re-builds of lower layers. This accommodates the common case of modifying and
