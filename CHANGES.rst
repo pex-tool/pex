@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.69
+------
+
+This is a hotfix release for a regression introduced in 2.1.68 for a
+narrow class of ``--venv`` ``--no-venv-site-packages-copies`` mode
+PEXes with special contents on the ``PEX_PATH``.
+
+*  Fix venv creation for duplicate symlinked dists. (#1639)
+   `PR #1639 <https://github.com/pantsbuild/pex/pull/1639>`_
+
 2.1.68
 ------
 
