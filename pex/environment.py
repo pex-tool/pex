@@ -663,6 +663,10 @@ class PEXEnvironment(object):
 
         resolved = self.resolve()
         for dist in resolved:
+            # N.B.: Since there can be more than one PEXEnvironment on the PEX_PATH we take care to
+            # avoid re-installing duplicate distributions we have in common with them.
+            if dist.location in sys.path:
+                continue
             with TRACER.timed("Activating %s" % dist, V=2):
                 if self._pex_info.inherit_path == InheritPath.FALLBACK:
                     # Prepend location to sys.path.

@@ -342,6 +342,10 @@ class Record(object):
         N.B.: A record of reinstalled files is returned in the form of an iterator that must be
         consumed to drive the installation to completion.
 
+        If there is an error re-installing a file due to it already existing in the destination
+        venv, the error is suppressed, and it's expected that the caller detects this by comparing
+        the record of installed files against those installed previously.
+
         :return: An iterator over src -> dst pairs.
         """
 
@@ -427,4 +431,8 @@ class Record(object):
                 yield src, dst
             rel_src = os.path.relpath(src, site_packages_dir)
             safe_mkdir(site_packages_dir)
-            os.symlink(rel_src, dst)
+            try:
+                os.symlink(rel_src, dst)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise e

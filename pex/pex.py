@@ -114,8 +114,15 @@ class PEX(object):  # noqa: T000
 
     def resolve(self):
         # type: () -> Iterator[Distribution]
+        """Resolves all distributions loadable from this PEX by the current interpreter."""
+        seen = set()
         for env in self._loaded_envs:
             for dist in env.resolve():
+                # N.B.: Since there can be more than one PEX env on the PEX_PATH we take care to
+                # de-dup distributions they have in common.
+                if dist in seen:
+                    continue
+                seen.add(dist)
                 yield dist
 
     def _activate(self):
