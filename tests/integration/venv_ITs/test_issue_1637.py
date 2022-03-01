@@ -81,7 +81,7 @@ def execute_app(
     stdout, stderr = process.communicate()
     stripped_stderr = stderr.decode("utf-8").strip()
     assert 0 == process.returncode, stripped_stderr
-    assert yellow("*** Flashy UI ***") == stripped_stderr
+    assert yellow("*** Flashy UI ***") in stripped_stderr
     return stdout.decode("utf-8").splitlines()
 
 
