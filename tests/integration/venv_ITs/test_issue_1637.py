@@ -127,7 +127,6 @@ def test_pex_path_collision_non_conflicting(
     execute_app(app, PEX_PATH=os.pathsep.join((deps, srcs)))
 
 
-@pytest.mark.skipif(IS_PYPY3, reason="Warnings are not always flushed to stderr under PyPy3.")
 def test_pex_path_collision_conflicting(tmpdir):
     # Test a conflicting duplicate dep top-level module collision.
 
