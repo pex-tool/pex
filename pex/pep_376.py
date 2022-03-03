@@ -30,7 +30,17 @@ if TYPE_CHECKING:
         from hashlib import _hash as _Hash
     else:
         from hashlib import _Hash
-    from typing import Callable, Dict, Iterable, Iterator, Optional, Protocol, Tuple, Union
+    from typing import (
+        Callable,
+        Container,
+        Dict,
+        Iterable,
+        Iterator,
+        Optional,
+        Protocol,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 
@@ -161,11 +171,15 @@ class Record(object):
                 )
             )
         metadata_dir = os.path.dirname(relative_path)
+        data_dir = "{project_name_and_version}.data".format(
+            project_name_and_version=metadata_dir[: -len(".dist-info")]
+        )
         return cls(
             project_name=dist.project_name,
             version=dist.version,
             base_location=dist.location,
             relative_path=relative_path,
+            data_dir=data_dir,
             metadata_listing=tuple(
                 path for path in listing if metadata_dir == os.path.dirname(path)
             ),
@@ -176,6 +190,7 @@ class Record(object):
     version = attr.ib()  # type: str
     base_location = attr.ib()  # type: str
     relative_path = attr.ib()  # type: str
+    _data_dir = attr.ib()  # type: str
     _metadata_listing = attr.ib()  # type: Tuple[str, ...]
     install_scheme = attr.ib(default=InstallationScheme.TARGET)  # type: InstallationScheme.Value
 
@@ -329,6 +344,25 @@ class Record(object):
                         )
                     )
 
+    def _handle_record_error(
+        self,
+        record_path,  # type: str
+        error,  # type: Union[IOError, OSError]
+        expected_errors=(errno.EEXIST,),  # type: Container[int]
+    ):
+        # type: (...) -> None
+        if error.errno in expected_errors:
+            return
+
+        # It's expected that `*.data/*` dir entries won't exist. These entries are left in the
+        # RECORD but the files they refer to are all "spread" to other locations during install.
+        #
+        # See: https://www.python.org/dev/peps/pep-0427/#installing-a-wheel-distribution-1-0-py32-none-any-whl
+        if error.errno == errno.ENOENT and record_path.startswith(self._data_dir):
+            return
+
+        raise error
+
     def reinstall(
         self,
         venv,  # type: Virtualenv
@@ -416,13 +450,15 @@ class Record(object):
                             os.link(src, dst)
                             continue
                         except OSError as e:
-                            if e.errno != errno.EXDEV:
-                                raise e
+                            self._handle_record_error(
+                                record_path=installed_file_relpath,
+                                error=e,
+                                expected_errors=(errno.EXDEV,),
+                            )
                             link = False
                     shutil.copy(src, dst)
-                except OSError as e:
-                    if e.errno != errno.EEXIST:
-                        raise e
+                except (IOError, OSError) as e:
+                    self._handle_record_error(record_path=installed_file_relpath, error=e)
 
         for top_level in symlinks:
             src = os.path.join(self.base_location, top_level)
@@ -434,5 +470,4 @@ class Record(object):
             try:
                 os.symlink(rel_src, dst)
             except OSError as e:
-                if e.errno != errno.EEXIST:
-                    raise e
+                self._handle_record_error(record_path=top_level, error=e)
