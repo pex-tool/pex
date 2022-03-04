@@ -1,7 +1,7 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 import itertools
 import os
@@ -312,7 +312,7 @@ class Resolved(object):
         # the 765th tag is the least specific.
         largest_rank_value = target.supported_tags.lowest_rank.value
         smallest_rank_value = TagRank.highest_natural().value
-        rank_span = float(largest_rank_value - smallest_rank_value)
+        rank_span = largest_rank_value - smallest_rank_value
 
         downloadable_artifacts = []
         target_specificities = []
@@ -336,7 +336,7 @@ class Resolved(object):
             )
 
         return cls(
-            target_specificity=sum(target_specificities) / float(len(target_specificities)),
+            target_specificity=sum(target_specificities) / len(target_specificities),
             downloadable_artifacts=tuple(downloadable_artifacts),
         )
 
