@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.70
+------
+
+This is another hotfix release for 2.1.68 that fixes a bug in
+``*.data/*`` file handling for installed wheels which is outlined in
+`PEP 427
+<https://www.python.org/dev/peps/pep-0427/#installing-a-wheel-distribution-1-0-py32-none-any-whl>`_
+
+* Handle ``*.data/*`` RECORD entries not existing. (#1644)
+  `PR #1644 <https://github.com/pantsbuild/pex/pull/1644>`_
+
 2.1.69
 ------
 
