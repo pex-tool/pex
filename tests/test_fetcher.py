@@ -55,4 +55,3 @@ def test_user_agent(server_address):
     url_fetcher = URLFetcher()
     with url_fetcher.get_body_stream(url) as fp:
         assert "pex/{version}".format(version=__version__) == fp.read().decode("utf-8")
-
