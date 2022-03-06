@@ -7,9 +7,17 @@ import ssl
 import time
 from contextlib import closing, contextmanager
 
-from pex.compatibility import FileHandler, HTTPError, HTTPSHandler, ProxyHandler, build_opener
+from pex.compatibility import (
+    FileHandler,
+    HTTPError,
+    HTTPSHandler,
+    ProxyHandler,
+    Request,
+    build_opener,
+)
 from pex.network_configuration import NetworkConfiguration
 from pex.typing import TYPE_CHECKING, cast
+from pex.version import __version__
 
 if TYPE_CHECKING:
     from typing import BinaryIO, Dict, Iterator, Optional, Text
@@ -18,6 +26,8 @@ else:
 
 
 class URLFetcher(object):
+    USER_AGENT = "pex/{version}".format(version=__version__)
+
     def __init__(
         self,
         network_configuration=None,  # type: Optional[NetworkConfiguration]
@@ -54,10 +64,16 @@ class URLFetcher(object):
                 retry_delay_secs *= 2
 
             opener = build_opener(*self._handlers)
+            request = Request(
+                # N.B.: MyPy incorrectly thinks url must be a str in Python 2 where a unicode url
+                # actually works fine.
+                url,  # type: ignore[arg-type]
+                headers={"User-Agent": self.USER_AGENT},
+            )
             # The fp is typed as Optional[...] for Python 2 only in the typeshed. A `None`
             # can only be returned if a faulty custom handler is installed and we only
             # install stdlib handlers.
-            fp = cast(BinaryIO, opener.open(url, timeout=self._timeout))
+            fp = cast(BinaryIO, opener.open(request, timeout=self._timeout))
             try:
                 with closing(fp) as body_stream:
                     yield body_stream
