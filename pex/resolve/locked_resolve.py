@@ -453,6 +453,7 @@ class LockedResolve(object):
         self,
         target,  # type: Target
         requirements,  # type: Iterable[Requirement]
+        constraints=(),  # type: Iterable[Requirement]
         source=None,  # type: Optional[str]
         transitive=True,  # type: bool
         build=True,  # type: bool
@@ -509,6 +510,9 @@ class LockedResolve(object):
                 request_resolve(resolve_request.request_dependencies(locked_requirement))
 
         # 2. Select either the best fit artifact for each requirement or collect an error.
+        constraints_by_project_name = {
+            ProjectName(constraint.project_name): constraint for constraint in constraints
+        }
         resolved_artifacts = []
         errors = []
         for project_name, resolve_requests in required.items():
@@ -559,6 +563,14 @@ class LockedResolve(object):
                                 via=resolve_request.render_via(),
                             )
                         )
+                constraint = constraints_by_project_name.get(locked_requirement.pin.project_name)
+                if (
+                    constraint is not None
+                    and str(locked_requirement.pin.version) not in constraint.specifier
+                ):
+                    version_mismatches.append(
+                        "{specifier} (via: constraint)".format(specifier=constraint.specifier)
+                    )
                 if version_mismatches:
                     reasons.append(
                         "{pin} does not satisfy the following requirements:\n{mismatches}".format(
@@ -617,7 +629,7 @@ class LockedResolve(object):
                     )
                 else:
                     errors.append(
-                        "Dependency on {project_name} not satisfied, no candiates found:\n"
+                        "Dependency on {project_name} not satisfied, no candidates found:\n"
                         "    requirers:\n"
                         "    {vias}".format(
                             project_name=project_name,
