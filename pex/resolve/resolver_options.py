@@ -96,7 +96,9 @@ def register(
         help="Deprecated: No longer used.",
     )
 
-    repository_choice = parser.add_mutually_exclusive_group()
+    repository_choice = (
+        parser.add_mutually_exclusive_group() if include_pex_repository and include_lock else parser
+    )
     if include_pex_repository:
         repository_choice.add_argument(
             "--pex-repository",
