@@ -1,6 +1,7 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import hashlib
 import os
 import re
 from textwrap import dedent
@@ -22,6 +23,7 @@ from pex.targets import LocalInterpreter
 from pex.testing import IS_MAC, IS_PYPY, PY310, PY_VER, IntegResults, ensure_python_interpreter
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 from pex.version import __version__
 
 if TYPE_CHECKING:
@@ -73,13 +75,25 @@ def test_create(tmpdir):
 def test_create_style(tmpdir):
     # type: (Any) -> None
 
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
     def create_lock(
         style,  # type: str
         interpreter_constraint=None,  # type: Optional[str]
     ):
         # type: (...) -> LockedRequirement
         lock_file = os.path.join(str(tmpdir), "{}.lock".format(style))
-        args = ["lock", "create", "psutil==5.9.0", "-o", lock_file, "--style", style]
+        args = [
+            "lock",
+            "create",
+            "psutil==5.9.0",
+            "-o",
+            lock_file,
+            "--style",
+            style,
+            "--pex-root",
+            pex_root,
+        ]
         if interpreter_constraint:
             args.extend(["--interpreter-constraint", interpreter_constraint])
         run_pex3(*args).assert_success()
@@ -87,7 +101,23 @@ def test_create_style(tmpdir):
         assert 1 == len(lock.locked_resolves)
         locked_resolve = lock.locked_resolves[0]
         assert 1 == len(locked_resolve.locked_requirements)
-        return locked_resolve.locked_requirements[0]
+        locked_requirement = locked_resolve.locked_requirements[0]
+        download_dir = os.path.join(
+            pex_root, "downloads", locked_requirement.artifact.fingerprint.hash
+        )
+        downloaded_artifact = os.path.join(download_dir, locked_requirement.artifact.filename)
+        assert os.path.exists(downloaded_artifact), (
+            "Expected the primary artifact to be downloaded as a side-effect of executing the lock "
+            "resolve."
+        )
+        downloaded_artifact_internal_fingerprint = os.path.join(download_dir, "sha1")
+        assert os.path.exists(downloaded_artifact_internal_fingerprint), (
+            "Expected the primary artifact to have an internal fingerprint established to short "
+            "circuit builds and installs."
+        )
+        with open(downloaded_artifact_internal_fingerprint) as fp:
+            assert CacheHelper.hash(downloaded_artifact, digest=hashlib.sha1()) == fp.read()
+        return locked_requirement
 
     # See: https://pypi.org/project/psutil/5.9.0/#files
 
