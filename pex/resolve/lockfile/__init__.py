@@ -3,23 +3,30 @@
 
 from __future__ import absolute_import
 
+import os
+import shutil
+
 from pex import resolver
-from pex.common import pluralize, safe_open
+from pex.common import pluralize, safe_mkdtemp, safe_open
 from pex.requirements import LocalProjectRequirement, VCSRequirement
 from pex.resolve import resolvers
-from pex.resolve.locked_resolve import LockConfiguration
+from pex.resolve.locked_resolve import Artifact, LockConfiguration
+from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
 from pex.resolve.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import PipConfiguration
+from pex.resolver import Downloaded
 from pex.result import Error
 from pex.targets import Targets
 from pex.third_party.pkg_resources import Requirement
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
 from pex.variables import ENV
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import List, Text, Union
+    from typing import List, Mapping, Optional, Text, Union
 
 
 class ParseError(Exception):
@@ -77,6 +84,51 @@ def store(
         json.dump(json_codec.as_json_data(lockfile), fp, sort_keys=True)
 
 
+class CreateLockDownloadManager(DownloadManager):
+    @classmethod
+    def create(
+        cls,
+        download_dir,  # type: str
+        downloaded,  # type: Downloaded
+        pex_root=None,  # type: Optional[str]
+    ):
+        # type: (...) -> CreateLockDownloadManager
+
+        artifacts_by_filename = {
+            artifact.filename: artifact
+            for locked_resolve in downloaded.locked_resolves
+            for locked_requirement in locked_resolve.locked_requirements
+            for artifact in locked_requirement.iter_artifacts()
+        }
+        path_by_artifact = {
+            artifacts_by_filename[f]: os.path.join(root, f)
+            for root, _, files in os.walk(download_dir)
+            for f in files
+        }
+        return cls(path_by_artifact=path_by_artifact, pex_root=pex_root)
+
+    def __init__(
+        self,
+        path_by_artifact,  # type: Mapping[Artifact, str]
+        pex_root=None,  # type: Optional[str]
+    ):
+        super(CreateLockDownloadManager, self).__init__(pex_root=pex_root)
+        self._path_by_artifact = path_by_artifact
+
+    def store_all(self):
+        for artifact in self._path_by_artifact:
+            self.store(artifact)
+
+    def save(
+        self,
+        artifact,  # type: Artifact
+        path,  # type: str
+    ):
+        # type: (...) -> str
+        shutil.move(self._path_by_artifact[artifact], path)
+        return CacheHelper.hash(path)
+
+
 def create(
     lock_configuration,  # type: LockConfiguration
     requirement_configuration,  # type: RequirementConfiguration
@@ -120,6 +172,8 @@ def create(
         for constraint in requirement_configuration.parse_constraints(network_configuration)
     )
 
+    dest = safe_mkdtemp()
+
     try:
         downloaded = resolver.download(
             targets=targets,
@@ -140,12 +194,16 @@ def create(
             build_isolation=pip_configuration.build_isolation,
             max_parallel_jobs=pip_configuration.max_jobs,
             lock_configuration=lock_configuration,
-            # We're just out for the lock data and not the distribution files downloaded to produce
-            # that data.
-            dest=None,
+            dest=dest,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
+
+    with TRACER.timed("Indexing downloads"):
+        create_lock_download_manager = CreateLockDownloadManager.create(
+            download_dir=dest, downloaded=downloaded
+        )
+        create_lock_download_manager.store_all()
 
     return Lockfile.create(
         pex_version=__version__,
