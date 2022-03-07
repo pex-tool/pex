@@ -77,6 +77,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolver_options.register(
             cls._create_resolver_options_group(parser),
             include_pex_repository=False,
+            include_lock=False,
         )
 
     @classmethod
