@@ -53,3 +53,9 @@ class PexRepositoryConfiguration(object):
     pex_repository = attr.ib()  # type: str
     network_configuration = attr.ib(default=NetworkConfiguration())  # type: NetworkConfiguration
     transitive = attr.ib(default=True)  # type: bool
+
+
+@attr.s(frozen=True)
+class LockRepositoryConfiguration(object):
+    lock_file = attr.ib()  # type: str
+    pip_configuration = attr.ib()  # type: PipConfiguration
