@@ -645,14 +645,16 @@ class BuildAndInstallRequest(object):
                 TRACER.log(
                     "Installing {} in {}".format(
                         install_request.wheel_path, install_result.install_chroot
-                    )
+                    ),
+                    V=2,
                 )
                 unsatisfied_install_requests.append(install_request)
             else:
                 TRACER.log(
                     "Using cached installation of {} at {}".format(
                         install_request.wheel_file, install_result.install_chroot
-                    )
+                    ),
+                    V=2,
                 )
                 install_results.append(install_result)
         return unsatisfied_install_requests, install_results
@@ -765,7 +767,7 @@ class BuildAndInstallRequest(object):
             installations.extend(install_result.finalize_install(install_requests))
 
         with TRACER.timed(
-            "Installing:" "\n  {}".format("\n  ".join(map(str, representative_install_requests)))
+            "Installing {} distributions".format(len(representative_install_requests))
         ):
             install_requests, install_results = self._categorize_install_requests(
                 install_requests=representative_install_requests,
@@ -783,7 +785,8 @@ class BuildAndInstallRequest(object):
                 add_installation(install_result)
 
         if not ignore_errors:
-            self._check_install(installations)
+            with TRACER.timed("Checking install"):
+                self._check_install(installations)
 
         installed_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
         for installed_distribution in installations:

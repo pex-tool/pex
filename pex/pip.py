@@ -302,13 +302,6 @@ class _Issue10050Analyzer(_ErrorAnalyzer):
 
 
 class Locker(_LogAnalyzer):
-    class StateError(Exception):
-        """Indicates the Locker lifecycle was violated.
-
-        A Locker 1st should be used to collect data from a Pip debug log and only then can a `lock`
-        be requested.
-        """
-
     def __init__(self, lock_request):
         # type: (LockRequest) -> None
         self._lock_request = lock_request

@@ -11,6 +11,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.resolve.resolver_configuration import (
     PYPI,
+    LockRepositoryConfiguration,
     PexRepositoryConfiguration,
     PipConfiguration,
     ReposConfiguration,
@@ -51,12 +52,14 @@ class _HandleTransitiveAction(Action):
 def register(
     parser,  # type: _ActionsContainer
     include_pex_repository=False,  # type: bool
+    include_lock=False,  # type: bool
 ):
     # type: (...) -> None
     """Register resolver configuration options with the given parser.
 
     :param parser: The parser to register resolver configuration options with.
     :param include_pex_repository: Whether to include the `--pex-repository` option.
+    :param include_lock: Whether to include the `--lock` option.
     """
 
     default_resolver_configuration = PipConfiguration()
@@ -93,16 +96,31 @@ def register(
         help="Deprecated: No longer used.",
     )
 
+    repository_choice = (
+        parser.add_mutually_exclusive_group() if include_pex_repository and include_lock else parser
+    )
     if include_pex_repository:
-        parser.add_argument(
+        repository_choice.add_argument(
             "--pex-repository",
             dest="pex_repository",
             metavar="FILE",
             default=None,
             type=str,
             help=(
-                "Resolve requirements from the given PEX file instead of from --index servers or "
-                "--find-links repos."
+                "Resolve requirements from the given PEX file instead of from --index servers, "
+                "--find-links repos or a --lock file."
+            ),
+        )
+    if include_lock:
+        repository_choice.add_argument(
+            "--lock",
+            dest="lock",
+            metavar="FILE",
+            default=None,
+            type=str,
+            help=(
+                "Resolve requirements from the given lock file instead of from --index servers, "
+                "--find-links repos or a --pex-repository."
             ),
         )
 
@@ -300,8 +318,14 @@ class InvalidConfigurationError(Exception):
     """Indicates an invalid resolver configuration."""
 
 
+if TYPE_CHECKING:
+    ResolverConfiguration = Union[
+        LockRepositoryConfiguration, PexRepositoryConfiguration, PipConfiguration
+    ]
+
+
 def configure(options):
-    # type: (Namespace) -> Union[PipConfiguration, PexRepositoryConfiguration]
+    # type: (Namespace) -> ResolverConfiguration
     """Creates a resolver configuration from options registered by `register`.
 
     :param options: The resolver configuration options.
@@ -309,9 +333,15 @@ def configure(options):
     """
 
     pex_repository = getattr(options, "pex_repository", None)
+    lock = getattr(options, "lock", None)
     if pex_repository and (options.indexes or options.find_links):
         raise InvalidConfigurationError(
             'The "--pex-repository" option cannot be used together with the "--index" or '
+            '"--find-links" options.'
+        )
+    if lock and (options.indexes or options.find_links):
+        raise InvalidConfigurationError(
+            'The "--lock" option cannot be used together with the "--index" or '
             '"--find-links" options.'
         )
 
@@ -321,7 +351,13 @@ def configure(options):
             network_configuration=create_network_configuration(options),
             transitive=options.transitive,
         )
-    return create_pip_configuration(options)
+    pip_configuration = create_pip_configuration(options)
+    if lock:
+        return LockRepositoryConfiguration(
+            lock_file=options.lock,
+            pip_configuration=pip_configuration,
+        )
+    return pip_configuration
 
 
 def create_pip_configuration(options):

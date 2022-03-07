@@ -32,11 +32,16 @@ from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve import requirement_options, resolver_options, target_configuration, target_options
+from pex.resolve.lock_resolver import resolve_from_lock
 from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolver_configuration import PexRepositoryConfiguration, PipConfiguration
+from pex.resolve.resolver_configuration import (
+    LockRepositoryConfiguration,
+    PexRepositoryConfiguration,
+)
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
+from pex.result import try_
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -46,8 +51,9 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from argparse import Namespace
-    from typing import Dict, List, Optional, Union
+    from typing import Dict, List, Optional
 
+    from pex.resolve.resolver_options import ResolverConfiguration
 
 CANNOT_SETUP_INTERPRETER = 102
 INVALID_OPTIONS = 103
@@ -90,7 +96,7 @@ def configure_clp_pex_resolution(parser):
         ),
     )
 
-    resolver_options.register(group, include_pex_repository=True)
+    resolver_options.register(group, include_pex_repository=True, include_lock=True)
 
     group.add_argument(
         "--pex-path",
@@ -489,7 +495,7 @@ def configure_clp():
 
 def build_pex(
     requirement_configuration,  # type: RequirementConfiguration
-    resolver_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
+    resolver_configuration,  # type: ResolverConfiguration
     targets,  # type: Targets
     options,  # type: Namespace
     cache=None,  # type: Optional[str]
@@ -577,9 +583,40 @@ def build_pex(
         )
     ):
         try:
-            if isinstance(resolver_configuration, PexRepositoryConfiguration):
+            if isinstance(resolver_configuration, LockRepositoryConfiguration):
                 with TRACER.timed(
-                    "Resolving requirements from PEX {}.".format(options.pex_repository)
+                    "Resolving requirements from lock file {lock_file}".format(
+                        lock_file=resolver_configuration.lock_file
+                    )
+                ):
+                    pip_configuration = resolver_configuration.pip_configuration
+                    result = try_(
+                        resolve_from_lock(
+                            targets=targets,
+                            lockfile_path=resolver_configuration.lock_file,
+                            requirements=requirement_configuration.requirements,
+                            requirement_files=requirement_configuration.requirement_files,
+                            constraint_files=requirement_configuration.constraint_files,
+                            transitive=pip_configuration.transitive,
+                            indexes=pip_configuration.repos_configuration.indexes,
+                            find_links=pip_configuration.repos_configuration.find_links,
+                            resolver_version=pip_configuration.resolver_version,
+                            network_configuration=pip_configuration.network_configuration,
+                            cache=cache,
+                            build=pip_configuration.allow_builds,
+                            use_wheel=pip_configuration.allow_wheels,
+                            prefer_older_binary=pip_configuration.prefer_older_binary,
+                            use_pep517=pip_configuration.use_pep517,
+                            build_isolation=pip_configuration.build_isolation,
+                            compile=options.compile,
+                            max_parallel_jobs=pip_configuration.max_jobs,
+                        )
+                    )
+            elif isinstance(resolver_configuration, PexRepositoryConfiguration):
+                with TRACER.timed(
+                    "Resolving requirements from PEX {pex_repository}.".format(
+                        pex_repository=resolver_configuration.pex_repository
+                    )
                 ):
                     result = resolve_from_pex(
                         targets=targets,
@@ -699,7 +736,7 @@ def main(args=None):
 def do_main(
     options,  # type: Namespace
     requirement_configuration,  # type: RequirementConfiguration
-    resolver_configuration,  # type: Union[PipConfiguration, PexRepositoryConfiguration]
+    resolver_configuration,  # type: ResolverConfiguration
     targets,  # type: Targets
     cmdline,  # type: List[str]
     env,  # type: Dict[str, str]

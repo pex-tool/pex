@@ -62,6 +62,10 @@ class ResultError(Exception):
 
     error = attr.ib()  # type: Error
 
+    def __str__(self):
+        # type: () -> str
+        return str(self.error)
+
 
 def try_(result):
     # type: (Union[_T, Error]) -> _T

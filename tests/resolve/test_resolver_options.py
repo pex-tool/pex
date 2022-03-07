@@ -14,14 +14,16 @@ from pex.resolve.resolver_configuration import (
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import List, Union
+    from typing import List
+
+    from pex.resolve.resolver_options import ResolverConfiguration
 
 
 def compute_resolver_configuration(
     parser,  # type: ArgumentParser
     args,  # type: List[str]
 ):
-    # type: (...) -> Union[PipConfiguration, PexRepositoryConfiguration]
+    # type: (...) -> ResolverConfiguration
     options = parser.parse_args(args=args)
     return resolver_options.configure(options)
 
