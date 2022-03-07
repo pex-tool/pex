@@ -186,6 +186,39 @@ def test_use_wheel(
     )
 
 
+def test_constraints(
+    current_target,  # type: Target
+    ansicolors_simple,  # type: LockedResolve
+):
+    # type: (...) -> None
+    assert_resolved(
+        ansicolors_simple.resolve(current_target, [req("ansicolors")]),
+        DownloadableArtifact.create(
+            pin=pin("ansicolors", "1.1.8"),
+            artifact=artifact(
+                url="https://example.org/ansicolors-1.1.8.tar.gz",
+                algorithm="md5",
+                hash="cafebabe",
+            ),
+            satisfied_direct_requirements=requirements("ansicolors"),
+        ),
+    )
+    assert_resolved(
+        ansicolors_simple.resolve(
+            current_target, [req("ansicolors")], constraints=[req("ansicolors<1.1.8")]
+        ),
+        DownloadableArtifact.create(
+            pin=pin("ansicolors", "1.1.7"),
+            artifact=artifact(
+                url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                algorithm="blake256",
+                hash="cafebabe",
+            ),
+            satisfied_direct_requirements=requirements("ansicolors"),
+        ),
+    )
+
+
 @pytest.fixture
 def ansicolors_exotic():
     # type: () -> LockedResolve
@@ -450,6 +483,60 @@ def test_requires_python_mismatch(
                 hash="cafebabe",
             ),
             satisfied_direct_requirements=requirements("ansicolors==1.1.7"),
+        ),
+    )
+
+
+def test_constraint_mismatch(
+    current_target,  # type: Target
+    ansicolors_simple,  # type: LockedResolve
+):
+    # type: (...) -> None
+    locked_resolve = LockedResolve(
+        platform_tag=Tag("cp37", "cp37m", "exotic"),
+        locked_requirements=locked_requirements(
+            LockedRequirement.create(
+                pin=pin("ansicolors", "1.1.7"),
+                artifact=artifact(
+                    url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                    algorithm="blake256",
+                    hash="cafebabe",
+                ),
+            ),
+        ),
+    )
+
+    assert_error(
+        locked_resolve.resolve(
+            current_target, [req("ansicolors")], constraints=[req("ansicolors>=2")]
+        ),
+        dedent(
+            """\
+            Failed to resolve all requirements for {target_description}:
+
+            Configured with:
+                build: True
+                use_wheel: True
+
+            Dependency on ansicolors not satisfied, 1 incompatible candidate found:
+            1.) ansicolors 1.1.7 does not satisfy the following requirements:
+                >=2 (via: constraint)
+            """
+        ).format(target_description=current_target.render_description()),
+    )
+
+    assert_resolved(
+        locked_resolve.resolve(
+            current_target, [req("ansicolors")], constraints=[req("irrelevant==1.0.0")]
+        ),
+        DownloadableArtifact.create(
+            pin=pin("ansicolors", "1.1.7"),
+            artifact=artifact(
+                url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                algorithm="blake256",
+                hash="cafebabe",
+            ),
+            satisfied_direct_requirements=requirements("ansicolors"),
         ),
     )
 
