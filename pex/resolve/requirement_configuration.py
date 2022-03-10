@@ -43,7 +43,7 @@ class RequirementConfiguration(object):
                     )
                     if not isinstance(requirement_or_constraint, Constraint)
                 )
-        if not parsed_requirements:
+        if not parsed_requirements and fallback_requirements:
             parsed_requirements.extend(parse_requirement_strings(fallback_requirements))
         return parsed_requirements
 
