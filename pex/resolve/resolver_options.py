@@ -108,8 +108,7 @@ def register(
             type=str,
             help=(
                 "Resolve requirements from the given PEX file instead of from --index servers, "
-                "--find-links repos or a --lock file. If no requirements are specified, will "
-                "install the entire PEX."
+                "--find-links repos or a --lock file."
             ),
         )
     if include_lock:
@@ -120,8 +119,8 @@ def register(
             default=None,
             type=str,
             help=(
-                "Resolve requirements from the given PEX lock file instead of from --index "
-                "servers, --find-links repos or a --pex-repository. If no requirements are "
+                "Resolve requirements from the given lock file crated by Pex instead of from "
+                "--index servers, --find-links repos or a --pex-repository. If no requirements are "
                 "specified, will install the entire lock."
             ),
         )

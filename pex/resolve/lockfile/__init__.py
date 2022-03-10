@@ -15,6 +15,7 @@ from pex.requirements import (
     PyPIRequirement,
     URLRequirement,
     VCSRequirement,
+    parse_requirement_strings,
 )
 from pex.resolve import resolvers
 from pex.resolve.locked_resolve import Artifact, LockConfiguration
@@ -124,15 +125,19 @@ class Requirements(object):
 def parse_lockable_requirements(
     requirement_configuration,  # type: RequirementConfiguration
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    fallback_requirements=None,  # type: Optional[Iterable[str]]
+    fallback_requirements=None,  # type: Optional[Iterable[Requirement]]
 ):
     # type: (...) -> Union[Requirements, Error]
 
+    all_parsed_requirements = requirement_configuration.parse_requirements(network_configuration)
+    if not all_parsed_requirements and fallback_requirements:
+        all_parsed_requirements = parse_requirement_strings(
+            str(req) for req in fallback_requirements
+        )
+
     parsed_requirements = []  # type: List[Union[PyPIRequirement, URLRequirement]]
     projects = []  # type: List[str]
-    for parsed_requirement in requirement_configuration.parse_requirements(
-        network_configuration, fallback_requirements=fallback_requirements
-    ):
+    for parsed_requirement in all_parsed_requirements:
         if isinstance(parsed_requirement, LocalProjectRequirement):
             projects.append("local project at {path}".format(path=parsed_requirement.path))
         elif isinstance(parsed_requirement, VCSRequirement):
@@ -156,13 +161,6 @@ def parse_lockable_requirements(
                     for index, project in enumerate(projects, start=1)
                 ),
             )
-        )
-
-    if not parsed_requirements:
-        return Error(
-            "No requirements requested. This should not be possible: either users will have "
-            "specified requirements on the command line, or we will fall back to resolving the "
-            "entire lockfile. Please file a bug at https://github.com/pantsbuild/pex/issues/new."
         )
 
     return Requirements.create(

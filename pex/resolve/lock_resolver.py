@@ -119,9 +119,18 @@ def resolve_from_lock(
             parse_lockable_requirements(
                 requirement_configuration,
                 network_configuration=network_configuration,
-                fallback_requirements=(str(req) for req in lock.requirements),
+                fallback_requirements=lock.requirements,
             )
         )
+        if not parsed_requirements:
+            raise ResultError(
+                Error(
+                    "No requirements requested. This should not be possible: either users will "
+                    "have specified requirements on the command line, or we will fall back to "
+                    "resolving the entire lockfile. Please file a bug at "
+                    "https://github.com/pantsbuild/pex/issues/new."
+                )
+            )
 
     errors_by_target = {}  # type: Dict[Target, Iterable[Error]]
     downloadable_artifacts = OrderedSet()  # type: OrderedSet[DownloadableArtifact]

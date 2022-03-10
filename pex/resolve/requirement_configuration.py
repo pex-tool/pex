@@ -24,12 +24,8 @@ class RequirementConfiguration(object):
     requirement_files = attr.ib(default=None)  # type: Optional[Iterable[str]]
     constraint_files = attr.ib(default=None)  # type: Optional[Iterable[str]]
 
-    def parse_requirements(
-        self,
-        network_configuration=None,  # type: Optional[NetworkConfiguration]
-        fallback_requirements=None,  # type: Optional[Iterable[str]]
-    ):
-        # type: (...) -> Iterable[ParsedRequirement]
+    def parse_requirements(self, network_configuration=None):
+        # type: (Optional[NetworkConfiguration]) -> Iterable[ParsedRequirement]
         parsed_requirements = []  # type: List[ParsedRequirement]
         if self.requirements:
             parsed_requirements.extend(parse_requirement_strings(self.requirements))
@@ -43,8 +39,6 @@ class RequirementConfiguration(object):
                     )
                     if not isinstance(requirement_or_constraint, Constraint)
                 )
-        if not parsed_requirements and fallback_requirements:
-            parsed_requirements.extend(parse_requirement_strings(fallback_requirements))
         return parsed_requirements
 
     def parse_constraints(self, network_configuration=None):

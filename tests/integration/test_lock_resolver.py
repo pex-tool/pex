@@ -111,25 +111,27 @@ def test_subset(
     # type: (...) -> None
 
     urllib3_pex = os.path.join(str(tmpdir), "urllib3.pex")
-    args = [
-        "--lock",
-        requests_lock_strict,
-        "urllib3",
-        "-o",
-        urllib3_pex,
-        "--",
-        "-c",
-        "import urllib3",
-    ]
-    run_pex_command(args).assert_success()
+
+    def args(*requirements):
+        return [
+            "--lock",
+            requests_lock_strict,
+            *requirements,
+            "-o",
+            urllib3_pex,
+            "--",
+            "-c",
+            "import urllib3",
+        ]
+
+    run_pex_command(args("urllib3")).assert_success()
     pex_distributions = index_pex_distributions(urllib3_pex)
     assert ProjectName("urllib3") in pex_distributions
     for project in ("requests", "idna", "chardet", "certifi"):
         assert ProjectName(project) not in pex_distributions
 
     # However, if no requirements are specified, resolve the entire lock.
-    args.pop(2)
-    run_pex_command(args).assert_success()
+    run_pex_command(args()).assert_success()
     pex_distributions = index_pex_distributions(urllib3_pex)
     for project in ("requests", "urllib3", "idna", "chardet", "certifi"):
         assert ProjectName(project) in pex_distributions
