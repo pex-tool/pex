@@ -113,16 +113,11 @@ def test_subset(
     urllib3_pex = os.path.join(str(tmpdir), "urllib3.pex")
 
     def args(*requirements):
-        return [
-            "--lock",
-            requests_lock_strict,
-            *requirements,
-            "-o",
-            urllib3_pex,
-            "--",
-            "-c",
-            "import urllib3",
-        ]
+        return (
+            ["--lock", requests_lock_strict, "-o", urllib3_pex]
+            + list(requirements)
+            + ["--", "-c", "import urllib3"]
+        )
 
     run_pex_command(args("urllib3")).assert_success()
     pex_distributions = index_pex_distributions(urllib3_pex)
