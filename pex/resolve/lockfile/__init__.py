@@ -124,12 +124,15 @@ class Requirements(object):
 def parse_lockable_requirements(
     requirement_configuration,  # type: RequirementConfiguration
     network_configuration=None,  # type: Optional[NetworkConfiguration]
+    fallback_requirements=None,  # type: Optional[Iterable[str]]
 ):
     # type: (...) -> Union[Requirements, Error]
 
     parsed_requirements = []  # type: List[Union[PyPIRequirement, URLRequirement]]
     projects = []  # type: List[str]
-    for parsed_requirement in requirement_configuration.parse_requirements(network_configuration):
+    for parsed_requirement in requirement_configuration.parse_requirements(
+        network_configuration, fallback_requirements=fallback_requirements
+    ):
         if isinstance(parsed_requirement, LocalProjectRequirement):
             projects.append("local project at {path}".format(path=parsed_requirement.path))
         elif isinstance(parsed_requirement, VCSRequirement):
@@ -153,6 +156,13 @@ def parse_lockable_requirements(
                     for index, project in enumerate(projects, start=1)
                 ),
             )
+        )
+
+    if not parsed_requirements:
+        return Error(
+            "No requirements requested. This should not be possible: either users will have "
+            "specified requirements on the command line, or we will fall back to resolving the "
+            "entire lockfile. Please file a bug at https://github.com/pantsbuild/pex/issues/new."
         )
 
     return Requirements.create(
