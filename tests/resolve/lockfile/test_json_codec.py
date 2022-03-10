@@ -455,23 +455,6 @@ def test_load_invalid_platform_tag(patch_tool):
     )
 
 
-def test_load_invalid_no_requirements(patch_tool):
-    # type: (PatchTool) -> None
-
-    assert_parse_error(
-        patch_tool,
-        dedent(
-            """\
-            @@ -36,3 +36,2 @@
-               "requirements": [
-            -    "ansicolors"
-               ],
-            """
-        ),
-        match=re.escape("Expected '.requirements' in <string> to have at least one requirement."),
-    )
-
-
 def test_load_invalid_no_artifacts(patch_tool):
     # type: (PatchTool) -> None
 
@@ -497,84 +480,4 @@ def test_load_invalid_no_artifacts(patch_tool):
         match=re.escape(
             "Expected '.locked_resolves[0][0]' in <string> to have at least one artifact."
         ),
-    )
-
-
-def test_load_invalid_no_locked_requirements(patch_tool):
-    # type: (PatchTool) -> None
-
-    assert_parse_error(
-        patch_tool,
-        dedent(
-            """\
-            @@ -8,20 +8,2 @@
-                   "locked_requirements": [
-            -        {
-            -          "artifacts": [
-            -            {
-            -              "algorithm": "md5",
-            -              "hash": "f357aa02db2466bc24ff1815cff1aeb3",
-            -              "url": "http://localhost:9999/ansicolors-1.1.8-py2.py3-none-any.whl"
-            -            },
-            -            {
-            -              "algorithm": "md5",
-            -              "hash": "9ca7e2396ffa2e20af023c6b83ab7b14",
-            -              "url": "http://localhost:9999/ansicolors-1.1.8.zip"
-            -            }
-            -          ],
-            -          "project_name": "ansicolors",
-            -          "requires_dists": [],
-            -          "requires_python": null,
-            -          "version": "1.1.8"
-            -        }
-                   ],
-            """
-        ),
-        match=re.escape(
-            "Expected '.locked_resolves[0][\"locked_requirements\"]' in <string> to have at least "
-            "one locked requirement."
-        ),
-    )
-
-
-def test_load_invalid_no_locked_resolves(patch_tool):
-    # type: (PatchTool) -> None
-
-    assert_parse_error(
-        patch_tool,
-        dedent(
-            """\
-            @@ -6,29 +6,2 @@
-               "locked_resolves": [
-            -    {
-            -      "locked_requirements": [
-            -        {
-            -          "artifacts": [
-            -            {
-            -              "algorithm": "md5",
-            -              "hash": "f357aa02db2466bc24ff1815cff1aeb3",
-            -              "url": "http://localhost:9999/ansicolors-1.1.8-py2.py3-none-any.whl"
-            -            },
-            -            {
-            -              "algorithm": "md5",
-            -              "hash": "9ca7e2396ffa2e20af023c6b83ab7b14",
-            -              "url": "http://localhost:9999/ansicolors-1.1.8.zip"
-            -            }
-            -          ],
-            -          "project_name": "ansicolors",
-            -          "requires_dists": [],
-            -          "requires_python": null,
-            -          "version": "1.1.8"
-            -        }
-            -      ],
-            -      "platform_tag": [
-            -        "cp39",
-            -        "cp39",
-            -        "manylinux_2_33_x86_64"
-            -      ]
-            -    }
-               ],
-            """
-        ),
-        match=re.escape("Expected '.locked_resolves' in <string> to have at least one resolve."),
     )
