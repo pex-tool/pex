@@ -134,13 +134,6 @@ def loads(
         for index, req in enumerate(get("requirements", list))
     ]
 
-    if not requirements:
-        raise ParseError(
-            "Expected '.requirements' in {source} to have at least one requirement.".format(
-                source=source
-            )
-        )
-
     constraints = [
         parse_requirement(constraint, path=".constraints[{index}]".format(index=index))
         for index, constraint in enumerate(get("constraints", list))
@@ -224,20 +217,8 @@ def loads(
                 )
             )
 
-        if not locked_reqs:
-            raise ParseError(
-                "Expected '{lock_path}[\"locked_requirements\"]' in {source} to have at least one "
-                "locked requirement.".format(lock_path=lock_path, source=source)
-            )
         locked_resolves.append(
             LockedResolve(platform_tag=platform_tag, locked_requirements=SortedTuple(locked_reqs))
-        )
-
-    if not locked_resolves:
-        raise ParseError(
-            "Expected '.locked_resolves' in {source} to have at least one resolve.".format(
-                source=source
-            )
         )
 
     return Lockfile.create(

@@ -156,7 +156,7 @@ def resolve_from_lock(
                 resolved = sorted(resolveds, key=lambda res: res.target_specificity)[-1]
                 downloadable_artifacts_by_target[target] = resolved.downloadable_artifacts
                 downloadable_artifacts.update(resolved.downloadable_artifacts)
-            else:
+            elif errors:
                 errors_by_target[target] = tuple(errors)
 
     if errors_by_target:
@@ -179,7 +179,7 @@ def resolve_from_lock(
         url_fetcher=URLFetcher(network_configuration=network_configuration, handle_file_urls=True)
     )
     max_threads = min(
-        len(downloadable_artifacts),
+        len(downloadable_artifacts) or 1,
         min(MAX_PARALLEL_DOWNLOADS, 4 * (max_parallel_jobs or cpu_count() or 1)),
     )
     with TRACER.timed(

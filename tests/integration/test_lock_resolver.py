@@ -128,6 +128,13 @@ def test_subset(
     assert ProjectName("urllib3") in pex_distributions
 
 
+def test_empty_lock_issue_1659(tmpdir):
+    # type: (Any) -> None
+    lock = os.path.join(str(tmpdir), "empty.lock")
+    run_pex3("lock", "create", "--style", "strict", "-o", lock).assert_success()
+    run_pex_command(["--lock", lock, "--", "-c", "print('hello')"]).assert_success()
+
+
 @attr.s(frozen=True)
 class LockAndRepo(object):
     lock_file = attr.ib()  # type: str
