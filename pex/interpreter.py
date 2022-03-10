@@ -773,7 +773,7 @@ class PythonInterpreter(object):
             process = Executor.open_process(
                 cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
             )
-            job = Job(command=cmd, process=process, finalizer=lambda: safe_rmtree(cwd))
+            job = Job(command=cmd, process=process, finalizer=lambda _: safe_rmtree(cwd))
             return SpawnedJob.file(job, output_file=cache_file, result_func=create_interpreter)
 
     @classmethod

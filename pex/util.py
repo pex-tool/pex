@@ -119,7 +119,7 @@ class CacheHelper(object):
 
     @classmethod
     def hash(cls, path, digest=None, hasher=sha1):
-        # type: (str, Optional[_Hash], Callable) -> str
+        # type: (str, Optional[_Hash], Callable[[], _Hash]) -> str
         """Return the digest of a single file in a memory-efficient manner."""
         if digest is None:
             digest = hasher()
@@ -128,9 +128,16 @@ class CacheHelper(object):
         return digest.hexdigest()
 
     @classmethod
-    def _compute_hash(cls, names, stream_factory):
-        # type: (Iterable[str], Callable[[str], BinaryIO]) -> str
-        digest = sha1()
+    def _compute_hash(
+        cls,
+        names,  # type: Iterable[str]
+        stream_factory,  # type: Callable[[str], BinaryIO]
+        digest=None,  # type: Optional[_Hash]
+        hasher=sha1,  # type: Callable[[], _Hash]
+    ):
+        # type: (...) -> str
+        if digest is None:
+            digest = hasher()
         # Always use / as the path separator, since that's what zip uses.
         hashed_names = [n.replace(os.sep, "/") for n in names]
         digest.update("".join(hashed_names).encode("utf-8"))
@@ -161,8 +168,8 @@ class CacheHelper(object):
         return cls._compute_hash(names, stream_factory)
 
     @classmethod
-    def dir_hash(cls, d):
-        # type: (str) -> str
+    def dir_hash(cls, d, digest=None, hasher=sha1):
+        # type: (str, Optional[_Hash], Callable[[], _Hash]) -> str
         """Return a reproducible hash of the contents of a directory; excluding all `.pyc` files."""
         names = sorted(cls._iter_non_pyc_files(d))
 
@@ -170,7 +177,7 @@ class CacheHelper(object):
             # type: (str) -> BinaryIO
             return cast("BinaryIO", open(os.path.join(d, name), "rb"))
 
-        return cls._compute_hash(names, stream_factory)
+        return cls._compute_hash(names, stream_factory, digest=digest, hasher=hasher)
 
     @classmethod
     def zip_hash(

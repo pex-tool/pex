@@ -5,6 +5,7 @@
 from __future__ import absolute_import
 
 import functools
+import hashlib
 import itertools
 import os
 import zipfile
@@ -234,9 +235,21 @@ class IntegrityError(Exception):
 
 def fingerprint_path(path):
     # type: (str) -> str
+
+    # We switched from sha1 to sha256 at the transition from using `pip install --target` to
+    # `pip install --prefix` to serve two purposes:
+    # 1.) Insulate the new installation scheme from the old.
+    # 2.) Move past sha1 which was shown to have practical collision attacks in 2019.
+    #
+    # The installation scheme switch was the primary purpose and switching hashes proved a pragmatic
+    # insulation. If the `pip install --prefix` re-arrangement scheme evolves, then some other
+    # option than switching hashing algorithms will be needed, like post-fixing a running version
+    # integer or just mixing one into the hashed content.
+    hasher = hashlib.sha256
+
     if os.path.isdir(path):
-        return CacheHelper.dir_hash(path)
-    return CacheHelper.hash(path)
+        return CacheHelper.dir_hash(path, hasher=hasher)
+    return CacheHelper.hash(path, hasher=hasher)
 
 
 @attr.s(frozen=True)
@@ -474,7 +487,7 @@ class InstallResult(object):
         # pex:   * - paths that do not exist or will be imported via zipimport
         # pex.pex 2.0.2
         #
-        wheel_dir_hash = CacheHelper.dir_hash(self.install_chroot)
+        wheel_dir_hash = fingerprint_path(self.install_chroot)
         runtime_key_dir = os.path.join(self._installation_root, wheel_dir_hash)
         with atomic_directory(runtime_key_dir, exclusive=False) as atomic_dir:
             if not atomic_dir.is_finalized():

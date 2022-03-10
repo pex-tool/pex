@@ -10,20 +10,21 @@ import shutil
 from collections import defaultdict, Counter
 from textwrap import dedent
 
+from pex.third_party.pkg_resources import Distribution
+
 from pex import pex_warnings
 from pex.common import safe_mkdir, pluralize, chmod_plus_x
 from pex.compatibility import is_valid_python_identifier
 from pex.environment import PEXEnvironment
 from pex.orderedset import OrderedSet
-from pex.pep_376 import Record
+from pex.pep_376 import InstalledWheel, LoadError
 from pex.pex import PEX
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.venv.bin_path import BinPath
 from pex.venv.install_scope import InstallScope
 from pex.venv.virtualenv import Virtualenv
-
-from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import typing
@@ -161,12 +162,41 @@ def populate_venv(
     return shebang
 
 
+def _populate_legacy_dist(
+    venv,  # type: Virtualenv
+    dist,  # type: Distribution
+    symlink=False,  # type: bool
+    rel_extra_path=None,  # type: Optional[str]
+):
+    dst = os.path.join(
+        venv.site_packages_dir, rel_extra_path
+    ) if rel_extra_path else venv.site_packages_dir
+
+    # N.B.: We do not include the top_level __pycache__ for a dist since there may be
+    # multiple dists with top-level modules. In that case, one dists top-level __pycache__
+    # would be symlinked and all dists with top-level modules would have the .pyc files for
+    # those modules be mixed in. For sanity's sake, and since ~no dist provides more than
+    # just 1 top-level module, we keep .pyc anchored to their associated dists when shared
+    # and accept the cost of re-compiling top-level modules in each venv that uses them.
+    for src, dst in _copytree(
+        src=dist.location, dst=dst, exclude=("bin", "__pycache__"), symlink=symlink
+    ):
+        yield src, dst
+
+    dist_bin_dir = os.path.join(dist.location, "bin")
+    if os.path.isdir(dist_bin_dir):
+        for src, dst in _copytree(src=dist_bin_dir, dst=venv.bin_dir, symlink=symlink):
+            yield src, dst
+
+
 def _populate_deps(
     venv,  # type: Virtualenv
     pex,  # type: PEX
     venv_python,  # type: str
     symlink=False,  # type: bool
 ):
+    # type: (...) -> Iterator[Tuple[str, str]]
+
     # Since the pex distributions are all materialized to ~/.pex/installed_wheels, which we control,
     # we can optionally symlink to take advantage of sharing generated *.pyc files for auto-venvs
     # created in ~/.pex/venvs.
@@ -212,9 +242,17 @@ def _populate_deps(
                 rel_extra_paths.add(rel_extra_path)
             top_level_packages.update(packages)
 
-        record = Record.load(dist)
-        for src, dst in record.reinstall(venv, symlink=symlink, rel_extra_path=rel_extra_path):
-            yield src, dst
+        try:
+            installed_wheel = InstalledWheel.load(dist.location)
+            for src, dst in installed_wheel.reinstall(
+                venv, symlink=symlink, rel_extra_path=rel_extra_path
+            ):
+                yield src, dst
+        except LoadError:
+            for src, dst in _populate_legacy_dist(
+                venv, dist, symlink=symlink, rel_extra_path=rel_extra_path
+            ):
+                yield src, dst
 
     if rel_extra_paths:
         with open(os.path.join(venv.site_packages_dir, "pex-ns-pkgs.pth"), "w") as fp:
@@ -246,13 +284,17 @@ def _populate_sources(
     venv_python,  # type: str
     bin_path,  # type: BinPath.Value
 ):
+    # type: (...) -> Iterator[Tuple[str, str]]
+
     # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
     # sources into the venv.
     pex_info = pex.pex_info()
     for src, dst in _copytree(
         src=PEXEnvironment.mount(pex.path()).path,
         dst=venv.site_packages_dir,
-        exclude=(pex_info.internal_cache, pex_info.bootstrap, "__main__.py", pex_info.PATH),
+        exclude=(
+            pex_info.internal_cache, pex_info.bootstrap, "__main__.py", "__pycache__", pex_info.PATH
+        ),
         symlink=False,
     ):
         yield src, dst

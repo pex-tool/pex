@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import itertools
+import os.path
 
 from pex.orderedset import OrderedSet
 from pex.rank import Rank
@@ -53,6 +54,30 @@ class CompatibilityTags(object):
     """
 
     @classmethod
+    def from_wheel(cls, wheel):
+        # type: (str) -> CompatibilityTags
+        wheel_stem, ext = os.path.splitext(os.path.basename(wheel))
+        if ".whl" != ext:
+            raise ValueError(
+                "Can only calculate wheel tags from a filename that ends in .whl per "
+                "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel}".format(
+                    wheel=wheel
+                )
+            )
+        # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
+        # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
+        wheel_components = wheel_stem.rsplit("-", 3)
+        if len(wheel_components) != 4:
+            pattern = "`-{python tag}-{abi tag}-{platform tag}.whl`"
+            raise ValueError(
+                "Can only calculate wheel tags from a filename that ends in {pattern} per "
+                "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel}".format(
+                    pattern=pattern, wheel=wheel
+                )
+            )
+        return cls(tags=tuple(parse_tag("-".join(wheel_components[-3:]))))
+
+    @classmethod
     def from_strings(cls, tags):
         # type: (Iterable[str]) -> CompatibilityTags
         return cls(tags=tuple(itertools.chain.from_iterable(parse_tag(tag) for tag in tags)))
@@ -72,6 +97,10 @@ class CompatibilityTags(object):
                     name=attribute.name
                 )
             )
+
+    def extend(self, tags):
+        # type: (Iterable[Tag]) -> CompatibilityTags
+        return CompatibilityTags(self._tags + tuple(tags))
 
     def compatible_tags(self, tags):
         # type: (Iterable[Tag]) -> OrderedSet[Tag]
