@@ -119,7 +119,7 @@ def resolve_from_lock(
             parse_lockable_requirements(
                 requirement_configuration,
                 network_configuration=network_configuration,
-                fallback_requirements=lock.requirements,
+                fallback_requirements=(str(req) for req in lock.requirements),
             )
         )
 

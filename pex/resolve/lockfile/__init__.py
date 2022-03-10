@@ -125,15 +125,13 @@ class Requirements(object):
 def parse_lockable_requirements(
     requirement_configuration,  # type: RequirementConfiguration
     network_configuration=None,  # type: Optional[NetworkConfiguration]
-    fallback_requirements=None,  # type: Optional[Iterable[Requirement]]
+    fallback_requirements=None,  # type: Optional[Iterable[str]]
 ):
     # type: (...) -> Union[Requirements, Error]
 
     all_parsed_requirements = requirement_configuration.parse_requirements(network_configuration)
     if not all_parsed_requirements and fallback_requirements:
-        all_parsed_requirements = parse_requirement_strings(
-            str(req) for req in fallback_requirements
-        )
+        all_parsed_requirements = parse_requirement_strings(fallback_requirements)
 
     parsed_requirements = []  # type: List[Union[PyPIRequirement, URLRequirement]]
     projects = []  # type: List[str]
