@@ -60,7 +60,7 @@ class CompatibilityTags(object):
         if ".whl" != ext:
             raise ValueError(
                 "Can only calculate wheel tags from a filename that ends in .whl per "
-                "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel}".format(
+                "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel!r}".format(
                     wheel=wheel
                 )
             )
@@ -71,7 +71,7 @@ class CompatibilityTags(object):
             pattern = "`-{python tag}-{abi tag}-{platform tag}.whl`"
             raise ValueError(
                 "Can only calculate wheel tags from a filename that ends in {pattern} per "
-                "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel}".format(
+                "https://peps.python.org/pep-0427/#file-name-convention, given: {wheel!r}".format(
                     pattern=pattern, wheel=wheel
                 )
             )
