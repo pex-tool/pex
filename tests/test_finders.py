@@ -6,6 +6,7 @@ import os
 import pytest
 
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
+from pex.pep_376 import InstalledWheel
 from pex.pip import get_pip
 from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper
@@ -29,7 +30,7 @@ def test_get_script_from_distributions(tmpdir):
 
     dist_script = get_script_from_distributions("cfn-signal", [dist])
     assert dist_script.dist is dist
-    assert os.path.join(install_dir, "bin/cfn-signal") == dist_script.path
+    assert InstalledWheel.load(install_dir).stashed_path("bin/cfn-signal") == dist_script.path
     assert dist_script.read_contents().startswith(
         b"#!"
     ), "Expected a `scripts`-style script w/shebang."

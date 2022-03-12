@@ -8,19 +8,25 @@ import csv
 import errno
 import fileinput
 import hashlib
+import itertools
 import json
 import os
 import shutil
-import sys
 from contextlib import closing
 from fileinput import FileInput
 
 from pex import dist_metadata
-from pex.common import is_python_script, safe_mkdir
-from pex.compatibility import MODE_READ_UNIVERSAL_NEWLINES, PY2, get_stdout_bytes_buffer, urlparse
-from pex.enum import Enum
-from pex.orderedset import OrderedSet
-from pex.third_party.pkg_resources import Distribution, EntryPoint
+from pex.common import (
+    filter_pyc_dirs,
+    filter_pyc_files,
+    find_site_packages,
+    is_python_script,
+    safe_mkdir,
+    safe_open,
+)
+from pex.compatibility import PY2, get_stdout_bytes_buffer, urlparse
+from pex.interpreter import PythonInterpreter
+from pex.third_party.pkg_resources import EntryPoint
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
@@ -65,16 +71,55 @@ class Digest(object):
 
 @attr.s(frozen=True)
 class Hash(object):
+    @classmethod
+    def create(cls, hasher):
+        # type: (_Hash) -> Hash
+
+        # The fingerprint encoding is defined for PEP-376 RECORD files as `urlsafe-base64-nopad`
+        # which is fully spelled out in code in PEP-427:
+        # + https://peps.python.org/pep-0376/#record
+        # + https://peps.python.org/pep-0427/#appendix
+        fingerprint = base64.urlsafe_b64encode(hasher.digest()).rstrip(b"=")
+        return cls(value="{alg}={hash}".format(alg=hasher.name, hash=fingerprint.decode("ascii")))
+
     value = attr.ib()  # type: str
 
     def __str__(self):
         # type: () -> str
         return self.value
 
-    def parse(self):
-        # type: () -> Digest
-        algorithm, encoded_hash = self.value.split("=", 1)
-        return Digest(algorithm=algorithm, encoded_hash=encoded_hash)
+
+def find_and_replace_path_components(
+    path,  # type: str
+    find,  # type: str
+    replace,  # type: str
+):
+    # type: (...) -> str
+    """Replace components of `path` that are exactly `find` with `replace`.
+
+    >>> find_and_replace_path_components("foo/bar/baz", "bar", "spam")
+    foo/spam/baz
+    >>>
+    """
+    if not find or not replace:
+        raise ValueError(
+            "Both find and replace must be non-empty strings. Given find={find!r} "
+            "replace={replace!r}".format(find=find, replace=replace)
+        )
+    if not path:
+        return path
+
+    components = []
+    head = path
+    while head:
+        new_head, tail = os.path.split(head)
+        if new_head == head:
+            components.append(head)
+            break
+        components.append(tail)
+        head = new_head
+    components.reverse()
+    return os.path.join(*(replace if component == find else component for component in components))
 
 
 @attr.s(frozen=True)
@@ -84,41 +129,273 @@ class InstalledFile(object):
     See: https://www.python.org/dev/peps/pep-0376/#record
     """
 
+    _PYTHON_VER_PLACEHOLDER = "pythonX.Y"
+
+    @staticmethod
+    def _python_ver(interpreter=None):
+        # type: (Optional[PythonInterpreter]) -> str
+        python = interpreter or PythonInterpreter.get()
+        return "python{major}.{minor}".format(major=python.version[0], minor=python.version[1])
+
+    @classmethod
+    def normalized_path(
+        cls,
+        path,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> str
+        return find_and_replace_path_components(
+            path, cls._python_ver(interpreter=interpreter), cls._PYTHON_VER_PLACEHOLDER
+        )
+
+    @classmethod
+    def denormalized_path(
+        cls,
+        path,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> str
+        return find_and_replace_path_components(
+            path, cls._PYTHON_VER_PLACEHOLDER, cls._python_ver(interpreter=interpreter)
+        )
+
     path = attr.ib()  # type: str
     hash = attr.ib(default=None)  # type: Optional[Hash]
     size = attr.ib(default=None)  # type: Optional[int]
 
 
-class InstallationScheme(Enum["InstallationScheme.Value"]):
-    """Represents the Pip installation scheme used for installing a wheel.
+class InstalledWheelError(Exception):
+    pass
 
-    For more about installation schemes, see:
-        https://docs.python.org/3/install/index.html#alternate-installation
 
-    N.B.: Pex only uses the --target scheme but all schemes are represented for documentation
-    purposes. Notably, Pex _could_ change to using the --prefix scheme with changes to its runtime
-    `sys.path` adjustments in order to afford less hackery when reading the RECORD.
-    """
+class LoadError(InstalledWheelError):
+    """Indicates an installed wheel was not loadable at a particular path."""
 
-    class Value(Enum.Value):
-        pass
 
-    PREFIX = Value("--prefix")
-    ROOT = Value("--root")
-    TARGET = Value("--target")
-    USER = Value("--user")
+class ReinstallError(InstalledWheelError):
+    """Indicates an error re-installing an installed wheel."""
+
+
+@attr.s(frozen=True)
+class InstalledWheel(object):
+    _LAYOUT_JSON_FILENAME = ".layout.json"
+
+    @classmethod
+    def layout_file(cls, prefix_dir):
+        # type: (str) -> str
+        return os.path.join(prefix_dir, cls._LAYOUT_JSON_FILENAME)
+
+    @classmethod
+    def save(
+        cls,
+        prefix_dir,  # type: str
+        stash_dir,  # type: str
+        record_relpath,  # type: str
+    ):
+        # type: (...) -> InstalledWheel
+        layout = {"stash_dir": stash_dir, "record_relpath": record_relpath}
+        with open(cls.layout_file(prefix_dir), "w") as fp:
+            json.dump(layout, fp, sort_keys=True)
+        return cls(prefix_dir=prefix_dir, stash_dir=stash_dir, record_relpath=record_relpath)
+
+    @classmethod
+    def load(cls, prefix_dir):
+        # type: (str) -> InstalledWheel
+        layout_file = cls.layout_file(prefix_dir)
+        try:
+            with open(layout_file) as fp:
+                layout = json.load(fp)
+        except (IOError, OSError) as e:
+            raise LoadError(
+                "Failed to load an installed wheel layout from {layout_file}: {err}".format(
+                    layout_file=layout_file, err=e
+                )
+            )
+        if not isinstance(layout, dict):
+            raise LoadError(
+                "The installed wheel layout file at {layout_file} must contain a single top-level "
+                "object, found: {value}.".format(layout_file=layout_file, value=layout)
+            )
+        stash_dir = layout.get("stash_dir")
+        record_relpath = layout.get("record_relpath")
+        if not stash_dir or not record_relpath:
+            raise LoadError(
+                "The installed wheel layout file at {layout_file} must contain an object with both "
+                "`stash_dir` and `record_relpath` attributes, found: {value}".format(
+                    layout_file=layout_file, value=layout
+                )
+            )
+        return cls(
+            prefix_dir=prefix_dir,
+            stash_dir=cast(str, stash_dir),
+            record_relpath=cast(str, record_relpath),
+        )
+
+    prefix_dir = attr.ib()  # type: str
+    stash_dir = attr.ib()  # type: str
+    record_relpath = attr.ib()  # type: str
+
+    def stashed_path(self, *components):
+        # type: (*str) -> str
+        return os.path.join(self.prefix_dir, self.stash_dir, *components)
+
+    def reinstall(
+        self,
+        venv,  # type: Virtualenv
+        symlink=False,  # type: bool
+        rel_extra_path=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Iterator[Tuple[str, str]]
+        """Re-installs the installed wheel in a venv.
+
+        N.B.: A record of reinstalled files is returned in the form of an iterator that must be
+        consumed to drive the installation to completion.
+
+        If there is an error re-installing a file due to it already existing in the destination
+        venv, the error is suppressed, and it's expected that the caller detects this by comparing
+        the record of installed files against those installed previously.
+
+        :return: An iterator over src -> dst pairs.
+        """
+
+        site_packages_dir = (
+            os.path.join(venv.site_packages_dir, rel_extra_path)
+            if rel_extra_path
+            else venv.site_packages_dir
+        )
+
+        installed_files = [InstalledFile(self.record_relpath)]
+        for src, dst in itertools.chain(
+            self._reinstall_stash(venv),
+            self._reinstall_site_packages(site_packages_dir, symlink=symlink),
+        ):
+            hasher = hashlib.sha256()
+            with open(dst, "rb") as hash_fp:
+                CacheHelper.update_hash(hash_fp, digest=hasher)
+
+            installed_files.append(
+                InstalledFile(
+                    path=os.path.relpath(dst, site_packages_dir),
+                    hash=Hash.create(hasher),
+                    size=os.stat(dst).st_size,
+                )
+            )
+
+            yield src, dst
+
+        # The RECORD is a csv file with the path to each installed file in the 1st column.
+        # See: https://www.python.org/dev/peps/pep-0376/#record
+        with safe_open(os.path.join(site_packages_dir, self.record_relpath), "w") as fp:
+            csv_writer = cast(
+                "CSVWriter",
+                csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n"),
+            )
+            for installed_file in sorted(installed_files, key=lambda installed: installed.path):
+                csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+
+    def _reinstall_stash(self, venv):
+        # type: (Virtualenv) -> Iterator[Tuple[str, str]]
+
+        link = True
+        stash_abs_path = os.path.join(self.prefix_dir, self.stash_dir)
+        for root, dirs, files in os.walk(stash_abs_path, topdown=True, followlinks=True):
+            for d in dirs:
+                src_relpath = os.path.relpath(os.path.join(root, d), stash_abs_path)
+                dst = InstalledFile.denormalized_path(
+                    path=os.path.join(venv.venv_dir, src_relpath), interpreter=venv.interpreter
+                )
+                safe_mkdir(dst)
+
+            for f in files:
+                src = os.path.join(root, f)
+                src_relpath = os.path.relpath(src, stash_abs_path)
+                dst = InstalledFile.denormalized_path(
+                    path=os.path.join(venv.venv_dir, src_relpath), interpreter=venv.interpreter
+                )
+                try:
+                    # We only try to link regular files since linking a symlink on Linux can produce
+                    # another symlink, which leaves open the possibility the src target could later
+                    # go missing leaving the dst dangling.
+                    if link and not os.path.islink(src):
+                        try:
+                            os.link(src, dst)
+                            continue
+                        except OSError as e:
+                            if e.errno != errno.EXDEV:
+                                raise e
+                            link = False
+                    shutil.copy(src, dst)
+                except (IOError, OSError) as e:
+                    if e.errno != errno.EEXIST:
+                        raise e
+                finally:
+                    yield src, dst
+
+    def _reinstall_site_packages(
+        self,
+        site_packages_dir,  # type: str
+        symlink=False,  # type: bool
+    ):
+        # type: (...) -> Iterator[Tuple[str, str]]
+
+        link = True
+        for root, dirs, files in os.walk(self.prefix_dir, topdown=True, followlinks=True):
+            if root == self.prefix_dir:
+                dirs[:] = [d for d in filter_pyc_dirs(dirs) if d != self.stash_dir]
+                files[:] = [f for f in filter_pyc_files(files) if f != self._LAYOUT_JSON_FILENAME]
+
+            traverse = set(dirs)
+            for path, is_dir in itertools.chain(
+                zip(dirs, itertools.repeat(True)), zip(files, itertools.repeat(False))
+            ):
+                src_entry = os.path.join(root, path)
+                dst_entry = os.path.join(
+                    site_packages_dir, os.path.relpath(src_entry, self.prefix_dir)
+                )
+                try:
+                    if symlink and not (
+                        src_entry.endswith(".dist-info") and os.path.isdir(src_entry)
+                    ):
+                        dst_parent = os.path.dirname(dst_entry)
+                        safe_mkdir(dst_parent)
+                        rel_src = os.path.relpath(src_entry, dst_parent)
+                        os.symlink(rel_src, dst_entry)
+                        traverse.discard(path)
+                    elif is_dir:
+                        safe_mkdir(dst_entry)
+                    else:
+                        # We only try to link regular files since linking a symlink on Linux can
+                        # produce another symlink, which leaves open the possibility the src_entry
+                        # target could later go missing leaving the dst_entry dangling.
+                        if link and not os.path.islink(src_entry):
+                            try:
+                                os.link(src_entry, dst_entry)
+                                continue
+                            except OSError as e:
+                                if e.errno != errno.EXDEV:
+                                    raise e
+                                link = False
+                        shutil.copy(src_entry, dst_entry)
+                except (IOError, OSError) as e:
+                    if e.errno != errno.EEXIST:
+                        raise e
+                finally:
+                    if not is_dir:
+                        yield src_entry, dst_entry
+
+            dirs[:] = list(traverse)
 
 
 class RecordError(Exception):
     pass
 
 
-class ReinstallError(RecordError):
-    """Indicates an error re-installing an installed distribution."""
-
-
 class RecordNotFoundError(RecordError):
     """Indicates a distribution's RECORD metadata could not be found."""
+
+
+class UnrecognizedInstallationSchemeError(RecordError):
+    """Indicates a distribution's RECORD was nested in an unrecognized installation scheme."""
 
 
 @attr.s(frozen=True)
@@ -149,77 +426,144 @@ class Record(object):
             yield InstalledFile(path=path, hash=file_hash, size=size)
 
     @classmethod
-    def load(
+    def from_prefix_install(
         cls,
-        dist,  # type: Distribution
-        install_scheme=InstallationScheme.TARGET,  # type: InstallationScheme.Value
+        prefix_dir,  # type: str
+        project_name,  # type: str
+        version,  # type: str
     ):
-        # type: (...) -> Record
 
-        listing = [
-            os.path.relpath(os.path.join(root, f), dist.location)
-            for root, dirs, files in os.walk(dist.location)
+        site_packages = find_site_packages(prefix_dir=prefix_dir)
+        if site_packages is None:
+            raise RecordNotFoundError(
+                "Could not find a site-packages directory under installation prefix "
+                "{prefix_dir}.".format(prefix_dir=prefix_dir)
+            )
+
+        site_packages_listing = [
+            os.path.relpath(os.path.join(root, f), site_packages)
+            for root, _, files in os.walk(site_packages)
             for f in files
         ]
-        relative_path = dist_metadata.find_dist_info_file(
-            project_name=dist.project_name, version=dist.version, filename="RECORD", listing=listing
+        record_relative_path = dist_metadata.find_dist_info_file(
+            project_name, version, filename="RECORD", listing=site_packages_listing
         )
-        if not relative_path:
+        if not record_relative_path:
             raise RecordNotFoundError(
-                "Could not find the installation RECORD for {dist} at {location}".format(
-                    dist=dist, location=dist.location
+                "Could not find the installation RECORD for {project_name} {version} under "
+                "{prefix_dir}".format(
+                    project_name=project_name, version=version, prefix_dir=prefix_dir
                 )
             )
-        metadata_dir = os.path.dirname(relative_path)
-        data_dir = "{project_name_and_version}.data".format(
-            project_name_and_version=metadata_dir[: -len(".dist-info")]
-        )
+
+        metadata_dir = os.path.dirname(record_relative_path)
+        base_dir = os.path.relpath(site_packages, prefix_dir)
         return cls(
-            project_name=dist.project_name,
-            version=dist.version,
-            base_location=dist.location,
-            relative_path=relative_path,
-            data_dir=data_dir,
+            project_name=project_name,
+            version=version,
+            prefix_dir=prefix_dir,
+            rel_base_dir=base_dir,
+            relative_path=record_relative_path,
             metadata_listing=tuple(
-                path for path in listing if metadata_dir == os.path.dirname(path)
+                path for path in site_packages_listing if metadata_dir == os.path.dirname(path)
             ),
-            install_scheme=install_scheme,
         )
 
     project_name = attr.ib()  # type: str
     version = attr.ib()  # type: str
-    base_location = attr.ib()  # type: str
+    prefix_dir = attr.ib()  # type: str
+    rel_base_dir = attr.ib()  # type: str
     relative_path = attr.ib()  # type: str
-    _data_dir = attr.ib()  # type: str
     _metadata_listing = attr.ib()  # type: Tuple[str, ...]
-    install_scheme = attr.ib(default=InstallationScheme.TARGET)  # type: InstallationScheme.Value
 
     def _find_dist_info_file(self, filename):
         # type: (str) -> Optional[str]
-        return dist_metadata.find_dist_info_file(
+        metadata_file = dist_metadata.find_dist_info_file(
             project_name=self.project_name,
             version=self.version,
             filename=filename,
             listing=self._metadata_listing,
         )
+        if not metadata_file:
+            return None
+        return os.path.join(self.rel_base_dir, metadata_file)
 
-    def fixup_install(self):
-        # type: () -> None
-        """Fixes a wheel install to be reproducible."""
+    def fixup_install(
+        self,
+        exclude=(),  # type: Container[str]
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> InstalledWheel
+        """Fixes a wheel install to be reproducible and importable.
 
-        modified_scripts = list(self._fixup_scripts())
-        self._fixup_record(modified_scripts=modified_scripts)
+        After fixed up, this RECORD can be used to re-install the wheel in a venv with `reinstall`.
+
+        :param exclude: Any top-level items to exclude.
+        :param interpreter: The interpreter used to perform the wheel install.
+        """
+        self._fixup_scripts()
+        self._fixup_direct_url()
+
+        # The RECORD is unused in PEX zipapp mode and only needed in venv mode. Since it can contain
+        # relative path entries that differ between interpreters - notably pypy for Python < 3.8 has
+        # a custom scheme - we just delete the file and create it on-demand for venv re-installs.
+        os.unlink(os.path.join(self.prefix_dir, self.rel_base_dir, self.relative_path))
+
+        # An example of the installed wheel chroot we're aiming for:
+        # .prefix/bin/...                    # scripts
+        # .prefix/include/site/pythonX.Y/... # headers
+        # .prefix/share/...                  # data files
+        # greenlet/...                       # importables
+        # greenlet-1.1.2.dist-info/...       # importables
+        stash_dir = ".prefix"
+        prefix_stash = os.path.join(self.prefix_dir, stash_dir)
+        safe_mkdir(prefix_stash)
+
+        # 1. Move everything into the stash.
+        for item in os.listdir(self.prefix_dir):
+            if stash_dir == item or item in exclude:
+                continue
+            shutil.move(os.path.join(self.prefix_dir, item), os.path.join(prefix_stash, item))
+        # 2. Normalize all `*/{python ver}` paths to `*/pythonX.Y`
+        for root, dirs, _ in os.walk(prefix_stash):
+            dirs_to_scan = []
+            for d in dirs:
+                path = os.path.join(root, d)
+                normalized_path = InstalledFile.normalized_path(path, interpreter=interpreter)
+                if normalized_path != path:
+                    shutil.move(path, normalized_path)
+                else:
+                    dirs_to_scan.append(d)
+            dirs[:] = dirs_to_scan
+
+        # 3. Move `site-packages` content back up to the prefix dir chroot so that content is
+        # importable when this prefix dir chroot is added to the `sys.path` in PEX zipapp mode.
+        importable_stash = InstalledFile.normalized_path(
+            os.path.join(prefix_stash, self.rel_base_dir), interpreter=interpreter
+        )
+        for importable_item in os.listdir(importable_stash):
+            shutil.move(
+                os.path.join(importable_stash, importable_item),
+                os.path.join(self.prefix_dir, importable_item),
+            )
+        os.rmdir(importable_stash)
+
+        return InstalledWheel.save(
+            prefix_dir=self.prefix_dir,
+            stash_dir=stash_dir,
+            record_relpath=self.relative_path,
+        )
 
     def _fixup_scripts(self):
-        # type: (...) -> Iterator[str]
-        bin_dir = os.path.join(self.base_location, "bin")
+        # type: (...) -> None
+        bin_dir = os.path.join(self.prefix_dir, "bin")
         if not os.path.isdir(bin_dir):
             return
 
         console_scripts = {}  # type: Dict[str, EntryPoint]
         entry_points_relpath = self._find_dist_info_file("entry_points.txt")
         if entry_points_relpath:
-            entry_points_abspath = os.path.join(self.base_location, entry_points_relpath)
+            entry_points_abspath = os.path.join(self.prefix_dir, entry_points_relpath)
             with open(entry_points_abspath) as fp:
                 console_scripts.update(EntryPoint.parse_map(fp.read()).get("console_scripts", {}))
 
@@ -270,7 +614,6 @@ class Record(object):
                     # in venv mode PEXes where the `#!python` placeholder shebang will be re-written
                     # to use the venv's python interpreter.
                     buffer.write(b"#!python\n")
-                    yield os.path.relpath(script_fi.filename(), self.base_location)
                 elif (
                     not first_non_shebang_line
                     or cast(bytes, line).strip() == first_non_shebang_line
@@ -279,195 +622,11 @@ class Record(object):
                     buffer.write(cast(bytes, line))
                     first_non_shebang_line = None
 
-    def _fixup_record(self, modified_scripts=None):
-        # type: (Optional[Iterable[str]]) -> None
-
-        record_abspath = os.path.join(self.base_location, self.relative_path)
-
+    def _fixup_direct_url(self):
+        # type: () -> None
         direct_url_relpath = self._find_dist_info_file("direct_url.json")
         if direct_url_relpath:
-            direct_url_abspath = os.path.join(self.base_location, direct_url_relpath)
+            direct_url_abspath = os.path.join(self.prefix_dir, direct_url_relpath)
             with open(direct_url_abspath) as fp:
                 if urlparse.urlparse(json.load(fp)["url"]).scheme == "file":
                     os.unlink(direct_url_abspath)
-
-        to_rehash = {}
-        if modified_scripts:
-            for modified_script in modified_scripts:
-                # N.B.: Pip installs wheels with RECORD entries like `../../bin/script` even when
-                # it's called in `--target <dir>` mode which installs the script in `bin/script`.
-                record_relpath = os.path.join(os.pardir, os.pardir, modified_script)
-                modified_script_abspath = os.path.join(self.base_location, modified_script)
-                to_rehash[record_relpath] = modified_script_abspath
-
-        # The RECORD is a csv file with the path to each installed file in the 1st column.
-        # See: https://www.python.org/dev/peps/pep-0376/#record
-        with closing(
-            fileinput.input(files=[record_abspath], inplace=True, mode=MODE_READ_UNIVERSAL_NEWLINES)
-        ) as record_fi:
-            csv_writer = None  # type: Optional[CSVWriter]
-            for installed_file in Record.read(record_fi):
-                if csv_writer is None:
-                    # N.B.: The raw input lines include a newline that varies between '\r\n' and
-                    # '\n' when the wheel was built from an sdist by Pip depending on whether the
-                    # interpreter used was Python 2 or Python 3 respectively. As such, we normalize
-                    # all RECORD files to use '\n' regardless of interpreter.
-                    csv_writer = cast(
-                        "CSVWriter",
-                        csv.writer(sys.stdout, delimiter=",", quotechar='"', lineterminator="\n"),
-                    )
-
-                abspath_to_rehash = to_rehash.pop(installed_file.path, None)
-                if installed_file.hash and abspath_to_rehash is not None:
-                    digest = installed_file.hash.parse()
-                    hasher = digest.new_hasher()
-                    with open(abspath_to_rehash, "rb") as rehash_fp:
-                        CacheHelper.update_hash(rehash_fp, digest=hasher)
-
-                    fingerprint = base64.urlsafe_b64encode(hasher.digest()).decode("ascii")
-                    de_padded, pad, rest = fingerprint.rpartition("=")
-                    new_hash = str(de_padded if pad and not rest else fingerprint)
-                    new_size = os.stat(abspath_to_rehash).st_size
-                    csv_writer.writerow(
-                        (
-                            installed_file.path,
-                            "{alg}={hash}".format(alg=digest.algorithm, hash=new_hash),
-                            new_size,
-                        )
-                    )
-                elif installed_file.path != direct_url_relpath:
-                    csv_writer.writerow(
-                        (
-                            installed_file.path,
-                            str(installed_file.hash) if installed_file.hash is not None else "",
-                            str(installed_file.size) if installed_file.size is not None else "",
-                        )
-                    )
-
-    def _handle_record_error(
-        self,
-        record_path,  # type: str
-        error,  # type: Union[IOError, OSError]
-        expected_errors=(errno.EEXIST,),  # type: Container[int]
-    ):
-        # type: (...) -> None
-        if error.errno in expected_errors:
-            return
-
-        # It's expected that `*.data/*` dir entries won't exist. These entries are left in the
-        # RECORD but the files they refer to are all "spread" to other locations during install.
-        #
-        # See: https://www.python.org/dev/peps/pep-0427/#installing-a-wheel-distribution-1-0-py32-none-any-whl
-        if error.errno == errno.ENOENT and record_path.startswith(self._data_dir):
-            return
-
-        raise error
-
-    def reinstall(
-        self,
-        venv,  # type: Virtualenv
-        exclude=None,  # type: Optional[Callable[[str], bool]]
-        symlink=False,  # type: bool
-        rel_extra_path=None,  # type: Optional[str]
-    ):
-        # type: (...) -> Iterator[Tuple[str, str]]
-        """Re-installs the installed wheel in a venv.
-
-        N.B.: A record of reinstalled files is returned in the form of an iterator that must be
-        consumed to drive the installation to completion.
-
-        If there is an error re-installing a file due to it already existing in the destination
-        venv, the error is suppressed, and it's expected that the caller detects this by comparing
-        the record of installed files against those installed previously.
-
-        :return: An iterator over src -> dst pairs.
-        """
-
-        if self.install_scheme is not InstallationScheme.TARGET:
-            raise ReinstallError(
-                "Cannot reinstall from {self}. It was installed via an unsupported scheme of "
-                "`pip install {scheme}`.".format(self=self, scheme=self.install_scheme)
-            )
-
-        site_packages_dir = (
-            os.path.join(venv.site_packages_dir, rel_extra_path)
-            if rel_extra_path
-            else venv.site_packages_dir
-        )
-
-        # N.B.: It's known that the Pip --target installation scheme results in faulty RECORD
-        # entries. These are consistently faulty though; so we adjust here.
-        # See: https://github.com/pypa/pip/issues/7658
-
-        # I.E.: ../..
-        scheme_prefix = os.path.join(os.path.pardir, os.path.pardir)
-        # I.E.: 6 (../../)
-        scheme_prefix_len = len(scheme_prefix) + len(os.path.sep)
-
-        link = True
-        symlinks = OrderedSet()  # type: OrderedSet[str]
-
-        record_path = os.path.join(self.base_location, self.relative_path)
-        with open(record_path, MODE_READ_UNIVERSAL_NEWLINES) as fp:
-            for line, installed_file in enumerate(self.read(fp, exclude=exclude), start=1):
-                if os.path.isabs(installed_file.path):
-                    raise ReinstallError(
-                        "Cannot re-install file from {record}:{line}, refusing to install to "
-                        "absolute path {path}.".format(
-                            record=record_path, line=line, path=installed_file.path
-                        )
-                    )
-                if installed_file.path.startswith(scheme_prefix):
-                    installed_file_relpath = installed_file.path[scheme_prefix_len:]
-                    if installed_file_relpath.startswith(os.path.pardir):
-                        raise ReinstallError(
-                            "Cannot re-install file from {record}:{line}, path does not match "
-                            "{scheme} scheme: {path}".format(
-                                record=record_path,
-                                line=line,
-                                scheme=self.install_scheme,
-                                path=installed_file.path,
-                            )
-                        )
-                    dst = os.path.join(venv.venv_dir, installed_file_relpath)
-                elif symlink:
-                    top_level = installed_file.path.split(os.path.sep, 1)[0]
-                    symlinks.add(top_level)
-                    continue
-                else:
-                    installed_file_relpath = installed_file.path
-                    dst = os.path.join(site_packages_dir, installed_file_relpath)
-
-                src = os.path.join(self.base_location, installed_file_relpath)
-                yield src, dst
-                safe_mkdir(os.path.dirname(dst))
-                try:
-                    # We only try to link regular files since linking a symlink on Linux can produce
-                    # another symlink, which leaves open the possibility the src target could later
-                    # go missing leaving the dst dangling.
-                    if link and not os.path.islink(src):
-                        try:
-                            os.link(src, dst)
-                            continue
-                        except OSError as e:
-                            self._handle_record_error(
-                                record_path=installed_file_relpath,
-                                error=e,
-                                expected_errors=(errno.EXDEV,),
-                            )
-                            link = False
-                    shutil.copy(src, dst)
-                except (IOError, OSError) as e:
-                    self._handle_record_error(record_path=installed_file_relpath, error=e)
-
-        for top_level in symlinks:
-            src = os.path.join(self.base_location, top_level)
-            dst = os.path.join(site_packages_dir, top_level)
-            if not os.path.isdir(src):
-                yield src, dst
-            rel_src = os.path.relpath(src, site_packages_dir)
-            safe_mkdir(site_packages_dir)
-            try:
-                os.symlink(rel_src, dst)
-            except OSError as e:
-                self._handle_record_error(record_path=top_level, error=e)

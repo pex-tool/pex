@@ -13,7 +13,7 @@ from abc import abstractmethod
 from collections import defaultdict, deque
 from textwrap import dedent
 
-from pex import targets, third_party
+from pex import dist_metadata, targets, third_party
 from pex.common import atomic_directory, safe_mkdtemp
 from pex.compatibility import urlparse
 from pex.dist_metadata import ProjectNameAndVersion
@@ -23,6 +23,7 @@ from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_376 import Record
+from pex.pep_425 import CompatibilityTags
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.platforms import Platform
@@ -34,7 +35,7 @@ from pex.third_party import isolated
 from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
-from pex.util import DistributionHelper, named_temporary_file
+from pex.util import named_temporary_file
 from pex.variables import ENV
 
 if TYPE_CHECKING:
@@ -855,7 +856,7 @@ class Pip(object):
         cache=None,  # type: Optional[str]
         interpreter=None,  # type: Optional[PythonInterpreter]
         pip_verbosity=0,  # type: int
-        finalizer=None,  # type: Optional[Callable[[], None]]
+        finalizer=None,  # type: Optional[Callable[[int], None]]
         extra_env=None,  # type: Optional[Dict[str, str]]
         **popen_kwargs  # type: Any
     ):
@@ -1126,19 +1127,14 @@ class Pip(object):
         target=None,  # type: Optional[Target]
     ):
         # type: (...) -> Job
+
+        project_name_and_version = dist_metadata.project_name_and_version(wheel)
+        assert project_name_and_version is not None, (
+            "Should never fail to parse a wheel path into a project name and version, but "
+            "failed to parse these from: {wheel}".format(wheel=wheel)
+        )
+
         target = target or targets.current()
-
-        install_cmd = [
-            "install",
-            "--no-deps",
-            "--no-index",
-            "--only-binary",
-            ":all:",
-            "--target",
-            install_dir,
-        ]
-
-        wheel_path = wheel
         interpreter = target.get_interpreter()
         if target.is_foreign:
             if compile:
@@ -1147,51 +1143,62 @@ class Pip(object):
                     "platform.".format(wheel, interpreter)
                 )
 
-            # We're installing a wheel for a foreign platform. This is just an unpacking operation
-            # though; so we don't actually need to perform it with a target platform compatible
-            # interpreter (except for scripts - see below).
-            install_cmd.append("--ignore-requires-python")
+        install_cmd = [
+            "install",
+            "--no-deps",
+            "--no-index",
+            "--only-binary",
+            ":all:",
+            # In `--prefix` scheme, Pip warns about installed scripts not being on $PATH. We fix
+            # this when a PEX is turned into a venv.
+            "--no-warn-script-location",
+            # In `--prefix` scheme, Pip normally refuses to install a dependency already in the
+            # `sys.path` of Pip itself since the requirement is already satisfied. Since `pip`,
+            # `setuptools` and `wheel` are always in that `sys.path` (Our `pip.pex` venv PEX), we
+            # force installation so that PEXes with dependencies on those projects get them properly
+            # installed instead of skipped.
+            "--force-reinstall",
+            "--ignore-installed",
+            # We're potentially installing a wheel for a foreign platform. This is just an
+            # unpacking operation though; so we don't actually need to perform it with a target
+            # platform compatible interpreter (except for scripts - which we deal with in fixup
+            # install below).
+            "--ignore-requires-python",
+            "--prefix",
+            install_dir,
+        ]
 
-            # The new Pip 2020-resolver rightly refuses to install foreign wheels since they may
-            # contain python scripts that request a shebang re-write (see
-            # https://docs.python.org/3/distutils/setupscript.html#installing-scripts) in which case
-            # Pip would not be able to perform the re-write, leaving an un-runnable script. Since we
-            # only expose scripts via the Pex Venv tool and that tool re-writes shebangs anyhow, we
-            # trick Pip here by re-naming the wheel to look compatible with the current interpreter.
-
-            # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
-            # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
-            wheel_basename = os.path.basename(wheel)
-            wheel_name, extension = os.path.splitext(wheel_basename)
-            prefix, python_tag, abi_tag, platform_tag = wheel_name.rsplit("-", 3)
-            target_tags = PythonInterpreter.get().identity.supported_tags[0]
-            renamed_wheel = os.path.join(
-                os.path.dirname(wheel),
-                "{prefix}-{target_tags}{extension}".format(
-                    prefix=prefix, target_tags=target_tags, extension=extension
-                ),
-            )
-            os.symlink(wheel_basename, renamed_wheel)
-            TRACER.log(
-                "Re-named {} to {} to perform foreign wheel install.".format(wheel, renamed_wheel)
-            )
-            wheel_path = renamed_wheel
+        # The `--prefix` scheme causes Pip to refuse to install foreign wheels. It assumes those
+        # wheels must be compatible with the current venv. Since we just install wheels in
+        # individual chroots for later re-assembly on the `sys.path` at runtime or at venv install
+        # time, we override this concern by forcing the wheel's tags to be considered compatible
+        # with the current Pip install interpreter being used.
+        compatible_tags = CompatibilityTags.from_wheel(wheel).extend(
+            interpreter.identity.supported_tags
+        )
+        with open(os.path.join(safe_mkdtemp(), "tags.json"), "w") as tags_fp:
+            json.dump(compatible_tags.to_string_list(), tags_fp)
+        extra_env = {self._PATCHED_TAGS_FILE_ENV_VAR_NAME: tags_fp.name}
 
         install_cmd.append("--compile" if compile else "--no-compile")
-        install_cmd.append(wheel_path)
+        install_cmd.append(wheel)
 
-        def fixup_install():
-            if wheel_path != wheel:
-                os.unlink(wheel_path)
-            distribution = DistributionHelper.distribution_from_path(install_dir)
-            record = Record.load(distribution)
-            record.fixup_install()
+        def fixup_install(returncode):
+            if returncode != 0:
+                return
+            record = Record.from_prefix_install(
+                prefix_dir=install_dir,
+                project_name=project_name_and_version.project_name,
+                version=project_name_and_version.version,
+            )
+            record.fixup_install(interpreter=interpreter)
 
         return self._spawn_pip_isolated_job(
             args=install_cmd,
             cache=cache,
             interpreter=interpreter,
             finalizer=fixup_install,
+            extra_env=extra_env,
         )
 
     def spawn_debug(

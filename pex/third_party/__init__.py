@@ -7,11 +7,9 @@ import contextlib
 import importlib
 import os
 import re
-import shutil
 import sys
 import zipfile
 from collections import OrderedDict, namedtuple
-from contextlib import closing
 
 
 # NB: All pex imports are performed lazily to play well with the un-imports performed by both the
@@ -346,8 +344,13 @@ def isolated():
     global _ISOLATED
     if _ISOLATED is None:
         from pex import vendor
-        from pex.common import atomic_directory, is_pyc_temporary_file
-        from pex.third_party.pkg_resources import resource_isdir, resource_listdir, resource_stream
+        from pex.common import (
+            atomic_directory,
+            filter_pyc_dirs,
+            filter_pyc_files,
+            is_pyc_temporary_file,
+            safe_copy,
+        )
         from pex.util import CacheHelper
         from pex.variables import ENV
 
@@ -359,32 +362,6 @@ def isolated():
             os.path.join(os.path.relpath(vendor_spec.relpath, module), "constraints.txt")
             for vendor_spec in vendor.iter_vendor_specs()
         )
-
-        # TODO(John Sirois): Unify with `pex.util.DistributionHelper.access_zipped_assets`.
-        def recursive_copy(srcdir, dstdir):
-            os.mkdir(dstdir)
-            for entry_name in resource_listdir(module, srcdir):
-                if not entry_name:
-                    # The `resource_listdir` function returns a '' entry name for the directory
-                    # entry itself if it is either present on the filesystem or present as an
-                    # explicit zip entry. Since we only care about files and subdirectories at this
-                    # point, skip these entries.
-                    continue
-                # NB: Resource path components are always separated by /, on all systems.
-                src_entry = "{}/{}".format(srcdir, entry_name) if srcdir else entry_name
-                dst_entry = os.path.join(dstdir, entry_name)
-                if resource_isdir(module, src_entry):
-                    if os.path.basename(src_entry) == "__pycache__":
-                        continue
-                    recursive_copy(src_entry, dst_entry)
-                elif (
-                    not entry_name.endswith(".pyc")
-                    and not is_pyc_temporary_file(entry_name)
-                    and src_entry not in vendor_lockfiles
-                ):
-                    with open(dst_entry, "wb") as fp:
-                        with closing(resource_stream(module, src_entry)) as resource:
-                            shutil.copyfileobj(resource, fp)
 
         pex_path = os.path.join(vendor.VendorSpec.ROOT, "pex")
         with _tracer().timed("Hashing pex"):
@@ -400,7 +377,21 @@ def isolated():
             with atomic_directory(isolated_dir, exclusive=True) as chroot:
                 if not chroot.is_finalized():
                     with _tracer().timed("Extracting pex to {}".format(isolated_dir)):
-                        recursive_copy("", os.path.join(chroot.work_dir, "pex"))
+                        pex_path = os.path.join(vendor.VendorSpec.ROOT, "pex")
+                        for root, dirs, files in os.walk(pex_path):
+                            relroot = os.path.relpath(root, pex_path)
+                            for d in filter_pyc_dirs(dirs):
+                                os.makedirs(os.path.join(chroot.work_dir, "pex", relroot, d))
+                            for f in filter_pyc_files(files):
+                                rel_f = os.path.join(relroot, f)
+                                if (
+                                    not is_pyc_temporary_file(rel_f)
+                                    and rel_f not in vendor_lockfiles
+                                ):
+                                    safe_copy(
+                                        os.path.join(root, f),
+                                        os.path.join(chroot.work_dir, "pex", rel_f),
+                                    )
 
         _ISOLATED = IsolationResult(pex_hash=dir_hash, chroot_path=isolated_dir)
     return _ISOLATED

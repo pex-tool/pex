@@ -1,11 +1,12 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import json
 import os
 import subprocess
 
 from pex.interpreter import PythonInterpreter
-from pex.pep_376 import Record
+from pex.pep_376 import InstalledWheel
 from pex.pex_info import PexInfo
 from pex.testing import PY37, ensure_python_venv, run_pex_command
 from pex.typing import TYPE_CHECKING
@@ -48,7 +49,7 @@ def test_data_files(tmpdir):
     pex_venv = Virtualenv.create(
         os.path.join(str(tmpdir), "pex.venv"), interpreter=PythonInterpreter.from_binary(py37)
     )
-    installed = list(Record.load(nbconvert_dist).reinstall(pex_venv))
+    installed = list(InstalledWheel.load(nbconvert_dist.location).reinstall(pex_venv))
     assert installed
 
     # Single out one known data file to check

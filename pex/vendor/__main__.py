@@ -5,16 +5,23 @@ from __future__ import absolute_import, print_function
 
 import os
 import pkgutil
+import shutil
 import subprocess
 import sys
 from argparse import ArgumentParser
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from colors import bold, green, yellow
 from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
-from pex import third_party
-from pex.common import safe_delete, safe_open, safe_rmtree
+from pex.common import (
+    find_site_packages,
+    safe_delete,
+    safe_mkdir,
+    safe_mkdtemp,
+    safe_open,
+    safe_rmtree,
+)
 from pex.vendor import VendorSpec, iter_vendor_specs
 
 
@@ -195,6 +202,15 @@ class VendorizeError(Exception):
 
 
 def vendorize(root_dir, vendor_specs, prefix, update):
+    # There is bootstrapping catch-22 here. In order for `pex.third_party` to work, all 3rdparty
+    # importable code must lie at the top of its vendored chroot. Although
+    # `pex.pep_376.Record.fixup_install` encodes the logic to achieve this layout, we can't run
+    # that without 1st approximating that layout!. We take the tack of doing the --prefix
+    # install off into a temp dir, moving the site-packages importables into the vendor chroot,
+    # importing the code we'll need, then moving the importables back.
+    moved = {}
+
+    prefix_dir_by_vendor_spec = defaultdict(safe_mkdtemp)
     for vendor_spec in vendor_specs:
         # NB: We set --no-build-isolation to prevent pip from installing the requirements listed in
         # its [build-system] config in its pyproject.toml.
@@ -214,11 +230,19 @@ def vendorize(root_dir, vendor_specs, prefix, update):
         cmd = [
             "pip",
             "install",
-            "--upgrade",
-            "--no-build-isolation",
             "--no-compile",
-            "--target",
-            vendor_spec.target_dir,
+            "--prefix",
+            prefix_dir_by_vendor_spec[vendor_spec],
+            # In `--prefix` scheme, Pip warns about installed scripts not being on $PATH. We fix
+            # this when a PEX is turned into a venv.
+            "--no-warn-script-location",
+            # In `--prefix` scheme, Pip normally refuses to install a dependency already in the
+            # `sys.path` of Pip itself since the requirement is already satisfied. Since `pip`,
+            # `setuptools` and `wheel` are always in that `sys.path` (Our `pip.pex` venv PEX), we
+            # force installation so that PEXes with dependencies on those projects get them properly
+            # installed instead of skipped.
+            "--force-reinstall",
+            "--ignore-installed",
             requirement,
         ]
 
@@ -239,6 +263,15 @@ def vendorize(root_dir, vendor_specs, prefix, update):
         result = subprocess.call(cmd)
         if result != 0:
             raise VendorizeError("Failed to vendor {!r}".format(vendor_spec))
+
+        # Temporarily move importable code into the vendor chroot for importing tools later.
+        site_packages = find_site_packages(prefix_dir=prefix_dir_by_vendor_spec[vendor_spec])
+        safe_mkdir(vendor_spec.target_dir)
+        for item in os.listdir(site_packages):
+            src = os.path.join(site_packages, item)
+            dst = os.path.join(vendor_spec.target_dir, item)
+            shutil.move(src, dst)
+            moved[dst] = src
 
         if vendor_spec.constrain:
             cmd = ["pip", "freeze", "--all", "--path", vendor_spec.target_dir]
@@ -280,6 +313,24 @@ def vendorize(root_dir, vendor_specs, prefix, update):
                         for _from, _to in modifications.items():
                             print("    {} -> {}".format(_from, _to))
 
+    # Import all code needed below now before we move any vendored bits it depends on temporarily
+    # back to the prefix site-packages dir.
+    from pex.pep_376 import Record
+    from pex.third_party.pkg_resources import find_distributions
+
+    dist_by_vendor_spec = OrderedDict()
+    for vendor_spec in vendor_specs:
+        for dist in find_distributions(vendor_spec.target_dir):
+            if dist.key == vendor_spec.key:
+                dist_by_vendor_spec[vendor_spec] = dist
+                break
+        if vendor_spec not in dist_by_vendor_spec:
+            raise RuntimeError("Failed to find a distribution for {}.".format(vendor_spec))
+
+    # Move the importables back to their temporary dir chroot original locations.
+    for dst, src in moved.items():
+        shutil.move(dst, src)
+
     for vendor_spec in vendor_specs:
         print(
             bold(
@@ -290,20 +341,19 @@ def vendorize(root_dir, vendor_specs, prefix, update):
                 )
             )
         )
-        from pex.third_party.pkg_resources import find_distributions
+        # Move the `pip install --prefix` temporary dir chroot into the vendor chroot.
+        prefix_dir = prefix_dir_by_vendor_spec[vendor_spec]
+        for item in os.listdir(prefix_dir):
+            shutil.move(os.path.join(prefix_dir, item), os.path.join(vendor_spec.target_dir, item))
+        dist = dist_by_vendor_spec[vendor_spec]
 
-        for dist in find_distributions(vendor_spec.target_dir):
-            from pex.pep_376 import Record
-
-            record = Record.load(dist=dist)
-            print(
-                green(
-                    "Working on {project_name} {version}...".format(
-                        project_name=record.project_name, version=record.version
-                    )
-                )
-            )
-            record.fixup_install()
+        # Finally, let Record fixup the chroot to its final importable form.
+        record = Record.from_prefix_install(
+            prefix_dir=vendor_spec.target_dir,
+            project_name=dist.project_name,
+            version=dist.version,
+        )
+        record.fixup_install(exclude=("constraints.txt", "__init__.py", "__pycache__"))
 
 
 if __name__ == "__main__":
@@ -318,13 +368,12 @@ if __name__ == "__main__":
     options = parser.parse_args()
 
     root_directory = VendorSpec.ROOT
-    import_prefix = third_party.import_prefix()
     try:
         safe_rmtree(VendorSpec.vendor_root())
         vendorize(
             root_dir=root_directory,
             vendor_specs=list(iter_vendor_specs()),
-            prefix=import_prefix,
+            prefix="pex.third_party",
             update=options.update,
         )
         sys.exit(0)

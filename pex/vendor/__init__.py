@@ -10,7 +10,6 @@ import sys
 from textwrap import dedent
 
 from pex.common import filter_pyc_dirs, filter_pyc_files, safe_mkdtemp, touch
-from pex.compatibility import urlparse
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
@@ -149,7 +148,7 @@ def iter_vendor_specs():
 
     # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
     # time to implement resolving distributions from a PEX repository.
-    yield VendorSpec.pinned("packaging", "20.9", constraints=["pyparsing<3"])
+    yield VendorSpec.pinned("packaging", "20.9", constraints=("pyparsing<3",))
 
     # We shell out to pip at buildtime to resolve and install dependencies.
     # N.B.: We're currently using a patched version of Pip 20.3.4 housed at
