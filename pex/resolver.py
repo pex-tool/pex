@@ -238,13 +238,16 @@ def fingerprint_path(path):
 
     # We switched from sha1 to sha256 at the transition from using `pip install --target` to
     # `pip install --prefix` to serve two purposes:
-    # 1.) Insulate the new installation scheme from the old.
-    # 2.) Move past sha1 which was shown to have practical collision attacks in 2019.
+    # 1. Insulate the new installation scheme from the old.
+    # 2. Move past sha1 which was shown to have practical collision attacks in 2019.
     #
     # The installation scheme switch was the primary purpose and switching hashes proved a pragmatic
     # insulation. If the `pip install --prefix` re-arrangement scheme evolves, then some other
     # option than switching hashing algorithms will be needed, like post-fixing a running version
     # integer or just mixing one into the hashed content.
+    #
+    # See: https://github.com/pantsbuild/pex/issues/1655 for a general overview of these cache
+    # structure concerns.
     hasher = hashlib.sha256
 
     if os.path.isdir(path):

@@ -89,7 +89,7 @@ class Hash(object):
         return self.value
 
 
-def filter_path(
+def find_and_replace_path_components(
     path,  # type: str
     find,  # type: str
     replace,  # type: str
@@ -97,7 +97,7 @@ def filter_path(
     # type: (...) -> str
     """Replace components of `path` that are exactly `find` with `replace`.
 
-    >>> filter_path("foo/bar/baz", "bar", "spam")
+    >>> find_and_replace_path_components("foo/bar/baz", "bar", "spam")
     foo/spam/baz
     >>>
     """
@@ -144,7 +144,7 @@ class InstalledFile(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
     ):
         # type: (...) -> str
-        return filter_path(
+        return find_and_replace_path_components(
             path, cls._python_ver(interpreter=interpreter), cls._PYTHON_VER_PLACEHOLDER
         )
 
@@ -155,7 +155,7 @@ class InstalledFile(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
     ):
         # type: (...) -> str
-        return filter_path(
+        return find_and_replace_path_components(
             path, cls._PYTHON_VER_PLACEHOLDER, cls._python_ver(interpreter=interpreter)
         )
 
@@ -294,6 +294,8 @@ class InstalledWheel(object):
                 csv_writer.writerow(attr.astuple(installed_file, recurse=False))
 
     def _reinstall_stash(self, venv):
+        # type: (Virtualenv) -> Iterator[Tuple[str, str]]
+
         link = True
         stash_abs_path = os.path.join(self.prefix_dir, self.stash_dir)
         for root, dirs, files in os.walk(stash_abs_path, topdown=True, followlinks=True):
@@ -329,7 +331,13 @@ class InstalledWheel(object):
                 finally:
                     yield src, dst
 
-    def _reinstall_site_packages(self, site_packages_dir, symlink=False):
+    def _reinstall_site_packages(
+        self,
+        site_packages_dir,  # type: str
+        symlink=False,  # type: bool
+    ):
+        # type: (...) -> Iterator[Tuple[str, str]]
+
         link = True
         for root, dirs, files in os.walk(self.prefix_dir, topdown=True, followlinks=True):
             if root == self.prefix_dir:
@@ -368,7 +376,7 @@ class InstalledWheel(object):
                                     raise e
                                 link = False
                         shutil.copy(src_entry, dst_entry)
-                except OSError as e:
+                except (IOError, OSError) as e:
                     if e.errno != errno.EEXIST:
                         raise e
                 finally:

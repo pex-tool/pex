@@ -4,7 +4,7 @@
 import pytest
 
 from pex.interpreter import PythonInterpreter
-from pex.pep_376 import InstalledFile, filter_path
+from pex.pep_376 import InstalledFile, find_and_replace_path_components
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -15,40 +15,42 @@ def test_filter_path_invalid():
     # type: () -> None
 
     with pytest.raises(ValueError):
-        filter_path("foo", "bar", "")
-        filter_path("foo", "", "baz")
+        find_and_replace_path_components("foo", "bar", "")
+        find_and_replace_path_components("foo", "", "baz")
 
 
 def test_filter_path_noop():
     # type: () -> None
 
-    assert "" == filter_path("", "spam", "eggs")
-    assert "." == filter_path(".", "spam", "eggs")
-    assert ".." == filter_path("..", "spam", "eggs")
-    assert "/" == filter_path("/", "spam", "eggs")
-    assert "foo/bar/baz" == filter_path("foo/bar/baz", "spam", "eggs")
+    assert "" == find_and_replace_path_components("", "spam", "eggs")
+    assert "." == find_and_replace_path_components(".", "spam", "eggs")
+    assert ".." == find_and_replace_path_components("..", "spam", "eggs")
+    assert "/" == find_and_replace_path_components("/", "spam", "eggs")
+    assert "foo/bar/baz" == find_and_replace_path_components("foo/bar/baz", "spam", "eggs")
 
 
 def test_filter_path_basic():
     # type: () -> None
 
-    assert "spam/bar/baz" == filter_path("foo/bar/baz", "foo", "spam")
-    assert "foo/spam/baz" == filter_path("foo/bar/baz", "bar", "spam")
-    assert "foo/bar/spam" == filter_path("foo/bar/baz", "baz", "spam")
+    assert "spam/bar/baz" == find_and_replace_path_components("foo/bar/baz", "foo", "spam")
+    assert "foo/spam/baz" == find_and_replace_path_components("foo/bar/baz", "bar", "spam")
+    assert "foo/bar/spam" == find_and_replace_path_components("foo/bar/baz", "baz", "spam")
 
 
 def test_filter_path_absolute():
     # type: () -> None
 
-    assert "/spam/bar/baz" == filter_path("/foo/bar/baz", "foo", "spam")
+    assert "/spam/bar/baz" == find_and_replace_path_components("/foo/bar/baz", "foo", "spam")
 
 
 def test_filter_path_relative():
     # type: () -> None
 
-    assert "../spam/bar/baz" == filter_path("../foo/bar/baz", "foo", "spam")
-    assert "./spam/bar/baz" == filter_path("./foo/bar/baz", "foo", "spam")
-    assert "/spam/../bar/./baz" == filter_path("/foo/../bar/./baz", "foo", "spam")
+    assert "../spam/bar/baz" == find_and_replace_path_components("../foo/bar/baz", "foo", "spam")
+    assert "./spam/bar/baz" == find_and_replace_path_components("./foo/bar/baz", "foo", "spam")
+    assert "/spam/../bar/./baz" == find_and_replace_path_components(
+        "/foo/../bar/./baz", "foo", "spam"
+    )
 
 
 def test_installed_file_path_normalization_noop(
