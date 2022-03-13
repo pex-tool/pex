@@ -52,6 +52,7 @@ if TYPE_CHECKING:
         Pattern,
         Protocol,
         Sequence,
+        Set,
         Tuple,
         TypeVar,
         Union,
@@ -303,9 +304,24 @@ class _Issue10050Analyzer(_ErrorAnalyzer):
 
 
 class Locker(_LogAnalyzer):
-    def __init__(self, lock_request):
-        # type: (LockRequest) -> None
+    def __init__(
+        self,
+        lock_request,  # type: LockRequest
+        download_dir,  # type: str
+    ):
+        # type: (...) -> None
         self._lock_request = lock_request
+
+        self._saved_re = re.compile(
+            r"Saved (?:{download_dir}){dir_sep}(?P<filename>.+)$".format(
+                download_dir="|".join(
+                    re.escape(path)
+                    for path in frozenset((download_dir, os.path.realpath(download_dir)))
+                ),
+                dir_sep=re.escape(os.path.sep),
+            )
+        )
+        self._saved = set()  # type: Set[Pin]
 
         self._resolved_requirements = []  # type: List[ResolvedRequirement]
         self._links = defaultdict(OrderedSet)  # type: DefaultDict[Pin, OrderedSet[PartialArtifact]]
@@ -402,29 +418,41 @@ class Locker(_LogAnalyzer):
                     via=via,
                 )
             )
-        elif self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
-            match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
+        else:
+            match = self._saved_re.search(line)
             if match:
-                project_name_and_version, partial_artifact = self._extract_resolve_data(
-                    match.group("url")
+                self._saved.add(
+                    Pin.canonicalize(ProjectNameAndVersion.from_filename(match.group("filename")))
                 )
-                self._links[project_name_and_version].add(partial_artifact)
-            elif LockStyle.UNIVERSAL == self.style:
-                match = re.search(
-                    r"Skipping link: none of the wheel's tags \([^)]+\) are compatible \(run pip "
-                    r"debug --verbose to show compatible tags\): (?P<url>[^\s]+) ",
-                    line,
-                )
+            elif self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
+                match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
                 if match:
                     project_name_and_version, partial_artifact = self._extract_resolve_data(
                         match.group("url")
                     )
                     self._links[project_name_and_version].add(partial_artifact)
+                elif LockStyle.UNIVERSAL == self.style:
+                    match = re.search(
+                        r"Skipping link: none of the wheel's tags \([^)]+\) are compatible \(run "
+                        r"pip debug --verbose to show compatible tags\): (?P<url>[^\s]+) ",
+                        line,
+                    )
+                    if match:
+                        project_name_and_version, partial_artifact = self._extract_resolve_data(
+                            match.group("url")
+                        )
+                        self._links[project_name_and_version].add(partial_artifact)
         return self.Continue()
 
     def analysis_completed(self):
         # type: () -> None
-        self._lock_request.resolve_handler(self._resolved_requirements)
+        self._lock_request.resolve_handler(
+            tuple(
+                resolved_requirement
+                for resolved_requirement in self._resolved_requirements
+                if resolved_requirement.pin in self._saved
+            )
+        )
 
 
 class _LogScrapeJob(Job):
@@ -933,7 +961,7 @@ class Pip(object):
     ):
         # type: (...) -> Job
         target = target or targets.current()
-        locker = Locker(lock_request) if lock_request else None
+        locker = Locker(lock_request, download_dir) if lock_request else None
 
         if not use_wheel:
             if not build:
