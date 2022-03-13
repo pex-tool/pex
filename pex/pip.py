@@ -313,8 +313,12 @@ class Locker(_LogAnalyzer):
         self._lock_request = lock_request
 
         self._saved_re = re.compile(
-            r"Saved {download_dir}{dir_sep}(?P<filename>.+)$".format(
-                download_dir=re.escape(download_dir), dir_sep=re.escape(os.path.sep)
+            r"Saved (?:{download_dir}){dir_sep}(?P<filename>.+)$".format(
+                download_dir="|".join(
+                    re.escape(path)
+                    for path in frozenset((download_dir, os.path.realpath(download_dir)))
+                ),
+                dir_sep=re.escape(os.path.sep),
             )
         )
         self._saved = set()  # type: Set[Pin]
