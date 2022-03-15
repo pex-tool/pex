@@ -13,7 +13,7 @@ from pex.compatibility import cpu_count
 from pex.fetcher import URLFetcher
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.pip import PackageIndexConfiguration
+from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve import lockfile
 from pex.resolve.locked_resolve import Artifact, DownloadableArtifact, Resolved
 from pex.resolve.lockfile import parse_lockable_requirements

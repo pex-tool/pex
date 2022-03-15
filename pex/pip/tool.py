@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 
 import json
 import os
+import pkgutil
 import re
 import subprocess
 import sys
@@ -496,6 +497,8 @@ class _LogScrapeJob(Job):
 
 @attr.s(frozen=True)
 class Pip(object):
+    # N.B.: The following environment variables are used by the to control Pip at runtime and must
+    # be kept in-sync with `runtime_patches.py`.
     _PATCHED_MARKERS_FILE_ENV_VAR_NAME = "_PEX_PATCHED_MARKERS_FILE"
     _PATCHED_TAGS_FILE_ENV_VAR_NAME = "_PEX_PATCHED_TAGS_FILE"
     _SKIP_MARKERS_ENV_VAR_NAME = "_PEX_SKIP_MARKERS"
@@ -524,233 +527,8 @@ class Pip(object):
                 isolated_pip_builder.info.venv = True
                 for dist_location in third_party.expose(["pip", "setuptools", "wheel"]):
                     isolated_pip_builder.add_dist_location(dist=dist_location)
-                env_var_names = dict(
-                    patched_markers_env_var_name=cls._PATCHED_MARKERS_FILE_ENV_VAR_NAME,
-                    patched_tags_env_var_name=cls._PATCHED_TAGS_FILE_ENV_VAR_NAME,
-                    skip_markers_env_var_name=cls._SKIP_MARKERS_ENV_VAR_NAME,
-                    python_versions_env_var_name=cls._PYTHON_VERSIONS_FILE_ENV_VAR_NAME,
-                )
-                with named_temporary_file(prefix="", suffix=".py", mode="w") as fp:
-                    fp.write(
-                        dedent(
-                            """\
-                            import os
-                            import runpy
-                            import sys
-
-                            skip_markers = os.environ.pop({skip_markers_env_var_name!r}, None)
-                            patched_markers_file = os.environ.pop(
-                                {patched_markers_env_var_name!r}, None
-                            )
-                            patched_tags_file = os.environ.pop(
-                                {patched_tags_env_var_name!r}, None
-                            )
-                            if skip_markers is not None and patched_markers_file is not None:
-                                raise AssertionError(
-                                    "Pex should never both set both {skip_markers_env_var_name} "
-                                    "and {patched_markers_env_var_name} environment variables."
-                                )
-                            if skip_markers is not None and patched_tags_file is not None:
-                                raise AssertionError(
-                                    "Pex should never both set both {skip_markers_env_var_name} "
-                                    "and {patched_tags_env_var_name} environment variables."
-                                )
-
-                            if skip_markers:
-                                python_full_versions = []
-                                python_versions = []
-                                python_majors = []
-
-                                python_versions_file = os.environ.pop(
-                                    {python_versions_env_var_name!r}, None
-                                )
-                                if python_versions_file:
-                                    import json
-
-                                    with open(python_versions_file) as fp:
-                                        python_full_versions = json.load(fp)
-                                    python_versions = sorted(
-                                        set(
-                                            (version[0], version[1])
-                                            for version in  python_full_versions
-                                        )
-                                    )
-                                    python_majors = sorted(
-                                        set(version[0] for version in  python_full_versions)
-                                    )
-
-                                # 1.) Universal dependency environment marker applicability.
-                                #
-                                # Allows all dependencies in metadata to be followed regardless
-                                # of whether they apply to this system. For example, if this is 
-                                # Python 3.10 but a marker says a dependency is only for
-                                # 'python_version < "3.6"' we still want to lock that dependency
-                                # subgraph too.
-                                def patch_marker_evaluate():
-                                    from pip._vendor.packaging import markers
-
-                                    original_get_env = markers._get_env
-                                    original_eval_op = markers._eval_op
-                                    
-                                    skip = object()
-                                    
-                                    def versions_to_string(versions):
-                                        return [".".join(map(str, version)) for version in versions]
-
-                                    python_versions_strings = versions_to_string(
-                                        python_versions
-                                    ) or skip
-
-                                    python_full_versions_strings = versions_to_string(
-                                        python_full_versions
-                                    ) or skip
-
-                                    def _get_env(environment, name):
-                                        if name == "extra":
-                                            return original_get_env(environment, name)
-                                        if name == "python_version":
-                                            return python_versions_strings
-                                        if name == "python_full_version":
-                                            return python_full_versions_strings
-                                        return skip
-
-                                    def _eval_op(lhs, op, rhs):
-                                        if lhs is skip or rhs is skip:
-                                            return True
-                                        return any(
-                                            original_eval_op(left, op, right)
-                                            for left in (lhs if isinstance(lhs, list) else [lhs])
-                                            for right in (rhs if isinstance(rhs, list) else [rhs])
-                                        )
-
-                                    markers._get_env = _get_env
-                                    markers._eval_op = _eval_op
-                                
-                                patch_marker_evaluate()
-                                del patch_marker_evaluate
-
-                                # 2.) Universal wheel tag applicability.
-                                #
-                                # Allows all wheel URLs to be checked even when the wheel does not
-                                # match system tags.
-                                def patch_wheel_model():
-                                    from pip._internal.models.wheel import Wheel
-
-                                    Wheel.support_index_min = lambda *args, **kwargs: 0
-
-                                    if python_versions:
-                                        import re
-
-                                        def supported(self, *_args, **_kwargs):
-                                            if not hasattr(self, "_versions"):
-                                                versions = set()
-                                                is_abi3 = ["abi3"] == list(self.abis)
-                                                for pyversion in self.pyversions:
-                                                    if pyversion[:2] in ("cp", "pp", "py"):
-                                                        version_str = pyversion[2:]
-                                                        # N.B.: This overblown seeming use of an re
-                                                        # is necessitated by distributions like
-                                                        # pydantic 0.18.* which incorrectly use
-                                                        # `py36+`.
-                                                        match = re.search(
-                                                            r"^(?P<major>\\d)(?P<minor>\\d+)?",
-                                                            version_str
-                                                        )
-                                                        major = int(match.group("major"))
-                                                        minor = match.group("minor")
-                                                        if is_abi3 and major == 3:
-                                                            versions.add(major)
-                                                        elif minor:
-                                                            versions.add((major, int(minor)))
-                                                        else:
-                                                            versions.add(major)
-
-                                                self._versions = versions
-
-                                            return any(
-                                                (
-                                                    version in python_majors
-                                                ) or (
-                                                    version in python_versions
-                                                )
-                                                for version in self._versions
-                                            )
-
-                                        Wheel.supported = supported
-                                    else:
-                                        Wheel.supported = lambda *args, **kwargs: True
-
-                                patch_wheel_model()
-                                del patch_wheel_model
-
-                                # 3.) Universal Python version applicability.
-                                # 
-                                # Much like 2 (wheel applicability), we want to gather distributions
-                                # even when they require different Pythons than the system Python.
-                                def patch_requires_python():
-                                    from pip._internal.utils import packaging
-
-                                    if python_full_versions:
-                                        orig_check_requires_python = packaging.check_requires_python
-
-                                        def check_requires_python(requires_python, *_args, **_kw):
-                                            return any(
-                                                orig_check_requires_python(
-                                                    requires_python, python_full_version
-                                                )
-                                                for python_full_version in python_full_versions
-                                            )
-
-                                        packaging.check_requires_python = check_requires_python
-                                    else:
-                                        packaging.check_requires_python = lambda *_args, **_kw: True
-
-                                patch_requires_python()
-                                del patch_requires_python
-                            else:
-                                if patched_markers_file:
-                                    def patch_markers_default_environment():
-                                        import json
-    
-                                        from pip._vendor.packaging import markers
-    
-                                        with open(patched_markers_file) as fp:
-                                            patched_markers = json.load(fp)
-    
-                                        markers.default_environment = patched_markers.copy
-    
-                                    patch_markers_default_environment()
-                                    del patch_markers_default_environment
-                            
-                                if patched_tags_file:
-                                    def patch_compatibility_tags():
-                                        import itertools
-                                        import json
-    
-                                        from pip._internal.utils import compatibility_tags
-                                        from pip._vendor.packaging import tags
-                                        
-                                        with open(patched_tags_file) as fp:
-                                            tags = tuple(
-                                                itertools.chain.from_iterable(
-                                                    tags.parse_tag(tag) for tag in json.load(fp)
-                                                )
-                                            )
-    
-                                        def get_supported(*args, **kwargs):
-                                            return list(tags)
-    
-                                        compatibility_tags.get_supported = get_supported
-    
-                                    patch_compatibility_tags()
-                                    del patch_compatibility_tags
-
-                            runpy.run_module(mod_name="pip", run_name="__main__", alter_sys=True)
-                            """.format(
-                                **env_var_names
-                            )
-                        )
-                    )
+                with named_temporary_file(prefix="", suffix=".py", mode="wb") as fp:
+                    fp.write(pkgutil.get_data(__name__, "runtime_patches.py"))
                     fp.close()
                     isolated_pip_builder.set_executable(fp.name, "__pex_patched_pip__.py")
                 isolated_pip_builder.freeze()

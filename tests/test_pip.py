@@ -13,7 +13,7 @@ from pex import targets
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
-from pex.pip import PackageIndexConfiguration, Pip
+from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.platforms import Platform
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.testing import PY310, ensure_python_interpreter, environment_as

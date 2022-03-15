@@ -7,7 +7,7 @@ import pytest
 
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.pep_376 import InstalledWheel
-from pex.pip import get_pip
+from pex.pip.tool import get_pip
 from pex.typing import TYPE_CHECKING
 from pex.util import DistributionHelper
 
