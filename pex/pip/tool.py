@@ -12,7 +12,6 @@ import subprocess
 import sys
 from abc import abstractmethod
 from collections import defaultdict, deque
-from textwrap import dedent
 
 from pex import dist_metadata, targets, third_party
 from pex.common import atomic_directory, safe_mkdtemp
