@@ -21,9 +21,16 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Iterator, Optional
+    from typing import Any, Iterator, Optional, Protocol
 
-    CreatePip = Callable[[Optional[PythonInterpreter]], Pip]
+    class CreatePip(Protocol):
+        def __call__(
+            self,
+            interpreter,  # type: Optional[PythonInterpreter]
+            **extra_env  # type: str
+        ):
+            # type: (...) -> Pip
+            pass
 
 
 @pytest.fixture
@@ -47,13 +54,15 @@ def create_pip(
     pex_root = os.path.join(str(tmpdir), "pex_root")
     pip_root = os.path.join(str(tmpdir), "pip_root")
 
-    with ENV.patch(PEX_ROOT=pex_root):
-
-        def create_pip(interpreter):
-            # type: (Optional[PythonInterpreter]) -> Pip
+    def create_pip(
+        interpreter,  # type: Optional[PythonInterpreter]
+        **extra_env  # type: str
+    ):
+        # type: (...) -> Pip
+        with ENV.patch(PEX_ROOT=pex_root, **extra_env):
             return Pip.create(path=pip_root, interpreter=interpreter)
 
-        yield create_pip
+    yield create_pip
 
 
 def test_no_duplicate_constraints_pex_warnings(
@@ -239,3 +248,16 @@ def test_download_platform_markers_issue_1488(
         )
         == sorted(os.listdir(download_dir))
     )
+
+
+def test_create_confounding_env_vars_issue_1668(
+    create_pip,  # type: CreatePip
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+
+    download_dir = os.path.join(str(tmpdir), "downloads")
+    create_pip(None, PEX_SCRIPT="pex3").spawn_download_distributions(
+        requirements=["ansicolors==1.1.8"], download_dir=download_dir
+    ).wait()
+    assert ["ansicolors-1.1.8-py2.py3-none-any.whl"] == os.listdir(download_dir)

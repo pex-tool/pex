@@ -79,11 +79,12 @@ class PEX(object):  # noqa: T000
         if verify_entry_point:
             self._do_entry_point_verification()
 
-    def pex_info(self):
-        # type: () -> PexInfo
+    def pex_info(self, include_env_overrides=True):
+        # type: (bool) -> PexInfo
         pex_info = self._pex_info.copy()
-        pex_info.update(self._pex_info_overrides)
-        pex_info.merge_pex_path(self._vars.PEX_PATH)
+        if include_env_overrides:
+            pex_info.update(self._pex_info_overrides)
+            pex_info.merge_pex_path(self._vars.PEX_PATH)
         return pex_info
 
     @property
