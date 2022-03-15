@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.72
+------
+
+This release fixes an old bug with ``--venv`` PEXes initially executed
+with either ``PEX_MODULE`` or ``PEX_SCRIPT`` active in the environment.
+
+* Fix venv creation to ignore ambient PEX env vars. (#1669)
+  `PR #1669 <https://github.com/pantsbuild/pex/pull/1669>`_
+
 2.1.71
 ------
 
