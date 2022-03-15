@@ -8,6 +8,7 @@ import sys
 import pytest
 
 from pex.cli.testing import run_pex3
+from pex.interpreter import PythonInterpreter
 from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -16,11 +17,19 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 7) or sys.version_info[:2] >= (3, 11),
-    reason="The lock under test requires an interpreter satisfying >=3.7,<3.11 to test against.",
+    sys.version_info[0] < 3,
+    reason=(
+        "The lock under test takes ~infinite time to generate under Python 2.7 using the "
+        "pip-2020-resolver. Since the original issue and even this use in-the-small will "
+        "by-definition never try to use a Python 2.7 interpreter to perform the lock, simply avoid "
+        "the issue."
+    ),
 )
-def test_interpreter_constraints_range_coverage(tmpdir):
-    # type: (Any) -> None
+def test_interpreter_constraints_range_coverage(
+    tmpdir,  # type: Any
+    py37,  # type: PythonInterpreter
+):
+    # type: (...) -> None
 
     # We lock with an unconstrained IPython requirement and we know IPython latest does not support
     # Python 3.7. If locking respects ICs it should not pick latest, but a version that supports at
@@ -57,7 +66,10 @@ def test_interpreter_constraints_range_coverage(tmpdir):
         ],
     ).assert_success()
 
-    output = subprocess.check_output(
-        args=[ipython_pex, "-c", "import IPython; print(IPython.__file__)"]
-    )
+    run_ipython_args = [ipython_pex, "-c", "import IPython; print(IPython.__file__)"]
+    output = subprocess.check_output(args=[py37.binary] + run_ipython_args)
     assert output.decode("utf-8").strip().startswith(pex_root)
+
+    if (3, 7) <= sys.version_info[:2] < (3, 11):
+        output = subprocess.check_output(args=[sys.executable] + run_ipython_args)
+        assert output.decode("utf-8").strip().startswith(pex_root)
