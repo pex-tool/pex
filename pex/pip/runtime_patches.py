@@ -141,7 +141,11 @@ if skip_markers:
             orig_check_requires_python = packaging.check_requires_python
 
             def check_requires_python(requires_python, *_args, **_kw):
-                return any(
+                # Ensure any dependency we lock is compatible with the full interpreter range
+                # specified since we have no way to force Pip to backtrack and follow paths for any
+                # divergences. Most (all?) true divergences should be covered by forked environment
+                # markers.
+                return all(
                     orig_check_requires_python(requires_python, python_full_version)
                     for python_full_version in python_full_versions
                 )
