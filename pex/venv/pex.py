@@ -286,9 +286,14 @@ def _populate_sources(
 ):
     # type: (...) -> Iterator[Tuple[str, str]]
 
+    # We want the venv at rest to reflect the PEX it was created from at rest; as such we use the
+    # PEX's at-rest PEX-INFO to perform the layout. The venv can then be executed with various PEX
+    # environment variables in-play that it respects (e.g.: PEX_EXTRA_SYS_PATH, PEX_INTERPRETER,
+    # PEX_MODULE, etc.).
+    pex_info = pex.pex_info(include_env_overrides=False)
+
     # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
     # sources into the venv.
-    pex_info = pex.pex_info()
     for src, dst in _copytree(
         src=PEXEnvironment.mount(pex.path()).path,
         dst=venv.site_packages_dir,
