@@ -28,7 +28,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.pip import get_pip
+from pex.pip.tool import get_pip
 from pex.targets import LocalInterpreter
 from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING

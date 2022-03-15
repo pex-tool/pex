@@ -31,7 +31,7 @@ from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_info import PexInfo
-from pex.pip import get_pip
+from pex.pip.tool import get_pip
 from pex.targets import LocalInterpreter
 from pex.third_party.pkg_resources import DefaultProvider, Distribution, ZipProvider, get_provider
 from pex.tracer import TRACER

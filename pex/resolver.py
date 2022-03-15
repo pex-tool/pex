@@ -21,7 +21,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
-from pex.pip import PackageIndexConfiguration, get_pip
+from pex.pip.tool import PackageIndexConfiguration, get_pip
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockRequest
 from pex.resolve.requirement_configuration import RequirementConfiguration
