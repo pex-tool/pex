@@ -56,7 +56,7 @@ jobs:
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: py${{ join(matrix.python-version, '') }}-integration
+          tox-env: py${{ join(matrix.python-version, '') }}-integration -- -vvsk test_pip_issues_9420_workaround
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ matrix.pypy-version[0] }}-integration
     needs: org-check
@@ -95,7 +95,7 @@ jobs:
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: pypy${{ matrix.pypy-version[0] }}-integration
+          tox-env: pypy${{ matrix.pypy-version[0] }}-integration -- -vvsk test_pip_issues_9420_workaround
   final-status:
     name: Gather Final Status
     needs:
