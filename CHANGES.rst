@@ -4,8 +4,13 @@ Release Notes
 2.1.73
 ------
 
-This is a hotfix for building PEXes with `--lock` resolves that contain
-wheels with build tags in their names.
+This is a hotfix for PEX lock handling. Creating ``universal`` locks
+now works using any interpreter when the resolver version is the
+``pip-2020-resolver`` and building PEXes with ``--lock`` resolves that
+contain wheels with build tags in their names now works.
+
+* Fix universal locks for the ``pip-2020-resolver``. #1682
+  `PR #1682 <https://github.com/pantsbuild/pex/pull/1682>`_
 
 * Fix ``--lock`` resolve wheel tag parsing. (#1678)
   `PR #1678 <https://github.com/pantsbuild/pex/pull/1678>`_
