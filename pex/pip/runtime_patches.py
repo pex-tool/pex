@@ -134,7 +134,11 @@ if skip_markers:
     #
     # Much like 2 (wheel applicability), we want to gather distributions
     # even when they require different Pythons than the system Python.
+    #
+    # Unlike the other two patches, this patch diverges between the pip-legacy-resolver and the
+    # pip-2020-resolver.
     def patch_requires_python():
+        # The pip-legacy-resolver patch.
         from pip._internal.utils import packaging  # type: ignore[import]
 
         if python_full_versions:
@@ -153,6 +157,44 @@ if skip_markers:
             packaging.check_requires_python = check_requires_python
         else:
             packaging.check_requires_python = lambda *_args, **_kw: True
+
+        # The pip-2020-resolver patch.
+        from pip._internal.resolution.resolvelib.candidates import (  # type: ignore[import]
+            RequiresPythonCandidate,
+        )
+        from pip._internal.resolution.resolvelib.requirements import (  # type: ignore[import]
+            RequiresPythonRequirement,
+        )
+
+        if python_full_versions:
+            orig_get_candidate_lookup = RequiresPythonRequirement.get_candidate_lookup
+            orig_is_satisfied_by = RequiresPythonRequirement.is_satisfied_by
+
+            def get_candidate_lookup(self):
+                for python_full_version in python_full_versions:
+                    delegate = RequiresPythonRequirement(
+                        self.specifier, RequiresPythonCandidate(python_full_version)
+                    )
+                    candidate_lookup = orig_get_candidate_lookup(delegate)
+                    if candidate_lookup != (None, None):
+                        return candidate_lookup
+                return None, None
+
+            def is_satisfied_by(self, *_args, **_kw):
+                # Ensure any dependency we lock is compatible with the full interpreter range
+                # specified since we have no way to force Pip to backtrack and follow paths for any
+                # divergences. Most (all?) true divergences should be covered by forked environment
+                # markers.
+                return all(
+                    orig_is_satisfied_by(self, RequiresPythonCandidate(python_full_version))
+                    for python_full_version in python_full_versions
+                )
+
+            RequiresPythonRequirement.get_candidate_lookup = get_candidate_lookup
+            RequiresPythonRequirement.is_satisfied_by = is_satisfied_by
+        else:
+            RequiresPythonRequirement.get_candidate_lookup = lambda self: (self._candidate, None)
+            RequiresPythonRequirement.is_satisfied_by = lambda *_args, **_kw: True
 
     patch_requires_python()
     del patch_requires_python
