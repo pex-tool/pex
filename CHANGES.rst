@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.73
+------
+
+This is a hotfix for building PEXes with `--lock` resolves that contain
+wheels with build tags in their names.
+
+* Fix ``--lock`` resolve wheel tag parsing. (#1678)
+  `PR #1678 <https://github.com/pantsbuild/pex/pull/1678>`_
+
 2.1.72
 ------
 
