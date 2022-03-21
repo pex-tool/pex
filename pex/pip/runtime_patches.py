@@ -176,7 +176,7 @@ if skip_markers:
                         self.specifier, RequiresPythonCandidate(python_full_version)
                     )
                     candidate_lookup = orig_get_candidate_lookup(delegate)
-                    if candidate_lookup is not (None, None):
+                    if candidate_lookup != (None, None):
                         return candidate_lookup
                 return None, None
 
