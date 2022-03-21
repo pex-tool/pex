@@ -1535,7 +1535,7 @@ def test_pip_issues_9420_workaround():
             ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/user_guide/#fixing-conflicting-dependencies
             """
         )
-    )
+    ), normalized_stderr
     assert normalized_stderr.endswith(
         dedent(
             """\
@@ -1548,7 +1548,7 @@ def test_pip_issues_9420_workaround():
             2. remove package versions to allow pip attempt to solve the dependency conflict
             """
         ).strip()
-    )
+    ), normalized_stderr
 
 
 def test_requirement_file_from_url(tmpdir):
