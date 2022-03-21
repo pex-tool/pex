@@ -92,7 +92,7 @@ def ansicolors_simple():
             LockedRequirement.create(
                 pin=pin("ansicolors", "1.1.7"),
                 artifact=artifact(
-                    url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                    url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                     algorithm="blake256",
                     hash="cafebabe",
                 ),
@@ -146,7 +146,7 @@ def test_build(
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
-                url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                 algorithm="blake256",
                 hash="cafebabe",
             ),
@@ -165,7 +165,7 @@ def test_use_wheel(
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
-                url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                 algorithm="blake256",
                 hash="cafebabe",
             ),
@@ -210,7 +210,7 @@ def test_constraints(
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
-                url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                 algorithm="blake256",
                 hash="cafebabe",
             ),
@@ -448,7 +448,7 @@ def test_requires_python_mismatch(
             LockedRequirement.create(
                 pin=pin("ansicolors", "1.1.7"),
                 artifact=artifact(
-                    url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                    url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                     algorithm="blake256",
                     hash="cafebabe",
                 ),
@@ -478,7 +478,7 @@ def test_requires_python_mismatch(
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
-                url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                 algorithm="blake256",
                 hash="cafebabe",
             ),
@@ -498,7 +498,7 @@ def test_constraint_mismatch(
             LockedRequirement.create(
                 pin=pin("ansicolors", "1.1.7"),
                 artifact=artifact(
-                    url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                    url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                     algorithm="blake256",
                     hash="cafebabe",
                 ),
@@ -532,7 +532,7 @@ def test_constraint_mismatch(
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
-                url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                 algorithm="blake256",
                 hash="cafebabe",
             ),
@@ -550,7 +550,7 @@ def test_prefer_older_binary(current_target):
             LockedRequirement.create(
                 pin=pin("ansicolors", "1.1.7"),
                 artifact=artifact(
-                    url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                    url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                     algorithm="blake256",
                     hash="cafebabe",
                 ),
@@ -584,7 +584,7 @@ def test_prefer_older_binary(current_target):
         DownloadableArtifact.create(
             pin=pin("ansicolors", "1.1.7"),
             artifact=artifact(
-                url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+                url="https://example.org/ansicolors-1.1.7-1buildtag-py2.py3-none-any.whl",
                 algorithm="blake256",
                 hash="cafebabe",
             ),
