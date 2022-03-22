@@ -12,7 +12,7 @@ from pex.compatibility import urlparse
 from pex.dist_metadata import DistMetadata
 from pex.enum import Enum
 from pex.fetcher import URLFetcher
-from pex.pep_425 import TagRank
+from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
 from pex.rank import Rank
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
@@ -107,8 +107,7 @@ class Artifact(object):
     def parse_tags(self):
         # type: () -> Iterator[tags.Tag]
         if self.filename.endswith(".whl"):
-            artifact_stem, _ = os.path.splitext(self.filename)
-            for tag in tags.parse_tag(artifact_stem.split("-", 2)[-1]):
+            for tag in CompatibilityTags.from_wheel(self.filename):
                 yield tag
 
 

@@ -15,7 +15,7 @@ from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.layout import maybe_install
 from pex.orderedset import OrderedSet
-from pex.pep_425 import TagRank
+from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName, distribution_satisfies_requirement
 from pex.pex_info import PexInfo
 from pex.targets import Target
@@ -131,7 +131,7 @@ class _InvalidWheelName(_UnrankedDistribution):
 
 @attr.s(frozen=True)
 class _TagMismatch(_UnrankedDistribution):
-    wheel_tags = attr.ib()  # type: FrozenSet[tags.Tag]
+    wheel_tags = attr.ib()  # type: CompatibilityTags
 
     def render_message(self, target):
         # type: (Target) -> str
@@ -286,14 +286,11 @@ class PEXEnvironment(object):
             # all platforms it supports at buildtime and runtime so this is always safe.
             return _RankedDistribution.highest_rank(fingerprinted_dist)
 
-        # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
-        # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
-        wheel_components = filename.split("-")
-        if len(wheel_components) < 3:
+        try:
+            wheel_tags = CompatibilityTags.from_wheel(fingerprinted_dist.location)
+        except ValueError:
             return _InvalidWheelName(fingerprinted_dist, filename)
 
-        # `{python tag}-{abi tag}-{platform tag}`
-        wheel_tags = tags.parse_tag("-".join(wheel_components[-3:]))
         # There will be multiple parsed tags for compressed tag sets. Ensure we grab the parsed tag
         # with highest rank from that expanded set.
         best_match = self._target.supported_tags.best_match(wheel_tags)
