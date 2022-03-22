@@ -297,10 +297,14 @@ class PEXBuilder(object):
         :param pex: The path to an existing .pex file or unzipped pex directory.
         """
         self._ensure_unfrozen("Adding from pex")
-        pex_environment = PEXEnvironment.mount(pex)
-        for dist in pex_environment.resolve():
-            self.add_distribution(dist)
-            self.add_requirement(dist.as_requirement())
+        pex_info = PexInfo.from_pex(pex)
+        pex_environment = PEXEnvironment.mount(pex, pex_info=pex_info)
+        for fingerprinted_dist in pex_environment.iter_distributions():
+            self.add_distribution(
+                dist=fingerprinted_dist.distribution, fingerprint=fingerprinted_dist.fingerprint
+            )
+        for requirement in pex_info.requirements:
+            self.add_requirement(requirement)
 
     def set_executable(self, filename, env_filename=None):
         """Set the executable for this environment.

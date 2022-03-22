@@ -254,7 +254,7 @@ class PEXEnvironment(object):
         # type: () -> str
         return self._pex
 
-    def _load_internal_cache(self):
+    def iter_distributions(self):
         # type: () -> Iterator[FingerprintedDistribution]
         internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
         with TRACER.timed("Searching dependency cache: %s" % internal_cache, V=2):
@@ -499,7 +499,7 @@ class PEXEnvironment(object):
     def resolve_dists(self, reqs):
         # type: (Iterable[Requirement]) -> Iterable[FingerprintedDistribution]
 
-        self._update_candidate_distributions(self._load_internal_cache())
+        self._update_candidate_distributions(self.iter_distributions())
 
         unresolved_reqs = OrderedDict()  # type: OrderedDict[Requirement, OrderedSet]
 
