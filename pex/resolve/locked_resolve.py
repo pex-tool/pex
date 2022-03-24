@@ -15,6 +15,7 @@ from pex.fetcher import URLFetcher
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
 from pex.rank import Rank
+from pex.requirements import VCS, VCSScheme, parse_scheme
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
 from pex.result import Error
 from pex.sorted_tuple import SortedTuple
@@ -89,15 +90,34 @@ class LockRequest(object):
 
 @attr.s(frozen=True)
 class Artifact(object):
+    @classmethod
+    def from_url(
+        cls,
+        url,  # type: str
+        fingerprint,  # type: Fingerprint
+        verified=False,  # type: bool
+    ):
+        # type: (...) -> Union[FileArtifact, VCSArtifact]
+        url_info = urlparse.urlparse(url)
+        parsed_scheme = parse_scheme(url_info.scheme)
+        if isinstance(parsed_scheme, VCSScheme):
+            return VCSArtifact(
+                url=url, fingerprint=fingerprint, verified=verified, vcs=parsed_scheme.vcs
+            )
+        else:
+            filename = os.path.basename(url_info.path)
+            return FileArtifact(
+                url=url, fingerprint=fingerprint, verified=verified, filename=filename
+            )
+
     url = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: Fingerprint
-    filename = attr.ib(init=False)  # type: str
+    verified = attr.ib()  # type: bool
 
-    def __attrs_post_init__(self):
-        # type: () -> None
-        url_info = urlparse.urlparse(self.url)
-        filename = os.path.basename(url_info.path)
-        object.__setattr__(self, "filename", filename)
+
+@attr.s(frozen=True)
+class FileArtifact(Artifact):
+    filename = attr.ib()  # type: str
 
     @property
     def is_source(self):
@@ -112,8 +132,30 @@ class Artifact(object):
 
 
 @attr.s(frozen=True)
+class VCSArtifact(Artifact):
+    vcs = attr.ib()  # type: VCS.Value
+
+    @property
+    def is_source(self):
+        return True
+
+    def as_unparsed_requirement(self, project_name):
+        # type: (ProjectName) -> str
+        url_info = urlparse.urlparse(self.url)
+        if url_info.fragment:
+            fragment_parameters = urlparse.parse_qs(url_info.fragment)
+            names = fragment_parameters.get("egg")
+            if names and ProjectName(names[-1]) == project_name:
+                # A Pip proprietary VCS requirement.
+                return self.url
+        # A PEP-440 direct reference VCS requirement with the project name stripped from earlier
+        # processing. See: https://peps.python.org/pep-0440/#direct-references
+        return "{project_name} @ {url}".format(project_name=project_name, url=self.url)
+
+
+@attr.s(frozen=True)
 class RankedArtifact(object):
-    artifact = attr.ib()  # type: Artifact
+    artifact = attr.ib()  # type: Union[FileArtifact, VCSArtifact]
     rank = attr.ib()  # type: TagRank
 
     def select_higher_ranked(self, other):
@@ -129,10 +171,10 @@ class LockedRequirement(object):
     def create(
         cls,
         pin,  # type: Pin
-        artifact,  # type: Artifact
+        artifact,  # type: Union[FileArtifact, VCSArtifact]
         requires_dists=(),  # type: Iterable[Requirement]
         requires_python=None,  # type: Optional[SpecifierSet]
-        additional_artifacts=(),  # type: Iterable[Artifact]
+        additional_artifacts=(),  # type: Iterable[Union[FileArtifact, VCSArtifact]]
     ):
         # type: (...) -> LockedRequirement
         return cls(
@@ -144,13 +186,15 @@ class LockedRequirement(object):
         )
 
     pin = attr.ib()  # type: Pin
-    artifact = attr.ib()  # type: Artifact
+    artifact = attr.ib()  # type: Union[FileArtifact, VCSArtifact]
     requires_dists = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
     requires_python = attr.ib(default=None)  # type: Optional[SpecifierSet]
-    additional_artifacts = attr.ib(default=SortedTuple())  # type: SortedTuple[Artifact]
+    additional_artifacts = attr.ib(
+        default=SortedTuple()
+    )  # type: SortedTuple[Union[FileArtifact, VCSArtifact]]
 
     def iter_artifacts(self):
-        # type: () -> Iterator[Artifact]
+        # type: () -> Iterator[Union[FileArtifact, VCSArtifact]]
         yield self.artifact
         for artifact in self.additional_artifacts:
             yield artifact
@@ -191,7 +235,7 @@ class LockedRequirement(object):
                     is highest_rank_artifact.select_higher_ranked(ranked_artifact)
                 ):
                     highest_rank_artifact = ranked_artifact
-            elif use_wheel:
+            elif use_wheel and isinstance(artifact, FileArtifact):
                 for tag in artifact.parse_tags():
                     wheel_rank = target.supported_tags.rank(tag)
                     if wheel_rank is None:
@@ -244,7 +288,7 @@ class _ResolvedArtifact(object):
 
     @property
     def artifact(self):
-        # type: () -> Artifact
+        # type: () -> Union[FileArtifact, VCSArtifact]
         return self.ranked_artifact.artifact
 
     @property
@@ -273,7 +317,7 @@ class DownloadableArtifact(object):
     def create(
         cls,
         pin,  # type: Pin
-        artifact,  # type: Artifact
+        artifact,  # type: Union[FileArtifact, VCSArtifact]
         satisfied_direct_requirements=(),  # type: Iterable[Requirement]
     ):
         # type: (...) -> DownloadableArtifact
@@ -284,7 +328,7 @@ class DownloadableArtifact(object):
         )
 
     pin = attr.ib()  # type: Pin
-    artifact = attr.ib()  # type: Artifact
+    artifact = attr.ib()  # type: Union[FileArtifact, VCSArtifact]
     satisfied_direct_requirements = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
 
 
@@ -365,19 +409,22 @@ class LockedResolve(object):
             url: fingerprint_url(url)
             for url in set(
                 itertools.chain.from_iterable(
-                    resolved_requirement._iter_urls_to_fingerprint()
+                    resolved_requirement.iter_urls_to_fingerprint()
                     for resolved_requirement in resolved_requirements
                 )
             )
         }
 
         def resolve_fingerprint(partial_artifact):
-            # type: (PartialArtifact) -> Artifact
-            return Artifact(
-                url=partial_artifact.url,
-                fingerprint=partial_artifact.fingerprint
-                or fingerprint_by_url[partial_artifact.url],
-            )
+            # type: (PartialArtifact) -> Union[FileArtifact, VCSArtifact]
+            url = partial_artifact.url
+            if partial_artifact.fingerprint:
+                return Artifact.from_url(
+                    url=url,
+                    fingerprint=partial_artifact.fingerprint,
+                    verified=partial_artifact.verified,
+                )
+            return Artifact.from_url(url=url, fingerprint=fingerprint_by_url[url], verified=True)
 
         dist_metadata_by_pin = {
             Pin(dist_info.project_name, dist_info.version): dist_info
@@ -417,7 +464,7 @@ class LockedResolve(object):
     def emit_requirements(self, stream):
         # type: (IO[str]) -> None
         def emit_artifact(
-            artifact,  # type: Artifact
+            artifact,  # type: Union[FileArtifact, VCSArtifact]
             line_continuation,  # type: bool
         ):
             # type: (...) -> None

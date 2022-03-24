@@ -62,7 +62,7 @@ def test_roundtrip(tmpdir):
                             pin=Pin(
                                 project_name=ProjectName("ansicolors"), version=Version("1.1.8")
                             ),
-                            artifact=Artifact(
+                            artifact=Artifact.from_url(
                                 url="https://example.org/colors-1.1.8-cp36-cp36m-macosx_10_6_x86_64.whl",
                                 fingerprint=Fingerprint(algorithm="blake256", hash="cafebabe"),
                             ),
@@ -70,12 +70,12 @@ def test_roundtrip(tmpdir):
                         ),
                         LockedRequirement.create(
                             pin=Pin(project_name=ProjectName("requests"), version=Version("2.0.0")),
-                            artifact=Artifact(
+                            artifact=Artifact.from_url(
                                 url="https://example.org/requests-2.0.0-py2.py3-none-any.whl",
                                 fingerprint=Fingerprint(algorithm="sha256", hash="456"),
                             ),
                             additional_artifacts=(
-                                Artifact(
+                                Artifact.from_url(
                                     url="file://find-links/requests-2.0.0.tar.gz",
                                     fingerprint=Fingerprint(algorithm="sha512", hash="123"),
                                 ),
@@ -92,7 +92,7 @@ def test_roundtrip(tmpdir):
                             pin=Pin(
                                 project_name=ProjectName("ansicolors"), version=Version("1.1.8")
                             ),
-                            artifact=Artifact(
+                            artifact=Artifact.from_url(
                                 url="https://example.org/colors-1.1.8-cp37-cp37m-manylinux1_x86_64.whl",
                                 fingerprint=Fingerprint(algorithm="md5", hash="hackme"),
                             ),

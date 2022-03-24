@@ -77,10 +77,14 @@ class ResolvedRequirement(object):
     additional_artifacts = attr.ib(default=())  # type: Tuple[PartialArtifact, ...]
     via = attr.ib(default=())  # type: Tuple[str, ...]
 
-    def _iter_urls_to_fingerprint(self):
-        # type: () -> Iterator[str]
-        if not self.artifact.fingerprint:
-            yield self.artifact.url
+    def iter_artifacts(self):
+        # type: () -> Iterator[PartialArtifact]
+        yield self.artifact
         for artifact in self.additional_artifacts:
+            yield artifact
+
+    def iter_urls_to_fingerprint(self):
+        # type: () -> Iterator[str]
+        for artifact in self.iter_artifacts():
             if not artifact.fingerprint:
                 yield artifact.url
