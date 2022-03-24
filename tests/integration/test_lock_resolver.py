@@ -16,7 +16,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.resolve import lockfile
-from pex.resolve.locked_resolve import LockedRequirement, LockedResolve
+from pex.resolve.locked_resolve import LockedRequirement
 from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
@@ -229,7 +229,8 @@ def test_corrupt_artifact(
     assert (
         "There was 1 error downloading required artifacts:\n"
         "1. requests 2.25.1 from file://{requests_distribution}\n"
-        "    Expected {algorithm} hash of {expected_hash} but hashed to {actual_hash}.".format(
+        "    Expected {algorithm} hash of {expected_hash} when downloading requests but hashed to "
+        "{actual_hash}.".format(
             requests_distribution=requests_distribution,
             algorithm=algorithm,
             expected_hash=expected_hash,

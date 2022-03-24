@@ -6,9 +6,11 @@ from __future__ import absolute_import
 import os
 import shutil
 
-from pex import resolver
+from pex import hashing, resolver
 from pex.common import pluralize, safe_mkdtemp, safe_open
+from pex.dist_metadata import ProjectNameAndVersion
 from pex.network_configuration import NetworkConfiguration
+from pex.pep_503 import ProjectName
 from pex.requirements import (
     Constraint,
     LocalProjectRequirement,
@@ -18,10 +20,11 @@ from pex.requirements import (
     parse_requirement_strings,
 )
 from pex.resolve import resolvers
-from pex.resolve.locked_resolve import Artifact, LockConfiguration
+from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, VCSArtifact
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
 from pex.resolve.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
 from pex.resolve.requirement_configuration import RequirementConfiguration
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolver import Downloaded
 from pex.result import Error, try_
@@ -29,14 +32,15 @@ from pex.targets import Targets
 from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 from pex.variables import ENV
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Iterable, List, Mapping, Optional, Text, Tuple, Union
+    from typing import Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
 
     import attr  # vendor:skip
+
+    from pex.hashing import HintedDigest
 else:
     from pex.third_party import attr
 
@@ -101,7 +105,7 @@ class Requirements(object):
     @classmethod
     def create(
         cls,
-        parsed_requirements,  # type: Iterable[Union[PyPIRequirement, URLRequirement]]
+        parsed_requirements,  # type: Iterable[Union[PyPIRequirement, URLRequirement, VCSRequirement]]
         parsed_constraints,  # type: Iterable[Constraint]
     ):
         # type: (...) -> Requirements
@@ -116,7 +120,9 @@ class Requirements(object):
             ),
         )
 
-    parsed_requirements = attr.ib()  # type: Tuple[Union[PyPIRequirement, URLRequirement], ...]
+    parsed_requirements = (
+        attr.ib()
+    )  # type: Tuple[Union[PyPIRequirement, URLRequirement, VCSRequirement], ...]
     requirements = attr.ib()  # type: Tuple[Requirement, ...]
     parsed_constraints = attr.ib()  # type: Tuple[Constraint, ...]
     constraints = attr.ib()  # type: Tuple[Requirement, ...]
@@ -133,25 +139,17 @@ def parse_lockable_requirements(
     if not all_parsed_requirements and fallback_requirements:
         all_parsed_requirements = parse_requirement_strings(fallback_requirements)
 
-    parsed_requirements = []  # type: List[Union[PyPIRequirement, URLRequirement]]
+    parsed_requirements = []  # type: List[Union[PyPIRequirement, URLRequirement, VCSRequirement]]
     projects = []  # type: List[str]
     for parsed_requirement in all_parsed_requirements:
         if isinstance(parsed_requirement, LocalProjectRequirement):
             projects.append("local project at {path}".format(path=parsed_requirement.path))
-        elif isinstance(parsed_requirement, VCSRequirement):
-            projects.append(
-                "{vcs} project {project_name} at {url}".format(
-                    vcs=parsed_requirement.vcs,
-                    project_name=parsed_requirement.requirement.project_name,
-                    url=parsed_requirement.url,
-                )
-            )
         else:
             parsed_requirements.append(parsed_requirement)
     if projects:
         return Error(
-            "Cannot create a lock for project requirements built from local or version "
-            "controlled sources. Given {count} such {projects}:\n{project_descriptions}".format(
+            "Cannot create a lock for project requirements built from local sources. Given {count} "
+            "such {projects}:\n{project_descriptions}".format(
                 count=len(projects),
                 projects=pluralize(projects, "project"),
                 project_descriptions="\n".join(
@@ -167,7 +165,7 @@ def parse_lockable_requirements(
     )
 
 
-class CreateLockDownloadManager(DownloadManager):
+class CreateLockDownloadManager(DownloadManager[Artifact]):
     @classmethod
     def create(
         cls,
@@ -177,39 +175,60 @@ class CreateLockDownloadManager(DownloadManager):
     ):
         # type: (...) -> CreateLockDownloadManager
 
-        artifacts_by_filename = {
-            artifact.filename: artifact
-            for locked_resolve in downloaded.locked_resolves
-            for locked_requirement in locked_resolve.locked_requirements
-            for artifact in locked_requirement.iter_artifacts()
-        }
-        path_by_artifact = {
-            artifacts_by_filename[f]: os.path.join(root, f)
-            for root, _, files in os.walk(download_dir)
-            for f in files
-        }
-        return cls(path_by_artifact=path_by_artifact, pex_root=pex_root)
+        file_artifacts_by_filename = {}  # type: Dict[str, FileArtifact]
+        vcs_artifacts_by_pin = {}  # type: Dict[Pin, VCSArtifact]
+        for locked_resolve in downloaded.locked_resolves:
+            for locked_requirement in locked_resolve.locked_requirements:
+                for artifact in locked_requirement.iter_artifacts():
+                    if isinstance(artifact, FileArtifact):
+                        file_artifacts_by_filename[artifact.filename] = artifact
+                    else:
+                        # N.B.: We know there is only ever one VCS artifact for a given locked VCS
+                        # requirement.
+                        vcs_artifacts_by_pin[locked_requirement.pin] = artifact
+
+        path_by_artifact_and_project_name = {}  # type: Dict[Tuple[Artifact, ProjectName], str]
+        for root, _, files in os.walk(download_dir):
+            for f in files:
+                pin = Pin.canonicalize(ProjectNameAndVersion.from_filename(f))
+                artifact = file_artifacts_by_filename.get(f) or vcs_artifacts_by_pin[pin]
+                path_by_artifact_and_project_name[(artifact, pin.project_name)] = os.path.join(
+                    root, f
+                )
+
+        return cls(
+            path_by_artifact_and_project_name=path_by_artifact_and_project_name, pex_root=pex_root
+        )
 
     def __init__(
         self,
-        path_by_artifact,  # type: Mapping[Artifact, str]
+        path_by_artifact_and_project_name,  # type: Mapping[Tuple[Artifact, ProjectName], str]
         pex_root=None,  # type: Optional[str]
     ):
+        # type: (...) -> None
         super(CreateLockDownloadManager, self).__init__(pex_root=pex_root)
-        self._path_by_artifact = path_by_artifact
+        self._path_by_artifact_and_project_name = path_by_artifact_and_project_name
 
     def store_all(self):
-        for artifact in self._path_by_artifact:
-            self.store(artifact)
+        # type: () -> None
+        for artifact, project_name in self._path_by_artifact_and_project_name:
+            self.store(artifact, project_name)
 
     def save(
         self,
         artifact,  # type: Artifact
-        path,  # type: str
+        project_name,  # type: ProjectName
+        dest_dir,  # type: str
+        digest,  # type: HintedDigest
     ):
-        # type: (...) -> str
-        shutil.move(self._path_by_artifact[artifact], path)
-        return CacheHelper.hash(path)
+        # type: (...) -> Union[str, Error]
+        src = self._path_by_artifact_and_project_name[(artifact, project_name)]
+        filename = os.path.basename(src)
+        dest = os.path.join(dest_dir, filename)
+        shutil.move(src, dest)
+
+        hashing.file_hash(dest, digest=digest)
+        return filename
 
 
 def create(
