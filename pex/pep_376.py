@@ -15,7 +15,7 @@ import shutil
 from contextlib import closing
 from fileinput import FileInput
 
-from pex import dist_metadata
+from pex import dist_metadata, hashing
 from pex.common import (
     filter_pyc_dirs,
     filter_pyc_files,
@@ -24,18 +24,13 @@ from pex.common import (
     safe_mkdir,
     safe_open,
 )
-from pex.compatibility import PY2, get_stdout_bytes_buffer, urlparse
+from pex.compatibility import get_stdout_bytes_buffer, urlparse
 from pex.interpreter import PythonInterpreter
 from pex.third_party.pkg_resources import EntryPoint
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    if PY2:
-        from hashlib import _hash as _Hash
-    else:
-        from hashlib import _Hash
     from typing import (
         Callable,
         Container,
@@ -49,6 +44,8 @@ if TYPE_CHECKING:
     )
 
     import attr  # vendor:skip
+
+    from pex.hashing import Hasher
 
     class CSVWriter(Protocol):
         def writerow(self, row):
@@ -65,7 +62,7 @@ class Digest(object):
     encoded_hash = attr.ib()  # type: str
 
     def new_hasher(self):
-        # type: () -> _Hash
+        # type: () -> Hasher
         return hashlib.new(self.algorithm)
 
 
@@ -73,7 +70,7 @@ class Digest(object):
 class Hash(object):
     @classmethod
     def create(cls, hasher):
-        # type: (_Hash) -> Hash
+        # type: (Hasher) -> Hash
 
         # The fingerprint encoding is defined for PEP-376 RECORD files as `urlsafe-base64-nopad`
         # which is fully spelled out in code in PEP-427:
@@ -270,9 +267,7 @@ class InstalledWheel(object):
             self._reinstall_site_packages(site_packages_dir, symlink=symlink),
         ):
             hasher = hashlib.sha256()
-            with open(dst, "rb") as hash_fp:
-                CacheHelper.update_hash(hash_fp, digest=hasher)
-
+            hashing.file_hash(dst, digest=hasher)
             installed_files.append(
                 InstalledFile(
                     path=os.path.relpath(dst, site_packages_dir),

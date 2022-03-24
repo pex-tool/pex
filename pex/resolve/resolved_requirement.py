@@ -5,12 +5,12 @@ from __future__ import absolute_import
 
 import hashlib
 
+from pex import hashing
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import BinaryIO, Iterator, Optional, Tuple
@@ -56,7 +56,7 @@ class Fingerprint(object):
     ):
         # type: (...) -> Fingerprint
         digest = hashlib.new(algorithm)
-        CacheHelper.update_hash(filelike=stream, digest=digest)
+        hashing.update_hash(filelike=stream, digest=digest)
         return cls(algorithm=algorithm, hash=digest.hexdigest())
 
     algorithm = attr.ib()  # type: str
