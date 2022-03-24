@@ -4,25 +4,29 @@
 from __future__ import absolute_import
 
 import functools
-import hashlib
+import os.path
+import shutil
 from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
+from pex import resolver
 from pex.common import pluralize
 from pex.compatibility import cpu_count
 from pex.fetcher import URLFetcher
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pep_503 import ProjectName
 from pex.pip.tool import PackageIndexConfiguration
+from pex.pip.vcs import digest_vcs_archive
 from pex.resolve import lockfile
-from pex.resolve.locked_resolve import Artifact, DownloadableArtifact, Resolved
+from pex.resolve.locked_resolve import DownloadableArtifact, FileArtifact, Resolved, VCSArtifact
 from pex.resolve.lockfile import parse_lockable_requirements
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
-from pex.result import Error, ResultError, catch, try_
+from pex.result import Error, catch, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -30,8 +34,10 @@ from pex.typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Optional, Sequence, Union
 
+    from pex.hashing import HintedDigest
 
-class URLFetcherDownloadManager(DownloadManager):
+
+class URLFetcherDownloadManager(DownloadManager[FileArtifact]):
     _BUFFER_SIZE = 65536
 
     def __init__(
@@ -42,40 +48,117 @@ class URLFetcherDownloadManager(DownloadManager):
         super(URLFetcherDownloadManager, self).__init__(pex_root=pex_root)
         self._url_fetcher = url_fetcher
 
-    def store_downloadable_artifact(self, downloadable_artifact):
-        return self.store(artifact=downloadable_artifact.artifact)
-
     def save(
         self,
-        artifact,  # type: Artifact
-        path,  # type: str
+        artifact,  # type: FileArtifact
+        project_name,  # type: ProjectName
+        dest_dir,  # type: str
+        digest,  # type: HintedDigest
     ):
-        # type: (...) -> str
-        digest_check = hashlib.new(artifact.fingerprint.algorithm)
-        digest_internal = hashlib.sha1()
+        # type: (...) -> Union[str, Error]
+
         url = artifact.url
+        path = os.path.join(dest_dir, artifact.filename)
         try:
             with open(path, "wb") as fp, self._url_fetcher.get_body_stream(url) as stream:
                 for chunk in iter(lambda: stream.read(self._BUFFER_SIZE), b""):
                     fp.write(chunk)
-                    digest_check.update(chunk)
-                    digest_internal.update(chunk)
+                    digest.update(chunk)
+            return artifact.filename
         except IOError as e:
-            raise ResultError(Error(str(e)))
+            return Error(str(e))
 
-        actual_hash = digest_check.hexdigest()
-        if artifact.fingerprint.hash != actual_hash:
-            raise ResultError(
-                Error(
-                    "Expected {algorithm} hash of {expected_hash} but hashed to "
-                    "{actual_hash}.".format(
-                        algorithm=artifact.fingerprint.algorithm,
-                        expected_hash=artifact.fingerprint.hash,
-                        actual_hash=actual_hash,
-                    )
+
+class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
+    def __init__(
+        self,
+        indexes=None,  # type: Optional[Sequence[str]]
+        find_links=None,  # type: Optional[Sequence[str]]
+        resolver_version=None,  # type: Optional[ResolverVersion.Value]
+        network_configuration=None,  # type: Optional[NetworkConfiguration]
+        cache=None,  # type: Optional[str]
+        use_pep517=None,  # type: Optional[bool]
+        build_isolation=True,  # type: bool
+        pex_root=None,  # type: Optional[str]
+    ):
+        super(VCSArtifactDownloadManager, self).__init__(pex_root=pex_root)
+        self._indexes = indexes
+        self._find_links = find_links
+        self._resolver_version = resolver_version
+        self._network_configuration = network_configuration
+        self._cache = cache
+        self._use_pep517 = use_pep517
+        self._build_isolation = build_isolation
+
+    def save(
+        self,
+        artifact,  # type: VCSArtifact
+        project_name,  # type: ProjectName
+        dest_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> Union[str, Error]
+
+        requirement = artifact.as_unparsed_requirement(project_name)
+        downloaded_vcs = resolver.download(
+            requirements=[requirement],
+            transitive=False,
+            indexes=self._indexes,
+            find_links=self._find_links,
+            resolver_version=self._resolver_version,
+            network_configuration=self._network_configuration,
+            cache=self._cache,
+            use_wheel=False,
+            prefer_older_binary=False,
+            use_pep517=self._use_pep517,
+            build_isolation=self._build_isolation,
+            max_parallel_jobs=1,
+        )
+        if len(downloaded_vcs.local_distributions) != 1:
+            return Error(
+                "Expected 1 artifact for an intransitive download of {requirement}, found "
+                "{count}:\n"
+                "{downloads}".format(
+                    requirement=requirement,
+                    count=len(downloaded_vcs.local_distributions),
+                    downloads="\n".join(
+                        "{index}. {download}".format(index=index, download=download.path)
+                        for index, download in enumerate(
+                            downloaded_vcs.local_distributions, start=1
+                        )
+                    ),
                 )
             )
-        return digest_internal.hexdigest()
+
+        local_distribution = downloaded_vcs.local_distributions[0]
+        filename = os.path.basename(local_distribution.path)
+        digest_vcs_archive(
+            archive_path=local_distribution.path,
+            vcs=artifact.vcs,
+            digest=digest,
+        )
+        shutil.move(local_distribution.path, os.path.join(dest_dir, filename))
+        return filename
+
+
+def download_artifact(
+    downloadable_artifact,  # type: DownloadableArtifact
+    url_download_manager,  # type: URLFetcherDownloadManager
+    vcs_download_manager,  # type: VCSArtifactDownloadManager
+):
+    # type: (...) -> Union[DownloadedArtifact, Error]
+
+    if isinstance(downloadable_artifact.artifact, VCSArtifact):
+        return catch(
+            vcs_download_manager.store,
+            downloadable_artifact.artifact,
+            downloadable_artifact.pin.project_name,
+        )
+    return catch(
+        url_download_manager.store,
+        downloadable_artifact.artifact,
+        downloadable_artifact.pin.project_name,
+    )
 
 
 # Derived from notes in the bandersnatch PyPI mirroring tool:
@@ -177,8 +260,17 @@ def resolve_from_lock(
             )
         )
 
-    download_manager = URLFetcherDownloadManager(
+    url_download_manager = URLFetcherDownloadManager(
         url_fetcher=URLFetcher(network_configuration=network_configuration, handle_file_urls=True)
+    )
+    vcs_download_manager = VCSArtifactDownloadManager(
+        indexes=indexes,
+        find_links=find_links,
+        resolver_version=resolver_version,
+        network_configuration=network_configuration,
+        cache=cache,
+        use_pep517=use_pep517,
+        build_isolation=build_isolation,
     )
     max_threads = min(
         len(downloadable_artifacts) or 1,
@@ -196,7 +288,11 @@ def resolve_from_lock(
                 zip(
                     downloadable_artifacts,
                     pool.map(
-                        functools.partial(catch, download_manager.store_downloadable_artifact),
+                        functools.partial(
+                            download_artifact,
+                            url_download_manager=url_download_manager,
+                            vcs_download_manager=vcs_download_manager,
+                        ),
                         downloadable_artifacts,
                     ),
                 )
@@ -206,8 +302,8 @@ def resolve_from_lock(
             pool.join()
 
     with TRACER.timed("Categorizing {} downloaded artifacts".format(len(download_results))):
-        downloaded_artifacts = {}
-        download_errors = OrderedDict()
+        downloaded_artifacts = {}  # type: Dict[DownloadableArtifact, DownloadedArtifact]
+        download_errors = OrderedDict()  # type: OrderedDict[DownloadableArtifact, Error]
         for downloadable_artifact, download_result in download_results:
             if isinstance(download_result, DownloadedArtifact):
                 downloaded_artifacts[downloadable_artifact] = download_result
@@ -246,7 +342,7 @@ def resolve_from_lock(
                         InstallRequest(
                             target=target,
                             wheel_path=downloaded_artifact.path,
-                            fingerprint=downloaded_artifact.fingerprint(),
+                            fingerprint=downloaded_artifact.fingerprint,
                         )
                     )
                 else:
@@ -254,7 +350,7 @@ def resolve_from_lock(
                         BuildRequest(
                             target=target,
                             source_path=downloaded_artifact.path,
-                            fingerprint=downloaded_artifact.fingerprint(),
+                            fingerprint=downloaded_artifact.fingerprint,
                         )
                     )
 
