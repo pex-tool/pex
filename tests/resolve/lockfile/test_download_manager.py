@@ -26,14 +26,14 @@ else:
     from pex.third_party import attr
 
 
-class TestDownloadManager(DownloadManager[FileArtifact]):
+class FakeDownloadManager(DownloadManager[FileArtifact]):
     def __init__(
         self,
         content,  # type: bytes
         pex_root=None,  # type: Optional[str]
     ):
         # type: (...) -> None
-        super(TestDownloadManager, self).__init__(pex_root=pex_root)
+        super(FakeDownloadManager, self).__init__(pex_root=pex_root)
         self._content = content
         self._calls = []  # type: List[str]
 
@@ -89,14 +89,14 @@ def download_manager(
     expected_content,  # type: bytes
     pex_root,  # type: Any
 ):
-    # type: (...) -> TestDownloadManager
-    return TestDownloadManager(content=expected_content, pex_root=pex_root)
+    # type: (...) -> FakeDownloadManager
+    return FakeDownloadManager(content=expected_content, pex_root=pex_root)
 
 
 def test_storage_cache(
     artifact,  # type: FileArtifact
     project_name,  # type: ProjectName
-    download_manager,  # type: TestDownloadManager
+    download_manager,  # type: FakeDownloadManager
 ):
     # type: (...) -> None
 
@@ -109,7 +109,7 @@ def test_storage_cache(
 def test_storage_version_upgrade(
     artifact,  # type: FileArtifact
     project_name,  # type: ProjectName
-    download_manager,  # type: TestDownloadManager
+    download_manager,  # type: FakeDownloadManager
 ):
     # type: (...) -> None
 
@@ -164,7 +164,7 @@ def test_fingerprint_checking(
     # We expect un-verified artifacts to have their hashes checked against the expected (locked)
     # values.
     actual_content = b"unexpected content"
-    download_manager = TestDownloadManager(content=actual_content, pex_root=pex_root)
+    download_manager = FakeDownloadManager(content=actual_content, pex_root=pex_root)
     expected_sha1_hash = hashing.Sha1(expected_content).hexdigest()
     assert Error(
         "Expected sha1 hash of {expected_hash} when downloading foo but hashed to "
