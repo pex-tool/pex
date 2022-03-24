@@ -35,17 +35,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper, DistributionHelper
 
 if TYPE_CHECKING:
-    from typing import (
-        DefaultDict,
-        Dict,
-        Iterable,
-        Iterator,
-        List,
-        Mapping,
-        Optional,
-        Sequence,
-        Tuple,
-    )
+    from typing import DefaultDict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
 
     import attr  # vendor:skip
 
@@ -82,7 +72,7 @@ class _ResolveHandler(object):
                 DistMetadata.for_dist(install_request.wheel_path)
                 for install_request in itertools.chain(
                     tuple(self.download_result.install_requests()),
-                    build_results.values(),
+                    itertools.chain.from_iterable(build_results.values()),
                 )
             )
         locked_resolve = LockedResolve.create(
@@ -544,9 +534,11 @@ class WheelBuilder(object):
         build_requests,  # type: Iterable[BuildRequest]
         dist_root,  # type: str
     ):
-        # type: (...) -> Tuple[Iterable[BuildRequest], Dict[str, InstallRequest]]
+        # type: (...) -> Tuple[Iterable[BuildRequest], DefaultDict[str, OrderedSet[InstallRequest]]]
         unsatisfied_build_requests = []
-        build_results = {}  # type: Dict[str, InstallRequest]
+        build_results = defaultdict(
+            OrderedSet
+        )  # type: DefaultDict[str, OrderedSet[InstallRequest]]
         for build_request in build_requests:
             build_result = build_request.result(dist_root)
             if not build_result.is_built:
@@ -560,7 +552,7 @@ class WheelBuilder(object):
                         build_request.source_path, build_result.dist_dir
                     )
                 )
-                build_results[build_request.source_path] = build_result.finalize_build()
+                build_results[build_request.source_path].add(build_result.finalize_build())
         return unsatisfied_build_requests, build_results
 
     def _spawn_wheel_build(
@@ -589,7 +581,7 @@ class WheelBuilder(object):
         workspace=None,  # type: Optional[str]
         max_parallel_jobs=None,  # type: Optional[int]
     ):
-        # type: (...) -> Mapping[str, InstallRequest]
+        # type: (...) -> Mapping[str, OrderedSet[InstallRequest]]
 
         if not build_requests:
             # Nothing to build or install.
@@ -613,7 +605,7 @@ class WheelBuilder(object):
                 error_handler=Raise(Untranslatable),
                 max_jobs=max_parallel_jobs,
             ):
-                build_results[build_result.request.source_path] = build_result.finalize_build()
+                build_results[build_result.request.source_path].add(build_result.finalize_build())
 
         return build_results
 
@@ -718,7 +710,7 @@ class BuildAndInstallRequest(object):
             workspace=workspace,
             max_parallel_jobs=max_parallel_jobs,
         )
-        to_install.extend(build_results.values())
+        to_install.extend(itertools.chain.from_iterable(build_results.values()))
 
         # 2. All requirements are now in wheel form: calculate any missing direct requirement
         #    project names from the wheel names.
@@ -734,8 +726,8 @@ class BuildAndInstallRequest(object):
                         yield requirement.requirement
                         continue
 
-                    install_req = build_results.get(requirement.path)
-                    if install_req is None:
+                    install_reqs = build_results.get(requirement.path)
+                    if not install_reqs:
                         raise AssertionError(
                             "Failed to compute a project name for {requirement}. No corresponding "
                             "wheel was found from amongst:\n{install_requests}".format(
@@ -747,12 +739,14 @@ class BuildAndInstallRequest(object):
                                             wheel_path=build_result.wheel_path,
                                             fingerprint=build_result.fingerprint,
                                         )
-                                        for path, build_result in build_results.items()
+                                        for path, build_results in build_results.items()
+                                        for build_result in build_results
                                     )
                                 ),
                             )
                         )
-                    yield requirement.as_requirement(dist=install_req.wheel_path)
+                    for install_req in install_reqs:
+                        yield requirement.as_requirement(dist=install_req.wheel_path)
 
             direct_requirements_by_project_name = defaultdict(
                 OrderedSet
