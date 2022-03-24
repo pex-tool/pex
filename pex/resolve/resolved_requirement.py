@@ -67,6 +67,7 @@ class Fingerprint(object):
 class PartialArtifact(object):
     url = attr.ib()  # type: str
     fingerprint = attr.ib(default=None)  # type: Optional[Fingerprint]
+    verified = attr.ib(default=False)  # type: bool
 
 
 @attr.s(frozen=True)
