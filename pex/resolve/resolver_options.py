@@ -119,7 +119,7 @@ def register(
             default=None,
             type=str,
             help=(
-                "Resolve requirements from the given lock file crated by Pex instead of from "
+                "Resolve requirements from the given lock file created by Pex instead of from "
                 "--index servers, --find-links repos or a --pex-repository. If no requirements are "
                 "specified, will install the entire lock."
             ),
