@@ -323,15 +323,18 @@ class ProjectNameExtrasAndMarker(object):
 
 def _try_parse_fragment_project_name_and_marker(fragment):
     # type: (Text) -> Optional[ProjectNameExtrasAndMarker]
-    fragment_parameters = urlparse.parse_qs(fragment)
-    project_requirements = fragment_parameters.get("egg")
-    if not project_requirements:
+    project_requirement = None
+    for part in fragment.split("&"):
+        if part.startswith("egg="):
+            _, project_requirement = part.split("=", 1)
+            break
+    if project_requirement is None:
         return None
     try:
-        req = Requirement.parse(project_requirements[-1])
+        req = Requirement.parse(project_requirement)
         return ProjectNameExtrasAndMarker(req.name, extras=req.extras, marker=req.marker)
     except (RequirementParseError, ValueError):
-        return ProjectNameExtrasAndMarker(project_requirements[-1])
+        return ProjectNameExtrasAndMarker(project_requirement)
 
 
 @attr.s(frozen=True)
