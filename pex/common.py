@@ -470,7 +470,7 @@ def atomic_directory(target_dir, exclusive, source=None):
             # staleness.
             fcntl.lockf(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
         except OSError as e:
-            if e.errno == 35:  # Resource deadlock avoided
+            if e.errno == errno.EDEADLK:  # Resource deadlock avoided
                 # Another thread/process is doing the work. They get the exclusivity.
                 # N.B.: This can happen if the process running this code forks, this is the same
                 # behavior as described in https://bugs.python.org/issue6721, but instead of logging
