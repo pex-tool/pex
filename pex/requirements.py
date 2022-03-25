@@ -275,8 +275,8 @@ class VCSScheme(object):
     scheme = attr.ib()  # type: str
 
 
-def _parse_non_local_scheme(scheme):
-    # type: (str) -> Optional[Union[ArchiveScheme.Value, VCSScheme]]
+def parse_scheme(scheme):
+    # type: (str) -> Optional[Union[str, ArchiveScheme.Value, VCSScheme]]
     match = re.match(
         r"""
         ^
@@ -301,7 +301,7 @@ def _parse_non_local_scheme(scheme):
         re.VERBOSE,
     )
     if not match:
-        return None
+        return scheme
 
     archive_scheme = match.group("archive_scheme")
     if archive_scheme:
@@ -458,9 +458,9 @@ def _parse_requirement_line(
     project_name, direct_reference_url = _split_direct_references(processed_text)
     parsed_url = urlparse.urlparse(direct_reference_url or processed_text)
 
+    parsed_scheme = parse_scheme(parsed_url.scheme)
     # Handle non local URLs.
-    non_local_scheme = _parse_non_local_scheme(parsed_url.scheme)
-    if non_local_scheme:
+    if isinstance(parsed_scheme, (ArchiveScheme.Value, VCSScheme)):
         project_name_extras_and_marker = _try_parse_fragment_project_name_and_marker(
             parsed_url.fragment
         )
@@ -497,9 +497,9 @@ def _parse_requirement_line(
             specifier=specifier,
             marker=marker,
         )
-        if isinstance(non_local_scheme, VCSScheme):
-            url = urlparse.urlparse(url)._replace(scheme=non_local_scheme.scheme).geturl()
-            return VCSRequirement(line, non_local_scheme.vcs, url, requirement, editable=editable)
+        if isinstance(parsed_scheme, VCSScheme):
+            url = urlparse.urlparse(url)._replace(scheme=parsed_scheme.scheme).geturl()
+            return VCSRequirement(line, parsed_scheme.vcs, url, requirement, editable=editable)
         return URLRequirement(line, url, requirement, editable=editable)
 
     # Handle local archives and project directories via path or file URL (Pip proprietary).

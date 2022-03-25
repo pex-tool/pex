@@ -33,6 +33,7 @@ def normalize(
     downloaded,  # type: Downloaded
     skip_additional_artifacts=False,  # type: bool
     skip_urls=False,  # type: bool
+    skip_verified=False,  # type: bool
 ):
     # type: (...) -> Downloaded
     return attr.evolve(
@@ -45,7 +46,10 @@ def normalize(
         locked_resolves=tuple(
             sorted(
                 normalize_locked_resolve(
-                    lock, skip_additional_artifacts=skip_additional_artifacts, skip_urls=skip_urls
+                    lock,
+                    skip_additional_artifacts=skip_additional_artifacts,
+                    skip_urls=skip_urls,
+                    skip_verified=skip_verified,
                 )
                 for lock in downloaded.locked_resolves
             )
@@ -116,7 +120,9 @@ def test_lock_single_target(
         os.symlink(
             local_dist.path, os.path.join(find_links_repo, os.path.basename(local_dist.path))
         )
-    assert normalize(downloaded, skip_additional_artifacts=True, skip_urls=True) == normalize(
+    assert normalize(
+        downloaded, skip_additional_artifacts=True, skip_urls=True, skip_verified=True
+    ) == normalize(
         resolver.download(
             requirements=requirements,
             lock_configuration=lock_configuration,
@@ -125,10 +131,11 @@ def test_lock_single_target(
         ),
         skip_additional_artifacts=True,
         skip_urls=True,
+        skip_verified=True,
     ), (
         "Expected a find-links lock to match an equivalent PyPI lock except for the primary "
-        "artifact urls and lack of additional artifacts (since these are never downloaded; but "
-        "instead, just recorded)."
+        "artifact urls and their verification status and lack of additional artifacts (since these "
+        "are never downloaded; but instead, just recorded)."
     )
 
     lock_file = os.path.join(str(tmpdir), "requirements.txt")

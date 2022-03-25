@@ -26,7 +26,9 @@ from pex.pep_376 import Record
 from pex.pep_425 import CompatibilityTags
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
+from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.platforms import Platform
+from pex.requirements import VCS, VCSScheme, parse_scheme
 from pex.resolve.locked_resolve import LockRequest, LockStyle
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import ResolverVersion
@@ -303,6 +305,12 @@ class _Issue10050Analyzer(_ErrorAnalyzer):
         return self.Continue()
 
 
+@attr.s(frozen=True)
+class _VCSPartialInfo(object):
+    vcs = attr.ib()  # type: VCS.Value
+    via = attr.ib()  # type: Tuple[str, ...]
+
+
 class Locker(_LogAnalyzer):
     def __init__(
         self,
@@ -311,12 +319,15 @@ class Locker(_LogAnalyzer):
     ):
         # type: (...) -> None
         self._lock_request = lock_request
+        self._download_dir = download_dir
 
         self._saved_re = re.compile(
             r"Saved (?:{download_dir}){dir_sep}(?P<filename>.+)$".format(
                 download_dir="|".join(
                     re.escape(path)
-                    for path in frozenset((download_dir, os.path.realpath(download_dir)))
+                    for path in frozenset(
+                        (self._download_dir, os.path.realpath(self._download_dir))
+                    )
                 ),
                 dir_sep=re.escape(os.path.sep),
             )
@@ -326,6 +337,7 @@ class Locker(_LogAnalyzer):
         self._resolved_requirements = []  # type: List[ResolvedRequirement]
         self._links = defaultdict(OrderedSet)  # type: DefaultDict[Pin, OrderedSet[PartialArtifact]]
         self._done_building_re = None  # type: Optional[Pattern]
+        self._vcs_partial_info = None  # type: Optional[_VCSPartialInfo]
 
     @property
     def style(self):
@@ -363,13 +375,16 @@ class Locker(_LogAnalyzer):
         # The log sequence for processing a resolved requirement is as follows (log lines irrelevant
         # to our purposes omitted):
         #
-        # 1.) "... Found link <url1> ..."
-        # ...
-        # 1.) "... Found link <urlN> ..."
-        # 2.) "... Added <requirement pin> from <url> ... to build tracker ..."
-        # 3.) Lines related to extracting metadata from <requirement pin>'s artifact
-        # 4.) "... Removed <requirement pin> from <url> ... from build tracker ..."
-        #
+        #   1.) "... Found link <url1> ..."
+        #   ...
+        #   1.) "... Found link <urlN> ..."
+        #   2.) "... Added <requirement> from <url> ... to build tracker ..."
+        #   3.) Lines related to extracting metadata from <requirement>'s artifact
+        # * 4.) "... Source in <tmp> has version <version>, which satisfies requirement "
+        #       "<requirement> from <url> ..."
+        #   5.) "... Removed <requirement> from <url> ... from build tracker ..."
+        #   6.) "... Saved <download dir>/<artifact file>
+
         # The lines in section 3 can contain this same pattern of lines if the metadata extraction
         # proceeds via PEP-517 which recursively uses Pip to resolve build dependencies. We want to
         # ignore this recursion since a lock should only contain install requirements and not build
@@ -377,13 +392,52 @@ class Locker(_LogAnalyzer):
         # long as the final built artifact hashes the same. In other words, we completely rely on a
         # cryptographic fingerprint for reproducibility and security guarantees from a lock).
 
+        # The section 4 line will be present for requirements that represent either local source
+        # directories or VCS requirements and can be used to learn their version.
+
         if self._done_building_re:
             if self._done_building_re.search(line):
                 self._done_building_re = None
+            elif self._vcs_partial_info is not None:
+                match = re.search(
+                    r"Source in .+ has version (?P<version>[^\s]+), which satisfies requirement "
+                    r"(?P<requirement>.+) from (?P<url>[^\s]+)(?: \(from .+)?$",
+                    line,
+                )
+                if match:
+                    vcs_partial_info = self._vcs_partial_info
+                    self._vcs_partial_info = None
+
+                    raw_requirement = match.group("requirement")
+                    requirement = Requirement.parse(raw_requirement)
+                    project_name = requirement.project_name
+                    version = match.group("version")
+
+                    # VCS requirements are satisfied by a singular source; so we need not consult
+                    # links collected in this round.
+                    self._links.clear()
+
+                    self._resolved_requirements.append(
+                        ResolvedRequirement(
+                            requirement=requirement,
+                            pin=Pin.canonicalize(ProjectNameAndVersion(project_name, version)),
+                            artifact=PartialArtifact(
+                                url=match.group("url"),
+                                fingerprint=fingerprint_downloaded_vcs_archive(
+                                    download_dir=self._download_dir,
+                                    project_name=project_name,
+                                    version=version,
+                                    vcs=vcs_partial_info.vcs,
+                                ),
+                                verified=True,
+                            ),
+                            via=vcs_partial_info.via,
+                        )
+                    )
             return self.Continue()
 
         match = re.search(
-            r"Added (?P<requirement>.*) from (?P<url>[^\s]+) (?:\(from (?P<from>.*)\) )?to build "
+            r"Added (?P<requirement>.+) from (?P<url>[^\s]+) (?:\(from (?P<from>.*)\) )?to build "
             r"tracker",
             line,
         )
@@ -396,52 +450,65 @@ class Locker(_LogAnalyzer):
                 )
             )
 
-            requirement = Requirement.parse(raw_requirement)
-            project_name_and_version, partial_artifact = self._extract_resolve_data(url)
-
             from_ = match.group("from")
             if from_:
                 via = tuple(from_.split("->"))
             else:
                 via = ()
 
-            additional_artifacts = self._links[project_name_and_version]
-            additional_artifacts.discard(partial_artifact)
-            self._links.clear()
+            parsed_scheme = parse_scheme(urlparse.urlparse(url).scheme)
+            if isinstance(parsed_scheme, VCSScheme):
+                # We'll get the remaining information we need to record the resolved VCS requirement
+                # in a later log line; so just save what we have so far.
+                self._vcs_partial_info = _VCSPartialInfo(vcs=parsed_scheme.vcs, via=via)
+            else:
+                requirement = Requirement.parse(raw_requirement)
+                project_name_and_version, partial_artifact = self._extract_resolve_data(url)
 
-            self._resolved_requirements.append(
-                ResolvedRequirement(
-                    requirement=requirement,
-                    pin=project_name_and_version,
-                    artifact=partial_artifact,
-                    additional_artifacts=tuple(additional_artifacts),
-                    via=via,
+                additional_artifacts = self._links[project_name_and_version]
+                additional_artifacts.discard(partial_artifact)
+                self._links.clear()
+
+                self._resolved_requirements.append(
+                    ResolvedRequirement(
+                        requirement=requirement,
+                        pin=project_name_and_version,
+                        artifact=partial_artifact,
+                        additional_artifacts=tuple(additional_artifacts),
+                        via=via,
+                    )
                 )
+            return self.Continue()
+
+        match = self._saved_re.search(line)
+        if match:
+            self._saved.add(
+                Pin.canonicalize(ProjectNameAndVersion.from_filename(match.group("filename")))
             )
-        else:
-            match = self._saved_re.search(line)
+            return self.Continue()
+
+        if self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
+            match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
             if match:
-                self._saved.add(
-                    Pin.canonicalize(ProjectNameAndVersion.from_filename(match.group("filename")))
+                project_name_and_version, partial_artifact = self._extract_resolve_data(
+                    match.group("url")
                 )
-            elif self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
-                match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
-                if match:
-                    project_name_and_version, partial_artifact = self._extract_resolve_data(
-                        match.group("url")
-                    )
-                    self._links[project_name_and_version].add(partial_artifact)
-                elif LockStyle.UNIVERSAL == self.style:
-                    match = re.search(
-                        r"Skipping link: none of the wheel's tags \([^)]+\) are compatible \(run "
-                        r"pip debug --verbose to show compatible tags\): (?P<url>[^\s]+) ",
-                        line,
-                    )
-                    if match:
-                        project_name_and_version, partial_artifact = self._extract_resolve_data(
-                            match.group("url")
-                        )
-                        self._links[project_name_and_version].add(partial_artifact)
+                self._links[project_name_and_version].add(partial_artifact)
+                return self.Continue()
+
+        if LockStyle.UNIVERSAL == self.style:
+            match = re.search(
+                r"Skipping link: none of the wheel's tags \([^)]+\) are compatible "
+                r"\(run pip debug --verbose to show compatible tags\): "
+                r"(?P<url>[^\s]+) ",
+                line,
+            )
+            if match:
+                project_name_and_version, partial_artifact = self._extract_resolve_data(
+                    match.group("url")
+                )
+                self._links[project_name_and_version].add(partial_artifact)
+
         return self.Continue()
 
     def analysis_completed(self):

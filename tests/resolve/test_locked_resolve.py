@@ -1,5 +1,6 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 from textwrap import dedent
 
 import pytest
@@ -11,13 +12,16 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
+from pex.requirements import VCS
 from pex.resolve.locked_resolve import (
     Artifact,
     DownloadableArtifact,
+    FileArtifact,
     LockedRequirement,
     LockedResolve,
     RankedArtifact,
     Resolved,
+    VCSArtifact,
     _ResolvedArtifact,
 )
 from pex.resolve.resolved_requirement import Fingerprint, Pin
@@ -64,8 +68,8 @@ def artifact(
     algorithm,  # type: str
     hash,  # type: str
 ):
-    # type: (...) -> Artifact
-    return Artifact(url=url, fingerprint=Fingerprint(algorithm=algorithm, hash=hash))
+    # type: (...) -> Union[FileArtifact, VCSArtifact]
+    return Artifact.from_url(url=url, fingerprint=Fingerprint(algorithm=algorithm, hash=hash))
 
 
 def locked_requirements(*locked_requirements):
@@ -836,3 +840,54 @@ def test_resolved():
 
     # For tag ranks of 1, 2, 3, 2 lands in the middle and should be 50% target specific.
     assert_resolved(expected_target_specificity=0.5, supported_tag_count=3, artifact_ranks=[2])
+
+
+def test_file_artifact():
+    # type: () -> None
+
+    artifact = Artifact.from_url(
+        url="file:///repo/A-1.0.0.tar.gz",
+        fingerprint=Fingerprint(algorithm="md5", hash="foo"),
+    )
+    assert isinstance(artifact, FileArtifact)
+    assert "A-1.0.0.tar.gz" == artifact.filename
+    assert artifact.is_source
+    assert frozenset() == frozenset(artifact.parse_tags())
+
+    artifact = Artifact.from_url(
+        url="https://example.org/ansicolors-1.1.7-py2.py3-none-any.whl",
+        fingerprint=Fingerprint(algorithm="sha1", hash="foo"),
+    )
+    assert isinstance(artifact, FileArtifact)
+    assert "ansicolors-1.1.7-py2.py3-none-any.whl" == artifact.filename
+    assert not artifact.is_source
+    assert frozenset((Tag("py2", "none", "any"), Tag("py3", "none", "any"))) == frozenset(
+        artifact.parse_tags()
+    )
+
+
+def test_vcs_artifact():
+    # type: () -> None
+
+    artifact = Artifact.from_url(
+        url="git+https://github.com/pantsbuild/pex",
+        fingerprint=Fingerprint(algorithm="md5", hash="bar"),
+    )
+    assert isinstance(artifact, VCSArtifact)
+    assert VCS.Git is artifact.vcs
+    assert artifact.is_source
+    assert "pex @ git+https://github.com/pantsbuild/pex" == artifact.as_unparsed_requirement(
+        ProjectName("pex")
+    )
+
+    artifact = Artifact.from_url(
+        url="hg+https://github.com/pantsbuild/pex#egg=pex&subdirectory=.",
+        fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
+    )
+    assert isinstance(artifact, VCSArtifact)
+    assert VCS.Mercurial is artifact.vcs
+    assert artifact.is_source
+    assert (
+        "hg+https://github.com/pantsbuild/pex#egg=pex&subdirectory=."
+        == artifact.as_unparsed_requirement(ProjectName("pex"))
+    )

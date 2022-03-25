@@ -173,7 +173,7 @@ def loads(
             for i, artifact in enumerate(get("artifacts", list, data=req, path=req_path)):
                 ap = '{path}["artifacts"][{index}]'.format(path=req_path, index=i)
                 artifacts.append(
-                    Artifact(
+                    Artifact.from_url(
                         url=get("url", data=artifact, path=ap),
                         fingerprint=Fingerprint(
                             algorithm=get("algorithm", data=artifact, path=ap),

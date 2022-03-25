@@ -5,12 +5,12 @@ from __future__ import absolute_import
 
 import hashlib
 
+from pex import hashing
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import BinaryIO, Iterator, Optional, Tuple
@@ -56,7 +56,7 @@ class Fingerprint(object):
     ):
         # type: (...) -> Fingerprint
         digest = hashlib.new(algorithm)
-        CacheHelper.update_hash(filelike=stream, digest=digest)
+        hashing.update_hash(filelike=stream, digest=digest)
         return cls(algorithm=algorithm, hash=digest.hexdigest())
 
     algorithm = attr.ib()  # type: str
@@ -67,6 +67,7 @@ class Fingerprint(object):
 class PartialArtifact(object):
     url = attr.ib()  # type: str
     fingerprint = attr.ib(default=None)  # type: Optional[Fingerprint]
+    verified = attr.ib(default=False)  # type: bool
 
 
 @attr.s(frozen=True)
@@ -77,10 +78,14 @@ class ResolvedRequirement(object):
     additional_artifacts = attr.ib(default=())  # type: Tuple[PartialArtifact, ...]
     via = attr.ib(default=())  # type: Tuple[str, ...]
 
-    def _iter_urls_to_fingerprint(self):
-        # type: () -> Iterator[str]
-        if not self.artifact.fingerprint:
-            yield self.artifact.url
+    def iter_artifacts(self):
+        # type: () -> Iterator[PartialArtifact]
+        yield self.artifact
         for artifact in self.additional_artifacts:
+            yield artifact
+
+    def iter_urls_to_fingerprint(self):
+        # type: () -> Iterator[str]
+        for artifact in self.iter_artifacts():
             if not artifact.fingerprint:
                 yield artifact.url

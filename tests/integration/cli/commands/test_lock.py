@@ -4,6 +4,8 @@
 import hashlib
 import os
 import re
+import subprocess
+import sys
 from textwrap import dedent
 
 import pytest
@@ -15,12 +17,22 @@ from pex.pep_503 import ProjectName
 from pex.resolve import lockfile
 from pex.resolve.locked_resolve import Artifact, LockedRequirement
 from pex.resolve.lockfile import Lockfile
+from pex.resolve.lockfile.download_manager import DownloadedArtifact
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.testing import normalize_locked_resolve
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter
-from pex.testing import IS_MAC, IS_PYPY, PY310, PY_VER, IntegResults, ensure_python_interpreter
+from pex.testing import (
+    IS_MAC,
+    IS_PYPY,
+    PY310,
+    PY_VER,
+    IntegResults,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+)
 from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
@@ -105,18 +117,20 @@ def test_create_style(tmpdir):
         download_dir = os.path.join(
             pex_root, "downloads", locked_requirement.artifact.fingerprint.hash
         )
-        downloaded_artifact = os.path.join(download_dir, locked_requirement.artifact.filename)
-        assert os.path.exists(downloaded_artifact), (
+        downloaded_artifact = DownloadedArtifact.load(download_dir)
+        assert os.path.exists(downloaded_artifact.path), (
             "Expected the primary artifact to be downloaded as a side-effect of executing the lock "
             "resolve."
         )
-        downloaded_artifact_internal_fingerprint = os.path.join(download_dir, "sha1")
-        assert os.path.exists(downloaded_artifact_internal_fingerprint), (
+        assert (
+            CacheHelper.hash(
+                downloaded_artifact.path, digest=downloaded_artifact.fingerprint.new_hasher()
+            )
+            == downloaded_artifact.fingerprint
+        ), (
             "Expected the primary artifact to have an internal fingerprint established to short "
             "circuit builds and installs."
         )
-        with open(downloaded_artifact_internal_fingerprint) as fp:
-            assert CacheHelper.hash(downloaded_artifact, digest=hashlib.sha1()) == fp.read()
         return locked_requirement
 
     # See: https://pypi.org/project/psutil/5.9.0/#files
@@ -150,28 +164,46 @@ def test_create_local_unsupported(pex_project_dir):
     result = run_pex3("lock", "create", pex_project_dir)
     result.assert_failure()
     assert (
-        "Cannot create a lock for project requirements built from local or version controlled "
-        "sources. Given 1 such project:\n"
+        "Cannot create a lock for project requirements built from local sources. Given 1 such "
+        "project:\n"
         "1.) local project at {path}\n".format(path=pex_project_dir)
     ) == result.error
 
 
-def test_create_vcs_unsupported():
-    # type: () -> None
+def test_create_vcs(tmpdir):
+    # type: (Any) -> None
 
-    result = run_pex3(
+    lock = os.path.join(str(tmpdir), "lock")
+    run_pex3(
         "lock",
         "create",
         "pex @ git+https://github.com/pantsbuild/pex@473c6ac7",
-        "git+https://github.com/pypa/pip@f0f67af3#egg=pip",
-    )
-    result.assert_failure()
+        "git+https://github.com/VaasuDevanS/cowsay-python@v3.0#egg=cowsay",
+        "-o",
+        lock,
+    ).assert_success()
+    pex_file = os.path.join(str(tmpdir), "pip-pex.pex")
+    run_pex_command(args=["--lock", lock, "-o", pex_file]).assert_success()
+
     assert (
-        "Cannot create a lock for project requirements built from local or version controlled "
-        "sources. Given 2 such projects:\n"
-        "1.) git project pex at https://github.com/pantsbuild/pex@473c6ac7\n"
-        "2.) git project pip at https://github.com/pypa/pip@f0f67af3\n"
-    ) == result.error
+        "3.0"
+        == subprocess.check_output(args=[pex_file, "--version"], env=make_env(PEX_SCRIPT="cowsay"))
+        .decode("utf-8")
+        .strip()
+    )
+
+    process = subprocess.Popen(
+        args=[pex_file, "-V"],
+        env=make_env(PEX_SCRIPT="pex"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout, stderr = process.communicate()
+    assert 0 == process.returncode
+
+    # The argparse system emits version to stderr under Python 2.7.
+    output = stderr if sys.version_info[0] == 2 else stdout
+    assert "2.1.61" == output.decode("utf-8").strip()
 
 
 def test_create_universal_python_unsupported():
@@ -470,7 +502,7 @@ def test_update_targeted_closure_shrink(lock_file_path):
             pin=Pin(
                 project_name=ProjectName(project_name=u"requests"), version=Version(version="2")
             ),
-            artifact=Artifact(
+            artifact=Artifact.from_url(
                 url="https://files.pythonhosted.org/packages/bf/78/be2b4c440ea767336d8448fe671fe1d78ca499e49d77dac90f92191cca0e/requests-2.0.0-py2.py3-none-any.whl",
                 fingerprint=Fingerprint(
                     algorithm="sha256",
@@ -666,7 +698,7 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
                         project_name=ProjectName(project_name="ansicolors"),
                         version=Version(version="1.0.2"),
                     ),
-                    artifact=Artifact(
+                    artifact=Artifact.from_url(
                         url=(
                             "https://files.pythonhosted.org/packages/ac/c1/"
                             "e21f0a1258ff927d124a72179669dcc7efcb57b22df8cd0e49ed8f1a308c/"
@@ -683,7 +715,7 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
                         project_name=ProjectName(project_name="find"),
                         version=Version(version="2020.12.3"),
                     ),
-                    artifact=Artifact(
+                    artifact=Artifact.from_url(
                         url=(
                             "https://files.pythonhosted.org/packages/91/1c/"
                             "90cac4602ec146ce6f055b2e9598f46da08e941dd860f0498af764407b7e/"
@@ -700,7 +732,7 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
                         project_name=ProjectName(project_name="cowsay"),
                         version=Version(version="4"),
                     ),
-                    artifact=Artifact(
+                    artifact=Artifact.from_url(
                         url=(
                             "https://files.pythonhosted.org/packages/b7/65/"
                             "38f31ef16efc312562f68732098d6f7ba3b2c108a4aaa8ac8ba673ee0871/"
