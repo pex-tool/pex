@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.74
+------
+
+This release fixes multiplatform ``--lock`` resolves for sdists that are
+built to multiple platform specific wheels and it also introduces
+support for VCS requirements in locks.
+
+* Add support for locking VCS requirements. (#1687)
+  `PR #1684 <https://github.com/pantsbuild/pex/pull/1687>`_
+
+* Fix ``--lock`` for multiplatform via sdists. (#1689)
+  `PR #1684 <https://github.com/pantsbuild/pex/pull/1689>`_
+
 2.1.73
 ------
 
