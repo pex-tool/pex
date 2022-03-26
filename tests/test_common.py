@@ -126,17 +126,18 @@ def test_atomic_directory_empty_workdir_finalized():
 
 def test_atomic_directory_deadlock():
     # type: () -> None
-    blocked_counter = 0
 
     def mock_lockf(fd, cmd):  # type: (int, int) -> None
         if cmd == fcntl.LOCK_EX:
-            nonlocal blocked_counter
-            blocked_counter += 1
-            if blocked_counter < 5:
+            mock_lockf.lock_call_counter += 1  # type: ignore[attr-defined]
+            if mock_lockf.lock_call_counter < 5:  # type: ignore[attr-defined]
                 raise OSError(
                     errno.EDEADLK,  # type: ignore[attr-defined] # See https://github.com/python/typeshed/issues/7551
                     "Resource deadlock avoided"
                 )
+
+    # N.B. Workaround Python 2.7's lack of `nonlocal` support
+    mock_lockf.lock_call_counter = 0  # type: ignore[attr-defined]
 
     with temporary_dir() as sandbox:
         target_dir = os.path.join(sandbox, "target_dir")
