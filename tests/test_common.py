@@ -133,7 +133,10 @@ def test_atomic_directory_deadlock():
             nonlocal blocked_counter
             blocked_counter += 1
             if blocked_counter < 5:
-                raise OSError(errno.EDEADLK, "Resource deadlock avoided")
+                raise OSError(
+                    errno.EDEADLK,  # type: ignore[attr-defined] # See https://github.com/python/typeshed/issues/7551
+                    "Resource deadlock avoided"
+                )
 
     with temporary_dir() as sandbox:
         target_dir = os.path.join(sandbox, "target_dir")
