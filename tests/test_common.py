@@ -133,7 +133,7 @@ def test_atomic_directory_deadlock():
             if mock_lockf.lock_call_counter < 5:  # type: ignore[attr-defined]
                 raise OSError(
                     errno.EDEADLK,  # type: ignore[attr-defined] # See https://github.com/python/typeshed/issues/7551
-                    "Resource deadlock avoided"
+                    "Resource deadlock avoided",
                 )
 
     # N.B. Workaround Python 2.7's lack of `nonlocal` support
