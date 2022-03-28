@@ -476,9 +476,7 @@ def atomic_directory(target_dir, exclusive, source=None):
                 )
                 if e.errno == deadlock_avoided_errorno:
                     # Another thread/process is doing the work. We must wait.
-                    # N.B.: This can happen if the process running this code forks, this is the same
-                    # behavior as described in https://bugs.python.org/issue6721, but instead of logging
-                    # doing the locking, we are.
+                    # See https://github.com/pantsbuild/pex/issues/1693
                     time.sleep(1)
                     continue
                 raise
