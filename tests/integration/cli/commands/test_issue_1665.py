@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.skipif(
     IS_PYPY or sys.version_info[:3] < (3, 6, 2),
-    reason="The black 22.1.0 distribution requires Python >= 3.6.2",
+    reason="The black 22.3.0 distribution requires Python >= 3.6.2",
 )
 def test_lock_black(tmpdir):
     # type: (Any) -> None
@@ -29,10 +29,10 @@ def test_lock_black(tmpdir):
         "pip-2020-resolver",
         "--style",
         "universal",
-        "black==22.1.0",
+        "black==22.3.0",
         "-o",
         lock,
     ).assert_success()
     result = run_pex_command(args=["--lock", lock, "-c", "black", "--", "--version"])
     result.assert_success()
-    assert " 22.1.0 " in result.output
+    assert " 22.3.0 " in result.output
