@@ -3,6 +3,7 @@
 
 import contextlib
 import errno
+import fcntl
 import os
 from contextlib import contextmanager
 
@@ -121,6 +122,31 @@ def test_atomic_directory_empty_workdir_finalized():
             assert (
                 work_dir.is_finalized()
             ), "When the target_dir exists no work_dir should be created."
+
+
+def test_atomic_directory_deadlock():
+    # type: () -> None
+
+    def mock_lockf(fd, cmd):  # type: (int, int) -> None
+        if cmd == fcntl.LOCK_EX:
+            mock_lockf.lock_call_counter += 1  # type: ignore[attr-defined]
+            if mock_lockf.lock_call_counter < 5:  # type: ignore[attr-defined]
+                raise OSError(
+                    errno.EDEADLK,  # type: ignore[attr-defined] # See https://github.com/python/typeshed/issues/7551
+                    "Resource deadlock avoided",
+                )
+
+    # N.B. Workaround Python 2.7's lack of `nonlocal` support
+    mock_lockf.lock_call_counter = 0  # type: ignore[attr-defined]
+
+    with temporary_dir() as sandbox:
+        target_dir = os.path.join(sandbox, "target_dir")
+        with mock.patch("time.sleep", lambda i: None), mock.patch.object(
+            fcntl, "lockf", mock_lockf
+        ):
+            with atomic_directory(target_dir, exclusive=True) as work_dir:
+                assert not work_dir.is_finalized()
+            assert work_dir.is_finalized()
 
 
 def extract_perms(path):

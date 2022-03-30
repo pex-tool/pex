@@ -464,10 +464,23 @@ def atomic_directory(target_dir, exclusive, source=None):
             os.path.join(head, ".{}.atomic_directory.lck".format(tail or "here")),
             os.O_CREAT | os.O_WRONLY,
         )
-        # N.B.: Since lockf operates on an open file descriptor and these are guaranteed to be
-        # closed by the operating system when the owning process exits, this lock is immune to
-        # staleness.
-        fcntl.lockf(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
+        while True:
+            try:
+                # N.B.: Since lockf operates on an open file descriptor and these are guaranteed to be
+                # closed by the operating system when the owning process exits, this lock is immune to
+                # staleness.
+                fcntl.lockf(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
+            except OSError as e:
+                deadlock_avoided_errorno = (
+                    errno.EDEADLK  # type: ignore[attr-defined] # See https://github.com/python/typeshed/issues/7551
+                )
+                if e.errno == deadlock_avoided_errorno:
+                    # Another thread/process is doing the work. We must wait.
+                    # See https://github.com/pantsbuild/pex/issues/1693
+                    time.sleep(1)
+                    continue
+                raise
+            break
         if atomic_dir.is_finalized():
             # We lost the double-checked locking race and our work was done for us by the race
             # winner so exit early.
