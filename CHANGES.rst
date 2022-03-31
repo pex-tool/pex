@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.75
+------
+
+This release fixes a deadlock when building PEXes in parallel
+via the new ``--lock`` flag.
+
+* Avoid deadlock error when run in parallel. (#1694)
+  `PR #1694 <https://github.com/pantsbuild/pex/pull/1694>`_
+
 2.1.74
 ------
 
