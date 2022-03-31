@@ -42,6 +42,7 @@ Tag the release and push the tag to https://github.com/pantsbuild/pex main:
     $ git tag --sign -am 'Release 2.1.29' v2.1.29
     $ git push --tags https://github.com/pantsbuild/pex HEAD:main
 
+If you're on macOS and commit signing fails, try setting ``export GPG_TTY=$(tty)``.
 
 Open the Release workflow run and wait for it to go green:
 https://github.com/pantsbuild/pex/actions?query=workflow%3ARelease+branch%3Av2.1.29
