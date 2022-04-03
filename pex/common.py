@@ -22,7 +22,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
 
-from pex.typing import TYPE_CHECKING
+from pex.enum import Enum
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import (
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
         Set,
         Sized,
         Tuple,
+        Union,
     )
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
@@ -392,10 +394,18 @@ class AtomicDirectory(object):
         safe_rmtree(self._work_dir)
 
 
+class FileLockStyle(Enum["FileLockStyle.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    BSD = Value("bsd")
+    POSIX = Value("posix")
+
+
 @contextmanager
 def atomic_directory(
     target_dir,  # type: str
-    exclusive,  # type: bool
+    exclusive,  # type: Union[bool, FileLockStyle.Value]
     source=None,  # type: Optional[str]
 ):
     # type: (...) -> Iterator[AtomicDirectory]
@@ -404,7 +414,9 @@ def atomic_directory(
     :param target_dir: The target directory to atomically update.
     :param exclusive: If `True`, its guaranteed that only one process will be yielded a non `None`
                       workdir; otherwise two or more processes might be yielded unique non-`None`
-                      workdirs with the last process to finish "winning".
+                      workdirs with the last process to finish "winning". By default, a POSIX fcntl
+                      lock will be used to ensure exclusivity. To change this, pass an explicit
+                      `LockStyle` instead of `True`.
     :param source: An optional source offset into the work directory to use for the atomic update
                    of the target directory. By default the whole work directory is used.
 
@@ -426,13 +438,17 @@ def atomic_directory(
         return
 
     lock_fd = None  # type: Optional[int]
+    lock_api = cast(
+        "Callable[[int, int], None]",
+        fcntl.flock if exclusive is FileLockStyle.BSD else fcntl.lockf,
+    )
 
     def unlock():
         # type: () -> None
         if lock_fd is None:
             return
         try:
-            fcntl.lockf(lock_fd, fcntl.LOCK_UN)
+            lock_api(lock_fd, fcntl.LOCK_UN)
         finally:
             os.close(lock_fd)
 
@@ -446,23 +462,10 @@ def atomic_directory(
             os.path.join(head, ".{}.atomic_directory.lck".format(tail or "here")),
             os.O_CREAT | os.O_WRONLY,
         )
-        while True:
-            try:
-                # N.B.: Since lockf operates on an open file descriptor and these are guaranteed to be
-                # closed by the operating system when the owning process exits, this lock is immune to
-                # staleness.
-                fcntl.lockf(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
-            except OSError as e:
-                deadlock_avoided_errorno = (
-                    errno.EDEADLK  # type: ignore[attr-defined] # See https://github.com/python/typeshed/issues/7551
-                )
-                if e.errno == deadlock_avoided_errorno:
-                    # Another thread/process is doing the work. We must wait.
-                    # See https://github.com/pantsbuild/pex/issues/1693
-                    time.sleep(1)
-                    continue
-                raise
-            break
+        # N.B.: Since lockf and flock operate on an open file descriptor and these are
+        # guaranteed to be closed by the operating system when the owning process exits,
+        # this lock is immune to staleness.
+        lock_api(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
         if atomic_dir.is_finalized():
             # We lost the double-checked locking race and our work was done for us by the race
             # winner so exit early.
