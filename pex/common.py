@@ -106,28 +106,6 @@ def pluralize(
         return noun + "s"
 
 
-def qualified_name(item):
-    # type: (Any) -> str
-    """Attempt to produce the fully qualified name for an item.
-
-    If the item is a type, method, property or function, its fully qualified name is returned as
-    best as can be determined. Otherwise, the fully qualified name of the type of the given item is
-    returned.
-
-    :param item: The item to identify.
-    :return: The fully qualified name of the given item.
-    """
-    if isinstance(item, property):
-        item = item.fget
-    if not hasattr(item, "__name__"):
-        item = type(item)
-    return "{module}.{type}".format(
-        module=getattr(item, "__module__", "<unknown module>"),
-        # There is no __qualname__ in Python 2.7; so we do the best we can.
-        type=getattr(item, "__qualname__", item.__name__),
-    )
-
-
 def safe_copy(source, dest, overwrite=False):
     # type: (str, str, bool) -> None
     def do_copy():
@@ -415,8 +393,12 @@ class AtomicDirectory(object):
 
 
 @contextmanager
-def atomic_directory(target_dir, exclusive, source=None):
-    # type: (str, bool, Optional[str]) -> Iterator[AtomicDirectory]
+def atomic_directory(
+    target_dir,  # type: str
+    exclusive,  # type: bool
+    source=None,  # type: Optional[str]
+):
+    # type: (...) -> Iterator[AtomicDirectory]
     """A context manager that yields a potentially exclusively locked AtomicDirectory.
 
     :param target_dir: The target directory to atomically update.
