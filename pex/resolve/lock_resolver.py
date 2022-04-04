@@ -10,7 +10,7 @@ from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
 from pex import resolver
-from pex.common import pluralize
+from pex.common import FileLockStyle, pluralize
 from pex.compatibility import cpu_count
 from pex.fetcher import URLFetcher
 from pex.network_configuration import NetworkConfiguration
@@ -42,10 +42,13 @@ class URLFetcherDownloadManager(DownloadManager[FileArtifact]):
 
     def __init__(
         self,
+        file_lock_style,  # type: FileLockStyle.Value
         url_fetcher,  # type: URLFetcher
         pex_root=None,  # type: Optional[str]
     ):
-        super(URLFetcherDownloadManager, self).__init__(pex_root=pex_root)
+        super(URLFetcherDownloadManager, self).__init__(
+            pex_root=pex_root, file_lock_style=file_lock_style
+        )
         self._url_fetcher = url_fetcher
 
     def save(
@@ -72,6 +75,7 @@ class URLFetcherDownloadManager(DownloadManager[FileArtifact]):
 class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
     def __init__(
         self,
+        file_lock_style,  # type: FileLockStyle.Value
         indexes=None,  # type: Optional[Sequence[str]]
         find_links=None,  # type: Optional[Sequence[str]]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
@@ -81,7 +85,9 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         build_isolation=True,  # type: bool
         pex_root=None,  # type: Optional[str]
     ):
-        super(VCSArtifactDownloadManager, self).__init__(pex_root=pex_root)
+        super(VCSArtifactDownloadManager, self).__init__(
+            pex_root=pex_root, file_lock_style=file_lock_style
+        )
         self._indexes = indexes
         self._find_links = find_links
         self._resolver_version = resolver_version
@@ -260,10 +266,19 @@ def resolve_from_lock(
             )
         )
 
+    # Since the download managers are stored to via a thread pool, we need to use BSD style locks.
+    # These locks are not as portable as POSIX style locks but work with threading unlike POSIX
+    # locks which are subject to threading-unaware deadlock detection per the standard. Linux, in
+    # fact, implements deadlock detection for POSIX locks; so we can run afoul of false EDEADLCK
+    # errors under the right interleaving of processes and threads and download artifact targets.
+    file_lock_style = FileLockStyle.BSD
+
     url_download_manager = URLFetcherDownloadManager(
-        url_fetcher=URLFetcher(network_configuration=network_configuration, handle_file_urls=True)
+        file_lock_style=file_lock_style,
+        url_fetcher=URLFetcher(network_configuration=network_configuration, handle_file_urls=True),
     )
     vcs_download_manager = VCSArtifactDownloadManager(
+        file_lock_style=file_lock_style,
         indexes=indexes,
         find_links=find_links,
         resolver_version=resolver_version,
