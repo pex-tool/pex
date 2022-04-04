@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.76
+------
+
+This release finalizes spurious deadlock handling in `--lock` resolves
+worked around in #1694 in Pex 2.1.75.
+
+* Fix lock_resolver to use BSD file locks. (#1702)
+  `PR #1702 <https://github.com/pantsbuild/pex/pull/1702>`_
+
 2.1.75
 ------
 
