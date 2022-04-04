@@ -16,7 +16,7 @@ from pex.executor import Executor
 from pex.layout import Layout
 from pex.pex import PEX
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import PY_VER, built_wheel, make_bdist, make_env
+from pex.testing import PY_VER, WheelBuilder, built_wheel, make_bdist, make_env
 from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -495,3 +495,49 @@ def test_pex_env_var_issues_1485(
     assert_pex_env_var_nested()
     assert_pex_env_var_nested(PEX_VENV=False)
     assert_pex_env_var_nested(PEX_VENV=True)
+
+
+@pytest.mark.parametrize(
+    "layout", [pytest.param(layout, id=layout.value) for layout in (Layout.PACKED, Layout.ZIPAPP)]
+)
+def test_build_compression(
+    tmpdir,  # type: Any
+    layout,  # type: Layout.Value
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
+
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
+    pb = PEXBuilder()
+    pb.info.pex_root = pex_root
+    with ENV.patch(PEX_ROOT=pex_root):
+        pb.add_dist_location(WheelBuilder(pex_project_dir).bdist())
+    exe = os.path.join(str(tmpdir), "exe.py")
+    with open(exe, "w") as fp:
+        fp.write("import pex; print(pex.__file__)")
+    pb.set_executable(exe)
+
+    def assert_pex(pex):
+        # type: (str) -> None
+        assert (
+            subprocess.check_output(args=[sys.executable, pex]).decode("utf-8").startswith(pex_root)
+        )
+
+    compressed_pex = os.path.join(str(tmpdir), "compressed.pex")
+    pb.build(compressed_pex, layout=layout)
+    assert_pex(compressed_pex)
+
+    uncompressed_pex = os.path.join(str(tmpdir), "uncompressed.pex")
+    pb.build(uncompressed_pex, layout=layout, compress=False)
+    assert_pex(uncompressed_pex)
+
+    def size(pex):
+        # type: (str) -> int
+        if os.path.isfile(pex):
+            return os.path.getsize(pex)
+        return sum(
+            os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(pex) for f in files
+        )
+
+    assert size(compressed_pex) < size(uncompressed_pex)

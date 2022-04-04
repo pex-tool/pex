@@ -159,6 +159,21 @@ def configure_clp_pex_options(parser):
         ),
     )
 
+    group.add_argument(
+        "--compress",
+        "--compressed",
+        "--no-compress",
+        "--not-compressed",
+        "--no-compression",
+        dest="compress",
+        default=True,
+        action=HandleBoolAction,
+        help=(
+            "Whether to compress zip entries when creating either a zipapp PEX file or a packed "
+            "PEX's bootstrap and dependency zip files. Does nothing for loose layout PEXes."
+        ),
+    )
+
     runtime_mode = group.add_mutually_exclusive_group()
     runtime_mode.add_argument(
         "--unzip",
@@ -765,6 +780,7 @@ def do_main(
             bytecode_compile=options.compile,
             deterministic_timestamp=not options.use_system_time,
             layout=options.layout,
+            compress=options.compress,
         )
         if options.seed != Seed.NONE:
             seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)

@@ -745,6 +745,7 @@ class Chroot(object):
         exclude_file=lambda _: False,  # type: Callable[[str], bool]
         strip_prefix=None,  # type: Optional[str]
         labels=None,  # type: Optional[Iterable[str]]
+        compress=True,  # type: bool
     ):
         # type: (...) -> None
 
@@ -755,7 +756,8 @@ class Chroot(object):
         else:
             selected_files = self.files()
 
-        with open_zip(filename, mode) as zf:
+        compression = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
+        with open_zip(filename, mode, compression) as zf:
 
             def write_entry(
                 filename,  # type: str
@@ -769,7 +771,7 @@ class Chroot(object):
                     if deterministic_timestamp
                     else None,
                 )
-                zf.writestr(zip_entry.info, zip_entry.data)
+                zf.writestr(zip_entry.info, zip_entry.data, compression)
 
             def get_parent_dir(path):
                 # type: (str) -> Optional[str]
