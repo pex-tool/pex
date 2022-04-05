@@ -600,6 +600,7 @@ class PEXBuilder(object):
         bytecode_compile=True,  # type: bool
         deterministic_timestamp=False,  # type: bool
         layout=Layout.ZIPAPP,  # type: Layout.Value
+        compress=True,  # type: bool
     ):
         # type: (...) -> None
         """Package the PEX application.
@@ -612,6 +613,8 @@ class PEXBuilder(object):
         :param bytecode_compile: If True, precompile .py files into .pyc files.
         :param deterministic_timestamp: If True, will use our hardcoded time for zipfile timestamps.
         :param layout: The layout to use for the PEX.
+        :param compress: Whether to compress zip entries when building to a layout that uses zip
+                         files.
 
         If the PEXBuilder is not yet frozen, it will be frozen by ``build``.  This renders the
         PEXBuilder immutable.
@@ -632,15 +635,20 @@ class PEXBuilder(object):
                     else:
                         os.mkdir(dirname)
                         self._build_packedapp(
-                            dirname=dirname, deterministic_timestamp=deterministic_timestamp
+                            dirname=dirname,
+                            deterministic_timestamp=deterministic_timestamp,
+                            compress=compress,
                         )
         else:
-            self._build_zipapp(filename=path, deterministic_timestamp=deterministic_timestamp)
+            self._build_zipapp(
+                filename=path, deterministic_timestamp=deterministic_timestamp, compress=compress
+            )
 
     def _build_packedapp(
         self,
         dirname,  # type: str
         deterministic_timestamp=False,  # type: bool
+        compress=True,  # type: bool
     ):
         # type: (...) -> None
 
@@ -654,13 +662,26 @@ class PEXBuilder(object):
                 safe_mkdir(os.path.dirname(dest))
                 safe_copy(os.path.realpath(os.path.join(self._chroot.chroot, f)), dest)
 
+        # Pex historically only supported compressed zips in packed layout, so we don't disturb the
+        # old cache structure for those zips and instead just use a subdir for un-compressed zips.
+        # This works for our two zip caches (we'll have no collisions with legacy compressed zips)
+        # since the bootstrap zip has a known name that is not "un-compressed" and "un-compressed"
+        # is not a valid wheel name either.
+        def zip_cache_dir(path):
+            # type: (str) -> str
+            if compress:
+                return path
+            return os.path.join(path, "un-compressed")
+
         # Zip up the bootstrap which is constant for a given version of Pex.
         bootstrap_hash = pex_info.bootstrap_hash
         if bootstrap_hash is None:
             raise AssertionError(
                 "Expected bootstrap_hash to be populated for {}.".format(self._pex_info)
             )
-        cached_bootstrap_zip_dir = os.path.join(pex_info.pex_root, "bootstrap_zips", bootstrap_hash)
+        cached_bootstrap_zip_dir = zip_cache_dir(
+            os.path.join(pex_info.pex_root, "bootstrap_zips", bootstrap_hash)
+        )
         with atomic_directory(
             cached_bootstrap_zip_dir, exclusive=False
         ) as atomic_bootstrap_zip_dir:
@@ -671,6 +692,7 @@ class PEXBuilder(object):
                     exclude_file=is_pyc_temporary_file,
                     strip_prefix=pex_info.bootstrap,
                     labels=("bootstrap",),
+                    compress=compress,
                 )
         safe_copy(
             os.path.join(cached_bootstrap_zip_dir, pex_info.bootstrap),
@@ -683,8 +705,8 @@ class PEXBuilder(object):
             internal_cache = os.path.join(dirname, pex_info.internal_cache)
             os.mkdir(internal_cache)
             for location, fingerprint in pex_info.distributions.items():
-                cached_installed_wheel_zip_dir = os.path.join(
-                    pex_info.pex_root, "installed_wheel_zips", fingerprint
+                cached_installed_wheel_zip_dir = zip_cache_dir(
+                    os.path.join(pex_info.pex_root, "installed_wheel_zips", fingerprint)
                 )
                 with atomic_directory(
                     cached_installed_wheel_zip_dir, exclusive=False
@@ -696,6 +718,7 @@ class PEXBuilder(object):
                             exclude_file=is_pyc_temporary_file,
                             strip_prefix=os.path.join(pex_info.internal_cache, location),
                             labels=(location,),
+                            compress=compress,
                         )
                 safe_copy(
                     os.path.join(cached_installed_wheel_zip_dir, location),
@@ -706,6 +729,7 @@ class PEXBuilder(object):
         self,
         filename,  # type: str
         deterministic_timestamp=False,  # type: bool
+        compress=True,  # type: bool
     ):
         # type: (...) -> None
         tmp_zip = filename + "~"
@@ -733,6 +757,7 @@ class PEXBuilder(object):
                 # pyc files that we should avoid copying since they are unuseful and inherently
                 # racy.
                 exclude_file=is_pyc_temporary_file,
+                compress=compress,
             )
         if os.path.exists(filename):
             os.unlink(filename)
