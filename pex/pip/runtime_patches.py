@@ -170,10 +170,42 @@ if skip_markers:
             orig_get_candidate_lookup = RequiresPythonRequirement.get_candidate_lookup
             orig_is_satisfied_by = RequiresPythonRequirement.is_satisfied_by
 
+            py_versions = []
+
+            # Ensure we do a proper, but minimal, comparison for Python versions. Previously we
+            # always tested all `Requires-Python` specifier sets against Python full versions. That
+            # can be pathologically slow (see: https://github.com/pantsbuild/pants/issues/14998); so
+            # we avoid using Python full versions unless the `Requires-Python` specifier set
+            # requires that data. In other words:
+            #
+            # Need full versions to evaluate properly:
+            # + Requires-Python: >=3.7.6
+            # + Requires-Python: >=3.7,!=3.7.6,<4
+            #
+            # Do not need full versions to evaluate properly:
+            # + Requires-Python: >=3.7,<4
+            # + Requires-Python: ==3.7.*
+            #
+            def needs_full_versions(spec):
+                components = spec.version.split(".", 2)
+                if len(components) < 3:
+                    return False
+                major_, minor_, patch = components
+                return patch != "*"
+
+            def _py_versions(self):
+                if not py_versions:
+                    py_versions.extend(
+                        python_full_versions
+                        if any(needs_full_versions(spec) for spec in self.specifier)
+                        else python_versions
+                    )
+                return py_versions
+
             def get_candidate_lookup(self):
-                for python_full_version in python_full_versions:
+                for py_version in self._py_versions():
                     delegate = RequiresPythonRequirement(
-                        self.specifier, RequiresPythonCandidate(python_full_version)
+                        self.specifier, RequiresPythonCandidate(py_version)
                     )
                     candidate_lookup = orig_get_candidate_lookup(delegate)
                     if candidate_lookup != (None, None):
@@ -186,10 +218,11 @@ if skip_markers:
                 # divergences. Most (all?) true divergences should be covered by forked environment
                 # markers.
                 return all(
-                    orig_is_satisfied_by(self, RequiresPythonCandidate(python_full_version))
-                    for python_full_version in python_full_versions
+                    orig_is_satisfied_by(self, RequiresPythonCandidate(py_version))
+                    for py_version in self._py_versions()
                 )
 
+            RequiresPythonRequirement._py_versions = _py_versions
             RequiresPythonRequirement.get_candidate_lookup = get_candidate_lookup
             RequiresPythonRequirement.is_satisfied_by = is_satisfied_by
         else:
