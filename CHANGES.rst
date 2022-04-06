@@ -1,10 +1,23 @@
 Release Notes
 =============
 
+2.1.77
+------
+
+This release fixes pathologically slow cases of lock creation as well as
+introducing support for ``--no-compression`` to allow picking the the
+time-space tradeoff you want for your PEX zips.
+
+* Fix pathologic lock creation slowness. (#1707)
+  `PR #1707 <https://github.com/pantsbuild/pex/pull/1707>`_
+
+* Support uncompressed PEXes. (#1705)
+  `PR #1705 <https://github.com/pantsbuild/pex/pull/1705>`_
+
 2.1.76
 ------
 
-This release finalizes spurious deadlock handling in `--lock` resolves
+This release finalizes spurious deadlock handling in ``--lock`` resolves
 worked around in #1694 in Pex 2.1.75.
 
 * Fix lock_resolver to use BSD file locks. (#1702)
