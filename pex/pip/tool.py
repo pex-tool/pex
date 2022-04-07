@@ -415,8 +415,6 @@ class Locker(_LogAnalyzer):
 
                     # VCS requirements are satisfied by a singular source; so we need not consult
                     # links collected in this round.
-                    self._links.clear()
-
                     self._resolved_requirements.append(
                         ResolvedRequirement(
                             requirement=requirement,
@@ -467,7 +465,6 @@ class Locker(_LogAnalyzer):
 
                 additional_artifacts = self._links[project_name_and_version]
                 additional_artifacts.discard(partial_artifact)
-                self._links.clear()
 
                 self._resolved_requirements.append(
                     ResolvedRequirement(
