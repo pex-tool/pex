@@ -6,6 +6,7 @@ from __future__ import absolute_import
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.network_configuration import NetworkConfiguration
+from pex.resolve.path_mappings import PathMappings
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -58,4 +59,5 @@ class PexRepositoryConfiguration(object):
 @attr.s(frozen=True)
 class LockRepositoryConfiguration(object):
     lock_file = attr.ib()  # type: str
+    path_mappings = attr.ib()  # type: PathMappings
     pip_configuration = attr.ib()  # type: PipConfiguration

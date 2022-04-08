@@ -22,6 +22,7 @@ from pex.resolve import lockfile
 from pex.resolve.locked_resolve import DownloadableArtifact, FileArtifact, Resolved, VCSArtifact
 from pex.resolve.lockfile import parse_lockable_requirements
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
+from pex.resolve.path_mappings import PathMappings
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed
@@ -192,11 +193,12 @@ def resolve_from_lock(
     transitive=True,  # type: bool
     verify_wheels=True,  # type: bool
     max_parallel_jobs=None,  # type: Optional[int]
+    path_mappings=PathMappings(),  # type: PathMappings
 ):
     # type: (...) -> Union[Installed, Error]
 
     with TRACER.timed("Parsing lock {lockfile}".format(lockfile=lockfile_path)):
-        lock = lockfile.load(lockfile_path)
+        lock = lockfile.load(lockfile_path, path_mappings=path_mappings)
 
     with TRACER.timed("Parsing requirements"):
         requirement_configuration = RequirementConfiguration(

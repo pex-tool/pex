@@ -625,6 +625,7 @@ def build_pex(
                             build_isolation=pip_configuration.build_isolation,
                             compile=options.compile,
                             max_parallel_jobs=pip_configuration.max_jobs,
+                            path_mappings=resolver_configuration.path_mappings,
                         )
                     )
             elif isinstance(resolver_configuration, PexRepositoryConfiguration):

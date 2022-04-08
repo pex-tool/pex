@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import, print_function
 
+import functools
 import sys
 from argparse import ArgumentParser, _ActionsContainer
 from collections import OrderedDict, defaultdict
@@ -26,7 +27,7 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, List, Union
+    from typing import IO, DefaultDict, List, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -82,11 +83,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     @classmethod
     def _add_lockfile_option(cls, parser, verb):
+        # type: (_ActionsContainer, str) -> None
         parser.add_argument(
             "lockfile",
             nargs=1,
             help="The Pex lock file to {verb}".format(verb=verb),
         )
+
+    @classmethod
+    def _add_lock_options(cls, parser):
+        # type: (_ActionsContainer) -> None
+        resolver_options.register_lock_options(parser)
 
     @classmethod
     def _add_create_arguments(cls, create_parser):
@@ -125,6 +132,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             ),
         )
+        cls._add_lock_options(create_parser)
         cls.add_output_option(create_parser, entity="lock")
         cls.add_json_options(create_parser, entity="lock", include_switch=False)
         cls._add_resolve_options(create_parser)
@@ -143,6 +151,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             ),
         )
         cls._add_lockfile_option(export_parser, verb="export")
+        cls._add_lock_options(export_parser)
         cls.add_output_option(export_parser, entity="lock")
         cls._add_target_options(export_parser)
 
@@ -181,6 +190,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             help="Don't update the lock file; just report what updates would be made.",
         )
         cls._add_lockfile_option(update_parser, verb="create")
+        cls._add_lock_options(update_parser)
         cls.add_json_options(update_parser, entity="lock", include_switch=False)
         cls._add_target_options(update_parser)
         resolver_options_parser = cls._create_resolver_options_group(update_parser)
@@ -240,25 +250,47 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
         requirement_configuration = requirement_options.configure(self.options)
         pip_configuration = resolver_options.create_pip_configuration(self.options)
-        lock_file = try_(
-            create(
-                lock_configuration=lock_configuration,
-                requirement_configuration=requirement_configuration,
-                targets=targets,
-                pip_configuration=pip_configuration,
+        self._dump_lockfile(
+            try_(
+                create(
+                    lock_configuration=lock_configuration,
+                    requirement_configuration=requirement_configuration,
+                    targets=targets,
+                    pip_configuration=pip_configuration,
+                )
             )
         )
-        with self.output(self.options) as output:
-            self.dump_json(self.options, json_codec.as_json_data(lock_file), output, sort_keys=True)
         return Ok()
 
-    @staticmethod
-    def _load_lockfile(lock_file_path):
+    def _path_mappings(self):
+        return resolver_options.get_path_mappings(self.options)
+
+    def _load_lockfile(self, lock_file_path):
         # type: (str) -> Union[Lockfile, Error]
+        path_mappings = self._path_mappings()
         try:
-            return lockfile.load(lock_file_path)
+            return lockfile.load(lock_file_path, path_mappings=path_mappings)
         except lockfile.ParseError as e:
             return Error(str(e))
+
+    def _dump_lockfile(
+        self,
+        lock_file,  # type: Lockfile
+        output=None,  # type: Optional[IO]
+    ):
+        # type: (...) -> None
+        path_mappings = self._path_mappings()
+        dump = functools.partial(
+            self.dump_json,
+            self.options,
+            json_codec.as_json_data(lockfile=lock_file, path_mappings=path_mappings),
+            sort_keys=True,
+        )
+        if output:
+            dump(out=output)
+        else:
+            with self.output(self.options) as output:
+                dump(out=output)
 
     def _export(self):
         # type: () -> Result
@@ -451,20 +483,16 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
         if performed_update and not dry_run:
             with open(lock_file_path, "w") as fp:
-                self.dump_json(
-                    self.options,
-                    json_codec.as_json_data(
-                        attr.evolve(
-                            lock_file,
-                            pex_version=__version__,
-                            constraints=SortedTuple(constraints_by_project_name.values()),
-                            locked_resolves=SortedTuple(
-                                resolve_update.updated_resolve
-                                for resolve_update in lock_update.resolves
-                            ),
+                self._dump_lockfile(
+                    lock_file=attr.evolve(
+                        lock_file,
+                        pex_version=__version__,
+                        constraints=SortedTuple(constraints_by_project_name.values()),
+                        locked_resolves=SortedTuple(
+                            resolve_update.updated_resolve
+                            for resolve_update in lock_update.resolves
                         ),
                     ),
-                    fp,
-                    sort_keys=True,
+                    output=fp,
                 )
         return Ok()

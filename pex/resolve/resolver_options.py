@@ -9,6 +9,7 @@ from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolver_configuration import (
     PYPI,
     LockRepositoryConfiguration,
@@ -124,6 +125,7 @@ def register(
                 "specified, will install the entire lock."
             ),
         )
+        register_lock_options(parser)
 
     parser.add_argument(
         "--pre",
@@ -207,6 +209,33 @@ def register(
         help="Whether to transitively resolve requirements.",
     )
     register_max_jobs_option(parser)
+
+
+def register_lock_options(parser):
+    # type: (_ActionsContainer) -> None
+    """Register lock options with the given parser.
+
+    :param parser: The parser to register lock configuration options with.
+    """
+    parser.add_argument(
+        "--path-mapping",
+        dest="path_mappings",
+        action="append",
+        default=[],
+        type=str,
+        help=(
+            "A mapping of the form `NAME|PATH|DESCRIPTION` of a logical name to a concrete local "
+            "absolute path with an optional description. Can be specified multiple times. The "
+            "mapping must include the pipe (`|`) separated name and absolute path components, but "
+            "the trailing pipe-separated description is optional. The mapping is used when "
+            "creating, and later reading, lock files to ensure the lock file created on one "
+            "machine can be used another with a potentially different realization of various paths "
+            "used in the resolve. A typical example is a find-links repo. This might be provided "
+            "on the file-system via a network mount instead of via an HTTP(S) server and that "
+            "network mount may be at different absolute paths on different machines. Classically, "
+            "it may be in a user's home directory; whose path will vary from user to user."
+        ),
+    )
 
 
 def register_repos_options(parser):
@@ -354,8 +383,10 @@ def configure(options):
         )
     pip_configuration = create_pip_configuration(options)
     if lock:
+        path_mappings = get_path_mappings(options)
         return LockRepositoryConfiguration(
             lock_file=options.lock,
+            path_mappings=path_mappings,
             pip_configuration=pip_configuration,
         )
     return pip_configuration
@@ -424,3 +455,34 @@ def get_max_jobs_value(options):
     :param options: The max jobs configuration option.
     """
     return cast(int, options.max_jobs)
+
+
+def _parse_path_mapping(path_mapping):
+    # type: (str) -> PathMapping
+    components = path_mapping.split("|", 2)
+    if len(components) < 2:
+        raise ArgumentTypeError(
+            "A path mapping must be of the form `NAME|PATH` with an optional trailing "
+            "`|DESCRIPTION`, given: {path_mapping}.\n"
+            "For example: `FL|/path/to/local/find-links/repo/directory` indicates that find-links "
+            "requirements or URLs starting with `/path/to/local/find-links/repo/directory` should "
+            "have that absolute root path replaced with the `${{FL}}` placeholder name.\n"
+            "Alternatively, you could use the form with a trailing description to make it more "
+            "clear what value should be substituted for `${{FL}}` when the mapping is later read, "
+            "e.g.: `FL|/local/path|The local find-links repo path`."
+            "".format(path_mapping=path_mapping)
+        )
+    name, path = components[:2]
+    description = components[2] if len(components) == 3 else None
+    return PathMapping(path=path, name=name, description=description)
+
+
+def get_path_mappings(options):
+    # type: (Namespace) -> PathMappings
+    """Retrieves the PathMappings value from the options registered by `register_lock_options`.
+
+    :param options: The lock configuration options.
+    """
+    return PathMappings(
+        mappings=tuple(_parse_path_mapping(path_mapping) for path_mapping in options.path_mappings)
+    )
