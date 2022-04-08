@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+2.1.78
+------
+
+This release fixes missing artifacts in non-``strict`` locks.
+
+* Don't clear lock link database during analysis. (#1712)
+  `PR #1712 <https://github.com/pantsbuild/pex/pull/1712>`_
+
 2.1.77
 ------
 
