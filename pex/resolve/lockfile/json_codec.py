@@ -12,6 +12,7 @@ from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
 from pex.resolve.lockfile import ParseError
 from pex.resolve.lockfile.lockfile import Lockfile
+from pex.resolve.path_mappings import PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
@@ -43,6 +44,7 @@ def _load_json(
 def loads(
     lockfile_contents,  # type: Text
     source="<string>",  # type: str
+    path_mappings=PathMappings(),  # type: PathMappings
 ):
     # type: (...) -> Lockfile
 
@@ -111,7 +113,7 @@ def loads(
     ):
         # type: (...) -> Requirement
         try:
-            return Requirement.parse(raw_requirement)
+            return Requirement.parse(path_mappings.maybe_reify(raw_requirement))
         except RequirementParseError as e:
             raise ParseError(
                 "The requirement string at '{path}' is invalid: {err}".format(path=path, err=e)
@@ -128,6 +130,48 @@ def loads(
             raise ParseError(
                 "The version specifier at '{path}' is invalid: {err}".format(path=path, err=e)
             )
+
+    required_path_mappings = get("path_mappings", dict, optional=True) or {}
+    given_mappings = set(mapping.name for mapping in path_mappings.mappings)
+    unspecified_paths = set(required_path_mappings) - given_mappings
+    if unspecified_paths:
+        raise ParseError(
+            "The lockfile given in {source} requires definition of {required_count} "
+            "'.path_mappings' {entries}: {required_paths}\n"
+            "Given {given_mappings_verbiage}\n"
+            "{maybe_path_mappings}"
+            "Which left the following path mappings unspecified:\n"
+            "{unspecified_paths}".format(
+                source=source,
+                required_count=len(required_path_mappings),
+                entries="entries" if len(required_path_mappings) > 1 else "entry",
+                required_paths=", ".join(sorted(required_path_mappings)),
+                given_mappings_verbiage="the following path mappings:"
+                if path_mappings.mappings
+                else "no path mappings.",
+                maybe_path_mappings="{path_mappings}\n".format(
+                    path_mappings="\n".join(
+                        sorted(
+                            "{root}: {path}".format(root=mapping.name, path=mapping.path)
+                            for mapping in path_mappings.mappings
+                        )
+                    )
+                )
+                if path_mappings.mappings
+                else "",
+                unspecified_paths="\n".join(
+                    sorted(
+                        (
+                            "{path}: {description}".format(path=path, description=description)
+                            if description
+                            else path
+                        )
+                        for path, description in required_path_mappings.items()
+                        if path in unspecified_paths
+                    )
+                ),
+            )
+        )
 
     requirements = [
         parse_requirement(req, path=".requirements[{index}]".format(index=index))
@@ -174,7 +218,7 @@ def loads(
                 ap = '{path}["artifacts"][{index}]'.format(path=req_path, index=i)
                 artifacts.append(
                     Artifact.from_url(
-                        url=get("url", data=artifact, path=ap),
+                        url=path_mappings.maybe_reify(get("url", data=artifact, path=ap)),
                         fingerprint=Fingerprint(
                             algorithm=get("algorithm", data=artifact, path=ap),
                             hash=get("hash", data=artifact, path=ap),
@@ -240,25 +284,33 @@ def loads(
     )
 
 
-def load(lockfile_path):
-    # type: (str) -> Lockfile
+def load(
+    lockfile_path,  # type: str
+    path_mappings=PathMappings(),  # type: PathMappings
+):
+    # type: (...) -> Lockfile
     try:
         with open(lockfile_path) as fp:
-            return loads(fp.read(), source=lockfile_path)
+            return loads(fp.read(), source=lockfile_path, path_mappings=path_mappings)
     except IOError as e:
         raise ParseError(
             "Failed to read lock file at {path}: {err}".format(path=lockfile_path, err=e)
         )
 
 
-def as_json_data(lockfile):
-    # type: (Lockfile) -> Dict[str, Any]
-    return {
+def as_json_data(
+    lockfile,  # type: Lockfile
+    path_mappings=PathMappings(),  # type: PathMappings
+):
+    # type: (...) -> Dict[str, Any]
+    data = {
         "pex_version": lockfile.pex_version,
         "style": str(lockfile.style),
         "requires_python": list(lockfile.requires_python),
         "resolver_version": str(lockfile.resolver_version),
-        "requirements": [str(req) for req in lockfile.requirements],
+        "requirements": [
+            path_mappings.maybe_canonicalize(str(req)) for req in lockfile.requirements
+        ],
         "constraints": [str(constraint) for constraint in lockfile.constraints],
         "allow_prereleases": lockfile.allow_prereleases,
         "allow_wheels": lockfile.allow_wheels,
@@ -278,13 +330,16 @@ def as_json_data(lockfile):
                     {
                         "project_name": str(req.pin.project_name),
                         "version": str(req.pin.version),
-                        "requires_dists": [str(dependency) for dependency in req.requires_dists],
+                        "requires_dists": [
+                            path_mappings.maybe_canonicalize(str(dependency))
+                            for dependency in req.requires_dists
+                        ],
                         "requires_python": str(req.requires_python)
                         if req.requires_python
                         else None,
                         "artifacts": [
                             {
-                                "url": artifact.url,
+                                "url": path_mappings.maybe_canonicalize(artifact.url),
                                 "algorithm": artifact.fingerprint.algorithm,
                                 "hash": artifact.fingerprint.hash,
                             }
@@ -297,3 +352,8 @@ def as_json_data(lockfile):
             for locked_resolve in lockfile.locked_resolves
         ],
     }
+    if path_mappings.mappings:
+        data["path_mappings"] = {
+            path_mapping.name: path_mapping.description for path_mapping in path_mappings.mappings
+        }
+    return data
