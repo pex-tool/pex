@@ -4,6 +4,7 @@
 import os
 
 from pex.cli.testing import run_pex3
+from pex.compatibility import PY3
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve import lockfile
@@ -77,12 +78,19 @@ def test_backtrack_links_preserved(tmpdir):
         return psutil
 
     # 1st prove this does the wrong thing on prior broken versions of Pex.
-    run_pex_command(args=["pex==2.1.77", "-c", "pex3", "--"] + create_lock_args).assert_success()
-    psutil_old = assert_psutil_basics()
-    assert 0 == len(psutil_old.additional_artifacts), (
-        "Expected old versions of Pex to incorrectly wipe out the additional artifacts database "
-        "when backtracking needs to retrieve saved links later."
-    )
+    # N.B.: For some reason, this works with old Pex under Python 2.7; i.e.: It appears Pip behaves
+    # differently - likely because of some collection implementation difference.
+    if PY3:
+        run_pex_command(
+            args=["pex==2.1.77", "-c", "pex3", "--"] + create_lock_args
+        ).assert_success()
+        psutil_old = assert_psutil_basics()
+        assert 0 == len(psutil_old.additional_artifacts), (
+            "Expected old versions of Pex to incorrectly wipe out the additional artifacts "
+            "database when backtracking needs to retrieve saved links later:\n{json}".format(
+                json=lock_as_json()
+            )
+        )
 
     # Now show it currently works.
     run_pex3(*create_lock_args).assert_success()
