@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict, defaultdict, deque
 
 from pex.common import pluralize
-from pex.compatibility import urlparse
+from pex.compatibility import unquote, urlparse
 from pex.dist_metadata import DistMetadata
 from pex.enum import Enum
 from pex.fetcher import URLFetcher
@@ -105,7 +105,7 @@ class Artifact(object):
                 url=url, fingerprint=fingerprint, verified=verified, vcs=parsed_scheme.vcs
             )
         else:
-            filename = os.path.basename(url_info.path)
+            filename = os.path.basename(unquote(url_info.path))
             return FileArtifact(
                 url=url, fingerprint=fingerprint, verified=verified, filename=filename
             )

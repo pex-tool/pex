@@ -6,11 +6,14 @@ import hashlib
 import os
 import re
 import subprocess
+from textwrap import dedent
 
+import colors
 import pytest
 
 from pex import dist_metadata
 from pex.cli.testing import run_pex3
+from pex.common import safe_open
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -318,3 +321,70 @@ def test_multiplatform(
     check_command = [pex_file, "-c", "import requests"]
     py37.execute(check_command)
     py310.execute(check_command)
+
+
+def test_issue_1413_portable_find_links(tmpdir):
+    # type: (Any) -> None
+
+    # Set up a lockfile with contents both from PyPI and a local find-links repo that uses
+    # --path-mapping for lock file portability.
+    src = os.path.join(str(tmpdir), "src")
+    with safe_open(os.path.join(src, "app.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import colors
+                
+                
+                print(colors.blue("Relocatable!"))
+                """
+            )
+        )
+
+    repository_pex = os.path.join(str(tmpdir), "my-app-not-on-pypi.pex")
+    run_pex_command(
+        args=["-D", src, "ansicolors==1.1.8", "-m", "app", "--include-tools", "-o", repository_pex]
+    ).assert_success()
+    assert (
+        colors.blue("Relocatable!")
+        == subprocess.check_output(args=[repository_pex]).decode("utf-8").strip()
+    )
+
+    original_find_links = os.path.join(str(tmpdir), "find-links", "original")
+    subprocess.check_call(
+        args=[repository_pex, "repository", "extract", "--sources", "-f", original_find_links],
+        env=make_env(PEX_TOOLS=1),
+    )
+
+    # We should have only the sdist of the src/app.py source code available in the find-links repo.
+    os.unlink(os.path.join(original_find_links, "ansicolors-1.1.8-py2.py3-none-any.whl"))
+    assert 1 == len(os.listdir(original_find_links))
+    assert 1 == len(
+        glob.glob(os.path.join(original_find_links, "my-app-not-on-pypi-0.0.0*.tar.gz"))
+    )
+
+    lock = os.path.join(str(tmpdir), "lock")
+    run_pex3(
+        "lock",
+        "create",
+        "ansicolors==1.1.8",
+        "my-app-not-on-pypi",
+        "-f",
+        original_find_links,
+        "--path-mapping",
+        "FOO|{path}|Our local neighborhood find-links repo.".format(path=original_find_links),
+        "-o",
+        lock,
+    ).assert_success()
+
+    # Now simulate using the portable lock file on another machine where the find-links repo is
+    # mounted at a different absolute path than it was when creating the lock.
+    moved_find_links = os.path.join(str(tmpdir), "find-links", "moved")
+    os.rename(original_find_links, moved_find_links)
+    assert not os.path.exists(original_find_links)
+
+    result = run_pex_command(
+        args=["--lock", lock, "--path-mapping", "FOO|{path}".format(path=moved_find_links), "-mapp"]
+    )
+    result.assert_success()
+    assert colors.blue("Relocatable!") == result.output.strip()

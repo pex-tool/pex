@@ -15,7 +15,7 @@ from collections import defaultdict, deque
 
 from pex import dist_metadata, targets, third_party
 from pex.common import atomic_directory, safe_mkdtemp
-from pex.compatibility import urlparse
+from pex.compatibility import unquote, urlparse
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import iter_compatible_versions
@@ -365,7 +365,9 @@ class Locker(_LogAnalyzer):
             hash_ = fingerprint_match.group("hash")
             fingerprint = Fingerprint(algorithm=algorithm, hash=hash_)
 
-        pin = Pin.canonicalize(ProjectNameAndVersion.from_filename(urlparse.urlparse(url).path))
+        pin = Pin.canonicalize(
+            ProjectNameAndVersion.from_filename(unquote(urlparse.urlparse(url).path))
+        )
         partial_artifact = PartialArtifact(url, fingerprint)
         return pin, partial_artifact
 
