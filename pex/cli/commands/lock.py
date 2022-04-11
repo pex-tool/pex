@@ -14,10 +14,11 @@ from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import pluralize
 from pex.enum import Enum
 from pex.pep_503 import ProjectName
-from pex.resolve import lockfile, requirement_options, resolver_options, target_options
+from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
 from pex.resolve.lockfile import Lockfile, create, json_codec
 from pex.resolve.lockfile.updater import LockUpdater, ResolveUpdateRequest
+from pex.resolve.resolver_options import parse_lockfile
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -27,7 +28,7 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, DefaultDict, List, Optional, Union
+    from typing import IO, DefaultDict, List, Optional, Tuple
 
     import attr  # vendor:skip
 else:
@@ -262,16 +263,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         return Ok()
 
-    def _path_mappings(self):
-        return resolver_options.get_path_mappings(self.options)
-
-    def _load_lockfile(self, lock_file_path):
-        # type: (str) -> Union[Lockfile, Error]
-        path_mappings = self._path_mappings()
-        try:
-            return lockfile.load(lock_file_path, path_mappings=path_mappings)
-        except lockfile.ParseError as e:
-            return Error(str(e))
+    def _load_lockfile(self):
+        # type: () -> Tuple[str, Lockfile]
+        lock_file_path = self.options.lockfile[0]
+        return lock_file_path, try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
 
     def _dump_lockfile(
         self,
@@ -279,7 +274,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         output=None,  # type: Optional[IO]
     ):
         # type: (...) -> None
-        path_mappings = self._path_mappings()
+        path_mappings = resolver_options.get_path_mappings(self.options)
         dump = functools.partial(
             self.dump_json,
             self.options,
@@ -299,8 +294,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "Only the {pip!r} lock format is supported currently.".format(pip=ExportFormat.PIP)
             )
 
-        lockfile_path = self.options.lockfile[0]
-        lock_file = try_(self._load_lockfile(lock_file_path=lockfile_path))
+        lockfile_path, lock_file = self._load_lockfile()
 
         targets = target_options.configure(self.options).resolve_targets().unique_targets()
 
@@ -357,8 +351,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         except RequirementParseError as e:
             return Error("Failed to parse project requirement to update: {err}".format(err=e))
 
-        lock_file_path = self.options.lockfile[0]
-        lock_file = try_(self._load_lockfile(lock_file_path=lock_file_path))
+        lock_file_path, lock_file = self._load_lockfile()
 
         if updates:
             updates_by_project_name = OrderedDict(

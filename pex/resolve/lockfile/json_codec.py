@@ -10,7 +10,7 @@ from pex.enum import Enum
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
-from pex.resolve.lockfile import ParseError
+from pex.resolve.lockfile import ParseError, PathMappingError
 from pex.resolve.lockfile.lockfile import Lockfile
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
@@ -135,42 +135,8 @@ def loads(
     given_mappings = set(mapping.name for mapping in path_mappings.mappings)
     unspecified_paths = set(required_path_mappings) - given_mappings
     if unspecified_paths:
-        raise ParseError(
-            "The lockfile given in {source} requires definition of {required_count} "
-            "'.path_mappings' {entries}: {required_paths}\n"
-            "Given {given_mappings_verbiage}\n"
-            "{maybe_path_mappings}"
-            "Which left the following path mappings unspecified:\n"
-            "{unspecified_paths}".format(
-                source=source,
-                required_count=len(required_path_mappings),
-                entries="entries" if len(required_path_mappings) > 1 else "entry",
-                required_paths=", ".join(sorted(required_path_mappings)),
-                given_mappings_verbiage="the following path mappings:"
-                if path_mappings.mappings
-                else "no path mappings.",
-                maybe_path_mappings="{path_mappings}\n".format(
-                    path_mappings="\n".join(
-                        sorted(
-                            "{root}: {path}".format(root=mapping.name, path=mapping.path)
-                            for mapping in path_mappings.mappings
-                        )
-                    )
-                )
-                if path_mappings.mappings
-                else "",
-                unspecified_paths="\n".join(
-                    sorted(
-                        (
-                            "{path}: {description}".format(path=path, description=description)
-                            if description
-                            else path
-                        )
-                        for path, description in required_path_mappings.items()
-                        if path in unspecified_paths
-                    )
-                ),
-            )
+        raise PathMappingError(
+            required_path_mappings=required_path_mappings, unspecified_paths=unspecified_paths
         )
 
     requirements = [
@@ -303,7 +269,7 @@ def as_json_data(
     path_mappings=PathMappings(),  # type: PathMappings
 ):
     # type: (...) -> Dict[str, Any]
-    data = {
+    return {
         "pex_version": lockfile.pex_version,
         "style": str(lockfile.style),
         "requires_python": list(lockfile.requires_python),
@@ -351,9 +317,7 @@ def as_json_data(
             }
             for locked_resolve in lockfile.locked_resolves
         ],
-    }
-    if path_mappings.mappings:
-        data["path_mappings"] = {
+        "path_mappings": {
             path_mapping.name: path_mapping.description for path_mapping in path_mappings.mappings
-        }
-    return data
+        },
+    }

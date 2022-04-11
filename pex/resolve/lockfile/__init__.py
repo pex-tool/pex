@@ -37,7 +37,7 @@ from pex.variables import ENV
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
+    from typing import Container, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -48,6 +48,14 @@ else:
 
 class ParseError(Exception):
     """Indicates an error parsing a Pex lock file."""
+
+
+@attr.s(frozen=True)
+class PathMappingError(ParseError):
+    """Indicates missing path mappings when parsing a Pex lock file."""
+
+    required_path_mappings = attr.ib()  # type: Mapping[str, Optional[str]]
+    unspecified_paths = attr.ib()  # type: Container[str]
 
 
 def load(

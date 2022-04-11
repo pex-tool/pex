@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 from textwrap import dedent
+from typing import Container
 
 import pytest
 
@@ -13,7 +14,7 @@ from pex.compatibility import PY2
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
-from pex.resolve.lockfile import Lockfile, ParseError, json_codec
+from pex.resolve.lockfile import Lockfile, ParseError, PathMappingError, json_codec
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
@@ -509,32 +510,26 @@ def test_path_mappings_required_on_parse(patch_tool):
         """
     )
 
-    assert_parse_error(
-        patch_tool,
-        patch,
-        match=re.escape(
-            "The lockfile given in <string> requires definition of 2 '.path_mappings' entries: "
-            "BAR, FOO\n"
-            "Given no path mappings.\n"
-            "Which left the following path mappings unspecified:\n"
-            "BAR\n"
-            "FOO: The fooey find links repo path on the local machine."
-        ),
-    )
+    def assert_mapping_error(
+        unspecified_paths,  # type: Container[str]
+        *path_mappings  # type: PathMapping
+    ):
+        with pytest.raises(PathMappingError) as exec_info:
+            parse_patched(patch_tool, patch, path_mappings=PathMappings(path_mappings))
+        assert (
+            PathMappingError(
+                required_path_mappings={
+                    "BAR": None,
+                    "FOO": "The fooey find links repo path on the local machine.",
+                },
+                unspecified_paths=unspecified_paths,
+            )
+            == exec_info.value
+        )
 
-    assert_parse_error(
-        patch_tool,
-        patch,
-        path_mappings=PathMappings((PathMapping(name="BAR", path="/tmp/bar"),)),
-        match=re.escape(
-            "The lockfile given in <string> requires definition of 2 '.path_mappings' entries: "
-            "BAR, FOO\n"
-            "Given the following path mappings:\n"
-            "BAR: /tmp/bar\n"
-            "Which left the following path mappings unspecified:\n"
-            "FOO: The fooey find links repo path on the local machine."
-        ),
-    )
+    assert_mapping_error({"BAR", "FOO"})
+    assert_mapping_error({"FOO"}, PathMapping(name="BAR", path="/tmp/bar"))
+    assert_mapping_error({"BAR"}, PathMapping(name="FOO", path="/tmp/foo"))
 
     assert (
         parse_patched(
@@ -575,16 +570,15 @@ def test_path_mappings_round_trip():
     assert "http://localhost:9999/ansicolors-1.1.8.zip" == artifacts[1]["url"]
 
     canonicalized_lock = json.dumps(data)
-    with pytest.raises(
-        ParseError,
-        match=re.escape(
-            "The lockfile given in <string> requires definition of 1 '.path_mappings' entry: FL\n"
-            "Given no path mappings.\n"
-            "Which left the following path mappings unspecified:\n"
-            "FL: Our NFS find-links repo local mount path."
-        ),
-    ):
+    with pytest.raises(PathMappingError) as exc_info:
         json_codec.loads(canonicalized_lock)
+    assert (
+        PathMappingError(
+            required_path_mappings={"FL": "Our NFS find-links repo local mount path."},
+            unspecified_paths={"FL"},
+        )
+        == exc_info.value
+    )
 
     assert lock_file == json_codec.loads(
         canonicalized_lock,

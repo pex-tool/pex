@@ -6,13 +6,15 @@ from __future__ import absolute_import
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.network_configuration import NetworkConfiguration
-from pex.resolve.path_mappings import PathMappings
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Optional, Tuple
+    from typing import Callable, Optional, Tuple, Union
 
     import attr  # vendor:skip
+
+    from pex.resolve.lockfile import Lockfile
+    from pex.result import Error
 else:
     from pex.third_party import attr
 
@@ -58,6 +60,5 @@ class PexRepositoryConfiguration(object):
 
 @attr.s(frozen=True)
 class LockRepositoryConfiguration(object):
-    lock_file = attr.ib()  # type: str
-    path_mappings = attr.ib()  # type: PathMappings
+    parse_lock = attr.ib()  # type: Callable[[], Union[Lockfile, Error]]
     pip_configuration = attr.ib()  # type: PipConfiguration

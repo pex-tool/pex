@@ -18,11 +18,9 @@ from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.vcs import digest_vcs_archive
-from pex.resolve import lockfile
 from pex.resolve.locked_resolve import DownloadableArtifact, FileArtifact, Resolved, VCSArtifact
-from pex.resolve.lockfile import parse_lockable_requirements
+from pex.resolve.lockfile import Lockfile, parse_lockable_requirements
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
-from pex.resolve.path_mappings import PathMappings
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed
@@ -175,7 +173,7 @@ MAX_PARALLEL_DOWNLOADS = 10
 
 def resolve_from_lock(
     targets,  # type: Targets
-    lockfile_path,  # type: str
+    lock,  # type: Lockfile
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
@@ -193,12 +191,8 @@ def resolve_from_lock(
     transitive=True,  # type: bool
     verify_wheels=True,  # type: bool
     max_parallel_jobs=None,  # type: Optional[int]
-    path_mappings=PathMappings(),  # type: PathMappings
 ):
     # type: (...) -> Union[Installed, Error]
-
-    with TRACER.timed("Parsing lock {lockfile}".format(lockfile=lockfile_path)):
-        lock = lockfile.load(lockfile_path, path_mappings=path_mappings)
 
     with TRACER.timed("Parsing requirements"):
         requirement_configuration = RequirementConfiguration(
@@ -220,7 +214,7 @@ def resolve_from_lock(
 
     with TRACER.timed(
         "Resolving urls to fetch for {count} requirements from lock {lockfile}".format(
-            count=len(parsed_requirements.requirements), lockfile=lockfile_path
+            count=len(parsed_requirements.requirements), lockfile=lock.source
         )
     ):
         for target in targets.unique_targets():
@@ -231,7 +225,7 @@ def resolve_from_lock(
                     target,
                     parsed_requirements.requirements,
                     constraints=parsed_requirements.constraints,
-                    source=lockfile_path,
+                    source=lock.source,
                     transitive=transitive,
                     build=build,
                     use_wheel=use_wheel,
