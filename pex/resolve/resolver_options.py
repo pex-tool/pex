@@ -9,6 +9,9 @@ from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.resolve import lockfile
+from pex.resolve.lockfile import Lockfile
+from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolver_configuration import (
     PYPI,
     LockRepositoryConfiguration,
@@ -17,10 +20,12 @@ from pex.resolve.resolver_configuration import (
     ReposConfiguration,
     ResolverVersion,
 )
+from pex.result import Error
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Union
+    from typing import Optional, Union
 
 
 class _ManylinuxAction(Action):
@@ -124,6 +129,7 @@ def register(
                 "specified, will install the entire lock."
             ),
         )
+        register_lock_options(parser)
 
     parser.add_argument(
         "--pre",
@@ -207,6 +213,34 @@ def register(
         help="Whether to transitively resolve requirements.",
     )
     register_max_jobs_option(parser)
+
+
+def register_lock_options(parser):
+    # type: (_ActionsContainer) -> None
+    """Register lock options with the given parser.
+
+    :param parser: The parser to register lock configuration options with.
+    """
+    parser.add_argument(
+        "--path-mapping",
+        dest="path_mappings",
+        action="append",
+        default=[],
+        type=str,
+        help=(
+            "A mapping of the form `NAME|PATH|DESCRIPTION` of a logical name to a concrete local "
+            "absolute path with an optional description. Can be specified multiple times. The "
+            "mapping must include the pipe (`|`) separated name and absolute path components, but "
+            "the trailing pipe-separated description is optional. The mapping is used when "
+            "creating, and later reading, lock files to ensure the lock file created on one "
+            "machine can be used on another with a potentially different realization of various "
+            "paths used in the resolve. A typical example is a find-links repo. This might be "
+            "provided on the file-system via a network mount instead of via an HTTP(S) server and "
+            "that network mount may be at different absolute paths on different machines. "
+            "Classically, it may be in a user's home directory; whose path will vary from user to "
+            "user."
+        ),
+    )
 
 
 def register_repos_options(parser):
@@ -355,7 +389,7 @@ def configure(options):
     pip_configuration = create_pip_configuration(options)
     if lock:
         return LockRepositoryConfiguration(
-            lock_file=options.lock,
+            parse_lock=lambda: parse_lockfile(options),
             pip_configuration=pip_configuration,
         )
     return pip_configuration
@@ -424,3 +458,95 @@ def get_max_jobs_value(options):
     :param options: The max jobs configuration option.
     """
     return cast(int, options.max_jobs)
+
+
+def _parse_path_mapping(path_mapping):
+    # type: (str) -> PathMapping
+    components = path_mapping.split("|", 2)
+    if len(components) < 2:
+        raise ArgumentTypeError(
+            "A path mapping must be of the form `NAME|PATH` with an optional trailing "
+            "`|DESCRIPTION`, given: {path_mapping}.\n"
+            "For example: `FL|/path/to/local/find-links/repo/directory` indicates that find-links "
+            "requirements or URLs starting with `/path/to/local/find-links/repo/directory` should "
+            "have that absolute root path replaced with the `${{FL}}` placeholder name.\n"
+            "Alternatively, you could use the form with a trailing description to make it more "
+            "clear what value should be substituted for `${{FL}}` when the mapping is later read, "
+            "e.g.: `FL|/local/path|The local find-links repo path`."
+            "".format(path_mapping=path_mapping)
+        )
+    name, path = components[:2]
+    description = components[2] if len(components) == 3 else None
+    return PathMapping(path=path, name=name, description=description)
+
+
+def get_path_mappings(options):
+    # type: (Namespace) -> PathMappings
+    """Retrieves the PathMappings value from the options registered by `register_lock_options`.
+
+    :param options: The lock configuration options.
+    """
+    return PathMappings(
+        mappings=tuple(_parse_path_mapping(path_mapping) for path_mapping in options.path_mappings)
+    )
+
+
+def parse_lockfile(
+    options,  # type: Namespace
+    lock_file_path=None,  # type: Optional[str]
+):
+    # type: (...) -> Union[Lockfile, Error]
+    path = lock_file_path or options.lock
+    path_mappings = get_path_mappings(options)
+    with TRACER.timed("Parsing lock {lockfile}".format(lockfile=path)):
+        try:
+            return lockfile.load(path, path_mappings=path_mappings)
+        except lockfile.PathMappingError as e:
+            return Error(
+                "The lockfile at {path} requires specifying {prefix}"
+                "'--path-mapping' {values} for: {required_paths}\n"
+                "Given {given_mappings_verbiage}\n"
+                "{maybe_path_mappings}"
+                "Which left the following path mappings unspecified:\n"
+                "{unspecified_paths}\n"
+                "\n"
+                "To fix, add command line options for:\n{examples}".format(
+                    path=path,
+                    prefix="" if len(e.required_path_mappings) > 1 else "a ",
+                    values="values" if len(e.required_path_mappings) > 1 else "value",
+                    required_paths=", ".join(sorted(e.required_path_mappings)),
+                    given_mappings_verbiage="the following path mappings:"
+                    if path_mappings.mappings
+                    else "no path mappings.",
+                    maybe_path_mappings="{path_mappings}\n".format(
+                        path_mappings="\n".join(
+                            sorted(
+                                "--path-mapping '{mapping}'".format(
+                                    mapping="|".join((mapping.name, mapping.path))
+                                )
+                                for mapping in path_mappings.mappings
+                            )
+                        )
+                    )
+                    if path_mappings.mappings
+                    else "",
+                    unspecified_paths="\n".join(
+                        sorted(
+                            (
+                                "{path}: {description}".format(path=path, description=description)
+                                if description
+                                else path
+                            )
+                            for path, description in e.required_path_mappings.items()
+                            if path in e.unspecified_paths
+                        )
+                    ),
+                    examples="\n".join(
+                        sorted(
+                            "--path-mapping '{path}|<path of {path}>'".format(path=path)
+                            for path in e.required_path_mappings
+                            if path in e.unspecified_paths
+                        )
+                    ),
+                )
+            )

@@ -107,12 +107,15 @@ else:
 if PY3:
     from urllib import parse as urlparse
     from urllib.error import HTTPError as HTTPError
+    from urllib.parse import unquote as unquote
     from urllib.request import FileHandler as FileHandler
     from urllib.request import HTTPSHandler as HTTPSHandler
     from urllib.request import ProxyHandler as ProxyHandler
     from urllib.request import Request as Request
     from urllib.request import build_opener as build_opener
 else:
+    from urllib import unquote as unquote
+
     import urlparse as urlparse
     from urllib2 import FileHandler as FileHandler
     from urllib2 import HTTPError as HTTPError

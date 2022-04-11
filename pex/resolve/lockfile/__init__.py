@@ -23,6 +23,7 @@ from pex.resolve import resolvers
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, VCSArtifact
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
 from pex.resolve.lockfile.lockfile import Lockfile as Lockfile  # For re-export.
+from pex.resolve.path_mappings import PathMappings
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import PipConfiguration
@@ -36,7 +37,7 @@ from pex.variables import ENV
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
+    from typing import Container, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -49,17 +50,30 @@ class ParseError(Exception):
     """Indicates an error parsing a Pex lock file."""
 
 
-def load(lockfile_path):
-    # type: (str) -> Lockfile
+@attr.s(frozen=True)
+class PathMappingError(ParseError):
+    """Indicates missing path mappings when parsing a Pex lock file."""
+
+    required_path_mappings = attr.ib()  # type: Mapping[str, Optional[str]]
+    unspecified_paths = attr.ib()  # type: Container[str]
+
+
+def load(
+    lockfile_path,  # type: str
+    path_mappings=PathMappings(),  # type: PathMappings
+):
+    # type: (...) -> Lockfile
     """Loads the Pex lock file stored at the given path.
 
     :param lockfile_path: The path to the Pex lock file to load.
+    :param path_mappings: Path mappings for any local absolute file paths used when creating the
+                          lock.
     :return: The parsed lock file.
     :raises: :class:`ParseError` if there was a problem parsing the lock file.
     """
     from pex.resolve.lockfile import json_codec
 
-    return json_codec.load(lockfile_path=lockfile_path)
+    return json_codec.load(lockfile_path=lockfile_path, path_mappings=path_mappings)
 
 
 def loads(

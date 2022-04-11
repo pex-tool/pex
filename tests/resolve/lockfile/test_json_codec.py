@@ -6,15 +6,16 @@ import os
 import re
 import subprocess
 from textwrap import dedent
+from typing import Container
 
 import pytest
 
-import pex.resolve.lockfile
 from pex.compatibility import PY2
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
-from pex.resolve.lockfile import Lockfile, json_codec
+from pex.resolve.lockfile import Lockfile, ParseError, PathMappingError, json_codec
+from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
@@ -125,7 +126,7 @@ VALID_LOCK = """\
             {
               "algorithm": "md5",
               "hash": "f357aa02db2466bc24ff1815cff1aeb3",
-              "url": "http://localhost:9999/ansicolors-1.1.8-py2.py3-none-any.whl"
+              "url": "file:///find-links/ansicolors-1.1.8-py2.py3-none-any.whl"
             },
             {
               "algorithm": "md5",
@@ -191,13 +192,24 @@ def patch_tool(tmpdir):
     return PatchTool(str(tmpdir))
 
 
+def parse_patched(
+    patch_tool,  # type: PatchTool
+    patch,  # type: str
+    path_mappings=PathMappings(),  # type: PathMappings
+):
+    # type: (...) -> Lockfile
+    return json_codec.loads(lockfile_contents=patch_tool.apply(patch), path_mappings=path_mappings)
+
+
 def assert_parse_error(
     patch_tool,  # type: PatchTool
     patch,  # type: str
     match,  # type: str
+    path_mappings=PathMappings(),  # type: PathMappings
 ):
-    with pytest.raises(pex.resolve.lockfile.ParseError, match=match):
-        json_codec.loads(patch_tool.apply(patch))
+    # type: (...) -> None
+    with pytest.raises(ParseError, match=match):
+        parse_patched(patch_tool, patch, path_mappings=path_mappings)
 
 
 def test_load_invalid_json(patch_tool):
@@ -264,7 +276,7 @@ def test_load_invalid_key_not_found(patch_tool):
                            "algorithm": "md5",
             -              "hash": "f357aa02db2466bc24ff1815cff1aeb3",
             +              "HASH": "f357aa02db2466bc24ff1815cff1aeb3",
-                           "url": "http://localhost:9999/ansicolors-1.1.8-py2.py3-none-any.whl"
+                           "url": "file:///find-links/ansicolors-1.1.8-py2.py3-none-any.whl"
             """
         ),
         match=re.escape(
@@ -292,7 +304,7 @@ def test_load_invalid_parent_not_json_object(patch_tool):
             -            {
             -              "algorithm": "md5",
             -              "hash": "f357aa02db2466bc24ff1815cff1aeb3",
-            -              "url": "http://localhost:9999/ansicolors-1.1.8-py2.py3-none-any.whl"
+            -              "url": "file:///find-links/ansicolors-1.1.8-py2.py3-none-any.whl"
             -            },
             +            "foo",
                          {
@@ -467,7 +479,7 @@ def test_load_invalid_no_artifacts(patch_tool):
             -            {
             -              "algorithm": "md5",
             -              "hash": "f357aa02db2466bc24ff1815cff1aeb3",
-            -              "url": "http://localhost:9999/ansicolors-1.1.8-py2.py3-none-any.whl"
+            -              "url": "file:///find-links/ansicolors-1.1.8-py2.py3-none-any.whl"
             -            },
             -            {
             -              "algorithm": "md5",
@@ -480,4 +492,110 @@ def test_load_invalid_no_artifacts(patch_tool):
         match=re.escape(
             "Expected '.locked_resolves[0][0]' in <string> to have at least one artifact."
         ),
+    )
+
+
+def test_path_mappings_required_on_parse(patch_tool):
+    # type: (PatchTool) -> None
+
+    patch = dedent(
+        """\
+        @@ -35,2 +35,6 @@
+           ],
+        +  "path_mappings": {
+        +    "FOO": "The fooey find links repo path on the local machine.",
+        +    "BAR": null
+        +  },
+           "pex_version": "2.1.50",
+        """
+    )
+
+    def assert_mapping_error(
+        unspecified_paths,  # type: Container[str]
+        *path_mappings  # type: PathMapping
+    ):
+        with pytest.raises(PathMappingError) as exec_info:
+            parse_patched(patch_tool, patch, path_mappings=PathMappings(path_mappings))
+        assert (
+            PathMappingError(
+                required_path_mappings={
+                    "BAR": None,
+                    "FOO": "The fooey find links repo path on the local machine.",
+                },
+                unspecified_paths=unspecified_paths,
+            )
+            == exec_info.value
+        )
+
+    assert_mapping_error({"BAR", "FOO"})
+    assert_mapping_error({"FOO"}, PathMapping(name="BAR", path="/tmp/bar"))
+    assert_mapping_error({"BAR"}, PathMapping(name="FOO", path="/tmp/foo"))
+
+    assert (
+        parse_patched(
+            patch_tool,
+            patch,
+            path_mappings=PathMappings(
+                (PathMapping(name="FOO", path="/tmp/foo"), PathMapping(name="BAR", path="/tmp/bar"))
+            ),
+        )
+        is not None
+    )
+
+
+def test_path_mappings_round_trip():
+    # type: () -> None
+
+    lock_file = json_codec.loads(VALID_LOCK)
+
+    data = json_codec.as_json_data(
+        lock_file,
+        PathMappings(
+            (
+                PathMapping(
+                    path="/find-links",
+                    name="FL",
+                    description="Our NFS find-links repo local mount path.",
+                ),
+            )
+        ),
+    )
+    locked_resolves = data["locked_resolves"]
+    assert 1 == len(locked_resolves)
+    locked_requirements = locked_resolves[0]["locked_requirements"]
+    assert 1 == len(locked_requirements)
+    artifacts = locked_requirements[0]["artifacts"]
+    assert 2 == len(artifacts)
+    assert "file://${FL}/ansicolors-1.1.8-py2.py3-none-any.whl" == artifacts[0]["url"]
+    assert "http://localhost:9999/ansicolors-1.1.8.zip" == artifacts[1]["url"]
+
+    canonicalized_lock = json.dumps(data)
+    with pytest.raises(PathMappingError) as exc_info:
+        json_codec.loads(canonicalized_lock)
+    assert (
+        PathMappingError(
+            required_path_mappings={"FL": "Our NFS find-links repo local mount path."},
+            unspecified_paths={"FL"},
+        )
+        == exc_info.value
+    )
+
+    assert lock_file == json_codec.loads(
+        canonicalized_lock,
+        path_mappings=PathMappings((PathMapping(name="FL", path="/find-links"),)),
+    ), (
+        "Expected a round-trip through canonicalize / reify with the same mappings to return the "
+        "same lock contents."
+    )
+
+    lock_file2 = json_codec.loads(
+        canonicalized_lock,
+        path_mappings=PathMappings((PathMapping(name="FL", path="/at/another/path/find-links"),)),
+    )
+    assert (
+        lock_file2 != lock_file
+    ), "Expected path roots to be reified to different values than we started with."
+    assert (
+        "file:///at/another/path/find-links/ansicolors-1.1.8-py2.py3-none-any.whl"
+        == lock_file2.locked_resolves[0].locked_requirements[0].artifact.url
     )

@@ -599,16 +599,17 @@ def build_pex(
     ):
         try:
             if isinstance(resolver_configuration, LockRepositoryConfiguration):
+                lock = try_(resolver_configuration.parse_lock())
                 with TRACER.timed(
                     "Resolving requirements from lock file {lock_file}".format(
-                        lock_file=resolver_configuration.lock_file
+                        lock_file=lock.source
                     )
                 ):
                     pip_configuration = resolver_configuration.pip_configuration
                     result = try_(
                         resolve_from_lock(
                             targets=targets,
-                            lockfile_path=resolver_configuration.lock_file,
+                            lock=lock,
                             requirements=requirement_configuration.requirements,
                             requirement_files=requirement_configuration.requirement_files,
                             constraint_files=requirement_configuration.constraint_files,
