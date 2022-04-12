@@ -29,6 +29,7 @@ if TYPE_CHECKING:
         Callable,
         DefaultDict,
         Deque,
+        Dict,
         Iterable,
         Iterator,
         List,
@@ -541,16 +542,24 @@ class LockedResolve(object):
                 if target.requirement_applies(request.requirement, extras=request.extras)
             )
 
-        visited = set()  # type: Set[ProjectName]
+        resolved = {}  # type: Dict[ProjectName, Set[str]]
         request_resolve(_ResolveRequest.root(requirement) for requirement in requirements)
         while to_be_resolved:
             resolve_request = to_be_resolved.popleft()
             project_name = resolve_request.project_name
             required.setdefault(project_name, []).append(resolve_request)
 
-            if not transitive or project_name in visited:
+            if not transitive:
                 continue
-            visited.add(project_name)
+
+            required_extras = set(resolve_request.requirement.extras)
+            if project_name not in resolved:
+                resolved[project_name] = required_extras
+            else:
+                resolved_extras = resolved[project_name]
+                if required_extras.issubset(resolved_extras):
+                    continue
+                resolved_extras.update(required_extras)
 
             for locked_requirement in repository[project_name]:
                 request_resolve(resolve_request.request_dependencies(locked_requirement))
