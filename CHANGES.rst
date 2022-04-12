@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.79
+------
+
+This release fixes ``--lock`` resolving for certain cases where extras
+are involved as well as introducing support for generating and consuming
+portable ``--find-links`` locks using ``-path-mapping``.
+
+* Fix ``--lock`` resolver extras handling. (#1719)
+  `PR #1719 <https://github.com/pantsbuild/pex/pull/1719>`_
+
+* Support canonicalizing absolute paths in locks. (#1716)
+  `PR #1712 <https://github.com/pantsbuild/pex/pull/1716>`_
+
 2.1.78
 ------
 
