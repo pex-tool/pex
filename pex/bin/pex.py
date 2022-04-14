@@ -17,6 +17,7 @@ from textwrap import TextWrapper
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
+from pex.bin.sh_boot import create_sh_boot_script
 from pex.commands.command import (
     GlobalConfigurationError,
     global_environment,
@@ -324,6 +325,29 @@ def configure_clp_pex_environment(parser):
         help="The exact shebang (#!...) line to add at the top of the PEX file minus the "
         "#!. This overrides the default behavior, which picks an environment Python "
         "interpreter compatible with the one used to build the PEX file.",
+    )
+    group.add_argument(
+        "--shboot",
+        "--sh-boot",
+        "--bash-boot",
+        "--no-shboot",
+        "--no-sh-boot",
+        "--no-bash-boot",
+        dest="sh_boot",
+        default=False,
+        action=HandleBoolAction,
+        help=(
+            "Create a modified ZIPAPP that uses `/bin/sh` to boot. If you know the machines that "
+            "the PEX will be distributed to have POSIX compliant `/bin/sh` (almost all do, "
+            "see: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/sh.html); then this "
+            "is probably the way you want your PEX to boot. Instead of launching via a Python "
+            "shebang, the PEX will launch via a `#!/bin/sh` shebang that executes a small script "
+            "embedded in the head of the PEX ZIPAPP that performs initial interpreter selection "
+            "and re-execution of the underlying PEX in a way that is often more robust than a "
+            "Python shebang and always faster on 2nd and subsequent runs since the sh script has a "
+            "constant overhead of O(1ms) whereas the Python overhead to perform the same "
+            "interpreter selection and re-execution is O(100ms)."
+        ),
     )
 
 
@@ -774,10 +798,23 @@ def do_main(
         verify_entry_point=options.validate_ep,
     )
 
-    if options.pex_name is not None:
-        log("Saving PEX file to %s" % options.pex_name, V=options.verbosity)
+    pex_file = options.pex_name
+    if pex_file is not None:
+        log("Saving PEX file to {pex_file}".format(pex_file=pex_file), V=options.verbosity)
+        if options.sh_boot:
+            with TRACER.timed("Creating /bin/sh boot script"):
+                pex_builder.set_shebang("/bin/sh")
+                script = create_sh_boot_script(
+                    pex_name=pex_file,
+                    pex_info=pex.pex_info(),
+                    targets=targets,
+                    interpreter=pex.interpreter,
+                    python_shebang=options.python_shebang,
+                )
+                pex_builder.set_header(script)
+
         pex_builder.build(
-            options.pex_name,
+            pex_file,
             bytecode_compile=options.compile,
             deterministic_timestamp=not options.use_system_time,
             layout=options.layout,

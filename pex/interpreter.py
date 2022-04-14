@@ -61,6 +61,18 @@ if TYPE_CHECKING:
     InterpreterOrError = Union["PythonInterpreter", InterpreterIdentificationError]
 
 
+def calculate_binary_name(
+    platform_python_implementation, python_version=None  # type: Optional[Tuple[int, ...]]
+):
+    # type: (...) -> str
+    name = "python"
+    if platform_python_implementation == "PyPy":
+        name = "pypy"
+    if not python_version:
+        return name
+    return "{name}{version}".format(name=name, version=".".join(map(str, python_version)))
+
+
 class PythonIdentity(object):
     class Error(Exception):
         pass
@@ -305,7 +317,12 @@ class PythonIdentity(object):
             yield Platform.from_tag(tag)
 
     @classmethod
-    def parse_requirement(cls, requirement, default_interpreter="CPython"):
+    def parse_requirement(
+        cls,
+        requirement,  # type: Union[Requirement, str]
+        default_interpreter="CPython",  # type: str
+    ):
+        # type: (...) -> Requirement
         if isinstance(requirement, Requirement):
             return requirement
         elif isinstance(requirement, string):
@@ -328,13 +345,22 @@ class PythonIdentity(object):
             raise self.UnknownRequirement(str(e))
         return self.distribution in requirement
 
+    def binary_name(self, version_components=2):
+        # type: (int) -> str
+        return calculate_binary_name(
+            platform_python_implementation=self._interpreter_name,
+            python_version=self._version[:version_components] if version_components > 0 else None,
+        )
+
     def hashbang(self):
         # type: () -> str
-        if self._interpreter_name == "PyPy":
-            hashbang_string = "pypy" if self._version[0] == 2 else "pypy{}".format(self._version[0])
-        else:
-            hashbang_string = "python{}.{}".format(self._version[0], self._version[1])
-        return "#!/usr/bin/env {}".format(hashbang_string)
+        return "#!/usr/bin/env {}".format(
+            self.binary_name(
+                version_components=0
+                if self._interpreter_name == "PyPy" and self.version[0] == 2
+                else 2
+            )
+        )
 
     @property
     def python(self):
