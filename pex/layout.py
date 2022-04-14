@@ -8,7 +8,7 @@ import zipfile
 from abc import abstractmethod
 from contextlib import contextmanager
 
-from pex.common import atomic_directory, is_python_script, open_zip, safe_copy, safe_mkdir
+from pex.common import atomic_directory, is_script, open_zip, safe_copy, safe_mkdir
 from pex.enum import Enum
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -253,7 +253,7 @@ class _PackedPEX(_Layout):
 @contextmanager
 def _identify_layout(pex):
     # type: (str) -> Iterator[Optional[_Layout]]
-    if zipfile.is_zipfile(pex) and is_python_script(
+    if zipfile.is_zipfile(pex) and is_script(
         pex,
         # N.B.: A PEX file need not be executable since it can always be run via `python a.pex`.
         check_executable=False,

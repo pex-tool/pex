@@ -190,6 +190,7 @@ class PEXBuilder(object):
         self._copy_mode = copy_mode
 
         self._shebang = self._interpreter.identity.hashbang()
+        self._header = None  # type: Optional[str]
         self._logger = logging.getLogger(__name__)
         self._frozen = False
         self._distributions = {}  # type: Dict[str, Distribution]
@@ -398,6 +399,22 @@ class PEXBuilder(object):
         :type shebang: str
         """
         self._shebang = "#!%s" % shebang if not shebang.startswith("#!") else shebang
+
+    def set_header(self, header):
+        # type: (str) -> None
+        """Set a header script for the PEX.
+
+        By default, there is none and the default shebang invokes Python against the PEX zip file,
+        which causes Python to look for a root `__main__.py` module in the PEX zip and execute that.
+        Adding a header is not useful if the shebang selects a Python interpreter since Python will
+        ignore this header script content and execute the zipapp algorithm described above. It can
+        be useful though when the PEX is passed to some other type of interpreter and / or the
+        shebang is also customised to be a non-Python interpreter that acts incrementally (I.E.: it
+        won't try to parse the zip file all at once; thus choking on the zip content after the
+        header.). An important case of this are unix shells, in particular (ba)sh, which evaluates
+        files incrementally line by line.
+        """
+        self._header = header
 
     def _add_dist_dir(self, path, dist_name, fingerprint=None):
         target_dir = os.path.join(self._pex_info.internal_cache, dist_name)
@@ -744,6 +761,8 @@ class PEXBuilder(object):
         with safe_open(tmp_zip, "ab") as pexfile:
             assert os.path.getsize(pexfile.name) == 0
             pexfile.write(to_bytes("{}\n".format(self._shebang)))
+            if self._header:
+                pexfile.write(to_bytes(self._header))
         with TRACER.timed("Zipping PEX file."):
             self._chroot.zip(
                 tmp_zip,

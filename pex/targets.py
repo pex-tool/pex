@@ -5,14 +5,14 @@ from __future__ import absolute_import
 
 import os
 
-from pex.interpreter import PythonInterpreter
+from pex.interpreter import PythonInterpreter, calculate_binary_name
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.pkg_resources import Requirement
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import Iterator, Optional, Tuple
@@ -31,6 +31,25 @@ class Target(object):
     id = attr.ib()  # type: str
     platform = attr.ib()  # type: Platform
     marker_environment = attr.ib()  # type: MarkerEnvironment
+
+    def binary_name(self, version_components=2):
+        # type: (int) -> str
+        return calculate_binary_name(
+            platform_python_implementation=self.marker_environment.platform_python_implementation,
+            python_version=self.python_version[:version_components]
+            if self.python_version and version_components > 0
+            else None,
+        )
+
+    @property
+    def python_version(self):
+        # type: () -> Optional[Tuple[int, int]]
+        python_version = self.marker_environment.python_version
+        return (
+            cast("Tuple[int, int]", tuple(map(int, python_version.split(".")))[:2])
+            if python_version
+            else None
+        )
 
     @property
     def supported_tags(self):
@@ -155,6 +174,15 @@ class LocalInterpreter(Target):
 
     interpreter = attr.ib()  # type: PythonInterpreter
 
+    def binary_name(self, version_components=2):
+        # type: (int) -> str
+        return self.interpreter.identity.binary_name(version_components=version_components)
+
+    @property
+    def python_version(self):
+        # type: () -> Tuple[int, int]
+        return self.interpreter.identity.version[:2]
+
     @property
     def is_foreign(self):
         # type: () -> bool
@@ -266,12 +294,17 @@ class Targets(object):
             return None
         return PythonInterpreter.latest_release_of_min_compatible_version(self.interpreters)
 
-    def unique_targets(self):
-        # type: () -> OrderedSet[Target]
+    def unique_targets(self, only_explicit=False):
+        # type: (bool) -> OrderedSet[Target]
 
         def iter_targets():
             # type: () -> Iterator[Target]
-            if not self.interpreters and not self.platforms and not self.complete_platforms:
+            if (
+                not only_explicit
+                and not self.interpreters
+                and not self.platforms
+                and not self.complete_platforms
+            ):
                 # No specified targets, so just build for the current interpreter (on the current
                 # platform).
                 yield current()
