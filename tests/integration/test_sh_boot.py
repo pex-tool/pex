@@ -112,8 +112,8 @@ def test_python_shebang_respected(tmpdir):
         ]
     ).assert_success()
 
-    assert (
-        subprocess.check_output(args=[cowsay])
-        .decode("utf-8")
-        .startswith("Python {version}".format(version=".".join(map(str, sys.version_info[:3]))))
-    )
+    # N.B.: Python 2.7 does not send version to stdout; so we redirect stdout to stderr to be able
+    # to uniformly retrieve the Python version.
+    output = subprocess.check_output(args=[cowsay], stderr=subprocess.STDOUT).decode("utf-8")
+    version = "Python {version}".format(version=".".join(map(str, sys.version_info[:3])))
+    assert output.startswith(version), output
