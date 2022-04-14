@@ -30,7 +30,7 @@ def test_execute(
 
     cowsay = os.path.join(str(tmpdir), "cowsay.pex")
     run_pex_command(
-        args=["cowsay==4.0", "-c", "cowsay", "-o", cowsay, "--bash-boot"] + execution_mode_args
+        args=["cowsay==4.0", "-c", "cowsay", "-o", cowsay, "--sh-boot"] + execution_mode_args
     ).assert_success()
     assert "4.0" == subprocess.check_output(args=[cowsay, "--version"]).decode("utf-8").strip()
 
@@ -80,7 +80,7 @@ def test_execute_via_interpreter(
 
     cowsay = os.path.join(str(tmpdir), "cowsay.pex")
     run_pex_command(
-        args=["cowsay==4.0", "-c", "cowsay", "-o", cowsay, "--bash-boot"]
+        args=["cowsay==4.0", "-c", "cowsay", "-o", cowsay, "--sh-boot"]
     ).assert_success()
 
     assert (
@@ -102,7 +102,7 @@ def test_python_shebang_respected(tmpdir):
             "cowsay",
             "-o",
             cowsay,
-            "--bash-boot",
+            "--sh-boot",
             "--python-shebang",
             # This is a strange shebang ~no-one would use since it short-circuits the PEX execution
             # to always just print the Python interpreter version, but it serves the purposes of:

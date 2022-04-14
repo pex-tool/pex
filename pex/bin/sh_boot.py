@@ -61,7 +61,9 @@ def _calculate_applicable_binary_names(
                 name=calculate_binary_name(python_requirement.project_name), version=version
             )
             for python_requirement in python_requirements
-            for version in iter_compatible_versions([str(python_requirement.specifier)])
+            for version in iter_compatible_versions(
+                requires_python=[str(python_requirement.specifier)]
+            )
         )
     # If we get targets from ICs, we only want explicitly specified local interpreter targets;
     # otherwise, if there are none, we want the implicit current target interpreter.
@@ -81,7 +83,9 @@ def _calculate_applicable_binary_names(
     names.update(ic_majors_minors)
 
     # 3. As the final backstop, fill in all the interpreters Pex is compatible with since Pex can do
-    # more sophisticated detection and re-direction from these during its own bootstrap.
+    # more sophisticated detection and re-direction from these during its own bootstrap. When doing
+    # so, select these interpreters from newest to oldest since it more likely any given machine
+    # will have Python 3 at this point than it will Python 2.
     pex_requires_python = ">=2.7"
     pex_distribution = pex_dist or pkg_resources.working_set.find(
         pkg_resources.Requirement.parse("pex=={version}".format(version=__version__))
@@ -89,7 +93,7 @@ def _calculate_applicable_binary_names(
     if pex_distribution:
         pex_requires_python = str(dist_metadata.requires_python(pex_distribution))
     pex_supported_python_versions = tuple(
-        iter_compatible_versions(requires_python=[pex_requires_python])
+        reversed(list(iter_compatible_versions(requires_python=[pex_requires_python])))
     )
 
     # Favor CPython over PyPy since the interpreter discovered via these names will just be used

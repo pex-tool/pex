@@ -55,7 +55,8 @@ def expected(*names):
     # The default expected set of interpreters should always include:
     # 1. The targeted interpreters or the current interpreter if none were explicitly targeted.
     # 2. The interpreters Pex supports, CPython 1st since its faster to boot and re-exec with even
-    #    if PyPy is what will be re-exec'd to.
+    #    if PyPy is what will be re-exec'd to. Also, newest version 1st since these are more likely
+    #    to match the final interpreter than the reverse.
     # 3. Partially abbreviated names for the above in corresponding order.
     # 4. Fully abbreviated names for the above in corresponding order.
     all_names = OrderedSet(name.render(version_components=2) for name in names)
@@ -63,20 +64,20 @@ def expected(*names):
         all_names.add(current_interpreter_identity.binary_name(version_components=2))
     all_names.update(
         [
-            "python2.7",
-            "python3.5",
-            "python3.6",
-            "python3.7",
-            "python3.8",
-            "python3.9",
             "python3.10",
-            "pypy2.7",
-            "pypy3.5",
-            "pypy3.6",
-            "pypy3.7",
-            "pypy3.8",
-            "pypy3.9",
+            "python3.9",
+            "python3.8",
+            "python3.7",
+            "python3.6",
+            "python3.5",
+            "python2.7",
             "pypy3.10",
+            "pypy3.9",
+            "pypy3.8",
+            "pypy3.7",
+            "pypy3.6",
+            "pypy3.5",
+            "pypy2.7",
         ]
     )
 
@@ -86,10 +87,10 @@ def expected(*names):
         all_names.add(current_interpreter_identity.binary_name(version_components=1))
     all_names.update(
         [
-            "python2",
             "python3",
-            "pypy2",
+            "python2",
             "pypy3",
+            "pypy2",
         ]
     )
 

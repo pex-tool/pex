@@ -327,12 +327,8 @@ def configure_clp_pex_environment(parser):
         "interpreter compatible with the one used to build the PEX file.",
     )
     group.add_argument(
-        "--shboot",
         "--sh-boot",
-        "--bash-boot",
-        "--no-shboot",
         "--no-sh-boot",
-        "--no-bash-boot",
         dest="sh_boot",
         default=False,
         action=HandleBoolAction,
