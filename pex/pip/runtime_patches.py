@@ -170,8 +170,6 @@ if skip_markers:
             orig_get_candidate_lookup = RequiresPythonRequirement.get_candidate_lookup
             orig_is_satisfied_by = RequiresPythonRequirement.is_satisfied_by
 
-            py_versions = []
-
             # Ensure we do a proper, but minimal, comparison for Python versions. Previously we
             # always tested all `Requires-Python` specifier sets against Python full versions. That
             # can be pathologically slow (see: https://github.com/pantsbuild/pants/issues/14998); so
@@ -185,22 +183,29 @@ if skip_markers:
             # Do not need full versions to evaluate properly:
             # + Requires-Python: >=3.7,<4
             # + Requires-Python: ==3.7.*
+            # + Requires-Python: >=3.6.0
             #
             def needs_full_versions(spec):
                 components = spec.version.split(".", 2)
                 if len(components) < 3:
                     return False
                 major_, minor_, patch = components
+                if spec.operator in ("<", "<=", ">", ">=") and patch == "0":
+                    return False
                 return patch != "*"
 
             def _py_versions(self):
-                if not py_versions:
-                    py_versions.extend(
-                        python_full_versions
-                        if any(needs_full_versions(spec) for spec in self.specifier)
-                        else python_versions
+                if not hasattr(self, "__py_versions"):
+                    self.__py_versions = (
+                        version
+                        for version in (
+                            python_full_versions
+                            if any(needs_full_versions(spec) for spec in self.specifier)
+                            else python_versions
+                        )
+                        if ".".join(map(str, version)) in self.specifier
                     )
-                return py_versions
+                return self.__py_versions
 
             def get_candidate_lookup(self):
                 for py_version in self._py_versions():

@@ -925,7 +925,7 @@ class Pip(object):
         log = None
         popen_kwargs = {}
         if log_analyzers:
-            log = os.path.join(safe_mkdtemp(), "pip.log")
+            log = os.path.join(safe_mkdtemp(prefix="pex-pip-log"), "pip.log")
             download_cmd = ["--log", log] + download_cmd
             # N.B.: The `pip -q download ...` command is quiet but
             # `pip -q --log log.txt download ...` leaks download progress bars to stdout. We work
