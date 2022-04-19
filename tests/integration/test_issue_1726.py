@@ -59,8 +59,7 @@ def test_check_install_issue_1726(tmpdir):
     assert (
         "Failed to resolve compatible distributions:\n"
         "1: pex-test==0.1 requires jaraco-collections==3.5.1 but jaraco.collections 3.5.1 was "
-        "resolved"
-        in old_result.error
+        "resolved" in old_result.error
     )
 
     new_result = run_pex_command(args=pex_args)
