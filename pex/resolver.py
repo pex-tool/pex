@@ -623,6 +623,7 @@ class BuildAndInstallRequest(object):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         verify_wheels=True,  # type: bool
+        allow_prereleases=False,  # type: bool
     ):
         # type: (...) -> None
         self._build_requests = tuple(build_requests)
@@ -638,6 +639,7 @@ class BuildAndInstallRequest(object):
             build_isolation=build_isolation,
             verify_wheels=verify_wheels,
         )
+        self._allow_prereleases = allow_prereleases
 
     @staticmethod
     def _categorize_install_requests(
@@ -796,7 +798,9 @@ class BuildAndInstallRequest(object):
 
         if not ignore_errors:
             with TRACER.timed("Checking install"):
-                self._check_install(installations)
+                self._check_install(
+                    installations,
+                )
 
         installed_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
         for installed_distribution in installations:
@@ -812,8 +816,7 @@ class BuildAndInstallRequest(object):
             )
         return installed_distributions
 
-    @staticmethod
-    def _check_install(installed_distributions):
+    def _check_install(self, installed_distributions):
         # type: (Iterable[InstalledDistribution]) -> None
         installed_distribution_by_project_name = OrderedDict(
             (ProjectName(resolved_distribution.distribution), resolved_distribution)
@@ -839,7 +842,9 @@ class BuildAndInstallRequest(object):
                     )
                 else:
                     installed_dist = installed_requirement_dist.distribution
-                    if installed_dist not in requirement:
+                    if not requirement.specifier.contains(
+                        installed_dist.version, prereleases=self._allow_prereleases
+                    ):
                         unsatisfied.append(
                             "{dist} requires {requirement} but {resolved_dist} was resolved".format(
                                 dist=dist.as_requirement(),
@@ -1022,6 +1027,7 @@ def resolve(
         use_pep517=use_pep517,
         build_isolation=build_isolation,
         verify_wheels=verify_wheels,
+        allow_prereleases=allow_prereleases,
     )
 
     ignore_errors = ignore_errors or not transitive
