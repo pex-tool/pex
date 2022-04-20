@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import shutil
 import subprocess
 import sys
 from collections import defaultdict
@@ -626,3 +627,26 @@ def test_duplicate_requirements_issues_1550():
     distribution = installed_distribution.distribution
     assert "PyJWT" == distribution.project_name
     assert "1.7.1" == distribution.version
+
+
+def test_check_resolve_prerelease_transitive_dependencies_issue_1730(tmpdir):
+    # type: (Any) -> None
+
+    indirect_wheel = build_wheel(name="indirect", version="2.12.0.dev3")
+    direct_wheel = build_wheel(
+        name="direct", version="2.12.0.dev3", install_reqs=["indirect==2.12.0.dev3"]
+    )
+
+    find_links = os.path.join(str(tmpdir), "find-links")
+    os.mkdir(find_links)
+    for wheel in direct_wheel, indirect_wheel:
+        shutil.move(wheel, find_links)
+
+    installed = resolve(
+        requirements=["direct==2.12.dev3"],
+        allow_prereleases=False,
+        ignore_errors=False,
+        indexes=[],
+        find_links=[find_links],
+    )
+    assert 2 == len(installed.installed_distributions)
