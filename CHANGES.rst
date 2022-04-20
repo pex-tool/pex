@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.82
+------
+
+This is a hotfix release for a regression in prerelease version handling
+introduced in the 2.1.81 release by #1727.
+
+* Fix prerelease handling when checking resolves. (#1732)
+  `PR #1732 <https://github.com/pantsbuild/pex/pull/1732>`_
+
 2.1.81
 ------
 
