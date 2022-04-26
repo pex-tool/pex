@@ -39,7 +39,9 @@ def test_main(capsys):
     # type: (Any) -> None
 
     class TestCommand(Command):
-        pass
+        @classmethod
+        def add_arguments(cls, parser):
+            cls.register_global_arguments(parser)
 
     class Command1(TestCommand):
         pass
@@ -70,4 +72,4 @@ def test_main(capsys):
     with pytest.raises(SystemExit) as exc_info:
         cm.__enter__()
     assert 2 == exc_info.value.code
-    assert_output(expected_stderr="test_main [-h] [-V] [-v] [--emit-warnings] ")
+    assert_output(expected_stderr="test_main [-h] [-V]")
