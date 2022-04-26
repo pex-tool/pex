@@ -380,7 +380,6 @@ class Main(Generic["_C"]):
         )
         parser.add_argument("-V", "--version", action="version", version=__version__)
         parser.set_defaults(command_type=functools.partial(Command.show_help, parser))
-        register_global_arguments(parser)
         self.add_arguments(parser)
         if self._command_types:
             subparsers = parser.add_subparsers(description=self._subparsers_description)
