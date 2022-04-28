@@ -19,6 +19,7 @@ from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockSty
 from pex.resolve.lockfile import Lockfile, create, json_codec
 from pex.resolve.lockfile.updater import LockUpdater, ResolveUpdateRequest
 from pex.resolve.resolver_options import parse_lockfile
+from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -244,7 +245,20 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     for interpreter_constraint in target_configuration.interpreter_constraints
                 ),
             )
-            targets = Targets()
+            if target_configuration.interpreter_constraints:
+                try:
+                    interpreter = next(
+                        target_configuration.interpreter_configuration.iter_interpreters()
+                    )
+                except InterpreterConstraintsNotSatisfied as e:
+                    return Error(
+                        "When creating a universal lock with an --interpreter-constraint, an "
+                        "interpreter matching the constraint must be found on the local system but "
+                        "none was: {err}".format(err=e)
+                    )
+                targets = Targets(interpreters=(interpreter,))
+            else:
+                targets = Targets()
         else:
             lock_configuration = LockConfiguration(style=self.options.style)
             targets = target_configuration.resolve_targets()
