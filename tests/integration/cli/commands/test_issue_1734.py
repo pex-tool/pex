@@ -41,8 +41,6 @@ def test_lock_create_sdist_requires_python_different_from_current(
     ]
 
     # 1st prove this does the wrong thing on prior broken versions of Pex.
-    # N.B.: For some reason, this works with old Pex under Python 2.7; i.e.: It appears Pip behaves
-    # differently - likely because of some collection implementation difference.
     result = run_pex_command(
         args=["pex==2.1.82", "-c", "pex3", "--"] + create_lock_args,
         python=py27.binary,
