@@ -5,6 +5,7 @@ import os
 
 from pex.cli.testing import run_pex3
 from pex.compatibility import PY3
+from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve import lockfile
@@ -28,8 +29,11 @@ def pypi_artifact(
     )
 
 
-def test_backtrack_links_preserved(tmpdir):
-    # type: (Any) -> None
+def test_backtrack_links_preserved(
+    tmpdir,  # type: Any
+    py37,  # type: PythonInterpreter
+):
+    # type: (...) -> None
 
     lock = os.path.join(str(tmpdir), "lock")
     create_lock_args = [
@@ -41,6 +45,8 @@ def test_backtrack_links_preserved(tmpdir):
         "universal",
         "--interpreter-constraint",
         ">=3.7,<3.10",
+        "--python-path",
+        py37.binary,
         "psutil",
         "psutil<5.5",  # force a back-track
         "-o",
