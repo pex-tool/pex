@@ -1392,10 +1392,6 @@ EXPECTED_LOCKFILES = {
 }
 
 
-@pytest.mark.skipif(
-    PY_VER < (3, 6),
-    reason="Some sdists in this lock use f-strings in their builds which requires >=3.6",
-)
 @pytest.mark.parametrize(
     ["resolver_version", "expected_lockfile"],
     [
@@ -1411,6 +1407,16 @@ def test_universal_lock(
     expected_lockfile,  # type: Lockfile
 ):
     # type: (...) -> None
+
+    py39 = None
+    for interp in PythonInterpreter.iter():
+        if (3, 9) == interp.version[:2]:
+            py39 = interp
+            break
+
+    if py39 is None:
+        pytest.skip("A Python 3.9 interpreter must be discoverable for this test.")
+        return
 
     constraints_file = os.path.join(str(tmpdir), "constraints.txt")
     with open(constraints_file, "w") as fp:
@@ -1444,7 +1450,7 @@ def test_universal_lock(
     result.assert_success()
     lock = lockfile.loads(result.output)
 
-    platform_tag = PythonInterpreter.get().identity.supported_tags[0]
+    platform_tag = py39.identity.supported_tags[0]
     assert (
         attr.evolve(
             expected_lockfile,
