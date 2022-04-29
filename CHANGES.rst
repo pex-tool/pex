@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.84
+------
+
+This release fixes a bug creating a PEX from a ``--lock`` when
+pre-release versions are involved.
+
+* Fix ``--lock`` handling of pre-release versions. (#1742)
+  `PR #1742 <https://github.com/pantsbuild/pex/pull/1742>`_
+
 2.1.83
 ------
 
@@ -10,7 +19,7 @@ does not match the constraints and the resolved lock includes sdist
 primary artifacts.
 
 * Fix universal lock creation for ICs. (#1738)
-  `PR #1732 <https://github.com/pantsbuild/pex/pull/1738>`_
+  `PR #1738 <https://github.com/pantsbuild/pex/pull/1738>`_
 
 2.1.82
 ------
