@@ -84,18 +84,21 @@ def test_create(tmpdir):
     )
 
 
-def test_create_style(tmpdir):
-    # type: (Any) -> None
+def test_create_style(
+    tmpdir,  # type: Any
+    py310,  # type: str
+):
+    # type: (...) -> None
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
 
     def create_lock(
         style,  # type: str
-        interpreter_constraint=None,  # type: Optional[str]
+        *additional_args  # type: str
     ):
         # type: (...) -> LockedRequirement
         lock_file = os.path.join(str(tmpdir), "{}.lock".format(style))
-        args = [
+        args = (
             "lock",
             "create",
             "psutil==5.9.0",
@@ -105,10 +108,8 @@ def test_create_style(tmpdir):
             style,
             "--pex-root",
             pex_root,
-        ]
-        if interpreter_constraint:
-            args.extend(["--interpreter-constraint", interpreter_constraint])
-        run_pex3(*args).assert_success()
+        )
+        run_pex3(*(args + additional_args)).assert_success()
         lock = lockfile.load(lock_file)
         assert 1 == len(lock.locked_resolves)
         locked_resolve = lock.locked_resolves[0]
@@ -155,7 +156,11 @@ def test_create_style(tmpdir):
 
     # We should have 6 total artifacts for a constrained universal lock since we know psutil 5.9.0
     # provides an sdist and 5 Python 3.10 wheels.
-    assert 5 == len(create_lock("universal", interpreter_constraint="~=3.10").additional_artifacts)
+    assert 5 == len(
+        create_lock(
+            "universal", "--interpreter-constraint", "~=3.10", "--python-path", py310
+        ).additional_artifacts
+    )
 
 
 def test_create_local_unsupported(pex_project_dir):
