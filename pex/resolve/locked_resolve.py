@@ -608,9 +608,12 @@ class LockedResolve(object):
 
                 version_mismatches = []
                 for resolve_request in resolve_requests:
-                    if (
-                        str(locked_requirement.pin.version)
-                        not in resolve_request.requirement.specifier
+                    # Pex / Pip already considered `--pre` / `--no-pre` and the rules layed out in
+                    # https://peps.python.org/pep-0440/#handling-of-pre-releases during the lock
+                    # resolve; so we trust that resolve's conclusion about prereleases and are
+                    # permissive here.
+                    if not resolve_request.requirement.specifier.contains(
+                        str(locked_requirement.pin.version), prereleases=True
                     ):
                         version_mismatches.append(
                             "{specifier} ({via})".format(
