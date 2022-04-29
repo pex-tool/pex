@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.83
+------
+
+This releases fixes a bug creating ``--style universal`` locks with
+``--interpreter-constraint`` configured when the ambient interpreter
+does not match the constraints and the resolved lock includes sdist
+primary artifacts.
+
+* Fix universal lock creation for ICs. (#1738)
+  `PR #1732 <https://github.com/pantsbuild/pex/pull/1738>`_
+
 2.1.82
 ------
 
