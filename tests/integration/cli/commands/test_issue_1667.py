@@ -44,6 +44,8 @@ def test_interpreter_constraints_range_coverage(
         "pip-2020-resolver",
         "--interpreter-constraint",
         ">=3.7,<3.11",
+        "--python-path",
+        py37.binary,
         "ipython",
         "-o",
         lock,

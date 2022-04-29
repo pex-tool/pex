@@ -84,18 +84,21 @@ def test_create(tmpdir):
     )
 
 
-def test_create_style(tmpdir):
-    # type: (Any) -> None
+def test_create_style(
+    tmpdir,  # type: Any
+    py310,  # type: str
+):
+    # type: (...) -> None
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
 
     def create_lock(
         style,  # type: str
-        interpreter_constraint=None,  # type: Optional[str]
+        *additional_args  # type: str
     ):
         # type: (...) -> LockedRequirement
         lock_file = os.path.join(str(tmpdir), "{}.lock".format(style))
-        args = [
+        args = (
             "lock",
             "create",
             "psutil==5.9.0",
@@ -105,10 +108,8 @@ def test_create_style(tmpdir):
             style,
             "--pex-root",
             pex_root,
-        ]
-        if interpreter_constraint:
-            args.extend(["--interpreter-constraint", interpreter_constraint])
-        run_pex3(*args).assert_success()
+        )
+        run_pex3(*(args + additional_args)).assert_success()
         lock = lockfile.load(lock_file)
         assert 1 == len(lock.locked_resolves)
         locked_resolve = lock.locked_resolves[0]
@@ -155,7 +156,11 @@ def test_create_style(tmpdir):
 
     # We should have 6 total artifacts for a constrained universal lock since we know psutil 5.9.0
     # provides an sdist and 5 Python 3.10 wheels.
-    assert 5 == len(create_lock("universal", interpreter_constraint="~=3.10").additional_artifacts)
+    assert 5 == len(
+        create_lock(
+            "universal", "--interpreter-constraint", "~=3.10", "--python-path", py310
+        ).additional_artifacts
+    )
 
 
 def test_create_local_unsupported(pex_project_dir):
@@ -1387,10 +1392,6 @@ EXPECTED_LOCKFILES = {
 }
 
 
-@pytest.mark.skipif(
-    PY_VER < (3, 6),
-    reason="Some sdists in this lock use f-strings in their builds which requires >=3.6",
-)
 @pytest.mark.parametrize(
     ["resolver_version", "expected_lockfile"],
     [
@@ -1406,6 +1407,16 @@ def test_universal_lock(
     expected_lockfile,  # type: Lockfile
 ):
     # type: (...) -> None
+
+    py39 = None
+    for interp in PythonInterpreter.iter():
+        if (3, 9) == interp.version[:2]:
+            py39 = interp
+            break
+
+    if py39 is None:
+        pytest.skip("A Python 3.9 interpreter must be discoverable for this test.")
+        return
 
     constraints_file = os.path.join(str(tmpdir), "constraints.txt")
     with open(constraints_file, "w") as fp:
@@ -1439,7 +1450,7 @@ def test_universal_lock(
     result.assert_success()
     lock = lockfile.loads(result.output)
 
-    platform_tag = PythonInterpreter.get().identity.supported_tags[0]
+    platform_tag = py39.identity.supported_tags[0]
     assert (
         attr.evolve(
             expected_lockfile,
