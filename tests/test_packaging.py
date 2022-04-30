@@ -45,7 +45,8 @@ def test_pex_tools_script():
     # type: () -> None
     command_names = ",".join([command_type.name() for command_type in all_commands()])
     expected_first_line = "usage: pex-tools [-h] [-V] PATH {{{command_names}}} ...".format(
-        command_names=command_names)
+        command_names=command_names
+    )
 
     # Make sure we don't word-wrap for simplicity of testing.
     env = make_env(COLUMNS=len(expected_first_line) + 2)
