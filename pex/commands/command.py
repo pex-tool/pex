@@ -286,7 +286,8 @@ def global_environment(options):
         # So if the user runs just `pex` with no subcommand we must not attempt to use those
         # global args, including rc_file, which we check for here as a representative of the
         # global args.
-        yield ENV
+        with ENV.patch() as env:
+            yield env
     with _configured_env(options):
         verbosity = Variables.PEX_VERBOSE.strip_default(ENV)
         if verbosity is None:
