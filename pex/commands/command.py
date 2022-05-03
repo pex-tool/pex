@@ -284,7 +284,10 @@ def global_environment(options):
     if not hasattr(options, "rc_file"):
         # We don't register the global args on the root command (but do on every subcommand).
         # So if the user runs just `pex` with no subcommand we must not attempt to use those
+        # global args, including rc_file, which we check for here as a representative of the
         # global args.
+        # Note that we can't use command_type here because the legacy command line parser in
+        # pex/bin/pex.py uses this function as well, and it doesn't set command_type.
         with ENV.patch() as env:
             yield env
     with _configured_env(options):
