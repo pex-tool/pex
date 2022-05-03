@@ -607,6 +607,27 @@ def test_execute_interpreter_dashc_program():
         assert b"" == stderr
 
 
+def test_execute_interpreter_dashc_program_with_option():
+    with temporary_dir() as pex_chroot:
+        pex_builder = PEXBuilder(path=pex_chroot)
+        pex_builder.freeze()
+        # To test with interpreter options we add an "assert False"
+        # that we would expect to fail.
+        # adding the -O option will ignore that assertion
+        # see: https://docs.python.org/3/using/cmdline.html#cmdoption-O
+        process = PEX(pex_chroot).run(
+            args=["-O", "-c", 'assert False; import sys; print(" ".join(sys.argv))', "one"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            blocking=False,
+        )
+        stdout, stderr = process.communicate()
+
+        assert b"" == stderr
+        assert b"-c one\n" == stdout
+        assert 0 == process.returncode
+
+
 def test_execute_interpreter_dashm_module():
     # type: () -> None
     with temporary_dir() as pex_chroot:
@@ -642,6 +663,46 @@ def test_execute_interpreter_dashm_module():
         assert b"" == stderr
 
 
+def test_execute_interpreter_dashm_module_with_option():
+    # type: () -> None
+    with temporary_dir() as pex_chroot:
+        pex_builder = PEXBuilder(path=pex_chroot)
+        pex_builder.add_source(None, "foo/__init__.py")
+        # To test with interpreter options we add an "assert False"
+        # that we would expect to fail.
+        # adding the -O option will ignore that assertion
+        # see: https://docs.python.org/3/using/cmdline.html#cmdoption-O
+        with tempfile.NamedTemporaryFile(mode="w") as fp:
+            fp.write(
+                dedent(
+                    """\
+                    import os
+                    import sys
+
+                    assert False
+                    print("{} {}".format(os.path.realpath(sys.argv[0]), " ".join(sys.argv[1:])))
+                    """
+                )
+            )
+            fp.flush()
+            pex_builder.add_source(fp.name, "foo/bar.py")
+        pex_builder.freeze()
+        pex = PEX(pex_chroot)
+        process = pex.run(
+            args=["-O", "-m", "foo.bar", "one", "two"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            blocking=False,
+        )
+        stdout, stderr = process.communicate()
+
+        assert b"" == stderr
+        assert "{} one two\n".format(
+            os.path.realpath(os.path.join(pex_chroot, "foo/bar.py"))
+        ) == stdout.decode("utf-8")
+        assert 0 == process.returncode
+
+
 def test_execute_interpreter_stdin_program():
     # type: () -> None
     with temporary_dir() as pex_chroot:
@@ -659,6 +720,31 @@ def test_execute_interpreter_stdin_program():
         assert 0 == process.returncode
         assert b"- one two\n" == stdout
         assert b"" == stderr
+
+
+def test_execute_interpreter_stdin_program_with_option():
+    # type: () -> None
+    with temporary_dir() as pex_chroot:
+        pex_builder = PEXBuilder(path=pex_chroot)
+        pex_builder.freeze()
+        # To test with interpreter options we add an "assert False"
+        # that we would expect to fail.
+        # adding the -O option will ignore that assertion
+        # see: https://docs.python.org/3/using/cmdline.html#cmdoption-O
+        process = PEX(pex_chroot).run(
+            args=["-O", "-", "one", "two"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            blocking=False,
+        )
+        stdout, stderr = process.communicate(
+            input=b'import sys; assert False; print(" ".join(sys.argv))'
+        )
+
+        assert b"" == stderr
+        assert b"- one two\n" == stdout
+        assert 0 == process.returncode
 
 
 def test_execute_interpreter_file_program():

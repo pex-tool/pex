@@ -594,6 +594,20 @@ class PEX(object):  # noqa: T000
     def execute_interpreter(self):
         # type: () -> Any
         args = sys.argv[1:]
+        options = []
+        for index, arg in enumerate(args):
+            # Check if the arg is an expected startup arg
+            if arg.startswith("-") and arg not in {"-", "-c", "-m"}:
+                options.append(arg)
+                continue
+            else:
+                args = args[index:]
+                break
+
+        # The pex was called with interpreter options
+        if options:
+            return self.execute_with_options(options, args)
+
         if args:
             # NB: We take care here to setup sys.argv to match how CPython does it for each case.
             arg = args[0]
@@ -625,6 +639,27 @@ class PEX(object):  # noqa: T000
 
             code.interact()
             return None
+
+    def execute_with_options(self, options, args):
+        """
+        Restart the process passing the given options to the python interpreter
+        """
+        # Find the pex bootstrap location
+        # We expect this environment variable to be set by __main__.py
+        main = sys.modules.get("__main__")
+        if main:
+            run_pex = os.path.dirname(main.__file__)
+            interpreter = PythonInterpreter.get().binary
+            cmdline = [interpreter] + options + [run_pex] + args
+            TRACER.log(
+                "Re-executing with interpreter options: "
+                "cmdline={cmdline!r}, ".format(
+                    cmdline=" ".join(cmdline),
+                )
+            )
+            os.execv(interpreter, cmdline)
+        else:
+            return "Unable to resolve pex path"
 
     def execute_script(self, script_name):
         # type: (str) -> Any
