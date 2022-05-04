@@ -32,7 +32,20 @@ from pex.util import iter_pth_paths, named_temporary_file
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Set, Tuple, TypeVar
+    from typing import (
+        Any,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        NoReturn,
+        Optional,
+        Set,
+        Tuple,
+        TypeVar,
+        Union,
+    )
 
     _K = TypeVar("_K")
     _V = TypeVar("_V")
@@ -593,20 +606,23 @@ class PEX(object):  # noqa: T000
 
     def execute_interpreter(self):
         # type: () -> Any
+
+        # A Python interpreter always inserts the CWD at the head of the sys.path.
+        sys.path.insert(0, ".")
+
         args = sys.argv[1:]
-        options = []
+        python_options = []
         for index, arg in enumerate(args):
-            # Check if the arg is an expected startup arg
-            if arg.startswith("-") and arg not in {"-", "-c", "-m"}:
-                options.append(arg)
-                continue
+            # Check if the arg is an expected startup arg.
+            if arg.startswith("-") and arg not in ("-", "-c", "-m"):
+                python_options.append(arg)
             else:
                 args = args[index:]
                 break
 
-        # The pex was called with interpreter options
-        if options:
-            return self.execute_with_options(options, args)
+        # The pex was called with Python interpreter options
+        if python_options:
+            return self.execute_with_options(python_options, args)
 
         if args:
             # NB: We take care here to setup sys.argv to match how CPython does it for each case.
@@ -624,7 +640,8 @@ class PEX(object):  # noqa: T000
                     if arg == "-":
                         content = sys.stdin.read()
                     else:
-                        with open(arg) as fp:
+                        file_path = arg if os.path.isfile(arg) else os.path.join(arg, "__main__.py")
+                        with open(file_path) as fp:
                             content = fp.read()
                 except IOError as e:
                     return "Could not open {} in the environment [{}]: {}".format(
@@ -640,26 +657,29 @@ class PEX(object):  # noqa: T000
             code.interact()
             return None
 
-    def execute_with_options(self, options, args):
+    def execute_with_options(
+        self,
+        python_options,  # type: List[str]
+        args,  # List[str]
+    ):
+        # type: (...) -> Union[NoReturn, Any]
         """
         Restart the process passing the given options to the python interpreter
         """
-        # Find the pex bootstrap location
-        # We expect this environment variable to be set by __main__.py
+        # Find the installed (unzipped) PEX entry point.
         main = sys.modules.get("__main__")
-        if main:
-            run_pex = os.path.dirname(main.__file__)
-            interpreter = PythonInterpreter.get().binary
-            cmdline = [interpreter] + options + [run_pex] + args
-            TRACER.log(
-                "Re-executing with interpreter options: "
-                "cmdline={cmdline!r}, ".format(
-                    cmdline=" ".join(cmdline),
-                )
+        if not main or not main.__file__:
+            # N.B.: This should never happen.
+            return "Unable to resolve PEX __main__ module file: {}".format(main)
+
+        python = sys.executable
+        cmdline = [python] + python_options + [main.__file__] + args
+        TRACER.log(
+            "Re-executing with Python interpreter options: cmdline={cmdline!r}".format(
+                cmdline=" ".join(cmdline)
             )
-            os.execv(interpreter, cmdline)
-        else:
-            return "Unable to resolve pex path"
+        )
+        os.execv(python, cmdline)
 
     def execute_script(self, script_name):
         # type: (str) -> Any

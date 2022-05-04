@@ -447,6 +447,36 @@ def _populate_sources(
             )
             if entry_point == PEX_INTERPRETER_ENTRYPOINT and len(sys.argv) > 1:
                 args = sys.argv[1:]
+
+                python_options = []
+                for index, arg in enumerate(args):
+                    # Check if the arg is an expected startup arg
+                    if arg.startswith("-") and arg not in ("-", "-c", "-m"):
+                        python_options.append(arg)
+                    else:
+                        args = args[index:]
+                        break
+
+                # The pex was called with Python interpreter options, so we need to re-exec to
+                # respect those:
+                if python_options:
+                    # Find the installed (unzipped) PEX entry point.
+                    main = sys.modules.get("__main__")
+                    if not main or not main.__file__:
+                        # N.B.: This should never happen.
+                        sys.stderr.write(
+                            "Unable to resolve PEX __main__ module file: {{}}\\n".format(main)
+                        )
+                        sys.exit(1)
+
+                    python = sys.executable
+                    cmdline = [python] + python_options + [main.__file__] + args
+                    sys.stderr.write(
+                        "Re-executing with Python interpreter options: "
+                        "cmdline={{cmdline!r}}\\n".format(cmdline=" ".join(cmdline))
+                    )
+                    os.execv(python, cmdline)
+
                 arg = args[0]
                 if arg == "-m":
                     if len(args) < 2:
@@ -468,7 +498,8 @@ def _populate_sources(
                     elif arg == "-":
                         content = sys.stdin.read()
                     else:
-                        with open(arg) as fp:
+                        file_path = arg if os.path.isfile(arg) else os.path.join(arg, "__main__.py")
+                        with open(file_path) as fp:
                             content = fp.read()
 
                     ast = compile(content, filename, "exec", flags=0, dont_inherit=1)

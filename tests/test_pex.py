@@ -607,7 +607,7 @@ def test_execute_interpreter_dashc_program():
         assert b"" == stderr
 
 
-def test_execute_interpreter_dashc_program_with_option():
+def test_execute_interpreter_dashc_program_with_python_options():
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)
         pex_builder.freeze()
@@ -663,7 +663,7 @@ def test_execute_interpreter_dashm_module():
         assert b"" == stderr
 
 
-def test_execute_interpreter_dashm_module_with_option():
+def test_execute_interpreter_dashm_module_with_python_options():
     # type: () -> None
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)
@@ -722,7 +722,7 @@ def test_execute_interpreter_stdin_program():
         assert b"" == stderr
 
 
-def test_execute_interpreter_stdin_program_with_option():
+def test_execute_interpreter_stdin_program_with_python_options():
     # type: () -> None
     with temporary_dir() as pex_chroot:
         pex_builder = PEXBuilder(path=pex_chroot)
