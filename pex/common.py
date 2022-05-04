@@ -73,7 +73,7 @@ def filter_pyc_files(files):
     for f in files:
         # For Python 2.7, `.pyc` files are compiled as siblings to `.py` files (there is no
         # __pycache__ dir).
-        if not f.endswith(".pyc") and not is_pyc_temporary_file(f):
+        if not f.endswith((".pyc", ".pyo")) and not is_pyc_temporary_file(f):
             yield f
 
 
