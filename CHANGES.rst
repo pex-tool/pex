@@ -9,7 +9,7 @@ emulation when a PEX is run in interpreter mode (without an entry point
 or else when forced via ``PEX_INTERPRETER=1``).
 
 A special thank you to Loren Arthur for contributing the fix in the
-Pantbuild sprint at PyCon.
+Pantsbuild sprint at PyCon.
 
 * PEX interpreters should support all underlying Python interpreter options. (#1745)
   `Issue #1745 <https://github.com/pantsbuild/pex/issues/1745>`_
