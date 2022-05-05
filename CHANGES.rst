@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+2.1.85
+------
+
+This PyCon US 2022 release brings full support for Python interpreter
+emulation when a PEX is run in interpreter mode (without an entry point
+or else when forced via ``PEX_INTERPRETER=1``).
+
+A special thank you to Loren Arthur for contributing the fix in the
+Pantsbuild sprint at PyCon.
+
+* PEX interpreters should support all underlying Python interpreter options. (#1745)
+  `Issue #1745 <https://github.com/pantsbuild/pex/issues/1745>`_
+  `PR #1746 <https://github.com/pantsbuild/pex/pull/1746>`_
+  `PR #1748 <https://github.com/pantsbuild/pex/pull/1748>`_
+
 2.1.84
 ------
 
