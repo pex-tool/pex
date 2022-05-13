@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+2.1.86
+------
+
+This release fixes an oversight in lock file use against secured custom
+indexes and find links repos. Previously credentials were passed during
+the lock creation process via either `~/.netrc` or via embedded
+credentials in the custom indexes and find links URLs Pex was configured
+with. But, at lock use time, these credentials were not used. Now
+`~/.netrc` are always used and embedded credentials passed via curtom
+URLS at lock creation time can be passed in the same manner at lock use
+time.
+
+* Support credentials in URLFetcher. (#1754)
+  `PR #1754 <https://github.com/pantsbuild/pex/pull/1754>`_
+
 2.1.85
 ------
 
