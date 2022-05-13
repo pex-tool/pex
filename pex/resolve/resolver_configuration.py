@@ -3,13 +3,16 @@
 
 from __future__ import absolute_import
 
+import itertools
+
+from pex.auth import PasswordEntry
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.network_configuration import NetworkConfiguration
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Callable, Optional, Tuple, Union
+    from typing import Callable, Iterable, Optional, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -32,8 +35,28 @@ class ResolverVersion(Enum["ResolverVersion.Value"]):
 
 @attr.s(frozen=True)
 class ReposConfiguration(object):
+    @classmethod
+    def create(
+        cls,
+        indexes=(),  # type: Iterable[str]
+        find_links=(),  # type: Iterable[str]
+    ):
+        # type: (...) -> ReposConfiguration
+        password_entries = []
+        for url in itertools.chain(indexes, find_links):
+            password_entry = PasswordEntry.maybe_extract_from_url(url)
+            if password_entry:
+                password_entries.append(password_entry)
+
+        return cls(
+            indexes=tuple(indexes),
+            find_links=tuple(find_links),
+            password_entries=tuple(password_entries),
+        )
+
     indexes = attr.ib(default=(PYPI,))  # type: Tuple[str, ...]
     find_links = attr.ib(default=())  # type: Tuple[str, ...]
+    password_entries = attr.ib(default=())  # type: Tuple[PasswordEntry, ...]
 
 
 @attr.s(frozen=True)

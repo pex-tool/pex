@@ -7,9 +7,13 @@ import ssl
 import time
 from contextlib import closing, contextmanager
 
+from pex.auth import PasswordDatabase, PasswordEntry
 from pex.compatibility import (
     FileHandler,
+    HTTPBasicAuthHandler,
+    HTTPDigestAuthHandler,
     HTTPError,
+    HTTPPasswordMgrWithDefaultRealm,
     HTTPSHandler,
     ProxyHandler,
     Request,
@@ -20,7 +24,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import BinaryIO, Dict, Iterator, Optional, Text
+    from typing import BinaryIO, Dict, Iterable, Iterator, Optional, Text
 else:
     BinaryIO = None
 
@@ -32,6 +36,8 @@ class URLFetcher(object):
         self,
         network_configuration=None,  # type: Optional[NetworkConfiguration]
         handle_file_urls=False,  # type: bool
+        password_entries=(),  # type: Iterable[PasswordEntry]
+        netrc_file="~/.netrc",  # type: Optional[str]
     ):
         # type: (...) -> None
         network_configuration = network_configuration or NetworkConfiguration()
@@ -50,11 +56,30 @@ class URLFetcher(object):
         handlers = [ProxyHandler(proxies), HTTPSHandler(context=ssl_context)]
         if handle_file_urls:
             handlers.append(FileHandler())
+
+        self._password_database = PasswordDatabase.from_netrc(netrc_file=netrc_file).append(
+            password_entries
+        )
         self._handlers = tuple(handlers)
 
     @contextmanager
     def get_body_stream(self, url):
         # type: (Text) -> Iterator[BinaryIO]
+
+        handlers = list(self._handlers)
+        if self._password_database.entries:
+            password_manager = HTTPPasswordMgrWithDefaultRealm()
+            for password_entry in self._password_database.entries:
+                password_manager.add_password(
+                    realm=None,
+                    uri=password_entry.uri_or_default(url),
+                    user=password_entry.username,
+                    passwd=password_entry.password,
+                )
+            handlers.extend(
+                (HTTPBasicAuthHandler(password_manager), HTTPDigestAuthHandler(password_manager))
+            )
+
         retries = 0
         retry_delay_secs = 0.1
         last_error = None  # type: Optional[Exception]
@@ -63,7 +88,7 @@ class URLFetcher(object):
                 time.sleep(retry_delay_secs)
                 retry_delay_secs *= 2
 
-            opener = build_opener(*self._handlers)
+            opener = build_opener(*handlers)
             request = Request(
                 # N.B.: MyPy incorrectly thinks url must be a str in Python 2 where a unicode url
                 # actually works fine.

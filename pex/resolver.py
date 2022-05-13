@@ -12,6 +12,7 @@ import zipfile
 from collections import OrderedDict, defaultdict
 
 from pex import targets
+from pex.auth import PasswordEntry
 from pex.common import AtomicDirectory, atomic_directory, pluralize, safe_mkdtemp
 from pex.dist_metadata import DistMetadata
 from pex.fetcher import URLFetcher
@@ -150,6 +151,11 @@ class DownloadRequest(object):
                 if self.package_index_configuration
                 else NetworkConfiguration()
             )
+            password_entries = (
+                self.package_index_configuration.password_entries
+                if self.package_index_configuration
+                else ()
+            )
             resolve_handler = _ResolveHandler(
                 download_result=download_result,
                 wheel_builder=WheelBuilder(
@@ -159,7 +165,11 @@ class DownloadRequest(object):
                     use_pep517=self.use_pep517,
                     build_isolation=self.build_isolation,
                 ),
-                url_fetcher=URLFetcher(network_configuration, handle_file_urls=True),
+                url_fetcher=URLFetcher(
+                    network_configuration=network_configuration,
+                    handle_file_urls=True,
+                    password_entries=password_entries,
+                ),
                 max_parallel_jobs=max_parallel_jobs,
             )
             resolve_request = LockRequest(
@@ -882,6 +892,7 @@ def resolve(
     find_links=None,  # type: Optional[Sequence[str]]
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
+    password_entries=(),  # type: Iterable[PasswordEntry]
     cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
@@ -918,6 +929,7 @@ def resolve(
     :keyword resolver_version: The resolver version to use.
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
+    :keyword password_entries: Any known authentication information needed for resolving.
     :keyword cache: A directory path to use to cache distributions locally.
     :keyword build: Whether to allow building source distributions when no wheel is found.
       Defaults to ``True``.
@@ -982,6 +994,7 @@ def resolve(
         indexes=indexes,
         find_links=find_links,
         network_configuration=network_configuration,
+        password_entries=password_entries,
     )
     build_requests, download_results = _download_internal(
         targets=targets,
@@ -1114,6 +1127,7 @@ def download(
     find_links=None,  # type: Optional[Sequence[str]]
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
+    password_entries=(),  # type: Iterable[PasswordEntry]
     cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
@@ -1145,6 +1159,7 @@ def download(
     :keyword resolver_version: The resolver version to use.
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
+    :keyword password_entries: Any known authentication information needed for downloading.
     :keyword cache: A directory path to use to cache distributions locally.
     :keyword build: Whether to allow building source distributions when no wheel is found.
       Defaults to ``True``.
@@ -1173,6 +1188,7 @@ def download(
         indexes=indexes,
         find_links=find_links,
         network_configuration=network_configuration,
+        password_entries=password_entries,
     )
     build_requests, download_results = _download_internal(
         targets=targets,

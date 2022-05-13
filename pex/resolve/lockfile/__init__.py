@@ -275,6 +275,7 @@ def create(
             find_links=pip_configuration.repos_configuration.find_links,
             resolver_version=pip_configuration.resolver_version,
             network_configuration=network_configuration,
+            password_entries=pip_configuration.repos_configuration.password_entries,
             cache=ENV.PEX_ROOT,
             build=pip_configuration.allow_builds,
             use_wheel=pip_configuration.allow_wheels,

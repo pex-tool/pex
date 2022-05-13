@@ -10,6 +10,7 @@ from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
 from pex import resolver
+from pex.auth import PasswordEntry
 from pex.common import FileLockStyle, pluralize
 from pex.compatibility import cpu_count
 from pex.fetcher import URLFetcher
@@ -79,6 +80,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         find_links=None,  # type: Optional[Sequence[str]]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
+        password_entries=(),  # type: Iterable[PasswordEntry]
         cache=None,  # type: Optional[str]
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
@@ -91,6 +93,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._find_links = find_links
         self._resolver_version = resolver_version
         self._network_configuration = network_configuration
+        self._password_entries = password_entries
         self._cache = cache
         self._use_pep517 = use_pep517
         self._build_isolation = build_isolation
@@ -112,6 +115,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             find_links=self._find_links,
             resolver_version=self._resolver_version,
             network_configuration=self._network_configuration,
+            password_entries=self._password_entries,
             cache=self._cache,
             use_wheel=False,
             prefer_older_binary=False,
@@ -181,6 +185,7 @@ def resolve_from_lock(
     find_links=None,  # type: Optional[Sequence[str]]
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
+    password_entries=(),  # type: Iterable[PasswordEntry]
     cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
@@ -268,10 +273,13 @@ def resolve_from_lock(
     # fact, implements deadlock detection for POSIX locks; so we can run afoul of false EDEADLCK
     # errors under the right interleaving of processes and threads and download artifact targets.
     file_lock_style = FileLockStyle.BSD
-
     url_download_manager = URLFetcherDownloadManager(
         file_lock_style=file_lock_style,
-        url_fetcher=URLFetcher(network_configuration=network_configuration, handle_file_urls=True),
+        url_fetcher=URLFetcher(
+            network_configuration=network_configuration,
+            handle_file_urls=True,
+            password_entries=password_entries,
+        ),
     )
     vcs_download_manager = VCSArtifactDownloadManager(
         file_lock_style=file_lock_style,
@@ -279,6 +287,7 @@ def resolve_from_lock(
         find_links=find_links,
         resolver_version=resolver_version,
         network_configuration=network_configuration,
+        password_entries=password_entries,
         cache=cache,
         use_pep517=use_pep517,
         build_isolation=build_isolation,
