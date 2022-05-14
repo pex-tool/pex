@@ -1,15 +1,23 @@
 Release Notes
 =============
 
+2.1.87
+------
+
+This release fixes ``pex3 lock create`` to handle relative ``--tmpdir``.
+
+* Fix lock save detection to be more robust. (#1760)
+  `PR #1760 <https://github.com/pantsbuild/pex/pull/1760>`_
+
 2.1.86
 ------
 
 This release fixes an oversight in lock file use against secured custom
 indexes and find links repos. Previously credentials were passed during
-the lock creation process via either `~/.netrc` or via embedded
+the lock creation process via either ``~/.netrc`` or via embedded
 credentials in the custom indexes and find links URLs Pex was configured
 with. But, at lock use time, these credentials were not used. Now
-`~/.netrc` entries are always used and embedded credentials passed via
+``~/.netrc`` entries are always used and embedded credentials passed via
 custom URLS at lock creation time can be passed in the same manner at
 lock use time.
 
