@@ -326,17 +326,6 @@ class Locker(_LogAnalyzer):
         self._lock_request = lock_request
         self._download_dir = download_dir
 
-        self._saved_re = re.compile(
-            r"Saved (?:{download_dir}){dir_sep}(?P<filename>.+)$".format(
-                download_dir="|".join(
-                    re.escape(path)
-                    for path in frozenset(
-                        (self._download_dir, os.path.realpath(self._download_dir))
-                    )
-                ),
-                dir_sep=re.escape(os.path.sep),
-            )
-        )
         self._saved = set()  # type: Set[Pin]
 
         self._resolved_requirements = []  # type: List[ResolvedRequirement]
@@ -484,10 +473,12 @@ class Locker(_LogAnalyzer):
                 )
             return self.Continue()
 
-        match = self._saved_re.search(line)
+        match = re.search(r"Saved (?P<file_path>.+)$", line)
         if match:
             self._saved.add(
-                Pin.canonicalize(ProjectNameAndVersion.from_filename(match.group("filename")))
+                Pin.canonicalize(
+                    ProjectNameAndVersion.from_filename(os.path.basename(match.group("file_path")))
+                )
             )
             return self.Continue()
 

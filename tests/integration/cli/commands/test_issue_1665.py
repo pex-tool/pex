@@ -22,7 +22,7 @@ def test_lock_black(tmpdir):
     # type: (Any) -> None
 
     lock = os.path.join(str(tmpdir), "lock")
-    run_pex3(
+    lock_create_args = (
         "lock",
         "create",
         "--resolver-version",
@@ -32,7 +32,17 @@ def test_lock_black(tmpdir):
         "black==22.3.0",
         "-o",
         lock,
-    ).assert_success()
-    result = run_pex_command(args=["--lock", lock, "-c", "black", "--", "--version"])
-    result.assert_success()
-    assert " 22.3.0 " in result.output
+    )
+
+    def assert_lock(*extra_lock_args, **extra_popen_args):
+        run_pex3(*(lock_create_args + extra_lock_args), **extra_popen_args).assert_success()
+        result = run_pex_command(args=["--lock", lock, "-c", "black", "--", "--version"])
+        result.assert_success()
+        assert " 22.3.0 " in result.output
+
+    assert_lock()
+
+    cwd = os.path.join(str(tmpdir), "cwd")
+    tmpdir = os.path.join(cwd, ".tmp")
+    os.makedirs(tmpdir)
+    assert_lock("--tmpdir", ".tmp", cwd=cwd)
