@@ -14,6 +14,7 @@ from abc import abstractmethod
 from collections import defaultdict, deque
 
 from pex import dist_metadata, targets, third_party
+from pex.auth import PasswordEntry
 from pex.common import atomic_directory, safe_mkdtemp
 from pex.compatibility import unquote, urlparse
 from pex.dist_metadata import ProjectNameAndVersion
@@ -157,6 +158,7 @@ class PackageIndexConfiguration(object):
         indexes=None,  # type: Optional[Sequence[str]]
         find_links=None,  # type: Optional[Iterable[str]]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
+        password_entries=(),  # type: Iterable[PasswordEntry]
     ):
         # type: (...) -> PackageIndexConfiguration
         resolver_version = resolver_version or ResolverVersion.PIP_LEGACY
@@ -175,6 +177,7 @@ class PackageIndexConfiguration(object):
             ),
             env=cls._calculate_env(network_configuration=network_configuration, isolated=isolated),
             isolated=isolated,
+            password_entries=password_entries,
         )
 
     def __init__(
@@ -184,6 +187,7 @@ class PackageIndexConfiguration(object):
         args,  # type: Iterable[str]
         env,  # type: Iterable[Tuple[str, str]]
         isolated,  # type: bool
+        password_entries=(),  # type: Iterable[PasswordEntry]
     ):
         # type: (...) -> None
         self.resolver_version = resolver_version  # type: ResolverVersion.Value
@@ -191,6 +195,7 @@ class PackageIndexConfiguration(object):
         self.args = tuple(args)  # type: Iterable[str]
         self.env = dict(env)  # type: Mapping[str, str]
         self.isolated = isolated  # type: bool
+        self.password_entries = password_entries  # type: Iterable[PasswordEntry]
 
 
 if TYPE_CHECKING:

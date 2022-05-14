@@ -374,11 +374,6 @@ def configure(options):
             'The "--pex-repository" option cannot be used together with the "--index" or '
             '"--find-links" options.'
         )
-    if lock and (options.indexes or options.find_links):
-        raise InvalidConfigurationError(
-            'The "--lock" option cannot be used together with the "--index" or '
-            '"--find-links" options.'
-        )
 
     if pex_repository:
         return PexRepositoryConfiguration(
@@ -433,7 +428,7 @@ def create_repos_configuration(options):
         ([PYPI] if options.pypi else []) + (options.indexes or [])
     )  # type: OrderedSet[str]
     find_links = OrderedSet(options.find_links or ())  # type: OrderedSet[str]
-    return ReposConfiguration(indexes=tuple(indexes), find_links=tuple(find_links))
+    return ReposConfiguration.create(indexes=tuple(indexes), find_links=tuple(find_links))
 
 
 def create_network_configuration(options):
