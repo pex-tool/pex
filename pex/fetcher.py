@@ -70,6 +70,8 @@ class URLFetcher(object):
         if self._password_database.entries:
             password_manager = HTTPPasswordMgrWithDefaultRealm()
             for password_entry in self._password_database.entries:
+                # N.B.: The password manager adds a second entry implicitly if the URI we hand it
+                # does not include port information (80 for http URIs and 443 for https URIs).
                 password_manager.add_password(
                     realm=None,
                     uri=password_entry.uri_or_default(url),

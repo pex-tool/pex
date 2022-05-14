@@ -69,17 +69,22 @@ class PasswordDatabase(object):
                     continue
 
                 if machine == "default":
-                    # The 'default' entry is special and means just that; so we omit any qualifying
+                    # The `default` entry is special and means just that; so we omit any qualifying
                     # URI.
                     yield PasswordEntry(username=login, password=password)
 
+                # Traditionally, ~/.netrc machine entries just contain a bare hostname but we allow
+                # for them containing a scheme since the format is so poorly documented and really
+                # used as the beholder sees fit (it's a shared ~community format at this point and
+                # used differently by a wide range of tools; I think FTP originally - thus it has
+                # `macros` entries which ~no-one knows about / uses).
                 if urlparse.urlparse(machine).scheme:
                     yield PasswordEntry(uri=machine, username=login, password=password)
                     continue
 
                 for scheme in "http", "https":
                     yield PasswordEntry(
-                        uri="{scheme}://{host}".format(scheme=scheme, host=machine),
+                        uri="{scheme}://{machine}".format(scheme=scheme, machine=machine),
                         username=login,
                         password=password,
                     )

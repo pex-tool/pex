@@ -3,17 +3,18 @@
 
 from __future__ import print_function
 
+import base64
 import os.path
-import subprocess
 from contextlib import contextmanager
-from textwrap import dedent
+from threading import Thread
 
 import colors
 import pytest
 
 from pex.cli.testing import run_pex3
-from pex.common import safe_mkdtemp, safe_rmtree
-from pex.testing import PY37, IntegResults, ensure_python_interpreter, make_env, run_pex_command
+from pex.common import safe_rmtree
+from pex.compatibility import PY2
+from pex.testing import IntegResults, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -30,95 +31,44 @@ class Address(object):
     port = attr.ib()  # type: int
 
 
-@attr.s(frozen=True)
-class TinyHttpServer(object):
-    PID_FILE_ENV_VAR_NAME = "__PID_FILE__"
+@contextmanager
+def serve_authenticated(username, password, find_links):
+    expected_authorization = "Basic {}".format(
+        base64.b64encode(
+            "{username}:{password}".format(username=username, password=password).encode("utf8")
+        ).decode("utf-8")
+    )
 
-    binary = attr.ib()  # type: str
+    if PY2:
+        from BaseHTTPServer import HTTPServer as HTTPServer
+        from SimpleHTTPServer import SimpleHTTPRequestHandler as SimpleHTTPRequestHandler
+    else:
+        from http.server import HTTPServer as HTTPServer
+        from http.server import SimpleHTTPRequestHandler as SimpleHTTPRequestHandler
 
-    @contextmanager
-    def serve_authenticated(
-        self,
-        username,  # type: str
-        password,  # type: str
-        find_links,  # type: str
-    ):
-        # type: (...) -> Iterator[Address]
-        pid_file = os.path.join(safe_mkdtemp(), "pid")
-        os.mkfifo(pid_file)
-        env = os.environ.copy()
-        env[self.PID_FILE_ENV_VAR_NAME] = pid_file
-        process = subprocess.Popen(
-            args=[
-                self.binary,
-                "--auth",
-                "{username}:{password}".format(username=username, password=password),
-                "--port",
-                "0",
-                "--directory",
-                find_links,
-            ],
-            env=env,
-        )
-        try:
-            with open(pid_file) as fp:
-                host, port = fp.readline().strip().split(":")
-            yield Address(host, int(port))
-        finally:
-            process.kill()
+    class BasicHTTPAuthHandler(SimpleHTTPRequestHandler):
+        def do_GET(self):
+            authorization = self.headers.get("Authorization")
+            if expected_authorization == authorization:
+                SimpleHTTPRequestHandler.do_GET(self)
+            else:
+                self.send_response(401)
+                self.send_header("WWW-Authenticate", 'Basic realm="Foo"')
+                self.end_headers()
 
-
-@pytest.fixture(scope="module")
-def tiny_http_server(tmpdir_factory):
-    # type: (Any) -> TinyHttpServer
-    pex_file = str(tmpdir_factory.mktemp("pexes").join("tiny-http-server.pex"))
-    src = tmpdir_factory.mktemp("srcs")
-    with open(str(src.join("exe.py")), "w") as fp:
-        # N.B.: The tiny-http-server has a handy basic-auth implementation, but it will not emit its
-        # random port to stdout unless stdout is a TTY. Here we use pexpect to arrange for that.
-        fp.write(
-            dedent(
-                """\
-                import atexit
-                import os
-                import sys
-
-                import pexpect
-
-
-                child = pexpect.spawn("tiny-http-server", sys.argv[1:], encoding="utf-8")
-                atexit.register(child.terminate, force=True)
-                
-                child.expect(r"^Serving HTTP on (?P<host>\\S+) port (?P<port>\\d+) ")
-                with open(os.environ[{pid_file_env_var_name!r}], "w") as fp:
-                    print(f"{{child.match.group('host')}}:{{child.match.group('port')}}", file=fp)
-                
-                # Serve forever.
-                child.wait()
-                """.format(
-                    pid_file_env_var_name=TinyHttpServer.PID_FILE_ENV_VAR_NAME
-                )
-            )
-        )
-
-    # N.B.: tiny-http-server requires Python >= 3.7.
-    python = ensure_python_interpreter(PY37)
-    run_pex_command(
-        args=[
-            "tiny-http-server==0.1",
-            "pexpect==4.8.0",
-            "-D",
-            str(src),
-            "-m",
-            "exe",
-            "-o",
-            pex_file,
-            "--venv",
-            "prepend",
-        ],
-        python=python,
-    ).assert_success()
-    return TinyHttpServer(binary=pex_file)
+    server = HTTPServer(("", 0), BasicHTTPAuthHandler)
+    server_dispatch_thread = Thread(target=server.serve_forever)
+    server_dispatch_thread.daemon = True
+    cwd = os.getcwd()
+    try:
+        os.chdir(find_links)
+        server_dispatch_thread.start()
+        host, port = server.server_address
+        yield Address(host=host, port=port)
+    finally:
+        server.shutdown()
+        server_dispatch_thread.join()
+        os.chdir(cwd)
 
 
 @pytest.fixture(scope="module")
@@ -168,7 +118,6 @@ class SecuredLock(object):
 
 @pytest.fixture
 def secured_ansicolors_lock(
-    tiny_http_server,  # TinyHttpServer
     ansicolors_find_links_directory,  # type: str
     tmpdir,  # type: Any
 ):
@@ -176,7 +125,7 @@ def secured_ansicolors_lock(
 
     username = "joe"
     password = "bob"
-    with tiny_http_server.serve_authenticated(
+    with serve_authenticated(
         username=username,
         password=password,
         find_links=ansicolors_find_links_directory,
@@ -205,7 +154,6 @@ def secured_ansicolors_lock(
             "-o",
             lock,
         ).assert_success()
-
         yield secured_lock
 
 
