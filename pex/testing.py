@@ -506,7 +506,7 @@ def ensure_python_distribution(version):
                 # with with `--disable-new-dtags`.
                 env["LDFLAGS"] = "-Wl,--disable-new-dtags"
             subprocess.check_call([pyenv, "install", "--keep", version], env=env)
-            subprocess.check_call([pip, "install", "-U", "pip"])
+            subprocess.check_call([pip, "install", "-U", "pip<22.1"])
 
     major, minor = version.split(".")[:2]
     python = os.path.join(
@@ -536,7 +536,7 @@ def ensure_python_venv(version, latest_pip=True, system_site_packages=False):
         subprocess.check_call(args=args)
     python, pip = tuple(os.path.join(venv, "bin", exe) for exe in ("python", "pip"))
     if latest_pip:
-        subprocess.check_call(args=[pip, "install", "-U", "pip"])
+        subprocess.check_call(args=[pip, "install", "-U", "pip<22.1"])
     return python, pip
 
 

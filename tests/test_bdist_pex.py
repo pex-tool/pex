@@ -34,8 +34,9 @@ def bdist_pex_venv():
         venv_dir = safe_mkdtemp()
         venv = Virtualenv.create(venv_dir)
         pip = venv.install_pip()
-        # N.B.: The setuptools version is not important.
-        subprocess.check_call(args=[pip, "install", "-U", "pip"])
+        # N.B.: The setuptools version is not important, but there is a break introduced by pip
+        # 22.1; so we must pin that low.
+        subprocess.check_call(args=[pip, "install", "-U", "pip<22.1"])
         subprocess.check_call(args=[pip, "install", pex_project_dir(), "setuptools==43.0.0"])
         BDIST_PEX_VENV = venv
     return BDIST_PEX_VENV
