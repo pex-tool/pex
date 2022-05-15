@@ -211,7 +211,7 @@ class Virtualenv(object):
             )
         if (
             self._interpreter.identity.interpreter == "PyPy"
-            and self._interpreter.version[0] <= (3, 6)
+            and self._interpreter.version[:2] <= (3, 6)
         ):
             self._site_packages_dir = os.path.join(venv_dir, "site-packages")
         else:
