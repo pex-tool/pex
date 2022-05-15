@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.88
+------
+
+This release is a hotfix for 2.1.86 that handles unparseable
+``~/.netrc`` files gracefully.
+
+* Just warn when ``~/.netrc`` can't be loaded. (#1763)
+  `PR #1763 <https://github.com/pantsbuild/pex/pull/1763>`_
+
 2.1.87
 ------
 
