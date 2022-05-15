@@ -143,9 +143,10 @@ class Virtualenv(object):
         custom_prompt = None  # type: Optional[str]
         py_major_minor = interpreter.version[:2]
         if py_major_minor[0] == 2 or (
-            interpreter.identity.interpreter == "PyPy" and py_major_minor[:2] <= (3, 6)
+            interpreter.identity.interpreter == "PyPy" and py_major_minor[:2] <= (3, 7)
         ):
-            # N.B.: PyPy3.6 comes equipped with a venv module but it does not seem to work.
+            # N.B.: PyPy3.6 and PyPy3.7 come equipped with a venv module but it does not seem to
+            # work.
             virtualenv_py = resource_string(__name__, "virtualenv_16.7.12_py")
             with named_temporary_file(mode="wb") as fp:
                 fp.write(virtualenv_py)
@@ -211,7 +212,7 @@ class Virtualenv(object):
             )
         if (
             self._interpreter.identity.interpreter == "PyPy"
-            and self._interpreter.version[:2] <= (3, 6)
+            and self._interpreter.version[:2] <= (3, 7)
         ):
             self._site_packages_dir = os.path.join(venv_dir, "site-packages")
         else:
