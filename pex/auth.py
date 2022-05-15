@@ -4,8 +4,9 @@
 from __future__ import absolute_import
 
 import os
-from netrc import netrc
+from netrc import NetrcParseError, netrc
 
+from pex import pex_warnings
 from pex.compatibility import urlparse
 from pex.typing import TYPE_CHECKING
 
@@ -58,13 +59,22 @@ class PasswordDatabase(object):
         if not netrc_file:
             return cls()
 
-        netrc_path = os.path.expanduser("~/.netrc")
+        netrc_path = os.path.expanduser(netrc_file)
         if not os.path.isfile(netrc_path):
+            return cls()
+
+        try:
+            netrc_database = netrc(netrc_path)
+        except NetrcParseError as e:
+            pex_warnings.warn(
+                "Failed to load netrc credentials: {err}\n"
+                "Continuing without netrc credentials.".format(err=e)
+            )
             return cls()
 
         def iter_entries():
             # type: () -> Iterator[PasswordEntry]
-            for machine, (login, _, password) in netrc(netrc_path).hosts.items():
+            for machine, (login, _, password) in netrc_database.hosts.items():
                 if password is None:
                     continue
 

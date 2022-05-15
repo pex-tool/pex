@@ -161,16 +161,17 @@ def assert_unauthorized(
     secured_ansicolors_lock,  # type: SecuredLock
     result,  # type: IntegResults
 ):
-    # type: (...) -> None
+    # type: (...) -> IntegResults
     result.assert_failure()
     assert (
         "There was 1 error downloading required artifacts:\n"
         "1. ansicolors 1.1.8 from {repo_url}/ansicolors-1.1.8-py2.py3-none-any.whl\n"
         "    HTTP Error 401: Unauthorized".format(repo_url=secured_ansicolors_lock.repo_url)
     ) in result.error
+    return result
 
 
-def test_authenticated_lock_url(
+def test_authenticated_lock_url_issue_1753(
     tmpdir,  # type: Any
     secured_ansicolors_lock,  # type: SecuredLock
 ):
@@ -226,7 +227,7 @@ def test_authenticated_lock_url(
     )
 
 
-def test_authenticated_lock_netrc(
+def test_authenticated_lock_netrc_issue_1753(
     tmpdir,  # type: Any
     secured_ansicolors_lock,  # type: SecuredLock
 ):
@@ -294,3 +295,52 @@ def test_authenticated_lock_netrc(
         )
     safe_rmtree(secured_ansicolors_lock.pex_root)
     assert_authorized(run_pex_command(args=use_lock_command, env=make_env(HOME=home)))
+
+
+def test_bad_netrc_issue_1762(
+    tmpdir,  # type: Any
+    secured_ansicolors_lock,  # type: SecuredLock
+):
+    # type: (...) -> None
+
+    use_lock_command = [
+        "--pex-root",
+        secured_ansicolors_lock.pex_root,
+        "--lock",
+        secured_ansicolors_lock.lock,
+        "--",
+        "-c",
+        "import colors; print(colors.yellow('Welcome'))",
+    ]
+    safe_rmtree(secured_ansicolors_lock.pex_root)
+
+    home = os.path.join(str(tmpdir), "home")
+    os.mkdir(home)
+    netrc_path = os.path.join(home, ".netrc")
+    with open(netrc_path, "w") as fp:
+        print("default login foo password bar", file=fp)
+        print("machine foo login bar password baz", file=fp)
+        print(
+            "machine {host}:{port} login {username} password {password} protocol http".format(
+                host=secured_ansicolors_lock.repo_address.host,
+                port=secured_ansicolors_lock.repo_address.port,
+                username=secured_ansicolors_lock.repo_username,
+                password=secured_ansicolors_lock.repo_password,
+            ),
+            file=fp,
+        )
+
+    result = assert_unauthorized(
+        secured_ansicolors_lock,
+        run_pex_command(args=use_lock_command, env=make_env(HOME=home), quiet=True),
+    )
+    assert (
+        "Failed to load netrc credentials: bad follower token 'protocol' ({netrc_path}, line 3)\n"
+        "Continuing without netrc credentials.".format(netrc_path=netrc_path)
+    ) in result.error
+
+    result = run_pex_command(
+        args=["--find-links", secured_ansicolors_lock.repo_url_with_credentials] + use_lock_command
+    )
+    result.assert_success()
+    assert colors.yellow("Welcome") == result.output.strip()
