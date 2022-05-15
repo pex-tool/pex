@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        pypy-version: [[2, 7], [3, 6]]
+        pypy-version: [[2, 7], [3, 9]]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -183,7 +183,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        pypy-version: [[2, 7], [3, 6]]
+        pypy-version: [[2, 7], [3, 9]]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
