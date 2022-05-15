@@ -189,10 +189,10 @@ COMPATIBLE_PYTHON_VERSIONS = (
     # N.B.: Pex does not support the missing 3.x versions here.
     PythonVersion(Lifecycle.EOL, 3, 5, 10),
     PythonVersion(Lifecycle.EOL, 3, 6, 15),
-    PythonVersion(Lifecycle.STABLE, 3, 7, 12),
-    PythonVersion(Lifecycle.STABLE, 3, 8, 12),
-    PythonVersion(Lifecycle.STABLE, 3, 9, 10),
-    PythonVersion(Lifecycle.STABLE, 3, 10, 2),
+    PythonVersion(Lifecycle.STABLE, 3, 7, 13),
+    PythonVersion(Lifecycle.STABLE, 3, 8, 13),
+    PythonVersion(Lifecycle.STABLE, 3, 9, 12),
+    PythonVersion(Lifecycle.STABLE, 3, 10, 4),
     PythonVersion(Lifecycle.DEV, 3, 11, 0),
 )
 
