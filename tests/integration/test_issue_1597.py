@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 def build_pex(
     args,  # type: List[str]
-    marker='python_full_version == "{python_full_version}"'.format(
+    marker='python_full_version >= "{python_full_version}"'.format(
         python_full_version=platform.python_version()
     ),  # type: str
 ):

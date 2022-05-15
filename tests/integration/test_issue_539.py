@@ -9,14 +9,16 @@ import pytest
 
 from pex.common import temporary_dir
 from pex.pip.tool import get_pip
-from pex.testing import IS_PYPY, run_pex_command
+from pex.testing import IS_PYPY, PY_VER, run_pex_command
 
 
 @pytest.mark.skipif(
-    IS_PYPY,
-    reason="The cryptography 2.6.1 project only has pre-built wheels for CPython "
-    "available on PyPI and this test relies upon a pre-built wheel being "
-    "available.",
+    IS_PYPY or PY_VER > (3, 10),
+    reason=(
+        "The cryptography 2.6.1 project only has pre-built wheels for CPython <= 3.10 "
+        "available on PyPI and this test relies upon a pre-built wheel being "
+        "available."
+    ),
 )
 def test_abi3_resolution():
     # type: () -> None
@@ -27,7 +29,7 @@ def test_abi3_resolution():
     # cryptography-2.6.1-cp34-abi3-macosx_10_6_intel.whl
     # cryptography-2.6.1-cp34-abi3-manylinux1_x86_64.whl
     # With pex in --no-build mode, we force a test that pex abi3 resolution works when this test is
-    # run under CPython>3.4,<4 on OSX and linux.
+    # run under CPython>3.4,<3.11 on OSX and linux.
 
     with temporary_dir() as td:
         # The dependency graph for cryptography-2.6.1 includes pycparser which is only released as an

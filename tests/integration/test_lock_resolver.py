@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from textwrap import dedent
 
 import colors
@@ -22,7 +23,7 @@ from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.resolve import lockfile
 from pex.resolve.locked_resolve import LockedRequirement
-from pex.testing import built_wheel, make_env, run_pex_command
+from pex.testing import PY_VER, built_wheel, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
@@ -394,6 +395,7 @@ def test_issue_1413_portable_find_links(tmpdir):
 
 def test_issue_1717_transitive_extras(
     tmpdir,  # type: Any
+    py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -481,12 +483,16 @@ def test_issue_1717_transitive_extras(
             ProjectNameAndVersion.from_filename(d).project_name for d in pex_info.distributions
         }
 
-    run_pex_command(args=["pex==2.1.78", "-cpex", "--"] + create_pex_args).assert_success()
+    # N.B.: Pex 2.1.78 only works on Python 3.10 and older.
+    python = py310.binary if PY_VER > (3, 10) else sys.executable
+    run_pex_command(
+        args=["pex==2.1.78", "-cpex", "--"] + create_pex_args, python=python
+    ).assert_success()
     pex_info = PexInfo.from_pex(pex)
     assert_requirements(pex_info)
     assert_dists(pex_info, "root", "middle_man_with_extras", "A", "B", "C")
 
-    process = subprocess.Popen(args=test_pex_args, stderr=subprocess.PIPE)
+    process = subprocess.Popen(args=[python] + test_pex_args, stderr=subprocess.PIPE)
     _, stderr = process.communicate()
     assert 0 != process.returncode
 
@@ -510,7 +516,7 @@ def test_issue_1717_transitive_extras(
             stderr.decode("utf-8"),
         )
         is not None
-    )
+    ), stderr.decode("utf-8")
 
     run_pex_command(args=create_pex_args).assert_success()
     pex_info = PexInfo.from_pex(pex)

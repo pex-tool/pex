@@ -7,12 +7,15 @@ import sys
 from textwrap import dedent
 from zipfile import ZipFile
 
+import pytest
+
 from pex.common import temporary_dir
 from pex.compatibility import PY2
 from pex.testing import (
     PY27,
     PY37,
     PY310,
+    PY_VER,
     create_pex_command,
     ensure_python_interpreter,
     run_command_with_jitter,
@@ -93,6 +96,15 @@ def test_reproducible_build_no_args():
     assert_reproducible_build([], pythons=MIXED_MAJOR_PYTHONS)
 
 
+@pytest.mark.skipif(
+    PY_VER > (3, 10),
+    reason=(
+        "There are no pre-built binaries for the cryptograph transitive dependency graph (cffi in "
+        "particular); so this test fails under Python 3.11+ since it requires building an sdist "
+        "and that leads to an underlying C `.so` build that we have insufficient control over to "
+        "make reproducible."
+    ),
+)
 def test_reproducible_build_bdist_requirements():
     # type: () -> None
     # We test both a pure Python wheel (six) and a platform-specific wheel (cryptography).
