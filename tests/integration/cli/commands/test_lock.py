@@ -197,14 +197,14 @@ def test_create_vcs(
     pex_file = os.path.join(str(tmpdir), "pip-pex.pex")
     run_pex_command(args=["--lock", lock, "-o", pex_file], python=python).assert_success()
 
-    output = (
+    version_output = (
         subprocess.check_output(
             args=[python, pex_file, "--version"], env=make_env(PEX_SCRIPT="cowsay")
         )
         .decode("utf-8")
         .strip()
     )
-    assert "3.0" == output, output
+    assert "3.0" == version_output, version_output
 
     process = subprocess.Popen(
         args=[python, pex_file, "-V"],
