@@ -1553,7 +1553,7 @@ def test_pip_issues_9420_workaround():
 
 @pytest.mark.skipif(
     PY_VER <= (3, 5),
-    reason="The example python requirements URL has requirements that only work with Pythin 3.6+.",
+    reason="The example python requirements URL has requirements that only work with Python 3.6+.",
 )
 def test_requirement_file_from_url(tmpdir):
     # type: (Any) -> None
