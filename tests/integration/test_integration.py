@@ -40,7 +40,7 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
-    temporary_content,
+    temporary_content, PY_VER,
 )
 from pex.third_party import pkg_resources
 from pex.third_party.pkg_resources import Requirement
@@ -1550,6 +1550,10 @@ def test_pip_issues_9420_workaround():
     )
 
 
+@pytest.mark.skipif(
+    PY_VER <= (3, 5),
+    reason="The example python requirements URL has requirements that only work with Pythin 3.6+."
+)
 def test_requirement_file_from_url(tmpdir):
     # type: (Any) -> None
 
