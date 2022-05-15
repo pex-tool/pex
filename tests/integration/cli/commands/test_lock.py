@@ -38,7 +38,7 @@ from pex.util import CacheHelper
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Any, Optional
+    from typing import Any
 
     import attr  # vendor:skip
 else:
