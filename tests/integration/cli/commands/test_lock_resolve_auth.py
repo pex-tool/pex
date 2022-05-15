@@ -330,17 +330,24 @@ def test_bad_netrc_issue_1762(
             file=fp,
         )
 
+    def assert_netrc_skipped(result):
+        # type: (IntegResults) -> None
+        assert (
+            "Failed to load netrc credentials: bad follower token 'protocol' ({netrc}, line 3)\n"
+            "Continuing without netrc credentials.".format(netrc=netrc_path)
+        ) in result.error
+
     result = assert_unauthorized(
         secured_ansicolors_lock,
         run_pex_command(args=use_lock_command, env=make_env(HOME=home), quiet=True),
     )
-    assert (
-        "Failed to load netrc credentials: bad follower token 'protocol' ({netrc_path}, line 3)\n"
-        "Continuing without netrc credentials.".format(netrc_path=netrc_path)
-    ) in result.error
+    assert_netrc_skipped(result)
 
     result = run_pex_command(
-        args=["--find-links", secured_ansicolors_lock.repo_url_with_credentials] + use_lock_command
+        args=["--find-links", secured_ansicolors_lock.repo_url_with_credentials] + use_lock_command,
+        env=make_env(HOME=home),
+        quiet=True,
     )
     result.assert_success()
+    assert_netrc_skipped(result)
     assert colors.yellow("Welcome") == result.output.strip()
