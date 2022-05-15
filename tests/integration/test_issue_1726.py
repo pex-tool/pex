@@ -10,7 +10,8 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open
-from pex.testing import run_pex_command
+from pex.interpreter import PythonInterpreter
+from pex.testing import PY_VER, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,8 +22,11 @@ if TYPE_CHECKING:
     sys.version_info[:2] < (3, 7),
     reason="The jaraco-collections 3.5.1 distribution requires Python >=3.7",
 )
-def test_check_install_issue_1726(tmpdir):
-    # type: (Any) -> None
+def test_check_install_issue_1726(
+    tmpdir,  # type: Any
+    py310,  # type: PythonInterpreter
+):
+    # type: (...) -> None
 
     src = os.path.join(str(tmpdir), "src")
     with safe_open(os.path.join(src, "setup.py"), "w") as fp:
@@ -53,7 +57,11 @@ def test_check_install_issue_1726(tmpdir):
         "-c",
         "from jaraco import collections; print(collections.__file__)",
     ]
-    old_result = run_pex_command(args=["pex==2.1.80", "-c", "pex", "--"] + pex_args)
+    old_result = run_pex_command(
+        args=["pex==2.1.80", "-c", "pex", "--"] + pex_args,
+        # N.B.: Pex 2.1.80 only works on Python 3.10 and older.
+        python=py310.binary if PY_VER > (3, 10) else None,
+    )
     old_result.assert_failure()
     assert (
         "Failed to resolve compatible distributions:\n"

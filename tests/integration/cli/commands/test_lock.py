@@ -1,7 +1,6 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import hashlib
 import os
 import re
 import subprocess
@@ -175,20 +174,28 @@ def test_create_local_unsupported(pex_project_dir):
     ) == result.error
 
 
-def test_create_vcs(tmpdir):
-    # type: (Any) -> None
+def test_create_vcs(
+    tmpdir,  # type: Any
+    py310,  # type: str
+):
+    # type: (...) -> None
+
+    # N.B.: The VCS Pex below only works on Python 3.10 and older.
+    python = py310 if PY_VER > (3, 10) else sys.executable
 
     lock = os.path.join(str(tmpdir), "lock")
     run_pex3(
         "lock",
         "create",
+        "--python",
+        python,
         "pex @ git+https://github.com/pantsbuild/pex@473c6ac7",
         "git+https://github.com/VaasuDevanS/cowsay-python@v3.0#egg=cowsay",
         "-o",
         lock,
     ).assert_success()
     pex_file = os.path.join(str(tmpdir), "pip-pex.pex")
-    run_pex_command(args=["--lock", lock, "-o", pex_file]).assert_success()
+    run_pex_command(args=["--lock", lock, "-o", pex_file], python=python).assert_success()
 
     assert (
         "3.0"

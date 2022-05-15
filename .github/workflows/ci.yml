@@ -52,7 +52,7 @@ jobs:
         with:
           fetch-depth: ${{ matrix.fetch-depth }}
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: "${{ matrix.python-version }}"
       - name: Check ${{ matrix.check-name }}
@@ -65,7 +65,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10]]
+        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11]]
         os: [ubuntu-20.04, macos-10.15]
         exclude:
           - os: macos-10.15
@@ -78,6 +78,8 @@ jobs:
             python-version: [3, 8]
           - os: macos-10.15
             python-version: [3, 9]
+          - os: macos-10.15
+            python-version: [3, 11]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -90,7 +92,7 @@ jobs:
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
@@ -125,7 +127,7 @@ jobs:
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
@@ -147,8 +149,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 10]]
+        python-version: [[2, 7], [3, 10], [3, 11]]
         os: [ubuntu-20.04, macos-10.15]
+        exclude:
+          - os: macos-10.15
+            python-version: [3, 11]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -161,7 +166,7 @@ jobs:
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
@@ -196,7 +201,7 @@ jobs:
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons

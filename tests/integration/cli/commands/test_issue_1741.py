@@ -7,6 +7,7 @@ import os
 import pytest
 
 from pex.cli.testing import run_pex3
+from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.lockfile import json_codec
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 )
 def test_prereleases(
     tmpdir,  # type: Any
+    py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -58,6 +60,8 @@ def test_prereleases(
     # 1st prove this does the wrong thing on prior broken versions of Pex.
     result = run_pex_command(
         args=["pex==2.1.83", "-c", "pex", "--"] + use_lock_args,
+        # N.B.: Pex 2.1.88 only works on Python 3.10 and older.
+        python=py310.binary if PY_VER > (3, 10) else None,
         quiet=True,
     )
     result.assert_failure()

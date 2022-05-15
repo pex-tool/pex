@@ -56,7 +56,9 @@ class Error(Result):
         super(Error, self).__init__(exit_code=exit_code, message=message)
 
 
-@attr.s(frozen=True)
+# Frozen exception types don't work under 3.11.0b1 which sets the `__traceback__` attribute after
+# construction in some cases.
+@attr.s
 class ResultError(Exception):
     """Wraps an Error in an exception for use in short-circuiting via `try_` / `catch`."""
 

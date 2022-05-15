@@ -113,6 +113,7 @@ def test_requires_python_current():
 
     current_target = targets.current()
     major, minor, patch = current_target.interpreter.version
+    patch_is_zero = 0 == patch
 
     def requires_python(template):
         # type: (str) -> str
@@ -132,25 +133,25 @@ def test_requires_python_current():
     assert_requires_python(True, "~={major}.{minor}")
 
     assert_requires_python(True, "=={major}.{minor}.*")
-    assert_requires_python(False, "=={major}.{minor}")
+    assert_requires_python(patch_is_zero, "=={major}.{minor}")
     assert_requires_python(True, "=={major}.{minor}.{patch}")
 
     assert_requires_python(True, "!={major}")
     assert_requires_python(False, "!={major}.*")
-    assert_requires_python(True, "!={major}.{minor}")
+    assert_requires_python(not patch_is_zero, "!={major}.{minor}")
     assert_requires_python(False, "!={major}.{minor}.*")
     assert_requires_python(False, "!={major}.{minor}.{patch}")
 
     assert_requires_python(False, "<{major}")
     assert_requires_python(False, "<={major}")
     assert_requires_python(False, "<{major}.{minor}")
-    assert_requires_python(False, "<={major}.{minor}")
+    assert_requires_python(patch_is_zero, "<={major}.{minor}")
     assert_requires_python(False, "<{major}.{minor}.{patch}")
     assert_requires_python(True, "<={major}.{minor}.{patch}")
 
     assert_requires_python(True, ">{major}")
     assert_requires_python(True, ">={major}")
-    assert_requires_python(True, ">{major}.{minor}")
+    assert_requires_python(not patch_is_zero, ">{major}.{minor}")
     assert_requires_python(True, ">={major}.{minor}")
     assert_requires_python(False, ">{major}.{minor}.{patch}")
     assert_requires_python(True, ">={major}.{minor}.{patch}")

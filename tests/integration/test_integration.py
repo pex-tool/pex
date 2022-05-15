@@ -1333,7 +1333,7 @@ def test_tmpdir_file(tmp_workdir):
 
 EXAMPLE_PYTHON_REQUIREMENTS_URL = (
     "https://raw.githubusercontent.com/pantsbuild/example-python/"
-    "c6052498f25a436f2639ccd0bc846cec1a55d7d5"
+    "68387a9f5f1a1cb288820f8ebb5d6f66d95c888a"
     "/requirements.txt"
 )
 
@@ -1369,10 +1369,9 @@ def test_requirements_network_configuration(run_proxy, tmp_workdir):
             ),
         )
         assert [
-            req("ansicolors>=1.0.2", 4),
-            req("setuptools>=42.0.0", 5),
-            req("translate>=3.2.1", 6),
-            req("protobuf>=3.11.3", 7),
+            req("ansicolors==1.1.8", 4),
+            req("setuptools>=56.2.0,<57", 5),
+            req("types-setuptools>=56.2.0,<58", 6),
         ] == list(reqs)
 
 
@@ -1554,21 +1553,10 @@ def test_pip_issues_9420_workaround():
 def test_requirement_file_from_url(tmpdir):
     # type: (Any) -> None
 
-    constraints = os.path.join(str(tmpdir), "constraints.txt")
-    with open(constraints, "w") as fp:
-        print("translate>=3.2.1,<3.6.0", file=fp)
-        print("protobuf<=3.17.3", file=fp)
-        print("setuptools<60", file=fp)
-
     pex_file = os.path.join(str(tmpdir), "pex")
-
-    results = run_pex_command(
-        args=["-r", EXAMPLE_PYTHON_REQUIREMENTS_URL, "--constraints", constraints, "-o", pex_file]
-    )
+    results = run_pex_command(args=["-r", EXAMPLE_PYTHON_REQUIREMENTS_URL, "-o", pex_file])
     results.assert_success()
-    output, returncode = run_simple_pex(
-        pex_file, args=["-c", "import colors, google.protobuf, setuptools, translate"]
-    )
+    output, returncode = run_simple_pex(pex_file, args=["-c", "import colors, setuptools"])
     assert 0 == returncode, output
     assert b"" == output
 
