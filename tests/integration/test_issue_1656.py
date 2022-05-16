@@ -9,7 +9,7 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.testing import PY_VER, make_env, run_pex_command
+from pex.testing import IS_PYPY, PY_VER, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -39,11 +39,11 @@ def old_pex(tmpdir_factory):
     return pex_file
 
 
-skip_for_newer_than_310 = pytest.mark.skipif(
-    PY_VER > (3, 10),
+skip_for_old_pex_unsupported_pythons = pytest.mark.skipif(
+    PY_VER > (3, 10) or (IS_PYPY and PY_VER > (3, 7)),
     reason=(
         "This test exercises compatibility with old Pex versions but those do not work on "
-        "anything newer than Python 3.10."
+        "anything newer than CPython 3.10 or PyPy 3.7."
     ),
 )
 
@@ -72,7 +72,7 @@ def run_pex_tool(
     ).decode("utf-8")
 
 
-@skip_for_newer_than_310
+@skip_for_old_pex_unsupported_pythons
 def test_old_venv_tool_vs_new_pex(
     tmpdir,  # type: Any
     old_pex,  # type: str
@@ -87,7 +87,7 @@ def test_old_venv_tool_vs_new_pex(
     assert b"4.0\n" == subprocess.check_output(args=[os.path.join(venv, "pex"), "--version"])
 
 
-@skip_for_newer_than_310
+@skip_for_old_pex_unsupported_pythons
 def test_new_venv_tool_vs_old_pex(
     tmpdir,  # type: Any
     old_pex,  # type: str
@@ -102,7 +102,7 @@ def test_new_venv_tool_vs_old_pex(
     assert b"4.0\n" == subprocess.check_output(args=[os.path.join(venv, "pex"), "--version"])
 
 
-@skip_for_newer_than_310
+@skip_for_old_pex_unsupported_pythons
 def test_mixed_pex_root(
     tmpdir,  # type: Any
     old_pex,  # type: str
