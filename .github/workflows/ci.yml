@@ -142,7 +142,7 @@ jobs:
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: pypy${{ matrix.pypy-version[0] }}
+          tox-env: pypy${{ join(matrix.pypy-version, '.') }}
   cpython-integration-tests:
     name: (${{ matrix.os }}) TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
     needs: org-check
@@ -220,7 +220,7 @@ jobs:
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: pypy${{ matrix.pypy-version[0] }}-integration
+          tox-env: pypy${{ join(matrix.pypy-version, '.') }}-integration
   final-status:
     name: Gather Final Status
     needs:
