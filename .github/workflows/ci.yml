@@ -109,12 +109,12 @@ jobs:
         with:
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
   pypy-unit-tests:
-    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ matrix.pypy-version[0] }}
+    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        pypy-version: [[2, 7], [3, 6]]
+        pypy-version: [[2, 7], [3, 9]]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -142,7 +142,7 @@ jobs:
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: pypy${{ matrix.pypy-version[0] }}
+          tox-env: pypy${{ join(matrix.pypy-version, '') }}
   cpython-integration-tests:
     name: (${{ matrix.os }}) TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
     needs: org-check
@@ -183,12 +183,12 @@ jobs:
         with:
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
   pypy-integration-tests:
-    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ matrix.pypy-version[0] }}-integration
+    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        pypy-version: [[2, 7], [3, 6]]
+        pypy-version: [[2, 7], [3, 9]]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -220,7 +220,7 @@ jobs:
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: pypy${{ matrix.pypy-version[0] }}-integration
+          tox-env: pypy${{ join(matrix.pypy-version, '') }}-integration
   final-status:
     name: Gather Final Status
     needs:

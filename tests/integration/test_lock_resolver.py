@@ -23,7 +23,7 @@ from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.resolve import lockfile
 from pex.resolve.locked_resolve import LockedRequirement
-from pex.testing import PY_VER, built_wheel, make_env, run_pex_command
+from pex.testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
@@ -483,8 +483,8 @@ def test_issue_1717_transitive_extras(
             ProjectNameAndVersion.from_filename(d).project_name for d in pex_info.distributions
         }
 
-    # N.B.: Pex 2.1.78 only works on Python 3.10 and older.
-    python = py310.binary if PY_VER > (3, 10) else sys.executable
+    # N.B.: Pex 2.1.78 only works on CPython 3.10 and older and PyPy 3.7 and older.
+    python = py310.binary if PY_VER > (3, 10) or (IS_PYPY and PY_VER > (3, 7)) else sys.executable
     run_pex_command(
         args=["pex==2.1.78", "-cpex", "--"] + create_pex_args, python=python
     ).assert_success()

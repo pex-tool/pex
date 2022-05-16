@@ -142,16 +142,11 @@ class Virtualenv(object):
 
         custom_prompt = None  # type: Optional[str]
         py_major_minor = interpreter.version[:2]
-        if py_major_minor[0] >= 3 and not interpreter.identity.interpreter == "PyPy":
-            # N.B.: PyPy3 comes equipped with a venv module but it does not seem to work.
-            args = ["-m", "venv", "--without-pip", venv_dir]
-            if copies:
-                args.append("--copies")
-            if prompt and py_major_minor >= (3, 6):
-                args.extend(["--prompt", prompt])
-                custom_prompt = prompt
-            interpreter.execute(args=args, env=env)
-        else:
+        if py_major_minor[0] == 2 or (
+            interpreter.identity.interpreter == "PyPy" and py_major_minor[:2] <= (3, 7)
+        ):
+            # N.B.: PyPy3.6 and PyPy3.7 come equipped with a venv module but it does not seem to
+            # work.
             virtualenv_py = resource_string(__name__, "virtualenv_16.7.12_py")
             with named_temporary_file(mode="wb") as fp:
                 fp.write(virtualenv_py)
@@ -163,6 +158,15 @@ class Virtualenv(object):
                     args.extend(["--prompt", prompt])
                     custom_prompt = prompt
                 interpreter.execute(args=args, env=env)
+        else:
+            args = ["-m", "venv", "--without-pip", venv_dir]
+            if copies:
+                args.append("--copies")
+            if prompt and py_major_minor >= (3, 6):
+                args.extend(["--prompt", prompt])
+                custom_prompt = prompt
+            interpreter.execute(args=args, env=env)
+
         return cls(venv_dir, custom_prompt=custom_prompt)
 
     @classmethod
@@ -206,18 +210,21 @@ class Virtualenv(object):
                     venv_dir=self._venv_dir, python_exe_path=python_exe_path, err=e
                 )
             )
-        self._site_packages_dir = (
-            os.path.join(venv_dir, "site-packages")
-            if self._interpreter.identity.interpreter == "PyPy"
-            else os.path.join(
+        if (
+            self._interpreter.identity.interpreter == "PyPy"
+            and self._interpreter.version[:2] <= (3, 7)
+        ):
+            self._site_packages_dir = os.path.join(venv_dir, "site-packages")
+        else:
+            self._site_packages_dir = os.path.join(
                 venv_dir,
                 "lib",
-                "python{major_minor}".format(
+                "{python}{major_minor}".format(
+                    python="pypy" if self._interpreter.identity.interpreter == "PyPy" else "python",
                     major_minor=".".join(map(str, self._interpreter.version[:2]))
                 ),
                 "site-packages",
             )
-        )
         if not os.path.isdir(self._site_packages_dir):
             raise InvalidVirtualenvError(
                 "The virtualenv at {venv_dir} is not valid. The expected site-packages directory "

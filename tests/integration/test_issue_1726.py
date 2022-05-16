@@ -11,7 +11,7 @@ import pytest
 
 from pex.common import safe_open
 from pex.interpreter import PythonInterpreter
-from pex.testing import PY_VER, run_pex_command
+from pex.testing import IS_PYPY, PY_VER, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -59,8 +59,8 @@ def test_check_install_issue_1726(
     ]
     old_result = run_pex_command(
         args=["pex==2.1.80", "-c", "pex", "--"] + pex_args,
-        # N.B.: Pex 2.1.80 only works on Python 3.10 and older.
-        python=py310.binary if PY_VER > (3, 10) else None,
+        # N.B.: Pex 2.1.80 only works on CPython 3.10 and older and PyPy 3.7 and older.
+        python=py310.binary if PY_VER > (3, 10) or (IS_PYPY and PY_VER > (3, 7)) else None,
     )
     old_result.assert_failure()
     assert (

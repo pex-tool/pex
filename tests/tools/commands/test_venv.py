@@ -543,13 +543,19 @@ def test_compile(tmpdir):
     venv = os.path.join(str(tmpdir), "venv")
     subprocess.check_call(args=[pex_file, "venv", venv], env=make_env(PEX_TOOLS=1))
     # N.B.: The right way to discover the site-packages dir is via site.getsitepackages().
-    # Unfortunately we use an old version of virtualenv to create PyPy and CPython 2.7 venvs and it
-    # does not add a getsitepackages function to site.py; so we cheat.
-    if IS_PYPY:
+    # Unfortunately we use an old version of virtualenv to create PyPy <= 3.7 and CPython 2.7 venvs
+    # and it does not add a getsitepackages function to site.py; so we cheat.
+    if IS_PYPY and PY_VER <= (3, 7):
         site_packages = "site-packages"
     else:
         site_packages = os.path.join(
-            "lib", "python{}.{}".format(sys.version_info[0], sys.version_info[1]), "site-packages"
+            "lib",
+            "{python}{major}.{minor}".format(
+                python="pypy" if IS_PYPY else "python",
+                major=sys.version_info[0],
+                minor=sys.version_info[1],
+            ),
+            "site-packages",
         )
 
     # Ensure we have at least the basic direct dependency python files we expect.
@@ -715,7 +721,7 @@ def test_custom_prompt(tmpdir):
         args=[venv_pex, "venv", "--prompt", "jane", venv_dir], env=make_env(PEX_TOOLS=True)
     )
 
-    if PY_VER == (2, 7) or IS_PYPY:
+    if PY_VER == (2, 7) or (IS_PYPY and PY_VER <= (3, 7)):
         # Neither CPython 2.7 not PyPy interpreters have (functioning) venv modules; so we create
         # their venvs with an old copy of virtualenv that does not surround the prompt with parens.
         expected_prompt = "jane"

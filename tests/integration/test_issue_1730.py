@@ -4,11 +4,10 @@
 from __future__ import absolute_import
 
 import os
-import sys
 
 import pytest
 
-from pex.testing import run_pex_command
+from pex.testing import IS_PYPY, PY_VER, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -16,8 +15,8 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 7) or sys.version_info[:2] >= (3, 10),
-    reason="Pants 2.12.0.dev3 requires Python >=3.7,<3.10",
+    PY_VER < (3, 7) or PY_VER >= (3, 10) or IS_PYPY,
+    reason="Pants 2.12.0.dev3 requires Python >=3.7,<3.10 and does not publish a PyPy wheel.",
 )
 def test_check_install_issue_1730(
     tmpdir,  # type: Any

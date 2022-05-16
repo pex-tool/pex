@@ -1419,12 +1419,12 @@ def test_universal_lock(
 
     py39 = None
     for interp in PythonInterpreter.iter():
-        if (3, 9) == interp.version[:2]:
+        if interp.identity.matches("CPython==3.9.*"):
             py39 = interp
             break
 
     if py39 is None:
-        pytest.skip("A Python 3.9 interpreter must be discoverable for this test.")
+        pytest.skip("A CPython 3.9 interpreter must be discoverable for this test.")
         return
 
     constraints_file = os.path.join(str(tmpdir), "constraints.txt")

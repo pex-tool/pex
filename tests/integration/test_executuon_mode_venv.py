@@ -39,7 +39,7 @@ def test_custom_prompt(tmpdir):
     result.assert_success()
     venv_dir = os.path.dirname(json.loads(result.output)["pex"])
 
-    if PY_VER == (2, 7) or IS_PYPY:
+    if PY_VER == (2, 7) or (IS_PYPY and PY_VER <= (3, 7)):
         # Neither CPython 2.7 not PyPy interpreters have (functioning) venv modules; so we create
         # their venvs with an old copy of virtualenv that does not surround the prompt with parens.
         expected_prompt = r"^{venv_pex_name}$".format(venv_pex_name=re.escape(venv_pex_name))
