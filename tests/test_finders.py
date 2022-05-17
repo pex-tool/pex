@@ -3,7 +3,6 @@
 
 import os
 
-import attr
 import pytest
 
 from pex.dist_metadata import CallableEntryPoint, DistMetadata, Distribution, EntryPoint
@@ -16,6 +15,10 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any, Dict
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 # In-part, tests a bug where the wheel distribution name has dashes as reported in:
