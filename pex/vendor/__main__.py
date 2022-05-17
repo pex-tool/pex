@@ -320,7 +320,7 @@ def vendorize(root_dir, vendor_specs, prefix, update):
 
     dist_by_vendor_spec = OrderedDict()
     for vendor_spec in vendor_specs:
-        for dist in find_distributions(vendor_spec.target_dir):
+        for dist in find_distributions(search_path=[vendor_spec.target_dir]):
             if dist.project_name == vendor_spec.key:
                 dist_by_vendor_spec[vendor_spec] = dist
                 break
