@@ -9,13 +9,17 @@ from contextlib import contextmanager
 
 from pex import attrs, dist_metadata
 from pex.compatibility import urlparse
-from pex.dist_metadata import MetadataError, ProjectNameAndVersion
+from pex.dist_metadata import (
+    MetadataError,
+    ProjectNameAndVersion,
+    Requirement,
+    RequirementParseError,
+)
 from pex.enum import Enum
 from pex.fetcher import URLFetcher
 from pex.third_party.packaging.markers import Marker
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.version import InvalidVersion, Version
-from pex.third_party.pkg_resources import Requirement, RequirementParseError
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -341,7 +345,7 @@ def _try_parse_fragment_project_name_and_marker(fragment):
 class ProjectNameAndSpecifier(object):
     @staticmethod
     def _version_as_specifier(version):
-        # type: (str) -> SpecifierSet
+        # type: (Text) -> SpecifierSet
         try:
             return SpecifierSet("=={}".format(Version(version)))
         except InvalidVersion:
@@ -537,7 +541,7 @@ def _parse_requirement_line(
 
     # Handle PEP-440. See: https://www.python.org/dev/peps/pep-0440.
     #
-    # The `pkg_resources.Requirement.parse` method does all of this for us (via
+    # The `pex.dist_metadata.Requirement.parse` method does all of this for us (via
     # `packaging.requirements.Requirement`) except for the handling of PEP-440 direct url
     # references; which we handled above and won't encounter here.
     try:

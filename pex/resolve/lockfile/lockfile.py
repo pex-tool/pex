@@ -3,11 +3,11 @@
 
 from __future__ import absolute_import, print_function
 
+from pex.dist_metadata import Requirement
 from pex.resolve.locked_resolve import LockedResolve, LockStyle, Resolved
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
-from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 

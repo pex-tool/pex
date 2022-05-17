@@ -5,12 +5,12 @@ import json
 import os
 import subprocess
 
+from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledWheel
 from pex.pex_info import PexInfo
 from pex.testing import PY37, ensure_python_venv, run_pex_command
 from pex.typing import TYPE_CHECKING
-from pex.util import DistributionHelper
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
@@ -41,10 +41,9 @@ def test_data_files(tmpdir):
     pex_info = PexInfo.from_pex(pex_file)
     assert 1 == len(pex_info.distributions)
     nbconvert_wheel_name, fingerprint = next(iter(pex_info.distributions.items()))
-    nbconvert_dist = DistributionHelper.distribution_from_path(
+    nbconvert_dist = Distribution.load(
         os.path.join(pex_info.install_cache, fingerprint, nbconvert_wheel_name)
     )
-    assert nbconvert_dist is not None
 
     pex_venv = Virtualenv.create(
         os.path.join(str(tmpdir), "pex.venv"), interpreter=PythonInterpreter.from_binary(py37)

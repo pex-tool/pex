@@ -171,7 +171,7 @@ def iter_vendor_specs():
     )
 
     # We expose this to pip at buildtime for legacy builds, but we also use pkg_resources via
-    # pex.third_party at runtime in various ways.
+    # pex.third_party at runtime to inject pkg_resources style namespace packages if needed.
     # N.B.: 44.0.0 is the last setuptools version compatible with Python 2 and we use a fork of that
     # with patches needed to support Pex on the v44.0.0/patches/pex-2.x branch.
     pantsbuild_setuptools_commit = "3acb925dd708430aeaf197ea53ac8a752f7c1863"

@@ -4,29 +4,23 @@
 from __future__ import absolute_import
 
 import fileinput
-import json
 import logging
 import os
+import pkgutil
 import re
 import sys
 from contextlib import closing
-from textwrap import dedent
-
-from pex import third_party
 from pex.common import AtomicDirectory, is_exe, safe_mkdir
 from pex.compatibility import get_stdout_bytes_buffer
+from pex.dist_metadata import find_distributions, Distribution
 from pex.interpreter import PythonInterpreter
-from pex.third_party.pkg_resources import resource_string
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Union
+    from typing import Iterator, Optional, Tuple, Union
 
-    import attr  # vendor:skip
-else:
-    from pex.third_party import attr
 
 _MIN_PIP_PYTHON_VERSION = (2, 7, 9)
 
@@ -80,13 +74,6 @@ def _is_python_script(executable):
 
 class InvalidVirtualenvError(Exception):
     """Indicates a virtualenv is malformed."""
-
-
-@attr.s(frozen=True)
-class DistributionInfo(object):
-    project_name = attr.ib()  # type: str
-    version = attr.ib()  # type: str
-    sys_path_entry = attr.ib()  # type: str
 
 
 class Virtualenv(object):
@@ -147,7 +134,7 @@ class Virtualenv(object):
         ):
             # N.B.: PyPy3.6 and PyPy3.7 come equipped with a venv module but it does not seem to
             # work.
-            virtualenv_py = resource_string(__name__, "virtualenv_16.7.12_py")
+            virtualenv_py = pkgutil.get_data(__name__, "virtualenv_16.7.12_py")
             with named_temporary_file(mode="wb") as fp:
                 fp.write(virtualenv_py)
                 fp.close()
@@ -233,6 +220,7 @@ class Virtualenv(object):
                 )
             )
         self._base_bin = frozenset(_iter_files(self._bin_dir))
+        self._sys_path = None  # type: Optional[Tuple[str, ...]]
 
     @property
     def venv_dir(self):
@@ -273,43 +261,21 @@ class Virtualenv(object):
             if is_exe(path):
                 yield path
 
+    @property
+    def sys_path(self):
+        # type: () -> Tuple[str, ...]
+        if self._sys_path is None:
+            _, stdout, _ = self.interpreter.execute(
+                args=["-c", "import os, sys; print(os.linesep.join(sys.path))"]
+            )
+            self._sys_path = tuple(stdout.strip().splitlines())
+        return self._sys_path
+
     def iter_distributions(self):
-        # type: () -> Iterator[DistributionInfo]
+        # type: () -> Iterator[Distribution]
         """"""
-        setuptools_path = tuple(third_party.expose(["setuptools"]))
-        _, stdout, _ = self.interpreter.execute(
-            args=[
-                "-c",
-                dedent(
-                    """\
-                    from __future__ import print_function
-
-                    import sys
-
-                    setuptools_path = {setuptools_path!r}
-                    sys.path.extend(setuptools_path)
-
-                    import json
-                    from pkg_resources import working_set
-
-                    json.dump(
-                        [
-                            dict(
-                                project_name=dist.project_name,
-                                version=dist.version,
-                                sys_path_entry=dist.location,
-                            ) for dist in working_set if dist.location not in setuptools_path
-                        ],
-                        sys.stdout,
-                    )
-                    """.format(
-                        setuptools_path=setuptools_path
-                    )
-                ),
-            ],
-        )
-        for dist_info in json.loads(stdout):
-            yield DistributionInfo(**dist_info)
+        for dist in find_distributions(search_path=self.sys_path):
+            yield dist
 
     def _rewrite_base_scripts(self, real_venv_dir):
         # type: (str) -> Iterator[str]

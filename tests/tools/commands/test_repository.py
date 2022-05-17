@@ -14,11 +14,10 @@ from textwrap import dedent
 import pytest
 
 from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open, temporary_dir
+from pex.dist_metadata import Distribution, Requirement
 from pex.testing import PY310, ensure_python_venv, run_command_with_jitter, run_pex_command
 from pex.third_party.packaging.specifiers import SpecifierSet
-from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.typing import TYPE_CHECKING
-from pex.util import DistributionHelper
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterator
@@ -84,9 +83,8 @@ def test_info(pex, pex_tools_env):
     output = subprocess.check_output(args=[pex, "repository", "info"], env=pex_tools_env)
     distributions = {}
     for line in output.decode("utf-8").splitlines():
-        name, version, location = line.split(" ", 2)
-        distribution = DistributionHelper.distribution_from_path(location)
-        assert isinstance(distribution, Distribution)
+        name, version, location = str(line).split(" ", 2)
+        distribution = Distribution.load(location)
         assert name == distribution.project_name
         assert version == distribution.version
         distributions[name] = version
@@ -101,8 +99,7 @@ def test_info_verbose(pex, pex_tools_env):
     infos = {}
     for line in output.decode("utf-8").splitlines():
         info = json.loads(line)
-        distribution = DistributionHelper.distribution_from_path(info["location"])
-        assert isinstance(distribution, Distribution)
+        distribution = Distribution.load(info["location"])
         project_name = info["project_name"]
         assert distribution.project_name == project_name
         assert distribution.version == info["version"]

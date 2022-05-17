@@ -25,8 +25,8 @@ from pex.common import (
     safe_open,
 )
 from pex.compatibility import get_stdout_bytes_buffer, urlparse
+from pex.dist_metadata import Distribution, EntryPoint
 from pex.interpreter import PythonInterpreter
-from pex.third_party.pkg_resources import EntryPoint
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
 
@@ -254,7 +254,6 @@ class InstalledWheel(object):
 
         :return: An iterator over src -> dst pairs.
         """
-
         site_packages_dir = (
             os.path.join(venv.site_packages_dir, rel_extra_path)
             if rel_extra_path
@@ -441,7 +440,7 @@ class Record(object):
             for f in files
         ]
         record_relative_path = dist_metadata.find_dist_info_file(
-            project_name, version, filename="RECORD", listing=site_packages_listing
+            project_name, version=version, filename="RECORD", listing=site_packages_listing
         )
         if not record_relative_path:
             raise RecordNotFoundError(
@@ -559,8 +558,9 @@ class Record(object):
         entry_points_relpath = self._find_dist_info_file("entry_points.txt")
         if entry_points_relpath:
             entry_points_abspath = os.path.join(self.prefix_dir, entry_points_relpath)
-            with open(entry_points_abspath) as fp:
-                console_scripts.update(EntryPoint.parse_map(fp.read()).get("console_scripts", {}))
+            console_scripts.update(
+                Distribution.parse_entry_map(entry_points_abspath).get("console_scripts", {})
+            )
 
         scripts = {}  # type: Dict[str, Optional[bytes]]
         for script_name in os.listdir(bin_dir):

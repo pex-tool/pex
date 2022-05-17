@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import json
 
 from pex import compatibility
+from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -18,7 +19,6 @@ from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
-from pex.third_party.pkg_resources import Requirement, RequirementParseError
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:

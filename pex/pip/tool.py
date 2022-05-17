@@ -17,7 +17,7 @@ from pex import dist_metadata, targets, third_party
 from pex.auth import PasswordEntry
 from pex.common import atomic_directory, safe_mkdtemp
 from pex.compatibility import unquote, urlparse
-from pex.dist_metadata import ProjectNameAndVersion
+from pex.dist_metadata import ProjectNameAndVersion, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.jobs import Job
@@ -25,6 +25,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_376 import Record
 from pex.pep_425 import CompatibilityTags
+from pex.pep_440 import Version
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
@@ -35,7 +36,6 @@ from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, 
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target
 from pex.third_party import isolated
-from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
 from pex.util import named_temporary_file
@@ -406,7 +406,6 @@ class Locker(_LogAnalyzer):
 
                     raw_requirement = match.group("requirement")
                     requirement = Requirement.parse(raw_requirement)
-                    project_name = requirement.project_name
                     version = match.group("version")
 
                     # VCS requirements are satisfied by a singular source; so we need not consult
@@ -414,12 +413,14 @@ class Locker(_LogAnalyzer):
                     self._resolved_requirements.append(
                         ResolvedRequirement(
                             requirement=requirement,
-                            pin=Pin.canonicalize(ProjectNameAndVersion(project_name, version)),
+                            pin=Pin(
+                                project_name=requirement.project_name, version=Version(version)
+                            ),
                             artifact=PartialArtifact(
                                 url=match.group("url"),
                                 fingerprint=fingerprint_downloaded_vcs_archive(
                                     download_dir=self._download_dir,
-                                    project_name=project_name,
+                                    project_name=str(requirement.project_name),
                                     version=version,
                                     vcs=vcs_partial_info.vcs,
                                 ),

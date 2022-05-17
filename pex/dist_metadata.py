@@ -4,10 +4,15 @@
 
 from __future__ import absolute_import
 
+import functools
+import glob
+import importlib
 import os
 import re
+import sys
 import tarfile
 import zipfile
+from collections import defaultdict
 from contextlib import closing
 from email.message import Message
 from email.parser import Parser
@@ -19,16 +24,31 @@ from pex.common import open_zip, pluralize
 from pex.compatibility import to_unicode
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.third_party.packaging.markers import Marker
+from pex.third_party.packaging.requirements import InvalidRequirement
+from pex.third_party.packaging.requirements import Requirement as PackagingRequirement
 from pex.third_party.packaging.specifiers import SpecifierSet
-from pex.third_party.pkg_resources import DistInfoDistribution, Distribution, Requirement
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
+    from typing import (
+        Any,
+        Callable,
+        DefaultDict,
+        Dict,
+        FrozenSet,
+        Iterable,
+        Iterator,
+        List,
+        Optional,
+        Text,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 
-    DistributionLike = Union[Distribution, str]
+    from pex.pep_440 import ParsedVersion
 else:
     from pex.third_party import attr
 
@@ -41,11 +61,19 @@ class UnrecognizedDistributionFormat(MetadataError):
     """Indicates a distribution file is not of any recognized format."""
 
 
-_PKG_INFO_BY_DIST = {}  # type: Dict[Distribution, Optional[Message]]
+class AmbiguousDistributionError(MetadataError):
+    """Indicates multiple distributions were detected at a given location but one was expected."""
+
+
+class MetadataNotFoundError(MetadataError):
+    """Indicates an expected metadata file could not be found for a given distribution."""
+
+
+_PKG_INFO_BY_DIST_LOCATION = {}  # type: Dict[Text, Optional[Message]]
 
 
 def _strip_sdist_path(sdist_path):
-    # type: (str) -> Optional[str]
+    # type: (Text) -> Optional[str]
     if not sdist_path.endswith((".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip")):
         return None
 
@@ -53,7 +81,11 @@ def _strip_sdist_path(sdist_path):
     filename, _ = os.path.splitext(sdist_basename)
     if filename.endswith(".tar"):
         filename, _ = os.path.splitext(filename)
-    return filename
+    # All PEP paths lead here for the definition of a valid project name which limits things to
+    # ascii; so this str(...) is Python 2.7 safe: https://peps.python.org/pep-0508/#names
+    # The version part of the basename is similarly restricted by:
+    #   https://peps.python.org/pep-0440/#summary-of-changes-to-pep-440
+    return str(filename)
 
 
 def _parse_message(message):
@@ -62,12 +94,12 @@ def _parse_message(message):
 
 
 def _parse_sdist_package_info(sdist_path):
-    # type: (str) -> Optional[Message]
+    # type: (Text) -> Optional[Message]
     sdist_filename = _strip_sdist_path(sdist_path)
     if sdist_filename is None:
         return None
 
-    pkg_info_path = os.path.join(sdist_filename, Distribution.PKG_INFO)
+    pkg_info_path = os.path.join(sdist_filename, "PKG-INFO")
 
     if zipfile.is_zipfile(sdist_path):
         with open_zip(sdist_path) as zip:
@@ -101,65 +133,61 @@ def _parse_sdist_package_info(sdist_path):
     return None
 
 
-def find_dist_info_file(
-    project_name,  # type: str
-    version,  # type: str
-    filename,  # type: str
+@attr.s(frozen=True)
+class DistMetadataFile(object):
+    project_name = attr.ib()  # type: ProjectName
+    version = attr.ib()  # type: Version
+    path = attr.ib()  # type: str
+
+
+def find_dist_info_files(
+    filename,  # type: Text
     listing,  # type: Iterable[str]
+):
+    # type: (...) -> Iterator[DistMetadataFile]
+    dist_info_metadata_pattern = "^{}$".format(
+        os.path.join(r"(?P<project_name>.+)-(?P<version>.+)\.dist-info", re.escape(filename))
+    )
+    wheel_metadata_re = re.compile(dist_info_metadata_pattern)
+    for item in listing:
+        match = wheel_metadata_re.match(item)
+        if match:
+            yield DistMetadataFile(
+                project_name=ProjectName(match.group("project_name")),
+                version=Version(match.group("version")),
+                path=item,
+            )
+
+
+def find_dist_info_file(
+    project_name,  # type: Union[Text, ProjectName]
+    filename,  # type: Text
+    listing,  # type: Iterable[str]
+    version=None,  # type: Optional[Union[Text, Version]]
 ):
     # type: (...) -> Optional[str]
 
-    # The relevant PEP for project names appears to be the wheel 2.1 spec in PEP-566:
-    #   https://www.python.org/dev/peps/pep-0566/#name
-    #
-    # That defers to PEP-508:
-    #   https://www.python.org/dev/peps/pep-0508/#names
-    #
-    # In practice though it appears the PyPA ecosystem at least does a variant of the name
-    # normalization defined for the simple repository API in PEP-503:
-    #   https://www.python.org/dev/peps/pep-0503/#normalized-names
-    #
-    # For example, with the following setup.py:
-    # ---
-    # from setuptools import setup
-    #
-    # setup(name="Stress-.__Test", version="1.0")
-    #
-    # Using `pip wheel` generates a wheel with a `.dist-info/` dir of `Stress_._Test-1.0.dist-info`.
-    # So `-` -> `_` and runs of `_` go to a single `_`. To be flexible, we accept any run of any
-    # combo of `-`, `_`, and `.` as name component separators.
-    project_name_pattern = re.sub(r"[-_.]+", "[-_.]+", project_name)
-
-    # The relevant PEP for versions is https://www.python.org/dev/peps/pep-0440 which does not allow
-    # a `-` in modern versions but also stipulates that all versions (legacy) must be handled. It
-    # turns out wheel normalizes `-` to `_` and Pip has had to deal with this:
-    #   https://github.com/pypa/pip/issues/1150
-    #
-    # We also deal with this, accepting either `-` or `_` when a `-` is expected.
-    version_pattern = re.sub(
-        r"(?P<left>[^-]+)-(?P<right>[^-]+)",
-        lambda match: "{left}[-_]{right}".format(
-            left=re.escape(match.group("left")), right=re.escape(match.group("right"))
-        ),
-        version,
+    normalized_project_name = (
+        project_name if isinstance(project_name, ProjectName) else ProjectName(project_name)
     )
-    if version_pattern == version:
-        version_pattern = re.escape(version)
 
-    wheel_metadata_pattern = "^{}$".format(
-        os.path.join(
-            "{}-{}\\.dist-info".format(project_name_pattern, version_pattern), re.escape(filename)
-        )
-    )
-    wheel_metadata_re = re.compile(wheel_metadata_pattern, re.IGNORECASE)
-    for item in listing:
-        if wheel_metadata_re.match(item):
-            return item
+    if isinstance(version, Version):
+        normalized_version = version
+    elif isinstance(version, str):
+        normalized_version = Version(version)
+    else:
+        normalized_version = None
+
+    for metadata_file in find_dist_info_files(filename, listing):
+        if normalized_project_name == metadata_file.project_name:
+            if normalized_version and normalized_version != metadata_file.version:
+                continue
+            return metadata_file.path
     return None
 
 
 def _parse_wheel_package_info(wheel_path):
-    # type: (str) -> Optional[Message]
+    # type: (Text) -> Optional[Message]
     if not wheel_path.endswith(".whl") or not zipfile.is_zipfile(wheel_path):
         return None
     project_name, version, _ = os.path.basename(wheel_path).split("-", 2)
@@ -167,7 +195,7 @@ def _parse_wheel_package_info(wheel_path):
         metadata_file = find_dist_info_file(
             project_name=project_name,
             version=version,
-            filename=DistInfoDistribution.PKG_INFO,
+            filename="METADATA",
             listing=whl.namelist(),
         )
         if not metadata_file:
@@ -176,32 +204,51 @@ def _parse_wheel_package_info(wheel_path):
             return _parse_message(fp.read())
 
 
-def _parse_distribution_package_info(dist):
-    # type: (Distribution) -> Optional[Message]
-    if not dist.has_metadata(DistInfoDistribution.PKG_INFO):
+def _parse_installed_distribution_info(location):
+    # type: (Text) -> Optional[Message]
+
+    if not os.path.isdir(location):
         return None
-    metadata = dist.get_metadata(DistInfoDistribution.PKG_INFO)
-    return _parse_message(metadata)
+
+    dist_info_dirs = glob.glob(os.path.join(location, "*.dist-info"))
+    if not dist_info_dirs:
+        return None
+
+    if len(dist_info_dirs) > 1:
+        raise AmbiguousDistributionError(
+            "Found more than one distribution at {location}:\n{dist_info_dirs}".format(
+                location=location,
+                dist_info_dirs="\n".join(
+                    os.path.relpath(dist_info_dir, location) for dist_info_dir in dist_info_dirs
+                ),
+            )
+        )
+
+    metadata_file = os.path.join(dist_info_dirs[0], "METADATA")
+    if not os.path.exists(metadata_file):
+        return None
+
+    with open(metadata_file, "rb") as fp:
+        return _parse_message(fp.read())
 
 
-def _parse_pkg_info(dist):
-    # type: (DistributionLike) -> Optional[Message]
-    if dist not in _PKG_INFO_BY_DIST:
-        if isinstance(dist, Distribution):
-            pkg_info = _parse_distribution_package_info(dist)
-        elif dist.endswith(".whl"):
-            pkg_info = _parse_wheel_package_info(dist)
-        else:
-            pkg_info = _parse_sdist_package_info(dist)
-        _PKG_INFO_BY_DIST[dist] = pkg_info
-    return _PKG_INFO_BY_DIST[dist]
+def _parse_pkg_info(location):
+    # type: (Text) -> Optional[Message]
+    if location not in _PKG_INFO_BY_DIST_LOCATION:
+        pkg_info = _parse_wheel_package_info(location)
+        if not pkg_info:
+            pkg_info = _parse_sdist_package_info(location)
+        if not pkg_info:
+            pkg_info = _parse_installed_distribution_info(location)
+        _PKG_INFO_BY_DIST_LOCATION[location] = pkg_info
+    return _PKG_INFO_BY_DIST_LOCATION[location]
 
 
 @attr.s(frozen=True)
 class ProjectNameAndVersion(object):
     @classmethod
     def from_parsed_pkg_info(cls, source, pkg_info):
-        # type: (DistributionLike, Message) -> ProjectNameAndVersion
+        # type: (str, Message) -> ProjectNameAndVersion
         project_name = pkg_info.get("Name", None)
         version = pkg_info.get("Version", None)
         if project_name is None or version is None:
@@ -215,22 +262,8 @@ class ProjectNameAndVersion(object):
         return cls(project_name=pkg_info["Name"], version=pkg_info["Version"])
 
     @classmethod
-    def from_distribution(cls, dist):
-        # type: (Distribution) -> ProjectNameAndVersion
-        project_name = dist.project_name
-        try:
-            version = dist.version
-        except ValueError as e:
-            raise MetadataError(
-                "The version could not be determined for project {} @ {}: {}".format(
-                    project_name, dist.location, e
-                )
-            )
-        return cls(project_name=project_name, version=version)
-
-    @classmethod
     def from_filename(cls, path):
-        # type: (str) -> ProjectNameAndVersion
+        # type: (Text) -> ProjectNameAndVersion
         # Handle wheels:
         #
         # The wheel filename convention is specified here:
@@ -260,38 +293,59 @@ class ProjectNameAndVersion(object):
             "file name formats.".format(path)
         )
 
-    project_name = attr.ib()  # type: str
-    version = attr.ib()  # type: str
+    project_name = attr.ib()  # type: Text
+    version = attr.ib()  # type: Text
+
+    @property
+    def canonicalized_project_name(self):
+        # type: () -> ProjectName
+        return ProjectName(self.project_name)
+
+    @property
+    def canonicalized_version(self):
+        # type: () -> Version
+        return Version(self.version)
 
 
-def project_name_and_version(dist, fallback_to_filename=True):
-    # type: (DistributionLike, bool) -> Optional[ProjectNameAndVersion]
+def project_name_and_version(
+    location,  # type: Union[Text, Distribution, Message]
+    fallback_to_filename=True,  # type: bool
+):
+    # type: (...) -> Optional[ProjectNameAndVersion]
     """Extracts name and version metadata from dist.
 
-    :param dist: A distribution to extract project name and version metadata from.
+    :param location: A distribution to extract project name and version metadata from.
     :return: The project name and version.
     :raise: MetadataError if dist has invalid metadata.
     """
-    pkg_info = _parse_pkg_info(dist)
+    if isinstance(location, Distribution):
+        return ProjectNameAndVersion(project_name=location.project_name, version=location.version)
+
+    pkg_info = location if isinstance(location, Message) else _parse_pkg_info(location)
     if pkg_info is not None:
-        return ProjectNameAndVersion.from_parsed_pkg_info(dist, pkg_info)
-    if isinstance(dist, Distribution):
-        return ProjectNameAndVersion.from_distribution(dist)
-    if fallback_to_filename:
-        return ProjectNameAndVersion.from_filename(dist)
+        if isinstance(location, str):
+            source = location
+        else:
+            source = "<parsed message>"
+        return ProjectNameAndVersion.from_parsed_pkg_info(source=source, pkg_info=pkg_info)
+    if fallback_to_filename and not isinstance(location, (Distribution, Message)):
+        return ProjectNameAndVersion.from_filename(location)
     return None
 
 
-def requires_python(dist):
-    # type: (DistributionLike) -> Optional[SpecifierSet]
+def requires_python(location):
+    # type: (Union[Text, Distribution, Message]) -> Optional[SpecifierSet]
     """Examines dist for `Python-Requires` metadata and returns version constraints if any.
 
     See: https://www.python.org/dev/peps/pep-0345/#requires-python
 
-    :param dist: A distribution to check for `Python-Requires` metadata.
+    :param location: A distribution to check for `Python-Requires` metadata.
     :return: The required python version specifiers.
     """
-    pkg_info = _parse_pkg_info(dist)
+    if isinstance(location, Distribution):
+        return location.metadata.requires_python
+
+    pkg_info = location if isinstance(location, Message) else _parse_pkg_info(location)
     if pkg_info is None:
         return None
 
@@ -301,8 +355,8 @@ def requires_python(dist):
     return SpecifierSet(python_requirement)
 
 
-def requires_dists(dist):
-    # type: (DistributionLike) -> Iterator[Requirement]
+def requires_dists(location):
+    # type: (Union[Text, Distribution, Message]) -> Iterator[Requirement]
     """Examines dist for and returns any declared requirements.
 
     Looks for `Requires-Dist` metadata.
@@ -315,10 +369,15 @@ def requires_dists(dist):
     + https://www.python.org/dev/peps/pep-0345/#requires-dist-multiple-use
     + https://www.python.org/dev/peps/pep-0314/#requires-multiple-use
 
-    :param dist: A distribution to check for requirement metadata.
+    :param location: A distribution to check for requirement metadata.
     :return: All requirements found.
     """
-    pkg_info = _parse_pkg_info(dist)
+    if isinstance(location, Distribution):
+        for requirement in location.metadata.requires_dists:
+            yield requirement
+        return
+
+    pkg_info = location if isinstance(location, Message) else _parse_pkg_info(location)
     if pkg_info is None:
         return
 
@@ -327,8 +386,8 @@ def requires_dists(dist):
 
     legacy_requires = pkg_info.get_all("Requires", [])  # type: List[str]
     if legacy_requires:
-        name_and_version = project_name_and_version(dist)
-        project_name = name_and_version.project_name if name_and_version else dist
+        name_and_version = project_name_and_version(location)
+        project_name = name_and_version.project_name if name_and_version else location
         pex_warnings.warn(
             dedent(
                 """\
@@ -340,7 +399,7 @@ def requires_dists(dist):
                   https://github.com/pantsbuild/pex/issues/1201#issuecomment-791715585
                 """
             ).format(
-                dist=dist,
+                dist=location,
                 project_name=project_name,
                 count=len(legacy_requires),
                 field=pluralize(legacy_requires, "field"),
@@ -352,27 +411,376 @@ def requires_dists(dist):
         )
 
 
+class RequirementParseError(Exception):
+    """Indicates and invalid requirement string.
+
+    See PEP-508: https://www.python.org/dev/peps/pep-0508
+    """
+
+
+@attr.s(frozen=True)
+class Requirement(object):
+    @classmethod
+    def parse(cls, requirement):
+        # type: (Text) -> Requirement
+        try:
+            return cls.from_packaging_requirement(PackagingRequirement(requirement))
+        except InvalidRequirement as e:
+            raise RequirementParseError(str(e))
+
+    @classmethod
+    def from_packaging_requirement(cls, requirement):
+        # type: (PackagingRequirement) -> Requirement
+        return cls(
+            name=requirement.name,
+            url=requirement.url,
+            extras=frozenset(requirement.extras),
+            specifier=requirement.specifier,
+            marker=requirement.marker,
+        )
+
+    name = attr.ib(eq=False)  # type: str
+    url = attr.ib(default=None)  # type: Optional[str]
+    extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
+    specifier = attr.ib(factory=SpecifierSet)  # type: SpecifierSet
+    marker = attr.ib(default=None, eq=False)  # type: Optional[Marker]
+
+    project_name = attr.ib(init=False, repr=False)  # type: ProjectName
+
+    # We should just be able to set `eq=str` on the marker field, but there is a bug in the
+    # generated `__hash__` method for this case. It is fixed here in Jan 2022 but the latest
+    # release (21.4.0) is still from Dec 2021 as of this writing:
+    # https://github.com/python-attrs/attrs/pull/909
+    _marker_for_eq_and_hash = attr.ib(init=False, repr=False)  # type: str
+
+    _str = attr.ib(init=False, eq=False, repr=False)  # type: str
+
+    def __attrs_post_init__(self):
+        object.__setattr__(self, "project_name", ProjectName(self.name))
+        object.__setattr__(self, "_marker_for_eq_and_hash", str(self.marker))
+
+        parts = [self.name]
+        if self.extras:
+            parts.append("[{extras}]".format(extras=",".join(sorted(self.extras))))
+        if self.specifier:
+            parts.append(str(self.specifier))
+        if self.url:
+            parts.append("@ {url}".format(url=self.url))
+            if self.marker:
+                parts.append(" ")
+        if self.marker:
+            parts.append("; {marker}".format(marker=self.marker))
+        object.__setattr__(self, "_str", "".join(parts))
+
+    @property
+    def key(self):
+        # type: () -> str
+        return self.project_name.normalized
+
+    def __contains__(self, item):
+        # type: (Union[str, Version, Distribution]) -> bool
+
+        # We emulate pkg_resources.Requirement.__contains__ pre-release behavior here since the
+        # codebase expects it.
+        return self.contains(item, prereleases=True)
+
+    def contains(
+        self,
+        item,  # type: Union[str, Version, Distribution]
+        prereleases=None,  # type: Optional[bool]
+    ):
+        # type: (...) -> bool
+        if isinstance(item, Distribution):
+            if item.key != self.key:
+                return False
+            version = item.metadata.version.parsed_version  # type: Union[ParsedVersion, str]
+        elif isinstance(item, Version):
+            version = item.parsed_version
+        else:
+            version = item
+
+        # We know SpecifierSet.contains returns bool on inspection of its code. The fact we import
+        # via the pex.third_party mechanism makes the type opaque to MyPy. We also know it accepts
+        # either a "parsed_version" or a str and take advantage of this to save re-parsing version
+        # strings we've already parsed.
+        return cast(bool, self.specifier.contains(version, prereleases=prereleases))
+
+    def __str__(self):
+        # type: () -> str
+        return self._str
+
+
 @attr.s(frozen=True)
 class DistMetadata(object):
     @classmethod
-    def for_dist(cls, dist):
-        # type: (DistributionLike) -> DistMetadata
+    def load(cls, location):
+        # type: (Union[str, Message]) -> DistMetadata
 
-        project_name_and_ver = project_name_and_version(dist)
+        project_name_and_ver = project_name_and_version(location)
         if not project_name_and_ver:
             raise MetadataError(
-                "Failed to determine project name and version for distribution {dist}.".format(
-                    dist=dist
-                )
+                "Failed to determine project name and version for distribution at "
+                "{location}.".format(location=location)
             )
         return cls(
             project_name=ProjectName(project_name_and_ver.project_name),
             version=Version(project_name_and_ver.version),
-            requires_dists=tuple(requires_dists(dist)),
-            requires_python=requires_python(dist),
+            requires_dists=tuple(requires_dists(location)),
+            requires_python=requires_python(location),
         )
 
     project_name = attr.ib()  # type: ProjectName
     version = attr.ib()  # type: Version
-    requires_dists = attr.ib()  # type: Tuple[Requirement, ...]
-    requires_python = attr.ib()  # type: Optional[SpecifierSet]
+    requires_dists = attr.ib(default=())  # type: Tuple[Requirement, ...]
+    requires_python = attr.ib(default=SpecifierSet())  # type: Optional[SpecifierSet]
+
+
+def _realpath(path):
+    # type: (str) -> str
+    return os.path.realpath(path)
+
+
+@attr.s(frozen=True)
+class Distribution(object):
+    @staticmethod
+    def _read_metadata_lines(metadata_path):
+        # type: (str) -> Iterator[str]
+        with open(os.path.join(metadata_path)) as fp:
+            for line in fp:
+                # This is pkg_resources.IMetadataProvider.get_metadata_lines behavior, which our
+                # code expects.
+                normalized = line.strip()
+                if normalized and not normalized.startswith("#"):
+                    yield normalized
+
+    @classmethod
+    def parse_entry_map(cls, entry_points_metadata_path):
+        # type: (str) -> Dict[str, Dict[str, EntryPoint]]
+        entry_map = defaultdict(dict)  # type: DefaultDict[str, Dict[str, EntryPoint]]
+        group = None  # type: Optional[str]
+        for index, line in enumerate(cls._read_metadata_lines(entry_points_metadata_path), start=1):
+            if line.startswith("[") and line.endswith("]"):
+                group = line[1:-1]
+            elif not group:
+                raise ValueError(
+                    "Failed to parse entry_points.txt, encountered an entry point with no "
+                    "group on line {index}: {line}".format(index=index, line=line)
+                )
+            else:
+                entry_point = EntryPoint.parse(line)
+                entry_map[group][entry_point.name] = entry_point
+        return entry_map
+
+    @classmethod
+    def load(cls, location):
+        # type: (str) -> Distribution
+        return cls(location=location, metadata=DistMetadata.load(location))
+
+    # N.B.: Resolving the distribution location through any symlinks is pkg_resources behavior,
+    # which our code expects.
+    location = attr.ib(converter=_realpath)  # type: str
+
+    metadata = attr.ib()  # type: DistMetadata
+    _metadata_files_cache = attr.ib(
+        factory=dict, init=False, eq=False, repr=False
+    )  # type: Dict[str, str]
+
+    @property
+    def key(self):
+        # type: () -> str
+        return self.metadata.project_name.normalized
+
+    @property
+    def project_name(self):
+        # type: () -> str
+        return self.metadata.project_name.raw
+
+    @property
+    def version(self):
+        # type: () -> str
+        return self.metadata.version.raw
+
+    def as_requirement(self):
+        # type: () -> Requirement
+        return Requirement(
+            name=self.project_name,
+            specifier=SpecifierSet("=={version}".format(version=self.version)),
+        )
+
+    def requires(self):
+        # type: () -> Tuple[Requirement, ...]
+        return self.metadata.requires_dists
+
+    def _get_metadata_file(self, name):
+        # type: (str) -> Optional[str]
+        normalized_name = os.path.normpath(name)
+        if os.path.isabs(normalized_name):
+            raise ValueError(
+                "The metadata file name must be a relative path under the .dist-info/ directory. "
+                "Given: {name}".format(name=name)
+            )
+
+        metadata_file = self._metadata_files_cache.get(normalized_name)
+        if metadata_file is None:
+            metadata_file = find_dist_info_file(
+                project_name=self.metadata.project_name,
+                version=self.version,
+                filename=normalized_name,
+                listing=[
+                    os.path.relpath(path, self.location)
+                    for path in glob.glob(
+                        os.path.join(
+                            self.location, "*.dist-info/{name}".format(name=normalized_name)
+                        )
+                    )
+                ],
+            )
+            # N.B.: We store the falsey "" as the sentinel that we've searched already and the
+            # metadata file did not exist.
+            self._metadata_files_cache[normalized_name] = metadata_file or ""
+        return metadata_file or None
+
+    def has_metadata(self, name):
+        # type: (str) -> bool
+        return self._get_metadata_file(name) is not None
+
+    def get_metadata_lines(self, name):
+        # type: (str) -> Iterator[str]
+        relative_path = self._get_metadata_file(name)
+        if relative_path is None:
+            raise MetadataNotFoundError(
+                "The metadata file {name} is not present for {project_name} {version} at "
+                "{location}".format(
+                    name=name,
+                    project_name=self.project_name,
+                    version=self.version,
+                    location=self.location,
+                )
+            )
+        for line in self._read_metadata_lines(os.path.join(self.location, relative_path)):
+            yield line
+
+    def get_entry_map(self):
+        # type: () -> Dict[str, Dict[str, EntryPoint]]
+        entry_points_metadata_relpath = self._get_metadata_file("entry_points.txt")
+        if entry_points_metadata_relpath is None:
+            return defaultdict(dict)
+        return self.parse_entry_map(os.path.join(self.location, entry_points_metadata_relpath))
+
+    def __str__(self):
+        # type: () -> str
+        return "{project_name} {version}".format(
+            project_name=self.project_name, version=self.version
+        )
+
+
+@attr.s(frozen=True)
+class EntryPoint(object):
+    @classmethod
+    def parse(cls, spec):
+        # type: (str) -> EntryPoint
+
+        # This file format is defined here:
+        #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
+
+        components = spec.split("=")
+        if len(components) != 2:
+            raise ValueError("Invalid entry point specification: {spec}.".format(spec=spec))
+
+        name, value = components
+        module, sep, attrs = value.strip().partition(":")
+        if sep and not attrs:
+            raise ValueError("Invalid entry point specification: {spec}.".format(spec=spec))
+
+        entry_point_name = name.strip()
+        if sep:
+            return CallableEntryPoint(
+                name=entry_point_name, module=module, attrs=tuple(attrs.split("."))
+            )
+
+        return cls(name=entry_point_name, module=module)
+
+    name = attr.ib()  # type: str
+    module = attr.ib()  # type: str
+
+    def __str__(self):
+        # type: () -> str
+        return self.module
+
+
+@attr.s(frozen=True)
+class CallableEntryPoint(EntryPoint):
+    _attrs = attr.ib()  # type: Tuple[str, ...]
+
+    @_attrs.validator
+    def _validate_attrs(self, _, value):
+        if not value:
+            raise ValueError("A callable entry point must select a callable item from the module.")
+
+    def resolve(self):
+        # type: () -> Callable[[], Any]
+        module = importlib.import_module(self.module)
+        try:
+            return cast("Callable[[], Any]", functools.reduce(getattr, self._attrs, module))
+        except AttributeError as e:
+            raise ImportError(
+                "Could not resolve {attrs} in {module}: {err}".format(
+                    attrs=".".join(self._attrs), module=module, err=e
+                )
+            )
+
+    def __str__(self):
+        # type: () -> str
+        return "{module}:{attrs}".format(module=self.module, attrs=".".join(self._attrs))
+
+
+def find_distribution(
+    project_name,  # type: Union[str, ProjectName]
+    search_path=None,  # type: Optional[Iterable[str]]
+):
+    # type: (...) -> Optional[Distribution]
+
+    for location in search_path or sys.path:
+        if not os.path.isdir(location):
+            continue
+
+        metadata_file = find_dist_info_file(
+            project_name=str(project_name),
+            filename="METADATA",
+            listing=[
+                os.path.relpath(path, location)
+                for path in glob.glob(os.path.join(location, "*.dist-info/METADATA"))
+            ],
+        )
+        if not metadata_file:
+            continue
+
+        metadata_path = os.path.join(location, metadata_file)
+        with open(metadata_path, "rb") as fp:
+            pkg_info = _parse_message(fp.read())
+            dist = Distribution(location=location, metadata=DistMetadata.load(pkg_info))
+            if dist.metadata.project_name == (
+                project_name if isinstance(project_name, ProjectName) else ProjectName(project_name)
+            ):
+                return dist
+
+    return None
+
+
+def find_distributions(search_path=None):
+    # type: (Optional[Iterable[str]]) -> Iterator[Distribution]
+
+    for location in search_path or sys.path:
+        if not os.path.isdir(location):
+            continue
+        for metadata_file in find_dist_info_files(
+            filename="METADATA",
+            listing=[
+                os.path.relpath(path, location)
+                for path in glob.glob(os.path.join(location, "*.dist-info/METADATA"))
+            ],
+        ):
+            metadata_path = os.path.join(location, metadata_file.path)
+            with open(metadata_path, "rb") as fp:
+                pkg_info = _parse_message(fp.read())
+                yield Distribution(location=location, metadata=DistMetadata.load(pkg_info))

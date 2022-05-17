@@ -13,6 +13,7 @@ import pytest
 
 from pex import targets
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
+from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.platforms import Platform
 from pex.resolve.resolver_configuration import ResolverVersion
@@ -31,7 +32,6 @@ from pex.testing import (
     make_project,
     make_source_dir,
 )
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -377,7 +377,7 @@ def test_issues_851():
             requirements=["pytest=={}".format(pytest_version)],
         )
         project_to_version = {
-            installed_dist.distribution.key: installed_dist.distribution.version
+            installed_dist.distribution.project_name: installed_dist.distribution.version
             for installed_dist in result.installed_distributions
         }
         assert project_to_version["pytest"] == pytest_version
@@ -500,7 +500,9 @@ def test_install():
     target, distributions = installed_by_target.popitem()
     assert targets.current() == target
 
-    distributions_by_name = {distribution.key: distribution for distribution in distributions}
+    distributions_by_name = {
+        distribution.project_name: distribution for distribution in distributions
+    }
     assert 2 == len(distributions_by_name)
     assert "1.0.0" == distributions_by_name["project1"].version
     assert "2.0.0" == distributions_by_name["project2"].version
@@ -559,7 +561,7 @@ def test_resolve_arbitrary_equality_issues_940():
         "The foo requirement was direct; so the resulting resolved distribution should carry the "
         "associated requirement."
     )
-    assert [("===", "1.0.2-fba4511")] == requirements[0].specs
+    assert "===1.0.2-fba4511" == str(requirements[0].specifier)
     assert requirements[0].marker is None
 
 

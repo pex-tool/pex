@@ -13,8 +13,10 @@ import pytest
 
 from pex.common import open_zip, temporary_dir
 from pex.dist_metadata import (
+    Distribution,
     MetadataError,
     ProjectNameAndVersion,
+    Requirement,
     find_dist_info_file,
     project_name_and_version,
     requires_dists,
@@ -23,9 +25,7 @@ from pex.dist_metadata import (
 from pex.pex_warnings import PEXWarning
 from pex.pip.tool import get_pip
 from pex.third_party.packaging.specifiers import SpecifierSet
-from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.typing import TYPE_CHECKING
-from pex.util import DistributionHelper
 from pex.variables import ENV
 
 if TYPE_CHECKING:
@@ -37,9 +37,7 @@ def installed_wheel(wheel_path):
     # type: (str) -> Iterator[Distribution]
     with temporary_dir() as install_dir:
         get_pip().spawn_install_wheel(wheel=wheel_path, install_dir=install_dir).wait()
-        dist = DistributionHelper.distribution_from_path(install_dir)
-        assert dist is not None, "Could not load a distribution from {}.".format(install_dir)
-        yield dist
+        yield Distribution.load(install_dir)
 
 
 @contextmanager

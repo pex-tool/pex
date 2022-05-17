@@ -6,10 +6,9 @@ from __future__ import absolute_import
 import hashlib
 
 from pex import hashing
-from pex.dist_metadata import ProjectNameAndVersion
+from pex.dist_metadata import ProjectNameAndVersion, Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

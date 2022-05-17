@@ -19,15 +19,17 @@ from textwrap import dedent
 from pex import third_party
 from pex.common import is_exe, safe_mkdtemp, safe_rmtree
 from pex.compatibility import string
+from pex.dist_metadata import DistMetadata, Distribution, Requirement, RequirementParseError
 from pex.executor import Executor
 from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.pyenv import Pyenv
 from pex.third_party.packaging import tags
-from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast, overload
 from pex.util import CacheHelper
@@ -300,7 +302,12 @@ class PythonIdentity(object):
     @property
     def distribution(self):
         # type: () -> Distribution
-        return Distribution(project_name=self.interpreter, version=self.version_str)
+        return Distribution(
+            location=self.binary,
+            metadata=DistMetadata(
+                project_name=ProjectName(self.interpreter), version=Version(self.version_str)
+            ),
+        )
 
     def iter_supported_platforms(self):
         # type: () -> Iterator[Platform]
@@ -328,10 +335,10 @@ class PythonIdentity(object):
         elif isinstance(requirement, string):
             try:
                 requirement = Requirement.parse(requirement)
-            except ValueError:
+            except RequirementParseError:
                 try:
                     requirement = Requirement.parse("%s%s" % (default_interpreter, requirement))
-                except ValueError:
+                except RequirementParseError:
                     raise ValueError("Unknown requirement string: %s" % requirement)
             return requirement
         else:

@@ -10,6 +10,7 @@ from textwrap import dedent
 import pytest
 
 from pex.cli.testing import run_pex3
+from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -32,7 +33,6 @@ from pex.testing import (
     make_env,
     run_pex_command,
 )
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.version import __version__
@@ -513,9 +513,7 @@ def test_update_targeted_closure_shrink(lock_file_path):
     locked_resolve = lock_file.locked_resolves[0]
     assert [
         LockedRequirement.create(
-            pin=Pin(
-                project_name=ProjectName(project_name=u"requests"), version=Version(version="2")
-            ),
+            pin=Pin(project_name=ProjectName("requests"), version=Version("2")),
             artifact=Artifact.from_url(
                 url="https://files.pythonhosted.org/packages/bf/78/be2b4c440ea767336d8448fe671fe1d78ca499e49d77dac90f92191cca0e/requests-2.0.0-py2.py3-none-any.whl",
                 fingerprint=Fingerprint(
@@ -709,8 +707,8 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
             [
                 LockedRequirement.create(
                     pin=Pin(
-                        project_name=ProjectName(project_name="ansicolors"),
-                        version=Version(version="1.0.2"),
+                        project_name=ProjectName("ansicolors"),
+                        version=Version("1.0.2"),
                     ),
                     artifact=Artifact.from_url(
                         url=(
@@ -726,8 +724,8 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
                 ),
                 LockedRequirement.create(
                     pin=Pin(
-                        project_name=ProjectName(project_name="find"),
-                        version=Version(version="2020.12.3"),
+                        project_name=ProjectName("find"),
+                        version=Version("2020.12.3"),
                     ),
                     artifact=Artifact.from_url(
                         url=(
@@ -743,8 +741,8 @@ def test_excludes_pep517_build_requirements_issue_1565(tmpdir):
                 ),
                 LockedRequirement.create(
                     pin=Pin(
-                        project_name=ProjectName(project_name="cowsay"),
-                        version=Version(version="4"),
+                        project_name=ProjectName("cowsay"),
+                        version=Version("4"),
                     ),
                     artifact=Artifact.from_url(
                         url=(

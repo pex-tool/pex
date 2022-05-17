@@ -42,7 +42,7 @@ class Graph(OutputMixin, PEXCommand):
         )
         marker_environment = pex.interpreter.identity.env_markers.as_dict()
         marker_environment["extra"] = ""
-        present_dists = frozenset(dist.project_name for dist in pex.resolve())
+        present_dists = frozenset(dist.metadata.project_name for dist in pex.resolve())
         for dist in pex.resolve():
             graph.add_node(
                 name=dist.project_name,
@@ -59,7 +59,7 @@ class Graph(OutputMixin, PEXCommand):
                     and not req.marker.evaluate(environment=marker_environment)
                 ):
                     graph.add_node(
-                        name=req.project_name,
+                        name=req.name,
                         color="lightgrey",
                         style="filled",
                         tooltip="inactive requirement",
@@ -68,7 +68,7 @@ class Graph(OutputMixin, PEXCommand):
                     )
                 graph.add_edge(
                     start=dist.project_name,
-                    end=req.project_name,
+                    end=req.name,
                     label="{specifier}{marker}".format(
                         specifier=req.specifier if req.specifier else "",
                         marker="; {}".format(req.marker) if req.marker else "",

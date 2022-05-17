@@ -9,6 +9,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 
 from pex.common import pluralize
+from pex.dist_metadata import Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -20,7 +21,6 @@ from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target, Targets
 from pex.third_party.packaging import tags
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 
@@ -78,12 +78,12 @@ class ResolveUpdater(object):
         original_requirements = tuple(str(requirement) for requirement in requirements)
 
         original_constraints = {
-            ProjectName(constraint.project_name): constraint for constraint in constraints
+            constraint.project_name: constraint for constraint in constraints
         }  # type: Mapping[ProjectName, Requirement]
 
         update_constraints_by_project_name = {}  # type: Dict[ProjectName, Requirement]
         for update in updates:
-            project_name = ProjectName(update.project_name)
+            project_name = update.project_name
             original_constraint = original_constraints.get(project_name)
             if original_constraint:
                 logger.warning(

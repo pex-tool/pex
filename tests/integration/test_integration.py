@@ -18,6 +18,7 @@ import pytest
 
 from pex.common import safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, to_bytes
+from pex.dist_metadata import Distribution, Requirement
 from pex.fetcher import URLFetcher
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
@@ -43,10 +44,8 @@ from pex.testing import (
     run_simple_pex_test,
     temporary_content,
 )
-from pex.third_party import pkg_resources
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING, cast
-from pex.util import DistributionHelper, named_temporary_file
+from pex.util import named_temporary_file
 from pex.variables import ENV, unzip_dir, venv_dir
 
 if TYPE_CHECKING:
@@ -255,7 +254,9 @@ def test_entry_point_exit_code():
     with temporary_content({"setup.py": setup_py, "my_app.py": my_app}) as project_dir:
         installer = WheelBuilder(project_dir)
         dist = installer.bdist()
-        so, rc = run_simple_pex_test("", env=make_env(PEX_SCRIPT="my_app"), dists=[dist])
+        so, rc = run_simple_pex_test(
+            "", env=make_env(PEX_SCRIPT="my_app"), dists=[Distribution.load(dist)]
+        )
         assert so.decode("utf-8").strip() == error_msg
         assert rc == 1
 
@@ -710,8 +711,8 @@ def test_pex_resource_bundling():
                 fh.write(
                     dedent(
                         """
-                        import pkg_resources
-                        print(pkg_resources.resource_string('__main__', 'greeting').decode('utf-8'))
+                        import pkgutil
+                        print(pkgutil.get_data('__main__', 'greeting').decode('utf-8'))
                         """
                     )
                 )
@@ -1155,7 +1156,7 @@ def test_pex_run_strip_env():
 
 
 def iter_distributions(pex_root, project_name):
-    # type: (str, str) -> Iterator[pkg_resources.Distribution]
+    # type: (str, str) -> Iterator[Distribution]
     found = set()
     for root, dirs, _ in os.walk(pex_root):
         for d in dirs:
@@ -1166,8 +1167,7 @@ def iter_distributions(pex_root, project_name):
             wheel_path = os.path.realpath(os.path.join(root, d))
             if wheel_path in found:
                 continue
-            dist = DistributionHelper.distribution_from_path(wheel_path)
-            assert dist is not None
+            dist = Distribution.load(wheel_path)
             if dist.project_name == project_name:
                 found.add(wheel_path)
                 yield dist

@@ -5,7 +5,9 @@ from __future__ import absolute_import
 
 import contextlib
 import hashlib
+import importlib
 import os
+import shutil
 import sys
 import tempfile
 from hashlib import sha1
@@ -18,25 +20,20 @@ from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function`
     PY2,
     exec_function,
 )
-from pex.third_party.pkg_resources import (
-    Distribution,
-    find_distributions,
-    resource_isdir,
-    resource_listdir,
-    resource_string,
-)
+from pex.dist_metadata import Distribution
+from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import IO, Any, Callable, Iterator, Optional, Text
+    from typing import IO, Any, Callable, Iterator, Optional
 
     from pex.hashing import Hasher
 
 
 class DistributionHelper(object):
-    # TODO(#584: This appears unused, but clients might still use it. We cannot remove until we have a deprecation
-    # policy.
+    # TODO(#584: This appears unused, but clients might still use it. We cannot remove until we
+    #  have a deprecation policy.
     @classmethod
     def access_zipped_assets(cls, static_module_name, static_path, dir_location=None):
         # type: (str, str, Optional[str]) -> str
@@ -47,58 +44,33 @@ class DistributionHelper(object):
         :param dir_location: create a new temporary directory inside, or None to have one created
         :returns temp_dir: Temporary directory with the zipped assets inside
         """
-        # asset_path is initially a module name that's the same as the static_path, but will be
-        # changed to walk the directory tree
-        # TODO(John Sirois): Unify with `pex.third_party.isolated(recursive_copy)`.
-        def walk_zipped_assets(static_module_name, static_path, asset_path, temp_dir):
-            for asset in resource_listdir(static_module_name, asset_path):
-                if not asset:
-                    # The `resource_listdir` function returns a '' asset for the directory entry
-                    # itself if it is either present on the filesystem or present as an explicit
-                    # zip entry. Since we only care about files and subdirectories at this point,
-                    # skip these assets.
-                    continue
-                asset_target = os.path.normpath(
-                    os.path.join(os.path.relpath(asset_path, static_path), asset)
-                )
-                if resource_isdir(static_module_name, os.path.join(asset_path, asset)):
-                    safe_mkdir(os.path.join(temp_dir, asset_target))
-                    walk_zipped_assets(
-                        static_module_name, static_path, os.path.join(asset_path, asset), temp_dir
-                    )
-                else:
-                    with open(os.path.join(temp_dir, asset_target), "wb") as fp:
-                        path = os.path.join(static_path, asset_target)
-                        file_data = resource_string(static_module_name, path)
-                        fp.write(file_data)
-
         if dir_location is None:
             temp_dir = safe_mkdtemp()
         else:
             temp_dir = dir_location
 
-        walk_zipped_assets(static_module_name, static_path, static_path, temp_dir)
+        module = importlib.import_module(static_module_name)
+        # N.B.: This handles namespace packages new and old.
+        paths = OrderedSet(os.path.realpath(d) for d in getattr(module, "__path__", []))
+        if module.__file__:
+            # And this handles old-style __init__.py packages.
+            paths.add(os.path.realpath(module.__file__))
 
+        safe_mkdir(temp_dir)
+        for path in paths:
+            resource_dir = os.path.realpath(os.path.join(path, static_path))
+            if os.path.isdir(resource_dir):
+                for root, dirs, files in os.walk(resource_dir):
+                    for d in dirs:
+                        safe_mkdir(
+                            os.path.join(
+                                temp_dir, os.path.relpath(os.path.join(root, d), resource_dir)
+                            )
+                        )
+                    for f in files:
+                        src = os.path.join(root, f)
+                        shutil.copy(src, os.path.join(temp_dir, os.path.relpath(src, resource_dir)))
         return temp_dir
-
-    @classmethod
-    def distribution_from_path(cls, path, name=None):
-        # type: (Text, Optional[str]) -> Optional[Distribution]
-        """Return a distribution from a path.
-
-        If name is provided, find the distribution.  If none is found matching the name, return
-        None. If name is not provided and there is unambiguously a single distribution, return that
-        distribution. Otherwise, None.
-        """
-        if name is None:
-            distributions = set(find_distributions(path))
-            if len(distributions) == 1:
-                return distributions.pop()
-        else:
-            for dist in find_distributions(path):
-                if dist.project_name == name:
-                    return dist
-        return None
 
 
 class CacheHelper(object):
@@ -158,9 +130,7 @@ class CacheHelper(object):
                         if name.startswith(source) and not name.endswith("/"):
                             zf.extract(name, target_dir_tmp.work_dir)
 
-        dist = DistributionHelper.distribution_from_path(target_dir)
-        assert dist is not None, "Failed to cache distribution: {} ".format(source)
-        return dist
+        return Distribution.load(target_dir)
 
 
 @contextlib.contextmanager

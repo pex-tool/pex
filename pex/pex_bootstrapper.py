@@ -21,9 +21,9 @@ from pex.variables import ENV
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, List, NoReturn, Optional, Set, Tuple, Union
 
+    from pex.dist_metadata import Requirement
     from pex.interpreter import InterpreterIdentificationError, InterpreterOrError, PathFilter
     from pex.pex import PEX
-    from pex.third_party.pkg_resources import Requirement
 
 
 def parse_path(path):

@@ -5,17 +5,17 @@ from __future__ import absolute_import
 
 import os
 
+from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter, calculate_binary_name
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.third_party.packaging.specifiers import SpecifierSet
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Tuple
+    from typing import Iterable, Iterator, Optional, Tuple
 
     import attr  # vendor:skip
 else:
@@ -128,7 +128,7 @@ class Target(object):
     def requirement_applies(
         self,
         requirement,  # type: Requirement
-        extras=None,  # type: Optional[Tuple[str, ...]]
+        extras=(),  # type: Iterable[str]
     ):
         # type: (...) -> bool
         """Determines if the given requirement applies to this target.
