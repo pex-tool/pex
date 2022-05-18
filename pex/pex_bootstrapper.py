@@ -9,11 +9,13 @@ import sys
 
 from pex import pex_warnings
 from pex.common import atomic_directory, die, pluralize
+from pex.environment import ResolveError
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
+from pex.targets import LocalInterpreter
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
@@ -21,9 +23,13 @@ from pex.variables import ENV
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, List, NoReturn, Optional, Set, Tuple, Union
 
+    import attr  # vendor:skip
+
     from pex.dist_metadata import Requirement
     from pex.interpreter import InterpreterIdentificationError, InterpreterOrError, PathFilter
     from pex.pex import PEX
+else:
+    from pex.third_party import attr
 
 
 def parse_path(path):
@@ -36,6 +42,38 @@ def parse_path(path):
     )
 
 
+@attr.s(frozen=True)
+class InterpreterTest(object):
+    entry_point = attr.ib()  # type: str
+    pex_info = attr.ib()  # type: PexInfo
+
+    @property
+    def interpreter_constraints(self):
+        # type: () -> List[str]
+        return self.pex_info.interpreter_constraints
+
+    def test_resolve(self, interpreter):
+        # type: (PythonInterpreter) -> bool
+        """Checks if `interpreter` can resolve all required distributions for the PEX under test."""
+        with TRACER.timed(
+            "Testing {python} can resolve PEX at {pex}".format(
+                python=interpreter.binary, pex=self.entry_point
+            )
+        ):
+            from pex.environment import PEXEnvironment
+
+            pex_environment = PEXEnvironment.mount(
+                self.entry_point,
+                pex_info=self.pex_info,
+                target=LocalInterpreter.create(interpreter),
+            )
+            try:
+                pex_environment.resolve()
+                return True
+            except ResolveError as e:
+                return False
+
+
 # TODO(John Sirois): Move this to interpreter_constraints.py. As things stand, both pex/bin/pex.py
 #  and this file use this function. The Pex CLI should not depend on this file which hosts code
 #  used at PEX runtime.
@@ -44,6 +82,7 @@ def iter_compatible_interpreters(
     valid_basenames=None,  # type: Optional[Iterable[str]]
     interpreter_constraints=None,  # type: Optional[Iterable[Union[str, Requirement]]]
     preferred_interpreter=None,  # type: Optional[PythonInterpreter]
+    interpreter_test=None,  # type: Optional[InterpreterTest]
 ):
     # type: (...) -> Iterator[PythonInterpreter]
     """Find all compatible interpreters on the system within the supplied constraints.
@@ -56,7 +95,7 @@ def iter_compatible_interpreters(
                                     `--interpreter-constraint`.
     :param preferred_interpreter: For testing - an interpreter to prefer amongst all others.
                                   Defaults to the current running interpreter.
-
+    :param interpreter_test: Optional test to verify selected interpreters can boot a given PEX.
     Interpreters are searched for in `path` if specified and $PATH if not.
 
     If no interpreters are found and there are no further constraints (neither `valid_basenames` nor
@@ -110,10 +149,9 @@ def iter_compatible_interpreters(
         if not isinstance(interp_or_error, PythonInterpreter):
             return False
 
+        interp = interp_or_error
         if not interpreter_constraints:
-            return True
-
-        interp = cast(PythonInterpreter, interp_or_error)
+            return interpreter_test.test_resolve(interp) if interpreter_test else True
 
         if any(
             interp.identity.matches(interpreter_constraint)
@@ -125,7 +163,7 @@ def iter_compatible_interpreters(
                 ),
                 V=3,
             )
-            return True
+            return interpreter_test.test_resolve(interp) if interpreter_test else True
 
         return False
 
@@ -135,9 +173,9 @@ def iter_compatible_interpreters(
 
     for interpreter_or_error in _iter_interpreters():
         if isinstance(interpreter_or_error, PythonInterpreter):
-            interpreter = cast(PythonInterpreter, interpreter_or_error)
+            interpreter = interpreter_or_error
             candidates.append(interpreter)
-            if _valid_interpreter(interpreter_or_error):
+            if _valid_interpreter(interpreter):
                 found = True
                 yield interpreter
         else:
@@ -160,13 +198,16 @@ def _select_path_interpreter(
     valid_basenames=None,  # type: Optional[Tuple[str, ...]]
     interpreter_constraints=None,  # type: Optional[Iterable[str]]
     preferred_interpreter=None,  # type: Optional[PythonInterpreter]
+    interpreter_test=None,  # type: Optional[InterpreterTest]
 ):
     # type: (...) -> Optional[PythonInterpreter]
+
     candidate_interpreters_iter = iter_compatible_interpreters(
         path=path,
         valid_basenames=valid_basenames,
         interpreter_constraints=interpreter_constraints,
         preferred_interpreter=preferred_interpreter,
+        interpreter_test=interpreter_test,
     )
     current_interpreter = PythonInterpreter.get()  # type: PythonInterpreter
     preferred_interpreter = preferred_interpreter or current_interpreter
@@ -188,8 +229,10 @@ def _select_path_interpreter(
     return PythonInterpreter.latest_release_of_min_compatible_version(candidate_interpreters)
 
 
-def find_compatible_interpreter(interpreter_constraints=None):
-    # type: (Optional[Iterable[str]]) -> PythonInterpreter
+def find_compatible_interpreter(interpreter_test=None):
+    # type: (Optional[InterpreterTest]) -> PythonInterpreter
+
+    interpreter_constraints = interpreter_test.interpreter_constraints if interpreter_test else None
 
     def gather_constraints():
         # type: () -> Iterable[str]
@@ -233,11 +276,13 @@ def find_compatible_interpreter(interpreter_constraints=None):
                         path=ENV.PEX_PYTHON,
                         interpreter_constraints=interpreter_constraints,
                         preferred_interpreter=preferred_interpreter,
+                        interpreter_test=interpreter_test,
                     )
                 else:
                     target = _select_path_interpreter(
                         valid_basenames=(os.path.basename(ENV.PEX_PYTHON),),
                         interpreter_constraints=interpreter_constraints,
+                        interpreter_test=interpreter_test,
                     )
             except UnsatisfiableInterpreterConstraintsError as e:
                 raise e.with_preamble(
@@ -245,7 +290,7 @@ def find_compatible_interpreter(interpreter_constraints=None):
                         pex_python=ENV.PEX_PYTHON
                     )
                 )
-        elif ENV.PEX_PYTHON_PATH or interpreter_constraints:
+        else:
             TRACER.log(
                 "Using {path} constrained by {constraints}".format(
                     path="PEX_PYTHON_PATH={}".format(ENV.PEX_PYTHON_PATH)
@@ -260,6 +305,7 @@ def find_compatible_interpreter(interpreter_constraints=None):
                     path=ENV.PEX_PYTHON_PATH,
                     interpreter_constraints=interpreter_constraints,
                     preferred_interpreter=preferred_interpreter,
+                    interpreter_test=interpreter_test,
                 )
             except UnsatisfiableInterpreterConstraintsError as e:
                 raise e.with_preamble(
@@ -293,8 +339,8 @@ def find_compatible_interpreter(interpreter_constraints=None):
         return target
 
 
-def maybe_reexec_pex(interpreter_constraints=None):
-    # type: (Optional[Iterable[str]]) -> Union[None, NoReturn]
+def maybe_reexec_pex(interpreter_test):
+    # type: (InterpreterTest) -> Union[None, NoReturn]
     """Handle environment overrides for the Python interpreter to use when executing this pex.
 
     This function supports interpreter filtering based on interpreter constraints stored in PEX-INFO
@@ -308,8 +354,7 @@ def maybe_reexec_pex(interpreter_constraints=None):
     currently executing interpreter. If compatibility constraints are used, we match those
     constraints against these interpreters.
 
-    :param interpreter_constraints: Optional list of requirements-style strings that constrain the
-                                    Python interpreter to re-exec this pex with.
+    :param interpreter_test: Optional test to verify selected interpreters can boot a given PEX.
     """
 
     current_interpreter = PythonInterpreter.get()
@@ -327,9 +372,7 @@ def maybe_reexec_pex(interpreter_constraints=None):
         return None
 
     try:
-        target = find_compatible_interpreter(
-            interpreter_constraints=interpreter_constraints,
-        )
+        target = find_compatible_interpreter(interpreter_test=interpreter_test)
     except UnsatisfiableInterpreterConstraintsError as e:
         die(str(e))
 
@@ -376,7 +419,7 @@ def maybe_reexec_pex(interpreter_constraints=None):
             python=sys.executable,
             pex_python=ENV.PEX_PYTHON,
             pex_python_path=ENV.PEX_PYTHON_PATH,
-            interpreter_constraints=interpreter_constraints,
+            interpreter_constraints=interpreter_test.interpreter_constraints,
             pythonpath=', (stashed) PYTHONPATH="{}"'.format(pythonpath)
             if pythonpath is not None
             else "",
@@ -496,15 +539,14 @@ def ensure_venv(
 def bootstrap_pex(entry_point):
     # type: (str) -> None
     pex_info = _bootstrap(entry_point)
+    interpreter_test = InterpreterTest(entry_point=entry_point, pex_info=pex_info)
 
     # ENV.PEX_ROOT is consulted by PythonInterpreter and Platform so set that up as early as
     # possible in the run.
     with ENV.patch(PEX_ROOT=pex_info.pex_root):
         if not (ENV.PEX_UNZIP or ENV.PEX_TOOLS) and pex_info.venv:
             try:
-                target = find_compatible_interpreter(
-                    interpreter_constraints=pex_info.interpreter_constraints,
-                )
+                target = find_compatible_interpreter(interpreter_test=interpreter_test)
             except UnsatisfiableInterpreterConstraintsError as e:
                 die(str(e))
             from . import pex
@@ -515,7 +557,7 @@ def bootstrap_pex(entry_point):
                 die(str(e))
             os.execv(venv_pex, [venv_pex] + sys.argv[1:])
         else:
-            maybe_reexec_pex(pex_info.interpreter_constraints)
+            maybe_reexec_pex(interpreter_test=interpreter_test)
             from . import pex
 
             pex.PEX(entry_point).execute()

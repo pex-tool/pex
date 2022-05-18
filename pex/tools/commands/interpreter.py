@@ -11,6 +11,7 @@ from pex.commands.command import JsonMixin, OutputMixin
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.pex import PEX
+from pex.pex_bootstrapper import InterpreterTest
 from pex.result import Error, Ok, Result
 from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING
@@ -62,9 +63,11 @@ class Interpreter(JsonMixin, OutputMixin, PEXCommand):
                 "Ignoring PEX_PYTHON={} in order to scan for all compatible "
                 "interpreters.".format(ENV.PEX_PYTHON)
             )
+        pex_info = pex.pex_info()
         for interpreter in pex_bootstrapper.iter_compatible_interpreters(
             path=ENV.PEX_PYTHON_PATH,
-            interpreter_constraints=pex.pex_info().interpreter_constraints,
+            interpreter_constraints=pex_info.interpreter_constraints,
+            interpreter_test=InterpreterTest(entry_point=pex.path(), pex_info=pex_info),
         ):
             yield interpreter
 

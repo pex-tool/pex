@@ -9,6 +9,7 @@ from argparse import ArgumentParser, Namespace
 from pex import pex_bootstrapper
 from pex.commands.command import GlobalConfigurationError, Main
 from pex.pex import PEX
+from pex.pex_bootstrapper import InterpreterTest
 from pex.pex_info import PexInfo
 from pex.result import Result, catch
 from pex.tools import commands
@@ -84,7 +85,7 @@ def main(pex=None):
                 pex_info = PexInfo.from_pex(pex_file_path)
                 pex_info.update(PexInfo.from_env())
                 interpreter = pex_bootstrapper.find_compatible_interpreter(
-                    interpreter_constraints=pex_info.interpreter_constraints
+                    interpreter_test=InterpreterTest(entry_point=pex_file_path, pex_info=pex_info)
                 )
                 pex = PEX(pex_file_path, interpreter=interpreter)
 

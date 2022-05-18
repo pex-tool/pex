@@ -27,12 +27,14 @@ from pex.typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import (
         DefaultDict,
+        Dict,
         FrozenSet,
         Iterable,
         Iterator,
         List,
         MutableMapping,
         Optional,
+        Tuple,
         Union,
     )
 
@@ -206,6 +208,8 @@ class _RequirementKey(ProjectName):
 
 
 class PEXEnvironment(object):
+    _CACHE = {}  # type: Dict[Tuple[str, str, Target], PEXEnvironment]
+
     @classmethod
     def mount(
         cls,
@@ -214,18 +218,24 @@ class PEXEnvironment(object):
         target=None,  # type: Optional[Target]
     ):
         # type: (...) -> PEXEnvironment
+        pex_file = os.path.realpath(pex)
         if not pex_info:
-            pex_info = PexInfo.from_pex(pex)
+            pex_info = PexInfo.from_pex(pex_file)
             pex_info.update(PexInfo.from_env())
         pex_hash = pex_info.pex_hash
         if pex_hash is None:
             raise AssertionError(
                 "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex)
             )
-        pex_root = pex_info.pex_root
-        pex = maybe_install(pex=pex, pex_root=pex_root, pex_hash=pex_hash) or pex
         target = target or targets.current()
-        return cls(pex=pex, pex_info=pex_info, target=target)
+        key = (pex_file, pex_hash, target)
+        mounted = cls._CACHE.get(key)
+        if mounted is None:
+            pex_root = pex_info.pex_root
+            pex = maybe_install(pex=pex, pex_root=pex_root, pex_hash=pex_hash) or pex
+            mounted = cls(pex=pex, pex_info=pex_info, target=target)
+            cls._CACHE[key] = mounted
+        return mounted
 
     def __init__(
         self,
