@@ -53,7 +53,7 @@ class InterpreterTest(object):
         return self.pex_info.interpreter_constraints
 
     def test_resolve(self, interpreter):
-        # type: (PythonInterpreter) -> bool
+        # type: (PythonInterpreter) -> Union[ResolveError, bool]
         """Checks if `interpreter` can resolve all required distributions for the PEX under test."""
         with TRACER.timed(
             "Testing {python} can resolve PEX at {pex}".format(
@@ -71,7 +71,7 @@ class InterpreterTest(object):
                 pex_environment.resolve()
                 return True
             except ResolveError as e:
-                return False
+                return e
 
 
 # TODO(John Sirois): Move this to interpreter_constraints.py. As things stand, both pex/bin/pex.py
@@ -144,12 +144,8 @@ def iter_compatible_interpreters(
                 seen.add(interp)
                 yield interp
 
-    def _valid_interpreter(interp_or_error):
-        # type: (InterpreterOrError) -> bool
-        if not isinstance(interp_or_error, PythonInterpreter):
-            return False
-
-        interp = interp_or_error
+    def _valid_interpreter(interp):
+        # type: (PythonInterpreter) -> Union[ResolveError, bool]
         if not interpreter_constraints:
             return interpreter_test.test_resolve(interp) if interpreter_test else True
 
@@ -168,29 +164,37 @@ def iter_compatible_interpreters(
         return False
 
     candidates = []  # type: List[PythonInterpreter]
-    failures = []  # type: List[InterpreterIdentificationError]
+    resolve_errors = []  # type: List[ResolveError]
+    identification_failures = []  # type: List[InterpreterIdentificationError]
     found = False
 
     for interpreter_or_error in _iter_interpreters():
         if isinstance(interpreter_or_error, PythonInterpreter):
             interpreter = interpreter_or_error
             candidates.append(interpreter)
-            if _valid_interpreter(interpreter):
+            valid_or_error = _valid_interpreter(interpreter)
+            if isinstance(valid_or_error, ResolveError):
+                resolve_errors.append(valid_or_error)
+            elif valid_or_error:
                 found = True
                 yield interpreter
         else:
-            error = cast("InterpreterIdentificationError", interpreter_or_error)
-            failures.append(error)
+            identification_failures.append(interpreter_or_error)
 
-    if not found and (interpreter_constraints or valid_basenames):
+    if not found and (resolve_errors or interpreter_constraints or valid_basenames):
         constraints = []  # type: List[str]
-        if interpreter_constraints:
-            constraints.append(
-                "Version matches {}".format(" or ".join(map(str, interpreter_constraints)))
-            )
-        if valid_basenames:
-            constraints.append("Basename is {}".format(" or ".join(valid_basenames)))
-        raise UnsatisfiableInterpreterConstraintsError(constraints, candidates, failures)
+        if resolve_errors:
+            constraints.extend(str(resolve_error) for resolve_error in resolve_errors)
+        else:
+            if interpreter_constraints:
+                constraints.append(
+                    "Version matches {}".format(" or ".join(map(str, interpreter_constraints)))
+                )
+            if valid_basenames:
+                constraints.append("Basename is {}".format(" or ".join(valid_basenames)))
+        raise UnsatisfiableInterpreterConstraintsError(
+            constraints, candidates, identification_failures
+        )
 
 
 def _select_path_interpreter(

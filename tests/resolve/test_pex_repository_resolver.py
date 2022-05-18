@@ -205,9 +205,9 @@ def test_resolve_from_pex_not_found(
                 interpreters=(py310,),
             ),
         )
-    assert "A distribution for pex could not be resolved in this environment." in str(
-        exec_info.value
-    )
+    assert "A distribution for pex could not be resolved for {py310_exe}.".format(
+        py310_exe=py310.binary
+    ) in str(exec_info.value)
 
     with pytest.raises(Unsatisfiable) as exec_info:
         resolve_from_pex(

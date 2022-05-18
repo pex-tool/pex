@@ -98,6 +98,7 @@ def test_lock_create_universal_interpreter_constraint_unsatisfiable(
         "2.) {py37_path} {py37_req}\n"
         "\n"
         "No interpreter compatible with the requested constraints was found:\n"
+        "\n"
         "  Version matches CPython<3.11,>=3.8\n".format(
             py27_path=py27.binary,
             py27_req=py27.identity.requirement,

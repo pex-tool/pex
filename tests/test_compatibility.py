@@ -3,7 +3,7 @@
 
 import pytest
 
-from pex.compatibility import PY3, to_bytes, to_unicode
+from pex.compatibility import PY3, indent, to_bytes, to_unicode
 
 unicode_string = (str,) if PY3 else (unicode,)  # type: ignore[name-defined]
 
@@ -32,3 +32,15 @@ def test_to_unicode():
     for bad_value in (123, None):
         with pytest.raises(ValueError):
             to_unicode(bad_value)  # type: ignore[type-var]
+
+
+def test_indent():
+    # type: () -> None
+    assert "  line1" == indent("line1", "  ")
+
+    assert "  line1\n  line2" == indent("line1\nline2", "  ")
+    assert "  line1\n  line2\n" == indent("line1\nline2\n", "  ")
+
+    assert "  line1\n\n  line3" == indent("line1\n\nline3", "  ")
+    assert "  line1\n \n  line3" == indent("line1\n \nline3", "  ")
+    assert "  line1\n  \n  line3" == indent("line1\n\nline3", "  ", lambda line: True)
