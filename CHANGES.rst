@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.89
+------
+
+This release brings official support for CPython 3.11 and PyPy 3.9 as
+well as long needed robust runtime interpreter selection.
+
+* Select PEX runtime interpreter robustly. (#1770)
+  `PR #1770 <https://github.com/pantsbuild/pex/pull/1770>`_
+* Upgrade PyPy checking to latest. (#1767)
+  `PR #1767 <https://github.com/pantsbuild/pex/pull/1767>`_
+* Add 3.11 support. (#1766)
+  `PR #1766 <https://github.com/pantsbuild/pex/pull/1766>`_
+
 2.1.88
 ------
 
