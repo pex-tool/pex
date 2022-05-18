@@ -19,7 +19,7 @@ from pex.venv.bin_path import BinPath
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Mapping, Optional, Text, Union
+    from typing import Any, Dict, List, Mapping, Optional, Text, Union
 
     from pex.interpreter import PythonInterpreter
 
@@ -288,6 +288,7 @@ class PexInfo(object):
 
     @property
     def interpreter_constraints(self):
+        # type: () -> List[str]
         """A list of constraints that determine the interpreter compatibility for this pex, using
         the Requirement-style format, e.g. ``'CPython>=3', or just '>=2.7,<3'`` for requirements
         agnostic to interpreter class.

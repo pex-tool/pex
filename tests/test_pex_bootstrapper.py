@@ -14,6 +14,7 @@ from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.pex import PEX
 from pex.pex_bootstrapper import (
+    InterpreterTest,
     ensure_venv,
     find_compatible_interpreter,
     iter_compatible_interpreters,
@@ -280,9 +281,13 @@ def test_pp_exact_satisfies_constraints():
 
     py310 = ensure_python_interpreter(PY310)
 
+    pb = PEXBuilder()
+    pb.info.add_interpreter_constraint(">=3.7")
+    pb.freeze()
+
     with ENV.patch(PEX_PYTHON=py310):
         assert PythonInterpreter.from_binary(py310) == find_compatible_interpreter(
-            interpreter_constraints=[">=3.7"]
+            interpreter_test=InterpreterTest(entry_point=pb.path(), pex_info=pb.info),
         )
 
 
@@ -291,12 +296,18 @@ def test_pp_exact_does_not_satisfy_constraints():
 
     py310 = ensure_python_interpreter(PY310)
 
+    pb = PEXBuilder()
+    pb.info.add_interpreter_constraint("<=3.7")
+    pb.freeze()
+
     with ENV.patch(PEX_PYTHON=py310):
         with pytest.raises(
             UnsatisfiableInterpreterConstraintsError,
             match=r"Failed to find a compatible PEX_PYTHON={pp}.".format(pp=py310),
         ):
-            find_compatible_interpreter(interpreter_constraints=["<=3.7"])
+            find_compatible_interpreter(
+                interpreter_test=InterpreterTest(entry_point=pb.path(), pex_info=pb.info),
+            )
 
 
 def test_pp_exact_not_on_ppp():
