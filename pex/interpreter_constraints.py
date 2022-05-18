@@ -7,6 +7,7 @@ from __future__ import absolute_import
 
 import itertools
 
+from pex.compatibility import indent
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
@@ -111,8 +112,13 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
         if self.constraints:
             constraints_message = (
                 "No {qualifier}interpreter compatible with the requested constraints was found:\n"
-                "  {constraints}"
-            ).format(qualifier=qualifier, constraints="\n  ".join(self.constraints))
+                "\n{constraints}"
+            ).format(
+                qualifier=qualifier,
+                constraints="\n\n".join(
+                    indent(constraint, "  ") for constraint in self.constraints
+                ),
+            )
 
         problems = "\n\n".join(msg for msg in (failures_message, constraints_message) if msg)
         if problems:

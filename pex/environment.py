@@ -137,11 +137,12 @@ class _TagMismatch(_UnrankedDistribution):
         # type: (Target) -> str
         return (
             "The wheel tags for {dist} are {wheel_tags} which do not match the supported tags of "
-            "{target}:\n{supported_tags}".format(
+            "{target}:\n{tag}\n... {count} more ...".format(
                 dist=self.dist,
                 wheel_tags=", ".join(map(str, self.wheel_tags)),
                 target=target,
-                supported_tags="\n".join(map(str, target.supported_tags)),
+                tag=target.supported_tags[0],
+                count=len(target.supported_tags) - 1,
             )
         )
 
@@ -442,13 +443,14 @@ class PEXEnvironment(object):
                 # We've winnowed down reqs_by_key to just those requirements whose environment
                 # markers apply; so, we should always have an available distribution.
                 message = (
-                    "A distribution for {project_name} could not be resolved in this "
-                    "environment.".format(project_name=project_name)
+                    "A distribution for {project_name} could not be resolved for {target}.".format(
+                        project_name=project_name, target=self._target
+                    )
                 )
                 unavailable_dists = self._unavailable_dists_by_project_name.get(project_name)
                 if unavailable_dists:
                     message += (
-                        "Found {count} {distributions} for {project_name} that do not apply:\n"
+                        "\nFound {count} {distributions} for {project_name} that do not apply:\n"
                         "{unavailable_dists}".format(
                             count=len(unavailable_dists),
                             distributions=pluralize(unavailable_dists, "distribution"),

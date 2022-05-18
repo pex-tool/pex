@@ -16,7 +16,7 @@ from sys import version_info as sys_version_info
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import AnyStr, Optional, Text, Tuple, Type
+    from typing import AnyStr, Callable, Optional, Text, Tuple, Type
 
 
 try:
@@ -172,3 +172,19 @@ else:
         # why it's nt in the stdlib.
         # See: https://docs.python.org/2.7/reference/lexical_analysis.html#identifiers
         return re.match(r"^[_a-zA-Z][_a-zA-Z0-9]*$", text) is not None
+
+
+if PY2:
+
+    def indent(
+        text,  # type: Text
+        prefix,  # type: Text
+        predicate=None,  # type: Optional[Callable[[Text], bool]]
+    ):
+        add_prefix = predicate if predicate else lambda line: bool(line.strip())
+        return "".join(
+            prefix + line if add_prefix(line) else line for line in text.splitlines(True)
+        )
+
+else:
+    from textwrap import indent as indent
