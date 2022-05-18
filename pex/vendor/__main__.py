@@ -315,13 +315,13 @@ def vendorize(root_dir, vendor_specs, prefix, update):
 
     # Import all code needed below now before we move any vendored bits it depends on temporarily
     # back to the prefix site-packages dir.
+    from pex.dist_metadata import find_distributions
     from pex.pep_376 import Record
-    from pex.third_party.pkg_resources import find_distributions
 
     dist_by_vendor_spec = OrderedDict()
     for vendor_spec in vendor_specs:
-        for dist in find_distributions(vendor_spec.target_dir):
-            if dist.key == vendor_spec.key:
+        for dist in find_distributions(search_path=[vendor_spec.target_dir]):
+            if dist.project_name == vendor_spec.key:
                 dist_by_vendor_spec[vendor_spec] = dist
                 break
         if vendor_spec not in dist_by_vendor_spec:

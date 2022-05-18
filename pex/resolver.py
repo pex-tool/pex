@@ -14,13 +14,13 @@ from collections import OrderedDict, defaultdict
 from pex import targets
 from pex.auth import PasswordEntry
 from pex.common import AtomicDirectory, atomic_directory, pluralize, safe_mkdtemp
-from pex.dist_metadata import DistMetadata
+from pex.dist_metadata import DistMetadata, Distribution, Requirement
 from pex.fetcher import URLFetcher
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.pep_503 import ProjectName, distribution_satisfies_requirement
+from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip.tool import PackageIndexConfiguration, get_pip
 from pex.requirements import LocalProjectRequirement
@@ -30,10 +30,9 @@ from pex.resolve.resolved_requirement import ResolvedRequirement
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable, Untranslatable
 from pex.targets import Target, Targets
-from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper, DistributionHelper
+from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
@@ -70,7 +69,7 @@ class _ResolveHandler(object):
                 max_parallel_jobs=self.max_parallel_jobs,
             )
             dist_metadatas = tuple(
-                DistMetadata.for_dist(install_request.wheel_path)
+                DistMetadata.load(install_request.wheel_path)
                 for install_request in itertools.chain(
                     tuple(self.download_result.install_requests()),
                     itertools.chain.from_iterable(build_results.values()),
@@ -511,9 +510,7 @@ class InstallResult(object):
     ):
         # type: (...) -> Iterator[InstalledDistribution]
         if self.is_installed:
-            distribution = DistributionHelper.distribution_from_path(self.install_chroot)
-            if distribution is None:
-                raise AssertionError("No distribution could be found for {}.".format(self))
+            distribution = Distribution.load(self.install_chroot)
             for install_request in install_requests:
                 yield InstalledDistribution(
                     target=install_request.target,
@@ -762,7 +759,7 @@ class BuildAndInstallRequest(object):
                 OrderedSet
             )  # type: DefaultDict[ProjectName, OrderedSet[Requirement]]
             for direct_requirement in iter_direct_requirements():
-                direct_requirements_by_project_name[ProjectName(direct_requirement)].add(
+                direct_requirements_by_project_name[direct_requirement.project_name].add(
                     direct_requirement
                 )
 
@@ -813,9 +810,8 @@ class BuildAndInstallRequest(object):
             distribution = installed_distribution.distribution
             direct_reqs = [
                 req
-                for req in direct_requirements_by_project_name[ProjectName(distribution)]
-                if distribution_satisfies_requirement(distribution, req)
-                and installed_distribution.target.requirement_applies(req)
+                for req in direct_requirements_by_project_name[distribution.metadata.project_name]
+                if distribution in req and installed_distribution.target.requirement_applies(req)
             ]
             installed_distributions.add(
                 installed_distribution.with_direct_requirements(direct_requirements=direct_reqs)
@@ -826,7 +822,7 @@ class BuildAndInstallRequest(object):
     def _check_install(installed_distributions):
         # type: (Iterable[InstalledDistribution]) -> None
         installed_distribution_by_project_name = OrderedDict(
-            (ProjectName(resolved_distribution.distribution), resolved_distribution)
+            (resolved_distribution.distribution.metadata.project_name, resolved_distribution)
             for resolved_distribution in installed_distributions
         )  # type: OrderedDict[ProjectName, InstalledDistribution]
 
@@ -839,7 +835,7 @@ class BuildAndInstallRequest(object):
                     continue
 
                 installed_requirement_dist = installed_distribution_by_project_name.get(
-                    ProjectName(requirement)
+                    requirement.project_name
                 )
                 if not installed_requirement_dist:
                     unsatisfied.append(

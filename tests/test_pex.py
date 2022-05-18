@@ -16,6 +16,7 @@ import pytest
 from pex import resolver
 from pex.common import safe_mkdir, safe_open, temporary_dir
 from pex.compatibility import PY2, WINDOWS, to_bytes
+from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -34,7 +35,6 @@ from pex.testing import (
     temporary_content,
     write_simple_pex,
 )
-from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 
@@ -264,12 +264,12 @@ def test_pex_script(project_name, zip_safe):
         assert rc == 1, so.decode("utf-8")
         assert b"Could not find script 'hello_world'" in so
 
-        so, rc = run_simple_pex_test("", env=env_copy, dists=[bdist_path])
+        so, rc = run_simple_pex_test("", env=env_copy, dists=[Distribution.load(bdist_path)])
         assert rc == 0, so.decode("utf-8")
         assert b"hello world" in so
 
         env_copy["PEX_SCRIPT"] = "shell_script"
-        so, rc = run_simple_pex_test("", env=env_copy, dists=[bdist_path])
+        so, rc = run_simple_pex_test("", env=env_copy, dists=[Distribution.load(bdist_path)])
         assert rc == 0, so.decode("utf-8")
         assert b"hello world from shell script" in so
 
@@ -394,7 +394,7 @@ def pythonpath_isolation_test():
             )
 
             yield PythonpathIsolationTest(
-                pythonpath=pythonpath, dists=[foo_bdist], exe=exe_contents
+                pythonpath=pythonpath, dists=[Distribution.load(foo_bdist)], exe=exe_contents
             )
 
 

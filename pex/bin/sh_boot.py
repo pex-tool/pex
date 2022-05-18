@@ -9,12 +9,13 @@ import shlex
 from textwrap import dedent
 
 from pex import dist_metadata, variables
+from pex.dist_metadata import Distribution
 from pex.interpreter import PythonIdentity, PythonInterpreter, calculate_binary_name
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.orderedset import OrderedSet
+from pex.pep_440 import Version
 from pex.pex_info import PexInfo
 from pex.targets import Targets
-from pex.third_party import pkg_resources
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
@@ -22,8 +23,6 @@ if TYPE_CHECKING:
     from typing import Iterable, Optional, Tuple
 
     import attr  # vendor:skip
-
-    from pex.dist_metadata import DistributionLike
 else:
     from pex.third_party import attr
 
@@ -43,7 +42,6 @@ class PythonBinaryName(object):
 def _calculate_applicable_binary_names(
     targets,  # type: Targets
     interpreter_constraints,  # type: Iterable[str]
-    pex_dist=None,  # type: Optional[str]
 ):
     # type: (...) -> Iterable[str]
 
@@ -57,9 +55,7 @@ def _calculate_applicable_binary_names(
     )
     if python_requirements:
         ic_majors_minors.update(
-            PythonBinaryName(
-                name=calculate_binary_name(python_requirement.project_name), version=version
-            )
+            PythonBinaryName(name=calculate_binary_name(python_requirement.name), version=version)
             for python_requirement in python_requirements
             for version in iter_compatible_versions(
                 requires_python=[str(python_requirement.specifier)]
@@ -87,11 +83,9 @@ def _calculate_applicable_binary_names(
     # so, select these interpreters from newest to oldest since it more likely any given machine
     # will have Python 3 at this point than it will Python 2.
     pex_requires_python = ">=2.7"
-    pex_distribution = pex_dist or pkg_resources.working_set.find(
-        pkg_resources.Requirement.parse("pex=={version}".format(version=__version__))
-    )  # type: DistributionLike
-    if pex_distribution:
-        pex_requires_python = str(dist_metadata.requires_python(pex_distribution))
+    dist = dist_metadata.find_distribution("pex")  # type: Optional[Distribution]
+    if dist and dist.metadata.version == Version(__version__):
+        pex_requires_python = str(dist.metadata.requires_python)
     pex_supported_python_versions = tuple(
         reversed(list(iter_compatible_versions(requires_python=[pex_requires_python])))
     )

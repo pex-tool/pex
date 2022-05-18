@@ -7,6 +7,7 @@ import itertools
 from collections import OrderedDict, defaultdict
 
 from pex import environment
+from pex.dist_metadata import Requirement
 from pex.environment import PEXEnvironment
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
@@ -15,7 +16,6 @@ from pex.requirements import Constraint, LocalProjectRequirement
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable, Untranslatable
 from pex.targets import Targets
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ def resolve_from_pex(
                 "from {pex}.".format(path=direct_requirement.path, pex=pex)
             )
         direct_requirements_by_project_name.setdefault(
-            ProjectName(direct_requirement.requirement), []
+            direct_requirement.requirement.project_name, []
         ).append(direct_requirement.requirement)
 
     constraints_by_project_name = defaultdict(
@@ -61,7 +61,7 @@ def resolve_from_pex(
         for contraint in requirement_configuration.parse_constraints(
             network_configuration=network_configuration
         ):
-            constraints_by_project_name[ProjectName(contraint.requirement)].append(contraint)
+            constraints_by_project_name[contraint.requirement.project_name].append(contraint)
 
     all_reqs = OrderedSet(
         itertools.chain.from_iterable(direct_requirements_by_project_name.values())

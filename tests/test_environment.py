@@ -12,14 +12,16 @@ import pytest
 from pex import resolver
 from pex.common import temporary_dir
 from pex.compatibility import to_bytes
+from pex.dist_metadata import DistMetadata, Distribution
 from pex.environment import PEXEnvironment, _InvalidWheelName, _RankedDistribution
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.rank import Rank
 from pex.targets import LocalInterpreter, Targets
 from pex.testing import (
     IS_LINUX,
@@ -31,7 +33,6 @@ from pex.testing import (
     temporary_content,
     temporary_filename,
 )
-from pex.third_party.pkg_resources import Distribution
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -370,13 +371,16 @@ def test_present_but_empty_namespace_packages_metadata_does_not_warn():
 
 def create_dist(
     location,  # type: str
-    version="1.0.0",  # type: Optional[str]
+    project_name="foo",  # type: str
+    version="1.0.0",  # type: str
 ):
     # type: (...) -> FingerprintedDistribution
-    # N.B.: version must be set simply so that __hash__ / __eq__ work correctly in the
-    # `pex.dist_metadata` module.
     return FingerprintedDistribution(
-        distribution=Distribution(location=location, version=version), fingerprint=location
+        distribution=Distribution(
+            location=location,
+            metadata=DistMetadata(project_name=ProjectName(project_name), version=Version(version)),
+        ),
+        fingerprint=location,
     )
 
 
@@ -393,22 +397,24 @@ def cpython_37_environment(python_37_interpreter):
     ("wheel_distribution", "wheel_is_linux"),
     [
         pytest.param(
-            create_dist("llvmlite-0.29.0-cp37-cp37m-linux_x86_64.whl", "0.29.0"),
+            create_dist("llvmlite-0.29.0-cp37-cp37m-linux_x86_64.whl", "llvmlite", "0.29.0"),
             True,
             id="without_build_tag_linux",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-1-cp37-cp37m-linux_x86_64.whl", "0.29.0"),
+            create_dist("llvmlite-0.29.0-1-cp37-cp37m-linux_x86_64.whl", "llvmlite", "0.29.0"),
             True,
             id="with_build_tag_linux",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-cp37-cp37m-macosx_10.9_x86_64.whl", "0.29.0"),
+            create_dist("llvmlite-0.29.0-cp37-cp37m-macosx_10.9_x86_64.whl", "llvmlite", "0.29.0"),
             False,
             id="without_build_tag_osx",
         ),
         pytest.param(
-            create_dist("llvmlite-0.29.0-1-cp37-cp37m-macosx_10.9_x86_64.whl", "0.29.0"),
+            create_dist(
+                "llvmlite-0.29.0-1-cp37-cp37m-macosx_10.9_x86_64.whl", "llvmlite", "0.29.0"
+            ),
             False,
             id="with_build_tag_osx",
         ),
@@ -432,9 +438,9 @@ def test_can_add_handles_invalid_wheel_filename(cpython_37_environment):
 @pytest.fixture
 def assert_cpython_37_environment_can_add(cpython_37_environment):
     # type: (PEXEnvironment) -> Callable[[FingerprintedDistribution], _RankedDistribution]
-    def assert_can_add(dist):
-        # type: (Distribution) -> _RankedDistribution
-        rank = cpython_37_environment._can_add(dist)
+    def assert_can_add(fingerprinted_dist):
+        # type: (FingerprintedDistribution) -> _RankedDistribution
+        rank = cpython_37_environment._can_add(fingerprinted_dist)
         assert isinstance(rank, _RankedDistribution)
         return rank
 
@@ -442,17 +448,17 @@ def assert_cpython_37_environment_can_add(cpython_37_environment):
 
 
 def test_can_add_ranking_platform_tag_more_specific(assert_cpython_37_environment_can_add):
-    # type: (Callable[[Distribution], _RankedDistribution]) -> None
+    # type: (Callable[[FingerprintedDistribution], _RankedDistribution]) -> None
     ranked_specific = assert_cpython_37_environment_can_add(
-        create_dist("foo-1.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
+        create_dist("foo-1.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "foo", "1.0.0")
     )
     ranked_universal = assert_cpython_37_environment_can_add(
-        create_dist("foo-2.0.0-py2.py3-none-any.whl", "2.0.0")
+        create_dist("foo-2.0.0-py2.py3-none-any.whl", "foo", "2.0.0")
     )
     assert ranked_specific < ranked_universal
 
     ranked_almost_py3universal = assert_cpython_37_environment_can_add(
-        create_dist("foo-2.0.0-py3-none-any.whl", "2.0.0")
+        create_dist("foo-2.0.0-py3-none-any.whl", "foo", "2.0.0")
     )
     assert ranked_universal.rank == ranked_almost_py3universal.rank, (
         "Expected the 'universal' compressed tag set to be expanded into two tags and the more "
@@ -461,11 +467,11 @@ def test_can_add_ranking_platform_tag_more_specific(assert_cpython_37_environmen
 
 
 def test_can_add_ranking_version_newer_tie_break(assert_cpython_37_environment_can_add):
-    # type: (Callable[[Distribution], _RankedDistribution]) -> None
+    # type: (Callable[[FingerprintedDistribution], _RankedDistribution]) -> None
     ranked_v1 = assert_cpython_37_environment_can_add(
-        create_dist("foo-1.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "1.0.0")
+        create_dist("foo-1.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "foo", "1.0.0")
     )
     ranked_v2 = assert_cpython_37_environment_can_add(
-        create_dist("foo-2.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "2.0.0")
+        create_dist("foo-2.0.0-cp37-cp37m-macosx_10_9_x86_64.linux_x86_64.whl", "foo", "2.0.0")
     )
     assert ranked_v2 < ranked_v1

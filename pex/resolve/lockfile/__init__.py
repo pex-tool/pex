@@ -8,7 +8,7 @@ import shutil
 
 from pex import hashing, resolver
 from pex.common import pluralize, safe_mkdtemp, safe_open
-from pex.dist_metadata import ProjectNameAndVersion
+from pex.dist_metadata import ProjectNameAndVersion, Requirement
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_503 import ProjectName
 from pex.requirements import (
@@ -30,7 +30,6 @@ from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolver import Downloaded
 from pex.result import Error, try_
 from pex.targets import Targets
-from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV

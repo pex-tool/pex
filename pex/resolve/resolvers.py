@@ -3,11 +3,11 @@
 
 from __future__ import absolute_import
 
+from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.resolve.locked_resolve import LockedResolve
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
-from pex.third_party.pkg_resources import Distribution, Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

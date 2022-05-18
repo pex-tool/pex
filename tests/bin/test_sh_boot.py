@@ -1,8 +1,6 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import pytest
-
 from pex.bin import sh_boot
 from pex.bin.sh_boot import PythonBinaryName
 from pex.interpreter import PythonInterpreter
@@ -11,40 +9,22 @@ from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.targets import CompletePlatform, Targets
-from pex.testing import WheelBuilder
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Iterable, List
 
-    import attr  # vendor:skip
-else:
-    from pex.third_party import attr
 
-
-@attr.s(frozen=True)
-class Calculator(object):
-    pex_dist = attr.ib()  # type: str
-
-    def calculate_binary_names(
-        self,
-        targets=Targets(),  # type: Targets
-        interpreter_constraints=(),  # type: Iterable[str]
-    ):
-        return list(
-            sh_boot._calculate_applicable_binary_names(
-                targets=targets,
-                interpreter_constraints=interpreter_constraints,
-                pex_dist=self.pex_dist,
-            )
+def calculate_binary_names(
+    targets=Targets(),  # type: Targets
+    interpreter_constraints=(),  # type: Iterable[str]
+):
+    return list(
+        sh_boot._calculate_applicable_binary_names(
+            targets=targets,
+            interpreter_constraints=interpreter_constraints,
         )
-
-
-@pytest.fixture(scope="module")
-def calculator(pex_project_dir):
-    # type: (...) -> Calculator
-    pex_dist = WheelBuilder(pex_project_dir).bdist()
-    return Calculator(pex_dist=pex_dist)
+    )
 
 
 def expected(*names):
@@ -110,19 +90,19 @@ def expected(*names):
     return list(all_names)
 
 
-def test_calculate_no_targets_no_ics(calculator):
-    # type: (Calculator) -> None
+def test_calculate_no_targets_no_ics():
+    # type: () -> None
 
-    assert expected() == calculator.calculate_binary_names()
+    assert expected() == calculate_binary_names()
 
 
-def test_calculate_platforms_no_ics(calculator):
-    # type: (Calculator) -> None
+def test_calculate_platforms_no_ics():
+    # type: () -> None
 
     assert expected(
         PythonBinaryName(name="python", version=(3, 6)),
         PythonBinaryName(name="pypy", version=(2, 7)),
-    ) == calculator.calculate_binary_names(
+    ) == calculate_binary_names(
         Targets(
             platforms=(
                 Platform.create("macosx-10.13-x86_64-cp-36-cp36m"),
@@ -133,7 +113,6 @@ def test_calculate_platforms_no_ics(calculator):
 
 
 def test_calculate_interpreters_no_ics(
-    calculator,  # type: Calculator
     py27,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
     py37,  # type: PythonInterpreter
@@ -146,12 +125,12 @@ def test_calculate_interpreters_no_ics(
             PythonBinaryName(name="python", version=(3, 10)),
             PythonBinaryName(name="python", version=(3, 7)),
         )
-        == calculator.calculate_binary_names(targets=Targets(interpreters=(py27, py310, py37)))
+        == calculate_binary_names(targets=Targets(interpreters=(py27, py310, py37)))
     )
 
 
-def test_calculate_no_targets_ics(calculator):
-    # type: (Calculator) -> None
+def test_calculate_no_targets_ics():
+    # type: () -> None
 
     assert (
         expected(
@@ -160,22 +139,19 @@ def test_calculate_no_targets_ics(calculator):
             PythonBinaryName(name="python", version=(3, 9)),
             PythonBinaryName(name="pypy", version=(3, 7)),
         )
-        == calculator.calculate_binary_names(interpreter_constraints=[">=3.7,<3.10", "PyPy==3.7.*"])
+        == calculate_binary_names(interpreter_constraints=[">=3.7,<3.10", "PyPy==3.7.*"])
     )
 
 
-def test_calculate_mixed(
-    calculator,  # type: Calculator
-    py27,  # type: PythonInterpreter
-):
-    # type: (...) -> None
+def test_calculate_mixed(py27):
+    # type: (PythonInterpreter) -> None
 
     assert expected(
         PythonBinaryName(name="python", version=(2, 7)),
         PythonBinaryName(name="pypy", version=(3, 8)),
         PythonBinaryName(name="python", version=(3, 6)),
         PythonBinaryName(name="pypy", version=(3, 7)),
-    ) == calculator.calculate_binary_names(
+    ) == calculate_binary_names(
         targets=Targets(
             interpreters=(py27,),
             complete_platforms=(

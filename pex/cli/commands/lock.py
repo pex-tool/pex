@@ -12,8 +12,8 @@ from pex.argparse import HandleBoolAction
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import pluralize
+from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
-from pex.pep_503 import ProjectName
 from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
 from pex.resolve.lockfile import Lockfile, create, json_codec
@@ -23,7 +23,6 @@ from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
-from pex.third_party.pkg_resources import Requirement, RequirementParseError
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
@@ -369,7 +368,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
         if updates:
             updates_by_project_name = OrderedDict(
-                (ProjectName(update.project_name), update) for update in updates
+                (update.project_name, update) for update in updates
             )
             for locked_resolve in lock_file.locked_resolves:
                 for locked_requirement in locked_resolve.locked_requirements:
@@ -452,7 +451,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
         constraints_by_project_name = {
-            ProjectName(constraint.project_name): constraint for constraint in lock_file.constraints
+            constraint.project_name: constraint for constraint in lock_file.constraints
         }
         dry_run = self.options.dry_run
         output = sys.stdout if dry_run else sys.stderr
@@ -485,7 +484,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     )
         if performed_update:
             constraints_by_project_name.update(
-                (ProjectName(constraint.project_name), constraint) for constraint in updates
+                (constraint.project_name, constraint) for constraint in updates
             )
 
         if performed_update and not dry_run:

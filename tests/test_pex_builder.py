@@ -12,6 +12,7 @@ import pytest
 
 from pex.common import open_zip, safe_open, temporary_dir, touch
 from pex.compatibility import WINDOWS
+from pex.dist_metadata import Distribution
 from pex.executor import Executor
 from pex.layout import Layout
 from pex.pex import PEX
@@ -80,7 +81,7 @@ def test_pex_builder_wheeldep():
     doesn't come in importable form."""
     with temporary_dir() as td, make_bdist("p1") as p1:
         pyparsing_path = "./tests/example_packages/pyparsing-2.1.10-py2.py3-none-any.whl"
-        pb = write_pex(td, wheeldeps_exe_main, dists=[p1, pyparsing_path])
+        pb = write_pex(td, wheeldeps_exe_main, dists=[p1, Distribution.load(pyparsing_path)])
         success_txt = os.path.join(td, "success.txt")
         PEX(td, interpreter=pb.interpreter).run(args=[success_txt])
         assert os.path.exists(success_txt)

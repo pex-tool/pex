@@ -9,7 +9,7 @@ from collections import OrderedDict, defaultdict, deque
 
 from pex.common import pluralize
 from pex.compatibility import unquote, urlparse
-from pex.dist_metadata import DistMetadata
+from pex.dist_metadata import DistMetadata, Requirement
 from pex.enum import Enum
 from pex.fetcher import URLFetcher
 from pex.pep_425 import CompatibilityTags, TagRank
@@ -43,13 +43,11 @@ if TYPE_CHECKING:
     from packaging import tags  # vendor:skip
     from packaging import version as packaging_version  # vendor:skip
     from packaging.specifiers import SpecifierSet  # vendor:skip
-    from pkg_resources import Requirement  # vendor:skip
 else:
     from pex.third_party import attr
     from pex.third_party.packaging import tags
     from pex.third_party.packaging import version as packaging_version
     from pex.third_party.packaging.specifiers import SpecifierSet
-    from pex.third_party.pkg_resources import Requirement
 
 
 class LockStyle(Enum["LockStyle.Value"]):
@@ -261,12 +259,12 @@ class _ResolveRequest(object):
 
     required_by = attr.ib()  # type: Tuple[Requirement, ...]
     requirement = attr.ib()  # type: Requirement
-    extras = attr.ib(default=None)  # type: Optional[Tuple[str, ...]]
+    extras = attr.ib(default=())  # type: Iterable[str]
 
     @property
     def project_name(self):
         # type: () -> ProjectName
-        return ProjectName(self.requirement.project_name)
+        return self.requirement.project_name
 
     def request_dependencies(self, locked_requirement):
         # type: (LockedRequirement) -> Iterator[_ResolveRequest]
@@ -348,9 +346,7 @@ class Resolved(object):
             list
         )  # type: DefaultDict[ProjectName, List[Requirement]]
         for requirement in direct_requirements:
-            direct_requirements_by_project_name[ProjectName(requirement.project_name)].append(
-                requirement
-            )
+            direct_requirements_by_project_name[requirement.project_name].append(requirement)
 
         # N.B.: Lowest rank means highest rank value. I.E.: The 1st tag is the most specific and
         # the 765th tag is the least specific.
@@ -566,7 +562,7 @@ class LockedResolve(object):
 
         # 2. Select either the best fit artifact for each requirement or collect an error.
         constraints_by_project_name = {
-            ProjectName(constraint.project_name): constraint for constraint in constraints
+            constraint.project_name: constraint for constraint in constraints
         }
         resolved_artifacts = []
         errors = []

@@ -9,6 +9,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, temporary_dir, touch
+from pex.dist_metadata import Requirement
 from pex.fetcher import URLFetcher
 from pex.requirements import (
     VCS,
@@ -29,7 +30,6 @@ from pex.requirements import (
 )
 from pex.testing import environment_as
 from pex.third_party.packaging.markers import Marker
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -96,11 +96,11 @@ def test_parse_requirements_failure_bad_requirement(chroot):
 
     parsed_requirement = next(req_iter)
     assert isinstance(parsed_requirement, PyPIRequirement)
-    assert "GoodRequirement" == parsed_requirement.requirement.project_name
+    assert "GoodRequirement" == parsed_requirement.requirement.name
 
     parsed_requirement = next(req_iter)
     assert isinstance(parsed_requirement, PyPIRequirement)
-    assert "AnotherRequirement" == parsed_requirement.requirement.project_name
+    assert "AnotherRequirement" == parsed_requirement.requirement.name
 
     with pytest.raises(ParseError) as exc_info:
         next(req_iter)

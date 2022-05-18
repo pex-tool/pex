@@ -8,6 +8,7 @@ import re
 import pytest
 
 from pex import targets
+from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
@@ -22,7 +23,6 @@ from pex.targets import (
     Targets,
 )
 from pex.third_party.packaging.specifiers import SpecifierSet
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

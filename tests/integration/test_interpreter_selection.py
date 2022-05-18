@@ -5,7 +5,9 @@ import sys
 from textwrap import dedent
 
 from pex.common import temporary_dir
+from pex.dist_metadata import Requirement, find_distribution
 from pex.interpreter import PythonInterpreter
+from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.testing import (
     PY27,
@@ -16,7 +18,6 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
 )
-from pex.third_party import pkg_resources
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -387,9 +388,10 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
         with open(pexrc_path, "w") as pexrc:
             pexrc.write("PEX_PYTHON=%s" % sys.executable)
 
-        # The code below depends on pex.testing which depends on pytest - make sure the built pex gets
-        # this dep.
-        pytest_dist = pkg_resources.WorkingSet().find(pkg_resources.Requirement.parse("pytest"))
+        # The code below depends on pex.testing which depends on pytest - make sure the built pex
+        # gets this dep.
+        pytest_dist = find_distribution(ProjectName("pytest"))
+        assert pytest_dist is not None
 
         test_setup_path = os.path.join(td, "setup.py")
         with open(test_setup_path, "w") as fh:

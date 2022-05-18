@@ -6,6 +6,7 @@ from textwrap import dedent
 import pytest
 
 from pex import targets
+from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_440 import Version
@@ -30,7 +31,6 @@ from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.third_party.packaging.tags import Tag
-from pex.third_party.pkg_resources import Requirement
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

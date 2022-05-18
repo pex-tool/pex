@@ -10,11 +10,10 @@ import shutil
 from collections import defaultdict, Counter
 from textwrap import dedent
 
-from pex.third_party.pkg_resources import Distribution
-
 from pex import pex_warnings
 from pex.common import safe_mkdir, pluralize, chmod_plus_x
 from pex.compatibility import is_valid_python_identifier
+from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
 from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledWheel, LoadError

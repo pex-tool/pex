@@ -6,13 +6,13 @@ from __future__ import absolute_import
 import os
 from collections import OrderedDict
 
+from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
 from pex.pex_bootstrapper import iter_compatible_interpreters, parse_path
 from pex.platforms import Platform
 from pex.targets import CompletePlatform, Targets
-from pex.third_party.pkg_resources import Requirement
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV

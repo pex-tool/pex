@@ -23,6 +23,7 @@ from pex.common import (
 )
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
+from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.environment import PEXEnvironment
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
@@ -33,10 +34,9 @@ from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.pip.tool import get_pip
 from pex.targets import LocalInterpreter
-from pex.third_party.pkg_resources import DefaultProvider, Distribution, ZipProvider, get_provider
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper, DistributionHelper
+from pex.util import CacheHelper
 
 if TYPE_CHECKING:
     from typing import Dict, Optional
@@ -349,10 +349,14 @@ class PEXBuilder(object):
                     distributions.update(PEX(pex, interpreter=self._interpreter).resolve())
 
         # Check if 'script' is a console_script.
-        dist, entry_point = get_entry_point_from_console_script(script, distributions)
-        if entry_point:
-            self.set_entry_point(entry_point)
-            TRACER.log("Set entrypoint to console_script {!r} in {!r}".format(entry_point, dist))
+        dist_entry_point = get_entry_point_from_console_script(script, distributions)
+        if dist_entry_point:
+            self.set_entry_point(str(dist_entry_point.entry_point))
+            TRACER.log(
+                "Set entrypoint to console_script {!r} in {!r}".format(
+                    dist_entry_point.entry_point, dist_entry_point.dist
+                )
+            )
             return
 
         # Check if 'script' is an ordinary script.
@@ -439,14 +443,14 @@ class PEXBuilder(object):
             return self._add_dist_dir(install_dir, dist_name, fingerprint=fingerprint)
 
     def add_distribution(self, dist, dist_name=None, fingerprint=None):
-        """Add a :class:`pkg_resources.Distribution` from its handle.
+        """Add a :class:`pex.dist_metadata.Distribution` from its handle.
 
         :param dist: The distribution to add to this environment.
         :keyword dist_name: (optional) The name of the distribution e.g. 'Flask-0.10.0'.  By default
           this will be inferred from the distribution itself should it be formatted in a standard
           way.
         :keyword fingerprint: The fingerprint of the distribution, if already known.
-        :type dist: :class:`pkg_resources.Distribution`
+        :type dist: :class:`pex.dist_metadata.Distribution`
         """
         if dist.location in self._distributions:
             TRACER.log(
@@ -493,7 +497,7 @@ class PEXBuilder(object):
                 target=LocalInterpreter.create(self.interpreter),
             ).wait()
 
-        dist = DistributionHelper.distribution_from_path(dist_path)
+        dist = Distribution.load(dist_path)
         self.add_distribution(dist, dist_name=name, fingerprint=fingerprint)
         self.add_requirement(dist.as_requirement())
 
@@ -569,31 +573,30 @@ class PEXBuilder(object):
                 include_dist_info=True,
             )
 
-        source_name = "pex"
-        provider = get_provider(source_name)
-        if not isinstance(provider, DefaultProvider):
-            mod = __import__(source_name, fromlist=["ignore"])
-            provider = ZipProvider(mod)
-
         bootstrap_digest = hashlib.sha1()
-        bootstrap_packages = ["", "third_party", "venv"]
+        bootstrap_packages = ["third_party", "venv"]
         if self._pex_info.includes_tools:
-            bootstrap_packages.extend(["commands", "tools", "tools/commands"])
-        for package in bootstrap_packages:
-            for fn in provider.resource_listdir(package):
-                rel_path = os.path.join(package, fn)
-                if not (
-                    provider.resource_isdir(rel_path)
-                    or fn.endswith(".pyc")
-                    or fn.endswith("testing.py")
-                ):
-                    data = provider.get_resource_string(source_name, rel_path)
-                    self._chroot.write(
-                        data,
-                        dst=os.path.join(self._pex_info.bootstrap, source_name, rel_path),
-                        label="bootstrap",
-                    )
-                    bootstrap_digest.update(data)
+            bootstrap_packages.extend(["commands", "tools"])
+        package_root = os.path.dirname(__file__)
+        for root, dirs, files in os.walk(package_root):
+            if root == package_root:
+                dirs[:] = bootstrap_packages
+
+            for f in files:
+                if f.endswith((".pyc", "testing.py")):
+                    continue
+                abs_src = os.path.join(root, f)
+                with open(abs_src, "rb") as fp:
+                    data = fp.read()
+                self._chroot.write(
+                    data,
+                    dst=os.path.join(
+                        self._pex_info.bootstrap, "pex", os.path.relpath(abs_src, package_root)
+                    ),
+                    label="bootstrap",
+                )
+                bootstrap_digest.update(data)
+
         self._pex_info.bootstrap_hash = bootstrap_digest.hexdigest()
 
     def freeze(self, bytecode_compile=True):

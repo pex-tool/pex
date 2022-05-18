@@ -22,34 +22,21 @@ if TYPE_CHECKING:
     from typing import Any, Dict, List
 
 
-@mock.patch("pex.util.safe_mkdtemp", autospec=True, spec_set=True)
-@mock.patch("pex.util.safe_mkdir", autospec=True, spec_set=True)
-@mock.patch("pex.util.resource_listdir", autospec=True, spec_set=True)
-@mock.patch("pex.util.resource_isdir", autospec=True, spec_set=True)
-@mock.patch("pex.util.resource_string", autospec=True, spec_set=True)
-def test_access_zipped_assets(
-    mock_resource_string,  # type: Any
-    mock_resource_isdir,  # type: Any
-    mock_resource_listdir,  # type: Any
-    mock_safe_mkdir,  # type: Any
-    mock_safe_mkdtemp,  # type: Any
-):
+def test_access_zipped_assets():
     # type: (...) -> None
-    mock_open = mock.mock_open()
-    mock_safe_mkdtemp.side_effect = iter(["tmpJIMMEH", "faketmpDir"])
-    mock_resource_listdir.side_effect = iter([["./__init__.py", "./directory/"], ["file.py"]])
-    mock_resource_isdir.side_effect = iter([False, True, False])
-    mock_resource_string.return_value = "testing"
+    pex_third_party_asset_dir = DistributionHelper.access_zipped_assets("pex", "third_party")
 
-    with mock.patch("%s.open" % python_builtins.__name__, mock_open, create=True):
-        temp_dir = DistributionHelper.access_zipped_assets("twitter.common", "dirutil")
-        assert mock_resource_listdir.call_count == 2
-        assert mock_open.call_count == 2
-        file_handle = mock_open.return_value.__enter__.return_value
-        assert file_handle.write.call_count == 2
-        assert mock_safe_mkdtemp.mock_calls == [mock.call()]
-        assert temp_dir == "tmpJIMMEH"
-        assert mock_safe_mkdir.mock_calls == [mock.call(os.path.join("tmpJIMMEH", "directory"))]
+    resources = os.listdir(pex_third_party_asset_dir)
+    assert (
+        len(resources) > 0
+    ), "The pex.third_party package should contain at least an __init__.py file."
+    resources.remove("__init__.py")
+    for path in resources:
+        assert path in (
+            "__init__.pyc",
+            "__init__.pyo",
+            "__pycache__",
+        ), "Expected only __init__.py (and its compilations) in the pex.third_party package."
 
 
 def test_hash():

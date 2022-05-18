@@ -17,6 +17,7 @@ from pex import third_party
 from pex.bootstrap import Bootstrap
 from pex.common import die
 from pex.compatibility import PY3
+from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint, find_distributions
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
@@ -25,7 +26,6 @@ from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.targets import LocalInterpreter
-from pex.third_party.pkg_resources import Distribution, EntryPoint, find_distributions
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import iter_pth_paths, named_temporary_file
@@ -566,11 +566,15 @@ class PEX(object):  # noqa: T000
         if self._pex_info_overrides.script:
             return self.execute_script(self._pex_info_overrides.script)
         elif self._pex_info_overrides.entry_point:
-            return self.execute_entry(self._pex_info_overrides.entry_point)
+            return self.execute_entry(
+                EntryPoint.parse("run = {}".format(self._pex_info_overrides.entry_point))
+            )
         elif self._pex_info.script:
             return self.execute_script(self._pex_info.script)
         elif self._pex_info.entry_point:
-            return self.execute_entry(self._pex_info.entry_point)
+            return self.execute_entry(
+                EntryPoint.parse("run = {}".format(self._pex_info.entry_point))
+            )
         else:
             TRACER.log("No entry point specified, dropping into interpreter")
             return self.execute_interpreter()
@@ -685,10 +689,14 @@ class PEX(object):  # noqa: T000
         # type: (str) -> Any
         dists = list(self.activate())
 
-        dist, entry_point = get_entry_point_from_console_script(script_name, dists)
-        if entry_point:
-            TRACER.log("Found console_script {!r} in {!r}.".format(entry_point, dist))
-            return self.execute_entry(entry_point)
+        dist_entry_point = get_entry_point_from_console_script(script_name, dists)
+        if dist_entry_point:
+            TRACER.log(
+                "Found console_script {!r} in {!r}.".format(
+                    dist_entry_point.entry_point, dist_entry_point.dist
+                )
+            )
+            return self.execute_entry(dist_entry_point.entry_point)
 
         dist_script = get_script_from_distributions(script_name, dists)
         if not dist_script:
@@ -697,9 +705,7 @@ class PEX(object):  # noqa: T000
         TRACER.log("Found script {!r} in {!r}.".format(script_name, dist_script.dist))
         ast = dist_script.python_script()
         if ast:
-            return self.execute_ast(
-                dist_script.path, dist_script.read_contents(), argv0=script_name
-            )
+            return self.execute_ast(dist_script.path, ast, argv0=script_name)
         else:
             return self.execute_external(dist_script.path)
 
@@ -746,9 +752,9 @@ class PEX(object):  # noqa: T000
         return None
 
     def execute_entry(self, entry_point):
-        # type: (str) -> Any
-        if ":" in entry_point:
-            return self.execute_pkg_resources(entry_point)
+        # type: (EntryPoint) -> Any
+        if isinstance(entry_point, CallableEntryPoint):
+            return self.execute_entry_point(entry_point)
 
         # When running as a zipapp we can't usefully `alter_sys` to point to the module we're
         # executing as argv[0] since that module will be contained in a zipfile. In other words, if
@@ -759,7 +765,7 @@ class PEX(object):  # noqa: T000
         # Python itself disallows this case altogether in the standard zipapp module (probably for
         # similar reasons). See: https://docs.python.org/3/library/zipapp.html#cmdoption-zipapp-m
         alter_sys = not zipfile.is_zipfile(self._pex)
-        return self.execute_module(entry_point, alter_sys)
+        return self.execute_module(entry_point.module, alter_sys)
 
     def execute_module(
         self,
@@ -774,12 +780,11 @@ class PEX(object):  # noqa: T000
         runpy.run_module(module_name, run_name="__main__", alter_sys=alter_sys)
 
     @classmethod
-    def execute_pkg_resources(cls, spec):
-        # type: (str) -> Any
-        entry = EntryPoint.parse("run = {}".format(spec))
+    def execute_entry_point(cls, entry_point):
+        # type: (CallableEntryPoint) -> Any
         cls.demote_bootstrap()
 
-        runner = entry.resolve()
+        runner = entry_point.resolve()
         return runner()
 
     def cmdline(self, args=()):

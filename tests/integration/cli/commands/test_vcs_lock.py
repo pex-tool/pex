@@ -30,6 +30,8 @@ else:
 
 @attr.s(frozen=True)
 class TestTool(object):
+    __test__ = False
+
     tmpdir = attr.ib()  # type: str
 
     @property

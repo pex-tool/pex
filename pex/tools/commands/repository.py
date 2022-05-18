@@ -24,12 +24,12 @@ from pex.common import (
     safe_open,
 )
 from pex.compatibility import Queue
+from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
 from pex.interpreter import PythonIdentity, PythonInterpreter, spawn_python_job
 from pex.jobs import Retain, SpawnedJob, execute_parallel
 from pex.pex import PEX
 from pex.result import Error, Ok, Result
-from pex.third_party.pkg_resources import Distribution
 from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING, cast
 
