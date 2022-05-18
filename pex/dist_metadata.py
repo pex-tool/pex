@@ -145,6 +145,12 @@ def find_dist_info_files(
     listing,  # type: Iterable[str]
 ):
     # type: (...) -> Iterator[DistMetadataFile]
+
+    # N.B. We know the captured project_name and version will not contain `-` even though PEP-503
+    # allows for them in project names and PEP-440 allows for them in versions in some
+    # circumstances. This is since we're limiting ourselves to the products of installs by our
+    # vendored versions of wheel and pip which turn `-` into `_` as explained in `ProjectName` and
+    # `Version` docs.
     dist_info_metadata_pattern = "^{}$".format(
         os.path.join(r"(?P<project_name>.+)-(?P<version>.+)\.dist-info", re.escape(filename))
     )
@@ -556,6 +562,10 @@ class Distribution(object):
     @classmethod
     def parse_entry_map(cls, entry_points_metadata_path):
         # type: (str) -> Dict[str, Dict[str, EntryPoint]]
+
+        # This file format is defined here:
+        #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
+
         entry_map = defaultdict(dict)  # type: DefaultDict[str, Dict[str, EntryPoint]]
         group = None  # type: Optional[str]
         for index, line in enumerate(cls._read_metadata_lines(entry_points_metadata_path), start=1):

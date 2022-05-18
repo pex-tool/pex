@@ -24,8 +24,6 @@ def _ensure_ascii_str(text):
 
     # Version numbers must be composed of ASCII as spelled out here:
     #  https://peps.python.org/pep-0440/#summary-of-changes-to-pep-440
-
-    # TODO(John Sirois): XXX: Actually validate ASCII? - this just appeases mypy for 2.7
     return str(text)
 
 

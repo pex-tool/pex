@@ -19,8 +19,6 @@ def _ensure_ascii_str(text):
 
     # Although not crisply defined, all PEPs lead to PEP-508 which restricts project names to
     # ASCII: https://peps.python.org/pep-0508/#names
-
-    # TODO(John Sirois): XXX: Actually validate ASCII? - this just appeases mypy for 2.7
     return str(text)
 
 

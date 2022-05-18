@@ -819,7 +819,6 @@ def do_main(
             compress=options.compress,
         )
         if options.seed != Seed.NONE:
-            pex = PEX(pex_file, interpreter=interpreter)
             seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)
             print(seed_info)
     else:
