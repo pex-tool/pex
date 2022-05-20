@@ -130,7 +130,7 @@ workflow is to add a packaging test environment to your ``tox.ini``:
     deps = pex
     commands = pex . -o dist/app.pex
 
-Then ``tox -e package`` will produce a relocateable copy of your application
+Then ``tox -e package`` will produce a relocatable copy of your application
 that you can copy to staging or production environments.
 
 
@@ -160,7 +160,7 @@ If you don't have tox, you can generate a pex of tox:
 Tox provides many useful commands and options, explained at https://tox.readthedocs.io/en/latest/.
 Below, we provide some of the most commonly used commands used when working on Pex, but the
 docs are worth acquainting yourself with to better understand how Tox works and how to do more
-advanced commmands.
+advanced commands.
 
 To run a specific environment, identify the name of the environment you'd like to invoke by
 running ``tox --listenvs-all``, then invoke like this:

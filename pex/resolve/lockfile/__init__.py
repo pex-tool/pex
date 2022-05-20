@@ -100,7 +100,7 @@ def store(
     """Stores the given lock file at the given path.
 
     Any missing parent directories in the path will be created and any pre-existing file at the
-    path wil be over-written.
+    path will be over-written.
 
     :param lockfile: The lock file to store.
     :param path: The path to store the lock file at.

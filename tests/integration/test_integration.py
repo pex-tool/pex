@@ -504,7 +504,7 @@ def pex_manylinux_and_tag_selection_context():
             pex_path, results = do_resolve(req_name, req_version, platform, extra_flags)
             results.assert_success()
             included_dists = get_dep_dist_names_from_pex(pex_path, req_name.replace("-", "_"))
-            assert any(substr in d for d in included_dists), "couldnt find {} in {}".format(
+            assert any(substr in d for d in included_dists), "couldn't find {} in {}".format(
                 substr, included_dists
             )
 

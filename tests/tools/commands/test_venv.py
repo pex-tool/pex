@@ -653,7 +653,7 @@ def test_strip_pex_env(tmpdir):
 def test_warn_unused_pex_env_vars():
     # type: () -> None
     # N.B.: We don't use the pytest tmpdir fixture here since it creates fairly length paths under
-    # /tmp and under macOS, where TMPDIR is already fairly deeply nested, we trigger Pex warinings
+    # /tmp and under macOS, where TMPDIR is already fairly deeply nested, we trigger Pex warnings
     # about script shebang length. Those warnings pollute stderr.
     tmpdir = safe_mkdtemp()
     venv_pex = os.path.join(tmpdir, "venv.pex")

@@ -79,7 +79,7 @@ def test_interpreter_resolution_with_multiple_constraint_options():
                 "--disable-cache",
                 "--interpreter-constraint=>=2.7,<3",
                 # Add a constraint that's impossible to satisfy. Because multiple
-                # constraints OR, the interpeter should still resolve to Python 2.7.
+                # constraints OR, the interpreter should still resolve to Python 2.7.
                 "--interpreter-constraint=>=500",
                 "-o",
                 pex_out_path,
