@@ -121,7 +121,7 @@ def test_isolated_pex_zip(tmpdir):
         modified_pex_isolated_vendoreds.keys()
     )
     assert 1 == len(modified_pex_isolation), (
-        "Since the ansicolors PEX was built from the modifed Pex PEX a new isolation of the "
+        "Since the ansicolors PEX was built from the modified Pex PEX a new isolation of the "
         "modified Pex PEX code should have occurred bringing the total isolations up to three."
     )
     assert {"pip", "wheel"}.issubset(

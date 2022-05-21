@@ -579,7 +579,7 @@ def touch(file):
 
 
 class Chroot(object):
-    """A chroot of files overlayed from one directory to another directory.
+    """A chroot of files overlaid from one directory to another directory.
 
     Files may be tagged when added in order to keep track of multiple overlays in the chroot.
     """

@@ -227,7 +227,7 @@ def test_patch():
         "The `warnings.catch_warnings` mechanism doesn't work properly under CPython 2.7 & pypy2 "
         "across multiple tests. Since we only use `warnings.catch_warnings` in unit tests and "
         "the mechanisms tested here are also tested in integration tests under CPython 2.7 & pypy "
-        "we accept that these unit tests appear un-fixable without alot of warnings mocking."
+        "we accept that these unit tests appear un-fixable without a lot of warnings mocking."
     ),
 )
 def test_warnings():

@@ -61,7 +61,7 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
 
         :param preamble: An optional preamble to the message that will be displayed above it
                              separated by an empty blank line.
-        :return: A descriptive message useable for display to an end user.
+        :return: A descriptive message usable for display to an end user.
         """
         preamble = "{}\n\n".format(preamble) if preamble else ""
 

@@ -100,7 +100,7 @@ def iter_compatible_interpreters(
 
     If no interpreters are found and there are no further constraints (neither `valid_basenames` nor
     `interpreter_constraints` is specified) then the returned iterator will be empty. However, if
-    there are constraints specified, the returned iterator, although emtpy, will raise
+    there are constraints specified, the returned iterator, although empty, will raise
     `UnsatisfiableInterpreterConstraintsError` to provide information about any found interpreters
     that did not match all the constraints.
     """

@@ -367,7 +367,7 @@ def requires_dists(location):
 
     Looks for `Requires-Dist` metadata.
 
-    The older `Requires` metadata is intentionally ignored, athough we do log a warning if it is
+    The older `Requires` metadata is intentionally ignored, although we do log a warning if it is
     found to draw attention to this ~work-around and the associated issue in case any new data
     comes in.
 

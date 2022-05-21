@@ -704,8 +704,8 @@ class Pip(object):
                     "Scrubbed PYTHONPATH={} from the pip PEX environment.".format(pythonpath), V=3
                 )
 
-            # Pip has no discernable stdout / stderr discipline with its logging. Pex guarantees
-            # stdout will only contain useable (parseable) data and all logging will go to stderr.
+            # Pip has no discernible stdout / stderr discipline with its logging. Pex guarantees
+            # stdout will only contain usable (parseable) data and all logging will go to stderr.
             # To uphold the Pex standard, force Pip to comply by re-directing stdout to stderr.
             #
             # See:

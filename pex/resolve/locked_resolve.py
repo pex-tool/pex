@@ -604,7 +604,7 @@ class LockedResolve(object):
 
                 version_mismatches = []
                 for resolve_request in resolve_requests:
-                    # Pex / Pip already considered `--pre` / `--no-pre` and the rules layed out in
+                    # Pex / Pip already considered `--pre` / `--no-pre` and the rules laid out in
                     # https://peps.python.org/pep-0440/#handling-of-pre-releases during the lock
                     # resolve; so we trust that resolve's conclusion about prereleases and are
                     # permissive here.

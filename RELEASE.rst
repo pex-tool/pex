@@ -12,7 +12,7 @@ PGP
 
 All release tags are signed (using ``git tag --sign``) so that users of Pex can verify maintainers
 have performed & trust a release. This requires releasers having a PGP key configured with git and
-published to keyservers. An additional nicety is to configure you PGP key with GitHub for those who
+published to key servers. An additional nicety is to configure you PGP key with GitHub for those who
 like to check provenance via a web UI.
 
 Some documentation to help you get things set up if you don't have all of these pre-requisites:
@@ -20,7 +20,7 @@ Some documentation to help you get things set up if you don't have all of these 
 + Creating a key and configuring your key with Git and GitHub is all described `here <https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification>`_
 + Publishing your key to a keyserver is described `here <https://www.gnupg.org/gph/en/manual/x457.html>`_
 
-Some keyservers you probably want to publish your key to explicitly above and beyond your PGP setup's
+Some key servers you probably want to publish your key to explicitly above and beyond your PGP setup's
 default configured keyserver include:
 
 + hkps://pgp.mit.edu

@@ -58,10 +58,10 @@ def resolve_from_pex(
         list
     )  # type: DefaultDict[ProjectName, List[Constraint]]
     if not ignore_errors:
-        for contraint in requirement_configuration.parse_constraints(
+        for constraint in requirement_configuration.parse_constraints(
             network_configuration=network_configuration
         ):
-            constraints_by_project_name[contraint.requirement.project_name].append(contraint)
+            constraints_by_project_name[constraint.requirement.project_name].append(constraint)
 
     all_reqs = OrderedSet(
         itertools.chain.from_iterable(direct_requirements_by_project_name.values())
