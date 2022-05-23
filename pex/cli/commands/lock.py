@@ -296,7 +296,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 self.options,
                 json_codec.as_json_data(lockfile=lock_file, path_mappings=path_mappings),
                 out=out,
-                sort_keys=True
+                sort_keys=True,
             )
             out.write("\n")
 
