@@ -300,6 +300,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         else:
             with self.output(self.options) as output:
                 dump(out=output)
+        # json.dump() does not write the newline terminating the last line, but some
+        # JSON linters, and line-based tools in general, expect it, and since these
+        # files are intended to be checked in to repos that may enforce this, we oblige.
+        output.write("\n")
 
     def _export(self):
         # type: () -> Result
