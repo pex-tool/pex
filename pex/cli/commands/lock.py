@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import, print_function
 
-import functools
 import sys
 from argparse import ArgumentParser, _ActionsContainer
 from collections import OrderedDict, defaultdict
@@ -289,21 +288,23 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     ):
         # type: (...) -> None
         path_mappings = resolver_options.get_path_mappings(self.options)
-        dump = functools.partial(
-            self.dump_json,
-            self.options,
-            json_codec.as_json_data(lockfile=lock_file, path_mappings=path_mappings),
-            sort_keys=True,
-        )
+        def dump_with_terminating_newline(out):
+            # json.dump() does not write the newline terminating the last line, but some
+            # JSON linters, and line-based tools in general, expect it, and since these
+            # files are intended to be checked in to repos that may enforce this, we oblige.
+            self.dump_json(
+                self.options,
+                json_codec.as_json_data(lockfile=lock_file, path_mappings=path_mappings),
+                out=out,
+                sort_keys=True
+            )
+            out.write("\n")
+
         if output:
-            dump(out=output)
+            dump_with_terminating_newline(out=output)
         else:
             with self.output(self.options) as output:
-                dump(out=output)
-        # json.dump() does not write the newline terminating the last line, but some
-        # JSON linters, and line-based tools in general, expect it, and since these
-        # files are intended to be checked in to repos that may enforce this, we oblige.
-        output.write("\n")
+                dump_with_terminating_newline(out=output)
 
     def _export(self):
         # type: () -> Result
