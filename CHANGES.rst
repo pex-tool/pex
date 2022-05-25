@@ -1,6 +1,22 @@
 Release Notes
 =============
 
+2.1.90
+------
+
+This release fixes Pex handling of sdists to be atomic and also fixes
+lock files to be emitted ending with a newline. In addition, many typos
+in Pex documentation were fixed in a contribution by Kian-Meng Ang.
+
+* Ensure Pip cache operations are atomic. (#1778)
+  `PR #1778 <https://github.com/pantsbuild/pex/pull/1778>`_
+
+* Ensure that lockfiles end in newlines. (#1774)
+  `PR #1770 <https://github.com/pantsbuild/pex/pull/1774>`_
+
+* Fix typos (#1773)
+  `PR #1773 <https://github.com/pantsbuild/pex/pull/1773>`_
+
 2.1.89
 ------
 
@@ -9,8 +25,10 @@ well as long needed robust runtime interpreter selection.
 
 * Select PEX runtime interpreter robustly. (#1770)
   `PR #1770 <https://github.com/pantsbuild/pex/pull/1770>`_
+
 * Upgrade PyPy checking to latest. (#1767)
   `PR #1767 <https://github.com/pantsbuild/pex/pull/1767>`_
+
 * Add 3.11 support. (#1766)
   `PR #1766 <https://github.com/pantsbuild/pex/pull/1766>`_
 
