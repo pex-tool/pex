@@ -288,6 +288,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     ):
         # type: (...) -> None
         path_mappings = resolver_options.get_path_mappings(self.options)
+
         def dump_with_terminating_newline(out):
             # json.dump() does not write the newline terminating the last line, but some
             # JSON linters, and line-based tools in general, expect it, and since these
