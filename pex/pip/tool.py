@@ -15,7 +15,7 @@ from collections import defaultdict, deque
 
 from pex import dist_metadata, targets, third_party
 from pex.auth import PasswordEntry
-from pex.common import atomic_directory, safe_mkdtemp
+from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
 from pex.compatibility import unquote, urlparse
 from pex.dist_metadata import ProjectNameAndVersion, Requirement
 from pex.interpreter import PythonInterpreter
@@ -689,6 +689,15 @@ class Pip(object):
         extra_env = extra_env or {}
         if package_index_configuration:
             extra_env.update(package_index_configuration.env)
+
+        # Ensure the pip cache (`http/` and `wheels/` dirs) is housed in the same partition as the
+        # temporary directories it creates. This is needed to ensure atomic filesystem operations
+        # since Pip relies upon `shutil.move` which is only atomic when `os.rename` can be used.
+        # See https://github.com/pantsbuild/pex/issues/1776 for an example of the issues non-atomic
+        # moves lead to in the `pip wheel` case.
+        pip_tmpdir = os.path.join(cache or ENV.PEX_ROOT, "tmp")
+        safe_mkdir(pip_tmpdir)
+        extra_env.update(TMPDIR=pip_tmpdir)
 
         with ENV.strip().patch(
             PEX_ROOT=cache or ENV.PEX_ROOT,
