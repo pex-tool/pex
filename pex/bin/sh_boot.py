@@ -177,13 +177,14 @@ def create_sh_boot_script(
         DEFAULT_PYTHON_ARGS="{python_args}"
 
         PEX_ROOT="${{PEX_ROOT:-${{DEFAULT_PEX_ROOT}}}}"
-        PEX="${{PEX_ROOT}}/{pex_installed_relpath}"
+        INSTALLED_PEX="${{PEX_ROOT}}/{pex_installed_relpath}"
 
-        if [ -n "${{VENV}}" -a -x "${{PEX}}" ]; then
+        if [ -n "${{VENV}}" -a -x "${{INSTALLED_PEX}}" ]; then
             # We're a --venv execution mode PEX installed under the PEX_ROOT and the venv
             # interpreter to use is embedded in the shebang of our venv pex script; so just
             # execute that script directly.
-            exec "${{PEX}}" "$@"
+            export PEX="$0"
+            exec "${{INSTALLED_PEX}}" "$@"
         fi
 
         find_python() {{
@@ -205,11 +206,12 @@ def create_sh_boot_script(
             if [ -n "${{PEX_VERBOSE:-}}" ]; then
                 echo >&2 "$0 used /bin/sh boot to select python: ${{python_exe}} for re-exec..."
             fi
-            if [ -z "${{VENV}}" -a -e "${{PEX}}" ]; then
+            if [ -z "${{VENV}}" -a -e "${{INSTALLED_PEX}}" ]; then
                 # We're a --zipapp execution mode PEX installed under the PEX_ROOT with a
                 # __main__.py in our top-level directory; so execute Python against that
                 # directory.
-                exec ${{python_exe}} "${{PEX}}" "$@"
+                export __PEX_EXE__="$0"
+                exec ${{python_exe}} "${{INSTALLED_PEX}}" "$@"
             else
                 # The slow path: this PEX zipapp is not installed yet. Run the PEX zipapp so it
                 # can install itself, rebuilding its fast path layout under the PEX_ROOT.

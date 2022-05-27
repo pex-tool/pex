@@ -1,14 +1,17 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import json
 import os
 import subprocess
 import sys
+from textwrap import dedent
 from typing import Text, Tuple
 
 import pytest
 
-from pex.testing import ALL_PY_VERSIONS, ensure_python_interpreter, run_pex_command
+from pex.common import safe_open
+from pex.testing import ALL_PY_VERSIONS, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -117,3 +120,79 @@ def test_python_shebang_respected(tmpdir):
     output = subprocess.check_output(args=[cowsay], stderr=subprocess.STDOUT).decode("utf-8")
     version = "Python {version}".format(version=".".join(map(str, sys.version_info[:3])))
     assert output.startswith(version), output
+
+
+EXECUTION_MODE_ARGS_PERMUTATIONS = [
+    pytest.param([], id="ZIPAPP"),
+    pytest.param(["--venv"], id="VENV"),
+    pytest.param(["--sh-boot"], id="ZIPAPP (--sh-boot)"),
+    pytest.param(["--venv", "--sh-boot"], id="VENV (--sh-boot)"),
+]
+
+
+@pytest.mark.parametrize("execution_mode_args", EXECUTION_MODE_ARGS_PERMUTATIONS)
+def test_issue_1782(
+    tmpdir,  # type: Any
+    pex_project_dir,  # type: str
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
+    run_pex_command(
+        args=[pex_project_dir, "-c", "pex", "-o", pex] + execution_mode_args
+    ).assert_success()
+
+    help_line1 = subprocess.check_output(args=[pex, "-h"]).decode("utf-8").splitlines()[0]
+    assert help_line1.startswith("usage: {pex} ".format(pex=os.path.basename(pex))), help_line1
+    assert (
+        pex
+        == subprocess.check_output(
+            args=[pex, "-c", "import os; print(os.environ['PEX'])"], env=make_env(PEX_INTERPRETER=1)
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
+
+@pytest.mark.parametrize("execution_mode_args", EXECUTION_MODE_ARGS_PERMUTATIONS)
+def test_argv0(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
+    src = os.path.join(str(tmpdir), "src")
+    with safe_open(os.path.join(src, "app.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import json
+                import os
+                import sys
+
+
+                def main():
+                    print(json.dumps({"PEX": os.environ["PEX"], "argv0": sys.argv[0]}))
+
+
+                if __name__ == "__main__":
+                    main()
+                """
+            )
+        )
+
+    run_pex_command(
+        args=["-D", src, "-e", "app:main", "-o", pex] + execution_mode_args
+    ).assert_success()
+    assert {"PEX": pex, "argv0": pex} == json.loads(subprocess.check_output(args=[pex]))
+
+    run_pex_command(args=["-D", src, "-m", "app", "-o", pex] + execution_mode_args).assert_success()
+    data = json.loads(subprocess.check_output(args=[pex]))
+    assert pex == data.pop("PEX")
+    assert "app.py" == os.path.basename(data.pop("argv0")), (
+        "When executing modules we expect runpy.run_module to `alter_sys` in order to support "
+        "pickling and other use cases as outlined in https://github.com/pantsbuild/pex/issues/1018."
+    )
+    assert {} == data
