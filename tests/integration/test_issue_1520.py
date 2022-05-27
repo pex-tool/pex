@@ -4,6 +4,7 @@
 import os
 import shutil
 import subprocess
+from textwrap import dedent
 
 import pytest
 
@@ -40,11 +41,19 @@ def test_hermetic_console_scripts(tmpdir):
 
     mypy_protobuf_pex = os.path.join(str(tmpdir), "mypy_protobuf.pex")
 
+    # Although mypy_protobuf 2.4 is quite old, it depends on an open ended-protobuf and is broken
+    # in conjunction with protobuf 4+
+    constraints = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints, "w") as fp:
+        fp.write("protobuf<4")
+
     run_pex_command(
         args=[
             "--pex-root",
             pex_root,
             "mypy_protobuf==2.4",
+            "--constraints",
+            constraints,
             "-o",
             mypy_protobuf_pex,
             "--venv",
@@ -66,5 +75,19 @@ def test_hermetic_console_scripts(tmpdir):
     shutil.rmtree(pex_root)
     # This should no-op (since there is no proto sent on stdin) and exit success.
     subprocess.check_call(
-        [mypy_protobuf_pex, "-c", "import subprocess; subprocess.check_call(['protoc-gen-mypy'])"],
+        args=[
+            mypy_protobuf_pex,
+            "-c",
+            dedent(
+                """\
+                import subprocess
+                import sys
+
+
+                process = subprocess.Popen(['protoc-gen-mypy'], stdin=subprocess.PIPE)
+                process.communicate()
+                sys.exit(process.returncode)
+                """
+            ),
+        ],
     )
