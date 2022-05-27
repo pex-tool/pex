@@ -449,21 +449,13 @@ class Requirement(object):
     url = attr.ib(default=None)  # type: Optional[str]
     extras = attr.ib(default=frozenset())  # type: FrozenSet[str]
     specifier = attr.ib(factory=SpecifierSet)  # type: SpecifierSet
-    marker = attr.ib(default=None, eq=False)  # type: Optional[Marker]
+    marker = attr.ib(default=None, eq=str)  # type: Optional[Marker]
 
     project_name = attr.ib(init=False, repr=False)  # type: ProjectName
-
-    # We should just be able to set `eq=str` on the marker field, but there is a bug in the
-    # generated `__hash__` method for this case. It is fixed here in Jan 2022 but the latest
-    # release (21.4.0) is still from Dec 2021 as of this writing:
-    # https://github.com/python-attrs/attrs/pull/909
-    _marker_for_eq_and_hash = attr.ib(init=False, repr=False)  # type: str
-
     _str = attr.ib(init=False, eq=False, repr=False)  # type: str
 
     def __attrs_post_init__(self):
         object.__setattr__(self, "project_name", ProjectName(self.name))
-        object.__setattr__(self, "_marker_for_eq_and_hash", str(self.marker))
 
         parts = [self.name]
         if self.extras:

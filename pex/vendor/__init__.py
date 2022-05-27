@@ -144,7 +144,14 @@ def iter_vendor_specs():
     # We use this for a better @dataclass that is also Python2.7 and PyPy compatible.
     # N.B.: The `[testenv:typecheck]` section in `tox.ini` should have its deps list updated to
     # reflect this attrs version.
-    yield VendorSpec.pinned("attrs", "21.2.0")
+    # This vcs version gets us the fix in https://github.com/python-attrs/attrs/pull/909
+    # which is not yet released.
+    yield VendorSpec.git(
+        repo="https://github.com/python-attrs/attrs",
+        commit="947bfb542104209a587280701d8cb389c813459d",
+        project_name="attrs",
+        rewrite=True,
+    )
 
     # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
     # time to implement resolving distributions from a PEX repository.
