@@ -264,14 +264,21 @@ def make_bdist(
     with built_wheel(
         name=name, version=version, zip_safe=zip_safe, interpreter=interpreter, **kwargs
     ) as dist_location:
+        yield install_wheel(dist_location, interpreter=interpreter)
 
-        install_dir = os.path.join(safe_mkdtemp(), os.path.basename(dist_location))
-        get_pip(interpreter=interpreter).spawn_install_wheel(
-            wheel=dist_location,
-            install_dir=install_dir,
-            target=LocalInterpreter.create(interpreter),
-        ).wait()
-        yield Distribution.load(install_dir)
+
+def install_wheel(
+    wheel,  # type: str
+    interpreter=None,  # type: Optional[PythonInterpreter]
+):
+    # type: (...) -> Distribution
+    install_dir = os.path.join(safe_mkdtemp(), os.path.basename(wheel))
+    get_pip(interpreter=interpreter).spawn_install_wheel(
+        wheel=wheel,
+        install_dir=install_dir,
+        target=LocalInterpreter.create(interpreter),
+    ).wait()
+    return Distribution.load(install_dir)
 
 
 COVERAGE_PREAMBLE = """

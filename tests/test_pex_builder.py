@@ -12,12 +12,11 @@ import pytest
 
 from pex.common import open_zip, safe_open, temporary_dir, touch
 from pex.compatibility import WINDOWS
-from pex.dist_metadata import Distribution
 from pex.executor import Executor
 from pex.layout import Layout
 from pex.pex import PEX
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import PY_VER, WheelBuilder, built_wheel, make_bdist, make_env
+from pex.testing import WheelBuilder, install_wheel, make_bdist, make_env
 from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -34,54 +33,12 @@ with open(sys.argv[1], 'w') as fp:
   fp.write('success')
 """
 
-wheeldeps_exe_main = """
-import sys
-from pyparsing import *
-from p1.my_module import do_something
-do_something()
-
-with open(sys.argv[1], 'w') as fp:
-  fp.write('success')
-"""
-
 
 def test_pex_builder():
     # type: () -> None
-    # test w/ and w/o zipfile dists
     with temporary_dir() as td, make_bdist("p1") as p1:
         pb = write_pex(td, exe_main, dists=[p1])
 
-        success_txt = os.path.join(td, "success.txt")
-        PEX(td, interpreter=pb.interpreter).run(args=[success_txt])
-        assert os.path.exists(success_txt)
-        with open(success_txt) as fp:
-            assert fp.read() == "success"
-
-    # test w/ and w/o zipfile dists
-    with temporary_dir() as td1, temporary_dir() as td2, make_bdist("p1") as p1:
-        pb = write_pex(td1, exe_main, dists=[p1])
-
-        success_txt = os.path.join(td1, "success.txt")
-        PEX(td1, interpreter=pb.interpreter).run(args=[success_txt])
-        assert os.path.exists(success_txt)
-        with open(success_txt) as fp:
-            assert fp.read() == "success"
-
-
-@pytest.mark.skipif(
-    PY_VER >= (3, 10),
-    reason=(
-        "The pyparsing 2.1.10 distribution imports collections.MutableMapping which was (re)moved "
-        "in Python 3.10."
-    ),
-)
-def test_pex_builder_wheeldep():
-    # type: () -> None
-    """Repeat the pex_builder test, but this time include an import of something from a wheel that
-    doesn't come in importable form."""
-    with temporary_dir() as td, make_bdist("p1") as p1:
-        pyparsing_path = "./tests/example_packages/pyparsing-2.1.10-py2.py3-none-any.whl"
-        pb = write_pex(td, wheeldeps_exe_main, dists=[p1, Distribution.load(pyparsing_path)])
         success_txt = os.path.join(td, "success.txt")
         PEX(td, interpreter=pb.interpreter).run(args=[success_txt])
         assert os.path.exists(success_txt)
@@ -285,12 +242,12 @@ def test_pex_builder_script_from_pex_path(tmpdir):
     # type: (Any) -> None
 
     pex_with_script = os.path.join(str(tmpdir), "script.pex")
-    with built_wheel(
+    with make_bdist(
         name="my_project",
         entry_points={"console_scripts": ["my_app = my_project.my_module:do_something"]},
-    ) as my_whl:
+    ) as dist:
         pb = PEXBuilder()
-        pb.add_dist_location(my_whl)
+        pb.add_dist_location(dist.location)
         pb.build(pex_with_script)
 
     pex_file = os.path.join(str(tmpdir), "app.pex")
@@ -306,11 +263,11 @@ def test_pex_builder_setuptools_script(tmpdir):
     # type: (Any) -> None
 
     pex_file = os.path.join(str(tmpdir), "app.pex")
-    with built_wheel(
+    with make_bdist(
         name="my_project",
-    ) as my_whl:
+    ) as dist:
         pb = PEXBuilder()
-        pb.add_dist_location(my_whl)
+        pb.add_dist_location(dist.location)
         pb.set_script("shell_script")
         pb.build(pex_file)
 
@@ -327,10 +284,10 @@ def test_pex_builder_packed(tmpdir):
     source_file = os.path.join(str(tmpdir), "src")
     touch(source_file)
 
-    with ENV.patch(PEX_ROOT=pex_root), built_wheel(name="my_project") as my_whl:
+    with ENV.patch(PEX_ROOT=pex_root), make_bdist(name="my_project") as dist:
         pb = PEXBuilder(copy_mode=CopyMode.SYMLINK)
         pb.add_source(source_file, "a.file")
-        pb.add_dist_location(my_whl)
+        pb.add_dist_location(dist.location)
         pb.set_script("shell_script")
         pb.build(pex_app, layout=Layout.PACKED)
 
@@ -513,7 +470,7 @@ def test_build_compression(
     pb = PEXBuilder()
     pb.info.pex_root = pex_root
     with ENV.patch(PEX_ROOT=pex_root):
-        pb.add_dist_location(WheelBuilder(pex_project_dir).bdist())
+        pb.add_dist_location(install_wheel(WheelBuilder(pex_project_dir).bdist()).location)
     exe = os.path.join(str(tmpdir), "exe.py")
     with open(exe, "w") as fp:
         fp.write("import pex; print(pex.__file__)")

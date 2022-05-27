@@ -19,11 +19,10 @@ from pex.common import (
     safe_mkdtemp,
     safe_open,
     safe_rmtree,
-    temporary_dir,
 )
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
-from pex.dist_metadata import Distribution
+from pex.dist_metadata import Distribution, MetadataError
 from pex.enum import Enum
 from pex.environment import PEXEnvironment
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
@@ -32,8 +31,6 @@ from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_info import PexInfo
-from pex.pip.tool import get_pip
-from pex.targets import LocalInterpreter
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
@@ -433,24 +430,16 @@ class PEXBuilder(object):
                     self._copy_or_link(filename, target, label=dist_name)
         return fingerprint or CacheHelper.dir_hash(path)
 
-    def _add_dist_wheel_file(self, path, dist_name, fingerprint=None):
-        with temporary_dir() as install_dir:
-            get_pip(interpreter=self._interpreter).spawn_install_wheel(
-                wheel=path,
-                install_dir=install_dir,
-                target=LocalInterpreter.create(self.interpreter),
-            ).wait()
-            return self._add_dist_dir(install_dir, dist_name, fingerprint=fingerprint)
-
-    def add_distribution(self, dist, dist_name=None, fingerprint=None):
+    def add_distribution(
+        self,
+        dist,  # type: Distribution
+        fingerprint=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
         """Add a :class:`pex.dist_metadata.Distribution` from its handle.
 
         :param dist: The distribution to add to this environment.
-        :keyword dist_name: (optional) The name of the distribution e.g. 'Flask-0.10.0'.  By default
-          this will be inferred from the distribution itself should it be formatted in a standard
-          way.
         :keyword fingerprint: The fingerprint of the distribution, if already known.
-        :type dist: :class:`pex.dist_metadata.Distribution`
         """
         if dist.location in self._distributions:
             TRACER.log(
@@ -458,48 +447,41 @@ class PEXBuilder(object):
             )
             return
         self._ensure_unfrozen("Adding a distribution")
-        dist_name = dist_name or os.path.basename(dist.location)
+        dist_name = os.path.basename(dist.location)
         self._distributions[dist.location] = dist
 
-        if os.path.isdir(dist.location):
-            dist_hash = self._add_dist_dir(dist.location, dist_name, fingerprint=fingerprint)
-        elif dist.location.endswith(".whl"):
-            dist_hash = self._add_dist_wheel_file(dist.location, dist_name, fingerprint=fingerprint)
-        else:
+        if not os.path.isdir(dist.location):
             raise self.InvalidDistribution(
                 "Unsupported distribution type: {}, pex can only accept dist "
-                "dirs and wheels.".format(dist)
+                "dirs (installed wheels).".format(dist)
             )
+        dist_hash = self._add_dist_dir(dist.location, dist_name, fingerprint=fingerprint)
 
         # add dependency key so that it can rapidly be retrieved from cache
         self._pex_info.add_distribution(dist_name, dist_hash)
 
-    def add_dist_location(self, dist, name=None, fingerprint=None):
+    def add_dist_location(
+        self,
+        dist,  # type: str
+        fingerprint=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
         """Add a distribution by its location on disk.
 
         :param dist: The path to the distribution to add.
-        :keyword name: (optional) The name of the distribution, should the dist directory alone be
-          ambiguous.  Packages contained within site-packages directories may require specifying
-          ``name``.
         :keyword fingerprint: The fingerprint of the distribution, if already known.
-        :raises PEXBuilder.InvalidDistribution: When the path does not contain a matching distribution.
+        :raises PEXBuilder.InvalidDistribution: When the path does not contain a matching
+          distribution.
 
-        PEX supports packed and unpacked .whl and .egg distributions, as well as any distribution
-        supported by setuptools/pkg_resources.
+        PEX supports only installed wheel distributions.
         """
         self._ensure_unfrozen("Adding a distribution")
-        dist_path = dist
-        if os.path.isfile(dist_path) and dist_path.endswith(".whl"):
-            dist_path = os.path.join(safe_mkdtemp(), os.path.basename(dist))
-            get_pip(interpreter=self._interpreter).spawn_install_wheel(
-                wheel=dist,
-                install_dir=dist_path,
-                target=LocalInterpreter.create(self.interpreter),
-            ).wait()
-
-        dist = Distribution.load(dist_path)
-        self.add_distribution(dist, dist_name=name, fingerprint=fingerprint)
-        self.add_requirement(dist.as_requirement())
+        try:
+            distribution = Distribution.load(dist)
+        except MetadataError as e:
+            raise self.InvalidDistribution(str(e))
+        self.add_distribution(distribution, fingerprint=fingerprint)
+        self.add_requirement(distribution.as_requirement())
 
     def _precompile_source(self):
         source_relpaths = [

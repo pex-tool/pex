@@ -26,9 +26,9 @@ from pex.testing import (
     PY27,
     PY310,
     WheelBuilder,
-    built_wheel,
     ensure_python_interpreter,
     environment_as,
+    install_wheel,
     make_bdist,
     run_simple_pex,
     run_simple_pex_test,
@@ -257,19 +257,19 @@ def test_site_libs_excludes_prefix():
 @pytest.mark.parametrize("project_name", ("my_project", "my-project"))
 def test_pex_script(project_name, zip_safe):
     # type: (str, bool) -> None
-    with built_wheel(name=project_name, zip_safe=zip_safe) as bdist_path:
+    with make_bdist(name=project_name, zip_safe=zip_safe) as bdist:
         env_copy = os.environ.copy()
         env_copy["PEX_SCRIPT"] = "hello_world"
         so, rc = run_simple_pex_test("", env=env_copy)
         assert rc == 1, so.decode("utf-8")
         assert b"Could not find script 'hello_world'" in so
 
-        so, rc = run_simple_pex_test("", env=env_copy, dists=[Distribution.load(bdist_path)])
+        so, rc = run_simple_pex_test("", env=env_copy, dists=[bdist])
         assert rc == 0, so.decode("utf-8")
         assert b"hello world" in so
 
         env_copy["PEX_SCRIPT"] = "shell_script"
-        so, rc = run_simple_pex_test("", env=env_copy, dists=[Distribution.load(bdist_path)])
+        so, rc = run_simple_pex_test("", env=env_copy, dists=[bdist])
         assert rc == 0, so.decode("utf-8")
         assert b"hello world from shell script" in so
 
@@ -374,8 +374,7 @@ def pythonpath_isolation_test():
         }
 
         with temporary_content(dist_content) as project_dir:
-            installer = WheelBuilder(project_dir)
-            foo_bdist = installer.bdist()
+            foo_bdist = install_wheel(WheelBuilder(project_dir).bdist())
 
             exe_contents = textwrap.dedent(
                 """
@@ -394,7 +393,7 @@ def pythonpath_isolation_test():
             )
 
             yield PythonpathIsolationTest(
-                pythonpath=pythonpath, dists=[Distribution.load(foo_bdist)], exe=exe_contents
+                pythonpath=pythonpath, dists=[foo_bdist], exe=exe_contents
             )
 
 
@@ -472,9 +471,8 @@ def test_pex_executable():
         }  # type: Dict[str, Union[str, int]]
         pex_builder = PEXBuilder(path=pex_dir)
         with temporary_content(project_content, perms=0o755) as project_dir:
-            installer = WheelBuilder(project_dir)
-            bdist = installer.bdist()
-            pex_builder.add_dist_location(bdist)
+            bdist = install_wheel(WheelBuilder(project_dir).bdist())
+            pex_builder.add_dist_location(bdist.location)
             pex_builder.set_executable(os.path.join(pex_dir, "exe.py"))
             pex_builder.freeze()
 

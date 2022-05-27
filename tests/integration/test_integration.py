@@ -225,8 +225,8 @@ def test_pex_python_symlink():
         assert rc == 0
 
 
-def test_entry_point_exit_code():
-    # type: () -> None
+def test_entry_point_exit_code(tmpdir):
+    # type: (Any) -> None
     setup_py = dedent(
         """
         from setuptools import setup
@@ -247,16 +247,14 @@ def test_entry_point_exit_code():
         """
         def do_something():
           return '%s'
-  """
+        """
         % error_msg
     )
 
     with temporary_content({"setup.py": setup_py, "my_app.py": my_app}) as project_dir:
-        installer = WheelBuilder(project_dir)
-        dist = installer.bdist()
-        so, rc = run_simple_pex_test(
-            "", env=make_env(PEX_SCRIPT="my_app"), dists=[Distribution.load(dist)]
-        )
+        my_app_pex = os.path.join(str(tmpdir), "my_app.pex")
+        run_pex_command(args=[project_dir, "-o", my_app_pex]).assert_success()
+        so, rc = run_simple_pex(my_app_pex, env=make_env(PEX_SCRIPT="my_app"))
         assert so.decode("utf-8").strip() == error_msg
         assert rc == 1
 
