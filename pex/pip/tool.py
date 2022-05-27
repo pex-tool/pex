@@ -10,7 +10,6 @@ import pkgutil
 import re
 import subprocess
 import sys
-from abc import abstractmethod
 from collections import defaultdict, deque
 
 from pex import dist_metadata, targets, third_party
@@ -28,6 +27,7 @@ from pex.pep_425 import CompatibilityTags
 from pex.pep_440 import Version
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
+from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.platforms import Platform
 from pex.requirements import VCS, VCSScheme, parse_scheme
@@ -37,7 +37,7 @@ from pex.resolve.resolver_configuration import ResolverVersion
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target
 from pex.third_party import isolated
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, Generic
+from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.variables import ENV
 
@@ -57,7 +57,6 @@ if TYPE_CHECKING:
         Sequence,
         Set,
         Tuple,
-        TypeVar,
         Union,
     )
 
@@ -199,62 +198,11 @@ class PackageIndexConfiguration(object):
 
 
 if TYPE_CHECKING:
-    _T = TypeVar("_T")
-
-
-class _LogAnalyzer(object):
-    class Complete(Generic["_T"]):
-        def __init__(self, data=None):
-            # type: (Optional[_T]) -> None
-            self.data = data
-
-    class Continue(Generic["_T"]):
-        def __init__(self, data=None):
-            # type: (Optional[_T]) -> None
-            self.data = data
-
-    @abstractmethod
-    def should_collect(self, returncode):
-        # type: (int) -> bool
-        """"""
-
-    @abstractmethod
-    def analyze(self, line):
-        # type: (str) -> Union[Complete, Continue]
-        """Analyze the given log line.
-
-        Returns a value indicating whether or not analysis is complete.
-        """
-
-    def analysis_completed(self):
-        # type: () -> None
-        """Called to indicate the log analysis is complete."""
-
-
-class ErrorMessage(str):
-    pass
-
-
-if TYPE_CHECKING:
-    ErrorAnalysis = Union[_LogAnalyzer.Complete[ErrorMessage], _LogAnalyzer.Continue[ErrorMessage]]
-
-
-class _ErrorAnalyzer(_LogAnalyzer):
-    def should_collect(self, returncode):
-        # type: (int) -> bool
-        return returncode != 0
-
-    @abstractmethod
-    def analyze(self, line):
-        # type: (str) -> ErrorAnalysis
-        """Analyze the given log line.
-
-        Returns a value indicating whether or not analysis is complete.
-        """
+    from pex.pip.log_analyzer import ErrorAnalysis
 
 
 @attr.s
-class _Issue9420Analyzer(_ErrorAnalyzer):
+class _Issue9420Analyzer(ErrorAnalyzer):
     # Works around: https://github.com/pypa/pip/issues/9420
 
     _strip = attr.ib(default=None)  # type: Optional[int]
@@ -286,7 +234,7 @@ class _Issue9420Analyzer(_ErrorAnalyzer):
 
 
 @attr.s(frozen=True)
-class _Issue10050Analyzer(_ErrorAnalyzer):
+class _Issue10050Analyzer(ErrorAnalyzer):
     # Part of the workaround for: https://github.com/pypa/pip/issues/10050
 
     _platform = attr.ib()  # type: Platform
@@ -316,7 +264,7 @@ class _VCSPartialInfo(object):
     via = attr.ib()  # type: Tuple[str, ...]
 
 
-class Locker(_LogAnalyzer):
+class Locker(LogAnalyzer):
     def __init__(
         self,
         lock_request,  # type: LockRequest
@@ -366,7 +314,7 @@ class Locker(_LogAnalyzer):
         return pin, partial_artifact
 
     def analyze(self, line):
-        # type: (str) -> _LogAnalyzer.Continue[None]
+        # type: (str) -> LogAnalyzer.Continue[None]
 
         # The log sequence for processing a resolved requirement is as follows (log lines irrelevant
         # to our purposes omitted):
@@ -516,45 +464,6 @@ class Locker(_LogAnalyzer):
                 if resolved_requirement.pin in self._saved
             )
         )
-
-
-class _LogScrapeJob(Job):
-    def __init__(
-        self,
-        command,  # type: Iterable[str]
-        process,  # type: subprocess.Popen
-        log,  # type: str
-        log_analyzers,  # type: Iterable[_LogAnalyzer]
-    ):
-        self._log = log
-        self._log_analyzers = list(log_analyzers)
-        super(_LogScrapeJob, self).__init__(command, process)
-
-    def _check_returncode(self, stderr=None):
-        activated_analyzers = [
-            analyzer
-            for analyzer in self._log_analyzers
-            if analyzer.should_collect(self._process.returncode)
-        ]
-        if activated_analyzers:
-            collected = []
-            with open(self._log, "r") as fp:
-                for line in fp:
-                    if not activated_analyzers:
-                        break
-                    for index, analyzer in enumerate(activated_analyzers):
-                        result = analyzer.analyze(line)
-                        if isinstance(result.data, ErrorMessage):
-                            collected.append(result.data)
-                        if isinstance(result, _LogAnalyzer.Complete):
-                            activated_analyzers.pop(index).analysis_completed()
-                            if not activated_analyzers:
-                                break
-            for analyzer in activated_analyzers:
-                analyzer.analysis_completed()
-            os.unlink(self._log)
-            stderr = (stderr or b"") + "".join(collected).encode("utf-8")
-        super(_LogScrapeJob, self)._check_returncode(stderr=stderr)
 
 
 @attr.s(frozen=True)
@@ -861,7 +770,7 @@ class Pip(object):
         if requirements:
             download_cmd.extend(requirements)
 
-        log_analyzers = []  # type: List[_LogAnalyzer]
+        log_analyzers = []  # type: List[LogAnalyzer]
 
         if locker:
             log_analyzers.append(locker)
@@ -948,7 +857,7 @@ class Pip(object):
             **popen_kwargs
         )
         if log:
-            return _LogScrapeJob(command, process, log, log_analyzers)
+            return LogScrapeJob(command, process, log, log_analyzers)
         else:
             return Job(command, process)
 
