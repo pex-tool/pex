@@ -29,6 +29,7 @@ from pex.testing import (
     PY37,
     WheelBuilder,
     ensure_python_interpreter,
+    install_wheel,
     make_bdist,
     temporary_content,
     temporary_filename,
@@ -146,8 +147,8 @@ def assert_force_local_implicit_ns_packages_issues_598(
     def add_wheel(builder, content):
         # type: (PEXBuilder, Dict[str, str]) -> None
         with temporary_content(content) as project:
-            dist = WheelBuilder(project, interpreter=builder.interpreter).bdist()
-            builder.add_dist_location(dist)
+            dist = install_wheel(WheelBuilder(project, interpreter=builder.interpreter).bdist())
+            builder.add_dist_location(dist.location)
 
     def add_sources(builder, content):
         # type: (PEXBuilder, Dict[str, str]) -> None
