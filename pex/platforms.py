@@ -234,14 +234,7 @@ class Platform(object):
                     raise AssertionError("Finished with count {}.".format(count))
 
         job = SpawnedJob.stdout(
-            job=get_pip().spawn_debug(
-                platform=self.platform,
-                impl=self.impl,
-                version=self.version,
-                abi=self.abi,
-                manylinux=manylinux,
-            ),
-            result_func=parse_tags,
+            job=get_pip().spawn_debug(platform=self, manylinux=manylinux), result_func=parse_tags
         )
         return job.await_result()
 

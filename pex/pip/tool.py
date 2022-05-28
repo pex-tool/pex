@@ -4,37 +4,30 @@
 
 from __future__ import absolute_import, print_function
 
-import json
 import os
-import pkgutil
 import re
 import subprocess
 import sys
-from collections import defaultdict, deque
+from collections import deque
+from textwrap import dedent
 
 from pex import dist_metadata, targets, third_party
 from pex.auth import PasswordEntry
 from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
-from pex.compatibility import unquote, urlparse
-from pex.dist_metadata import ProjectNameAndVersion, Requirement
+from pex.compatibility import urlparse
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import iter_compatible_versions
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
-from pex.orderedset import OrderedSet
 from pex.pep_376 import Record
 from pex.pep_425 import CompatibilityTags
-from pex.pep_440 import Version
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
+from pex.pip import foreign_platform
+from pex.pip.download_observer import DownloadObserver
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
-from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.platforms import Platform
-from pex.requirements import VCS, VCSScheme, parse_scheme
-from pex.resolve.locked_resolve import LockRequest, LockStyle
-from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target
+from pex.targets import LocalInterpreter, Target
 from pex.third_party import isolated
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -45,28 +38,18 @@ if TYPE_CHECKING:
     from typing import (
         Any,
         Callable,
-        DefaultDict,
         Dict,
         Iterable,
         Iterator,
         List,
         Mapping,
         Optional,
-        Pattern,
-        Protocol,
         Sequence,
-        Set,
+        Text,
         Tuple,
-        Union,
     )
 
     import attr  # vendor:skip
-
-    class CSVWriter(Protocol):
-        def writerow(self, row):
-            # type: (Iterable[Union[str, int]]) -> None
-            pass
-
 else:
     from pex.third_party import attr
 
@@ -234,246 +217,18 @@ class _Issue9420Analyzer(ErrorAnalyzer):
 
 
 @attr.s(frozen=True)
-class _Issue10050Analyzer(ErrorAnalyzer):
-    # Part of the workaround for: https://github.com/pypa/pip/issues/10050
-
-    _platform = attr.ib()  # type: Platform
-
-    def analyze(self, line):
-        # type: (str) -> ErrorAnalysis
-        # N.B.: Pip --log output looks like:
-        # 2021-06-20T19:06:00,981 pip._vendor.packaging.markers.UndefinedEnvironmentName: 'python_full_version' does not exist in evaluation environment.
-        match = re.match(
-            r"^[^ ]+ pip._vendor.packaging.markers.UndefinedEnvironmentName: "
-            r"(?P<missing_marker>.*)\.$",
-            line,
-        )
-        if match:
-            return self.Complete(
-                ErrorMessage(
-                    "Failed to resolve for platform {}. Resolve requires evaluation of unknown "
-                    "environment marker: {}.".format(self._platform, match.group("missing_marker"))
-                )
-            )
-        return self.Continue()
-
-
-@attr.s(frozen=True)
-class _VCSPartialInfo(object):
-    vcs = attr.ib()  # type: VCS.Value
-    via = attr.ib()  # type: Tuple[str, ...]
-
-
-class Locker(LogAnalyzer):
-    def __init__(
-        self,
-        lock_request,  # type: LockRequest
-        download_dir,  # type: str
-    ):
-        # type: (...) -> None
-        self._lock_request = lock_request
-        self._download_dir = download_dir
-
-        self._saved = set()  # type: Set[Pin]
-
-        self._resolved_requirements = []  # type: List[ResolvedRequirement]
-        self._links = defaultdict(OrderedSet)  # type: DefaultDict[Pin, OrderedSet[PartialArtifact]]
-        self._done_building_re = None  # type: Optional[Pattern]
-        self._vcs_partial_info = None  # type: Optional[_VCSPartialInfo]
-
-    @property
-    def style(self):
-        # type: () -> LockStyle.Value
-        return self._lock_request.lock_configuration.style
-
-    @property
-    def requires_python(self):
-        # type: () -> Tuple[str, ...]
-        return self._lock_request.lock_configuration.requires_python
-
-    def should_collect(self, returncode):
-        # type: (int) -> bool
-        return returncode == 0
-
-    @staticmethod
-    def _extract_resolve_data(url):
-        # type: (str) -> Tuple[Pin, PartialArtifact]
-
-        fingerprint = None  # type: Optional[Fingerprint]
-        fingerprint_match = re.search(r"(?P<url>[^#]+)#(?P<algorithm>[^=]+)=(?P<hash>.*)$", url)
-        if fingerprint_match:
-            url = fingerprint_match.group("url")
-            algorithm = fingerprint_match.group("algorithm")
-            hash_ = fingerprint_match.group("hash")
-            fingerprint = Fingerprint(algorithm=algorithm, hash=hash_)
-
-        pin = Pin.canonicalize(
-            ProjectNameAndVersion.from_filename(unquote(urlparse.urlparse(url).path))
-        )
-        partial_artifact = PartialArtifact(url, fingerprint)
-        return pin, partial_artifact
-
-    def analyze(self, line):
-        # type: (str) -> LogAnalyzer.Continue[None]
-
-        # The log sequence for processing a resolved requirement is as follows (log lines irrelevant
-        # to our purposes omitted):
-        #
-        #   1.) "... Found link <url1> ..."
-        #   ...
-        #   1.) "... Found link <urlN> ..."
-        #   2.) "... Added <requirement> from <url> ... to build tracker ..."
-        #   3.) Lines related to extracting metadata from <requirement>'s artifact
-        # * 4.) "... Source in <tmp> has version <version>, which satisfies requirement "
-        #       "<requirement> from <url> ..."
-        #   5.) "... Removed <requirement> from <url> ... from build tracker ..."
-        #   6.) "... Saved <download dir>/<artifact file>
-
-        # The lines in section 3 can contain this same pattern of lines if the metadata extraction
-        # proceeds via PEP-517 which recursively uses Pip to resolve build dependencies. We want to
-        # ignore this recursion since a lock should only contain install requirements and not build
-        # requirements (If a build proceeds differently tomorrow than today then we don't care as
-        # long as the final built artifact hashes the same. In other words, we completely rely on a
-        # cryptographic fingerprint for reproducibility and security guarantees from a lock).
-
-        # The section 4 line will be present for requirements that represent either local source
-        # directories or VCS requirements and can be used to learn their version.
-
-        if self._done_building_re:
-            if self._done_building_re.search(line):
-                self._done_building_re = None
-            elif self._vcs_partial_info is not None:
-                match = re.search(
-                    r"Source in .+ has version (?P<version>[^\s]+), which satisfies requirement "
-                    r"(?P<requirement>.+) from (?P<url>[^\s]+)(?: \(from .+)?$",
-                    line,
-                )
-                if match:
-                    vcs_partial_info = self._vcs_partial_info
-                    self._vcs_partial_info = None
-
-                    raw_requirement = match.group("requirement")
-                    requirement = Requirement.parse(raw_requirement)
-                    version = match.group("version")
-
-                    # VCS requirements are satisfied by a singular source; so we need not consult
-                    # links collected in this round.
-                    self._resolved_requirements.append(
-                        ResolvedRequirement(
-                            requirement=requirement,
-                            pin=Pin(
-                                project_name=requirement.project_name, version=Version(version)
-                            ),
-                            artifact=PartialArtifact(
-                                url=match.group("url"),
-                                fingerprint=fingerprint_downloaded_vcs_archive(
-                                    download_dir=self._download_dir,
-                                    project_name=str(requirement.project_name),
-                                    version=version,
-                                    vcs=vcs_partial_info.vcs,
-                                ),
-                                verified=True,
-                            ),
-                            via=vcs_partial_info.via,
-                        )
-                    )
-            return self.Continue()
-
-        match = re.search(
-            r"Added (?P<requirement>.+) from (?P<url>[^\s]+) (?:\(from (?P<from>.*)\) )?to build "
-            r"tracker",
-            line,
-        )
-        if match:
-            raw_requirement = match.group("requirement")
-            url = match.group("url")
-            self._done_building_re = re.compile(
-                r"Removed {requirement} from {url} (?:.* )?from build tracker".format(
-                    requirement=re.escape(raw_requirement), url=re.escape(url)
-                )
-            )
-
-            from_ = match.group("from")
-            if from_:
-                via = tuple(from_.split("->"))
-            else:
-                via = ()
-
-            parsed_scheme = parse_scheme(urlparse.urlparse(url).scheme)
-            if isinstance(parsed_scheme, VCSScheme):
-                # We'll get the remaining information we need to record the resolved VCS requirement
-                # in a later log line; so just save what we have so far.
-                self._vcs_partial_info = _VCSPartialInfo(vcs=parsed_scheme.vcs, via=via)
-            else:
-                requirement = Requirement.parse(raw_requirement)
-                project_name_and_version, partial_artifact = self._extract_resolve_data(url)
-
-                additional_artifacts = self._links[project_name_and_version]
-                additional_artifacts.discard(partial_artifact)
-
-                self._resolved_requirements.append(
-                    ResolvedRequirement(
-                        requirement=requirement,
-                        pin=project_name_and_version,
-                        artifact=partial_artifact,
-                        additional_artifacts=tuple(additional_artifacts),
-                        via=via,
-                    )
-                )
-            return self.Continue()
-
-        match = re.search(r"Saved (?P<file_path>.+)$", line)
-        if match:
-            self._saved.add(
-                Pin.canonicalize(
-                    ProjectNameAndVersion.from_filename(os.path.basename(match.group("file_path")))
-                )
-            )
-            return self.Continue()
-
-        if self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
-            match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
-            if match:
-                project_name_and_version, partial_artifact = self._extract_resolve_data(
-                    match.group("url")
-                )
-                self._links[project_name_and_version].add(partial_artifact)
-                return self.Continue()
-
-        if LockStyle.UNIVERSAL == self.style:
-            match = re.search(
-                r"Skipping link: none of the wheel's tags \([^)]+\) are compatible "
-                r"\(run pip debug --verbose to show compatible tags\): "
-                r"(?P<url>[^\s]+) ",
-                line,
-            )
-            if match:
-                project_name_and_version, partial_artifact = self._extract_resolve_data(
-                    match.group("url")
-                )
-                self._links[project_name_and_version].add(partial_artifact)
-
-        return self.Continue()
-
-    def analysis_completed(self):
-        # type: () -> None
-        self._lock_request.resolve_handler(
-            tuple(
-                resolved_requirement
-                for resolved_requirement in self._resolved_requirements
-                if resolved_requirement.pin in self._saved
-            )
-        )
-
-
-@attr.s(frozen=True)
 class Pip(object):
-    # N.B.: The following environment variables are used by the to control Pip at runtime and must
-    # be kept in-sync with `runtime_patches.py`.
-    _PATCHED_MARKERS_FILE_ENV_VAR_NAME = "_PEX_PATCHED_MARKERS_FILE"
-    _PATCHED_TAGS_FILE_ENV_VAR_NAME = "_PEX_PATCHED_TAGS_FILE"
-    _SKIP_MARKERS_ENV_VAR_NAME = "_PEX_SKIP_MARKERS"
-    _PYTHON_VERSIONS_FILE_ENV_VAR_NAME = "_PEX_PYTHON_VERSIONS_FILE"
+    _PATCHES_MODULE_ENV_VAR_NAME = "_PEX_PIP_RUNTIME_PATCHES"
+
+    @classmethod
+    def _patch_code(cls, code):
+        # type: (Text) -> Mapping[str, str]
+        patches_dir = safe_mkdtemp()
+        patches_module = "_pex_pip_patches"
+        python_file = "{patches_module}.py".format(patches_module=patches_module)
+        with open(os.path.join(patches_dir, python_file), "wb") as code_fp:
+            code_fp.write(code.encode("utf-8"))
+        return {"PEX_EXTRA_SYS_PATH": patches_dir, cls._PATCHES_MODULE_ENV_VAR_NAME: patches_module}
 
     @classmethod
     def create(
@@ -498,8 +253,23 @@ class Pip(object):
                 isolated_pip_builder.info.venv = True
                 for dist_location in third_party.expose(["pip", "setuptools", "wheel"]):
                     isolated_pip_builder.add_dist_location(dist=dist_location)
-                with named_temporary_file(prefix="", suffix=".py", mode="wb") as fp:
-                    fp.write(pkgutil.get_data(__name__, "runtime_patches.py"))
+                with named_temporary_file(prefix="", suffix=".py", mode="w") as fp:
+                    fp.write(
+                        dedent(
+                            """\
+                            import os
+                            import runpy
+                            
+                            patches_module = os.environ.pop({patches_module_env_var_name!r}, None)
+                            if patches_module:
+                                # Apply runtime patches to Pip to work around issues or else bend
+                                # Pip to Pex's needs.
+                                __import__(patches_module)
+                            
+                            runpy.run_module(mod_name="pip", run_name="__main__", alter_sys=True)
+                            """
+                        ).format(patches_module_env_var_name=cls._PATCHES_MODULE_ENV_VAR_NAME)
+                    )
                     fp.close()
                     isolated_pip_builder.set_executable(fp.name, "__pex_patched_pip__.py")
                 isolated_pip_builder.freeze()
@@ -658,47 +428,6 @@ class Pip(object):
         )
         return Job(command=command, process=process, finalizer=finalizer)
 
-    def _iter_platform_args(
-        self,
-        platform,  # type: str
-        impl,  # type: str
-        version,  # type: str
-        abi,  # type: str
-        manylinux=None,  # type: Optional[str]
-    ):
-        # type: (...) -> Iterator[str]
-
-        # N.B.: Pip supports passing multiple --platform and --abi. We pass multiple --platform to
-        # support the following use case 1st surfaced by Twitter in 2018:
-        #
-        # An organization has its own index or find-links repository where it publishes wheels built
-        # for linux machines it runs. Critically, all those machines present uniform kernel and
-        # library ABIs for the purposes of python code that organization runs on those machines.
-        # As such, the organization can build non-manylinux-compliant wheels and serve these wheels
-        # from its private index / find-links repository with confidence these wheels will work on
-        # the machines it controls. This is in contrast to the public PyPI index which does not
-        # allow non-manylinux-compliant wheels to be uploaded at all since the wheels it serves can
-        # be used on unknown target linux machines (for background on this, see:
-        # https://www.python.org/dev/peps/pep-0513/#rationale). If that organization wishes to
-        # consume both its own custom-built wheels as well as other manylinux-compliant wheels in
-        # the same application, it needs to advertise that the target machine supports both
-        # `linux_x86_64` wheels and `manylinux2014_x86_64` wheels (for example).
-        if manylinux and platform.startswith("linux"):
-            yield "--platform"
-            yield platform.replace("linux", manylinux, 1)
-
-        yield "--platform"
-        yield platform
-
-        yield "--implementation"
-        yield impl
-
-        yield "--python-version"
-        yield version
-
-        yield "--abi"
-        yield abi
-
     def spawn_download_distributions(
         self,
         download_dir,  # type: str
@@ -715,11 +444,10 @@ class Pip(object):
         prefer_older_binary=False,  # type: bool
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
-        lock_request=None,  # type: Optional[LockRequest]
+        observer=None,  # type: Optional[DownloadObserver]
     ):
         # type: (...) -> Job
         target = target or targets.current()
-        locker = Locker(lock_request, download_dir) if lock_request else None
 
         if not use_wheel:
             if not build:
@@ -770,61 +498,29 @@ class Pip(object):
         if requirements:
             download_cmd.extend(requirements)
 
-        log_analyzers = []  # type: List[LogAnalyzer]
-
-        if locker:
-            log_analyzers.append(locker)
-
-        interpreter = target.get_interpreter()
-        if locker and LockStyle.UNIVERSAL == locker.style:
-            extra_env[self._SKIP_MARKERS_ENV_VAR_NAME] = "1"
-            if locker.requires_python:
-                version_info_dir = safe_mkdtemp()
-                with TRACER.timed(
-                    "Calculating compatible python versions for {}".format(locker.requires_python)
-                ):
-                    python_full_versions = list(iter_compatible_versions(locker.requires_python))
-                with open(os.path.join(version_info_dir, "python_full_versions.json"), "w") as fp:
-                    json.dump(python_full_versions, fp)
-                extra_env[self._PYTHON_VERSIONS_FILE_ENV_VAR_NAME] = fp.name
-        elif not isinstance(target, LocalInterpreter):
-            # Pip evaluates environment markers in the context of the ambient interpreter instead of
-            # failing when encountering them, ignoring them or doing what we do here: evaluate those
-            # environment markers we know but fail for those we don't.
-            patches_dir = safe_mkdtemp()
-            patched_environment = target.marker_environment.as_dict()
-            with open(os.path.join(patches_dir, "markers.json"), "w") as markers_fp:
-                json.dump(patched_environment, markers_fp)
-            extra_env[self._PATCHED_MARKERS_FILE_ENV_VAR_NAME] = markers_fp.name
-
-            if isinstance(target, AbbreviatedPlatform):
-                # We're either resolving for a different host / platform or a different interpreter
-                # for the current platform that we have no access to; so we need to let pip know
-                # and not otherwise pickup platform info from the interpreter we execute pip with.
-                # Pip will determine the compatible platform tags using this information.
-                platform = target.platform
-                manylinux = target.manylinux
-                download_cmd.extend(
-                    self._iter_platform_args(
-                        platform=platform.platform,
-                        impl=platform.impl,
-                        version=platform.version,
-                        abi=platform.abi,
-                        manylinux=manylinux,
-                    )
-                )
-            elif isinstance(target, CompletePlatform):
-                compatible_tags = target.supported_tags
-                if compatible_tags:
-                    with open(os.path.join(patches_dir, "tags.json"), "w") as tags_fp:
-                        json.dump(compatible_tags.to_string_list(), tags_fp)
-                    extra_env[self._PATCHED_TAGS_FILE_ENV_VAR_NAME] = tags_fp.name
-
-            log_analyzers.append(_Issue10050Analyzer(platform=target.platform))
-            TRACER.log(
-                "Patching environment markers for {} with {}".format(target, patched_environment),
-                V=3,
+        foreign_platform_observer = foreign_platform.patch(target)
+        if (
+            foreign_platform_observer
+            and foreign_platform_observer.patch.code
+            and observer
+            and observer.patch.code
+        ):
+            raise ValueError(
+                "Can only have one patch for Pip code, but, in addition to patching for a foreign "
+                "platform, asked to patch code for {observer}.".format(observer=observer)
             )
+
+        log_analyzers = []  # type: List[LogAnalyzer]
+        code = None  # type: Optional[Text]
+        for obs in (foreign_platform_observer, observer):
+            if obs:
+                log_analyzers.append(obs.analyzer)
+                download_cmd.extend(obs.patch.args)
+                extra_env.update(obs.patch.env)
+                code = code or obs.patch.code
+
+        if code:
+            extra_env.update(self._patch_code(code))
 
         # The Pip 2020 resolver hides useful dependency conflict information in stdout interspersed
         # with other information we want to suppress. We jump though some hoops here to get at that
@@ -851,7 +547,7 @@ class Pip(object):
             download_cmd,
             package_index_configuration=package_index_configuration,
             cache=cache,
-            interpreter=interpreter,
+            interpreter=target.get_interpreter(),
             pip_verbosity=0,
             extra_env=extra_env,
             **popen_kwargs
@@ -962,10 +658,11 @@ class Pip(object):
         compatible_tags = CompatibilityTags.from_wheel(wheel).extend(
             interpreter.identity.supported_tags
         )
-        with open(os.path.join(safe_mkdtemp(), "tags.json"), "w") as tags_fp:
-            json.dump(compatible_tags.to_string_list(), tags_fp)
-        extra_env = {self._PATCHED_TAGS_FILE_ENV_VAR_NAME: tags_fp.name}
-
+        patch = foreign_platform.patch_tags(compatible_tags)
+        extra_env = dict(patch.env)
+        if patch.code:
+            extra_env.update(self._patch_code(patch.code))
+        install_cmd.extend(patch.args)
         install_cmd.append("--compile" if compile else "--no-compile")
         install_cmd.append(wheel)
 
@@ -989,10 +686,7 @@ class Pip(object):
 
     def spawn_debug(
         self,
-        platform,  # type: str
-        impl,  # type: str
-        version,  # type: str
-        abi,  # type: str
+        platform,  # type: Platform
         manylinux=None,  # type: Optional[str]
     ):
         # type: (...) -> Job
@@ -1006,15 +700,7 @@ class Pip(object):
         # only if the Pip command fails, which is what we want.
 
         debug_command = ["debug"]
-        debug_command.extend(
-            self._iter_platform_args(
-                platform=platform,
-                impl=impl,
-                version=version,
-                abi=abi,
-                manylinux=manylinux,
-            )
-        )
+        debug_command.extend(foreign_platform.iter_platform_args(platform, manylinux=manylinux))
         return self._spawn_pip_isolated_job(
             debug_command, pip_verbosity=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )

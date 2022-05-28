@@ -73,10 +73,7 @@ def test_no_duplicate_constraints_pex_warnings(
     with warnings.catch_warnings(record=True) as events:
         pip = create_pip(current_interpreter)
 
-    platform = current_interpreter.platform
-    pip.spawn_debug(
-        platform=platform.platform, impl=platform.impl, version=platform.version, abi=platform.abi
-    ).wait()
+    pip.spawn_debug(platform=current_interpreter.platform).wait()
 
     assert 0 == len([event for event in events if "constraints.txt" in str(event)]), (
         "Expected no duplicate constraints warnings to be emitted when creating a Pip venv but "

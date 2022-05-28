@@ -9,6 +9,7 @@ import hashlib
 import itertools
 import os
 import zipfile
+from abc import abstractmethod
 from collections import OrderedDict, defaultdict
 
 from pex import targets
@@ -22,9 +23,10 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
+from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration, get_pip
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockRequest
+from pex.resolve.locked_resolve import LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import ResolvedRequirement
 from pex.resolve.resolver_configuration import ResolverVersion
@@ -105,7 +107,7 @@ class DownloadRequest(object):
     prefer_older_binary = attr.ib(default=False)  # type: bool
     use_pep517 = attr.ib(default=None)  # type: Optional[bool]
     build_isolation = attr.ib(default=True)  # type: bool
-    lock_configuration = attr.ib(default=None)  # type: Optional[LockConfiguration]
+    observer = attr.ib(default=None)  # type: Optional[ResolveObserver]
 
     def iter_local_projects(self):
         # type: () -> Iterator[BuildRequest]
@@ -121,7 +123,7 @@ class DownloadRequest(object):
             return []
 
         dest = dest or safe_mkdtemp()
-        spawn_download = functools.partial(self._spawn_download, dest, max_parallel_jobs)
+        spawn_download = functools.partial(self._spawn_download, dest)
         with TRACER.timed("Resolving for:\n  {}".format("\n  ".join(map(str, self.targets)))):
             return list(
                 execute_parallel(
@@ -135,46 +137,17 @@ class DownloadRequest(object):
     def _spawn_download(
         self,
         resolved_dists_dir,  # type: str
-        max_parallel_jobs,  # type: Optional[int]
         target,  # type: Target
     ):
         # type: (...) -> SpawnedJob[DownloadResult]
         download_dir = os.path.join(resolved_dists_dir, target.id)
+        observer = (
+            self.observer.observe_download(target=target, download_dir=download_dir)
+            if self.observer
+            else None
+        )
+
         download_result = DownloadResult(target, download_dir)
-
-        resolve_handler = None  # type: Optional[_ResolveHandler]
-        resolve_request = None  # type: Optional[LockRequest]
-        if self.lock_configuration:
-            network_configuration = (
-                self.package_index_configuration.network_configuration
-                if self.package_index_configuration
-                else NetworkConfiguration()
-            )
-            password_entries = (
-                self.package_index_configuration.password_entries
-                if self.package_index_configuration
-                else ()
-            )
-            resolve_handler = _ResolveHandler(
-                download_result=download_result,
-                wheel_builder=WheelBuilder(
-                    package_index_configuration=self.package_index_configuration,
-                    cache=self.cache,
-                    prefer_older_binary=self.prefer_older_binary,
-                    use_pep517=self.use_pep517,
-                    build_isolation=self.build_isolation,
-                ),
-                url_fetcher=URLFetcher(
-                    network_configuration=network_configuration,
-                    handle_file_urls=True,
-                    password_entries=password_entries,
-                ),
-                max_parallel_jobs=max_parallel_jobs,
-            )
-            resolve_request = LockRequest(
-                lock_configuration=self.lock_configuration, resolve_handler=resolve_handler
-            )
-
         download_job = get_pip(interpreter=target.get_interpreter()).spawn_download_distributions(
             download_dir=download_dir,
             requirements=self.requirements,
@@ -190,11 +163,10 @@ class DownloadRequest(object):
             prefer_older_binary=self.prefer_older_binary,
             use_pep517=self.use_pep517,
             build_isolation=self.build_isolation,
-            lock_request=resolve_request,
+            observer=observer,
         )
 
-        result_func = resolve_handler.lock if resolve_handler else lambda: download_result
-        return SpawnedJob.and_then(job=download_job, result_func=result_func)
+        return SpawnedJob.wait(job=download_job, result=download_result)
 
 
 @attr.s(frozen=True)
@@ -899,7 +871,6 @@ def resolve(
     max_parallel_jobs=None,  # type: Optional[int]
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
-    lock_configuration=None,  # type: Optional[LockConfiguration]
 ):
     # type: (...) -> Installed
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
@@ -945,7 +916,6 @@ def resolve(
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
     :keyword verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
-    :keyword lock_configuration: If a lock should be generated for the resolve - its configuration.
     :returns: The installed distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
@@ -1009,14 +979,10 @@ def resolve(
         build_isolation=build_isolation,
         dest=workspace,
         max_parallel_jobs=max_parallel_jobs,
-        lock_configuration=lock_configuration,
     )
 
     install_requests = []  # type: List[InstallRequest]
-    locks = []  # type: List[LockedResolve]
     for download_result in download_results:
-        if download_result.locked_resolve:
-            locks.append(download_result.locked_resolve)
         build_requests.extend(download_result.build_requests())
         install_requests.extend(download_result.install_requests())
 
@@ -1039,7 +1005,7 @@ def resolve(
             ignore_errors=ignore_errors, workspace=workspace, max_parallel_jobs=max_parallel_jobs
         )
     )
-    return Installed(installed_distributions=installed_distributions, locks=tuple(locks))
+    return Installed(installed_distributions=installed_distributions)
 
 
 def _download_internal(
@@ -1059,7 +1025,7 @@ def _download_internal(
     build_isolation=True,  # type: bool
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
-    lock_configuration=None,  # type: Optional[LockConfiguration]
+    observer=None,  # type: Optional[ResolveObserver]
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
 
@@ -1079,7 +1045,7 @@ def _download_internal(
         prefer_older_binary=prefer_older_binary,
         use_pep517=use_pep517,
         build_isolation=build_isolation,
-        lock_configuration=lock_configuration,
+        observer=observer,
     )
 
     local_projects = list(download_request.iter_local_projects())
@@ -1109,7 +1075,17 @@ class LocalDistribution(object):
 @attr.s(frozen=True)
 class Downloaded(object):
     local_distributions = attr.ib()  # type: Tuple[LocalDistribution, ...]
-    locked_resolves = attr.ib(default=())  # type: Tuple[LockedResolve, ...]
+
+
+class ResolveObserver(object):
+    @abstractmethod
+    def observe_download(
+        self,
+        target,
+        download_dir,
+    ):
+        # type: (...) -> DownloadObserver
+        raise NotImplementedError()
 
 
 def download(
@@ -1132,7 +1108,7 @@ def download(
     build_isolation=True,  # type: bool
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
-    lock_configuration=None,  # type: Optional[LockConfiguration]
+    observer=None,  # type: Optional[ResolveObserver]
 ):
     # type: (...) -> Downloaded
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
@@ -1172,7 +1148,7 @@ def download(
     :keyword dest: A directory path to download distributions to.
     :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
-    :keyword lock_configuration: If a lock should be generated for the download - its configuration.
+    :keyword observer: An optional observer of the download internals.
     :returns: The local distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
     :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
@@ -1203,7 +1179,7 @@ def download(
         build_isolation=build_isolation,
         dest=dest,
         max_parallel_jobs=max_parallel_jobs,
-        lock_configuration=lock_configuration,
+        observer=observer,
     )
 
     local_distributions = []
@@ -1234,9 +1210,7 @@ def download(
                 )
             )
 
-    return Downloaded(
-        local_distributions=tuple(local_distributions), locked_resolves=tuple(locked_resolves)
-    )
+    return Downloaded(local_distributions=tuple(local_distributions))
 
 
 def install(
