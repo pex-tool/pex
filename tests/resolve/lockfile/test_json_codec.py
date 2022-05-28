@@ -15,7 +15,9 @@ from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
-from pex.resolve.lockfile import Lockfile, ParseError, PathMappingError, json_codec
+from pex.resolve.lockfile import json_codec
+from pex.resolve.lockfile.json_codec import ParseError, PathMappingError
+from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion

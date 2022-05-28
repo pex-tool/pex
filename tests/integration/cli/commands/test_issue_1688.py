@@ -7,7 +7,7 @@ import subprocess
 from pex.cli.testing import run_pex3
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.resolve import lockfile
+from pex.resolve.lockfile import json_codec
 from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -44,7 +44,7 @@ def test_multiplatform_sdist(
         lock,
         *interpreter_selection_args
     ).assert_success()
-    lock_file = lockfile.load(lock)
+    lock_file = json_codec.load(lock)
     assert 1 == len(lock_file.locked_resolves), "Expected 1 resolve for universal style."
     locked_resolve = lock_file.locked_resolves[0]
     assert 1 == len(

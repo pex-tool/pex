@@ -9,8 +9,8 @@ from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.resolve import lockfile
-from pex.resolve.lockfile import Lockfile
+from pex.resolve.lockfile import json_codec
+from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolver_configuration import (
     PYPI,
@@ -495,8 +495,8 @@ def parse_lockfile(
     path_mappings = get_path_mappings(options)
     with TRACER.timed("Parsing lock {lockfile}".format(lockfile=path)):
         try:
-            return lockfile.load(path, path_mappings=path_mappings)
-        except lockfile.PathMappingError as e:
+            return json_codec.load(path, path_mappings=path_mappings)
+        except json_codec.PathMappingError as e:
             return Error(
                 "The lockfile at {path} requires specifying {prefix}"
                 "'--path-mapping' {values} for: {required_paths}\n"

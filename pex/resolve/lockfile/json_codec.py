@@ -11,8 +11,7 @@ from pex.enum import Enum
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
-from pex.resolve.lockfile import ParseError, PathMappingError
-from pex.resolve.lockfile.lockfile import Lockfile
+from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
@@ -22,9 +21,37 @@ from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, List, Mapping, Text, Tuple, Type, TypeVar, Union
+    from typing import (
+        Any,
+        Container,
+        Dict,
+        List,
+        Mapping,
+        Optional,
+        Text,
+        Tuple,
+        Type,
+        TypeVar,
+        Union,
+    )
+
+    import attr  # vendor:skip
 
     _V = TypeVar("_V", bound=Enum.Value)
+else:
+    from pex.third_party import attr
+
+
+class ParseError(Exception):
+    """Indicates an error parsing a Pex lock file."""
+
+
+@attr.s(frozen=True)
+class PathMappingError(ParseError):
+    """Indicates missing path mappings when parsing a Pex lock file."""
+
+    required_path_mappings = attr.ib()  # type: Mapping[str, Optional[str]]
+    unspecified_paths = attr.ib()  # type: Container[str]
 
 
 def _load_json(

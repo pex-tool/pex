@@ -20,8 +20,9 @@ from pex.pep_503 import ProjectName
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.vcs import digest_vcs_archive
 from pex.resolve.locked_resolve import DownloadableArtifact, FileArtifact, Resolved, VCSArtifact
-from pex.resolve.lockfile import Lockfile, parse_lockable_requirements
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
+from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.lockfile.requirements import parse_lockable_requirements
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed

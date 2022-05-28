@@ -21,8 +21,8 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
-from pex.resolve import lockfile
 from pex.resolve.locked_resolve import LockedRequirement
+from pex.resolve.lockfile import json_codec
 from pex.testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
@@ -54,7 +54,7 @@ def index_pex_distributions(pex_file):
 def index_lock_artifacts(lock_file):
     # type: (str) -> Mapping[ProjectName, LockedRequirement]
 
-    lock = lockfile.load(lock_file)
+    lock = json_codec.load(lock_file)
     assert 1 == len(lock.locked_resolves)
     locked_resolve = lock.locked_resolves[0]
     return {
