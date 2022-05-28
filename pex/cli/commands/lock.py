@@ -15,7 +15,9 @@ from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
-from pex.resolve.lockfile import Lockfile, create, json_codec
+from pex.resolve.lockfile import json_codec
+from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.lockfile.operations import create
 from pex.resolve.lockfile.updater import LockUpdater, ResolveUpdateRequest
 from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied

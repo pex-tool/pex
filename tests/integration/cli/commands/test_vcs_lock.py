@@ -14,9 +14,9 @@ import pytest
 
 from pex.cli.testing import run_pex3
 from pex.common import safe_open
-from pex.compatibility import PY2, urlparse
-from pex.resolve import lockfile
+from pex.compatibility import urlparse
 from pex.resolve.locked_resolve import VCSArtifact
+from pex.resolve.lockfile import json_codec
 from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -126,7 +126,7 @@ def test_vcs_equivalence(test_tool):
 
     def extract_single_vcs_artifact(lock):
         # type: (str) -> VCSArtifact
-        lock_file = lockfile.load(lock)
+        lock_file = json_codec.load(lock)
 
         assert 1 == len(lock_file.locked_resolves)
         locked_resolve = lock_file.locked_resolves[0]

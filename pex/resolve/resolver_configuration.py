@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
     import attr  # vendor:skip
 
-    from pex.resolve.lockfile import Lockfile
+    from pex.resolve.lockfile.model import Lockfile
     from pex.result import Error
 else:
     from pex.third_party import attr

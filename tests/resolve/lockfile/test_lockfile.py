@@ -7,8 +7,8 @@ from textwrap import dedent
 import pytest
 
 from pex.interpreter import PythonInterpreter
-from pex.resolve import lockfile
 from pex.resolve.locked_resolve import LockedResolve
+from pex.resolve.lockfile import json_codec
 from pex.targets import LocalInterpreter, Target
 from pex.testing import (
     IS_MAC,
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from typing import Any, Mapping
 
 
-SINGLE_PLATFORM_UNIVERSAL_WHEEL = lockfile.loads(
+SINGLE_PLATFORM_UNIVERSAL_WHEEL = json_codec.loads(
     dedent(
         """\
         {
@@ -119,7 +119,7 @@ def test_select_universal_compatible_targets(
     ] == list(SINGLE_PLATFORM_UNIVERSAL_WHEEL.select([py37, py310]))
 
 
-DUAL_PLATFORM_NATIVE_WHEEL = lockfile.loads(
+DUAL_PLATFORM_NATIVE_WHEEL = json_codec.loads(
     dedent(
         """\
         {
@@ -206,7 +206,7 @@ def test_select_compatible_targets(
     )
 
 
-LOCK_STYLE_SOURCES = lockfile.loads(
+LOCK_STYLE_SOURCES = json_codec.loads(
     dedent(
         """\
         {

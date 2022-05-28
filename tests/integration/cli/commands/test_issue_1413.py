@@ -10,9 +10,9 @@ import pytest
 from pex.cli.testing import run_pex3
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve import lockfile
 from pex.resolve.locked_resolve import LockedRequirement
-from pex.resolve.lockfile import Lockfile
+from pex.resolve.lockfile import json_codec
+from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolved_requirement import Pin
 from pex.testing import make_env, run_pex_command
@@ -97,7 +97,7 @@ def test_find_links_create(
 ):
     # type: (...) -> None
 
-    lock_file = lockfile.load(lock, path_mappings=create_path_mappings("/re/mapped"))
+    lock_file = json_codec.load(lock, path_mappings=create_path_mappings("/re/mapped"))
     ansicolors_requirement = expect_single_ansicolors_requirement(lock_file)
     assert 0 == len(ansicolors_requirement.additional_artifacts)
     assert (

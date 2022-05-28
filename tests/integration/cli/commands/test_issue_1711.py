@@ -8,8 +8,8 @@ from pex.compatibility import PY3
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve import lockfile
 from pex.resolve.locked_resolve import Artifact, LockedRequirement
+from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Fingerprint
 from pex.testing import IS_PYPY, PY_VER, run_pex_command
 from pex.typing import TYPE_CHECKING
@@ -61,7 +61,7 @@ def test_backtrack_links_preserved(
 
     def assert_psutil_basics():
         # type: () -> LockedRequirement
-        lock_file = lockfile.load(lock)
+        lock_file = json_codec.load(lock)
         assert 1 == len(
             lock_file.locked_resolves
         ), "Expected 1 resolve for universal style:\n{json}".format(json=lock_as_json())
