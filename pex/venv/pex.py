@@ -342,6 +342,9 @@ def _populate_sources(
 
             pex_file = os.environ.get("PEX", None)
             if pex_file:
+                pex_file_path = os.path.realpath(pex_file)
+                sys.argv[0] = pex_file_path
+                os.environ["PEX"] = pex_file_path
                 try:
                     from setproctitle import setproctitle
 
