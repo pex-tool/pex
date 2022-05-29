@@ -18,7 +18,7 @@ from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.platforms import Platform
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import InstalledDistribution, Unsatisfiable
-from pex.resolver import IntegrityError, LocalDistribution, download, install, resolve
+from pex.resolver import download, resolve
 from pex.targets import Targets
 from pex.testing import (
     IS_LINUX,
@@ -480,65 +480,6 @@ def test_download():
     assert_dist("project1", pkginfo.SDist, "1.0.0")
     assert_dist("project2", pkginfo.Wheel, "2.0.0")
     assert_dist("setuptools", pkginfo.Wheel, "44.1.0")
-
-
-def test_install():
-    # type: () -> None
-    project1_sdist = create_sdist(name="project1", version="1.0.0")
-    project2_wheel = build_wheel(name="project2", version="2.0.0")
-
-    installed_by_target = defaultdict(list)
-    for installed_distribution in install(
-        [LocalDistribution(path=dist) for dist in (project1_sdist, project2_wheel)]
-    ):
-        installed_by_target[installed_distribution.target].append(
-            installed_distribution.distribution
-        )
-
-    assert 1 == len(installed_by_target)
-
-    target, distributions = installed_by_target.popitem()
-    assert targets.current() == target
-
-    distributions_by_name = {
-        distribution.project_name: distribution for distribution in distributions
-    }
-    assert 2 == len(distributions_by_name)
-    assert "1.0.0" == distributions_by_name["project1"].version
-    assert "2.0.0" == distributions_by_name["project2"].version
-
-    assert 2 == len(
-        {distribution.location for distribution in distributions}
-    ), "Expected installed distributions to have independent chroot paths."
-
-
-def test_install_unsatisfiable():
-    # type: () -> None
-    project1_sdist = create_sdist(name="project1", version="1.0.0")
-    project2_wheel = build_wheel(name="project2", version="2.0.0", install_reqs=["project1==1.0.1"])
-    local_distributions = [
-        LocalDistribution(path=dist) for dist in (project1_sdist, project2_wheel)
-    ]
-
-    assert 2 == len(install(local_distributions, ignore_errors=True))
-
-    with pytest.raises(Unsatisfiable):
-        install(local_distributions, ignore_errors=False)
-
-
-def test_install_invalid_local_distribution():
-    # type: () -> None
-    project1_sdist = create_sdist(name="project1", version="1.0.0")
-
-    valid_local_sdist = LocalDistribution(project1_sdist)
-    assert 1 == len(install([valid_local_sdist]))
-
-    with pytest.raises(IntegrityError):
-        install([LocalDistribution(project1_sdist, fingerprint="mismatch")])
-
-    project1_wheel = build_wheel(name="project1", version="1.0.0")
-    with pytest.raises(IntegrityError):
-        install([LocalDistribution(project1_wheel, fingerprint=valid_local_sdist.fingerprint)])
 
 
 def test_resolve_arbitrary_equality_issues_940():
