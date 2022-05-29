@@ -381,12 +381,13 @@ def _populate_sources(
                     # This is _not_ used (it is ignored), but it's present under CI and simplest to
                     # add an exception for here and not warn about in CI runs.
                     "_PEX_TEST_PYENV_ROOT",
+                    # This is used by Pex's Pip to inject runtime patches dynamically.
+                    "_PEX_PIP_RUNTIME_PATCHES",
                     # These are used by Pex's Pip venv to provide foreign platform support and work
-                    # around https://github.com/pypa/pip/issues/10050:
+                    # around https://github.com/pypa/pip/issues/10050.
                     "_PEX_PATCHED_MARKERS_FILE",
                     "_PEX_PATCHED_TAGS_FILE",
                     # These are used by Pex's Pip venv to implement universal locks.
-                    "_PEX_SKIP_MARKERS",
                     "_PEX_PYTHON_VERSIONS_FILE",
                 )
             ]
