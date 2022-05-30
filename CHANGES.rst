@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.91
+------
+
+This release fixes ``--sh-boot`` mode PEXes to have an argv0 and
+exported ``PEX`` environment variable consistent with standard Python
+boot PEXes; namely the absolute path of the originally invoked PEX.
+
+* Fix ``--sh-boot`` argv0. (#1785)
+  `PR #1785 <https://github.com/pantsbuild/pex/pull/1785>`_
+
 2.1.90
 ------
 
