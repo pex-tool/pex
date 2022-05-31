@@ -1,6 +1,14 @@
 Release Notes
 =============
 
+2.1.92
+------
+
+This release adds support for locking local projects.
+
+* Add support for local project locking. #1792
+  `PR #1792 <https://github.com/pantsbuild/pex/pull/1792>`_
+
 2.1.91
 ------
 
