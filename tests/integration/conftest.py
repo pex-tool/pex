@@ -168,3 +168,23 @@ def run_proxy(mitmdump, tmp_workdir):
             os.unlink(messages)
 
     return _run_proxy
+
+
+@pytest.fixture
+def clone(tmpdir):
+    # type: (Any) -> Callable[[str, str], str]
+
+    def _clone(
+        git_project_url,  # type: str
+        commit,  # type: str
+    ):
+        project_dir = os.path.join(str(tmpdir), "project")
+
+        subprocess.check_call(args=["git", "clone", git_project_url, project_dir])
+        subprocess.check_call(
+            args=["git", "config", "advice.detachedHead", "false"], cwd=project_dir
+        )
+        subprocess.check_call(args=["git", "checkout", commit], cwd=project_dir)
+        return project_dir
+
+    return _clone

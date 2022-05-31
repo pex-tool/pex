@@ -82,12 +82,6 @@ class LockConfiguration(object):
 
 
 @attr.s(frozen=True)
-class LockRequest(object):
-    lock_configuration = attr.ib()  # type: LockConfiguration
-    resolve_handler = attr.ib()  # type: Callable[[Iterable[ResolvedRequirement]], None]
-
-
-@attr.s(frozen=True)
 class Artifact(object):
     @classmethod
     def from_url(
@@ -96,18 +90,23 @@ class Artifact(object):
         fingerprint,  # type: Fingerprint
         verified=False,  # type: bool
     ):
-        # type: (...) -> Union[FileArtifact, VCSArtifact]
+        # type: (...) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
         url_info = urlparse.urlparse(url)
         parsed_scheme = parse_scheme(url_info.scheme)
         if isinstance(parsed_scheme, VCSScheme):
             return VCSArtifact(
                 url=url, fingerprint=fingerprint, verified=verified, vcs=parsed_scheme.vcs
             )
-        else:
-            filename = os.path.basename(unquote(url_info.path))
-            return FileArtifact(
-                url=url, fingerprint=fingerprint, verified=verified, filename=filename
+
+        path = unquote(url_info.path)
+        if "file" == parsed_scheme and os.path.isdir(path):
+            directory = os.path.normpath(path)
+            return LocalProjectArtifact(
+                url=url, fingerprint=fingerprint, verified=verified, directory=directory
             )
+
+        filename = os.path.basename(path)
+        return FileArtifact(url=url, fingerprint=fingerprint, verified=verified, filename=filename)
 
     url = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: Fingerprint
@@ -128,6 +127,16 @@ class FileArtifact(Artifact):
         if self.filename.endswith(".whl"):
             for tag in CompatibilityTags.from_wheel(self.filename):
                 yield tag
+
+
+@attr.s(frozen=True)
+class LocalProjectArtifact(Artifact):
+    directory = attr.ib()  # type: str
+
+    @property
+    def is_source(self):
+        # type: () -> bool
+        return True
 
 
 @attr.s(frozen=True)
@@ -154,7 +163,7 @@ class VCSArtifact(Artifact):
 
 @attr.s(frozen=True)
 class RankedArtifact(object):
-    artifact = attr.ib()  # type: Union[FileArtifact, VCSArtifact]
+    artifact = attr.ib()  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
     rank = attr.ib()  # type: TagRank
 
     def select_higher_ranked(self, other):
@@ -170,10 +179,10 @@ class LockedRequirement(object):
     def create(
         cls,
         pin,  # type: Pin
-        artifact,  # type: Union[FileArtifact, VCSArtifact]
+        artifact,  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
         requires_dists=(),  # type: Iterable[Requirement]
         requires_python=None,  # type: Optional[SpecifierSet]
-        additional_artifacts=(),  # type: Iterable[Union[FileArtifact, VCSArtifact]]
+        additional_artifacts=(),  # type: Iterable[Union[FileArtifact, LocalProjectArtifact, VCSArtifact]]
     ):
         # type: (...) -> LockedRequirement
         return cls(
@@ -185,15 +194,15 @@ class LockedRequirement(object):
         )
 
     pin = attr.ib()  # type: Pin
-    artifact = attr.ib()  # type: Union[FileArtifact, VCSArtifact]
+    artifact = attr.ib()  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
     requires_dists = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
     requires_python = attr.ib(default=None)  # type: Optional[SpecifierSet]
     additional_artifacts = attr.ib(
         default=SortedTuple()
-    )  # type: SortedTuple[Union[FileArtifact, VCSArtifact]]
+    )  # type: SortedTuple[Union[FileArtifact, LocalProjectArtifact, VCSArtifact]]
 
     def iter_artifacts(self):
-        # type: () -> Iterator[Union[FileArtifact, VCSArtifact]]
+        # type: () -> Iterator[Union[FileArtifact, LocalProjectArtifact, VCSArtifact]]
         yield self.artifact
         for artifact in self.additional_artifacts:
             yield artifact
@@ -287,7 +296,7 @@ class _ResolvedArtifact(object):
 
     @property
     def artifact(self):
-        # type: () -> Union[FileArtifact, VCSArtifact]
+        # type: () -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
         return self.ranked_artifact.artifact
 
     @property
@@ -316,7 +325,7 @@ class DownloadableArtifact(object):
     def create(
         cls,
         pin,  # type: Pin
-        artifact,  # type: Union[FileArtifact, VCSArtifact]
+        artifact,  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
         satisfied_direct_requirements=(),  # type: Iterable[Requirement]
     ):
         # type: (...) -> DownloadableArtifact
@@ -327,7 +336,7 @@ class DownloadableArtifact(object):
         )
 
     pin = attr.ib()  # type: Pin
-    artifact = attr.ib()  # type: Union[FileArtifact, VCSArtifact]
+    artifact = attr.ib()  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
     satisfied_direct_requirements = attr.ib(default=SortedTuple())  # type: SortedTuple[Requirement]
 
 
@@ -413,7 +422,7 @@ class LockedResolve(object):
         }
 
         def resolve_fingerprint(partial_artifact):
-            # type: (PartialArtifact) -> Union[FileArtifact, VCSArtifact]
+            # type: (PartialArtifact) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
             url = partial_artifact.url
             if partial_artifact.fingerprint:
                 return Artifact.from_url(
@@ -461,7 +470,7 @@ class LockedResolve(object):
     def emit_requirements(self, stream):
         # type: (IO[str]) -> None
         def emit_artifact(
-            artifact,  # type: Union[FileArtifact, VCSArtifact]
+            artifact,  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
             line_continuation,  # type: bool
         ):
             # type: (...) -> None

@@ -45,6 +45,7 @@ class ConfiguredResolver(Resolver):
             lock_resolver.resolve_from_lock(
                 targets=targets,
                 lock=lock,
+                resolver=self,
                 indexes=self.pip_configuration.repos_configuration.indexes,
                 find_links=self.pip_configuration.repos_configuration.find_links,
                 resolver_version=self.pip_configuration.resolver_version,

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from collections import defaultdict
+from contextlib import contextmanager
 from textwrap import dedent
 
 import pkginfo
@@ -33,9 +34,10 @@ from pex.testing import (
     make_source_dir,
 )
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, List, Union
+    from typing import Any, Iterable, Iterator, List, Union
 
 
 def create_sdist(**kwargs):
@@ -70,13 +72,30 @@ def local_resolve(*args, **kwargs):
     return list(resolve(*args, **kwargs).installed_distributions)
 
 
+@contextmanager
+def cache(directory):
+    # type: (str) -> Iterator[None]
+    with ENV.patch(PEX_ROOT=directory):
+        yield
+
+
+@contextmanager
+def disabled_cache():
+    # type: () -> Iterator[None]
+
+    # N.B.: The resolve cache is never actually disabled, `--disable-cache` just switches the cache
+    # from ~/.pex to a temporary directory. We do the same here.
+    with temporary_dir() as td, cache(td):
+        yield
+
+
 def test_empty_resolve():
     # type: () -> None
     empty_resolve = local_resolve(requirements=[])
     assert empty_resolve == []
 
-    with temporary_dir() as td:
-        empty_resolve = local_resolve(requirements=[], cache=td)
+    with disabled_cache():
+        empty_resolve = local_resolve(requirements=[])
         assert empty_resolve == []
 
 
@@ -94,12 +113,14 @@ def test_resolve_cache():
     # type: () -> None
     project_wheel = build_wheel(name="project")
 
-    with temporary_dir() as td, temporary_dir() as cache:
+    with temporary_dir() as td, temporary_dir() as cache_dir:
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
 
         # Without a cache, each resolve should be isolated, but otherwise identical.
-        installed_dists1 = local_resolve(requirements=["project"], find_links=[td])
-        installed_dists2 = local_resolve(requirements=["project"], find_links=[td])
+        with disabled_cache():
+            installed_dists1 = local_resolve(requirements=["project"], find_links=[td])
+        with disabled_cache():
+            installed_dists2 = local_resolve(requirements=["project"], find_links=[td])
         assert installed_dists1 != installed_dists2
         assert len(installed_dists1) == 1
         assert len(installed_dists2) == 1
@@ -109,8 +130,9 @@ def test_resolve_cache():
         )
 
         # With a cache, each resolve should be identical.
-        installed_dists3 = local_resolve(requirements=["project"], find_links=[td], cache=cache)
-        installed_dists4 = local_resolve(requirements=["project"], find_links=[td], cache=cache)
+        with cache(cache_dir):
+            installed_dists3 = local_resolve(requirements=["project"], find_links=[td])
+            installed_dists4 = local_resolve(requirements=["project"], find_links=[td])
         assert installed_dists1 != installed_dists3
         assert installed_dists2 != installed_dists3
         assert installed_dists3 == installed_dists4
@@ -125,10 +147,8 @@ def test_diamond_local_resolve_cached():
     with temporary_dir() as dd:
         for wheel in (project1_wheel, project2_wheel):
             safe_copy(wheel, os.path.join(dd, os.path.basename(wheel)))
-        with temporary_dir() as cd:
-            installed_dists = local_resolve(
-                requirements=["project1", "project2"], find_links=[dd], cache=cd
-            )
+        with temporary_dir() as cd, cache(cd):
+            installed_dists = local_resolve(requirements=["project1", "project2"], find_links=[dd])
             assert len(installed_dists) == 2
 
 
@@ -141,17 +161,15 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
     with temporary_dir() as td:
         for wheel in (project1_0_0, project1_1_0):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
-        with temporary_dir() as cd:
+        with temporary_dir() as cd, cache(cd):
             # First run, pinning 1.0.0 in the cache
-            installed_dists = local_resolve(
-                requirements=["project==1.0.0"], find_links=[td], cache=cd
-            )
+            installed_dists = local_resolve(requirements=["project==1.0.0"], find_links=[td])
             assert len(installed_dists) == 1
             assert installed_dists[0].distribution.version == "1.0.0"
 
-            # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should also
-            # return SourcePackages found in td
-            installed_dists = local_resolve(requirements=["project"], find_links=[td], cache=cd)
+            # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should
+            # also return SourcePackages found in td
+            installed_dists = local_resolve(requirements=["project"], find_links=[td])
             assert len(installed_dists) == 1
             assert installed_dists[0].distribution.version == "1.1.0"
 
@@ -164,9 +182,9 @@ def test_intransitive():
     with temporary_dir() as td:
         for wheel in (foo1_0, bar1_0):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
-        with temporary_dir() as cd:
+        with temporary_dir() as cd, cache(cd):
             installed_dists = local_resolve(
-                requirements=["foo", "bar"], find_links=[td], cache=cd, transitive=False
+                requirements=["foo", "bar"], find_links=[td], transitive=False
             )
             assert len(installed_dists) == 2
 
@@ -243,9 +261,13 @@ def resolve_wheel_names(**kwargs):
     ]
 
 
-def resolve_p537_wheel_names(**kwargs):
-    # type: (**Any) -> List[str]
-    return resolve_wheel_names(requirements=["p537==1.0.4"], transitive=False, **kwargs)
+def resolve_p537_wheel_names(
+    cache_dir,  # type: str
+    **kwargs  # type: Any
+):
+    # type: (...) -> List[str]
+    with cache(cache_dir):
+        return resolve_wheel_names(requirements=["p537==1.0.4"], transitive=False, **kwargs)
 
 
 @pytest.fixture(scope="module")
@@ -266,7 +288,7 @@ def test_resolve_current_platform(p537_resolve_cache):
         # strings to Platform objects.
         current_platform = (None,)
         return resolve_p537_wheel_names(
-            cache=p537_resolve_cache,
+            cache_dir=p537_resolve_cache,
             targets=Targets(platforms=current_platform, interpreters=tuple(interpreters)),
         )
 
@@ -302,7 +324,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
         # strings to Platform objects.
         platforms = (None, Platform.create(foreign_platform))
         return resolve_p537_wheel_names(
-            cache=p537_resolve_cache,
+            cache_dir=p537_resolve_cache,
             targets=Targets(platforms=platforms, interpreters=tuple(interpreters)),
         )
 
@@ -332,19 +354,19 @@ def test_resolve_foreign_abi3():
     foreign_ver = "37" if PY_VER == (3, 6) else "36"
 
     def resolve_cryptography_wheel_names(manylinux):
-        return resolve_wheel_names(
-            requirements=["cryptography==2.8"],
-            targets=Targets(
-                platforms=(
-                    Platform.create("linux_x86_64-cp-{}-m".format(foreign_ver)),
-                    Platform.create("macosx_10.11_x86_64-cp-{}-m".format(foreign_ver)),
+        with cache(cryptogrpahy_resolve_cache):
+            return resolve_wheel_names(
+                requirements=["cryptography==2.8"],
+                targets=Targets(
+                    platforms=(
+                        Platform.create("linux_x86_64-cp-{}-m".format(foreign_ver)),
+                        Platform.create("macosx_10.11_x86_64-cp-{}-m".format(foreign_ver)),
+                    ),
+                    assume_manylinux=manylinux,
                 ),
-                assume_manylinux=manylinux,
-            ),
-            transitive=False,
-            build=False,
-            cache=cryptogrpahy_resolve_cache,
-        )
+                transitive=False,
+                build=False,
+            )
 
     wheel_names = resolve_cryptography_wheel_names(manylinux="manylinux2014")
     assert {

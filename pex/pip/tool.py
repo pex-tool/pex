@@ -312,7 +312,6 @@ class Pip(object):
         self,
         args,  # type: Iterable[str]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        cache=None,  # type: Optional[str]
         interpreter=None,  # type: Optional[PythonInterpreter]
         pip_verbosity=0,  # type: int
         extra_env=None,  # type: Optional[Dict[str, str]]
@@ -352,10 +351,8 @@ class Pip(object):
         else:
             pip_args.append("-q")
 
-        if cache:
-            pip_args.extend(["--cache-dir", cache])
-        else:
-            pip_args.append("--no-cache-dir")
+        pip_cache = os.path.join(ENV.PEX_ROOT, "pip_cache")
+        pip_args.extend(["--cache-dir", pip_cache])
 
         command = pip_args + list(args)
 
@@ -374,12 +371,12 @@ class Pip(object):
         # since Pip relies upon `shutil.move` which is only atomic when `os.rename` can be used.
         # See https://github.com/pantsbuild/pex/issues/1776 for an example of the issues non-atomic
         # moves lead to in the `pip wheel` case.
-        pip_tmpdir = os.path.join(cache or ENV.PEX_ROOT, "tmp")
+        pip_tmpdir = os.path.join(pip_cache, ".tmp")
         safe_mkdir(pip_tmpdir)
         extra_env.update(TMPDIR=pip_tmpdir)
 
         with ENV.strip().patch(
-            PEX_ROOT=cache or ENV.PEX_ROOT,
+            PEX_ROOT=ENV.PEX_ROOT,
             PEX_VERBOSE=str(ENV.PEX_VERBOSE),
             __PEX_UNVENDORED__="1",
             **extra_env
@@ -409,7 +406,6 @@ class Pip(object):
         self,
         args,  # type: Iterable[str]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        cache=None,  # type: Optional[str]
         interpreter=None,  # type: Optional[PythonInterpreter]
         pip_verbosity=0,  # type: int
         finalizer=None,  # type: Optional[Callable[[int], None]]
@@ -420,7 +416,6 @@ class Pip(object):
         command, process = self._spawn_pip_isolated(
             args,
             package_index_configuration=package_index_configuration,
-            cache=cache,
             interpreter=interpreter,
             pip_verbosity=pip_verbosity,
             extra_env=extra_env,
@@ -438,7 +433,6 @@ class Pip(object):
         transitive=True,  # type: bool
         target=None,  # type: Optional[Target]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        cache=None,  # type: Optional[str]
         build=True,  # type: bool
         use_wheel=True,  # type: bool
         prefer_older_binary=False,  # type: bool
@@ -546,7 +540,6 @@ class Pip(object):
         command, process = self._spawn_pip_isolated(
             download_cmd,
             package_index_configuration=package_index_configuration,
-            cache=cache,
             interpreter=target.get_interpreter(),
             pip_verbosity=0,
             extra_env=extra_env,
@@ -563,7 +556,6 @@ class Pip(object):
         wheel_dir,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        cache=None,  # type: Optional[str]
         prefer_older_binary=False,  # type: bool
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
@@ -595,7 +587,6 @@ class Pip(object):
             wheel_cmd,
             # If the build leverages PEP-518 it will need to resolve build requirements.
             package_index_configuration=package_index_configuration,
-            cache=cache,
             interpreter=interpreter,
             extra_env=extra_env,
         )
@@ -605,7 +596,6 @@ class Pip(object):
         wheel,  # type: str
         install_dir,  # type: str
         compile=False,  # type: bool
-        cache=None,  # type: Optional[str]
         target=None,  # type: Optional[Target]
     ):
         # type: (...) -> Job
@@ -678,7 +668,6 @@ class Pip(object):
 
         return self._spawn_pip_isolated_job(
             args=install_cmd,
-            cache=cache,
             interpreter=interpreter,
             finalizer=fixup_install,
             extra_env=extra_env,

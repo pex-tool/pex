@@ -9,6 +9,7 @@ import pytest
 from pex import dist_metadata, resolver, targets
 from pex.fetcher import URLFetcher
 from pex.pip.tool import PackageIndexConfiguration
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
 from pex.resolve.lockfile.operations import LockObserver
 from pex.resolve.resolved_requirement import Pin
@@ -45,6 +46,7 @@ def create_lock_observer(lock_configuration):
     pip_configuration = PipConfiguration()
     return LockObserver(
         lock_configuration=lock_configuration,
+        resolver=ConfiguredResolver(pip_configuration=pip_configuration),
         wheel_builder=WheelBuilder(
             package_index_configuration=PackageIndexConfiguration.create(
                 resolver_version=pip_configuration.resolver_version,

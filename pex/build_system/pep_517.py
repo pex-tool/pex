@@ -7,7 +7,6 @@ import os
 import subprocess
 from subprocess import CalledProcessError
 from textwrap import dedent
-from typing import Union
 
 from pex import third_party
 from pex.build_system.pep_518 import BuildSystem, load_build_system
@@ -19,7 +18,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Optional, Text
+    from typing import Optional, Union
 
 _DEFAULT_BUILD_BACKEND = "setuptools.build_meta:__legacy__"
 _DEFAULT_REQUIRES = ["setuptools"]

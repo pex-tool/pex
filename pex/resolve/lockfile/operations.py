@@ -16,9 +16,11 @@ from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve import locker, resolvers
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import (
     Artifact,
     FileArtifact,
+    LocalProjectArtifact,
     LockConfiguration,
     LockedResolve,
     VCSArtifact,
@@ -26,16 +28,15 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.locker import Locker
 from pex.resolve.lockfile.download_manager import DownloadManager
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.lockfile.requirements import parse_lockable_requirements
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import PipConfiguration
+from pex.resolve.resolvers import Resolver
 from pex.resolver import BuildRequest, Downloaded, ResolveObserver, WheelBuilder
-from pex.result import Error, try_
+from pex.result import Error
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.variables import ENV
 from pex.version import __version__
 
 if TYPE_CHECKING:
@@ -59,22 +60,23 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
         # type: (...) -> CreateLockDownloadManager
 
         file_artifacts_by_filename = {}  # type: Dict[str, FileArtifact]
-        vcs_artifacts_by_pin = {}  # type: Dict[Pin, VCSArtifact]
+        source_artifacts_by_pin = {}  # type: Dict[Pin, Union[LocalProjectArtifact, VCSArtifact]]
         for locked_resolve in locked_resolves:
             for locked_requirement in locked_resolve.locked_requirements:
                 for artifact in locked_requirement.iter_artifacts():
                     if isinstance(artifact, FileArtifact):
                         file_artifacts_by_filename[artifact.filename] = artifact
                     else:
-                        # N.B.: We know there is only ever one VCS artifact for a given locked VCS
-                        # requirement.
-                        vcs_artifacts_by_pin[locked_requirement.pin] = artifact
+                        # N.B.: We know there is only ever one local project artifact for a given
+                        # locked local project requirement and likewise only one VCS artifact for a
+                        # given locked VCS requirement.
+                        source_artifacts_by_pin[locked_requirement.pin] = artifact
 
         path_by_artifact_and_project_name = {}  # type: Dict[Tuple[Artifact, ProjectName], str]
         for root, _, files in os.walk(download_dir):
             for f in files:
                 pin = Pin.canonicalize(ProjectNameAndVersion.from_filename(f))
-                artifact = file_artifacts_by_filename.get(f) or vcs_artifacts_by_pin[pin]
+                artifact = file_artifacts_by_filename.get(f) or source_artifacts_by_pin[pin]
                 path_by_artifact_and_project_name[(artifact, pin.project_name)] = os.path.join(
                     root, f
                 )
@@ -124,6 +126,7 @@ class _LockAnalysis(object):
 @attr.s(frozen=True)
 class LockObserver(ResolveObserver):
     lock_configuration = attr.ib()  # type: LockConfiguration
+    resolver = attr.ib()  # type: Resolver
     wheel_builder = attr.ib()  # type: WheelBuilder
     url_fetcher = attr.ib()  # type: URLFetcher
     max_parallel_jobs = attr.ib(default=None)  # type: Optional[int]
@@ -136,6 +139,7 @@ class LockObserver(ResolveObserver):
     ):
         # type: (...) -> DownloadObserver
         patch = locker.patch(
+            resolver=self.resolver,
             lock_configuration=self.lock_configuration,
             download_dir=download_dir,
         )
@@ -169,6 +173,10 @@ class LockObserver(ResolveObserver):
         )  # type: OrderedDict[Target, Tuple[ResolvedRequirement, ...]]
         for analysis in self._analysis:
             lock_result = analysis.analyzer.lock_result
+            build_requests.update(
+                BuildRequest.create(target=analysis.target, source_path=local_project)
+                for local_project in lock_result.local_projects
+            )
             resolved_requirements_by_target[analysis.target] = lock_result.resolved_requirements
 
         with TRACER.timed(
@@ -207,10 +215,10 @@ def create(
     """Create a lock file for the given resolve configurations."""
 
     network_configuration = pip_configuration.network_configuration
-    parsed_requirements = try_(
-        parse_lockable_requirements(
-            requirement_configuration, network_configuration=network_configuration
-        )
+    parsed_requirements = tuple(requirement_configuration.parse_requirements(network_configuration))
+    constraints = tuple(
+        parsed_constraint.requirement
+        for parsed_constraint in requirement_configuration.parse_constraints(network_configuration)
     )
 
     package_index_configuration = PackageIndexConfiguration.create(
@@ -222,6 +230,7 @@ def create(
 
     lock_observer = LockObserver(
         lock_configuration=lock_configuration,
+        resolver=ConfiguredResolver(pip_configuration=pip_configuration),
         wheel_builder=WheelBuilder(
             package_index_configuration=package_index_configuration,
             prefer_older_binary=pip_configuration.prefer_older_binary,
@@ -251,7 +260,6 @@ def create(
             resolver_version=pip_configuration.resolver_version,
             network_configuration=network_configuration,
             password_entries=pip_configuration.repos_configuration.password_entries,
-            cache=ENV.PEX_ROOT,
             build=pip_configuration.allow_builds,
             use_wheel=pip_configuration.allow_wheels,
             prefer_older_binary=pip_configuration.prefer_older_binary,
@@ -278,8 +286,8 @@ def create(
         style=lock_configuration.style,
         requires_python=lock_configuration.requires_python,
         resolver_version=pip_configuration.resolver_version,
-        requirements=parsed_requirements.requirements,
-        constraints=parsed_requirements.constraints,
+        requirements=parsed_requirements,
+        constraints=constraints,
         allow_prereleases=pip_configuration.allow_prereleases,
         allow_wheels=pip_configuration.allow_wheels,
         allow_builds=pip_configuration.allow_builds,

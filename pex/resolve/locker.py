@@ -1,4 +1,7 @@
-from __future__ import absolute_import, print_function
+# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from __future__ import absolute_import
 
 import json
 import os
@@ -13,11 +16,13 @@ from pex.interpreter_constraints import iter_compatible_versions
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pip.download_observer import DownloadObserver, Patch
+from pex.pip.local_project import fingerprint_local_project
 from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.requirements import VCS, VCSScheme, parse_scheme
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
+from pex.resolve.resolvers import Resolver
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
@@ -38,15 +43,18 @@ class _VCSPartialInfo(object):
 @attr.s(frozen=True)
 class LockResult(object):
     resolved_requirements = attr.ib()  # type: Tuple[ResolvedRequirement, ...]
+    local_projects = attr.ib()  # type: Tuple[str, ...]
 
 
 class Locker(LogAnalyzer):
     def __init__(
         self,
+        resolver,  # type: Resolver
         lock_configuration,  # type: LockConfiguration
         download_dir,  # type: str
     ):
         # type: (...) -> None
+        self._resolver = resolver
         self._lock_configuration = lock_configuration
         self._download_dir = download_dir
 
@@ -55,6 +63,8 @@ class Locker(LogAnalyzer):
         self._resolved_requirements = []  # type: List[ResolvedRequirement]
         self._links = defaultdict(OrderedSet)  # type: DefaultDict[Pin, OrderedSet[PartialArtifact]]
         self._done_building_re = None  # type: Optional[Pattern]
+        self._source_built_re = None  # type: Optional[Pattern]
+        self._local_projects = OrderedSet()  # type: OrderedSet[str]
         self._vcs_partial_info = None  # type: Optional[_VCSPartialInfo]
         self._lock_result = None  # type: Optional[LockResult]
 
@@ -99,7 +109,7 @@ class Locker(LogAnalyzer):
         #   1.) "... Found link <url1> ..."
         #   ...
         #   1.) "... Found link <urlN> ..."
-        #   2.) "... Added <requirement> from <url> ... to build tracker ..."
+        #   2.) "... Added <varying info ...> to build tracker ..."
         #   3.) Lines related to extracting metadata from <requirement>'s artifact
         # * 4.) "... Source in <tmp> has version <version>, which satisfies requirement "
         #       "<requirement> from <url> ..."
@@ -156,6 +166,40 @@ class Locker(LogAnalyzer):
                     )
             return self.Continue()
 
+        if self._source_built_re:
+            match = self._source_built_re.search(line)
+            if match:
+                raw_requirement = match.group("requirement")
+                file_url = match.group("file_url")
+                self._done_building_re = re.compile(
+                    r"Removed {requirement} from {file_url} (?:.* )?from build tracker".format(
+                        requirement=re.escape(raw_requirement), file_url=re.escape(file_url)
+                    )
+                )
+                self._source_built_re = None
+
+                requirement = Requirement.parse(raw_requirement)
+                version = match.group("version")
+
+                pin = Pin(project_name=requirement.project_name, version=Version(version))
+
+                local_project_path = urlparse.urlparse(file_url).path
+                digest = fingerprint_local_project(local_project_path, self._resolver)
+                self._local_projects.add(local_project_path)
+                self._resolved_requirements.append(
+                    ResolvedRequirement(
+                        requirement=requirement,
+                        pin=pin,
+                        artifact=PartialArtifact(
+                            url=file_url,
+                            fingerprint=Fingerprint(algorithm=digest.algorithm, hash=digest),
+                            verified=True,
+                        ),
+                    )
+                )
+                self._saved.add(pin)
+            return self.Continue()
+
         match = re.search(
             r"Added (?P<requirement>.+) from (?P<url>[^\s]+) (?:\(from (?P<from>.*)\) )?to build "
             r"tracker",
@@ -199,6 +243,17 @@ class Locker(LogAnalyzer):
                 )
             return self.Continue()
 
+        match = re.search(r"Added (?P<file_url>file:.+) to build tracker", line)
+        if match:
+            file_url = match.group("file_url")
+            self._source_built_re = re.compile(
+                r"Source in .+ has version (?P<version>.+), which satisfies requirement "
+                r"(?P<requirement>.+) from (?P<file_url>{file_url})".format(
+                    file_url=re.escape(file_url)
+                )
+            )
+            return self.Continue()
+
         match = re.search(r"Saved (?P<file_path>.+)$", line)
         if match:
             self._saved.add(
@@ -239,7 +294,8 @@ class Locker(LogAnalyzer):
                 resolved_requirement
                 for resolved_requirement in self._resolved_requirements
                 if resolved_requirement.pin in self._saved
-            )
+            ),
+            local_projects=tuple(self._local_projects),
         )
 
     @property
@@ -252,6 +308,7 @@ class Locker(LogAnalyzer):
 
 
 def patch(
+    resolver,  # type: Resolver
     lock_configuration,  # type: LockConfiguration
     download_dir,  # type: str
 ):
@@ -283,6 +340,8 @@ def patch(
                 env.update(_PEX_PYTHON_VERSIONS_FILE=fp.name)
 
     return DownloadObserver(
-        analyzer=Locker(lock_configuration=lock_configuration, download_dir=download_dir),
+        analyzer=Locker(
+            resolver=resolver, lock_configuration=lock_configuration, download_dir=download_dir
+        ),
         patch=Patch(code=code, env=env),
     )

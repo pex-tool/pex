@@ -17,17 +17,24 @@ from pex.fetcher import URLFetcher
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
+from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.vcs import digest_vcs_archive
-from pex.resolve.locked_resolve import DownloadableArtifact, FileArtifact, Resolved, VCSArtifact
+from pex.requirements import LocalProjectRequirement, parse_requirement_strings
+from pex.resolve.locked_resolve import (
+    DownloadableArtifact,
+    FileArtifact,
+    LocalProjectArtifact,
+    Resolved,
+    VCSArtifact,
+)
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.lockfile.requirements import parse_lockable_requirements
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.resolve.resolvers import Installed
+from pex.resolve.resolvers import Installed, Resolver
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
-from pex.result import Error, catch, try_
+from pex.result import Error, catch
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -117,7 +124,6 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             resolver_version=self._resolver_version,
             network_configuration=self._network_configuration,
             password_entries=self._password_entries,
-            cache=self._cache,
             use_wheel=False,
             prefer_older_binary=False,
             use_pep517=self._use_pep517,
@@ -151,10 +157,42 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         return filename
 
 
+class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
+    def __init__(
+        self,
+        file_lock_style,  # type: FileLockStyle.Value
+        build_requires_resolver,  # type: Resolver
+        pex_root=None,  # type: Optional[str]
+    ):
+        super(LocalProjectDownloadManager, self).__init__(
+            pex_root=pex_root, file_lock_style=file_lock_style
+        )
+        self._resolver = build_requires_resolver
+
+    def save(
+        self,
+        artifact,  # type: LocalProjectArtifact
+        project_name,  # type: ProjectName
+        dest_dir,  # type: str
+        digest,  # type: HintedDigest
+    ):
+        # type: (...) -> Union[str, Error]
+        source_dir_or_error = digest_local_project(
+            directory=artifact.directory,
+            digest=digest,
+            resolver=self._resolver,
+            dest_dir=dest_dir,
+        )
+        if isinstance(source_dir_or_error, Error):
+            return source_dir_or_error
+        return os.path.basename(source_dir_or_error)
+
+
 def download_artifact(
     downloadable_artifact,  # type: DownloadableArtifact
     url_download_manager,  # type: URLFetcherDownloadManager
     vcs_download_manager,  # type: VCSArtifactDownloadManager
+    local_project_download_manager,  # type: LocalProjectDownloadManager
 ):
     # type: (...) -> Union[DownloadedArtifact, Error]
 
@@ -164,8 +202,16 @@ def download_artifact(
             downloadable_artifact.artifact,
             downloadable_artifact.pin.project_name,
         )
+
+    if isinstance(downloadable_artifact.artifact, FileArtifact):
+        return catch(
+            url_download_manager.store,
+            downloadable_artifact.artifact,
+            downloadable_artifact.pin.project_name,
+        )
+
     return catch(
-        url_download_manager.store,
+        local_project_download_manager.store,
         downloadable_artifact.artifact,
         downloadable_artifact.pin.project_name,
     )
@@ -179,6 +225,7 @@ MAX_PARALLEL_DOWNLOADS = 10
 def resolve_from_lock(
     targets,  # type: Targets
     lock,  # type: Lockfile
+    resolver,  # type: Resolver
     requirements=None,  # type: Optional[Iterable[str]]
     requirement_files=None,  # type: Optional[Iterable[str]]
     constraint_files=None,  # type: Optional[Iterable[str]]
@@ -187,7 +234,6 @@ def resolve_from_lock(
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     password_entries=(),  # type: Iterable[PasswordEntry]
-    cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
     prefer_older_binary=False,  # type: bool
@@ -206,12 +252,21 @@ def resolve_from_lock(
             requirement_files=requirement_files,
             constraint_files=constraint_files,
         )
-        parsed_requirements = try_(
-            parse_lockable_requirements(
-                requirement_configuration,
-                network_configuration=network_configuration,
-                fallback_requirements=(str(req) for req in lock.requirements),
+        parsed_requirements = tuple(
+            requirement_configuration.parse_requirements(network_configuration)
+        ) or tuple(parse_requirement_strings(str(req) for req in lock.requirements))
+        constraints = tuple(
+            parsed_constraint.requirement
+            for parsed_constraint in requirement_configuration.parse_constraints(
+                network_configuration
             )
+        )
+
+        requirements_to_resolve = OrderedSet(
+            lock.local_project_requirement_mapping[os.path.abspath(parsed_requirement.path)]
+            if isinstance(parsed_requirement, LocalProjectRequirement)
+            else parsed_requirement.requirement
+            for parsed_requirement in parsed_requirements
         )
 
     errors_by_target = {}  # type: Dict[Target, Iterable[Error]]
@@ -220,7 +275,7 @@ def resolve_from_lock(
 
     with TRACER.timed(
         "Resolving urls to fetch for {count} requirements from lock {lockfile}".format(
-            count=len(parsed_requirements.requirements), lockfile=lock.source
+            count=len(parsed_requirements), lockfile=lock.source
         )
     ):
         for target in targets.unique_targets():
@@ -229,8 +284,8 @@ def resolve_from_lock(
             for locked_resolve in lock.locked_resolves:
                 resolve_result = locked_resolve.resolve(
                     target,
-                    parsed_requirements.requirements,
-                    constraints=parsed_requirements.constraints,
+                    requirements_to_resolve,
+                    constraints=constraints,
                     source=lock.source,
                     transitive=transitive,
                     build=build,
@@ -289,9 +344,12 @@ def resolve_from_lock(
         resolver_version=resolver_version,
         network_configuration=network_configuration,
         password_entries=password_entries,
-        cache=cache,
         use_pep517=use_pep517,
         build_isolation=build_isolation,
+    )
+    local_project_download_manager = LocalProjectDownloadManager(
+        file_lock_style=file_lock_style,
+        build_requires_resolver=resolver,
     )
     max_threads = min(
         len(downloadable_artifacts) or 1,
@@ -300,7 +358,7 @@ def resolve_from_lock(
     with TRACER.timed(
         "Downloading {url_count} distributions to satisfy {requirement_count} requirements".format(
             url_count=len(downloadable_artifacts),
-            requirement_count=len(parsed_requirements.requirements),
+            requirement_count=len(parsed_requirements),
         )
     ):
         pool = ThreadPool(processes=max_threads)
@@ -313,6 +371,7 @@ def resolve_from_lock(
                             download_artifact,
                             url_download_manager=url_download_manager,
                             vcs_download_manager=vcs_download_manager,
+                            local_project_download_manager=local_project_download_manager,
                         ),
                         downloadable_artifacts,
                     ),
@@ -383,14 +442,13 @@ def resolve_from_lock(
         build_and_install_request = BuildAndInstallRequest(
             build_requests=build_requests,
             install_requests=install_requests,
-            direct_requirements=parsed_requirements.parsed_requirements,
+            direct_requirements=parsed_requirements,
             package_index_configuration=PackageIndexConfiguration.create(
                 resolver_version=resolver_version,
                 indexes=indexes,
                 find_links=find_links,
                 network_configuration=network_configuration,
             ),
-            cache=cache,
             compile=compile,
             prefer_older_binary=prefer_older_binary,
             use_pep517=use_pep517,

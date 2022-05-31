@@ -3,7 +3,13 @@
 
 from __future__ import absolute_import
 
-from pex.resolve.locked_resolve import FileArtifact, LockedRequirement, LockedResolve, VCSArtifact
+from pex.resolve.locked_resolve import (
+    FileArtifact,
+    LocalProjectArtifact,
+    LockedRequirement,
+    LockedResolve,
+    VCSArtifact,
+)
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 
@@ -16,11 +22,11 @@ else:
 
 
 def normalize_artifact(
-    artifact,  # type: Union[FileArtifact, VCSArtifact]
+    artifact,  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
     skip_urls=False,  # type: bool
     skip_verified=False,  # type: bool
 ):
-    # type: (...) -> Union[FileArtifact, VCSArtifact]
+    # type: (...) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
     return attr.evolve(
         artifact,
         url="" if skip_urls else artifact.url,
