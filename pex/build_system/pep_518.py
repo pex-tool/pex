@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from typing import Iterable, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
-    import toml  # vendor: skip
+    import toml  # vendor:skip
 else:
     from pex.third_party import attr, toml
 

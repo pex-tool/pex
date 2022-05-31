@@ -18,7 +18,7 @@ from pex.typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Any
 
-    import toml  # vendor: skip
+    import toml  # vendor:skip
 else:
     from pex.third_party import toml
 
