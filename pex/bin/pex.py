@@ -33,6 +33,7 @@ from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve import requirement_options, resolver_options, target_configuration, target_options
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lock_resolver import resolve_from_lock
 from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.requirement_configuration import RequirementConfiguration
@@ -533,7 +534,6 @@ def build_pex(
     resolver_configuration,  # type: ResolverConfiguration
     targets,  # type: Targets
     options,  # type: Namespace
-    cache=None,  # type: Optional[str]
 ):
     # type: (...) -> PEXBuilder
 
@@ -630,6 +630,7 @@ def build_pex(
                         resolve_from_lock(
                             targets=targets,
                             lock=lock,
+                            resolver=ConfiguredResolver(pip_configuration=pip_configuration),
                             requirements=requirement_configuration.requirements,
                             requirement_files=requirement_configuration.requirement_files,
                             constraint_files=requirement_configuration.constraint_files,
@@ -639,7 +640,6 @@ def build_pex(
                             resolver_version=pip_configuration.resolver_version,
                             network_configuration=pip_configuration.network_configuration,
                             password_entries=pip_configuration.repos_configuration.password_entries,
-                            cache=cache,
                             build=pip_configuration.allow_builds,
                             use_wheel=pip_configuration.allow_wheels,
                             prefer_older_binary=pip_configuration.prefer_older_binary,
@@ -679,7 +679,6 @@ def build_pex(
                         resolver_version=resolver_configuration.resolver_version,
                         network_configuration=resolver_configuration.network_configuration,
                         password_entries=resolver_configuration.repos_configuration.password_entries,
-                        cache=cache,
                         build=resolver_configuration.allow_builds,
                         use_wheel=resolver_configuration.allow_wheels,
                         prefer_older_binary=resolver_configuration.prefer_older_binary,
@@ -785,7 +784,6 @@ def do_main(
             resolver_configuration=resolver_configuration,
             targets=targets,
             options=options,
-            cache=ENV.PEX_ROOT,
         )
 
     pex_builder.freeze(bytecode_compile=options.compile)

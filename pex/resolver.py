@@ -14,7 +14,7 @@ from collections import OrderedDict, defaultdict
 
 from pex import targets
 from pex.auth import PasswordEntry
-from pex.common import AtomicDirectory, atomic_directory, pluralize, safe_mkdtemp
+from pex.common import AtomicDirectory, atomic_directory, pluralize, safe_mkdir, safe_mkdtemp
 from pex.dist_metadata import DistMetadata, Distribution, Requirement
 from pex.fetcher import URLFetcher
 from pex.fingerprinted_distribution import FingerprintedDistribution
@@ -35,6 +35,7 @@ from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
+from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
@@ -101,7 +102,6 @@ class DownloadRequest(object):
     allow_prereleases = attr.ib(default=False)  # type: bool
     transitive = attr.ib(default=True)  # type: bool
     package_index_configuration = attr.ib(default=None)  # type: Optional[PackageIndexConfiguration]
-    cache = attr.ib(default=None)  # type: Optional[str]
     build = attr.ib(default=True)  # type: bool
     use_wheel = attr.ib(default=True)  # type: bool
     prefer_older_binary = attr.ib(default=False)  # type: bool
@@ -122,7 +122,7 @@ class DownloadRequest(object):
             # Nothing to resolve.
             return []
 
-        dest = dest or safe_mkdtemp()
+        dest = dest or safe_mkdtemp(dir=safe_mkdir(os.path.join(ENV.PEX_ROOT, "downloads", "tmp")))
         spawn_download = functools.partial(self._spawn_download, dest)
         with TRACER.timed("Resolving for:\n  {}".format("\n  ".join(map(str, self.targets)))):
             return list(
@@ -157,7 +157,6 @@ class DownloadRequest(object):
             transitive=self.transitive,
             target=target,
             package_index_configuration=self.package_index_configuration,
-            cache=self.cache,
             build=self.build,
             use_wheel=self.use_wheel,
             prefer_older_binary=self.prefer_older_binary,
@@ -494,7 +493,6 @@ class WheelBuilder(object):
     def __init__(
         self,
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        cache=None,  # type: Optional[str]
         prefer_older_binary=False,  # type: bool
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
@@ -502,7 +500,6 @@ class WheelBuilder(object):
     ):
         # type: (...) -> None
         self._package_index_configuration = package_index_configuration
-        self._cache = cache
         self._prefer_older_binary = prefer_older_binary
         self._use_pep517 = use_pep517
         self._build_isolation = build_isolation
@@ -544,7 +541,6 @@ class WheelBuilder(object):
         build_job = get_pip(interpreter=build_request.target.get_interpreter()).spawn_build_wheels(
             distributions=[build_request.source_path],
             wheel_dir=build_result.build_dir,
-            cache=self._cache,
             package_index_configuration=self._package_index_configuration,
             interpreter=build_request.target.get_interpreter(),
             prefer_older_binary=self._prefer_older_binary,
@@ -557,7 +553,6 @@ class WheelBuilder(object):
     def build_wheels(
         self,
         build_requests,  # type: Iterable[BuildRequest]
-        workspace=None,  # type: Optional[str]
         max_parallel_jobs=None,  # type: Optional[int]
     ):
         # type: (...) -> Mapping[str, OrderedSet[InstallRequest]]
@@ -566,9 +561,7 @@ class WheelBuilder(object):
             # Nothing to build or install.
             return {}
 
-        cache = self._cache or workspace or safe_mkdtemp()
-
-        built_wheels_dir = os.path.join(cache, "built_wheels")
+        built_wheels_dir = os.path.join(ENV.PEX_ROOT, "built_wheels")
         spawn_wheel_build = functools.partial(self._spawn_wheel_build, built_wheels_dir)
 
         with TRACER.timed(
@@ -596,7 +589,6 @@ class BuildAndInstallRequest(object):
         install_requests,  # type:  Iterable[InstallRequest]
         direct_requirements=None,  # type: Optional[Iterable[ParsedRequirement]]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-        cache=None,  # type: Optional[str]
         compile=False,  # type: bool
         prefer_older_binary=False,  # type: bool
         use_pep517=None,  # type: Optional[bool]
@@ -607,11 +599,9 @@ class BuildAndInstallRequest(object):
         self._build_requests = tuple(build_requests)
         self._install_requests = tuple(install_requests)
         self._direct_requirements = tuple(direct_requirements or ())
-        self._cache = cache
         self._compile = compile
         self._wheel_builder = WheelBuilder(
             package_index_configuration=package_index_configuration,
-            cache=self._cache,
             prefer_older_binary=prefer_older_binary,
             use_pep517=use_pep517,
             build_isolation=build_isolation,
@@ -659,7 +649,6 @@ class BuildAndInstallRequest(object):
             wheel=install_request.wheel_path,
             install_dir=install_result.build_chroot,
             compile=self._compile,
-            cache=self._cache,
             target=install_request.target,
         )
         return SpawnedJob.wait(job=install_job, result=install_result)
@@ -667,7 +656,6 @@ class BuildAndInstallRequest(object):
     def install_distributions(
         self,
         ignore_errors=False,  # type: bool
-        workspace=None,  # type: Optional[str]
         max_parallel_jobs=None,  # type: Optional[int]
     ):
         # type: (...) -> Iterable[InstalledDistribution]
@@ -675,9 +663,7 @@ class BuildAndInstallRequest(object):
             # Nothing to build or install.
             return ()
 
-        cache = self._cache or workspace or safe_mkdtemp()
-
-        installed_wheels_dir = os.path.join(cache, PexInfo.INSTALL_CACHE)
+        installed_wheels_dir = os.path.join(ENV.PEX_ROOT, PexInfo.INSTALL_CACHE)
         spawn_install = functools.partial(self._spawn_install, installed_wheels_dir)
 
         to_install = list(self._install_requests)
@@ -686,7 +672,6 @@ class BuildAndInstallRequest(object):
         # 1. Build local projects and sdists.
         build_results = self._wheel_builder.build_wheels(
             build_requests=self._build_requests,
-            workspace=workspace,
             max_parallel_jobs=max_parallel_jobs,
         )
         to_install.extend(itertools.chain.from_iterable(build_results.values()))
@@ -861,7 +846,6 @@ def resolve(
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     password_entries=(),  # type: Iterable[PasswordEntry]
-    cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
     prefer_older_binary=False,  # type: bool
@@ -897,7 +881,6 @@ def resolve(
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
     :keyword password_entries: Any known authentication information needed for resolving.
-    :keyword cache: A directory path to use to cache distributions locally.
     :keyword build: Whether to allow building source distributions when no wheel is found.
       Defaults to ``True``.
     :keyword use_wheel: Whether to allow resolution of pre-built wheel distributions.
@@ -954,7 +937,6 @@ def resolve(
     # requirement should be activated in.
 
     direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
-    workspace = safe_mkdtemp()
     package_index_configuration = PackageIndexConfiguration.create(
         resolver_version=resolver_version,
         indexes=indexes,
@@ -971,13 +953,11 @@ def resolve(
         allow_prereleases=allow_prereleases,
         transitive=transitive,
         package_index_configuration=package_index_configuration,
-        cache=cache,
         build=build,
         use_wheel=use_wheel,
         prefer_older_binary=prefer_older_binary,
         use_pep517=use_pep517,
         build_isolation=build_isolation,
-        dest=workspace,
         max_parallel_jobs=max_parallel_jobs,
     )
 
@@ -991,7 +971,6 @@ def resolve(
         install_requests=install_requests,
         direct_requirements=direct_requirements,
         package_index_configuration=package_index_configuration,
-        cache=cache,
         compile=compile,
         prefer_older_binary=prefer_older_binary,
         use_pep517=use_pep517,
@@ -1002,7 +981,7 @@ def resolve(
     ignore_errors = ignore_errors or not transitive
     installed_distributions = tuple(
         build_and_install_request.install_distributions(
-            ignore_errors=ignore_errors, workspace=workspace, max_parallel_jobs=max_parallel_jobs
+            ignore_errors=ignore_errors, max_parallel_jobs=max_parallel_jobs
         )
     )
     return Installed(installed_distributions=installed_distributions)
@@ -1017,7 +996,6 @@ def _download_internal(
     allow_prereleases=False,  # type: bool
     transitive=True,  # type: bool
     package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
-    cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
     prefer_older_binary=False,  # type: bool
@@ -1039,7 +1017,6 @@ def _download_internal(
         allow_prereleases=allow_prereleases,
         transitive=transitive,
         package_index_configuration=package_index_configuration,
-        cache=cache,
         build=build,
         use_wheel=use_wheel,
         prefer_older_binary=prefer_older_binary,
@@ -1049,8 +1026,6 @@ def _download_internal(
     )
 
     local_projects = list(download_request.iter_local_projects())
-
-    dest = dest or safe_mkdtemp()
     download_results = download_request.download_distributions(
         dest=dest, max_parallel_jobs=max_parallel_jobs
     )
@@ -1100,7 +1075,6 @@ def download(
     resolver_version=None,  # type: Optional[ResolverVersion.Value]
     network_configuration=None,  # type: Optional[NetworkConfiguration]
     password_entries=(),  # type: Iterable[PasswordEntry]
-    cache=None,  # type: Optional[str]
     build=True,  # type: bool
     use_wheel=True,  # type: bool
     prefer_older_binary=False,  # type: bool
@@ -1132,7 +1106,6 @@ def download(
     :keyword network_configuration: Configuration for network requests made downloading and building
       distributions.
     :keyword password_entries: Any known authentication information needed for downloading.
-    :keyword cache: A directory path to use to cache distributions locally.
     :keyword build: Whether to allow building source distributions when no wheel is found.
       Defaults to ``True``.
     :keyword use_wheel: Whether to allow resolution of pre-built wheel distributions.
@@ -1171,7 +1144,6 @@ def download(
         allow_prereleases=allow_prereleases,
         transitive=transitive,
         package_index_configuration=package_index_configuration,
-        cache=cache,
         build=build,
         use_wheel=use_wheel,
         prefer_older_binary=prefer_older_binary,

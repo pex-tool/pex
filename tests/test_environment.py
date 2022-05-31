@@ -138,7 +138,6 @@ def assert_force_local_implicit_ns_packages_issues_598(
         for installed_dist in resolver.resolve(
             targets=Targets(interpreters=(builder.interpreter,)),
             requirements=requirements,
-            cache=cache,
         ).installed_distributions:
             builder.add_distribution(installed_dist.distribution)
             for direct_req in installed_dist.direct_requirements:
@@ -249,66 +248,62 @@ def test_osx_platform_intel_issue_523():
         # type: () -> PythonInterpreter
         return PythonInterpreter.from_binary(_KNOWN_BAD_APPLE_INTERPRETER)
 
-    with temporary_dir() as cache:
-        # We need to run the bad interpreter with a modern, non-Apple-Extras setuptools in order to
-        # successfully install psutil; yield_pex_builder sets up the bad interpreter with our vendored
-        # setuptools and wheel extras.
-        with yield_pex_builder(
-            interpreter=bad_interpreter()
-        ) as pb, temporary_filename() as pex_file:
-            for installed_dist in resolver.resolve(
-                targets=Targets(interpreters=(pb.interpreter,)),
-                requirements=["psutil==5.4.3"],
-                cache=cache,
-            ).installed_distributions:
-                pb.add_dist_location(installed_dist.distribution.location)
-            pb.build(pex_file)
+    # We need to run the bad interpreter with a modern, non-Apple-Extras setuptools in order to
+    # successfully install psutil; yield_pex_builder sets up the bad interpreter with our vendored
+    # setuptools and wheel extras.
+    with yield_pex_builder(interpreter=bad_interpreter()) as pb, temporary_filename() as pex_file:
+        for installed_dist in resolver.resolve(
+            targets=Targets(interpreters=(pb.interpreter,)),
+            requirements=["psutil==5.4.3"],
+        ).installed_distributions:
+            pb.add_dist_location(installed_dist.distribution.location)
+        pb.build(pex_file)
 
-            # NB: We want PEX to find the bare bad interpreter at runtime.
-            pex = PEX(pex_file, interpreter=bad_interpreter())
+        # NB: We want PEX to find the bare bad interpreter at runtime.
+        pex = PEX(pex_file, interpreter=bad_interpreter())
 
-            def run(args, **env):
-                # type: (Iterable[str], **str) -> Tuple[int, str, str]
-                pex_env = os.environ.copy()
-                pex_env["PEX_VERBOSE"] = "1"
-                pex_env.update(**env)
-                process = pex.run(
-                    args=args,
-                    env=pex_env,
-                    blocking=False,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-                stdout, stderr = process.communicate()
-                return process.returncode, stdout.decode("utf-8"), stderr.decode("utf-8")
-
-            returncode, _, stderr = run(["-c", "import psutil"])
-            assert 0 == returncode, "Process failed with exit code {} and stderr:\n{}".format(
-                returncode, stderr
+        def run(args, **env):
+            # type: (Iterable[str], **str) -> Tuple[int, str, str]
+            pex_env = os.environ.copy()
+            pex_env["PEX_VERBOSE"] = "1"
+            pex_env.update(**env)
+            process = pex.run(
+                args=args,
+                env=pex_env,
+                blocking=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
+            stdout, stderr = process.communicate()
+            return process.returncode, stdout.decode("utf-8"), stderr.decode("utf-8")
 
-            returncode, stdout, stderr = run(["-c", "import pkg_resources"])
-            assert 0 != returncode, (
-                "Isolated pex process succeeded but should not have found pkg-resources:\n"
-                "STDOUT:\n"
-                "{}\n"
-                "STDERR:\n"
-                "{}".format(stdout, stderr)
-            )
+        returncode, _, stderr = run(["-c", "import psutil"])
+        assert 0 == returncode, "Process failed with exit code {} and stderr:\n{}".format(
+            returncode, stderr
+        )
 
-            returncode, stdout, stderr = run(
-                ["-c", "import pkg_resources; print(pkg_resources.get_supported_platform())"],
-                # Let the bad interpreter site-packages setuptools leak in.
-                PEX_INHERIT_PATH=InheritPath.for_value(True).value,
-            )
-            assert 0 == returncode, "Process failed with exit code {} and stderr:\n{}".format(
-                returncode, stderr
-            )
+        returncode, stdout, stderr = run(["-c", "import pkg_resources"])
+        assert 0 != returncode, (
+            "Isolated pex process succeeded but should not have found pkg-resources:\n"
+            "STDOUT:\n"
+            "{}\n"
+            "STDERR:\n"
+            "{}".format(stdout, stderr)
+        )
 
-            # Verify this worked along side the previously problematic pkg_resources-reported platform.
-            release, _, _ = platform.mac_ver()
-            major_minor = ".".join(release.split(".")[:2])
-            assert "macosx-{}-intel".format(major_minor) == stdout.strip()
+        returncode, stdout, stderr = run(
+            ["-c", "import pkg_resources; print(pkg_resources.get_supported_platform())"],
+            # Let the bad interpreter site-packages setuptools leak in.
+            PEX_INHERIT_PATH=InheritPath.for_value(True).value,
+        )
+        assert 0 == returncode, "Process failed with exit code {} and stderr:\n{}".format(
+            returncode, stderr
+        )
+
+        # Verify this worked along side the previously problematic pkg_resources-reported platform.
+        release, _, _ = platform.mac_ver()
+        major_minor = ".".join(release.split(".")[:2])
+        assert "macosx-{}-intel".format(major_minor) == stdout.strip()
 
 
 def test_activate_extras_issue_615():

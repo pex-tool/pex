@@ -18,6 +18,7 @@ from pex.resolve.locked_resolve import (
     Artifact,
     DownloadableArtifact,
     FileArtifact,
+    LocalProjectArtifact,
     LockedRequirement,
     LockedResolve,
     RankedArtifact,
@@ -68,7 +69,7 @@ def artifact(
     algorithm,  # type: str
     hash,  # type: str
 ):
-    # type: (...) -> Union[FileArtifact, VCSArtifact]
+    # type: (...) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
     return Artifact.from_url(url=url, fingerprint=Fingerprint(algorithm=algorithm, hash=hash))
 
 

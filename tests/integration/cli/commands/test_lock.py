@@ -164,16 +164,20 @@ def test_create_style(
     )
 
 
-def test_create_local_unsupported(pex_project_dir):
-    # type: (str) -> None
+def test_create_local(
+    tmpdir,  # type: Any
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
 
-    result = run_pex3("lock", "create", pex_project_dir)
-    result.assert_failure()
-    assert (
-        "Cannot create a lock for project requirements built from local sources. Given 1 such "
-        "project:\n"
-        "1.) local project at {path}\n".format(path=pex_project_dir)
-    ) == result.error
+    lock = os.path.join(str(tmpdir), "lock")
+    run_pex3("lock", "create", pex_project_dir, "-o", lock).assert_success()
+    result = run_pex_command(args=["--lock", lock, "-c", "pex", "--", "-V"], quiet=True)
+    result.assert_success()
+
+    # The argparse system emits version to stderr under Python 2.7.
+    output = result.error if sys.version_info[0] == 2 else result.output
+    assert __version__ == output.strip()
 
 
 def test_create_vcs(
