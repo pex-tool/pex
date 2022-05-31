@@ -31,6 +31,11 @@ def test_interpreter_constraints_range_coverage(
 ):
     # type: (...) -> None
 
+    # The traitlets 5.2.2 release breaks IPython.
+    constraints = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints, "w") as fp:
+        fp.write("traitlets<5.2.2\n")
+
     # We lock with an unconstrained IPython requirement and we know IPython latest does not support
     # Python 3.7. If locking respects ICs it should not pick latest, but a version that supports at
     # least 3.7
@@ -46,6 +51,8 @@ def test_interpreter_constraints_range_coverage(
         ">=3.7,<3.11",
         "--python-path",
         py37.binary,
+        "--constraints",
+        constraints,
         "ipython",
         "-o",
         lock,
