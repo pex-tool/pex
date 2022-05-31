@@ -5,7 +5,6 @@ import os.path
 import subprocess
 
 import pytest
-import toml
 
 from pex.testing import (
     ALL_PY_VERSIONS,
@@ -18,6 +17,10 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any
+
+    import toml  # vendor: skip
+else:
+    from pex.third_party import toml
 
 
 @pytest.mark.parametrize("python_version", ALL_PY_VERSIONS)
