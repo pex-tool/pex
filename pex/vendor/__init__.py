@@ -157,6 +157,9 @@ def iter_vendor_specs():
     # time to implement resolving distributions from a PEX repository.
     yield VendorSpec.pinned("packaging", "20.9", constraints=("pyparsing<3",))
 
+    # We use toml to read pyproject.toml when building sdists from local source projects.
+    yield VendorSpec.pinned("toml", "0.10.2")
+
     # We shell out to pip at buildtime to resolve and install dependencies.
     # N.B.: We're currently using a patched version of Pip 20.3.4 housed at
     # https://github.com/pantsbuild/pip/tree/pex/patches/generation-2.

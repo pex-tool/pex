@@ -3,11 +3,14 @@
 
 from __future__ import absolute_import
 
+from abc import abstractmethod
+
 from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.resolve.locked_resolve import LockedResolve
+from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
-from pex.targets import Target
+from pex.targets import Target, Targets
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -74,3 +77,27 @@ class InstalledDistribution(object):
 @attr.s(frozen=True)
 class Installed(object):
     installed_distributions = attr.ib()  # type: Tuple[InstalledDistribution, ...]
+
+
+class Resolver(object):
+    @abstractmethod
+    def is_default_repos(self):
+        # type: () -> bool
+        raise NotImplementedError()
+
+    @abstractmethod
+    def resolve_lock(
+        self,
+        lock,  # type: Lockfile
+        targets=Targets(),  # type: Targets
+    ):
+        # type: (...) -> Installed
+        raise NotImplementedError()
+
+    def resolve_requirements(
+        self,
+        requirements,  # type: Iterable[str]
+        targets=Targets(),  # type: Targets
+    ):
+        # type: (...) -> Installed
+        raise NotImplementedError()

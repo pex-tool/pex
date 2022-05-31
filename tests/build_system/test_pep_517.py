@@ -1,0 +1,57 @@
+# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+import os.path
+
+from pex.build_system.pep_517 import build_sdist
+from pex.build_system.testing import assert_build_sdist
+from pex.common import touch
+from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.result import Error
+from pex.testing import make_project
+from pex.typing import TYPE_CHECKING
+from pex.version import __version__
+
+if TYPE_CHECKING:
+    from typing import Any
+
+
+def test_build_sdist_project_directory_dne(tmpdir):
+    # type: (Any) -> None
+
+    project_dir = os.path.join(str(tmpdir), "project_dir")
+    dist_dir = os.path.join(str(tmpdir), "dists")
+    result = build_sdist(project_dir, dist_dir, ConfiguredResolver.default())
+    assert isinstance(result, Error)
+    assert str(result).startswith(
+        "Project directory {project_dir} does not exist.".format(project_dir=project_dir)
+    )
+
+
+def test_build_sdist_project_directory_is_file(tmpdir):
+    # type: (Any) -> None
+
+    project_dir = os.path.join(str(tmpdir), "project_dir")
+    touch(project_dir)
+    dist_dir = os.path.join(str(tmpdir), "dists")
+    result = build_sdist(project_dir, dist_dir, ConfiguredResolver.default())
+    assert isinstance(result, Error)
+    assert str(result).startswith(
+        "Project directory {project_dir} is not a directory.".format(project_dir=project_dir)
+    )
+
+
+def test_build_sdist_setup_py(tmpdir):
+    # type: (Any) -> None
+
+    with make_project(name="foo", version="42") as project_dir:
+        assert_build_sdist(project_dir, "foo", "42", tmpdir)
+
+
+def test_build_sdist_pyproject_toml(
+    tmpdir,  # type: Any
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
+
+    assert_build_sdist(pex_project_dir, "pex", __version__, tmpdir)
