@@ -466,6 +466,65 @@ def test_update_targeted_add(lock_file_path):
     )
 
 
+def test_update_targeted_add_transitive(
+    tmpdir,  # type: Any
+    lock_file_path,  # type: str
+):
+    # type: (...) -> None
+
+    find_links = os.path.join(str(tmpdir), "find_links")
+    os.mkdir(find_links)
+
+    with built_wheel(
+        name="adds_two_new_projects_but_just_one_top_level_req",
+        version="1.2.3",
+        install_reqs=["ansicolors==1.1.8"],
+        universal=True,
+    ) as adds_two_new_projects_but_just_one_top_level_req:
+        shutil.move(
+            adds_two_new_projects_but_just_one_top_level_req,
+            os.path.join(
+                find_links, os.path.basename(adds_two_new_projects_but_just_one_top_level_req)
+            ),
+        )
+    result = run_lock_update_for_py310(
+        "-f",
+        find_links,
+        "-p",
+        "adds_two_new_projects_but_just_one_top_level_req>1",
+        lock_file_path,
+        "--indent",
+        "2",
+    )
+    result.assert_success()
+
+    lock_file = json_codec.load(lock_file_path)
+    assert UPDATE_LOCKFILE.constraints == lock_file.constraints
+
+    # Since the adds_two_new_projects_but_just_one_top_level_req was a new top-level (directly
+    # requested) requirement and not an update of an existing project in the lock, the lock's
+    # requirements should have been updated to include it.
+    expected_requirements = SortedTuple(
+        list(UPDATE_LOCKFILE.requirements)
+        + [Requirement.parse("adds_two_new_projects_but_just_one_top_level_req>1")],
+        key=str,
+    )  # type: SortedTuple[Requirement]
+    assert expected_requirements == lock_file.requirements
+
+    # We expect two new locked requirements for adds_two_new_projects_but_just_one_top_level_req.
+    assert 1 == len(lock_file.locked_resolves)
+    locked_resolve = lock_file.locked_resolves[0]
+    assert len(UPDATE_LOCKFILE.locked_resolves[0].locked_requirements) + 2 == len(
+        locked_resolve.locked_requirements
+    )
+    assert {
+        Pin(ProjectName("adds_two_new_projects_but_just_one_top_level_req"), Version("1.2.3")),
+        Pin(ProjectName("ansicolors"), Version("1.1.8")),
+    }.issubset(
+        {locked_requirement.pin for locked_requirement in locked_resolve.locked_requirements}
+    )
+
+
 def test_update_targeted_add_dry_run(lock_file_path):
     # type: (str) -> None
     result = run_lock_update_for_py310("-n", "-p", "ansicolors==1.1.8", lock_file_path)
