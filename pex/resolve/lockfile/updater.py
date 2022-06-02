@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from pex.common import pluralize
 from pex.dist_metadata import Requirement
 from pex.network_configuration import NetworkConfiguration
+from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, LockedResolve
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 @attr.s(frozen=True)
 class VersionUpdate(object):
-    original = attr.ib()  # type: Version
+    original = attr.ib()  # type: Optional[Version]
     updated = attr.ib()  # type: Version
 
 
@@ -82,7 +83,9 @@ class ResolveUpdater(object):
             constraint.project_name: constraint for constraint in constraints
         }  # type: Mapping[ProjectName, Requirement]
 
-        update_constraints_by_project_name = {}  # type: Dict[ProjectName, Requirement]
+        update_constraints_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, Requirement]
         for update in updates:
             project_name = update.project_name
             original_constraint = original_constraints.get(project_name)
@@ -107,28 +110,36 @@ class ResolveUpdater(object):
     pip_configuration = attr.ib()  # type: PipConfiguration
 
     @contextmanager
-    def _calculate_update_constraints(self, locked_resolve):
-        # type: (LockedResolve) -> Iterator[Optional[Iterable[str]]]
+    def _calculate_requirement_configuration(self, locked_resolve):
+        # type: (LockedResolve) -> Iterator[RequirementConfiguration]
         if not self.update_constraints_by_project_name:
-            yield None
+            yield RequirementConfiguration(requirements=self.original_requirements)
             return
 
+        requirements = OrderedSet(self.original_requirements)
         constraints = []
+        update_constraints_by_project_name = OrderedDict(self.update_constraints_by_project_name)
         for locked_requirement in locked_resolve.locked_requirements:
             pin = locked_requirement.pin
-            constraint = self.update_constraints_by_project_name.get(
+            constraint = update_constraints_by_project_name.pop(
                 pin.project_name, pin.as_requirement()
             )
             constraints.append(str(constraint))
+
+        # Any update constraints remaining are new requirements to resolve.
+        requirements.update(str(req) for req in update_constraints_by_project_name.values())
+
         if not constraints:
-            yield None
+            yield RequirementConfiguration(requirements=requirements)
             return
 
         with named_temporary_file(prefix="lock_update.", suffix=".constraints.txt", mode="w") as fp:
             fp.write(os.linesep.join(constraints))
             fp.flush()
             try:
-                yield [fp.name]
+                yield RequirementConfiguration(
+                    requirements=requirements, constraint_files=[fp.name]
+                )
             except ResultError as e:
                 logger.error(
                     "The following lock update constraints could not be satisfied:\n"
@@ -143,14 +154,11 @@ class ResolveUpdater(object):
     ):
         # type: (...) -> Union[ResolveUpdate, Error]
 
-        with self._calculate_update_constraints(locked_resolve) as constraints_files:
+        with self._calculate_requirement_configuration(locked_resolve) as requirement_configuration:
             updated_lock_file = try_(
                 create(
                     lock_configuration=self.lock_configuration,
-                    requirement_configuration=RequirementConfiguration(
-                        requirements=self.original_requirements,
-                        constraint_files=constraints_files,
-                    ),
+                    requirement_configuration=requirement_configuration,
                     targets=targets,
                     pip_configuration=self.pip_configuration,
                 )
@@ -168,7 +176,7 @@ class ResolveUpdater(object):
         for locked_requirement in locked_resolve.locked_requirements:
             original_pin = locked_requirement.pin
             project_name = original_pin.project_name
-            updated_requirement = updated_requirements_by_project_name.get(project_name)
+            updated_requirement = updated_requirements_by_project_name.pop(project_name, None)
             if not updated_requirement:
                 continue
             updated_pin = updated_requirement.pin
@@ -189,10 +197,16 @@ class ResolveUpdater(object):
             elif project_name in self.update_constraints_by_project_name:
                 updates[project_name] = None
 
+        # Anything left was an addition.
+        updates.update(
+            (project_name, VersionUpdate(original=None, updated=locked_requirement.pin.version))
+            for project_name, locked_requirement in updated_requirements_by_project_name.items()
+        )
+
         return ResolveUpdate(
             updated_resolve=attr.evolve(
                 locked_resolve,
-                locked_requirements=SortedTuple(updated_requirements_by_project_name.values()),
+                locked_requirements=SortedTuple(updated_resolve.locked_requirements),
             ),
             updates=updates,
         )
