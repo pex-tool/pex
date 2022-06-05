@@ -236,8 +236,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             help=(
                 "Don't update the lock file; just report what updates would be made. By default, "
                 "the report is to STDOUT and the exit code is zero. If a value of {check!r} is "
-                "passed, the report is to STDERR and the exit code is the number of updates that "
-                "would be made.".format(check=DryRunStyle.CHECK)
+                "passed, the report is to STDERR and the exit code is non-zero.".format(
+                    check=DryRunStyle.CHECK
+                )
             ),
         )
         cls._add_lockfile_option(update_parser, verb="create")
@@ -535,7 +536,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             return Ok()
 
         if dry_run:
-            return Error(exit_code=len(version_updates)) if dry_run is DryRunStyle.CHECK else Ok()
+            return Error() if dry_run is DryRunStyle.CHECK else Ok()
 
         original_locked_project_names = {
             locked_requirement.pin.project_name
