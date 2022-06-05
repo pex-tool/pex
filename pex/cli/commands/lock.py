@@ -4,7 +4,7 @@
 from __future__ import absolute_import, print_function
 
 import sys
-from argparse import ArgumentParser, _ActionsContainer
+from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _ActionsContainer
 from collections import defaultdict
 
 from pex.argparse import HandleBoolAction
@@ -43,6 +43,47 @@ class ExportFormat(Enum["ExportFormat.Value"]):
 
     PIP = Value("pip")
     PEP_665 = Value("pep-665")
+
+
+class DryRunStyle(Enum["DryRunStyle.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    DISPLAY = Value("display")
+    CHECK = Value("check")
+
+
+class HandleDryRunAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        super(HandleDryRunAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        if option_str.startswith("--no-"):
+            if value:
+                raise ArgumentError(
+                    None,
+                    "The {option} option does not take a value; given: {value!r}".format(
+                        option=option_str, value=value
+                    ),
+                )
+            dry_run_style = None
+        elif value:
+            try:
+                dry_run_style = DryRunStyle.for_value(value)
+            except ValueError:
+                raise ArgumentTypeError(
+                    "Invalid value for {option}: {value!r}. Either pass no value for {default!r} "
+                    "or one of: {choices}".format(
+                        option=option_str,
+                        value=value,
+                        default=DryRunStyle.DISPLAY,
+                        choices=", ".join(map(repr, DryRunStyle.values())),
+                    )
+                )
+        else:
+            dry_run_style = DryRunStyle.DISPLAY
+        setattr(namespace, self.dest, dry_run_style)
 
 
 class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
@@ -191,10 +232,14 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             "-n",
             "--dry-run",
             "--no-dry-run",
-            action=HandleBoolAction,
-            default=False,
-            type=bool,
-            help="Don't update the lock file; just report what updates would be made.",
+            action=HandleDryRunAction,
+            help=(
+                "Don't update the lock file; just report what updates would be made. By default, "
+                "the report is to STDOUT and the exit code is zero. If a value of {check!r} is "
+                "passed, the report is to STDERR and the exit code is non-zero.".format(
+                    check=DryRunStyle.CHECK
+                )
+            ),
         )
         cls._add_lockfile_option(update_parser, verb="create")
         cls._add_lock_options(update_parser)
@@ -373,7 +418,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
     def _update(self):
         # type: () -> Result
         try:
-            updates = tuple(Requirement.parse(project) for project in self.options.projects)
+            update_requirements = tuple(
+                Requirement.parse(project) for project in self.options.projects
+            )
         except RequirementParseError as e:
             return Error("Failed to parse project requirement to update: {err}".format(err=e))
 
@@ -436,7 +483,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         lock_update = try_(
             lock_updater.update(
                 update_requests=update_requests,
-                updates=updates,
+                updates=update_requirements,
                 assume_manylinux=targets.assume_manylinux,
             )
         )
@@ -445,13 +492,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             constraint.project_name: constraint for constraint in lock_file.constraints
         }
         dry_run = self.options.dry_run
-        output = sys.stdout if dry_run else sys.stderr
-        performed_update = False
+        output = sys.stdout if dry_run is DryRunStyle.DISPLAY else sys.stderr
+        version_updates = []
         for resolve_update in lock_update.resolves:
             platform = resolve_update.updated_resolve.platform_tag
             for project_name, version_update in resolve_update.updates.items():
                 if version_update:
-                    performed_update = True
+                    version_updates.append(version_update)
                     if version_update.original:
                         print(
                             "{lead_in} {project_name} from {original_version} to {updated_version} "
@@ -485,38 +532,41 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                         ),
                         file=output,
                     )
-        if performed_update:
-            original_locked_project_names = {
-                locked_requirement.pin.project_name
-                for locked_resolve in lock_file.locked_resolves
-                for locked_requirement in locked_resolve.locked_requirements
-            }
-            new_requirements = OrderedSet(
-                update
-                for update in updates
-                if update.project_name not in original_locked_project_names
-            )
-            constraints_by_project_name.update(
-                (constraint.project_name, constraint) for constraint in updates
-            )
-            for requirement in new_requirements:
-                constraints_by_project_name.pop(requirement.project_name, None)
-            requirements = OrderedSet(lock_file.requirements)
-            requirements.update(new_requirements)
+        if not version_updates:
+            return Ok()
 
-            if not dry_run:
-                with open(lock_file_path, "w") as fp:
-                    self._dump_lockfile(
-                        lock_file=attr.evolve(
-                            lock_file,
-                            pex_version=__version__,
-                            requirements=SortedTuple(requirements, key=str),
-                            constraints=SortedTuple(constraints_by_project_name.values(), key=str),
-                            locked_resolves=SortedTuple(
-                                resolve_update.updated_resolve
-                                for resolve_update in lock_update.resolves
-                            ),
-                        ),
-                        output=fp,
-                    )
+        if dry_run:
+            return Error() if dry_run is DryRunStyle.CHECK else Ok()
+
+        original_locked_project_names = {
+            locked_requirement.pin.project_name
+            for locked_resolve in lock_file.locked_resolves
+            for locked_requirement in locked_resolve.locked_requirements
+        }
+        new_requirements = OrderedSet(
+            update
+            for update in update_requirements
+            if update.project_name not in original_locked_project_names
+        )
+        constraints_by_project_name.update(
+            (constraint.project_name, constraint) for constraint in update_requirements
+        )
+        for requirement in new_requirements:
+            constraints_by_project_name.pop(requirement.project_name, None)
+        requirements = OrderedSet(lock_file.requirements)
+        requirements.update(new_requirements)
+
+        with open(lock_file_path, "w") as fp:
+            self._dump_lockfile(
+                lock_file=attr.evolve(
+                    lock_file,
+                    pex_version=__version__,
+                    requirements=SortedTuple(requirements, key=str),
+                    constraints=SortedTuple(constraints_by_project_name.values(), key=str),
+                    locked_resolves=SortedTuple(
+                        resolve_update.updated_resolve for resolve_update in lock_update.resolves
+                    ),
+                ),
+                output=fp,
+            )
         return Ok()

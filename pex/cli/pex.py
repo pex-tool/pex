@@ -3,6 +3,8 @@
 
 from __future__ import absolute_import
 
+from argparse import ArgumentError, ArgumentTypeError
+
 from pex.cli import commands
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import GlobalConfigurationError, Main
@@ -30,5 +32,5 @@ def main():
             result = catch(command.run)
             result.maybe_display()
             return result.exit_code
-    except GlobalConfigurationError as e:
+    except (ArgumentError, ArgumentTypeError, GlobalConfigurationError) as e:
         return str(e)
