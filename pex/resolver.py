@@ -14,9 +14,8 @@ from collections import OrderedDict, defaultdict
 
 from pex import targets
 from pex.auth import PasswordEntry
-from pex.common import AtomicDirectory, atomic_directory, pluralize, safe_mkdir, safe_mkdtemp
-from pex.dist_metadata import DistMetadata, Distribution, Requirement
-from pex.fetcher import URLFetcher
+from pex.common import AtomicDirectory, atomic_directory, safe_mkdir, safe_mkdtemp
+from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
@@ -26,9 +25,7 @@ from pex.pex_info import PexInfo
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration, get_pip
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.locked_resolve import LockedResolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolved_requirement import ResolvedRequirement
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable, Untranslatable
 from pex.targets import Target, Targets
@@ -45,46 +42,6 @@ if TYPE_CHECKING:
     from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
-
-
-@attr.s
-class _ResolveHandler(object):
-    download_result = attr.ib()  # type: DownloadResult
-    wheel_builder = attr.ib()  # type: WheelBuilder
-    url_fetcher = attr.ib()  # type: URLFetcher
-    max_parallel_jobs = attr.ib(default=None)  # type: Optional[int]
-
-    def __call__(self, resolved_requirements):
-        # type: (Iterable[ResolvedRequirement]) -> None
-        self._resolved_requirements = resolved_requirements
-
-    def lock(self):
-        # type: () -> DownloadResult
-
-        build_requests = tuple(self.download_result.build_requests())
-        with TRACER.timed(
-            "Building {count} source {distributions} to gather metadata for lock.".format(
-                count=len(build_requests), distributions=pluralize(build_requests, "distribution")
-            )
-        ):
-            build_results = self.wheel_builder.build_wheels(
-                build_requests=build_requests,
-                max_parallel_jobs=self.max_parallel_jobs,
-            )
-            dist_metadatas = tuple(
-                DistMetadata.load(install_request.wheel_path)
-                for install_request in itertools.chain(
-                    tuple(self.download_result.install_requests()),
-                    itertools.chain.from_iterable(build_results.values()),
-                )
-            )
-        locked_resolve = LockedResolve.create(
-            self.download_result.target.platform.tag,
-            self._resolved_requirements,
-            dist_metadatas,
-            self.url_fetcher,
-        )
-        return attr.evolve(self.download_result, locked_resolve=locked_resolve)
 
 
 def _uniqued_targets(targets=None):
@@ -177,7 +134,6 @@ class DownloadResult(object):
 
     target = attr.ib()  # type: Target
     download_dir = attr.ib()  # type: str
-    locked_resolve = attr.ib(default=None)  # type: Optional[LockedResolve]
 
     def _iter_distribution_paths(self):
         # type: () -> Iterator[str]
@@ -1155,7 +1111,6 @@ def download(
     )
 
     local_distributions = []
-    locked_resolves = []
 
     def add_build_requests(requests):
         # type: (Iterable[BuildRequest]) -> None
@@ -1170,8 +1125,6 @@ def download(
 
     add_build_requests(build_requests)
     for download_result in download_results:
-        if download_result.locked_resolve:
-            locked_resolves.append(download_result.locked_resolve)
         add_build_requests(download_result.build_requests())
         for install_request in download_result.install_requests():
             local_distributions.append(

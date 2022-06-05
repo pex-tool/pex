@@ -495,7 +495,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         output = sys.stdout if dry_run is DryRunStyle.DISPLAY else sys.stderr
         version_updates = []
         for resolve_update in lock_update.resolves:
-            platform = resolve_update.updated_resolve.platform_tag
+            platform = resolve_update.updated_resolve.platform_tag or "universal"
             for project_name, version_update in resolve_update.updates.items():
                 if version_update:
                     version_updates.append(version_update)

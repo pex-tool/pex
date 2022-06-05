@@ -293,10 +293,10 @@ class LockUpdater(object):
         locked_resolve_by_platform_tag = OrderedDict(
             (locked_resolve.platform_tag, locked_resolve)
             for locked_resolve in self.lock_file.locked_resolves
-        )  # type: OrderedDict[tags.Tag, LockedResolve]
+        )  # type: OrderedDict[Optional[tags.Tag], LockedResolve]
         resolve_updates_by_platform_tag = (
             {}
-        )  # type: Dict[tags.Tag, Mapping[ProjectName, Optional[VersionUpdate]]]
+        )  # type: Dict[Optional[tags.Tag], Mapping[ProjectName, Optional[VersionUpdate]]]
 
         # TODO(John Sirois): Consider parallelizing this. The underlying Jobs are down a few layers;
         #  so this will likely require using multiprocessing.

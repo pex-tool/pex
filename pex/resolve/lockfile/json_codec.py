@@ -196,9 +196,16 @@ def loads(
     locked_resolves = []
     for lock_index, locked_resolve in enumerate(get("locked_resolves", list)):
         lock_path = ".locked_resolves[{lock_index}]".format(lock_index=lock_index)
-        platform_tag = assemble_tag(
-            components=get("platform_tag", list, data=locked_resolve, path=lock_path),
-            path='{lock_path}["platform_tag"]'.format(lock_path=lock_path),
+        platform_tag_components = get(
+            "platform_tag", list, data=locked_resolve, path=lock_path, optional=True
+        )
+        platform_tag = (
+            assemble_tag(
+                components=platform_tag_components,
+                path='{lock_path}["platform_tag"]'.format(lock_path=lock_path),
+            )
+            if platform_tag_components
+            else None
         )
         locked_reqs = []
         for req_index, req in enumerate(
@@ -255,7 +262,7 @@ def loads(
             )
 
         locked_resolves.append(
-            LockedResolve(platform_tag=platform_tag, locked_requirements=SortedTuple(locked_reqs))
+            LockedResolve(locked_requirements=SortedTuple(locked_reqs), platform_tag=platform_tag)
         )
 
     return Lockfile.create(
@@ -318,7 +325,9 @@ def as_json_data(
                     locked_resolve.platform_tag.interpreter,
                     locked_resolve.platform_tag.abi,
                     locked_resolve.platform_tag.platform,
-                ],
+                ]
+                if locked_resolve.platform_tag
+                else None,
                 "locked_requirements": [
                     {
                         "project_name": str(req.pin.project_name),
