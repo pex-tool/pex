@@ -398,10 +398,10 @@ class LockedResolve(object):
     @classmethod
     def create(
         cls,
-        platform_tag,  # type: tags.Tag
         resolved_requirements,  # type: Iterable[ResolvedRequirement]
         dist_metadatas,  # type: Iterable[DistMetadata]
         url_fetcher,  # type: URLFetcher
+        platform_tag=None,  # type: Optional[tags.Tag]
     ):
         # type: (...) -> LockedResolve
 
@@ -462,10 +462,10 @@ class LockedResolve(object):
                     ),
                 )
             )
-        return cls(platform_tag=platform_tag, locked_requirements=SortedTuple(locked_requirements))
+        return cls(locked_requirements=SortedTuple(locked_requirements), platform_tag=platform_tag)
 
-    platform_tag = attr.ib(order=str)  # type: tags.Tag
     locked_requirements = attr.ib()  # type: SortedTuple[LockedRequirement]
+    platform_tag = attr.ib(order=str, default=None)  # type: Optional[tags.Tag]
 
     def emit_requirements(self, stream):
         # type: (IO[str]) -> None

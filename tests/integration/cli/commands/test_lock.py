@@ -1279,11 +1279,7 @@ LEGACY_UNIVERSAL_LOCKFILE_CONTENTS = """\
           "version": "1.16"
         }
       ],
-      "platform_tag": [
-        "cp310",
-        "cp310",
-        "manylinux_2_33_x86_64"
-      ]
+      "platform_tag": null
     }
   ],
   "pex_version": "2.1.63",
@@ -1594,11 +1590,7 @@ PIP_2020_UNIVERSAL_LOCKFILE_CONTENTS = """\
           "version": "1.16"
         }
       ],
-      "platform_tag": [
-        "cp310",
-        "cp310",
-        "manylinux_2_35_x86_64"
-      ]
+      "platform_tag": null
     }
   ],
   "pex_version": "2.1.73",
@@ -1682,15 +1674,4 @@ def test_universal_lock(
     result.assert_success()
     lock = json_codec.loads(result.output)
 
-    platform_tag = py39.identity.supported_tags[0]
-    assert (
-        attr.evolve(
-            expected_lockfile,
-            pex_version=__version__,
-            locked_resolves=SortedTuple(
-                attr.evolve(locked_resolve, platform_tag=platform_tag)
-                for locked_resolve in expected_lockfile.locked_resolves
-            ),
-        )
-        == lock
-    )
+    assert attr.evolve(expected_lockfile, pex_version=__version__) == lock

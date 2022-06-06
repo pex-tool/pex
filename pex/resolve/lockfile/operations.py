@@ -23,6 +23,7 @@ from pex.resolve.locked_resolve import (
     LocalProjectArtifact,
     LockConfiguration,
     LockedResolve,
+    LockStyle,
     VCSArtifact,
 )
 from pex.resolve.locker import Locker
@@ -196,10 +197,12 @@ class LockObserver(ResolveObserver):
 
         return tuple(
             LockedResolve.create(
-                platform_tag=target.platform.tag,
                 resolved_requirements=resolved_requirements,
                 dist_metadatas=dist_metadatas_by_target[target],
                 url_fetcher=self.url_fetcher,
+                platform_tag=None
+                if self.lock_configuration.style == LockStyle.UNIVERSAL
+                else target.platform.tag,
             )
             for target, resolved_requirements in resolved_requirements_by_target.items()
         )
