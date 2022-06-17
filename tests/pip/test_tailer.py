@@ -4,12 +4,13 @@
 import os.path
 import re
 from contextlib import contextmanager
+from types import TracebackType
 
 from pex.pip.tailer import Tailer
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, BinaryIO, Iterator, Optional, Pattern
+    from typing import Any, BinaryIO, Iterator, Optional, Pattern, Type
 
     import attr  # vendor:skip
 else:
@@ -44,10 +45,17 @@ class TailerTestHarness(object):
         self._tailer.__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type,  # type: Optional[Type]
+        exc_val,  # type: Optional[Any]
+        exc_tb,  # type: Optional[TracebackType]
+    ):
+        # type: (...) -> None
         self._tailer.__exit__(exc_type, exc_val, exc_tb)
 
     def write_log(self, content):
+        # type: (str) -> None
         with open(self._log, "a") as log_fp:
             log_fp.write(content)
 

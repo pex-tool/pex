@@ -77,12 +77,14 @@ class LogScrapeJob(Job):
         preserve_log=False,  # type: bool
         finalizer=None,  # type: Optional[Callable[[int], None]]
     ):
+        # type: (...) -> None
         self._log = log
         self._log_analyzers = list(log_analyzers)
         self._preserve_log = preserve_log
         super(LogScrapeJob, self).__init__(command, process, finalizer=finalizer)
 
     def _check_returncode(self, stderr=None):
+        # type: (Optional[bytes]) -> None
         activated_analyzers = [
             analyzer
             for analyzer in self._log_analyzers

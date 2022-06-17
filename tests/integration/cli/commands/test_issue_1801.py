@@ -4,8 +4,11 @@
 import os.path
 import re
 
+from colors import green
+
 from pex.cli.testing import run_pex3
 from pex.resolve.lockfile import json_codec
+from pex.testing import run_pex_command
 
 
 def test_preserve_pip_download_log():
@@ -47,3 +50,24 @@ def test_preserve_pip_download_log():
     assert expected_url == artifact.url
     assert expected_algorithm == artifact.fingerprint.algorithm
     assert expected_hash == artifact.fingerprint.hash
+
+
+def test_preserve_pip_download_log_none():
+    # type: () -> None
+
+    result = run_pex_command(
+        args=[
+            "ansicolors==1.1.8",
+            "--preserve-pip-download-log",
+            "--",
+            "-c",
+            "import colors; print(colors.green('42'))"
+        ],
+        quiet=True,
+    )
+    result.assert_success()
+    assert green("42") == result.output.strip()
+    assert (
+        "pex: The `pip download` log is not being utilized, to see more `pip download` details, "
+        "re-run with more Pex verbosity (more `-v`s).\n"
+    ) == result.error

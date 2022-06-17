@@ -7,12 +7,13 @@ import errno
 import os
 import re
 from threading import Condition, Event, Thread
+from types import TracebackType
 
 from pex.compatibility import get_stdout_bytes_buffer
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import BinaryIO, Iterable, Optional, Pattern
+    from typing import Any, BinaryIO, Iterable, Optional, Pattern, Type
 
 
 class Tailer(Thread):
@@ -40,6 +41,7 @@ class Tailer(Thread):
         poll_interval=0.1,  # type: float
         output=get_stdout_bytes_buffer(),  # type: BinaryIO
     ):
+        # type: (...) -> None
         super(Tailer, self).__init__(name="Tailing {path}".format(path=path))
         self.daemon = True
 
@@ -54,14 +56,22 @@ class Tailer(Thread):
         self._stopped = Event()
 
     def __enter__(self):
+        # type: () -> Tailer
         if not self._stopped.is_set() and not self.is_alive():
             self.start()
         return self
 
-    def __exit__(self, _exc_type, _exc_val, _exc_tb):
+    def __exit__(
+        self,
+        _exc_type,  # type: Optional[Type]
+        _exc_val,  # type: Optional[Any]
+        _exc_tb,  # type: Optional[TracebackType]
+    ):
+        # type: (...) -> None
         self.stop()
 
     def run(self):
+        # type: () -> None
         while not self._stopped.is_set():
             if not self._tail():
                 self._stopped.wait(self._poll_interval)
@@ -106,6 +116,7 @@ class Tailer(Thread):
         return True
 
     def _notify_observers(self):
+        # type: () -> None
         with self._observer:
             self._observer.notify_all()
 
