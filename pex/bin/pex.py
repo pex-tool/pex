@@ -355,7 +355,8 @@ def configure_clp_pex_entry_points(parser):
         "Specify what target/module the PEX should invoke if any.",
     )
 
-    group.add_argument(
+    entry_point = group.add_mutually_exclusive_group()
+    entry_point.add_argument(
         "-m",
         "-e",
         "--entry-point",
@@ -367,8 +368,7 @@ def configure_clp_pex_entry_points(parser):
         "module:symbol, pex assume symbol is a n0-arg callable and imports that symbol and invokes "
         "it as if via `sys.exit(symbol())`.",
     )
-
-    group.add_argument(
+    entry_point.add_argument(
         "-c",
         "--script",
         "--console-script",
@@ -378,7 +378,18 @@ def configure_clp_pex_entry_points(parser):
         help="Set the entry point as to the script or console_script as defined by a any of the "
         'distributions in the pex.  For example: "pex -c fab fabric" or "pex -c mturk boto".',
     )
-
+    entry_point.add_argument(
+        "--exe",
+        "--executable",
+        "--python-script",
+        dest="executable",
+        default=None,
+        metavar="EXECUTABLE",
+        help=(
+            "Set the entry point to an existing local python script. For example: "
+            '"pex --exe bin/my-python-script".'
+        ),
+    )
     group.add_argument(
         "--validate-entry-point",
         dest="validate_ep",
@@ -698,13 +709,14 @@ def build_pex(
         except Unsatisfiable as e:
             die(str(e))
 
-    if options.entry_point and options.script:
-        die("Must specify at most one entry point or script.", INVALID_OPTIONS)
-
     if options.entry_point:
         pex_builder.set_entry_point(options.entry_point)
     elif options.script:
         pex_builder.set_script(options.script)
+    elif options.executable:
+        pex_builder.set_executable(
+            filename=options.executable, env_filename="__pex_executable__.py"
+        )
 
     if options.python_shebang:
         pex_builder.set_shebang(options.python_shebang)
