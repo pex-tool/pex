@@ -109,7 +109,16 @@ def test_collisions_mergeable_issue_1570(tmpdir):
     # type: (Any) -> None
 
     pex = os.path.join(str(tmpdir), "pex")
-    run_pex_command(args=["opencensus==0.8.0", "opencensus_context==0.1.2", "-o", pex])
+    run_pex_command(
+        args=[
+            "opencensus==0.8.0",
+            "opencensus_context==0.1.2",
+            "-o",
+            pex,
+            "--resolver-version",
+            "pip-2020-resolver",
+        ]
+    ).assert_success()
 
     venv_dir = os.path.join(str(tmpdir), "venv")
     run_pex_tools(pex, "venv", venv_dir).assert_success()
