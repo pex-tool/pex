@@ -10,13 +10,12 @@ import os
 import re
 import sys
 from abc import ABCMeta
-from io import BytesIO
 from sys import version_info as sys_version_info
 
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import AnyStr, Callable, Optional, Text, Tuple, Type
+    from typing import IO, AnyStr, BinaryIO, Callable, Optional, Text, Tuple, Type
 
 
 try:
@@ -156,9 +155,19 @@ WINDOWS = os.name == "nt"
 MODE_READ_UNIVERSAL_NEWLINES = "rU" if PY2 else "r"
 
 
+def _get_stdio_bytes_buffer(stdio):
+    # type: (IO[str]) -> BinaryIO
+    return cast("BinaryIO", getattr(stdio, "buffer", stdio))
+
+
 def get_stdout_bytes_buffer():
-    # type: () -> BytesIO
-    return cast(BytesIO, getattr(sys.stdout, "buffer", sys.stdout))
+    # type: () -> BinaryIO
+    return _get_stdio_bytes_buffer(sys.stdout)
+
+
+def get_stderr_bytes_buffer():
+    # type: () -> BinaryIO
+    return _get_stdio_bytes_buffer(sys.stderr)
 
 
 if PY3:

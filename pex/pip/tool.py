@@ -9,12 +9,13 @@ import re
 import subprocess
 import sys
 from collections import deque
+from tempfile import mkdtemp
 from textwrap import dedent
 
 from pex import dist_metadata, targets, third_party
 from pex.auth import PasswordEntry
 from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
-from pex.compatibility import urlparse
+from pex.compatibility import get_stderr_bytes_buffer, urlparse
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
@@ -25,6 +26,7 @@ from pex.pex_bootstrapper import ensure_venv
 from pex.pip import foreign_platform
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
+from pex.pip.tailer import Tailer
 from pex.platforms import Platform
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.targets import LocalInterpreter, Target
@@ -439,6 +441,7 @@ class Pip(object):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         observer=None,  # type: Optional[DownloadObserver]
+        preserve_log=False,  # type: bool
     ):
         # type: (...) -> Job
         target = target or targets.current()
@@ -529,13 +532,54 @@ class Pip(object):
 
         log = None
         popen_kwargs = {}
+        finalizer = None
         if log_analyzers:
-            log = os.path.join(safe_mkdtemp(prefix="pex-pip-log"), "pip.log")
+            prefix = "pex-pip-log"
+            log = os.path.join(
+                mkdtemp(prefix) if preserve_log else safe_mkdtemp(prefix=prefix), "pip.log"
+            )
+            if preserve_log:
+                TRACER.log(
+                    "Preserving `pip download` log at {log_path}.".format(log_path=log),
+                    V=ENV.PEX_VERBOSE,
+                )
+
             download_cmd = ["--log", log] + download_cmd
             # N.B.: The `pip -q download ...` command is quiet but
             # `pip -q --log log.txt download ...` leaks download progress bars to stdout. We work
             # around this by sending stdout to the bit bucket.
             popen_kwargs["stdout"] = open(os.devnull, "wb")
+
+            if ENV.PEX_VERBOSE > 0:
+                tailer = Tailer.tail(
+                    path=log,
+                    output=get_stderr_bytes_buffer(),
+                    filters=(
+                        re.compile(
+                            r"^.*(pip is looking at multiple versions of [^\s+] to determine "
+                            r"which version is compatible with other requirements\. This could "
+                            r"take a while\.).*$"
+                        ),
+                        re.compile(
+                            r"^.*(This is taking longer than usual. You might need to provide "
+                            r"the dependency resolver with stricter constraints to reduce "
+                            r"runtime\. If you want to abort this run, you can press "
+                            r"Ctrl \+ C to do so\. To improve how pip performs, tell us what "
+                            r"happened here: https://pip\.pypa\.io/surveys/backtracking).*$"
+                        ),
+                    ),
+                )
+
+                def finalizer(_):
+                    # type: (int) -> None
+                    tailer.stop()
+
+        elif preserve_log:
+            TRACER.log(
+                "The `pip download` log is not being utilized, to see more `pip download` "
+                "details, re-run with more Pex verbosity (more `-v`s).",
+                V=ENV.PEX_VERBOSE,
+            )
 
         command, process = self._spawn_pip_isolated(
             download_cmd,
@@ -546,7 +590,9 @@ class Pip(object):
             **popen_kwargs
         )
         if log:
-            return LogScrapeJob(command, process, log, log_analyzers)
+            return LogScrapeJob(
+                command, process, log, log_analyzers, preserve_log=preserve_log, finalizer=finalizer
+            )
         else:
             return Job(command, process)
 

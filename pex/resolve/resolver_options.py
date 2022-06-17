@@ -213,6 +213,13 @@ def register(
         help="Whether to transitively resolve requirements.",
     )
     register_max_jobs_option(parser)
+    parser.add_argument(
+        "--preserve-pip-download-log",
+        "--no-preserve-pip-download-log",
+        default=default_resolver_configuration.preserve_log,
+        action=HandleBoolAction,
+        help="Preserve the `pip download` log and print its location to stderr.",
+    )
 
 
 def register_lock_options(parser):
@@ -415,6 +422,7 @@ def create_pip_configuration(options):
         build_isolation=options.build_isolation,
         transitive=options.transitive,
         max_jobs=get_max_jobs_value(options),
+        preserve_log=options.preserve_pip_download_log,
     )
 
 

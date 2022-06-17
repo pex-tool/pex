@@ -11,7 +11,7 @@ from pex.jobs import Job
 from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional, TypeVar, Union
+    from typing import Callable, Iterable, Optional, TypeVar, Union
 
     _T = TypeVar("_T")
 
@@ -74,10 +74,13 @@ class LogScrapeJob(Job):
         process,  # type: subprocess.Popen
         log,  # type: str
         log_analyzers,  # type: Iterable[LogAnalyzer]
+        preserve_log=False,  # type: bool
+        finalizer=None,  # type: Optional[Callable[[int], None]]
     ):
         self._log = log
         self._log_analyzers = list(log_analyzers)
-        super(LogScrapeJob, self).__init__(command, process)
+        self._preserve_log = preserve_log
+        super(LogScrapeJob, self).__init__(command, process, finalizer=finalizer)
 
     def _check_returncode(self, stderr=None):
         activated_analyzers = [
@@ -101,6 +104,7 @@ class LogScrapeJob(Job):
                                 break
             for analyzer in activated_analyzers:
                 analyzer.analysis_completed()
-            os.unlink(self._log)
+            if not self._preserve_log:
+                os.unlink(self._log)
             stderr = (stderr or b"") + "".join(collected).encode("utf-8")
         super(LogScrapeJob, self)._check_returncode(stderr=stderr)
