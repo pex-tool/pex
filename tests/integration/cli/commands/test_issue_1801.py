@@ -61,7 +61,7 @@ def test_preserve_pip_download_log_none():
             "--preserve-pip-download-log",
             "--",
             "-c",
-            "import colors; print(colors.green('42'))"
+            "import colors; print(colors.green('42'))",
         ],
         quiet=True,
     )
