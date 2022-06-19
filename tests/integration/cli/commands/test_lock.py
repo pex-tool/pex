@@ -35,7 +35,6 @@ from pex.testing import (
     built_wheel,
     ensure_python_interpreter,
     make_env,
-    make_project,
     run_pex_command,
 )
 from pex.typing import TYPE_CHECKING
@@ -690,9 +689,6 @@ def test_update_targeted_impossible(
 
     error_lines = result.error.splitlines()
     assert [
-        "ERROR: Could not find a version that satisfies the requirement urllib3<1.27,>=1.21.1 "
-        "(from requests)",
-        "ERROR: No matching distribution found for urllib3<1.27,>=1.21.1",
         "ERROR: The following lock update constraints could not be satisfied:",
         "certifi==2021.5.30",
         "charset-normalizer==2.0.6",
@@ -700,13 +696,19 @@ def test_update_targeted_impossible(
         "requests==2.26",
         "urllib3<1.16",
         "Encountered 1 error updating {lock_file_path}:".format(lock_file_path=lock_file_path),
-    ] == error_lines[:9]
+    ] == error_lines[:7]
     assert re.match(
         r"^1\.\) {platform}: pid [\d]+ -> ".format(
             platform=LocalInterpreter.create(PythonInterpreter.from_binary(py310)).platform.tag
         ),
-        error_lines[9],
+        error_lines[7],
     )
+    assert [
+        "ERROR: Could not find a version that satisfies the requirement urllib3<1.27,>=1.21.1 "
+        "(from requests)",
+        "ERROR: No matching distribution found for urllib3<1.27,>=1.21.1",
+        "",
+    ] == error_lines[8:]
 
     # The pip legacy resolver, though is not strict and will let us get away with this.
     updated_lock_file_path = os.path.join(str(tmpdir), "lock.updated")
@@ -756,9 +758,6 @@ def test_update_add_impossible(
 
     error_lines = result.error.splitlines()
     assert [
-        "ERROR: Could not find a version that satisfies the requirement certifi<2017.4.17 "
-        "(from conflicting-certifi-requirement)",
-        "ERROR: No matching distribution found for certifi<2017.4.17",
         "ERROR: The following lock update constraints could not be satisfied:",
         "certifi==2021.5.30",
         "charset-normalizer==2.0.6",
@@ -766,13 +765,19 @@ def test_update_add_impossible(
         "requests==2.26",
         "urllib3==1.25.11",
         "Encountered 1 error updating {lock_file_path}:".format(lock_file_path=lock_file_path),
-    ] == error_lines[:9]
+    ] == error_lines[:7]
     assert re.match(
         r"^1\.\) {platform}: pid [\d]+ -> ".format(
             platform=LocalInterpreter.create(PythonInterpreter.from_binary(py310)).platform.tag
         ),
-        error_lines[9],
+        error_lines[7],
     )
+    assert [
+        "ERROR: Could not find a version that satisfies the requirement certifi<2017.4.17 "
+        "(from conflicting-certifi-requirement)",
+        "ERROR: No matching distribution found for certifi<2017.4.17",
+        "",
+    ] == error_lines[8:]
 
     # The pip legacy resolver, though is not strict and will let us get away with this.
     updated_lock_file_path = os.path.join(str(tmpdir), "lock.updated")

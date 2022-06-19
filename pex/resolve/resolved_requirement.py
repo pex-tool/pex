@@ -83,8 +83,8 @@ class ResolvedRequirement(object):
         for artifact in self.additional_artifacts:
             yield artifact
 
-    def iter_urls_to_fingerprint(self):
-        # type: () -> Iterator[str]
+    def iter_artifacts_to_fingerprint(self):
+        # type: () -> Iterator[PartialArtifact]
         for artifact in self.iter_artifacts():
             if not artifact.fingerprint:
-                yield artifact.url
+                yield artifact

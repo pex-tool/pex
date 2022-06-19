@@ -166,8 +166,14 @@ def assert_unauthorized(
     assert (
         "There was 1 error downloading required artifacts:\n"
         "1. ansicolors 1.1.8 from {repo_url}/ansicolors-1.1.8-py2.py3-none-any.whl\n"
-        "    HTTP Error 401: Unauthorized".format(repo_url=secured_ansicolors_lock.repo_url)
-    ) in result.error
+        "    ERROR: Could not install requirement ansicolors==1.1.8 from "
+        "{repo_url}/ansicolors-1.1.8-py2.py3-none-any.whl because of HTTP error 401 Client Error: "
+        "Unauthorized for url: {repo_url}/ansicolors-1.1.8-py2.py3-none-any.whl for URL "
+        "{repo_url}/ansicolors-1.1.8-py2.py3-none-any.whl".format(
+            repo_url=secured_ansicolors_lock.repo_url
+        )
+    ) in result.error, result.error
+
     return result
 
 

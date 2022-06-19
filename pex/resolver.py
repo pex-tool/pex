@@ -25,6 +25,7 @@ from pex.pex_info import PexInfo
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration, get_pip
 from pex.requirements import LocalProjectRequirement
+from pex.resolve.downloads import get_downloads_dir
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable, Untranslatable
@@ -79,14 +80,16 @@ class DownloadRequest(object):
             # Nothing to resolve.
             return []
 
-        dest = dest or safe_mkdtemp(dir=safe_mkdir(os.path.join(ENV.PEX_ROOT, "downloads", "tmp")))
+        dest = dest or safe_mkdtemp(
+            prefix="resolver_download.", dir=safe_mkdir(get_downloads_dir())
+        )
         spawn_download = functools.partial(self._spawn_download, dest)
         with TRACER.timed("Resolving for:\n  {}".format("\n  ".join(map(str, self.targets)))):
             return list(
                 execute_parallel(
                     inputs=self.targets,
                     spawn_func=spawn_download,
-                    error_handler=Raise(Unsatisfiable),
+                    error_handler=Raise[Target, DownloadResult](Unsatisfiable),
                     max_jobs=max_parallel_jobs,
                 )
             )
@@ -530,7 +533,7 @@ class WheelBuilder(object):
             for build_result in execute_parallel(
                 inputs=build_requests,
                 spawn_func=spawn_wheel_build,
-                error_handler=Raise(Untranslatable),
+                error_handler=Raise[BuildRequest, BuildResult](Untranslatable),
                 max_jobs=max_parallel_jobs,
             ):
                 build_results[build_result.request.source_path].add(build_result.finalize_build())
@@ -709,7 +712,7 @@ class BuildAndInstallRequest(object):
             for install_result in execute_parallel(
                 inputs=install_requests,
                 spawn_func=spawn_install,
-                error_handler=Raise(Untranslatable),
+                error_handler=Raise[InstallRequest, InstallResult](Untranslatable),
                 max_jobs=max_parallel_jobs,
             ):
                 add_installation(install_result)

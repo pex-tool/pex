@@ -8,15 +8,16 @@ import shutil
 from collections import OrderedDict, defaultdict
 
 from pex import hashing, resolver
+from pex.auth import PasswordDatabase
 from pex.common import pluralize, safe_mkdtemp
 from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
-from pex.fetcher import URLFetcher
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve import locker, resolvers
 from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
     Artifact,
     FileArtifact,
@@ -129,7 +130,7 @@ class LockObserver(ResolveObserver):
     lock_configuration = attr.ib()  # type: LockConfiguration
     resolver = attr.ib()  # type: Resolver
     wheel_builder = attr.ib()  # type: WheelBuilder
-    url_fetcher = attr.ib()  # type: URLFetcher
+    package_index_configuration = attr.ib()  # type: PackageIndexConfiguration
     max_parallel_jobs = attr.ib(default=None)  # type: Optional[int]
     _analysis = attr.ib(factory=OrderedSet, eq=False)  # type: OrderedSet[_LockAnalysis]
 
@@ -199,7 +200,9 @@ class LockObserver(ResolveObserver):
             LockedResolve.create(
                 resolved_requirements=resolved_requirements,
                 dist_metadatas=dist_metadatas_by_target[target],
-                url_fetcher=self.url_fetcher,
+                fingerprinter=ArtifactDownloader(
+                    package_index_configuration=self.package_index_configuration, target=target
+                ),
                 platform_tag=None
                 if self.lock_configuration.style == LockStyle.UNIVERSAL
                 else target.platform.tag,
@@ -229,6 +232,9 @@ def create(
         network_configuration=network_configuration,
         find_links=pip_configuration.repos_configuration.find_links,
         indexes=pip_configuration.repos_configuration.indexes,
+        password_entries=PasswordDatabase.from_netrc()
+        .append(pip_configuration.repos_configuration.password_entries)
+        .entries,
     )
 
     lock_observer = LockObserver(
@@ -240,11 +246,7 @@ def create(
             use_pep517=pip_configuration.use_pep517,
             build_isolation=pip_configuration.build_isolation,
         ),
-        url_fetcher=URLFetcher(
-            network_configuration,
-            handle_file_urls=True,
-            password_entries=pip_configuration.repos_configuration.password_entries,
-        ),
+        package_index_configuration=package_index_configuration,
         max_parallel_jobs=pip_configuration.max_jobs,
     )
 

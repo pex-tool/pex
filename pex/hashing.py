@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import hashlib
 import os
+from contextlib import contextmanager
 
 from pex.typing import TYPE_CHECKING, Generic
 
@@ -65,6 +66,10 @@ class Fingerprint(str):
 
     def __ne__(self, other):
         return not self == other
+
+    def __hash__(self):
+        # type: () -> int
+        return hash((self.algorithm, str(self)))
 
 
 def new_fingerprint(

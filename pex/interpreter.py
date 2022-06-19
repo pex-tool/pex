@@ -21,7 +21,7 @@ from pex.common import is_exe, safe_mkdtemp, safe_rmtree
 from pex.compatibility import string
 from pex.dist_metadata import DistMetadata, Distribution, Requirement, RequirementParseError
 from pex.executor import Executor
-from pex.jobs import ErrorHandler, Job, Retain, SpawnedJob, execute_parallel
+from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_440 import Version
@@ -607,7 +607,7 @@ class PythonInterpreter(object):
         def iter_interpreters():
             # type: () -> Iterator[PythonInterpreter]
             for candidate in cls._find(
-                cls._paths(paths=paths), path_filter=path_filter, error_handler=Retain()
+                cls._paths(paths=paths), path_filter=path_filter, error_handler=Retain[str]()
             ):
                 if isinstance(candidate, cls):
                     yield candidate
@@ -899,7 +899,7 @@ class PythonInterpreter(object):
     def _find(
         cls,
         paths,  # type: Iterable[str]
-        error_handler,  # type: Retain
+        error_handler,  # type: Retain[str]
         path_filter=None,  # type: Optional[PathFilter]
     ):
         # type: (...) -> Iterator[InterpreterOrJobError]
@@ -909,7 +909,7 @@ class PythonInterpreter(object):
     def _find(
         cls,
         paths,  # type: Iterable[str]
-        error_handler=None,  # type: Optional[ErrorHandler]
+        error_handler=None,  # type: Optional[Retain[str]]
         path_filter=None,  # type: Optional[PathFilter]
     ):
         # type: (...) -> Union[Iterator[PythonInterpreter], Iterator[InterpreterOrJobError]]
@@ -937,7 +937,7 @@ class PythonInterpreter(object):
     def _identify_interpreters(
         cls,
         filter,  # type: PathFilter
-        error_handler,  # type: Retain
+        error_handler,  # type: Retain[str]
         paths=None,  # type: Optional[Iterable[str]]
     ):
         # type: (...) -> Iterator[InterpreterOrJobError]
@@ -947,7 +947,7 @@ class PythonInterpreter(object):
     def _identify_interpreters(
         cls,
         filter,  # type: PathFilter
-        error_handler=None,  # type: Optional[ErrorHandler]
+        error_handler=None,  # type: Optional[Retain[str]]
         paths=None,  # type: Optional[Iterable[str]]
     ):
         # type: (...) -> Union[Iterator[PythonInterpreter], Iterator[InterpreterOrJobError]]

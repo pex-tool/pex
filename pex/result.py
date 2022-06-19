@@ -8,7 +8,7 @@ import sys
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, TypeVar, Union
+    from typing import Any, Callable, Text, TypeVar, Union
 
     import attr  # vendor:skip
 
@@ -20,7 +20,7 @@ else:
 @attr.s(frozen=True)
 class Result(object):
     exit_code = attr.ib()  # type: int
-    _message = attr.ib(default="")  # type: str
+    _message = attr.ib(default="")  # type: Text
 
     @property
     def is_error(self):
@@ -35,19 +35,19 @@ class Result(object):
 
     def __str__(self):
         # type: () -> str
-        return self._message
+        return str(self._message)
 
 
 class Ok(Result):
     def __init__(self, message=""):
-        # type: (str) -> None
+        # type: (Text) -> None
         super(Ok, self).__init__(exit_code=0, message=message)
 
 
 class Error(Result):
     def __init__(
         self,
-        message="",  # type: str
+        message="",  # type: Text
         exit_code=1,  # type: int
     ):
         # type: (...) -> None

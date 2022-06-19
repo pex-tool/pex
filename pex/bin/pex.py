@@ -43,7 +43,7 @@ from pex.resolve.resolver_configuration import (
 )
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
-from pex.result import try_
+from pex.result import catch, try_
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -770,13 +770,16 @@ def main(args=None):
             except target_configuration.InterpreterConstraintsNotSatisfied as e:
                 die(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
 
-            do_main(
-                options=options,
-                requirement_configuration=requirement_configuration,
-                resolver_configuration=resolver_configuration,
-                targets=targets,
-                cmdline=cmdline,
-                env=env,
+            sys.exit(
+                catch(
+                    do_main,
+                    options=options,
+                    requirement_configuration=requirement_configuration,
+                    resolver_configuration=resolver_configuration,
+                    targets=targets,
+                    cmdline=cmdline,
+                    env=env,
+                )
             )
     except GlobalConfigurationError as e:
         die(str(e))

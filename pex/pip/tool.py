@@ -331,6 +331,8 @@ class Pip(object):
             #   (a)bort.
             "--exists-action",
             "a",
+            # We are not interactive.
+            "--no-input",
         ]
         python_interpreter = interpreter or PythonInterpreter.get()
         pip_args.extend(
@@ -398,6 +400,7 @@ class Pip(object):
             # + https://github.com/pypa/pip/issues/9420
             if "stdout" not in popen_kwargs:
                 popen_kwargs["stdout"] = sys.stderr.fileno()
+            popen_kwargs.update(stderr=subprocess.PIPE)
 
             args = [self._pip_pex_path] + command
             return args, subprocess.Popen(args=args, env=env, **popen_kwargs)
@@ -530,7 +533,7 @@ class Pip(object):
         log = None
         popen_kwargs = {}
         if log_analyzers:
-            log = os.path.join(safe_mkdtemp(prefix="pex-pip-log"), "pip.log")
+            log = os.path.join(safe_mkdtemp(prefix="pex-pip-log."), "pip.log")
             download_cmd = ["--log", log] + download_cmd
             # N.B.: The `pip -q download ...` command is quiet but
             # `pip -q --log log.txt download ...` leaks download progress bars to stdout. We work
