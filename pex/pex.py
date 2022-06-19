@@ -408,6 +408,11 @@ class PEX(object):  # noqa: T000
             patch_dict(sys.path_importer_cache, path_importer_cache)
             patch_dict(sys.modules, modules)
 
+            # N.B.: These hooks may contain custom code set via site.py or `.pth` files that we've
+            # just scrubbed. Reset them to factory defaults to avoid scrubbed code.
+            sys.displayhook = sys.__displayhook__
+            sys.excepthook = sys.__excepthook__  # type: ignore[assignment] # Builtin typeshed bug.
+
         new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
         if self._vars.PEX_EXTRA_SYS_PATH:

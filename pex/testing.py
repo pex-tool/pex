@@ -463,7 +463,7 @@ _ALL_PY3_VERSIONS = (PY37, PY310)
 
 
 def ensure_python_distribution(version):
-    # type: (str) -> Tuple[str, str, Callable[[Iterable[str]], Text]]
+    # type: (str) -> Tuple[str, str, str, Callable[[Iterable[str]], Text]]
     if version not in ALL_PY_VERSIONS:
         raise ValueError("Please constrain version to one of {}".format(ALL_PY_VERSIONS))
 
@@ -522,11 +522,11 @@ def ensure_python_distribution(version):
         # type: (Iterable[str]) -> Text
         return to_unicode(subprocess.check_output([pyenv] + list(args), env=pyenv_env))
 
-    return python, pip, run_pyenv
+    return interpreter_location, python, pip, run_pyenv
 
 
 def ensure_python_venv(version, latest_pip=True, system_site_packages=False):
-    python, pip, _ = ensure_python_distribution(version)
+    _, python, pip, _ = ensure_python_distribution(version)
     venv = safe_mkdtemp()
     if version in _ALL_PY3_VERSIONS:
         args = [python, "-m", "venv", venv]
@@ -547,7 +547,7 @@ def ensure_python_venv(version, latest_pip=True, system_site_packages=False):
 
 def ensure_python_interpreter(version):
     # type: (str) -> str
-    python, _, _ = ensure_python_distribution(version)
+    _, python, _, _ = ensure_python_distribution(version)
     return python
 
 
