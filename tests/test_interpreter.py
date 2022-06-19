@@ -218,7 +218,7 @@ class TestPythonInterpreter(object):
 
     def test_pyenv_shims(self, tmpdir):
         # type: (Any) -> None
-        py37, _, run_pyenv = ensure_python_distribution(PY37)
+        _, py37, _, run_pyenv = ensure_python_distribution(PY37)
         py310 = ensure_python_interpreter(PY310)
 
         pyenv_root = str(run_pyenv(["root"]).strip())
