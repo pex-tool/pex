@@ -20,25 +20,25 @@ else:
 
 
 @attr.s(frozen=True)
-class BaseURL(object):
+class Machine(object):
     @classmethod
     def from_url_info(cls, url_info):
-        # type: (urlparse.ParseResult) -> BaseURL
+        # type: (urlparse.ParseResult) -> Machine
 
         if not url_info.scheme:
             raise ValueError(
                 "Expected a scheme for the BaseURL. Given: {url_info}".format(url_info=url_info)
             )
 
-        if not url_info.hostname and "file" != url_info.scheme:
+        if "file" == url_info.scheme:
+            return cls(reduced_url="file://{path}".format(path=url_info.path))
+
+        if not url_info.hostname:
             raise ValueError(
                 "Expected a hostname for a BaseURL with {scheme} scheme. Given: {url_info}".format(
                     scheme=url_info.scheme, url_info=url_info
                 )
             )
-
-        if "file" == url_info.scheme:
-            return cls(reduced_url="file://{path}".format(path=url_info.path))
 
         return cls(
             reduced_url="{scheme}://{host}{port}".format(
@@ -52,7 +52,7 @@ class BaseURL(object):
 
     @classmethod
     def from_url(cls, url):
-        # type: (Text) -> BaseURL
+        # type: (Text) -> Machine
         return cls.from_url_info(urlparse.urlparse(url))
 
     reduced_url = attr.ib()  # type: str
@@ -70,18 +70,18 @@ class PasswordEntry(object):
             return None
 
         return cls(
-            base_url=BaseURL.from_url_info(url_info),
+            machine=Machine.from_url_info(url_info),
             username=url_info.username,
             password=url_info.password,
         )
 
     username = attr.ib()  # type: str
     password = attr.ib()  # type: str
-    base_url = attr.ib(default=None)  # type: Optional[BaseURL]
+    machine = attr.ib(default=None)  # type: Optional[Machine]
 
     def uri_or_default(self, url):
         # type: (Text) -> str
-        return (self.base_url or BaseURL.from_url(url)).reduced_url
+        return (self.machine or Machine.from_url(url)).reduced_url
 
     def maybe_inject_in_url(self, url):
         # type: (str) -> Optional[str]
@@ -91,8 +91,8 @@ class PasswordEntry(object):
             # Don't stomp credentials already embedded in an URL.
             return None
 
-        if self.base_url:
-            if BaseURL.from_url_info(url_info) != self.base_url:
+        if self.machine:
+            if Machine.from_url_info(url_info) != self.machine:
                 return None
 
         scheme, netloc, path, params, query, fragment = url_info
@@ -143,7 +143,7 @@ class PasswordDatabase(object):
                 # For scheme syntax, see: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
                 if re.search(r"^(?P<scheme>[a-zA-Z][a-zA-Z\d+.-]*)://", machine):
                     yield PasswordEntry(
-                        base_url=BaseURL.from_url(machine),
+                        machine=Machine.from_url(machine),
                         username=login,
                         password=password,
                     )
@@ -151,7 +151,7 @@ class PasswordDatabase(object):
 
                 for scheme in "http", "https":
                     yield PasswordEntry(
-                        base_url=BaseURL.from_url(
+                        machine=Machine.from_url(
                             "{scheme}://{machine}".format(scheme=scheme, machine=machine)
                         ),
                         username=login,
