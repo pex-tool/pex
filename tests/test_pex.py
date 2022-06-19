@@ -22,7 +22,6 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.testing import (
-    IS_PYPY3,
     PY27,
     PY310,
     WheelBuilder,
@@ -113,7 +112,6 @@ def test_pex_sys_exit_prints_objects():
     _test_sys_exit('Exception("derp")', b"derp\n", 1)
 
 
-@pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
 def test_pex_atexit_swallowing():
     # type: () -> None
     body = textwrap.dedent(
@@ -128,12 +126,6 @@ def test_pex_atexit_swallowing():
     )
 
     so, rc = run_simple_pex_test(body)
-    assert so == b""
-    assert rc == 0
-
-    env_copy = os.environ.copy()
-    env_copy.update(PEX_TEARDOWN_VERBOSE="1")
-    so, rc = run_simple_pex_test(body, env=env_copy)
     assert b"This is an exception" in so
     assert rc == 0
 
