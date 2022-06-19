@@ -237,8 +237,9 @@ class Variables(object):
             )
         if "PEX_TEARDOWN_VERBOSE" in self._environ:
             pex_warnings.warn(
-                # TODO(John Sirois): XXX
-                ""
+                "The `PEX_TEARDOWN_VERBOSE` env var is deprecated. This env var is no longer read "
+                "since PEX teardown has been removed in favor of the natural teardown environment "
+                "provided by the Python runtime."
             )
 
     def copy(self):
