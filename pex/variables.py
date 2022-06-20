@@ -235,6 +235,12 @@ class Variables(object):
                 "The `PEX_UNZIP` env var is deprecated. This env var is no longer read since "
                 "unzipping PEX zip files before execution is now the default."
             )
+        if "PEX_TEARDOWN_VERBOSE" in self._environ:
+            pex_warnings.warn(
+                "The `PEX_TEARDOWN_VERBOSE` env var is deprecated. This env var is no longer read "
+                "since PEX teardown has been removed in favor of the natural teardown environment "
+                "provided by the Python runtime."
+            )
 
     def copy(self):
         # type: () -> Dict[str, str]

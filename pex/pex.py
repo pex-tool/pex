@@ -5,10 +5,7 @@ from __future__ import absolute_import, print_function
 
 import ast
 import os
-import re
 import sys
-import warnings
-import zipfile
 from distutils import sysconfig
 from site import USER_SITE
 from types import ModuleType
@@ -16,7 +13,6 @@ from types import ModuleType
 from pex import third_party
 from pex.bootstrap import Bootstrap
 from pex.common import die
-from pex.compatibility import PY3
 from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint, find_distributions
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
@@ -485,72 +481,39 @@ class PEX(object):  # noqa: T000
 
         This function makes assumptions that it is the last function called by the interpreter.
         """
-        teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
-        try:
-            if self._vars.PEX_TOOLS:
-                if not self._pex_info.includes_tools:
-                    die(
-                        "The PEX_TOOLS environment variable was set, but this PEX was not built "
-                        "with tools (Re-build the PEX file with `pex --include-tools ...`)"
+        if self._vars.PEX_TOOLS:
+            if not self._pex_info.includes_tools:
+                die(
+                    "The PEX_TOOLS environment variable was set, but this PEX was not built "
+                    "with tools (Re-build the PEX file with `pex --include-tools ...`)"
+                )
+
+            from pex.tools import main as tools
+
+            sys.exit(tools.main(pex=PEX(sys.argv[0])))
+
+        self.activate()
+
+        pex_file = os.environ.get("PEX", None)
+        if pex_file:
+            try:
+                from setproctitle import setproctitle  # type: ignore[import]
+
+                setproctitle(
+                    "{python} {pex_file} {args}".format(
+                        python=sys.executable,
+                        pex_file=pex_file,
+                        args=" ".join(sys.argv[1:]),
                     )
+                )
+            except ImportError:
+                TRACER.log(
+                    "Not setting process title since setproctitle is not available in "
+                    "{pex_file}".format(pex_file=pex_file),
+                    V=3,
+                )
 
-                from pex.tools import main as tools
-
-                exit_value = tools.main(pex=PEX(sys.argv[0]))
-            else:
-                self.activate()
-
-                pex_file = os.environ.get("PEX", None)
-                if pex_file:
-                    try:
-                        from setproctitle import setproctitle  # type: ignore[import]
-
-                        setproctitle(
-                            "{python} {pex_file} {args}".format(
-                                python=sys.executable,
-                                pex_file=pex_file,
-                                args=" ".join(sys.argv[1:]),
-                            )
-                        )
-                    except ImportError:
-                        TRACER.log(
-                            "Not setting process title since setproctitle is not available in "
-                            "{pex_file}".format(pex_file=pex_file),
-                            V=3,
-                        )
-
-                exit_value = self._wrap_coverage(self._wrap_profiling, self._execute)
-            sys.exit(exit_value)
-        except Exception:
-            # Allow the current sys.excepthook to handle this app exception before we tear things
-            # down in finally, then reraise so that the exit status is reflected correctly.
-            sys.excepthook(*sys.exc_info())
-            raise
-        except SystemExit as se:
-            # Print a SystemExit error message, avoiding a traceback in python3.
-            # This must happen here, as sys.stderr is about to be torn down
-            if not isinstance(se.code, int) and se.code is not None:  # type: ignore[unreachable]
-                print(se.code, file=sys.stderr)  # type: ignore[unreachable]
-            raise
-        finally:
-            # squash all exceptions on interpreter teardown -- the primary type here are
-            # atexit handlers failing to run because of things such as:
-            #   http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
-            if not teardown_verbosity:
-                sys.stderr.flush()
-                sys.stderr = open(os.devnull, "w")
-                if PY3:
-                    # Python 3 warns about unclosed resources. In this case we intentionally do not
-                    # close `/dev/null` since we want all stderr to flow there until the latest
-                    # stages of Python interpreter shutdown when the Python runtime will `del` the
-                    # open file and thus finally close the underlying file descriptor. As such,
-                    # suppress the warning.
-                    warnings.filterwarnings(
-                        action="ignore",
-                        message=r"unclosed file {}".format(re.escape(str(sys.stderr))),
-                        category=ResourceWarning,
-                    )
-                sys.excepthook = lambda *a, **kw: None
+        sys.exit(self._wrap_coverage(self._wrap_profiling, self._execute))
 
     def _execute(self):
         # type: () -> Any
