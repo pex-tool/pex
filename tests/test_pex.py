@@ -22,6 +22,7 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.testing import (
+    IS_PYPY,
     PY27,
     PY310,
     WheelBuilder,
@@ -66,7 +67,6 @@ def test_excepthook_honored():
 
         def excepthook(ex_type, ex, tb):
             print('Custom hook called with: {0}'.format(ex))
-            sys.exit(42)
 
         sys.excepthook = excepthook
 
@@ -76,7 +76,7 @@ def test_excepthook_honored():
 
     so, rc = run_simple_pex_test(body)
     assert so == b"Custom hook called with: This is an exception\n", "Standard out was: %r" % so
-    assert rc == 42
+    assert rc == 1
 
 
 def _test_sys_exit(arg, expected_output, expected_rc):
