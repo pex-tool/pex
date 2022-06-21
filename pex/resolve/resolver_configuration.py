@@ -72,6 +72,7 @@ class PipConfiguration(object):
     build_isolation = attr.ib(default=True)  # type: bool
     transitive = attr.ib(default=True)  # type: bool
     max_jobs = attr.ib(default=DEFAULT_MAX_JOBS)  # type: int
+    preserve_log = attr.ib(default=False)  # type: bool
 
 
 @attr.s(frozen=True)

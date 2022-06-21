@@ -273,6 +273,7 @@ def create(
             max_parallel_jobs=pip_configuration.max_jobs,
             observer=lock_observer,
             dest=download_dir,
+            preserve_log=pip_configuration.preserve_log,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))

@@ -66,6 +66,7 @@ class DownloadRequest(object):
     use_pep517 = attr.ib(default=None)  # type: Optional[bool]
     build_isolation = attr.ib(default=True)  # type: bool
     observer = attr.ib(default=None)  # type: Optional[ResolveObserver]
+    preserve_log = attr.ib(default=False)  # type: bool
 
     def iter_local_projects(self):
         # type: () -> Iterator[BuildRequest]
@@ -123,6 +124,7 @@ class DownloadRequest(object):
             use_pep517=self.use_pep517,
             build_isolation=self.build_isolation,
             observer=observer,
+            preserve_log=self.preserve_log,
         )
 
         return SpawnedJob.wait(job=download_job, result=download_result)
@@ -814,6 +816,7 @@ def resolve(
     max_parallel_jobs=None,  # type: Optional[int]
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
+    preserve_log=False,  # type: bool
 ):
     # type: (...) -> Installed
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
@@ -858,6 +861,8 @@ def resolve(
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword ignore_errors: Whether to ignore resolution solver errors. Defaults to ``False``.
     :keyword verify_wheels: Whether to verify wheels have valid metadata. Defaults to ``True``.
+    :keyword preserve_log: Preserve the `pip download` log and print its location to stderr.
+      Defaults to ``False``.
     :returns: The installed distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If ``requirements`` is not transitively satisfiable.
     :raises Untranslatable: If no compatible distributions could be acquired for
@@ -918,6 +923,7 @@ def resolve(
         use_pep517=use_pep517,
         build_isolation=build_isolation,
         max_parallel_jobs=max_parallel_jobs,
+        preserve_log=preserve_log,
     )
 
     install_requests = []  # type: List[InstallRequest]
@@ -963,6 +969,7 @@ def _download_internal(
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
+    preserve_log=False,  # type: bool
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
 
@@ -982,6 +989,7 @@ def _download_internal(
         use_pep517=use_pep517,
         build_isolation=build_isolation,
         observer=observer,
+        preserve_log=preserve_log,
     )
 
     local_projects = list(download_request.iter_local_projects())
@@ -1042,6 +1050,7 @@ def download(
     dest=None,  # type: Optional[str]
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
+    preserve_log=False,  # type: bool
 ):
     # type: (...) -> Downloaded
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
@@ -1081,6 +1090,8 @@ def download(
     :keyword max_parallel_jobs: The maximum number of parallel jobs to use when resolving,
       building and installing distributions in a resolve. Defaults to the number of CPUs available.
     :keyword observer: An optional observer of the download internals.
+    :keyword preserve_log: Preserve the `pip download` log and print its location to stderr.
+      Defaults to ``False``.
     :returns: The local distributions meeting all requirements and constraints.
     :raises Unsatisfiable: If the resolution of download of distributions fails for any reason.
     :raises ValueError: If a foreign platform was provided in `platforms`, and `use_wheel=False`.
@@ -1111,6 +1122,7 @@ def download(
         dest=dest,
         max_parallel_jobs=max_parallel_jobs,
         observer=observer,
+        preserve_log=preserve_log,
     )
 
     local_distributions = []
