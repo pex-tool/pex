@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import hashlib
 import os
-from contextlib import contextmanager
 
 from pex.typing import TYPE_CHECKING, Generic
 

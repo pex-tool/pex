@@ -131,7 +131,7 @@ class PasswordDatabase(object):
 
                 if machine == "default":
                     # The `default` entry is special and means just that; so we omit any qualifying
-                    # base URL.
+                    # machine.
                     yield PasswordEntry(username=login, password=password)
 
                 # Traditionally, ~/.netrc machine entries just contain a bare hostname but we allow
