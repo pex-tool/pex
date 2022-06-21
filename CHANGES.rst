@@ -1,6 +1,53 @@
 Release Notes
 =============
 
+2.1.93
+------
+
+This release brings several new features in addition to bug fixes.
+
+When creating a PEX the entry point can now be any local python script
+by passing ``--exe path/to/python-script``.
+
+The ``pex3 lock update`` command now supports a ``-dry-dun check`` mode
+that exits non-zero to indicate that a lock needs updating and the
+``-p / --project`` targeted update arguments can now be new projects to
+attempt to add to the lock.
+
+On the bug fix front, traditional zipapp mode PEX files now properly
+scrub ``sys.displayhook`` and ``sys.excepthook`` and their teardown
+sequence has now been simplified fixing logging to stderr late in
+teardown.
+
+Finally, ``pex3 lock create`` now logs when requirement resolution is
+taking a long time to provide some sense of progress and suggest
+generic remedies and ``pex --lock`` now properly handles
+authentication.
+
+* Support adding new requirements in a lock update. (#1797)
+  `PR #1797 <https://github.com/pantsbuild/pex/pull/1797>`_
+
+* Add ``pex3 lock update --dry-run check`` mode. (#1799)
+  `PR #1799 <https://github.com/pantsbuild/pex/pull/1799>`_
+
+* Universal locks no longer record a ``platform_tag``. (#1800)
+  `PR #1800 <https://github.com/pantsbuild/pex/pull/1800>`_
+
+* Support python script file executable. (#1807)
+  `PR #1807 <https://github.com/pantsbuild/pex/pull/1807>`_
+
+* Fix PEX scrubbing to account for sys.excepthook. (#1810)
+  `PR #1810 <https://github.com/pantsbuild/pex/pull/1810>`_
+
+* Simplify ``PEX`` teardown / leave stderr in tact. (#1813)
+  `PR #1813 <https://github.com/pantsbuild/pex/pull/1813>`_
+
+* Surface pip download logging. (#1808)
+  `PR #1808 <https://github.com/pantsbuild/pex/pull/1808>`_
+
+* Use pip download instead or URLFetcher. (#1811)
+  `PR #1811 <https://github.com/pantsbuild/pex/pull/1811>`_
+
 2.1.92
 ------
 
