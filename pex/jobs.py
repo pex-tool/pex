@@ -8,16 +8,20 @@ import subprocess
 from abc import abstractmethod
 from threading import BoundedSemaphore, Event, Thread
 
-from pex.compatibility import AbstractClass, Queue, cpu_count
+from pex.compatibility import Queue, cpu_count
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Iterable, Optional, Text, Tuple, TypeVar
+    from typing import Any, Callable, Iterable, Iterator, Optional, Text, Tuple, TypeVar, Union
 
     import attr  # vendor:skip
 
+    _I = TypeVar("_I")
+    _O = TypeVar("_O")
     _T = TypeVar("_T")
+    _SE = TypeVar("_SE")
+    _JE = TypeVar("_JE")
 else:
     from pex.third_party import attr
 
@@ -339,17 +343,27 @@ def _sanitize_max_jobs(max_jobs=None):
         return min(max_jobs, _ABSOLUTE_MAX_JOBS)
 
 
-class ErrorHandler(AbstractClass):  # type: ignore[valid-type, misc]
+class ErrorHandler(Generic["_I", "_SE", "_JE"]):
     """Handles errors encountered in the context of spawning and awaiting the result of a `Job`."""
 
     @classmethod
-    def spawn_error_message(cls, item, exception):
+    def spawn_error_message(
+        cls,
+        item,  # type: _I
+        exception,  # type: Exception
+    ):
+        # type: (...) -> str
         return "Failed to spawn a job for {item}: {exception}".format(
             item=item, exception=exception
         )
 
     @classmethod
-    def job_error_message(cls, _item, job_error):
+    def job_error_message(
+        cls,
+        _item,  # type: _I
+        job_error,  # type: Job.Error
+    ):
+        # type: (...) -> str
         return "pid {pid} -> {command} exited with {exitcode} and STDERR:\n{stderr}".format(
             pid=job_error.pid,
             command=" ".join(job_error.command),
@@ -358,7 +372,12 @@ class ErrorHandler(AbstractClass):  # type: ignore[valid-type, misc]
         )
 
     @abstractmethod
-    def handle_spawn_error(self, item, exception):
+    def handle_spawn_error(
+        self,
+        item,  # type: _I
+        exception,  # type: Exception
+    ):
+        # type: (...) -> _SE
         """Handle an error encountered spawning a job.
 
         :param item: The item that was the input for the spawned job.
@@ -370,7 +389,12 @@ class ErrorHandler(AbstractClass):  # type: ignore[valid-type, misc]
         """
 
     @abstractmethod
-    def handle_job_error(self, item, job_error):
+    def handle_job_error(
+        self,
+        item,  # type: _I
+        job_error,  # type: Job.Error
+    ):
+        # type: (...) -> _JE
         """Handle a job that exits unsuccessfully.
 
         :param item: The item that was the input for the spawned job.
@@ -382,7 +406,7 @@ class ErrorHandler(AbstractClass):  # type: ignore[valid-type, misc]
         """
 
 
-class Raise(ErrorHandler):
+class Raise(ErrorHandler["_I", "_O", "_O"], Generic["_I", "_O"]):
     """Re-raises errors encountered spawning or awaiting the result of a `Job`."""
 
     def __init__(self, raise_type):
@@ -399,7 +423,7 @@ class Raise(ErrorHandler):
         raise self._raise_type(self.job_error_message(item, job_error))
 
 
-class Retain(ErrorHandler):
+class Retain(ErrorHandler["_I", "Tuple[_I, Exception]", "Tuple[_I, Job.Error]"], Generic["_I"]):
     """Retains errors encountered spawning or awaiting the result of a `Job`.
 
     The retained errors are returned as the result of the failed `Job` in the form of (item, error)
@@ -414,7 +438,7 @@ class Retain(ErrorHandler):
         return item, job_error
 
 
-class Log(ErrorHandler):
+class Log(ErrorHandler["_I", "_O", "_O"], Generic["_I", "_O"]):
     """Logs errors encountered spawning or awaiting the result of a `Job`."""
 
     def handle_spawn_error(self, item, exception):
@@ -426,7 +450,13 @@ class Log(ErrorHandler):
         return None
 
 
-def execute_parallel(inputs, spawn_func, error_handler=None, max_jobs=None):
+def execute_parallel(
+    inputs,  # type: Iterable[_I]
+    spawn_func,  # type: Callable[[_I], SpawnedJob[_O]]
+    error_handler=None,  # type: Optional[ErrorHandler[_I, _SE, _JE]]
+    max_jobs=None,  # type: Optional[int]
+):
+    # type: (...) -> Iterator[Union[_O, _SE, _JE]]
     """Execute jobs for the given inputs in parallel.
 
     :param int max_jobs: The maximum number of parallel jobs to spawn.
@@ -436,14 +466,9 @@ def execute_parallel(inputs, spawn_func, error_handler=None, max_jobs=None):
     :returns: An iterator over the spawned job results as they come in.
     :raises: A `raise_type` exception if any individual job errors and `raise_type` is not `None`.
     """
-    error_handler = error_handler or Log()
-    if not isinstance(error_handler, ErrorHandler):
-        raise ValueError(
-            "Given error_handler {} of type {}, expected an {}".format(
-                error_handler, type(error_handler), ErrorHandler
-            )
-        )
-
+    handler = (
+        error_handler or Log["_I", "_O"]()
+    )  # type: Union[ErrorHandler[_I, _SE, _JE], Log[_I, _O]]
     size = _sanitize_max_jobs(max_jobs)
     TRACER.log(
         "Spawning a maximum of {} parallel jobs to process:\n  {}".format(
@@ -464,8 +489,12 @@ def execute_parallel(inputs, spawn_func, error_handler=None, max_jobs=None):
 
     stop = Event()  # Used as a signal to stop spawning further jobs once any one job fails.
     job_slots = BoundedSemaphore(value=size)
-    done_sentinel = object()
-    spawn_queue = Queue()  # Queue[Union[Spawn, SpawnError, Literal[done_sentinel]]]
+
+    class DoneSentinel(object):
+        pass
+
+    done_sentinel = DoneSentinel()
+    spawn_queue = Queue()  # type: Queue[Union[Spawn, SpawnError, DoneSentinel]]
 
     def spawn_jobs():
         for item in inputs:
@@ -488,7 +517,7 @@ def execute_parallel(inputs, spawn_func, error_handler=None, max_jobs=None):
     while True:
         spawn_result = spawn_queue.get()
 
-        if spawn_result is done_sentinel:
+        if isinstance(spawn_result, DoneSentinel):
             if error:
                 raise error
             return
@@ -496,9 +525,9 @@ def execute_parallel(inputs, spawn_func, error_handler=None, max_jobs=None):
         try:
             if isinstance(spawn_result, SpawnError):
                 try:
-                    result = error_handler.handle_spawn_error(spawn_result.item, spawn_result.error)
-                    if result is not None:
-                        yield result
+                    se_result = handler.handle_spawn_error(spawn_result.item, spawn_result.error)
+                    if se_result is not None:
+                        yield se_result
                 except Exception as e:
                     # Fail fast and proceed to kill all outstanding spawned jobs.
                     stop.set()
@@ -512,9 +541,9 @@ def execute_parallel(inputs, spawn_func, error_handler=None, max_jobs=None):
                     yield spawn_result.spawned_job.await_result()
                 except Job.Error as e:
                     try:
-                        result = error_handler.handle_job_error(spawn_result.item, e)
-                        if result is not None:
-                            yield result
+                        je_result = handler.handle_job_error(spawn_result.item, e)
+                        if je_result is not None:
+                            yield je_result
                     except Exception as e:
                         # Fail fast and proceed to kill all outstanding spawned jobs.
                         stop.set()

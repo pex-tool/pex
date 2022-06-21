@@ -11,7 +11,7 @@ from pex.common import pluralize
 from pex.compatibility import unquote, urlparse
 from pex.dist_metadata import DistMetadata, Requirement
 from pex.enum import Enum
-from pex.fetcher import URLFetcher
+from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
 from pex.rank import Rank
@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from typing import (
         IO,
         Any,
-        Callable,
         DefaultDict,
         Deque,
         Dict,
@@ -34,6 +33,7 @@ if TYPE_CHECKING:
         Iterator,
         List,
         Optional,
+        Protocol,
         Set,
         Tuple,
         Union,
@@ -393,6 +393,14 @@ class Resolved(object):
     downloadable_artifacts = attr.ib()  # type: Tuple[DownloadableArtifact, ...]
 
 
+if TYPE_CHECKING:
+
+    class Fingerprinter(Protocol):
+        def fingerprint(self, artifacts):
+            # type: (Iterable[PartialArtifact]) -> Iterator[FileArtifact]
+            pass
+
+
 @attr.s(frozen=True)
 class LockedResolve(object):
     @classmethod
@@ -400,37 +408,44 @@ class LockedResolve(object):
         cls,
         resolved_requirements,  # type: Iterable[ResolvedRequirement]
         dist_metadatas,  # type: Iterable[DistMetadata]
-        url_fetcher,  # type: URLFetcher
+        fingerprinter,  # type: Fingerprinter
         platform_tag=None,  # type: Optional[tags.Tag]
     ):
         # type: (...) -> LockedResolve
 
-        # TODO(John Sirois): Introduce a thread pool and pump these fetches to workers via a Queue.
-        def fingerprint_url(url):
-            # type: (str) -> Fingerprint
-            with url_fetcher.get_body_stream(url) as body_stream:
-                return Fingerprint.from_stream(body_stream)
-
-        fingerprint_by_url = {
-            url: fingerprint_url(url)
-            for url in set(
-                itertools.chain.from_iterable(
-                    resolved_requirement.iter_urls_to_fingerprint()
-                    for resolved_requirement in resolved_requirements
-                )
+        artifacts_to_fingerprint = OrderedSet(
+            itertools.chain.from_iterable(
+                resolved_requirement.iter_artifacts_to_fingerprint()
+                for resolved_requirement in resolved_requirements
             )
-        }
+        )
+        file_artifact_by_partial_artifact = dict(
+            zip(
+                artifacts_to_fingerprint,
+                tuple(fingerprinter.fingerprint(artifacts_to_fingerprint)),
+            )
+        )
 
         def resolve_fingerprint(partial_artifact):
             # type: (PartialArtifact) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
-            url = partial_artifact.url
-            if partial_artifact.fingerprint:
-                return Artifact.from_url(
-                    url=url,
-                    fingerprint=partial_artifact.fingerprint,
-                    verified=partial_artifact.verified,
+            file_artifact = file_artifact_by_partial_artifact.get(partial_artifact)
+            if file_artifact:
+                return file_artifact
+            assert partial_artifact.fingerprint is not None, (
+                "No FileArtifact for {partial_artifact} mapped:\n"
+                "{mapping}\n"
+                "to_map:\n"
+                "{to_map}".format(
+                    partial_artifact=partial_artifact,
+                    mapping="\n".join(map(str, file_artifact_by_partial_artifact.items())),
+                    to_map="\n".join(map(str, artifacts_to_fingerprint)),
                 )
-            return Artifact.from_url(url=url, fingerprint=fingerprint_by_url[url], verified=True)
+            )
+            return Artifact.from_url(
+                url=partial_artifact.url,
+                fingerprint=partial_artifact.fingerprint,
+                verified=partial_artifact.verified,
+            )
 
         dist_metadata_by_pin = {
             Pin(dist_info.project_name, dist_info.version): dist_info

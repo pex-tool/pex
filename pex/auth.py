@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import os
+import re
 from netrc import NetrcParseError, netrc
 
 from pex import pex_warnings
@@ -19,16 +20,48 @@ else:
 
 
 @attr.s(frozen=True)
-class PasswordEntry(object):
-    @staticmethod
-    def _reduced_url(url_info):
-        # type: (urlparse.ParseResult) -> str
-        return "{scheme}://{host}{port}".format(
-            scheme=url_info.scheme,
+class Machine(object):
+    @classmethod
+    def from_url_info(cls, url_info):
+        # type: (urlparse.ParseResult) -> Machine
+
+        if not url_info.scheme:
+            raise ValueError(
+                "Expected a scheme for the BaseURL. Given: {url_info}".format(url_info=url_info)
+            )
+
+        if "file" == url_info.scheme:
+            return cls(reduced_url="file://{path}".format(path=url_info.path))
+
+        if not url_info.hostname:
+            raise ValueError(
+                "Expected a hostname for a BaseURL with {scheme} scheme. Given: {url_info}".format(
+                    scheme=url_info.scheme, url_info=url_info
+                )
+            )
+
+        return cls(
+            reduced_url="{scheme}://{host}{port}".format(
+                scheme=url_info.scheme,
+                host=url_info.hostname,
+                port=":{port}".format(port=url_info.port) if url_info.port is not None else "",
+            ),
             host=url_info.hostname,
-            port=":{port}".format(port=url_info.port) if url_info.port is not None else "",
+            port=url_info.port,
         )
 
+    @classmethod
+    def from_url(cls, url):
+        # type: (Text) -> Machine
+        return cls.from_url_info(urlparse.urlparse(url))
+
+    reduced_url = attr.ib()  # type: str
+    host = attr.ib(default=None)  # type: Optional[str]
+    port = attr.ib(default=None)  # type: Optional[int]
+
+
+@attr.s(frozen=True)
+class PasswordEntry(object):
     @classmethod
     def maybe_extract_from_url(cls, url):
         # type: (str) -> Optional[PasswordEntry]
@@ -37,18 +70,36 @@ class PasswordEntry(object):
             return None
 
         return cls(
-            uri=cls._reduced_url(url_info),
+            machine=Machine.from_url_info(url_info),
             username=url_info.username,
             password=url_info.password,
         )
 
     username = attr.ib()  # type: str
     password = attr.ib()  # type: str
-    uri = attr.ib(default=None)  # type: Optional[str]
+    machine = attr.ib(default=None)  # type: Optional[Machine]
 
     def uri_or_default(self, url):
         # type: (Text) -> str
-        return self.uri or self._reduced_url(urlparse.urlparse(url))
+        return (self.machine or Machine.from_url(url)).reduced_url
+
+    def maybe_inject_in_url(self, url):
+        # type: (str) -> Optional[str]
+        url_info = urlparse.urlparse(url)
+
+        if url_info.username or url_info.password:
+            # Don't stomp credentials already embedded in an URL.
+            return None
+
+        if self.machine:
+            if Machine.from_url_info(url_info) != self.machine:
+                return None
+
+        scheme, netloc, path, params, query, fragment = url_info
+        netloc = "{username}:{password}@{netloc}".format(
+            username=self.username, password=self.password, netloc=netloc
+        )
+        return urlparse.urlunparse((scheme, netloc, path, params, query, fragment))
 
 
 @attr.s(frozen=True)
@@ -80,7 +131,7 @@ class PasswordDatabase(object):
 
                 if machine == "default":
                     # The `default` entry is special and means just that; so we omit any qualifying
-                    # URI.
+                    # machine.
                     yield PasswordEntry(username=login, password=password)
 
                 # Traditionally, ~/.netrc machine entries just contain a bare hostname but we allow
@@ -88,13 +139,21 @@ class PasswordDatabase(object):
                 # used as the beholder sees fit (it's a shared ~community format at this point and
                 # used differently by a wide range of tools; I think FTP originally - thus it has
                 # `macros` entries which ~no-one knows about / uses).
-                if urlparse.urlparse(machine).scheme:
-                    yield PasswordEntry(uri=machine, username=login, password=password)
+                #
+                # For scheme syntax, see: https://datatracker.ietf.org/doc/html/rfc3986#section-3.1
+                if re.search(r"^(?P<scheme>[a-zA-Z][a-zA-Z\d+.-]*)://", machine):
+                    yield PasswordEntry(
+                        machine=Machine.from_url(machine),
+                        username=login,
+                        password=password,
+                    )
                     continue
 
                 for scheme in "http", "https":
                     yield PasswordEntry(
-                        uri="{scheme}://{machine}".format(scheme=scheme, machine=machine),
+                        machine=Machine.from_url(
+                            "{scheme}://{machine}".format(scheme=scheme, machine=machine)
+                        ),
                         username=login,
                         password=password,
                     )

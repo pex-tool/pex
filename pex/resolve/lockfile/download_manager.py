@@ -10,11 +10,11 @@ import os
 from pex import hashing
 from pex.common import FileLockStyle, atomic_directory, safe_rmtree
 from pex.pep_503 import ProjectName
+from pex.resolve.downloads import get_downloads_dir
 from pex.resolve.locked_resolve import Artifact
 from pex.result import Error, ResultError, try_
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, Generic
-from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import List, Optional, TypeVar, Union
@@ -43,7 +43,7 @@ class DownloadedArtifact(object):
     @classmethod
     def store(
         cls,
-        artifact_dir,  # type str
+        artifact_dir,  # type: str
         filename,  # type: str
         legacy_fingerprint,  # type: hashing.Sha1Fingerprint
         fingerprint,  # type: hashing.Fingerprint
@@ -113,7 +113,7 @@ class DownloadManager(Generic["_A"]):
         file_lock_style=FileLockStyle.POSIX,  # type: FileLockStyle.Value
     ):
         # type: (...) -> None
-        self._download_dir = os.path.join(pex_root or ENV.PEX_ROOT, "downloads")
+        self._pex_root = pex_root
         self._file_lock_style = file_lock_style
 
     def store(
@@ -124,7 +124,9 @@ class DownloadManager(Generic["_A"]):
     ):
         # type: (...) -> DownloadedArtifact
 
-        download_dir = os.path.join(self._download_dir, artifact.fingerprint.hash)
+        download_dir = os.path.join(
+            get_downloads_dir(pex_root=self._pex_root), artifact.fingerprint.hash
+        )
         with atomic_directory(download_dir, exclusive=self._file_lock_style) as atomic_dir:
             if atomic_dir.is_finalized():
                 TRACER.log("Using cached artifact at {} for {}".format(download_dir, artifact))

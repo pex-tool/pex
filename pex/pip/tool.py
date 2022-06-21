@@ -333,6 +333,8 @@ class Pip(object):
             #   (a)bort.
             "--exists-action",
             "a",
+            # We are not interactive.
+            "--no-input",
         ]
         python_interpreter = interpreter or PythonInterpreter.get()
         pip_args.extend(
@@ -400,6 +402,7 @@ class Pip(object):
             # + https://github.com/pypa/pip/issues/9420
             if "stdout" not in popen_kwargs:
                 popen_kwargs["stdout"] = sys.stderr.fileno()
+            popen_kwargs.update(stderr=subprocess.PIPE)
 
             args = [self._pip_pex_path] + command
             return args, subprocess.Popen(args=args, env=env, **popen_kwargs)
@@ -534,7 +537,7 @@ class Pip(object):
         popen_kwargs = {}
         finalizer = None
         if log_analyzers:
-            prefix = "pex-pip-log"
+            prefix = "pex-pip-log."
             log = os.path.join(
                 mkdtemp(prefix) if preserve_log else safe_mkdtemp(prefix=prefix), "pip.log"
             )

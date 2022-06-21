@@ -10,10 +10,9 @@ from collections import OrderedDict
 from multiprocessing.pool import ThreadPool
 
 from pex import resolver
-from pex.auth import PasswordEntry
+from pex.auth import PasswordDatabase, PasswordEntry
 from pex.common import FileLockStyle, pluralize
 from pex.compatibility import cpu_count
-from pex.fetcher import URLFetcher
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
@@ -21,6 +20,7 @@ from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.vcs import digest_vcs_archive
 from pex.requirements import LocalProjectRequirement, parse_requirement_strings
+from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
     FileArtifact,
@@ -40,24 +40,22 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Optional, Sequence, Union
+    from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
     from pex.hashing import HintedDigest
 
 
-class URLFetcherDownloadManager(DownloadManager[FileArtifact]):
-    _BUFFER_SIZE = 65536
-
+class FileArtifactDownloadManager(DownloadManager[FileArtifact]):
     def __init__(
         self,
         file_lock_style,  # type: FileLockStyle.Value
-        url_fetcher,  # type: URLFetcher
+        downloader,  # type: ArtifactDownloader
         pex_root=None,  # type: Optional[str]
     ):
-        super(URLFetcherDownloadManager, self).__init__(
+        super(FileArtifactDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style
         )
-        self._url_fetcher = url_fetcher
+        self._downloader = downloader
 
     def save(
         self,
@@ -67,17 +65,7 @@ class URLFetcherDownloadManager(DownloadManager[FileArtifact]):
         digest,  # type: HintedDigest
     ):
         # type: (...) -> Union[str, Error]
-
-        url = artifact.url
-        path = os.path.join(dest_dir, artifact.filename)
-        try:
-            with open(path, "wb") as fp, self._url_fetcher.get_body_stream(url) as stream:
-                for chunk in iter(lambda: stream.read(self._BUFFER_SIZE), b""):
-                    fp.write(chunk)
-                    digest.update(chunk)
-            return artifact.filename
-        except IOError as e:
-            return Error(str(e))
+        return self._downloader.download(artifact=artifact, dest_dir=dest_dir, digest=digest)
 
 
 class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
@@ -189,12 +177,14 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
 
 
 def download_artifact(
-    downloadable_artifact,  # type: DownloadableArtifact
-    url_download_manager,  # type: URLFetcherDownloadManager
+    downloadable_artifact_and_target,  # type: Tuple[DownloadableArtifact, Target]
+    file_download_managers_by_target,  # type: Mapping[Target, FileArtifactDownloadManager]
     vcs_download_manager,  # type: VCSArtifactDownloadManager
     local_project_download_manager,  # type: LocalProjectDownloadManager
 ):
     # type: (...) -> Union[DownloadedArtifact, Error]
+
+    downloadable_artifact, target = downloadable_artifact_and_target
 
     if isinstance(downloadable_artifact.artifact, VCSArtifact):
         return catch(
@@ -204,8 +194,9 @@ def download_artifact(
         )
 
     if isinstance(downloadable_artifact.artifact, FileArtifact):
+        file_download_manager = file_download_managers_by_target[target]
         return catch(
-            url_download_manager.store,
+            file_download_manager.store,
             downloadable_artifact.artifact,
             downloadable_artifact.pin.project_name,
         )
@@ -270,8 +261,10 @@ def resolve_from_lock(
         )
 
     errors_by_target = {}  # type: Dict[Target, Iterable[Error]]
-    downloadable_artifacts = OrderedSet()  # type: OrderedSet[DownloadableArtifact]
     downloadable_artifacts_by_target = {}  # type: Dict[Target, Iterable[DownloadableArtifact]]
+    target_by_downloadable_artifact = (
+        OrderedDict()
+    )  # type: OrderedDict[DownloadableArtifact, Target]
 
     with TRACER.timed(
         "Resolving urls to fetch for {count} requirements from lock {lockfile}".format(
@@ -303,7 +296,8 @@ def resolve_from_lock(
             if resolveds:
                 resolved = sorted(resolveds, key=lambda res: res.target_specificity)[-1]
                 downloadable_artifacts_by_target[target] = resolved.downloadable_artifacts
-                downloadable_artifacts.update(resolved.downloadable_artifacts)
+                for downloadable_artifact in resolved.downloadable_artifacts:
+                    target_by_downloadable_artifact[downloadable_artifact] = target
             elif errors:
                 errors_by_target[target] = tuple(errors)
 
@@ -329,14 +323,26 @@ def resolve_from_lock(
     # fact, implements deadlock detection for POSIX locks; so we can run afoul of false EDEADLCK
     # errors under the right interleaving of processes and threads and download artifact targets.
     file_lock_style = FileLockStyle.BSD
-    url_download_manager = URLFetcherDownloadManager(
-        file_lock_style=file_lock_style,
-        url_fetcher=URLFetcher(
-            network_configuration=network_configuration,
-            handle_file_urls=True,
-            password_entries=password_entries,
-        ),
-    )
+
+    file_download_managers_by_target = {}
+    package_index_configuration = None  # type: Optional[PackageIndexConfiguration]
+    for downloadable_artifact, target in target_by_downloadable_artifact.items():
+        if target not in file_download_managers_by_target:
+            if package_index_configuration is None:
+                package_index_configuration = PackageIndexConfiguration.create(
+                    resolver_version=resolver_version,
+                    indexes=[],
+                    network_configuration=network_configuration,
+                    password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
+                )
+            file_download_managers_by_target[target] = FileArtifactDownloadManager(
+                file_lock_style=file_lock_style,
+                downloader=ArtifactDownloader(
+                    package_index_configuration=package_index_configuration,
+                    target=target,
+                ),
+            )
+
     vcs_download_manager = VCSArtifactDownloadManager(
         file_lock_style=file_lock_style,
         indexes=indexes,
@@ -347,17 +353,19 @@ def resolve_from_lock(
         use_pep517=use_pep517,
         build_isolation=build_isolation,
     )
+
     local_project_download_manager = LocalProjectDownloadManager(
         file_lock_style=file_lock_style,
         build_requires_resolver=resolver,
     )
+
     max_threads = min(
-        len(downloadable_artifacts) or 1,
+        len(target_by_downloadable_artifact) or 1,
         min(MAX_PARALLEL_DOWNLOADS, 4 * (max_parallel_jobs or cpu_count() or 1)),
     )
     with TRACER.timed(
         "Downloading {url_count} distributions to satisfy {requirement_count} requirements".format(
-            url_count=len(downloadable_artifacts),
+            url_count=len(target_by_downloadable_artifact),
             requirement_count=len(parsed_requirements),
         )
     ):
@@ -365,15 +373,15 @@ def resolve_from_lock(
         try:
             download_results = tuple(
                 zip(
-                    downloadable_artifacts,
+                    target_by_downloadable_artifact,
                     pool.map(
                         functools.partial(
                             download_artifact,
-                            url_download_manager=url_download_manager,
+                            file_download_managers_by_target=file_download_managers_by_target,
                             vcs_download_manager=vcs_download_manager,
                             local_project_download_manager=local_project_download_manager,
                         ),
-                        downloadable_artifacts,
+                        target_by_downloadable_artifact.items(),
                     ),
                 )
             )
@@ -448,6 +456,7 @@ def resolve_from_lock(
                 indexes=indexes,
                 find_links=find_links,
                 network_configuration=network_configuration,
+                password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
             ),
             compile=compile,
             prefer_older_binary=prefer_older_binary,

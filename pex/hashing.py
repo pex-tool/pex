@@ -66,6 +66,10 @@ class Fingerprint(str):
     def __ne__(self, other):
         return not self == other
 
+    def __hash__(self):
+        # type: () -> int
+        return hash((self.algorithm, str(self)))
+
 
 def new_fingerprint(
     algorithm,  # type: str

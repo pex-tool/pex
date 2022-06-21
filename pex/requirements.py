@@ -7,7 +7,7 @@ import os
 import re
 from contextlib import contextmanager
 
-from pex import attrs, dist_metadata
+from pex import attrs, dist_metadata, pex_warnings
 from pex.compatibility import urlparse
 from pex.dist_metadata import (
     MetadataError,
@@ -56,6 +56,11 @@ class Source(object):
         is_constraints=False,  # type: bool
     ):
         # type: (...) -> Iterator[Source]
+        pex_warnings.warn(
+            "Fetching {subject} files via url is deprecated: {url}".format(
+                url=url, subject="constraints" if is_constraints else "requirements"
+            )
+        )
         with fetcher.get_body_iter(url) as lines:
             yield cls(origin=url, is_file=False, is_constraints=is_constraints, lines=lines)
 

@@ -7,7 +7,7 @@ import os
 import pytest
 
 from pex import dist_metadata, resolver, targets
-from pex.fetcher import URLFetcher
+from pex.auth import PasswordDatabase
 from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
@@ -44,21 +44,22 @@ def normalize(
 def create_lock_observer(lock_configuration):
     # type: (LockConfiguration) -> LockObserver
     pip_configuration = PipConfiguration()
+    package_index_configuration = PackageIndexConfiguration.create(
+        resolver_version=pip_configuration.resolver_version,
+        indexes=pip_configuration.repos_configuration.indexes,
+        find_links=pip_configuration.repos_configuration.find_links,
+        network_configuration=pip_configuration.network_configuration,
+    )
     return LockObserver(
         lock_configuration=lock_configuration,
         resolver=ConfiguredResolver(pip_configuration=pip_configuration),
         wheel_builder=WheelBuilder(
-            package_index_configuration=PackageIndexConfiguration.create(
-                resolver_version=pip_configuration.resolver_version,
-                indexes=pip_configuration.repos_configuration.indexes,
-                find_links=pip_configuration.repos_configuration.find_links,
-                network_configuration=pip_configuration.network_configuration,
-            ),
+            package_index_configuration,
             prefer_older_binary=pip_configuration.prefer_older_binary,
             use_pep517=pip_configuration.use_pep517,
             build_isolation=pip_configuration.build_isolation,
         ),
-        url_fetcher=URLFetcher(network_configuration=pip_configuration.network_configuration),
+        package_index_configuration=package_index_configuration,
     )
 
 

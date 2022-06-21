@@ -34,7 +34,7 @@ from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import IO, Callable, Iterable, Iterator, Text, Tuple
+    from typing import IO, Callable, Iterable, Iterator, List, Text, Tuple
 
     import attr  # vendor:skip
 
@@ -272,8 +272,10 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
             )
 
         with self._distributions_output(pex) as (distributions, output):
-            errors = []
-            for result in execute_parallel(distributions, spawn_extract, error_handler=Retain()):
+            errors = []  # type: List[Distribution]
+            for result in execute_parallel(
+                distributions, spawn_extract, error_handler=Retain[Distribution]()
+            ):
                 if isinstance(result, tuple):
                     distribution, error = result
                     errors.append(distribution)

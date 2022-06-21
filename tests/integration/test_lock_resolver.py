@@ -279,7 +279,7 @@ def test_unavailable_artifacts(
     assert re.search(
         r"There was 1 error downloading required artifacts:\n"
         r"1\. requests 2\.25\.1 from file://{requests_distribution}\n"
-        r"    .* No such file or directory: .*'{requests_distribution}'>".format(
+        r"    .* No such file or directory: .*'{requests_distribution}'".format(
             requests_distribution=re.escape(requests_distribution)
         ),
         result.error,

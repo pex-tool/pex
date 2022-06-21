@@ -34,7 +34,6 @@ from pex.testing import (
     PY310,
     PY_VER,
     IntegResults,
-    WheelBuilder,
     built_wheel,
     ensure_python_interpreter,
     get_dep_dist_names_from_pex,
@@ -1525,7 +1524,9 @@ def test_pip_issues_9420_workaround():
         quiet=True,
     )
     results.assert_failure()
-    normalized_stderr = "\n".join(line.strip() for line in results.error.strip().splitlines())
+    error_lines = [line.strip() for line in results.error.strip().splitlines()]
+    assert re.match(r"^pid \d+ -> .*", error_lines[0])
+    normalized_stderr = "\n".join(error_lines[1:])
     assert normalized_stderr.startswith(
         dedent(
             """\
