@@ -698,6 +698,7 @@ def build_pex(
                         compile=options.compile,
                         max_parallel_jobs=resolver_configuration.max_jobs,
                         ignore_errors=options.ignore_errors,
+                        preserve_log=resolver_configuration.preserve_log,
                     )
 
             for installed_dist in result.installed_distributions:
