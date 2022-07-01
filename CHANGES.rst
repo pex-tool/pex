@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.94
+------
+
+This is a hotfix release that fixes a regression introduced in Pex
+2.1.93 downloading certain sdists when using ``pex --lock ...``.
+
+* Fix ``pex --lock ...`` handling of sdists. (#1818)
+  `PR #1818 <https://github.com/pantsbuild/pex/pull/1818>`_
+
 2.1.93
 ------
 
