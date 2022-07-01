@@ -40,21 +40,10 @@ def get_downloads_dir(pex_root=None):
     return downloads_dir
 
 
-def _strip_indexes_and_repos(package_index_configuration):
-    # type: (PackageIndexConfiguration) -> PackageIndexConfiguration
-    return PackageIndexConfiguration.create(
-        resolver_version=package_index_configuration.resolver_version,
-        indexes=[],
-        find_links=None,
-        network_configuration=package_index_configuration.network_configuration,
-        password_entries=package_index_configuration.password_entries,
-    )
-
-
 @attr.s(frozen=True)
 class ArtifactDownloader(object):
     package_index_configuration = attr.ib(
-        default=PackageIndexConfiguration.create(), converter=_strip_indexes_and_repos
+        default=PackageIndexConfiguration.create()
     )  # type: PackageIndexConfiguration
     target = attr.ib(default=LocalInterpreter.create())  # type: Target
     _pip = attr.ib(init=False)  # type: Pip
