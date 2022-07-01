@@ -331,7 +331,8 @@ def resolve_from_lock(
             if package_index_configuration is None:
                 package_index_configuration = PackageIndexConfiguration.create(
                     resolver_version=resolver_version,
-                    indexes=[],
+                    indexes=indexes,
+                    find_links=find_links,
                     network_configuration=network_configuration,
                     password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
                 )
