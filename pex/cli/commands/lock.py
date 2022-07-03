@@ -584,7 +584,6 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 lock_file=attr.evolve(
                     lock_file,
                     pex_version=__version__,
-                    target_systems=SortedTuple(lock_updater.lock_configuration.target_systems),
                     requirements=SortedTuple(requirements, key=str),
                     constraints=SortedTuple(constraints_by_project_name.values(), key=str),
                     locked_resolves=SortedTuple(

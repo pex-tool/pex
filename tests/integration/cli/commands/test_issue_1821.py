@@ -205,3 +205,6 @@ def test_issue_1821(tmpdir):
     assert SortedTuple((TargetSystem.LINUX, TargetSystem.MAC)) == lockfile.target_systems
     assert lockfile.source is not None
     run_pex_command(args=["--lock", lockfile.source, "--", "-c", "import docker"]).assert_success()
+
+    # Check that lock updates respect target systems.
+    run_pex3("lock", "update", "--dry-run", "check", lockfile.source).assert_success()
