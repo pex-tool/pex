@@ -1,7 +1,7 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import itertools
-import json
 import os.path
 
 import pytest
@@ -192,11 +192,16 @@ def test_issue_1821(
 ):
     # type: (...) -> None
 
-    args = [
-        "--resolver-version",
-        "pip-2020-resolver",
+    python_path_args = [
         "--python-path",
         py310.binary,
+    ]
+
+    args = python_path_args + [
+        "--style",
+        "universal",
+        "--resolver-version",
+        "pip-2020-resolver",
         "--interpreter-constraint",
         "CPython>=3.10,<4",
         "cryptography==36.0.2",
@@ -206,7 +211,7 @@ def test_issue_1821(
     # This lock solution requires pywin32 227 for windows, but that is a wheel-only distribution
     # with no wheels published for CPython 3.10 (see: https://pypi.org/project/pywin32/227/#files);
     # so, without restricting the target operating systems for the lock, we expect failure.
-    result = run_lock(tmpdir, args)
+    result = run_lock(os.path.join(str(tmpdir), "lock"), args)
     result.assert_failure()
     assert (
         "ERROR: Could not find a version that satisfies the requirement "
@@ -219,7 +224,10 @@ def test_issue_1821(
     lockfile = lock(tmpdir, args, TargetSystem.LINUX, TargetSystem.MAC)
     assert SortedTuple((TargetSystem.LINUX, TargetSystem.MAC)) == lockfile.target_systems
     assert lockfile.source is not None
-    run_pex_command(args=["--lock", lockfile.source, "--", "-c", "import docker"]).assert_success()
+    run_pex_command(
+        args=["--lock", lockfile.source, "--", "-c", "import docker"], python=py310.binary
+    ).assert_success()
 
     # Check that lock updates respect target systems.
-    run_pex3("lock", "update", "--dry-run", "check", lockfile.source).assert_success()
+    update_args = ["lock", "update"] + python_path_args + ["--dry-run", "check", lockfile.source]
+    run_pex3(*update_args).assert_success()
