@@ -291,6 +291,7 @@ def create(
         pex_version=__version__,
         style=lock_configuration.style,
         requires_python=lock_configuration.requires_python,
+        target_systems=lock_configuration.target_systems,
         resolver_version=pip_configuration.resolver_version,
         requirements=parsed_requirements,
         constraints=constraints,

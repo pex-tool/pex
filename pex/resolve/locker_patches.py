@@ -9,10 +9,15 @@ python_full_versions = []
 python_versions = []
 python_majors = []
 
+platform_systems = []
+sys_platforms = []
+platform_tag_regexps = []
 
-# N.B.: The following environment variable is used by the Pex runtime to control Pip and must be
+# N.B.: The following environment variables are used by the Pex runtime to control Pip and must be
 # kept in-sync with `locker.py`.
 python_versions_file = os.environ.pop("_PEX_PYTHON_VERSIONS_FILE", None)
+target_systems_file = os.environ.pop("_PEX_TARGET_SYSTEMS_FILE", None)
+
 if python_versions_file:
     import json
 
@@ -20,6 +25,15 @@ if python_versions_file:
         python_full_versions = json.load(fp)
     python_versions = sorted(set((version[0], version[1]) for version in python_full_versions))
     python_majors = sorted(set(version[0] for version in python_full_versions))
+
+if target_systems_file:
+    import json
+
+    with open(target_systems_file) as fp:
+        target_systems = json.load(fp)
+    platform_systems = target_systems["platform_systems"]
+    sys_platforms = target_systems["sys_platforms"]
+    platform_tag_regexps = target_systems["platform_tag_regexps"]
 
 
 # 1.) Universal dependency environment marker applicability.
@@ -41,8 +55,9 @@ def patch_marker_evaluate():
         return [".".join(map(str, version)) for version in versions]
 
     python_versions_strings = versions_to_string(python_versions) or skip
-
     python_full_versions_strings = versions_to_string(python_full_versions) or skip
+    platform_systems_strings = platform_systems or skip
+    sys_platforms_strings = sys_platforms or skip
 
     def _get_env(environment, name):
         if name == "extra":
@@ -51,6 +66,10 @@ def patch_marker_evaluate():
             return python_versions_strings
         if name == "python_full_version":
             return python_full_versions_strings
+        if name == "platform_system":
+            return platform_systems_strings
+        if name == "sys_platform":
+            return sys_platforms_strings
         return skip
 
     def _eval_op(lhs, op, rhs):
@@ -79,10 +98,11 @@ def patch_wheel_model():
 
     Wheel.support_index_min = lambda *args, **kwargs: 0
 
+    supported_checks = [lambda *args, **kwargs: True]
     if python_versions:
         import re
 
-        def supported(self, *_args, **_kwargs):
+        def supported_version(self, *_args, **_kwargs):
             if not hasattr(self, "_versions"):
                 versions = set()
                 is_abi3 = ["abi3"] == list(self.abis)
@@ -110,9 +130,24 @@ def patch_wheel_model():
                 for version in self._versions
             )
 
-        Wheel.supported = supported
-    else:
-        Wheel.supported = lambda *args, **kwargs: True
+        supported_checks.append(supported_version)
+
+    if platform_tag_regexps:
+        import re
+
+        def supported_platform_tag(self, *_args, **_kwargs):
+            if any(plat == "any" for plat in self.plats):
+                return True
+            for platform_tag_regexp in platform_tag_regexps:
+                if any(re.search(platform_tag_regexp, plat) for plat in self.plats):
+                    return True
+            return False
+
+        supported_checks.append(supported_platform_tag)
+
+    Wheel.supported = lambda *args, **kwargs: all(
+        check(*args, **kwargs) for check in supported_checks
+    )
 
 
 patch_wheel_model()

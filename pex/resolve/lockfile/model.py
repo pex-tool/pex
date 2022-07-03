@@ -8,7 +8,13 @@ import os
 from pex.dist_metadata import Requirement
 from pex.orderedset import OrderedSet
 from pex.requirements import LocalProjectRequirement
-from pex.resolve.locked_resolve import LocalProjectArtifact, LockedResolve, LockStyle, Resolved
+from pex.resolve.locked_resolve import (
+    LocalProjectArtifact,
+    LockedResolve,
+    LockStyle,
+    Resolved,
+    TargetSystem,
+)
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target
@@ -33,6 +39,7 @@ class Lockfile(object):
         pex_version,  # type: str
         style,  # type: LockStyle.Value
         requires_python,  # type: Iterable[str]
+        target_systems,  # type: Iterable[TargetSystem.Value]
         resolver_version,  # type: ResolverVersion.Value
         requirements,  # type: Iterable[Union[Requirement, ParsedRequirement]]
         constraints,  # type: Iterable[Requirement]
@@ -83,6 +90,7 @@ class Lockfile(object):
             pex_version=pex_version,
             style=style,
             requires_python=SortedTuple(requires_python),
+            target_systems=SortedTuple(target_systems),
             resolver_version=resolver_version,
             requirements=SortedTuple(resolve_requirements, key=str),
             constraints=SortedTuple(constraints, key=str),
@@ -101,6 +109,7 @@ class Lockfile(object):
     pex_version = attr.ib()  # type: str
     style = attr.ib()  # type: LockStyle.Value
     requires_python = attr.ib()  # type: SortedTuple[str]
+    target_systems = attr.ib()  # type: SortedTuple[TargetSystem.Value]
     resolver_version = attr.ib()  # type: ResolverVersion.Value
     requirements = attr.ib()  # type: SortedTuple[Requirement]
     constraints = attr.ib()  # type: SortedTuple[Requirement]
@@ -112,7 +121,7 @@ class Lockfile(object):
     build_isolation = attr.ib()  # type: bool
     transitive = attr.ib()  # type: bool
     locked_resolves = attr.ib()  # type: SortedTuple[LockedResolve]
-    local_project_requirement_mapping = attr.ib()  # type: Mapping[str, Requirement]
+    local_project_requirement_mapping = attr.ib(eq=False)  # type: Mapping[str, Requirement]
     source = attr.ib(default=None, eq=False)  # type: Optional[str]
 
     def select(self, targets):

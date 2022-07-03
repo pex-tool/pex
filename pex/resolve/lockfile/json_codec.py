@@ -10,7 +10,13 @@ from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
+from pex.resolve.locked_resolve import (
+    Artifact,
+    LockedRequirement,
+    LockedResolve,
+    LockStyle,
+    TargetSystem,
+)
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
@@ -121,18 +127,28 @@ def loads(
             )
         return value
 
+    def parse_enum_value(
+        enum_type,  # type: Type[Enum[_V]]
+        value,  # type: str
+        path=".",  # type: str
+    ):
+        # type: (...) -> _V
+        try:
+            return enum_type.for_value(value)
+        except ValueError as e:
+            raise ParseError("The '{path}' is invalid: {err}".format(path=path, err=e))
+
     def get_enum_value(
         enum_type,  # type: Type[Enum[_V]]
         key,  # type: str
         path=".",  # type: str
     ):
         # type: (...) -> _V
-        try:
-            return enum_type.for_value(get(key, path=path))
-        except ValueError as e:
-            raise ParseError(
-                "The '{path}[\"{key}\"]' is invalid: {err}".format(key=key, path=path, err=e)
-            )
+        return parse_enum_value(
+            enum_type=enum_type,
+            value=get(key, path=path),
+            path='{path}["{key}"]'.format(path=path, key=key),
+        )
 
     def parse_requirement(
         raw_requirement,  # type: str
@@ -165,6 +181,15 @@ def loads(
         raise PathMappingError(
             required_path_mappings=required_path_mappings, unspecified_paths=unspecified_paths
         )
+
+    target_systems = [
+        parse_enum_value(
+            enum_type=TargetSystem,
+            value=target_system,
+            path=".target_systems[{index}]".format(index=index),
+        )
+        for index, target_system in enumerate(get("target_systems", list, optional=True) or ())
+    ]
 
     requirements = [
         parse_requirement(req, path=".requirements[{index}]".format(index=index))
@@ -269,6 +294,7 @@ def loads(
         pex_version=get("pex_version"),
         style=get_enum_value(LockStyle, "style"),
         requires_python=get("requires_python", list),
+        target_systems=target_systems,
         resolver_version=get_enum_value(ResolverVersion, "resolver_version"),
         requirements=requirements,
         constraints=constraints,
@@ -307,6 +333,7 @@ def as_json_data(
         "pex_version": lockfile.pex_version,
         "style": str(lockfile.style),
         "requires_python": list(lockfile.requires_python),
+        "target_systems": [str(target_system) for target_system in lockfile.target_systems],
         "resolver_version": str(lockfile.resolver_version),
         "requirements": [
             path_mappings.maybe_canonicalize(str(req)) for req in lockfile.requirements

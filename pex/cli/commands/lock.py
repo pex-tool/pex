@@ -15,7 +15,7 @@ from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.orderedset import OrderedSet
 from pex.resolve import requirement_options, resolver_options, target_options
-from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
+from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle, TargetSystem
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.operations import create
@@ -176,6 +176,22 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             ),
         )
+        create_parser.add_argument(
+            "--target-system",
+            dest="target_systems",
+            default=[],
+            action="append",
+            choices=TargetSystem.values(),
+            type=TargetSystem.for_value,
+            help=(
+                "The target operating systems to generate the lock for. This option applies only "
+                "to `--style {universal}` locks and restricts the locked artifacts to those "
+                "compatible with the specified target operating systems. By default, {universal!r} "
+                "style locks include artifacts for all operating systems.".format(
+                    universal=LockStyle.UNIVERSAL,
+                )
+            ),
+        )
         cls._add_lock_options(create_parser)
         cls.add_output_option(create_parser, entity="lock")
         cls.add_json_options(create_parser, entity="lock", include_switch=False)
@@ -241,7 +257,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             ),
         )
-        cls._add_lockfile_option(update_parser, verb="create")
+        cls._add_lockfile_option(update_parser, verb="update")
         cls._add_lock_options(update_parser)
         cls.add_json_options(update_parser, entity="lock", include_switch=False)
         cls._add_target_options(update_parser)
@@ -294,6 +310,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     str(interpreter_constraint.specifier)
                     for interpreter_constraint in target_configuration.interpreter_constraints
                 ),
+                target_systems=tuple(self.options.target_systems),
             )
             if target_configuration.interpreter_constraints:
                 try:
@@ -309,6 +326,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 targets = Targets(interpreters=(interpreter,))
             else:
                 targets = Targets()
+        elif self.options.target_systems:
+            return Error(
+                "The --target-system option only applies to --style {universal} locks.".format(
+                    universal=LockStyle.UNIVERSAL.value
+                )
+            )
         else:
             lock_configuration = LockConfiguration(style=self.options.style)
             targets = target_configuration.resolve_targets()
@@ -561,6 +584,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 lock_file=attr.evolve(
                     lock_file,
                     pex_version=__version__,
+                    target_systems=SortedTuple(lock_updater.lock_configuration.target_systems),
                     requirements=SortedTuple(requirements, key=str),
                     constraints=SortedTuple(constraints_by_project_name.values(), key=str),
                     locked_resolves=SortedTuple(
