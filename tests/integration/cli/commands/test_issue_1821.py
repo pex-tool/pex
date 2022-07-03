@@ -8,6 +8,7 @@ import pytest
 
 from pex.cli.testing import run_pex3
 from pex.compatibility import urlparse
+from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockStyle, TargetSystem
@@ -126,7 +127,7 @@ def test_target_system_platform_specific(tmpdir):
     # psutil-5.9.1-cp310-cp310-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl
     # psutil-5.9.1-cp310-cp310-macosx_10_9_x86_64.whl
     #
-    # There are additional artifacts for CPython 2,7 and 3.{6,7,8,9}
+    # There are additional artifacts for CPython 2.7 and 3.{6,7,8,9}
 
     def assert_expected_artifacts(
         expected_wheel_count,  # type: int
@@ -176,12 +177,17 @@ def test_target_system_platform_specific(tmpdir):
     assert linux_and_mac_and_windows_wheels == assert_expected_artifacts(5)
 
 
-def test_issue_1821(tmpdir):
-    # type: (Any) -> None
+def test_issue_1821(
+    tmpdir,  # type: Any
+    py310,  # type: PythonInterpreter
+):
+    # type: (...) -> None
 
     args = [
         "--resolver-version",
         "pip-2020-resolver",
+        "--python-path",
+        py310.binary,
         "--interpreter-constraint",
         "CPython>=3.10,<4",
         "cryptography==36.0.2",
