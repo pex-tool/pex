@@ -116,8 +116,11 @@ def test_target_system_universal(tmpdir):
     assert assert_file_artifact(additional_artifact).is_source
 
 
-def test_target_system_platform_specific(tmpdir):
-    # type: (Any) -> None
+def test_target_system_platform_specific(
+    tmpdir,  # type: Any
+    py310,  # type: PythonInterpreter
+):
+    # type: (...) -> None
 
     # The lineup of psutil 5.9.1 artifacts compatible with CPython==3.10.* out on PyPI is:
     # psutil-5.9.1.tar.gz
@@ -137,7 +140,13 @@ def test_target_system_platform_specific(tmpdir):
 
         lockfile = lock(
             tmpdir,
-            ["psutil==5.9.1", "--interpreter-constraint", "CPython==3.10.*"],
+            [
+                "--python-path",
+                py310.binary,
+                "--interpreter-constraint",
+                "CPython==3.10.*",
+                "psutil==5.9.1",
+            ],
             *target_systems
         )
 
