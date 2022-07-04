@@ -43,6 +43,7 @@ def test_roundtrip(tmpdir):
         pex_version="1.2.3",
         style=LockStyle.STRICT,
         requires_python=(),
+        target_systems=(),
         resolver_version=ResolverVersion.PIP_2020,
         requirements=(
             Requirement.parse("ansicolors"),

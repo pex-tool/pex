@@ -35,6 +35,7 @@ if TYPE_CHECKING:
         Optional,
         Protocol,
         Set,
+        Sized,
         Tuple,
         Union,
     )
@@ -59,24 +60,36 @@ class LockStyle(Enum["LockStyle.Value"]):
     UNIVERSAL = Value("universal")
 
 
+class TargetSystem(Enum["TargetSystem.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    LINUX = Value("linux")
+    MAC = Value("mac")
+    WINDOWS = Value("windows")
+
+
 @attr.s(frozen=True)
 class LockConfiguration(object):
     style = attr.ib()  # type: LockStyle.Value
     requires_python = attr.ib(default=())  # type: Tuple[str, ...]
+    target_systems = attr.ib(default=())  # type: Tuple[TargetSystem.Value, ...]
 
     @requires_python.validator
-    def _validate_requires_python(
+    @target_systems.validator
+    def _validate_only_set_for_universal(
         self,
-        _attribute,  # type: Any
-        value,  # type: Tuple[str, ...]
+        attribute,  # type: Any
+        value,  # type: Any
     ):
-        if len(value) > 0 and self.style != LockStyle.UNIVERSAL:
+        if value and self.style != LockStyle.UNIVERSAL:
             raise ValueError(
-                "The requires_python field should only be populated for {universal} style locks; "
-                "this lock is {style} style and given requires_python of {requires_python}".format(
+                "The {field_name} field should only be set for {universal} style locks; "
+                "this lock is {style} style and given {field_name} value of {value}".format(
+                    field_name=attribute.name,
                     universal=LockStyle.UNIVERSAL.value,
                     style=self.style.value,
-                    requires_python=value,
+                    value=value,
                 )
             )
 

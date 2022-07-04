@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import itertools
 import json
 import os
 import pkgutil
@@ -20,7 +21,7 @@ from pex.pip.local_project import fingerprint_local_project
 from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.requirements import VCS, VCSScheme, parse_scheme
-from pex.resolve.locked_resolve import LockConfiguration, LockStyle
+from pex.resolve.locked_resolve import LockConfiguration, LockStyle, TargetSystem
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolvers import Resolver
 from pex.tracer import TRACER
@@ -307,6 +308,26 @@ class Locker(LogAnalyzer):
         return self._lock_result
 
 
+# See https://www.python.org/dev/peps/pep-0508/#environment-markers for more about these values.
+_PLATFORM_SYSTEM = {
+    TargetSystem.LINUX: "Linux",
+    TargetSystem.MAC: "Darwin",
+    TargetSystem.WINDOWS: "Windows",
+}
+_SYS_PLATFORMS = {
+    TargetSystem.LINUX: ("linux", "linux2"),
+    TargetSystem.MAC: ("darwin",),
+    TargetSystem.WINDOWS: ("win32",),
+}
+
+# See: https://peps.python.org/pep-0425/#platform-tag for more about the wheel platform tag.
+_PLATFORM_TAG_REGEXP = {
+    TargetSystem.LINUX: r"linux",
+    TargetSystem.MAC: r"macosx",
+    TargetSystem.WINDOWS: r"win",
+}
+
+
 def patch(
     resolver,  # type: Resolver
     lock_configuration,  # type: LockConfiguration
@@ -338,6 +359,30 @@ def patch(
                 with open(os.path.join(version_info_dir, "python_full_versions.json"), "w") as fp:
                     json.dump(python_full_versions, fp)
                 env.update(_PEX_PYTHON_VERSIONS_FILE=fp.name)
+
+        if lock_configuration.target_systems and set(lock_configuration.target_systems) != set(
+            TargetSystem.values()
+        ):
+            target_systems = {
+                "platform_systems": [
+                    _PLATFORM_SYSTEM[target_system]
+                    for target_system in lock_configuration.target_systems
+                ],
+                "sys_platforms": list(
+                    itertools.chain.from_iterable(
+                        _SYS_PLATFORMS[target_system]
+                        for target_system in lock_configuration.target_systems
+                    )
+                ),
+                "platform_tag_regexps": [
+                    _PLATFORM_TAG_REGEXP[target_system]
+                    for target_system in lock_configuration.target_systems
+                ],
+            }
+            target_systems_info_dir = safe_mkdtemp()
+            with open(os.path.join(target_systems_info_dir, "target_systems.json"), "w") as fp:
+                json.dump(target_systems, fp)
+            env.update(_PEX_TARGET_SYSTEMS_FILE=fp.name)
 
     return DownloadObserver(
         analyzer=Locker(

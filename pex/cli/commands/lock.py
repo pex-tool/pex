@@ -15,13 +15,13 @@ from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.orderedset import OrderedSet
 from pex.resolve import requirement_options, resolver_options, target_options
-from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
+from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle, TargetSystem
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.operations import create
 from pex.resolve.lockfile.updater import LockUpdater, ResolveUpdateRequest
 from pex.resolve.resolver_options import parse_lockfile
-from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied
+from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -30,7 +30,7 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, DefaultDict, List, Optional, Tuple
+    from typing import IO, DefaultDict, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -176,6 +176,22 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             ),
         )
+        create_parser.add_argument(
+            "--target-system",
+            dest="target_systems",
+            default=[],
+            action="append",
+            choices=TargetSystem.values(),
+            type=TargetSystem.for_value,
+            help=(
+                "The target operating systems to generate the lock for. This option applies only "
+                "to `--style {universal}` locks and restricts the locked artifacts to those "
+                "compatible with the specified target operating systems. By default, {universal!r} "
+                "style locks include artifacts for all operating systems.".format(
+                    universal=LockStyle.UNIVERSAL,
+                )
+            ),
+        )
         cls._add_lock_options(create_parser)
         cls.add_output_option(create_parser, entity="lock")
         cls.add_json_options(create_parser, entity="lock", include_switch=False)
@@ -241,7 +257,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             ),
         )
-        cls._add_lockfile_option(update_parser, verb="create")
+        cls._add_lockfile_option(update_parser, verb="update")
         cls._add_lock_options(update_parser)
         cls.add_json_options(update_parser, entity="lock", include_switch=False)
         cls._add_target_options(update_parser)
@@ -273,6 +289,31 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         ) as update_parser:
             cls._add_update_arguments(update_parser)
 
+    def _resolve_targets(
+        self,
+        action,  # type: str
+        style,  # type: LockStyle.Value
+        target_configuration=None,  # type: Optional[TargetConfiguration]
+    ):
+        # type: (...) -> Union[Targets, Error]
+
+        target_config = target_configuration or target_options.configure(self.options)
+        if style is not LockStyle.UNIVERSAL:
+            return target_config.resolve_targets()
+
+        if not target_config.interpreter_constraints:
+            return Targets()
+
+        try:
+            interpreter = next(target_config.interpreter_configuration.iter_interpreters())
+        except InterpreterConstraintsNotSatisfied as e:
+            return Error(
+                "When {action} a universal lock with an --interpreter-constraint, an "
+                "interpreter matching the constraint must be found on the local system but "
+                "none was: {err}".format(action=action, err=e)
+            )
+        return Targets(interpreters=(interpreter,))
+
     def _create(self):
         # type: () -> Result
         target_configuration = target_options.configure(self.options)
@@ -294,26 +335,25 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     str(interpreter_constraint.specifier)
                     for interpreter_constraint in target_configuration.interpreter_constraints
                 ),
+                target_systems=tuple(self.options.target_systems),
             )
-            if target_configuration.interpreter_constraints:
-                try:
-                    interpreter = next(
-                        target_configuration.interpreter_configuration.iter_interpreters()
-                    )
-                except InterpreterConstraintsNotSatisfied as e:
-                    return Error(
-                        "When creating a universal lock with an --interpreter-constraint, an "
-                        "interpreter matching the constraint must be found on the local system but "
-                        "none was: {err}".format(err=e)
-                    )
-                targets = Targets(interpreters=(interpreter,))
-            else:
-                targets = Targets()
+        elif self.options.target_systems:
+            return Error(
+                "The --target-system option only applies to --style {universal} locks.".format(
+                    universal=LockStyle.UNIVERSAL.value
+                )
+            )
         else:
             lock_configuration = LockConfiguration(style=self.options.style)
-            targets = target_configuration.resolve_targets()
 
         requirement_configuration = requirement_options.configure(self.options)
+        targets = try_(
+            self._resolve_targets(
+                action="creating",
+                style=self.options.style,
+                target_configuration=target_configuration,
+            )
+        )
         pip_configuration = resolver_options.create_pip_configuration(self.options)
         self._dump_lockfile(
             try_(
@@ -432,16 +472,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             max_jobs=resolver_options.get_max_jobs_value(self.options),
         )
 
-        targets = (
-            Targets()
-            if lock_file.style == LockStyle.UNIVERSAL
-            else target_options.configure(self.options).resolve_targets()
-        )
+        targets = try_(self._resolve_targets(action="updating", style=lock_file.style))
         update_requests = [
             ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
             for target, locked_resolve in lock_file.select(targets.unique_targets())
         ]
-        if self.options.strict:
+        if self.options.strict and lock_file.style is not LockStyle.UNIVERSAL:
             missing_updates = set(lock_file.locked_resolves) - {
                 update_request.locked_resolve for update_request in update_requests
             }
