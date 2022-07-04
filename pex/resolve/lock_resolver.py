@@ -303,9 +303,9 @@ def resolve_from_lock(
 
     if errors_by_target:
         return Error(
-            "Failed to resolve compatible artifacts from lock {lock} for {count} {targets}:\n"
+            "Failed to resolve compatible artifacts from {lock} for {count} {targets}:\n"
             "{errors}".format(
-                lock=lock.source,
+                lock="lock {source}".format(source=lock.source) if lock.source else "lock",
                 count=len(errors_by_target),
                 targets=pluralize(errors_by_target, "target"),
                 errors="\n".join(

@@ -237,29 +237,141 @@ def test_create_universal_python_unsupported():
     result.assert_failure()
     assert (
         "When creating a universal lock, the interpreters the resulting lock applies to can only "
-        "be constrained via --interpreter-constraint. There was 1 --python and 0 --platform "
-        "specified.\n"
+        "be constrained via --interpreter-constraint. There was 1 --python specified.\n"
     ) == result.error
 
 
-def test_create_universal_platform_unsupported():
-    # type: () -> None
+def test_create_universal_platform_check(tmpdir):
+    # type: (Any) -> None
 
+    complete_platform = os.path.join(str(tmpdir), "complete-platform.json")
+    run_pex3("interpreter", "inspect", "--markers", "--tags", "-v", "-i2", "-o", complete_platform)
+
+    # The ansicolors 1.1.8 release includes a universal wheel which should satisfy any platform
+    # check.
+    run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--platform",
+        "linux_x86_64-cp-310-cp310",
+        "ansicolors==1.1.8",
+    ).assert_success()
+    run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--complete-platform",
+        complete_platform,
+        "ansicolors==1.1.8",
+    ).assert_success()
+
+    # But if we exclude wheels, we should now fail any platform check.
     result = run_pex3(
         "lock",
         "create",
         "--style",
         "universal",
         "--platform",
-        "linux_x86_64-cp-310-cp310.",
-        "ansicolors",
+        "linux_x86_64-cp-310-cp310",
+        "--no-wheel",
+        "ansicolors==1.1.8",
     )
     result.assert_failure()
     assert (
-        "When creating a universal lock, the interpreters the resulting lock applies to can only "
-        "be constrained via --interpreter-constraint. There was 0 --python and 1 --platform "
-        "specified.\n"
-    ) == result.error
+        dedent(
+            """\
+            Failed to resolve compatible artifacts from lock for 1 target:
+            1. cp310-cp310-linux_x86_64:
+                Cannot ignore wheels (use_wheel=False) when resolving for a platform: given abbreviated platform cp310-cp310-linux_x86_64
+            """
+        )
+        == result.error
+    )
+    run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--complete-platform",
+        complete_platform,
+        "--no-wheel",
+        "ansicolors==1.1.8",
+    ).assert_failure()
+
+    run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--platform",
+        "macosx_10.9_x86_64-cp-310-cp310",
+        "psutil==5.9.1",
+    ).assert_success()
+
+    # Here there is no pre-built wheel for CPython 3.11 on any platform; so we expect failure when
+    # checking the --platform macosx_10.9_x86_64-cp-311-cp311 will fail.
+    result = run_pex3(
+        "lock",
+        "create",
+        "--style",
+        "universal",
+        "--platform",
+        "macosx_10.9_x86_64-cp-311-cp311",
+        "psutil==5.9.1",
+    )
+    result.assert_failure()
+    assert (
+        dedent(
+            """\
+            Failed to resolve compatible artifacts from lock for 1 target:
+            1. cp311-cp311-macosx_10_9_x86_64:
+                Failed to resolve all requirements for abbreviated platform cp311-cp311-macosx_10_9_x86_64:
+
+            Configured with:
+                build: False
+                use_wheel: True
+
+            Dependency on psutil not satisfied, 1 incompatible candidate found:
+            1.) psutil 5.9.1 (via: psutil==5.9.1) does not have any compatible artifacts:
+                https://files.pythonhosted.org/packages/77/06/f9fd79449440d7217d6bf2c90998d540e125cfeffe39d214a328dadc46f4/psutil-5.9.1-cp27-cp27m-manylinux2010_i686.whl
+                https://files.pythonhosted.org/packages/13/71/c25adbd9b33a2e27edbe1fc84b3111a5ad97611885d7abcbdd8d1f2bb7ca/psutil-5.9.1-cp37-cp37m-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+                https://files.pythonhosted.org/packages/14/06/39d7e963a6a8bbf26519de208593cdb0ddfe22918b8989f4b2363d4ab49f/psutil-5.9.1-cp310-cp310-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl
+                https://files.pythonhosted.org/packages/1b/53/8f0772df0a6d593bc2fcdf12f4f790bab5c4f6a77bb61a8ddaad2cbba7f8/psutil-5.9.1-cp27-cp27m-win_amd64.whl
+                https://files.pythonhosted.org/packages/26/b4/a58cf15ea649faa92c54f00c627aef1d50b9f1abf207485f10c967a50c95/psutil-5.9.1-cp310-cp310-win32.whl
+                https://files.pythonhosted.org/packages/2a/32/136cd5bf55728ea64a22b1d817890e35fc17314c46a24ee3268b65f9076f/psutil-5.9.1-cp37-cp37m-win32.whl
+                https://files.pythonhosted.org/packages/2c/9d/dc329b7da284677ea843f3ff4b35b8ab3b96b65a58a544b3c3f86d9d032f/psutil-5.9.1-cp27-cp27mu-manylinux2010_x86_64.whl
+                https://files.pythonhosted.org/packages/2d/56/54b4ed8102ce5a2f5367b4e766c1873c18f9c32cde321435d0e0ee2abcc5/psutil-5.9.1-cp27-cp27mu-manylinux2010_i686.whl
+                https://files.pythonhosted.org/packages/41/ec/5fd3e9388d0ed1edfdeae71799df374f4a117932646a63413fa95a121e9f/psutil-5.9.1-cp38-cp38-win32.whl
+                https://files.pythonhosted.org/packages/46/80/1de3a9bac336b5c8e4f7b0ff2e80c85ba237f18f2703be68884ee6798432/psutil-5.9.1-cp38-cp38-macosx_10_9_x86_64.whl
+                https://files.pythonhosted.org/packages/62/1f/f14225bda76417ab9bd808ff21d5cd59d5435a9796ca09b34d4cb0edcd88/psutil-5.9.1-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+                https://files.pythonhosted.org/packages/65/1d/6a112f146faee6292a6c3ee2a7f24a8e572697adb7e1c5de3d8508f647cc/psutil-5.9.1-cp36-cp36m-macosx_10_9_x86_64.whl
+                https://files.pythonhosted.org/packages/6b/76/a8cb69ed3566877dcbccf408f5f9d6055227ad4fed694e88809fa8506b0b/psutil-5.9.1-cp36-cp36m-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+                https://files.pythonhosted.org/packages/6d/c6/6a4e46802e8690d50ba6a56c7f79ac283e703fcfa0fdae8e41909c8cef1f/psutil-5.9.1-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+                https://files.pythonhosted.org/packages/73/1a/d78f2f2de2aad6628415d2a48917cabc2c7fb0c3a31c7cdf187cffa4eb36/psutil-5.9.1-cp36-cp36m-win_amd64.whl
+                https://files.pythonhosted.org/packages/7e/52/a02dc53e26714a339c8b4972d8e3f268e4db8905f5d1a3a100f1e40b6fa7/psutil-5.9.1-cp36-cp36m-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl
+                https://files.pythonhosted.org/packages/7e/8d/e0a66123fa98e309597815de518b47a7a6c571a8f886fc8d4db2331fd2ab/psutil-5.9.1-cp27-cp27m-win32.whl
+                https://files.pythonhosted.org/packages/85/4d/78173e3dffb74c5fa87914908f143473d0b8b9183f9d275333679a4e4649/psutil-5.9.1-cp36-cp36m-win32.whl
+                https://files.pythonhosted.org/packages/97/f6/0180e58dd1359da7d6fbc27d04dac6fb500dc758b6f4b65407608bb13170/psutil-5.9.1-cp37-cp37m-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl
+                https://files.pythonhosted.org/packages/9d/41/d5f2db2ab7f5dff2fa795993a0cd6fa8a8f39ca197c3a86857875333ec10/psutil-5.9.1-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+                https://files.pythonhosted.org/packages/9f/ca/84ce3e48b3ca2f0f74314d89929b3a523220f3f4a8dff395d6ef74dadef3/psutil-5.9.1-cp39-cp39-macosx_10_9_x86_64.whl
+                https://files.pythonhosted.org/packages/a9/97/b7e3532d97d527349701d2143c3f868733b94e2db6f531b07811b698f549/psutil-5.9.1-cp39-cp39-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl
+                https://files.pythonhosted.org/packages/b1/d2/c5374a784567c1e42ee8a589b1b42e2bd6e14c7be3c234d84360ab3a0a39/psutil-5.9.1-cp39-cp39-win32.whl
+                https://files.pythonhosted.org/packages/b2/ad/65e2b2b97677f98d718388dc11b2a9d7f177ebbae5eef72547a32bc28911/psutil-5.9.1-cp38-cp38-win_amd64.whl
+                https://files.pythonhosted.org/packages/c0/5a/2ac88d5265b711c8aa4e786825b38d5d0b1e5ecbdd0ce78e9b04a820d247/psutil-5.9.1-cp310-cp310-win_amd64.whl
+                https://files.pythonhosted.org/packages/cf/29/ad704a45960bfb52ef8bf0beb9c41c09ce92d61c40333f03e9a03f246c22/psutil-5.9.1-cp27-cp27m-manylinux2010_x86_64.whl
+                https://files.pythonhosted.org/packages/d1/16/6239e76ab5d990dc7866bc22a80585f73421588d63b42884d607f5f815e2/psutil-5.9.1-cp310-cp310-macosx_10_9_x86_64.whl
+                https://files.pythonhosted.org/packages/d6/de/0999ea2562b96d7165812606b18f7169307b60cd378bc29cf3673322c7e9/psutil-5.9.1.tar.gz
+                https://files.pythonhosted.org/packages/d6/ef/fd4dc9085e3879c3af63fe60667dd3b71adf50d030b5549315f4a619271b/psutil-5.9.1-cp37-cp37m-macosx_10_9_x86_64.whl
+                https://files.pythonhosted.org/packages/df/88/427f3959855fcb3ab04891e00c026a246892feb11b20433db814b7a24405/psutil-5.9.1-cp37-cp37m-win_amd64.whl
+                https://files.pythonhosted.org/packages/e0/ac/fd6f098969d49f046083ac032e6788d9f861903596fb9555a02bf50a1238/psutil-5.9.1-cp39-cp39-win_amd64.whl
+                https://files.pythonhosted.org/packages/fd/ba/c5a3f46f351ab609cc0be6a563e492900c57e3d5c9bda0b79b84d8c3eae9/psutil-5.9.1-cp38-cp38-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl
+            """
+        )
+        == result.error
+    )
 
 
 UPDATE_LOCKFILE_CONTENTS = """\

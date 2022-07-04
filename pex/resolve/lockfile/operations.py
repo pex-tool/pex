@@ -15,7 +15,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.tool import PackageIndexConfiguration
-from pex.resolve import locker, resolvers
+from pex.resolve import lock_resolver, locker, resolvers
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
@@ -35,7 +35,7 @@ from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import Resolver
 from pex.resolver import BuildRequest, Downloaded, ResolveObserver, WheelBuilder
-from pex.result import Error
+from pex.result import Error, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -237,9 +237,10 @@ def create(
         .entries,
     )
 
+    configured_resolver = ConfiguredResolver(pip_configuration=pip_configuration)
     lock_observer = LockObserver(
         lock_configuration=lock_configuration,
-        resolver=ConfiguredResolver(pip_configuration=pip_configuration),
+        resolver=configured_resolver,
         wheel_builder=WheelBuilder(
             package_index_configuration=package_index_configuration,
             prefer_older_binary=pip_configuration.prefer_older_binary,
@@ -252,9 +253,16 @@ def create(
 
     download_dir = safe_mkdtemp()
 
+    if lock_configuration.style is LockStyle.UNIVERSAL:
+        download_targets = (
+            Targets(interpreters=(targets.interpreter,)) if targets.interpreter else Targets()
+        )
+    else:
+        download_targets = targets
+
     try:
         downloaded = resolver.download(
-            targets=targets,
+            targets=download_targets,
             requirements=requirement_configuration.requirements,
             requirement_files=requirement_configuration.requirement_files,
             constraint_files=requirement_configuration.constraint_files,
@@ -287,7 +295,7 @@ def create(
         )
         create_lock_download_manager.store_all()
 
-    return Lockfile.create(
+    lock = Lockfile.create(
         pex_version=__version__,
         style=lock_configuration.style,
         requires_python=lock_configuration.requires_python,
@@ -304,3 +312,36 @@ def create(
         transitive=pip_configuration.transitive,
         locked_resolves=locked_resolves,
     )
+
+    if lock_configuration.style is LockStyle.UNIVERSAL and (
+        targets.platforms or targets.complete_platforms
+    ):
+        check_targets = Targets(
+            platforms=targets.platforms,
+            complete_platforms=targets.complete_platforms,
+            assume_manylinux=targets.assume_manylinux,
+        )
+        with TRACER.timed(
+            "Checking lock can resolve for platforms: {targets}".format(targets=check_targets)
+        ):
+            try_(
+                lock_resolver.resolve_from_lock(
+                    targets=check_targets,
+                    lock=lock,
+                    resolver=configured_resolver,
+                    indexes=pip_configuration.repos_configuration.indexes,
+                    find_links=pip_configuration.repos_configuration.find_links,
+                    resolver_version=pip_configuration.resolver_version,
+                    network_configuration=network_configuration,
+                    password_entries=pip_configuration.repos_configuration.password_entries,
+                    build=pip_configuration.allow_builds,
+                    use_wheel=pip_configuration.allow_wheels,
+                    prefer_older_binary=pip_configuration.prefer_older_binary,
+                    use_pep517=pip_configuration.use_pep517,
+                    build_isolation=pip_configuration.build_isolation,
+                    transitive=pip_configuration.transitive,
+                    max_parallel_jobs=pip_configuration.max_jobs,
+                )
+            )
+
+    return lock
