@@ -301,8 +301,24 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         if style is not LockStyle.UNIVERSAL:
             return target_config.resolve_targets()
 
+        if target_config.pythons:
+            return Error(
+                "When {action} a {universal} lock, the interpreters the resulting lock applies "
+                "to can only be constrained via --interpreter-constraint. There {were} "
+                "{num_pythons} --python specified.".format(
+                    action=action,
+                    universal=LockStyle.UNIVERSAL.value,
+                    were="were" if len(target_config.pythons) > 1 else "was",
+                    num_pythons=len(target_config.pythons),
+                )
+            )
+
         if not target_config.interpreter_constraints:
-            return Targets()
+            return Targets(
+                platforms=target_config.platforms,
+                complete_platforms=target_config.complete_platforms,
+                assume_manylinux=target_config.assume_manylinux,
+            )
 
         try:
             interpreter = next(target_config.interpreter_configuration.iter_interpreters())
@@ -312,23 +328,17 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "interpreter matching the constraint must be found on the local system but "
                 "none was: {err}".format(action=action, err=e)
             )
-        return Targets(interpreters=(interpreter,))
+        return Targets(
+            interpreters=(interpreter,),
+            platforms=target_config.platforms,
+            complete_platforms=target_config.complete_platforms,
+            assume_manylinux=target_config.assume_manylinux,
+        )
 
     def _create(self):
         # type: () -> Result
         target_configuration = target_options.configure(self.options)
         if self.options.style == LockStyle.UNIVERSAL:
-            if target_configuration.pythons or target_configuration.platforms:
-                return Error(
-                    "When creating a {universal} lock, the interpreters the resulting lock applies "
-                    "to can only be constrained via --interpreter-constraint. There {were} "
-                    "{num_pythons} --python and {num_platforms} --platform specified.".format(
-                        universal=LockStyle.UNIVERSAL.value,
-                        were="were" if len(target_configuration.pythons) > 1 else "was",
-                        num_pythons=len(target_configuration.pythons),
-                        num_platforms=len(target_configuration.platforms),
-                    )
-                )
             lock_configuration = LockConfiguration(
                 style=LockStyle.UNIVERSAL,
                 requires_python=tuple(
