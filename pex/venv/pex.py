@@ -91,6 +91,40 @@ def _copytree(
             return
 
 
+def _create_shebang(
+    venv_python, # type: str
+):
+    # type: (...) -> str
+    """Return the shebang to be used in the venv pex invoker script.
+
+    When the shebang is longer than the common linux length limit of 128 Bytes we try
+    to replace the shebang with a snippet of shell script which will invoke the correct
+    python interpreter from a path relative to the script itself, which avoids the need
+    to encode the long interpreter as a shebang.
+    """
+
+    # This multiline shebang locates the interpreter in the venv relative to the file this shebang is placed in.
+    # For example the script is usually ~/.pex/venvs/<sha>/<sha>/pex and the venv bin dir is ~/.pex/venvs/<sha>/<sha>/bin/.
+    # The exec command re-execs the venv pex script with the venv interpreter. The unfortunate
+    # trick here is that the shell exec command and its arguemetns are wrapped in quotes so the python
+    # interpreter treats it as a static string when executing the script, essentially ignoring it.
+    long_shebang_exec = '#!{sh_path}\n"exec" "`dirname $0`/bin/{interpreter_basename}" "-sE" "$0" "$@"'
+
+    shebang = "#!{} -sE".format(venv_python)
+    if len(shebang) > 128:
+        sh_path = None
+        # shutil.which only exists in CPython >= 3.3
+        if hasattr(shutil, "which"):
+            sh_path = shutil.which("sh")
+        elif os.path.exists("/bin/sh"):
+            # fallback to /bin/sh if running python2.
+            sh_path = "/bin/sh"
+
+        if sh_path is not None:
+            shebang = long_shebang_exec.format(sh_path=sh_path, interpreter_basename=os.path.basename(venv_python))
+    return shebang
+        
+
 class CollisionError(Exception):
     """Indicates multiple distributions provided the same file when merging a PEX into a venv."""
 
@@ -107,7 +141,7 @@ def populate_venv(
     # type: (...) -> str
 
     venv_python = python or venv.interpreter.binary
-    shebang = "#!{} -sE".format(venv_python)
+    shebang = _create_shebang(venv_python)
 
     provenance = defaultdict(list)
 
