@@ -106,16 +106,17 @@ def _create_shebang(
     # This multiline shebang locates the interpreter in the venv relative to the file this shebang is placed in.
     # For example the script is usually ~/.pex/venvs/<sha>/<sha>/pex and the venv bin dir is ~/.pex/venvs/<sha>/<sha>/bin/.
     # The exec command re-execs the venv pex script with the venv interpreter. The unfortunate
-    # trick here is that the shell exec command and its arguemetns are wrapped in quotes so the python
+    # trick here is that the shell exec command and its arguments are wrapped in quotes so the python
     # interpreter treats it as a static string when executing the script, essentially ignoring it.
-    long_shebang_exec = '#!{sh_path}\n"exec" "`dirname $0`/bin/{interpreter_basename}" "-sE" "$0" "$@"'
+    long_shebang_exec = '#!{sh_path}\n        "exec" "`dirname $0`/bin/{interpreter_basename}" "-sE" "$0" "$@"'
 
     shebang = "#!{} -sE".format(venv_python)
     if len(shebang) > 128:
         sh_path = None
         # shutil.which only exists in CPython >= 3.3
         if hasattr(shutil, "which"):
-            sh_path = shutil.which("sh")
+            # ignore mypy because we are already checking for this attr above.
+            sh_path = shutil.which("sh") # type: ignore[attr-defined]
         elif os.path.exists("/bin/sh"):
             # fallback to /bin/sh if running python2.
             sh_path = "/bin/sh"
@@ -123,7 +124,7 @@ def _create_shebang(
         if sh_path is not None:
             shebang = long_shebang_exec.format(sh_path=sh_path, interpreter_basename=os.path.basename(venv_python))
     return shebang
-        
+
 
 class CollisionError(Exception):
     """Indicates multiple distributions provided the same file when merging a PEX into a venv."""
