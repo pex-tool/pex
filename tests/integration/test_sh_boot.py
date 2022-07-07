@@ -1,16 +1,16 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+import errno
 import json
 import os
 import subprocess
 import sys
 from textwrap import dedent
-from typing import Text, Tuple
+from typing import Callable, Text, Tuple
 
 import pytest
 
-from pex.common import safe_open
+from pex.common import chmod_plus_x, safe_open, touch
 from pex.testing import ALL_PY_VERSIONS, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -196,3 +196,189 @@ def test_argv0(
         "pickling and other use cases as outlined in https://github.com/pantsbuild/pex/issues/1018."
     )
     assert {} == data
+
+
+def find_max_length(
+    seed_max,  # type: int
+    is_too_long,  # type: Callable[[int], bool]
+):
+    # type: (...) -> int
+
+    too_long_low_watermark = seed_max
+    ok_high_watermark = 0
+    current_length = seed_max
+    steps = 0
+    try:
+        while True:
+            steps += 1
+            sys.stderr.write(
+                "step {}\n"
+                "  too_long_low_watermark = {}\n"
+                "  ok_high_watermark = {}\n"
+                "  current_length = {}\n"
+                "\n".format(steps, too_long_low_watermark, ok_high_watermark, current_length)
+            )
+            if is_too_long(current_length):
+                too_long_low_watermark = min(too_long_low_watermark, current_length)
+            elif current_length + 1 == too_long_low_watermark:
+                return current_length
+            else:
+                assert (
+                    current_length < seed_max
+                ), "Did not probe high enough for shebang length limit."
+                ok_high_watermark = max(ok_high_watermark, current_length)
+            assert ok_high_watermark < too_long_low_watermark
+            current_length = ok_high_watermark + (too_long_low_watermark - ok_high_watermark) // 2
+    finally:
+        sys.stderr.write("Took {} steps.\n".format(steps))
+
+
+@pytest.fixture(scope="module")
+def file_path_length_limit(tmpdir_factory):
+    # type: (Any) -> int
+
+    def file_path_too_long(length):
+        # type: (int) -> bool
+        path = str(tmpdir_factory.mktemp("td"))
+        while len(path) < length - len(os.path.join("directory", "x")):
+            path = os.path.join(path, "directory")
+            try:
+                os.mkdir(path)
+            except OSError as e:
+                if e.errno == errno.ENAMETOOLONG:
+                    return True
+                elif e.errno != errno.EEXIST:
+                    raise e
+
+        if len(path) < length:
+            padding = length - len(path) - len(os.sep)
+            path = os.path.join(path, "x" * padding)
+            try:
+                touch(path)
+            except OSError as e:
+                if e.errno != errno.ENAMETOOLONG:
+                    raise e
+                return True
+
+        return False
+
+    limit = find_max_length(seed_max=2 ** 16, is_too_long=file_path_too_long)
+    sys.stderr.write(">>> Calculated file path length limit of : {}\n".format(limit))
+    return limit
+
+
+@pytest.fixture(scope="module")
+def file_name_length_limit(
+    tmpdir_factory,  # type: Any
+    file_path_length_limit,  # type: int
+):
+    # type: (...) -> int
+
+    def file_path_too_long(length):
+        # type: (int) -> bool
+        path = str(tmpdir_factory.mktemp("td"))
+        try:
+            touch(os.path.join(path, "x" * length))
+        except OSError as e:
+            if e.errno != errno.ENAMETOOLONG:
+                raise e
+            return True
+
+        return False
+
+    limit = find_max_length(seed_max=file_path_length_limit, is_too_long=file_path_too_long)
+    sys.stderr.write(">>> Calculated file name length limit of: {}\n".format(limit))
+    return limit
+
+
+@pytest.fixture(scope="module")
+def shebang_length_limit(
+    tmpdir_factory,  # type: Any
+    file_path_length_limit,  # type: int
+):
+    # type: (...) -> int
+
+    def shebang_too_long(length):
+        # type: (int) -> bool
+        path = str(tmpdir_factory.mktemp("td"))
+        while len(path) < length - len("#!" + os.path.join("directory", "x")):
+            path = os.path.join(path, "directory")
+            try:
+                os.mkdir(path)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise e
+
+        sh_path = os.path.join(path, "x" * (length - len("#!" + path + os.sep)))
+        try:
+            os.unlink(sh_path)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise e
+        os.symlink("/bin/sh", sh_path)
+
+        script = os.path.join(path, "script.sh")
+        with open(script, "w") as fp:
+            fp.write("#!{sh_path}\n".format(sh_path=sh_path))
+            fp.write("exit 0\n")
+        chmod_plus_x(script)
+        try:
+            return 0 != subprocess.call(args=[script])
+        except OSError as e:
+            if e.errno != errno.ENOEXEC:
+                raise e
+            return True
+
+    limit = find_max_length(
+        seed_max=file_path_length_limit - len(os.sep + "script.sh"), is_too_long=shebang_too_long
+    )
+    sys.stderr.write(">>> Calculated shebang length limit of: {}\n".format(limit))
+    return limit
+
+
+@pytest.mark.parametrize("execution_mode_args", EXECUTION_MODE_ARGS_PERMUTATIONS)
+def test_shebang_length_limit(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+    shebang_length_limit,  # type: int
+):
+    # type: (...) -> None
+
+    long_dir_name = "x" * shebang_length_limit
+
+    pex_root = os.path.realpath(os.path.join(str(tmpdir), long_dir_name, "pex_root"))
+    pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
+    result = run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "-o",
+            pex,
+            "--seed",
+            "verbose",
+        ]
+        + execution_mode_args
+    )
+    result.assert_success()
+    seeded_pex = json.loads(result.output)["pex"]
+
+    test_pex_args = ["-c", "import __main__; print(__main__.__file__)"]
+
+    def assert_pex_works(pex_file):
+        assert (
+            subprocess.check_output(args=[pex_file] + test_pex_args)
+            .decode("utf8")
+            .startswith(pex_root)
+        )
+
+    if "--venv" in execution_mode_args:
+        # Running the venv pex directly should fail since the shebang length is too long.
+        with pytest.raises(OSError) as exc_info:
+            subprocess.check_call(args=[seeded_pex] + test_pex_args)
+        assert exc_info.value.errno == errno.ENOEXEC
+    else:
+        assert_pex_works(seeded_pex)
+
+    assert_pex_works(pex)
