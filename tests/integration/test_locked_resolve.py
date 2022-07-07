@@ -7,11 +7,10 @@ import os
 import pytest
 
 from pex import dist_metadata, resolver, targets
-from pex.auth import PasswordDatabase
 from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle
-from pex.resolve.lockfile.operations import LockObserver
+from pex.resolve.lockfile.create import LockObserver
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.testing import normalize_locked_resolve
@@ -152,13 +151,4 @@ def test_lock_single_target(
         "Expected a find-links lock to match an equivalent PyPI lock except for the primary "
         "artifact urls and their verification status and lack of additional artifacts (since these "
         "are never downloaded; but instead, just recorded)."
-    )
-
-    lock_file = os.path.join(str(tmpdir), "requirements.txt")
-    with open(lock_file, "w") as fp:
-        lock.emit_requirements(fp)
-    _, export_locked_resolves = create_lock(lock_configuration, requirement_files=[lock_file])
-    assert normalize(locked_resolves) == normalize(export_locked_resolves), (
-        "Expected the download used to create a lock to be reproduced by a download using the "
-        "requirements generated from the lock."
     )

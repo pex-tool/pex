@@ -179,12 +179,6 @@ class RankedArtifact(object):
     artifact = attr.ib()  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
     rank = attr.ib()  # type: TagRank
 
-    def select_higher_ranked(self, other):
-        # type: (RankedArtifact) -> RankedArtifact
-        return Rank.select_highest_rank(
-            self, other, extract_rank=lambda ranked_artifact: ranked_artifact.rank
-        )
-
 
 @attr.s(frozen=True)
 class LockedRequirement(object):
@@ -220,20 +214,14 @@ class LockedRequirement(object):
         for artifact in self.additional_artifacts:
             yield artifact
 
-    def select_artifact(
+    def iter_compatible_artifacts(
         self,
         target,  # type: Target
         build=True,  # type: bool
         use_wheel=True,  # type: bool
     ):
-        # type: (...) -> Optional[RankedArtifact]
-        """Select the highest ranking (most platform specific) artifact satisfying supported tags.
-
-        Artifacts are ranked as follows:
-
-        + If the artifact is a wheel, rank it based on its best matching tag.
-        + If the artifact is an sdist, rank it as usable, but a worse match than any wheel.
-        + Otherwise treat the artifact as unusable.
+        # type: (...) -> Iterator[RankedArtifact]
+        """Iterate all compatible artifacts for the given target and resolve configuration.
 
         :param target: The target looking to pick a resolve to use.
         :param build: Whether sdists are allowed.
@@ -241,7 +229,6 @@ class LockedRequirement(object):
         :return: The highest ranked artifact if the requirement is compatible with the target else
             `None`.
         """
-        highest_rank_artifact = None  # type: Optional[RankedArtifact]
         for artifact in self.iter_artifacts():
             if build and artifact.is_source:
                 # N.B.: Ensure sdists are picked last amongst a set of artifacts. We do this, since
@@ -249,27 +236,13 @@ class LockedRequirement(object):
                 # sdist may not successfully build for a given target at all. This is an affordance
                 # for LockStyle.SOURCES and LockStyle.CROSS_PLATFORM lock styles.
                 sdist_rank = target.supported_tags.lowest_rank.lower()
-                ranked_artifact = RankedArtifact(artifact=artifact, rank=sdist_rank)
-                if (
-                    highest_rank_artifact is None
-                    or ranked_artifact
-                    is highest_rank_artifact.select_higher_ranked(ranked_artifact)
-                ):
-                    highest_rank_artifact = ranked_artifact
+                yield RankedArtifact(artifact=artifact, rank=sdist_rank)
             elif use_wheel and isinstance(artifact, FileArtifact):
                 for tag in artifact.parse_tags():
                     wheel_rank = target.supported_tags.rank(tag)
                     if wheel_rank is None:
                         continue
-                    ranked_artifact = RankedArtifact(artifact=artifact, rank=wheel_rank)
-                    if (
-                        highest_rank_artifact is None
-                        or ranked_artifact
-                        is highest_rank_artifact.select_higher_ranked(ranked_artifact)
-                    ):
-                        highest_rank_artifact = ranked_artifact
-
-        return highest_rank_artifact
+                    yield RankedArtifact(artifact=artifact, rank=wheel_rank)
 
 
 @attr.s(frozen=True)
@@ -332,6 +305,19 @@ class _ResolvedArtifact(object):
         return self if self.version > other.version else other
 
 
+@attr.s(frozen=True, order=False)
+class _ResolvedArtifactComparator(object):
+    resolved_artifact = attr.ib()  # type: _ResolvedArtifact
+    prefer_older_binary = attr.ib(default=False)  # type: bool
+
+    def __lt__(self, other):
+        # type: (_ResolvedArtifactComparator) -> bool
+        highest_ranked = self.resolved_artifact.select_higher_rank(
+            other.resolved_artifact, self.prefer_older_binary
+        )
+        return highest_ranked is other.resolved_artifact
+
+
 @attr.s(frozen=True)
 class DownloadableArtifact(object):
     @classmethod
@@ -360,7 +346,8 @@ class Resolved(object):
         cls,
         target,  # type: Target
         direct_requirements,  # type: Iterable[Requirement]
-        downloadable_requirements,  # type: Iterable[_ResolvedArtifact]
+        resolved_artifacts,  # type: Iterable[_ResolvedArtifact]
+        source,  # type: LockedResolve
     ):
         # type: (...) -> Resolved
 
@@ -378,32 +365,40 @@ class Resolved(object):
 
         downloadable_artifacts = []
         target_specificities = []
-        for downloadable_requirement in downloadable_requirements:
-            pin = downloadable_requirement.locked_requirement.pin
+        for resolved_artifact in resolved_artifacts:
+            pin = resolved_artifact.locked_requirement.pin
             downloadable_artifacts.append(
                 DownloadableArtifact.create(
                     pin=pin,
-                    artifact=downloadable_requirement.artifact,
+                    artifact=resolved_artifact.artifact,
                     satisfied_direct_requirements=direct_requirements_by_project_name[
                         pin.project_name
                     ],
                 )
             )
             target_specificities.append(
-                (
-                    rank_span
-                    - (downloadable_requirement.ranked_artifact.rank.value - smallest_rank_value)
-                )
+                (rank_span - (resolved_artifact.ranked_artifact.rank.value - smallest_rank_value))
                 / rank_span
             )
 
         return cls(
             target_specificity=sum(target_specificities) / len(target_specificities),
             downloadable_artifacts=tuple(downloadable_artifacts),
+            source=source,
         )
+
+    @classmethod
+    def most_specific(cls, resolves):
+        # type: (Iterable[Resolved]) -> Resolved
+        sorted_resolves = sorted(resolves)
+        if len(sorted_resolves) == 0:
+            raise ValueError("Given no resolves to pick from.")
+        # The most specific has the highest specificity which sorts last.
+        return sorted_resolves[-1]
 
     target_specificity = attr.ib()  # type: float
     downloadable_artifacts = attr.ib()  # type: Tuple[DownloadableArtifact, ...]
+    source = attr.ib(eq=False)  # type: LockedResolve
 
 
 if TYPE_CHECKING:
@@ -495,40 +490,6 @@ class LockedResolve(object):
     locked_requirements = attr.ib()  # type: SortedTuple[LockedRequirement]
     platform_tag = attr.ib(order=str, default=None)  # type: Optional[tags.Tag]
 
-    def emit_requirements(self, stream):
-        # type: (IO[str]) -> None
-        def emit_artifact(
-            artifact,  # type: Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
-            line_continuation,  # type: bool
-        ):
-            # type: (...) -> None
-            stream.write(
-                "    --hash={algorithm}:{hash} {line_continuation}\n".format(
-                    algorithm=artifact.fingerprint.algorithm,
-                    hash=artifact.fingerprint.hash,
-                    line_continuation=" \\" if line_continuation else "",
-                )
-            )
-
-        for locked_requirement in self.locked_requirements:
-            stream.write(
-                "{project_name}=={version} \\\n".format(
-                    project_name=locked_requirement.pin.project_name,
-                    version=locked_requirement.pin.version,
-                )
-            )
-            emit_artifact(
-                locked_requirement.artifact,
-                line_continuation=bool(locked_requirement.additional_artifacts),
-            )
-            for index, additional_artifact in enumerate(
-                locked_requirement.additional_artifacts, start=1
-            ):
-                emit_artifact(
-                    additional_artifact,
-                    line_continuation=index != len(locked_requirement.additional_artifacts),
-                )
-
     def resolve(
         self,
         target,  # type: Target
@@ -539,6 +500,7 @@ class LockedResolve(object):
         build=True,  # type: bool
         use_wheel=True,  # type: bool
         prefer_older_binary=False,  # type: bool
+        include_all_matches=False,  # type: bool
     ):
         # type: (...) -> Union[Resolved, Error]
 
@@ -601,11 +563,11 @@ class LockedResolve(object):
         constraints_by_project_name = {
             constraint.project_name: constraint for constraint in constraints
         }
-        resolved_artifacts = []
+        resolved_artifacts = []  # type: List[_ResolvedArtifact]
         errors = []
         for project_name, resolve_requests in required.items():
             reasons = []  # type: List[str]
-            best_match = None  # type: Optional[_ResolvedArtifact]
+            compatible_artifacts = []  # type: List[_ResolvedArtifact]
             for locked_requirement in repository[project_name]:
 
                 def attributed_reason(reason):
@@ -674,12 +636,14 @@ class LockedResolve(object):
                     )
                     continue
 
-                ranked_artifact = locked_requirement.select_artifact(
-                    target,
-                    build=build,
-                    use_wheel=use_wheel,
+                ranked_artifacts = tuple(
+                    locked_requirement.iter_compatible_artifacts(
+                        target,
+                        build=build,
+                        use_wheel=use_wheel,
+                    )
                 )
-                if not ranked_artifact:
+                if not ranked_artifacts:
                     reasons.append(
                         attributed_reason(
                             "does not have any compatible artifacts:\n{artifacts}".format(
@@ -691,13 +655,12 @@ class LockedResolve(object):
                         )
                     )
                     continue
-                resolved_artifact = _ResolvedArtifact(ranked_artifact, locked_requirement)
-                if best_match is None or resolved_artifact is best_match.select_higher_rank(
-                    resolved_artifact, prefer_older_binary=prefer_older_binary
-                ):
-                    best_match = resolved_artifact
+                compatible_artifacts.extend(
+                    _ResolvedArtifact(ranked_artifact, locked_requirement)
+                    for ranked_artifact in ranked_artifacts
+                )
 
-            if not best_match:
+            if not compatible_artifacts:
                 if reasons:
                     errors.append(
                         "Dependency on {project_name} not satisfied, {count} incompatible "
@@ -729,7 +692,16 @@ class LockedResolve(object):
                     )
                 continue
 
-            resolved_artifacts.append(best_match)
+            compatible_artifacts.sort(
+                key=lambda ra: _ResolvedArtifactComparator(
+                    ra, prefer_older_binary=prefer_older_binary
+                ),
+                reverse=True,  # We want the highest rank sorted 1st.
+            )
+            if include_all_matches:
+                resolved_artifacts.extend(compatible_artifacts)
+            else:
+                resolved_artifacts.append(compatible_artifacts[0])
 
         if errors:
             from_source = " from {source}".format(source=source) if source else ""
@@ -749,8 +721,16 @@ class LockedResolve(object):
                 )
             )
 
+        uniqued_resolved_artifacts = []  # type: List[_ResolvedArtifact]
+        seen = set()
+        for resolved_artifact in resolved_artifacts:
+            if resolved_artifact.ranked_artifact.artifact not in seen:
+                uniqued_resolved_artifacts.append(resolved_artifact)
+                seen.add(resolved_artifact.ranked_artifact.artifact)
+
         return Resolved.create(
             target=target,
             direct_requirements=requirements,
-            downloadable_requirements=resolved_artifacts,
+            resolved_artifacts=uniqued_resolved_artifacts,
+            source=self,
         )

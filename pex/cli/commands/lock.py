@@ -5,32 +5,34 @@ from __future__ import absolute_import, print_function
 
 import sys
 from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _ActionsContainer
-from collections import defaultdict
+from collections import OrderedDict
 
+from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import pluralize
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.orderedset import OrderedSet
 from pex.resolve import requirement_options, resolver_options, target_options
-from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockStyle, TargetSystem
+from pex.resolve.locked_resolve import LockConfiguration, LockStyle, Resolved, TargetSystem
 from pex.resolve.lockfile import json_codec
+from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.lockfile.operations import create
+from pex.resolve.lockfile.subset import subset
 from pex.resolve.lockfile.updater import LockUpdater, ResolveUpdateRequest
+from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
 from pex.result import Error, Ok, Result, try_
 from pex.sorted_tuple import SortedTuple
-from pex.targets import Target, Targets
+from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, DefaultDict, List, Optional, Tuple, Union
+    from typing import IO, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -214,6 +216,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         cls._add_lock_options(export_parser)
         cls.add_output_option(export_parser, entity="lock")
         cls._add_target_options(export_parser)
+        resolver_options_parser = cls._create_resolver_options_group(export_parser)
+        resolver_options.register_network_options(resolver_options_parser)
 
     @classmethod
     def _add_update_arguments(cls, update_parser):
@@ -281,7 +285,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         ) as create_parser:
             cls._add_create_arguments(create_parser)
         with subcommands.parser(
-            name="export", help="Export a Pex lock file in a different format.", func=cls._export
+            name="export",
+            help="Export a Pex lock file for a single targeted environment in a different format.",
+            func=cls._export,
         ) as export_parser:
             cls._add_export_arguments(export_parser)
         with subcommands.parser(
@@ -416,54 +422,79 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         lockfile_path, lock_file = self._load_lockfile()
-
-        targets = target_options.configure(self.options).resolve_targets().unique_targets()
-
-        selected_locks = defaultdict(list)  # type: DefaultDict[LockedResolve, List[Target]]
-        with TRACER.timed("Selecting locks for {count} targets".format(count=len(targets))):
-            for target, locked_resolve in lock_file.select(targets):
-                selected_locks[locked_resolve].append(target)
-
-        if len(selected_locks) == 1:
-            locked_resolve, _ = selected_locks.popitem()
-            with self.output(self.options) as output:
-                locked_resolve.emit_requirements(output)
-            return Ok()
-
-        locks = lock_file.locked_resolves
-        if not selected_locks:
+        targets = target_options.configure(self.options).resolve_targets()
+        resolved_targets = targets.unique_targets()
+        if len(resolved_targets) > 1:
             return Error(
-                "Of the {count} {locks} stored in {lockfile}, none were applicable for the "
-                "selected targets:\n"
+                "A lock can only be exported for a single target in the {pip!r} format.\n"
+                "There were {count} targets selected:\n"
                 "{targets}".format(
-                    count=len(locks),
-                    locks=pluralize(locks, "lock"),
-                    lockfile=lockfile_path,
+                    pip=ExportFormat.PIP,
+                    count=len(resolved_targets),
                     targets="\n".join(
-                        "{index}.) {target}".format(index=index, target=target)
-                        for index, target in enumerate(targets, start=1)
+                        "{index}. {target}".format(index=index, target=target)
+                        for index, target in enumerate(resolved_targets, start=1)
                     ),
                 )
             )
+        target = next(iter(resolved_targets))
 
-        return Error(
-            "Only a single lock can be exported in the {pip!r} format.\n"
-            "There {were} {count} {locks} stored in {lockfile} that were applicable for the "
-            "selected targets:\n"
-            "{targets}".format(
-                were="was" if len(locks) == 1 else "were",
-                count=len(locks),
-                locks=pluralize(locks, "lock"),
-                lockfile=lockfile_path,
-                pip=ExportFormat.PIP,
-                targets="\n".join(
-                    "{index}.) {platform}: {targets}".format(
-                        index=index, platform=lock.platform_tag, targets=targets
-                    )
-                    for index, (lock, targets) in enumerate(selected_locks.items(), start=1)
-                ),
+        network_configuration = resolver_options.create_network_configuration(self.options)
+        with TRACER.timed("Selecting locks for {target}".format(target=target)):
+            subset_result = try_(
+                subset(
+                    targets=targets,
+                    lock=lock_file,
+                    network_configuration=network_configuration,
+                    build=lock_file.allow_builds,
+                    use_wheel=lock_file.allow_wheels,
+                    prefer_older_binary=lock_file.prefer_older_binary,
+                    transitive=lock_file.transitive,
+                    include_all_matches=True,
+                )
             )
-        )
+
+        if len(subset_result.subsets) != 1:
+            resolved = Resolved.most_specific(
+                resolved_subset.resolved for resolved_subset in subset_result.subsets
+            )
+            pex_warnings.warn(
+                "Only a single lock can be exported in the {pip!r} format.\n"
+                "There were {count} locks stored in {lockfile} that were applicable for the "
+                "selected target: {target}; so using the most specific lock with platform "
+                "{platform}.".format(
+                    count=len(subset_result.subsets),
+                    lockfile=lockfile_path,
+                    pip=ExportFormat.PIP,
+                    target=target,
+                    platform=resolved.source.platform_tag,
+                )
+            )
+        else:
+            resolved = subset_result.subsets[0].resolved
+
+        fingerprints_by_pin = OrderedDict()  # type: OrderedDict[Pin, List[Fingerprint]]
+        for downloaded_artifact in resolved.downloadable_artifacts:
+            fingerprints_by_pin.setdefault(downloaded_artifact.pin, []).append(
+                downloaded_artifact.artifact.fingerprint
+            )
+
+        with self.output(self.options) as output:
+            for pin, fingerprints in fingerprints_by_pin.items():
+                output.write(
+                    "{project_name}=={version} \\\n"
+                    "  {hashes}\n".format(
+                        project_name=pin.project_name,
+                        version=pin.version,
+                        hashes=" \\\n  ".join(
+                            "--hash={algorithm}:{hash}".format(
+                                algorithm=fingerprint.algorithm, hash=fingerprint.hash
+                            )
+                            for fingerprint in fingerprints
+                        ),
+                    )
+                )
+        return Ok()
 
     def _update(self):
         # type: () -> Result
@@ -475,17 +506,34 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             return Error("Failed to parse project requirement to update: {err}".format(err=e))
 
         lock_file_path, lock_file = self._load_lockfile()
+        network_configuration = resolver_options.create_network_configuration(self.options)
         lock_updater = LockUpdater.create(
             lock_file=lock_file,
             repos_configuration=resolver_options.create_repos_configuration(self.options),
-            network_configuration=resolver_options.create_network_configuration(self.options),
+            network_configuration=network_configuration,
             max_jobs=resolver_options.get_max_jobs_value(self.options),
         )
 
         targets = try_(self._resolve_targets(action="updating", style=lock_file.style))
+
+        with TRACER.timed("Selecting locks to update"):
+            subset_result = try_(
+                subset(
+                    targets=targets,
+                    lock=lock_file,
+                    network_configuration=network_configuration,
+                    build=lock_file.allow_builds,
+                    use_wheel=lock_file.allow_wheels,
+                    prefer_older_binary=lock_file.prefer_older_binary,
+                    transitive=lock_file.transitive,
+                )
+            )
+
         update_requests = [
-            ResolveUpdateRequest(target=target, locked_resolve=locked_resolve)
-            for target, locked_resolve in lock_file.select(targets.unique_targets())
+            ResolveUpdateRequest(
+                target=resolved_subset.target, locked_resolve=resolved_subset.resolved.source
+            )
+            for resolved_subset in subset_result.subsets
         ]
         if self.options.strict and lock_file.style is not LockStyle.UNIVERSAL:
             missing_updates = set(lock_file.locked_resolves) - {

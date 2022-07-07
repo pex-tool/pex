@@ -26,7 +26,7 @@ from pex.resolve.locked_resolve import (
     VCSArtifact,
     _ResolvedArtifact,
 )
-from pex.resolve.resolved_requirement import Fingerprint, Pin
+from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin
 from pex.result import Error, try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, CompletePlatform, LocalInterpreter, Target
@@ -35,7 +35,7 @@ from pex.third_party.packaging.tags import Tag
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Union
+    from typing import Iterable, Iterator, Union
 
 
 @pytest.fixture
@@ -825,13 +825,25 @@ def test_resolved():
             ),
         )
 
+        class DevNullFingerprinter(object):
+            def fingerprint(self, _artifacts):
+                # type: (Iterable[PartialArtifact]) -> Iterator[FileArtifact]
+                return iter(())
+
+        locked_resolve = LockedResolve.create(
+            resolved_requirements=(),
+            dist_metadatas=(),
+            fingerprinter=DevNullFingerprinter(),
+        )
         assert Resolved(
             target_specificity=expected_target_specificity,
             downloadable_artifacts=downloadable_artifacts,
+            source=locked_resolve,
         ) == Resolved.create(
             target=target,
             direct_requirements=direct_requirements,
-            downloadable_requirements=resolved_artifacts,
+            resolved_artifacts=resolved_artifacts,
+            source=locked_resolve,
         )
 
     # For tag ranks of 1, 2, 1 should rank 100% target specific (best match) and 2 should rank 0%
