@@ -263,8 +263,8 @@ def file_path_length_limit(tmpdir_factory):
                 touch(path)
             except (IOError, OSError) as e:
                 if e.errno != errno.ENAMETOOLONG:
-                    raise e
-                return True
+                    return True
+                raise e
 
         return False
 
@@ -280,19 +280,19 @@ def file_name_length_limit(
 ):
     # type: (...) -> int
 
-    def file_path_too_long(length):
+    def file_name_too_long(length):
         # type: (int) -> bool
         path = str(tmpdir_factory.mktemp("td"))
         try:
             touch(os.path.join(path, "x" * length))
         except (IOError, OSError) as e:
             if e.errno != errno.ENAMETOOLONG:
-                raise e
-            return True
+                return True
+            raise e
 
         return False
 
-    limit = find_max_length(seed_max=file_path_length_limit, is_too_long=file_path_too_long)
+    limit = find_max_length(seed_max=file_path_length_limit, is_too_long=file_name_too_long)
     sys.stderr.write(">>> Calculated file name length limit of: {}\n".format(limit))
     return limit
 
@@ -332,8 +332,8 @@ def shebang_length_limit(
             return 0 != subprocess.call(args=[script])
         except OSError as e:
             if e.errno != errno.ENOEXEC:
-                raise e
-            return True
+                return True
+            raise e
 
     limit = find_max_length(
         seed_max=file_path_length_limit - len(os.sep + "script.sh"), is_too_long=shebang_too_long
