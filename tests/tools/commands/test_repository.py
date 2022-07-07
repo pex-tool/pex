@@ -52,11 +52,19 @@ def pex():
                     """
                 )
             )
+
+        constraints = os.path.join(str(tmpdir), "constraints.txt")
+        with open(constraints, "w") as fp:
+            # N.B.: urllib3 1.26.10 dropped support for Python 3.5 which we test against.
+            fp.write("urllib3<1.26.10")
+
         result = run_pex_command(
             args=[
                 "-D",
                 src,
                 "requests==2.25.1",
+                "-c",
+                constraints,
                 "-e",
                 "main:do",
                 "--interpreter-constraint",
