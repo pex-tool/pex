@@ -63,7 +63,7 @@ def pex():
                 "-D",
                 src,
                 "requests==2.25.1",
-                "-c",
+                "--constraints",
                 constraints,
                 "-e",
                 "main:do",
