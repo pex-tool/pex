@@ -184,7 +184,7 @@ def create_sh_boot_script(
             # interpreter to use is embedded in the shebang of our venv pex script; so just
             # execute that script directly.
             export PEX="$0"
-            exec "${{INSTALLED_PEX}}/bin/python" "${{INSTALLED_PEX}}" "$@"
+            exec "${{INSTALLED_PEX}}/bin/python" -sE "${{INSTALLED_PEX}}" "$@"
         fi
 
         find_python() {{

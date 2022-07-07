@@ -560,7 +560,7 @@ def bootstrap_pex(entry_point):
             except ValueError as e:
                 die(str(e))
             venv_python = os.path.join(os.path.dirname(venv_pex), "bin", "python")
-            os.execv(venv_python, [venv_python, venv_pex] + sys.argv[1:])
+            os.execv(venv_python, [venv_python, "-sE", venv_pex] + sys.argv[1:])
         else:
             maybe_reexec_pex(interpreter_test=interpreter_test)
             from . import pex
