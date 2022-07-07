@@ -233,6 +233,11 @@ def find_max_length(
         sys.stderr.write("Took {} steps.\n".format(steps))
 
 
+# Pytest fails to cleanup tmp dirs used probing file_path_length_limit and this squashes a very
+# large ream of warnings.
+pytestmark = pytest.mark.filterwarnings("ignore:\\(rm_rf\\) error removing.*:pytest.PytestWarning")
+
+
 @pytest.fixture(scope="module")
 def file_path_length_limit(tmpdir_factory):
     # type: (Any) -> int
@@ -255,7 +260,7 @@ def file_path_length_limit(tmpdir_factory):
             path = os.path.join(path, "x" * padding)
             try:
                 touch(path)
-            except OSError as e:
+            except (IOError, OSError) as e:
                 if e.errno != errno.ENAMETOOLONG:
                     raise e
                 return True
@@ -279,7 +284,7 @@ def file_name_length_limit(
         path = str(tmpdir_factory.mktemp("td"))
         try:
             touch(os.path.join(path, "x" * length))
-        except OSError as e:
+        except (IOError, OSError) as e:
             if e.errno != errno.ENAMETOOLONG:
                 raise e
             return True
