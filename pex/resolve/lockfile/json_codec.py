@@ -65,8 +65,11 @@ def _load_json(
     source,  # type: str
 ):
     # type: (...) -> Mapping
+    clean_content = "\n".join(
+        ln for ln in lockfile_contents.splitlines() if ln and not ln.startswith("//")
+    )
     try:
-        return cast("Mapping", json.loads(lockfile_contents))
+        return cast("Mapping", json.loads(clean_content))
     except ValueError as e:
         raise ParseError(
             "The lock file at {source} does not contain valid JSON: "
