@@ -12,7 +12,13 @@ from typing import Callable, Text, Tuple
 import pytest
 
 from pex.common import chmod_plus_x, safe_open, touch
-from pex.testing import ALL_PY_VERSIONS, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import (
+    ALL_PY_VERSIONS,
+    IS_PYPY,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+)
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -320,7 +326,14 @@ def test_shebang_length_limit(
         - len(
             "#!"
             + os.path.join(
-                str(tmpdir), "pex_root", "venvs", "s", "12345678", "venv", "bin", "python"
+                str(tmpdir),
+                "pex_root",
+                "venvs",
+                "s",
+                "12345678",
+                "venv",
+                "bin",
+                "pypy" if IS_PYPY else "python",
             )
             + "\n"
         )
