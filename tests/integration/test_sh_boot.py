@@ -321,7 +321,7 @@ def test_shebang_length_limit(
     #   <PEX_ROOT>/venvs/s/592c68dc/venv/bin/python
     # With no collisions, the hash dir is 8 characters, and we expect no collisions in this bespoke
     # new empty temporary dir PEX_ROOT>
-    long_dir_name = "x" * (
+    padding_dirs_length = (
         shebang_length_limit
         - len(
             "#!"
@@ -338,7 +338,7 @@ def test_shebang_length_limit(
             + "\n"
         )
     )
-    if len(long_dir_name) > file_path_length_limit:
+    if padding_dirs_length > file_path_length_limit:
         pytest.skip(
             "Cannot create a PEX_ROOT in the tmp dir that both generates a too-long venv pex "
             "script shebang and yet does not generate a path to that venv pex script that is too "
@@ -354,7 +354,14 @@ def test_shebang_length_limit(
             )
         )
 
-    pex_root = os.path.realpath(os.path.join(str(tmpdir), long_dir_name, "pex_root"))
+    padding_dirs_path = "directory"
+    while len(padding_dirs_path) < padding_dirs_length - len(os.path.join("directory", "x")):
+        padding_dirs_path = os.path.join(padding_dirs_path, "directory")
+    padding_dirs_path = os.path.join(
+        padding_dirs_path, "x" * (padding_dirs_length - len(padding_dirs_path + os.sep))
+    )
+
+    pex_root = os.path.realpath(os.path.join(str(tmpdir), padding_dirs_path, "pex_root"))
     pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
     result = run_pex_command(
         args=[
