@@ -109,7 +109,7 @@ def test_setproctitle(
         # A `--venv` mode PEX boot terminates in a final process of:
         # ~/.pex/venvs/<venv long dir>/bin/python -sE ~/.pex/venvs/<venv long dir>/pex <args...>
         python_args, installed_location, rest = args.split(" ", 2)
-        assert "-sE" == python_args, "exe: {} args:{}".format(exe, args)
+        assert "-sE" == python_args
         assert (
             os.path.join(
                 variables.venv_dir(
