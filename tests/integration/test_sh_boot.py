@@ -262,7 +262,7 @@ def file_path_length_limit(tmpdir_factory):
             try:
                 touch(path)
             except (IOError, OSError) as e:
-                if e.errno != errno.ENAMETOOLONG:
+                if e.errno == errno.ENAMETOOLONG:
                     return True
                 raise e
 
@@ -286,7 +286,7 @@ def file_name_length_limit(
         try:
             touch(os.path.join(path, "x" * length))
         except (IOError, OSError) as e:
-            if e.errno != errno.ENAMETOOLONG:
+            if e.errno == errno.ENAMETOOLONG:
                 return True
             raise e
 
@@ -331,7 +331,7 @@ def shebang_length_limit(
         try:
             return 0 != subprocess.call(args=[script])
         except OSError as e:
-            if e.errno != errno.ENOEXEC:
+            if e.errno == errno.ENOEXEC:
                 return True
             raise e
 
