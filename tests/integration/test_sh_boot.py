@@ -209,29 +209,17 @@ def find_max_length(
     ok_high_watermark = 0
     current_length = seed_max
     steps = 0
-    try:
-        while True:
-            steps += 1
-            sys.stderr.write(
-                "step {}\n"
-                "  too_long_low_watermark = {}\n"
-                "  ok_high_watermark = {}\n"
-                "  current_length = {}\n"
-                "\n".format(steps, too_long_low_watermark, ok_high_watermark, current_length)
-            )
-            if is_too_long(current_length):
-                too_long_low_watermark = min(too_long_low_watermark, current_length)
-            elif current_length + 1 == too_long_low_watermark:
-                return current_length
-            else:
-                assert (
-                    current_length < seed_max
-                ), "Did not probe high enough for shebang length limit."
-                ok_high_watermark = max(ok_high_watermark, current_length)
-            assert ok_high_watermark < too_long_low_watermark
-            current_length = ok_high_watermark + (too_long_low_watermark - ok_high_watermark) // 2
-    finally:
-        sys.stderr.write("Took {} steps.\n".format(steps))
+    while True:
+        steps += 1
+        if is_too_long(current_length):
+            too_long_low_watermark = min(too_long_low_watermark, current_length)
+        elif current_length + 1 == too_long_low_watermark:
+            return current_length
+        else:
+            assert current_length < seed_max, "Did not probe high enough for shebang length limit."
+            ok_high_watermark = max(ok_high_watermark, current_length)
+        assert ok_high_watermark < too_long_low_watermark
+        current_length = ok_high_watermark + (too_long_low_watermark - ok_high_watermark) // 2
 
 
 # Pytest fails to cleanup tmp dirs used probing file_path_length_limit and this squashes a very
@@ -268,33 +256,7 @@ def file_path_length_limit(tmpdir_factory):
 
         return False
 
-    limit = find_max_length(seed_max=2 ** 16, is_too_long=file_path_too_long)
-    sys.stderr.write(">>> Calculated file path length limit of : {}\n".format(limit))
-    return limit
-
-
-@pytest.fixture(scope="module")
-def file_name_length_limit(
-    tmpdir_factory,  # type: Any
-    file_path_length_limit,  # type: int
-):
-    # type: (...) -> int
-
-    def file_name_too_long(length):
-        # type: (int) -> bool
-        path = str(tmpdir_factory.mktemp("td"))
-        try:
-            touch(os.path.join(path, "x" * length))
-        except (IOError, OSError) as e:
-            if e.errno == errno.ENAMETOOLONG:
-                return True
-            raise e
-
-        return False
-
-    limit = find_max_length(seed_max=file_path_length_limit, is_too_long=file_name_too_long)
-    sys.stderr.write(">>> Calculated file name length limit of: {}\n".format(limit))
-    return limit
+    return find_max_length(seed_max=2 ** 16, is_too_long=file_path_too_long)
 
 
 @pytest.fixture(scope="module")
@@ -307,7 +269,7 @@ def shebang_length_limit(
     def shebang_too_long(length):
         # type: (int) -> bool
         path = str(tmpdir_factory.mktemp("td"))
-        while len(path) < length - len("#!" + os.path.join("directory", "x")):
+        while len(path) < length - len("#!\n" + os.path.join("directory", "x")):
             path = os.path.join(path, "directory")
             try:
                 os.mkdir(path)
@@ -315,7 +277,7 @@ def shebang_length_limit(
                 if e.errno != errno.EEXIST:
                     raise e
 
-        sh_path = os.path.join(path, "x" * (length - len("#!" + path + os.sep)))
+        sh_path = os.path.join(path, "x" * (length - len("#!\n" + path + os.sep)))
         try:
             os.unlink(sh_path)
         except OSError as e:
@@ -335,22 +297,49 @@ def shebang_length_limit(
                 return True
             raise e
 
-    limit = find_max_length(
+    return find_max_length(
         seed_max=file_path_length_limit - len(os.sep + "script.sh"), is_too_long=shebang_too_long
     )
-    sys.stderr.write(">>> Calculated shebang length limit of: {}\n".format(limit))
-    return limit
 
 
 @pytest.mark.parametrize("execution_mode_args", EXECUTION_MODE_ARGS_PERMUTATIONS)
 def test_shebang_length_limit(
     tmpdir,  # type: Any
     execution_mode_args,  # type: List[str]
+    file_path_length_limit,  # type: int
     shebang_length_limit,  # type: int
 ):
     # type: (...) -> None
 
-    long_dir_name = "x" * shebang_length_limit
+    # The short venv python used in --venv shebangs is of the form:
+    #   <PEX_ROOT>/venvs/s/592c68dc/venv/bin/python
+    # With no collisions, the hash dir is 8 characters, and we expect no collisions in this bespoke
+    # new empty temporary dir PEX_ROOT>
+    long_dir_name = "x" * (
+        shebang_length_limit
+        - len(
+            "#!"
+            + os.path.join(
+                str(tmpdir), "pex_root", "venvs", "s", "12345678", "venv", "bin", "python"
+            )
+            + "\n"
+        )
+    )
+    if len(long_dir_name) > file_path_length_limit:
+        pytest.skip(
+            "Cannot create a PEX_ROOT in the tmp dir that both generates a too-long venv pex "
+            "script shebang and yet does not generate a path to that venv pex script that is too "
+            "long.\n"
+            "Max shebang length: {shebang_length_limit}\n"
+            "Max file path length: {file_path_length_limit}\n"
+            "Temp dir length: {tmpdir_path_length}\n"
+            "Temp dir:\n{tmpdir}".format(
+                shebang_length_limit=shebang_length_limit,
+                file_path_length_limit=file_path_length_limit,
+                tmpdir_path_length=len(str(tmpdir)),
+                tmpdir=tmpdir,
+            )
+        )
 
     pex_root = os.path.realpath(os.path.join(str(tmpdir), long_dir_name, "pex_root"))
     pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
