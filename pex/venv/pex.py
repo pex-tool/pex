@@ -331,15 +331,27 @@ def _populate_sources(
                         os.path.basename(python_binary)
                     )
 
-            def iter_sys_executable_paths():
-                yield sys.executable
-                if os.path.islink(sys.executable):
-                    yield os.path.realpath(sys.executable)
+            def sys_executable_paths():
+                exe = sys.executable
+                executables = {{exe}}
+                while os.path.islink(exe):
+                    exe = os.readlink(exe)
+                    if not os.path.isabs(exe):
+                        exe = os.path.join(venv_bin_dir, exe)
+
+                    if os.path.dirname(exe) == venv_bin_dir and exe not in executables:
+                        executables.add(exe)
+                    else:
+                        # We've either followed relative links inside the bin/ dir out of the bin
+                        # dir to the original venv seed Python binary or we've walked around a loop
+                        # of symlinks once; either way, we've found all valid venv python binaries.
+                        break
+                return executables
 
             current_interpreter_blessed_env_var = "_PEX_SHOULD_EXIT_VENV_REEXEC"
             if (
                 not os.environ.pop(current_interpreter_blessed_env_var, None)
-                and set(iter_sys_executable_paths()).isdisjoint(iter_valid_venv_pythons())
+                and sys_executable_paths().isdisjoint(iter_valid_venv_pythons())
             ):
                 sys.stderr.write("Re-execing from {{}}\\n".format(sys.executable))
                 os.environ[current_interpreter_blessed_env_var] = "1"
