@@ -331,10 +331,15 @@ def _populate_sources(
                         os.path.basename(python_binary)
                     )
 
+            def iter_sys_executable_paths():
+                yield sys.executable
+                if os.path.islink(sys.executable):
+                    yield os.path.realpath(sys.executable)
+
             current_interpreter_blessed_env_var = "_PEX_SHOULD_EXIT_VENV_REEXEC"
             if (
                 not os.environ.pop(current_interpreter_blessed_env_var, None)
-                and sys.executable not in tuple(iter_valid_venv_pythons())
+                and set(iter_sys_executable_paths()).isdisjoint(iter_valid_venv_pythons())
             ):
                 sys.stderr.write("Re-execing from {{}}\\n".format(sys.executable))
                 os.environ[current_interpreter_blessed_env_var] = "1"
