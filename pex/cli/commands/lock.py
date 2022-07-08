@@ -319,7 +319,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             )
 
-        if not target_config.interpreter_constraints:
+        if (
+            not target_config.interpreter_constraints
+            and not target_config.interpreter_configuration.python_path
+        ):
             return Targets(
                 platforms=target_config.platforms,
                 complete_platforms=target_config.complete_platforms,
@@ -514,8 +517,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             max_jobs=resolver_options.get_max_jobs_value(self.options),
         )
 
-        targets = try_(self._resolve_targets(action="updating", style=lock_file.style))
-
+        target_configuration = target_options.configure(self.options)
+        targets = try_(
+            self._resolve_targets(
+                action="updating", style=lock_file.style, target_configuration=target_configuration
+            )
+        )
         with TRACER.timed("Selecting locks to update"):
             subset_result = try_(
                 subset(
