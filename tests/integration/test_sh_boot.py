@@ -321,22 +321,19 @@ def test_shebang_length_limit(
     #   <PEX_ROOT>/venvs/s/592c68dc/venv/bin/python
     # With no collisions, the hash dir is 8 characters, and we expect no collisions in this bespoke
     # new empty temporary dir PEX_ROOT>
-    padding_dirs_length = (
-        shebang_length_limit
-        - len(
-            "#!"
-            + os.path.join(
-                str(tmpdir),
-                "pex_root",
-                "venvs",
-                "s",
-                "12345678",
-                "venv",
-                "bin",
-                "pypy" if IS_PYPY else "python",
-            )
-            + "\n"
+    padding_dirs_length = shebang_length_limit - len(
+        "#!"
+        + os.path.join(
+            str(tmpdir),
+            "pex_root",
+            "venvs",
+            "s",
+            "12345678",
+            "venv",
+            "bin",
+            "pypy" if IS_PYPY else "python",
         )
+        + "\n"
     )
     if padding_dirs_length > file_path_length_limit:
         pytest.skip(
