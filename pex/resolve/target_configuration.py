@@ -59,7 +59,7 @@ class InterpreterConfiguration(object):
                 for python in self.pythons:
                     yield to_python_interpreter(python)
 
-        if self.interpreter_constraints or self.python_path:
+        if self.interpreter_constraints:
             with TRACER.timed("Resolving interpreters", V=2):
                 try:
                     for interp in iter_compatible_interpreters(
@@ -106,11 +106,6 @@ class TargetConfiguration(object):
     def pythons(self):
         # type: () -> Tuple[str, ...]
         return self.interpreter_configuration.pythons
-
-    @property
-    def python_path(self):
-        # type: () -> Optional[str]
-        return self.interpreter_configuration.python_path
 
     @property
     def interpreter_constraints(self):

@@ -319,10 +319,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 )
             )
 
-        if (
-            not target_config.interpreter_constraints
-            and not target_config.interpreter_configuration.python_path
-        ):
+        if not target_config.interpreter_constraints:
             return Targets(
                 platforms=target_config.platforms,
                 complete_platforms=target_config.complete_platforms,
