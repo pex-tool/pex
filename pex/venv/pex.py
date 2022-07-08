@@ -417,7 +417,17 @@ def _populate_sources(
                 )
 
             os.environ["VIRTUAL_ENV"] = venv_dir
-            sys.path.extend(os.environ.get("PEX_EXTRA_SYS_PATH", "").split(os.pathsep))
+
+            # A Python interpreter always inserts the CWD at the head of the sys.path.
+            sys.path.insert(0, "")
+
+            pex_extra_sys_path = os.environ.get("PEX_EXTRA_SYS_PATH")
+            if pex_extra_sys_path:
+                sys.path.extend(pex_extra_sys_path.split(":"))
+
+                # Let Python subprocesses see the same sys.path additions we see. If those Python
+                # subprocesses are PEX subprocesses, they'll do their own (re-)scrubbing as needed.
+                os.environ["PYTHONPATH"] = pex_extra_sys_path
 
             bin_path = os.environ.get("PEX_VENV_BIN_PATH", {bin_path!r})
             if bin_path != "false":
