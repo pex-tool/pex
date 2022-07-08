@@ -327,35 +327,26 @@ class PEX(object):  # noqa: T000
 
         pythonpath = cls.unstash_pythonpath()
         if pythonpath is not None:
-            original_pythonpath = pythonpath.split(":")
-            user_pythonpath_entries = list(OrderedSet(original_pythonpath) - set(sys.path))
-            user_pythonpath = ":".join(user_pythonpath_entries)
-            if original_pythonpath == user_pythonpath_entries:
+            original_pythonpath = pythonpath.split(os.pathsep)
+            user_pythonpath = list(OrderedSet(original_pythonpath) - set(sys.path))
+            if original_pythonpath == user_pythonpath:
                 TRACER.log("Unstashed PYTHONPATH of %s" % pythonpath, V=2)
             else:
                 TRACER.log(
-                    "Extracted user PYTHONPATH of {user_pythonpath} from unstashed PYTHONPATH of "
-                    "{pythonpath}".format(user_pythonpath=user_pythonpath, pythonpath=pythonpath),
+                    "Extracted user PYTHONPATH of %s from unstashed PYTHONPATH of %s"
+                    % (os.pathsep.join(user_pythonpath), pythonpath),
                     V=2,
                 )
 
             if inherit_path == InheritPath.FALSE:
-                for path in user_pythonpath_entries:
-                    TRACER.log("Scrubbing user PYTHONPATH element: {path}".format(path=path))
+                for path in user_pythonpath:
+                    TRACER.log("Scrubbing user PYTHONPATH element: %s" % path)
             elif inherit_path == InheritPath.PREFER:
-                TRACER.log(
-                    "Prepending user PYTHONPATH: {user_pythonpath}".format(
-                        user_pythonpath=user_pythonpath
-                    )
-                )
-                scrubbed_sys_path = user_pythonpath_entries + scrubbed_sys_path
+                TRACER.log("Prepending user PYTHONPATH: %s" % os.pathsep.join(user_pythonpath))
+                scrubbed_sys_path = user_pythonpath + scrubbed_sys_path
             elif inherit_path == InheritPath.FALLBACK:
-                TRACER.log(
-                    "Appending user PYTHONPATH: {user_pythonpath}".format(
-                        user_pythonpath=user_pythonpath
-                    )
-                )
-                scrubbed_sys_path = scrubbed_sys_path + user_pythonpath_entries
+                TRACER.log("Appending user PYTHONPATH: %s" % os.pathsep.join(user_pythonpath))
+                scrubbed_sys_path = scrubbed_sys_path + user_pythonpath
 
         scrub_from_importer_cache = filter(
             lambda key: any(key.startswith(path) for path in scrub_paths),
@@ -431,9 +422,9 @@ class PEX(object):  # noqa: T000
                 pythonpath_entries = extra_sys_path
             else:
                 raw_pythonpath = os.environ.get(self._PYTHONPATH)
-                pythonpath = raw_pythonpath.split(":") if raw_pythonpath else []
+                pythonpath = raw_pythonpath.split(os.pathsep) if raw_pythonpath else []
                 pythonpath_entries = pythonpath + extra_sys_path
-            os.environ[self._PYTHONPATH] = ":".join(pythonpath_entries)
+            os.environ[self._PYTHONPATH] = os.pathsep.join(pythonpath_entries)
 
         TRACER.log("New sys.path: %s" % new_sys_path)
 
