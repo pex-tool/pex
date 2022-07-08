@@ -100,7 +100,7 @@ def user_agent():
     Return a string representing the user agent.
     """
     data = {
-        "installer": {"name": "pip", "version": __version__},
+        "installer": {"name": "pex-pip", "version": __version__},
         "python": platform.python_version(),
         "implementation": {
             "name": platform.python_implementation(),
