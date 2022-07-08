@@ -94,7 +94,8 @@ def __maybe_run_venv__(pex, pex_root, pex_path):
     return
 
   TRACER.log('Executing venv PEX for {{}} at {{}}'.format(pex, venv_pex))
-  __re_exec__(venv_pex)
+  venv_python = os.path.join(venv_home, 'bin', 'python')
+  __re_exec__(venv_python, '-sE', venv_pex)
 
 
 __entry_point__ = None

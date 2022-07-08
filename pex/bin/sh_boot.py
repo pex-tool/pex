@@ -155,7 +155,7 @@ def create_sh_boot_script(
 
     venv_dir = pex_info.venv_dir(pex_file=pex_name, interpreter=interpreter)
     if venv_dir:
-        pex_installed_path = os.path.join(venv_dir, "pex")
+        pex_installed_path = venv_dir
     else:
         pex_hash = pex_info.pex_hash
         if pex_hash is None:
@@ -184,7 +184,7 @@ def create_sh_boot_script(
             # interpreter to use is embedded in the shebang of our venv pex script; so just
             # execute that script directly.
             export PEX="$0"
-            exec "${{INSTALLED_PEX}}" "$@"
+            exec "${{INSTALLED_PEX}}/bin/python" -sE "${{INSTALLED_PEX}}" "$@"
         fi
 
         find_python() {{
