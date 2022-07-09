@@ -15,12 +15,12 @@ you do not target is not lockable. The new
 the set of targeted OSes to work around this sort of issue. Since PEX
 files currently only support running on Linux and Mac, specifying
 ``--target-system linux --target-system mac`` is a safe way to
-pre-emptively avoid these sorts of locking issues when creating a 
-univeral lock.
+pre-emptively avoid these sorts of locking issues when creating a
+universal lock.
 
-Previously you could not specify the ``--platform``s or
-``--complete-platform``s you would be using later to build PEXes with
-when creaqting a universql lock. You now can, and Pex will verify the
+Previously you could not specify the ``--platform``\s or
+``--complete-platform``\s you would be using later to build PEXes with
+when creating a universal lock. You now can, and Pex will verify the
 universal lock can support all the specified platforms.
 
 As is usual there are also several bug fixes including properly
