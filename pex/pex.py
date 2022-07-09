@@ -413,7 +413,19 @@ class PEX(object):  # noqa: T000
 
         if self._vars.PEX_EXTRA_SYS_PATH:
             TRACER.log("Adding %s to sys.path" % self._vars.PEX_EXTRA_SYS_PATH)
-            new_sys_path.extend(self._vars.PEX_EXTRA_SYS_PATH.split(":"))
+            extra_sys_path = self._vars.PEX_EXTRA_SYS_PATH.split(":")
+            new_sys_path.extend(extra_sys_path)
+
+            # Let Python subprocesses see the same sys.path additions we see. If those Python
+            # subprocesses are PEX subprocesses, they'll do their own (re-)scrubbing as needed.
+            if inherit_path is InheritPath.FALSE:
+                pythonpath_entries = extra_sys_path
+            else:
+                raw_pythonpath = os.environ.get(self._PYTHONPATH)
+                pythonpath = raw_pythonpath.split(os.pathsep) if raw_pythonpath else []
+                pythonpath_entries = pythonpath + extra_sys_path
+            os.environ[self._PYTHONPATH] = os.pathsep.join(pythonpath_entries)
+
         TRACER.log("New sys.path: %s" % new_sys_path)
 
         patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
@@ -580,7 +592,7 @@ class PEX(object):  # noqa: T000
         # type: () -> Any
 
         # A Python interpreter always inserts the CWD at the head of the sys.path.
-        sys.path.insert(0, ".")
+        sys.path.insert(0, "")
 
         args = sys.argv[1:]
         python_options = []
