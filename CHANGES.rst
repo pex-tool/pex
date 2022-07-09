@@ -1,6 +1,49 @@
 Release Notes
 =============
 
+2.1.95
+------
+
+This release brings two new ``pex3 lock`` features for
+``--style universal`` locks.
+
+By default, universal locks are created to target all operating systems.
+This can cause problems when you only target a subset of operating
+systems and a lock transitive dependency that is conditional on an OS
+you do not target is not lockable. The new
+``--target-system {linux,mac,windows}`` option allows you to restrict
+the set of targeted OSes to work around this sort of issue. Since PEX
+files currently only support running on Linux and Mac, specifying
+``--target-system linux --target-system mac`` is a safe way to
+pre-emptively avoid these sorts of locking issues when creating a 
+univeral lock.
+
+Previously you could not specify the ``--platform``s or
+``--complete-platform``s you would be using later to build PEXes with
+when creaqting a universql lock. You now can, and Pex will verify the
+universal lock can support all the specified platforms.
+
+As is usual there are also several bug fixes including properly
+propagating ``PEX_EXTRA_SYS_PATH`` additions to forked Python processes,
+fixing ``pex3 lock export`` to only attempt to export for the selected
+target and avoiding too long shebang errors for ``--venv`` mode PEXes in
+a robust way.
+
+* Fix ``PEX_EXTRA_SYS_PATH`` propagation. (#1832)
+  `PR #1832 <https://github.com/pantsbuild/pex/pull/1832>`_
+
+* Fix ``pex3 lock export``: re-use ``--lock`` resolver. (#1831)
+  `PR #1831 <https://github.com/pantsbuild/pex/pull/1831>`_
+
+* Avoid ENOEXEC for ``--venv`` shebangs. (#1828)
+  `PR #1828 <https://github.com/pantsbuild/pex/pull/1828>`_
+
+* Check lock can resolve platforms at creation time. (#1824)
+  `PR #1824 <https://github.com/pantsbuild/pex/pull/1824>`_
+
+* Support restricting universal lock target os. (#1823)
+  `PR #1823 <https://github.com/pantsbuild/pex/pull/1823>`_
+
 2.1.94
 ------
 
