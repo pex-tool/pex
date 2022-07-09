@@ -14,27 +14,25 @@ from pex.auth import PasswordDatabase, PasswordEntry
 from pex.common import FileLockStyle, pluralize
 from pex.compatibility import cpu_count
 from pex.network_configuration import NetworkConfiguration
-from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.vcs import digest_vcs_archive
-from pex.requirements import LocalProjectRequirement, parse_requirement_strings
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
     FileArtifact,
     LocalProjectArtifact,
-    Resolved,
     VCSArtifact,
 )
 from pex.resolve.lockfile.download_manager import DownloadedArtifact, DownloadManager
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.lockfile.subset import subset
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed, Resolver
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
-from pex.result import Error, catch
+from pex.result import Error, catch, try_
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -237,85 +235,27 @@ def resolve_from_lock(
 ):
     # type: (...) -> Union[Installed, Error]
 
-    with TRACER.timed("Parsing requirements"):
-        requirement_configuration = RequirementConfiguration(
-            requirements=requirements,
-            requirement_files=requirement_files,
-            constraint_files=constraint_files,
+    subset_result = try_(
+        subset(
+            targets=targets,
+            lock=lock,
+            requirement_configuration=RequirementConfiguration(
+                requirements=requirements,
+                requirement_files=requirement_files,
+                constraint_files=constraint_files,
+            ),
+            network_configuration=network_configuration,
+            build=build,
+            use_wheel=use_wheel,
+            prefer_older_binary=prefer_older_binary,
+            transitive=transitive,
         )
-        parsed_requirements = tuple(
-            requirement_configuration.parse_requirements(network_configuration)
-        ) or tuple(parse_requirement_strings(str(req) for req in lock.requirements))
-        constraints = tuple(
-            parsed_constraint.requirement
-            for parsed_constraint in requirement_configuration.parse_constraints(
-                network_configuration
-            )
-        )
-
-        requirements_to_resolve = OrderedSet(
-            lock.local_project_requirement_mapping[os.path.abspath(parsed_requirement.path)]
-            if isinstance(parsed_requirement, LocalProjectRequirement)
-            else parsed_requirement.requirement
-            for parsed_requirement in parsed_requirements
-        )
-
-    errors_by_target = {}  # type: Dict[Target, Iterable[Error]]
-    downloadable_artifacts_by_target = {}  # type: Dict[Target, Iterable[DownloadableArtifact]]
-    target_by_downloadable_artifact = (
-        OrderedDict()
-    )  # type: OrderedDict[DownloadableArtifact, Target]
-
-    with TRACER.timed(
-        "Resolving urls to fetch for {count} requirements from lock {lockfile}".format(
-            count=len(parsed_requirements), lockfile=lock.source
-        )
-    ):
-        for target in targets.unique_targets():
-            resolveds = []
-            errors = []
-            for locked_resolve in lock.locked_resolves:
-                resolve_result = locked_resolve.resolve(
-                    target,
-                    requirements_to_resolve,
-                    constraints=constraints,
-                    source=lock.source,
-                    transitive=transitive,
-                    build=build,
-                    use_wheel=use_wheel,
-                    prefer_older_binary=prefer_older_binary,
-                    # TODO(John Sirois): Plumb `--ignore-errors` to support desired but technically
-                    #  invalid `pip-legacy-resolver` locks:
-                    #  https://github.com/pantsbuild/pex/issues/1652
-                )
-                if isinstance(resolve_result, Resolved):
-                    resolveds.append(resolve_result)
-                else:
-                    errors.append(resolve_result)
-
-            if resolveds:
-                resolved = sorted(resolveds, key=lambda res: res.target_specificity)[-1]
-                downloadable_artifacts_by_target[target] = resolved.downloadable_artifacts
-                for downloadable_artifact in resolved.downloadable_artifacts:
-                    target_by_downloadable_artifact[downloadable_artifact] = target
-            elif errors:
-                errors_by_target[target] = tuple(errors)
-
-    if errors_by_target:
-        return Error(
-            "Failed to resolve compatible artifacts from {lock} for {count} {targets}:\n"
-            "{errors}".format(
-                lock="lock {source}".format(source=lock.source) if lock.source else "lock",
-                count=len(errors_by_target),
-                targets=pluralize(errors_by_target, "target"),
-                errors="\n".join(
-                    "{index}. {target}:\n    {errors}".format(
-                        index=index, target=target, errors="\n    ".join(map(str, errors))
-                    )
-                    for index, (target, errors) in enumerate(errors_by_target.items(), start=1)
-                ),
-            )
-        )
+    )
+    target_by_downloadable_artifact = OrderedDict(
+        (downloadable_artifact, resolved_subset.target)
+        for resolved_subset in subset_result.subsets
+        for downloadable_artifact in resolved_subset.resolved.downloadable_artifacts
+    )
 
     # Since the download managers are stored to via a thread pool, we need to use BSD style locks.
     # These locks are not as portable as POSIX style locks but work with threading unlike POSIX
@@ -367,7 +307,7 @@ def resolve_from_lock(
     with TRACER.timed(
         "Downloading {url_count} distributions to satisfy {requirement_count} requirements".format(
             url_count=len(target_by_downloadable_artifact),
-            requirement_count=len(parsed_requirements),
+            requirement_count=len(subset_result.requirements),
         )
     ):
         pool = ThreadPool(processes=max_threads)
@@ -423,13 +363,13 @@ def resolve_from_lock(
 
         build_requests = []
         install_requests = []
-        for target, artifacts in downloadable_artifacts_by_target.items():
-            for downloadable_artifact in artifacts:
+        for resolved_subset in subset_result.subsets:
+            for downloadable_artifact in resolved_subset.resolved.downloadable_artifacts:
                 downloaded_artifact = downloaded_artifacts[downloadable_artifact]
                 if downloaded_artifact.path.endswith(".whl"):
                     install_requests.append(
                         InstallRequest(
-                            target=target,
+                            target=resolved_subset.target,
                             wheel_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
                         )
@@ -437,7 +377,7 @@ def resolve_from_lock(
                 else:
                     build_requests.append(
                         BuildRequest(
-                            target=target,
+                            target=resolved_subset.target,
                             source_path=downloaded_artifact.path,
                             fingerprint=downloaded_artifact.fingerprint,
                         )
@@ -451,7 +391,7 @@ def resolve_from_lock(
         build_and_install_request = BuildAndInstallRequest(
             build_requests=build_requests,
             install_requests=install_requests,
-            direct_requirements=parsed_requirements,
+            direct_requirements=subset_result.requirements,
             package_index_configuration=PackageIndexConfiguration.create(
                 resolver_version=resolver_version,
                 indexes=indexes,

@@ -192,18 +192,18 @@ def test_issue_1821(
 ):
     # type: (...) -> None
 
-    python_path_args = [
+    target_options = [
         "--python-path",
         py310.binary,
+        "--interpreter-constraint",
+        "CPython>=3.10,<4",
     ]
 
-    args = python_path_args + [
+    args = target_options + [
         "--style",
         "universal",
         "--resolver-version",
         "pip-2020-resolver",
-        "--interpreter-constraint",
-        "CPython>=3.10,<4",
         "cryptography==36.0.2",
         "docker==5.0.3",
     ]
@@ -229,5 +229,5 @@ def test_issue_1821(
     ).assert_success()
 
     # Check that lock updates respect target systems.
-    update_args = ["lock", "update"] + python_path_args + ["--dry-run", "check", lockfile.source]
+    update_args = ["lock", "update"] + target_options + ["--dry-run", "check", lockfile.source]
     run_pex3(*update_args).assert_success()

@@ -1,82 +1,20 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import json
 import os
 from textwrap import dedent
 
 import pytest
 
 from pex.interpreter import PythonInterpreter
-from pex.resolve.locked_resolve import LockedResolve
 from pex.resolve.lockfile import json_codec
 from pex.targets import LocalInterpreter, Target
-from pex.testing import (
-    IS_MAC,
-    PY27,
-    PY37,
-    PY310,
-    IntegResults,
-    ensure_python_interpreter,
-    run_pex_command,
-)
+from pex.testing import PY27, PY37, IntegResults, ensure_python_interpreter, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Mapping
-
-
-SINGLE_PLATFORM_UNIVERSAL_WHEEL = json_codec.loads(
-    dedent(
-        """\
-        {
-          "allow_builds": true,
-          "allow_prereleases": false,
-          "allow_wheels": true,
-          "build_isolation": true,
-          "constraints": [],
-          "locked_resolves": [
-            {
-              "locked_requirements": [
-                {
-                  "artifacts": [
-                    {
-                      "algorithm": "sha256",
-                      "hash": "00d2dde5a675579325902536738dd27e4fac1fd68f773fe36c21044eb559e187",
-                      "url": "http://localhost:9999/ansicolors-1.1.8-py2.py3-none-any.whl"
-                    }
-                  ],
-                  "project_name": "ansicolors",
-                  "requires_dists": [],
-                  "requires_python": null,
-                  "version": "1.1.8"
-                }
-              ],
-              "platform_tag": [
-                "cp27",
-                "cp27mu",
-                "manylinux_2_33_x86_64"
-              ]
-            }
-          ],
-          "pex_version": "2.1.50",
-          "prefer_older_binary": false,
-          "requirements": [
-            "ansicolors"
-          ],
-          "requires_python": [],
-          "resolver_version": "pip-legacy-resolver",
-          "style": "strict",
-          "transitive": true,
-          "use_pep517": null
-        }
-        """
-    )
-)
-
-
-def test_select_no_targets():
-    # type: () -> None
-    assert [] == list(SINGLE_PLATFORM_UNIVERSAL_WHEEL.select([]))
+    from typing import Any
 
 
 def create_target(python_version):
@@ -94,116 +32,6 @@ def py27():
 @pytest.fixture
 def py37():
     return create_target(PY37)
-
-
-@pytest.fixture
-def py310():
-    return create_target(PY310)
-
-
-def test_select_same_target(py27):
-    # type: (Target) -> None
-    assert [(py27, SINGLE_PLATFORM_UNIVERSAL_WHEEL.locked_resolves[0])] == list(
-        SINGLE_PLATFORM_UNIVERSAL_WHEEL.select([py27])
-    )
-
-
-def test_select_universal_compatible_targets(
-    py37,  # type: Target
-    py310,  # type: Target
-):
-    # type: (...) -> None
-    assert [
-        (py37, SINGLE_PLATFORM_UNIVERSAL_WHEEL.locked_resolves[0]),
-        (py310, SINGLE_PLATFORM_UNIVERSAL_WHEEL.locked_resolves[0]),
-    ] == list(SINGLE_PLATFORM_UNIVERSAL_WHEEL.select([py37, py310]))
-
-
-DUAL_PLATFORM_NATIVE_WHEEL = json_codec.loads(
-    dedent(
-        """\
-        {
-          "allow_builds": true,
-          "allow_prereleases": false,
-          "allow_wheels": true,
-          "build_isolation": true,
-          "constraints": [],
-          "locked_resolves": [
-            {
-              "locked_requirements": [
-                {
-                  "artifacts": [
-                    {
-                      "algorithm": "sha256",
-                      "hash": "5f08ba37b662b9a1d9bcabb457d77eaac4b3c755e623ed77dfe2cd2eba60f6af",
-                      "url": "file:///find_links/p537-1.0.4-cp37-cp37m-macosx_10_13_x86_64.whl"
-                    }
-                  ],
-                  "project_name": "p537",
-                  "requires_dists": [],
-                  "requires_python": null,
-                  "version": "1.0.4"
-                }
-              ],
-              "platform_tag": [
-                "cp37",
-                "cp37m",
-                "macosx_10_13_x86_64"
-              ]
-            },
-            {
-              "locked_requirements": [
-                {
-                  "artifacts": [
-                    {
-                      "algorithm": "sha256",
-                      "hash": "20129f25683fab2099d954379fecd36c13ccc0cc0159eaf59afee53a23d749f1",
-                      "url": "http://localhost:9999/p537-1.0.4-cp37-cp37m-manylinux1_x86_64.whl"
-                    }
-                  ],
-                  "project_name": "p537",
-                  "requires_dists": [],
-                  "requires_python": null,
-                  "version": "1.0.4"
-                }
-              ],
-              "platform_tag": [
-                "cp37",
-                "cp37m",
-                "manylinux2014_x86_64"
-              ]
-            }
-          ],
-          "pex_version": "2.1.50",
-          "prefer_older_binary": false,
-          "requirements": [
-            "p537"
-          ],
-          "requires_python": [],
-          "resolver_version": "pip-legacy-resolver",
-          "style": "strict",
-          "transitive": true,
-          "use_pep517": null
-        }
-        """
-    )
-)
-
-
-def test_select_incompatible_target(py27):
-    # type: (Target) -> None
-    assert [] == list(DUAL_PLATFORM_NATIVE_WHEEL.select([py27]))
-
-
-def test_select_compatible_targets(
-    py37,  # type: Target
-    py310,  # type: Target
-):
-    # type: (...) -> None
-    expected_index = 0 if IS_MAC else 1
-    assert [(py37, DUAL_PLATFORM_NATIVE_WHEEL.locked_resolves[expected_index])] == list(
-        DUAL_PLATFORM_NATIVE_WHEEL.select([py37, py310])
-    )
 
 
 LOCK_STYLE_SOURCES = json_codec.loads(
@@ -267,23 +95,14 @@ def test_lockfile_style_sources(
 ):
     # type: (...) -> None
 
-    selected = {
-        target: locked_resolve for target, locked_resolve in LOCK_STYLE_SOURCES.select([py27, py37])
-    }  # type: Mapping[Target, LockedResolve]
-    assert {
-        py27: LOCK_STYLE_SOURCES.locked_resolves[0],
-        py37: LOCK_STYLE_SOURCES.locked_resolves[0],
-    } == selected
+    lockfile = os.path.join(str(tmpdir), "lock.json")
+    with open(lockfile, "w") as fp:
+        json.dump(json_codec.as_json_data(LOCK_STYLE_SOURCES), fp, sort_keys=True, indent=2)
 
     def use_lock(target):
         # type: (Target) -> IntegResults
-        locked_requirements_file = os.path.join(
-            str(tmpdir), "requirements.{}.lock".format(target.id)
-        )
-        with open(locked_requirements_file, "w") as fp:
-            selected[target].emit_requirements(fp)
         return run_pex_command(
-            args=["-r", locked_requirements_file, "--", "-c", "import p537"],
+            args=["--lock", lockfile, "--", "-c", "import p537"],
             python=target.get_interpreter().binary,
         )
 
