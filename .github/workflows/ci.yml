@@ -1,0 +1,241 @@
+name: CI
+on: [push, pull_request]
+defaults:
+  run:
+    shell: bash
+env:
+  _PEX_TEST_PYENV_ROOT: .pyenv_test
+  # We use this to skip exposing same-versioned Pythons present on Linux hosts. These otherwise can
+  # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
+  # importing builtins like `fcntl` as outlined in https://github.com/pantsbuild/pex/issues/1391.
+  _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.10"
+concurrency:
+  group: CI-${{ github.ref }}
+  # Queue on all branches and tags, but only cancel overlapping PR burns.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' || !startsWith(github.ref, 'refs/tags/') }}
+jobs:
+  org-check:
+    name: Check GitHub Organization
+    if: github.repository_owner == 'pantsbuild'
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Noop
+        run: "true"
+  checks:
+    name:  TOXENV=${{ matrix.tox-env }}
+    needs: org-check
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        include:
+          - check-name: Formatting
+            python-version: "3.10"
+            tox-env: format-check
+            fetch-depth: 1
+          - check-name: Types
+            python-version: "3.10"
+            tox-env: typecheck
+            fetch-depth: 1
+          - check-name: Vendoring
+            python-version: "3.8"
+            tox-env: vendor-check
+            fetch-depth: 1
+          - check-name: Packaging
+            python-version: "3.10"
+            tox-env: package -- --additional-format sdist --additional-format wheel
+            # We need branches and tags since package leans on `git describe`. Passing 0 gets us
+            # complete history.
+            fetch-depth: 0
+    steps:
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: ${{ matrix.fetch-depth }}
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: "${{ matrix.python-version }}"
+      - name: Check ${{ matrix.check-name }}
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        with:
+          tox-env: ${{ matrix.tox-env }}
+  cpython-unit-tests:
+    name: (${{ matrix.os }}) TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
+    needs: org-check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11, "0-beta.3"]]
+        os: [ubuntu-20.04, macos-10.15]
+        exclude:
+          - os: macos-10.15
+            python-version: [3, 5]
+          - os: macos-10.15
+            python-version: [3, 6]
+          - os: macos-10.15
+            python-version: [3, 7]
+          - os: macos-10.15
+            python-version: [3, 8]
+          - os: macos-10.15
+            python-version: [3, 9]
+          - os: macos-10.15
+            python-version: [3, 11, "0-beta.3"]
+    steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "::set-output name=skip::${skip}"
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python ${{ join(matrix.python-version, '.') }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: "${{ join(matrix.python-version, '.') }}"
+      - name: Expose Pythons
+        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        with:
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: ${{ env._PEX_TEST_PYENV_ROOT }}
+          key: ${{ runner.os }}-pyenv-root-v3
+      - name: Run Unit Tests
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        with:
+          tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
+  pypy-unit-tests:
+    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ join(matrix.pypy-version, '') }}
+    needs: org-check
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        pypy-version: [[2, 7], [3, 9]]
+    steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "::set-output name=skip::${skip}"
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
+      - name: Expose Pythons
+        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        with:
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: ${{ env._PEX_TEST_PYENV_ROOT }}
+          key: ${{ runner.os }}-pyenv-root-v3
+      - name: Run Unit Tests
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        with:
+          tox-env: pypy${{ join(matrix.pypy-version, '') }}
+  cpython-integration-tests:
+    name: (${{ matrix.os }}) TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
+    needs: org-check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: [[2, 7], [3, 10], [3, 11, "0-beta.3"]]
+        os: [ubuntu-20.04, macos-10.15]
+        exclude:
+          - os: macos-10.15
+            python-version: [3, 11, "0-beta.3"]
+    steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "::set-output name=skip::${skip}"
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup Python ${{ join(matrix.python-version, '.') }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: "${{ join(matrix.python-version, '.') }}"
+      - name: Expose Pythons
+        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        with:
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: ${{ env._PEX_TEST_PYENV_ROOT }}
+          key: ${{ runner.os }}-pyenv-root-v3
+      - name: Run Integration Tests
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        with:
+          tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
+  pypy-integration-tests:
+    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
+    needs: org-check
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        pypy-version: [[2, 7], [3, 9]]
+    steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "::set-output name=skip::${skip}"
+      - name: Checkout Pex
+        uses: actions/checkout@v2
+      - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
+      - name: Expose Pythons
+        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        with:
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
+      - name: Install Packages
+        run: |
+          # This is needed for `test_requirement_file_from_url` for building `lxml`.
+          sudo apt install --yes libxslt-dev
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v2
+        with:
+          path: ${{ env._PEX_TEST_PYENV_ROOT }}
+          key: ${{ runner.os }}-pyenv-root-v3
+      - name: Run Integration Tests
+        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        with:
+          tox-env: pypy${{ join(matrix.pypy-version, '') }}-integration
+  final-status:
+    name: Gather Final Status
+    needs:
+      - checks
+      - cpython-unit-tests
+      - pypy-unit-tests
+      - cpython-integration-tests
+      - pypy-integration-tests
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check Non-Success
+        if: |
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'skipped')
+        run: "false"
+      - name: Success
+        run: "true"

@@ -7,33 +7,42 @@
 from __future__ import absolute_import
 
 import os
+import re
+import sys
 from abc import ABCMeta
-from io import StringIO
 from sys import version_info as sys_version_info
+
+from pex.typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from typing import IO, AnyStr, BinaryIO, Callable, Optional, Text, Tuple, Type
+
 
 try:
     # Python 2.x
-    from ConfigParser import ConfigParser
+    from ConfigParser import ConfigParser as ConfigParser
 except ImportError:
     # Python 3.x
-    from configparser import ConfigParser
+    from configparser import ConfigParser as ConfigParser  # type: ignore[import, no-redef]
+
 
 AbstractClass = ABCMeta("AbstractClass", (object,), {})
 PY2 = sys_version_info[0] == 2
 PY3 = sys_version_info[0] == 3
 
-string = (str,) if PY3 else (str, unicode)
-unicode_string = (str,) if PY3 else (unicode,)
-bytes = (bytes,)
+string = cast("Tuple[Type, ...]", (str,) if PY3 else (str, unicode))  # type: ignore[name-defined]
 
 if PY2:
-    from collections import Iterable, MutableSet
+    from collections import Iterable as Iterable
+    from collections import MutableSet as MutableSet
 else:
-    from collections.abc import Iterable, MutableSet
+    from collections.abc import Iterable as Iterable
+    from collections.abc import MutableSet as MutableSet
 
 if PY2:
 
     def to_bytes(st, encoding="utf-8"):
+        # type: (AnyStr, Text) -> bytes
         if isinstance(st, unicode):
             return st.encode(encoding)
         elif isinstance(st, bytes):
@@ -42,6 +51,7 @@ if PY2:
             raise ValueError("Cannot convert %s to bytes" % type(st))
 
     def to_unicode(st, encoding="utf-8"):
+        # type: (AnyStr, Text) -> Text
         if isinstance(st, unicode):
             return st
         elif isinstance(st, (str, bytes)):
@@ -49,10 +59,10 @@ if PY2:
         else:
             raise ValueError("Cannot convert %s to a unicode string" % type(st))
 
-
 else:
 
     def to_bytes(st, encoding="utf-8"):
+        # type: (AnyStr, Text) -> bytes
         if isinstance(st, str):
             return st.encode(encoding)
         elif isinstance(st, bytes):
@@ -61,6 +71,7 @@ else:
             raise ValueError("Cannot convert %s to bytes." % type(st))
 
     def to_unicode(st, encoding="utf-8"):
+        # type: (AnyStr, Text) -> Text
         if isinstance(st, str):
             return st
         elif isinstance(st, bytes):
@@ -83,49 +94,106 @@ if PY3:
         exec (ast, globals_map, locals_map)
         return locals_map
 
-
 else:
+
+    def exec_function(ast, globals_map):
+        raise AssertionError("Expected this function to be re-defined at runtime.")
+
+    # This will result in `exec_function` being re-defined at runtime.
     eval(compile(_PY3_EXEC_FUNCTION, "<exec_function>", "exec"))
 
+
 if PY3:
-    from contextlib import contextmanager, ExitStack
-
-    @contextmanager
-    def nested(*context_managers):
-        enters = []
-        with ExitStack() as stack:
-            for manager in context_managers:
-                enters.append(stack.enter_context(manager))
-            yield tuple(enters)
-
-
+    from urllib import parse as urlparse
+    from urllib.error import HTTPError as HTTPError
+    from urllib.parse import unquote as unquote
+    from urllib.request import FileHandler as FileHandler
+    from urllib.request import HTTPBasicAuthHandler as HTTPBasicAuthHandler
+    from urllib.request import HTTPDigestAuthHandler as HTTPDigestAuthHandler
+    from urllib.request import HTTPPasswordMgrWithDefaultRealm as HTTPPasswordMgrWithDefaultRealm
+    from urllib.request import HTTPSHandler as HTTPSHandler
+    from urllib.request import ProxyHandler as ProxyHandler
+    from urllib.request import Request as Request
+    from urllib.request import build_opener as build_opener
 else:
-    from contextlib import nested
+    from urllib import unquote as unquote
 
+    import urlparse as urlparse
+    from urllib2 import FileHandler as FileHandler
+    from urllib2 import HTTPBasicAuthHandler as HTTPBasicAuthHandler
+    from urllib2 import HTTPDigestAuthHandler as HTTPDigestAuthHandler
+    from urllib2 import HTTPError as HTTPError
+    from urllib2 import HTTPPasswordMgrWithDefaultRealm as HTTPPasswordMgrWithDefaultRealm
+    from urllib2 import HTTPSHandler as HTTPSHandler
+    from urllib2 import ProxyHandler as ProxyHandler
+    from urllib2 import Request as Request
+    from urllib2 import build_opener as build_opener
 
 if PY3:
-    import urllib.parse as urlparse
-else:
-    import urlparse
-
-
-if PY3:
-    from queue import Queue
+    from queue import Queue as Queue
 
     # The `os.sched_getaffinity` function appears to be supported on Linux but not OSX.
     if not hasattr(os, "sched_getaffinity"):
-        from os import cpu_count
+        from os import cpu_count as cpu_count
     else:
 
         def cpu_count():
+            # type: () -> Optional[int]
             # The set of CPUs accessible to the current process (pid 0).
             cpu_set = os.sched_getaffinity(0)
             return len(cpu_set)
 
-
 else:
-    from Queue import Queue
-    from multiprocessing import cpu_count
+    from multiprocessing import cpu_count as cpu_count
 
+    from Queue import Queue as Queue
 
 WINDOWS = os.name == "nt"
+
+
+# Universal newlines is the default in Python 3.
+MODE_READ_UNIVERSAL_NEWLINES = "rU" if PY2 else "r"
+
+
+def _get_stdio_bytes_buffer(stdio):
+    # type: (IO[str]) -> BinaryIO
+    return cast("BinaryIO", getattr(stdio, "buffer", stdio))
+
+
+def get_stdout_bytes_buffer():
+    # type: () -> BinaryIO
+    return _get_stdio_bytes_buffer(sys.stdout)
+
+
+def get_stderr_bytes_buffer():
+    # type: () -> BinaryIO
+    return _get_stdio_bytes_buffer(sys.stderr)
+
+
+if PY3:
+    is_valid_python_identifier = str.isidentifier
+else:
+
+    def is_valid_python_identifier(text):
+        # type: (str) -> bool
+
+        # N.B.: Python 2.7 only supports ASCII characters so the check is easy and this is probably
+        # why it's nt in the stdlib.
+        # See: https://docs.python.org/2.7/reference/lexical_analysis.html#identifiers
+        return re.match(r"^[_a-zA-Z][_a-zA-Z0-9]*$", text) is not None
+
+
+if PY2:
+
+    def indent(
+        text,  # type: Text
+        prefix,  # type: Text
+        predicate=None,  # type: Optional[Callable[[Text], bool]]
+    ):
+        add_prefix = predicate if predicate else lambda line: bool(line.strip())
+        return "".join(
+            prefix + line if add_prefix(line) else line for line in text.splitlines(True)
+        )
+
+else:
+    from textwrap import indent as indent

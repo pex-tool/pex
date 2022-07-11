@@ -16,6 +16,7 @@ from pip._internal.vcs.versioncontrol import VersionControl, vcs
 
 if MYPY_CHECK_RUNNING:
     from typing import Optional, Tuple
+
     from pip._internal.utils.misc import HiddenText
     from pip._internal.vcs.versioncontrol import AuthInfo, RevOptions
 
@@ -92,7 +93,9 @@ class Bazaar(VersionControl):
 
     @classmethod
     def get_remote_url(cls, location):
-        urls = cls.run_command(['info'], show_stdout=False, cwd=location)
+        urls = cls.run_command(
+            ['info'], show_stdout=False, stdout_only=True, cwd=location
+        )
         for line in urls.splitlines():
             line = line.strip()
             for x in ('checkout of branch: ',
@@ -107,7 +110,7 @@ class Bazaar(VersionControl):
     @classmethod
     def get_revision(cls, location):
         revision = cls.run_command(
-            ['revno'], show_stdout=False, cwd=location,
+            ['revno'], show_stdout=False, stdout_only=True, cwd=location,
         )
         return revision.splitlines()[-1]
 

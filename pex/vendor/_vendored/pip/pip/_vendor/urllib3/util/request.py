@@ -1,8 +1,16 @@
 from __future__ import absolute_import
+
 from base64 import b64encode
 
-from ..packages.six import b, integer_types
 from ..exceptions import UnrewindableBodyError
+from ..packages.six import b, integer_types
+
+# Pass as a value within ``headers`` to skip
+# emitting some HTTP headers that are added automatically.
+# The only headers that are supported are ``Accept-Encoding``,
+# ``Host``, and ``User-Agent``.
+SKIP_HEADER = "@@@SKIP_HEADER@@@"
+SKIPPABLE_HEADERS = frozenset(["accept-encoding", "host", "user-agent"])
 
 ACCEPT_ENCODING = "gzip,deflate"
 try:
@@ -122,7 +130,7 @@ def rewind_body(body, body_pos):
             body_seek(body_pos)
         except (IOError, OSError):
             raise UnrewindableBodyError(
-                "An error occurred when rewinding request " "body for redirect/retry."
+                "An error occurred when rewinding request body for redirect/retry."
             )
     elif body_pos is _FAILEDTELL:
         raise UnrewindableBodyError(
@@ -131,5 +139,5 @@ def rewind_body(body, body_pos):
         )
     else:
         raise ValueError(
-            "body_pos must be of type integer, " "instead it was %s." % type(body_pos)
+            "body_pos must be of type integer, instead it was %s." % type(body_pos)
         )

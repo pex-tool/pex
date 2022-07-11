@@ -1,46 +1,50 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import functools
 import os
+import shutil
 import subprocess
+import sys
 from collections import defaultdict
+from contextlib import contextmanager
 from textwrap import dedent
 
 import pkginfo
 import pytest
 
+from pex import targets
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
-from pex.compatibility import nested
-from pex.distribution_target import DistributionTarget
+from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter, spawn_python_job
-from pex.resolver import (
-    IntegrityError,
-    LocalDistribution,
-    Unsatisfiable,
-    download,
-    install,
-    resolve_multi,
-)
+from pex.platforms import Platform
+from pex.resolve.resolver_configuration import ResolverVersion
+from pex.resolve.resolvers import InstalledDistribution, Unsatisfiable
+from pex.resolver import download, resolve
+from pex.targets import Targets
 from pex.testing import (
     IS_LINUX,
     IS_PYPY,
     PY27,
-    PY35,
-    PY36,
+    PY37,
+    PY310,
     PY_VER,
     built_wheel,
     ensure_python_interpreter,
     make_project,
     make_source_dir,
 )
-from pex.third_party.pkg_resources import Requirement
+from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
+
+if TYPE_CHECKING:
+    from typing import Any, Iterable, Iterator, List, Union
 
 
-def create_sdist(*args, **kwargs):
+def create_sdist(**kwargs):
+    # type: (**Any) -> str
     dist_dir = safe_mkdtemp()
 
-    with make_project(*args, **kwargs) as project_dir:
+    with make_project(**kwargs) as project_dir:
         cmd = ["setup.py", "sdist", "--dist-dir={}".format(dist_dir)]
         spawn_python_job(
             args=cmd,
@@ -55,59 +59,87 @@ def create_sdist(*args, **kwargs):
     return os.path.join(dist_dir, dists[0])
 
 
-def build_wheel(*args, **kwargs):
-    with built_wheel(*args, **kwargs) as whl:
+def build_wheel(**kwargs):
+    # type: (**Any) -> str
+    with built_wheel(**kwargs) as whl:
         return whl
 
 
-def local_resolve_multi(*args, **kwargs):
+def local_resolve(*args, **kwargs):
+    # type: (*Any, **Any) -> List[InstalledDistribution]
     # Skip remote lookups.
     kwargs["indexes"] = []
-    return list(resolve_multi(*args, **kwargs))
+    return list(resolve(*args, **kwargs).installed_distributions)
+
+
+@contextmanager
+def cache(directory):
+    # type: (str) -> Iterator[None]
+    with ENV.patch(PEX_ROOT=directory):
+        yield
+
+
+@contextmanager
+def disabled_cache():
+    # type: () -> Iterator[None]
+
+    # N.B.: The resolve cache is never actually disabled, `--disable-cache` just switches the cache
+    # from ~/.pex to a temporary directory. We do the same here.
+    with temporary_dir() as td, cache(td):
+        yield
 
 
 def test_empty_resolve():
-    empty_resolve_multi = local_resolve_multi([])
-    assert empty_resolve_multi == []
+    # type: () -> None
+    empty_resolve = local_resolve(requirements=[])
+    assert empty_resolve == []
 
-    with temporary_dir() as td:
-        empty_resolve_multi = local_resolve_multi([], cache=td)
-        assert empty_resolve_multi == []
+    with disabled_cache():
+        empty_resolve = local_resolve(requirements=[])
+        assert empty_resolve == []
 
 
 def test_simple_local_resolve():
+    # type: () -> None
     project_wheel = build_wheel(name="project")
 
     with temporary_dir() as td:
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
-        resolved_dists = local_resolve_multi(["project"], find_links=[td])
-        assert len(resolved_dists) == 1
+        installed_dists = local_resolve(requirements=["project"], find_links=[td])
+        assert len(installed_dists) == 1
 
 
 def test_resolve_cache():
+    # type: () -> None
     project_wheel = build_wheel(name="project")
 
-    with nested(temporary_dir(), temporary_dir()) as (td, cache):
+    with temporary_dir() as td, temporary_dir() as cache_dir:
         safe_copy(project_wheel, os.path.join(td, os.path.basename(project_wheel)))
 
         # Without a cache, each resolve should be isolated, but otherwise identical.
-        resolved_dists1 = local_resolve_multi(["project"], find_links=[td])
-        resolved_dists2 = local_resolve_multi(["project"], find_links=[td])
-        assert resolved_dists1 != resolved_dists2
-        assert len(resolved_dists1) == 1
-        assert len(resolved_dists2) == 1
-        assert resolved_dists1[0].requirement == resolved_dists2[0].requirement
-        assert resolved_dists1[0].distribution.location != resolved_dists2[0].distribution.location
+        with disabled_cache():
+            installed_dists1 = local_resolve(requirements=["project"], find_links=[td])
+        with disabled_cache():
+            installed_dists2 = local_resolve(requirements=["project"], find_links=[td])
+        assert installed_dists1 != installed_dists2
+        assert len(installed_dists1) == 1
+        assert len(installed_dists2) == 1
+        assert installed_dists1[0].direct_requirements == installed_dists2[0].direct_requirements
+        assert (
+            installed_dists1[0].distribution.location != installed_dists2[0].distribution.location
+        )
 
         # With a cache, each resolve should be identical.
-        resolved_dists3 = local_resolve_multi(["project"], find_links=[td], cache=cache)
-        resolved_dists4 = local_resolve_multi(["project"], find_links=[td], cache=cache)
-        assert resolved_dists1 != resolved_dists3
-        assert resolved_dists2 != resolved_dists3
-        assert resolved_dists3 == resolved_dists4
+        with cache(cache_dir):
+            installed_dists3 = local_resolve(requirements=["project"], find_links=[td])
+            installed_dists4 = local_resolve(requirements=["project"], find_links=[td])
+        assert installed_dists1 != installed_dists3
+        assert installed_dists2 != installed_dists3
+        assert installed_dists3 == installed_dists4
 
 
 def test_diamond_local_resolve_cached():
+    # type: () -> None
     # This exercises the issue described here: https://github.com/pantsbuild/pex/issues/120
     project1_wheel = build_wheel(name="project1", install_reqs=["project2<1.0.0"])
     project2_wheel = build_wheel(name="project2")
@@ -115,14 +147,13 @@ def test_diamond_local_resolve_cached():
     with temporary_dir() as dd:
         for wheel in (project1_wheel, project2_wheel):
             safe_copy(wheel, os.path.join(dd, os.path.basename(wheel)))
-        with temporary_dir() as cd:
-            resolved_dists = local_resolve_multi(
-                ["project1", "project2"], find_links=[dd], cache=cd
-            )
-            assert len(resolved_dists) == 2
+        with temporary_dir() as cd, cache(cd):
+            installed_dists = local_resolve(requirements=["project1", "project2"], find_links=[dd])
+            assert len(installed_dists) == 2
 
 
 def test_cached_dependency_pinned_unpinned_resolution_multi_run():
+    # type: () -> None
     # This exercises the issue described here: https://github.com/pantsbuild/pex/issues/178
     project1_0_0 = build_wheel(name="project", version="1.0.0")
     project1_1_0 = build_wheel(name="project", version="1.1.0")
@@ -130,34 +161,36 @@ def test_cached_dependency_pinned_unpinned_resolution_multi_run():
     with temporary_dir() as td:
         for wheel in (project1_0_0, project1_1_0):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
-        with temporary_dir() as cd:
+        with temporary_dir() as cd, cache(cd):
             # First run, pinning 1.0.0 in the cache
-            resolved_dists = local_resolve_multi(["project==1.0.0"], find_links=[td], cache=cd)
-            assert len(resolved_dists) == 1
-            assert resolved_dists[0].distribution.version == "1.0.0"
+            installed_dists = local_resolve(requirements=["project==1.0.0"], find_links=[td])
+            assert len(installed_dists) == 1
+            assert installed_dists[0].distribution.version == "1.0.0"
 
-            # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should also
-            # return SourcePackages found in td
-            resolved_dists = local_resolve_multi(["project"], find_links=[td], cache=cd)
-            assert len(resolved_dists) == 1
-            assert resolved_dists[0].distribution.version == "1.1.0"
+            # Second, run, the unbounded 'project' req will find the 1.0.0 in the cache. But should
+            # also return SourcePackages found in td
+            installed_dists = local_resolve(requirements=["project"], find_links=[td])
+            assert len(installed_dists) == 1
+            assert installed_dists[0].distribution.version == "1.1.0"
 
 
 def test_intransitive():
+    # type: () -> None
     foo1_0 = build_wheel(name="foo", version="1.0.0")
     # The nonexistent req ensures that we are actually not acting transitively (as that would fail).
     bar1_0 = build_wheel(name="bar", version="1.0.0", install_reqs=["nonexistent==1.0.0"])
     with temporary_dir() as td:
         for wheel in (foo1_0, bar1_0):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
-        with temporary_dir() as cd:
-            resolved_dists = local_resolve_multi(
-                ["foo", "bar"], find_links=[td], cache=cd, transitive=False
+        with temporary_dir() as cd, cache(cd):
+            installed_dists = local_resolve(
+                requirements=["foo", "bar"], find_links=[td], transitive=False
             )
-            assert len(resolved_dists) == 2
+            assert len(installed_dists) == 2
 
 
 def test_resolve_prereleases():
+    # type: () -> None
     stable_dep = build_wheel(name="dep", version="2.0.0")
     prerelease_dep = build_wheel(name="dep", version="3.0.0rc3")
 
@@ -166,10 +199,12 @@ def test_resolve_prereleases():
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
         def assert_resolve(expected_version, **resolve_kwargs):
-            resolved_dists = local_resolve_multi(["dep>=1,<4"], find_links=[td], **resolve_kwargs)
-            assert 1 == len(resolved_dists)
-            resolved_dist = resolved_dists[0]
-            assert expected_version == resolved_dist.distribution.version
+            installed_dists = local_resolve(
+                requirements=["dep>=1,<4"], find_links=[td], **resolve_kwargs
+            )
+            assert 1 == len(installed_dists)
+            installed_dist = installed_dists[0]
+            assert expected_version == installed_dist.distribution.version
 
         assert_resolve("2.0.0")
         assert_resolve("2.0.0", allow_prereleases=False)
@@ -177,10 +212,14 @@ def test_resolve_prereleases():
 
 
 def _parse_requirement(req):
-    return Requirement.parse(str(req))
+    # type: (Union[str, Requirement]) -> Requirement
+    if isinstance(req, Requirement):
+        req = str(req)
+    return Requirement.parse(req)
 
 
 def test_resolve_extra_setup_py():
+    # type: () -> None
     with make_source_dir(
         name="project1", version="1.0.0", extras_require={"foo": ["project2"]}
     ) as project1_dir:
@@ -188,13 +227,17 @@ def test_resolve_extra_setup_py():
         with temporary_dir() as td:
             safe_copy(project2_wheel, os.path.join(td, os.path.basename(project2_wheel)))
 
-            resolved_dists = local_resolve_multi(["{}[foo]".format(project1_dir)], find_links=[td])
+            installed_dists = local_resolve(
+                requirements=["{}[foo]".format(project1_dir)], find_links=[td]
+            )
             assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
-                _parse_requirement(resolved_dist.requirement) for resolved_dist in resolved_dists
+                _parse_requirement(installed_dist.distribution.as_requirement())
+                for installed_dist in installed_dists
             }
 
 
 def test_resolve_extra_wheel():
+    # type: () -> None
     project1_wheel = build_wheel(
         name="project1", version="1.0.0", extras_require={"foo": ["project2"]}
     )
@@ -203,25 +246,33 @@ def test_resolve_extra_wheel():
         for wheel in (project1_wheel, project2_wheel):
             safe_copy(wheel, os.path.join(td, os.path.basename(wheel)))
 
-        resolved_dists = local_resolve_multi(["project1[foo]"], find_links=[td])
+        installed_dists = local_resolve(requirements=["project1[foo]"], find_links=[td])
         assert {_parse_requirement(req) for req in ("project1==1.0.0", "project2==2.0.0")} == {
-            _parse_requirement(resolved_dist.requirement) for resolved_dist in resolved_dists
+            _parse_requirement(installed_dist.distribution.as_requirement())
+            for installed_dist in installed_dists
         }
 
 
 def resolve_wheel_names(**kwargs):
+    # type: (**Any) -> List[str]
     return [
-        os.path.basename(resolved_distribution.distribution.location)
-        for resolved_distribution in resolve_multi(**kwargs)
+        os.path.basename(installed_distribution.distribution.location)
+        for installed_distribution in resolve(**kwargs).installed_distributions
     ]
 
 
-def resolve_p537_wheel_names(**kwargs):
-    return resolve_wheel_names(requirements=["p537==1.0.4"], transitive=False, **kwargs)
+def resolve_p537_wheel_names(
+    cache_dir,  # type: str
+    **kwargs  # type: Any
+):
+    # type: (...) -> List[str]
+    with cache(cache_dir):
+        return resolve_wheel_names(requirements=["p537==1.0.4"], transitive=False, **kwargs)
 
 
 @pytest.fixture(scope="module")
 def p537_resolve_cache():
+    # type: () -> str
     return safe_mkdtemp()
 
 
@@ -229,11 +280,19 @@ def p537_resolve_cache():
     PY_VER < (3, 5) or IS_PYPY, reason="The p537 distribution only builds for CPython 3.5+"
 )
 def test_resolve_current_platform(p537_resolve_cache):
-    resolve_current = functools.partial(
-        resolve_p537_wheel_names, cache=p537_resolve_cache, platforms=["current"]
-    )
+    # type: (str) -> None
+    def resolve_current(interpreters=()):
+        # type: (Iterable[PythonInterpreter]) -> List[str]
 
-    other_python_version = PY36 if PY_VER == (3, 5) else PY35
+        # N.B.: None stands in for the "current" platform at higher layers that parse platform
+        # strings to Platform objects.
+        current_platform = (None,)
+        return resolve_p537_wheel_names(
+            cache_dir=p537_resolve_cache,
+            targets=Targets(platforms=current_platform, interpreters=tuple(interpreters)),
+        )
+
+    other_python_version = PY310 if PY_VER == (3, 7) else PY37
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -255,14 +314,23 @@ def test_resolve_current_platform(p537_resolve_cache):
     PY_VER < (3, 5) or IS_PYPY, reason="The p537 distribution only builds for CPython 3.5+"
 )
 def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
+    # type: (str) -> None
     foreign_platform = "macosx-10.13-x86_64-cp-37-m" if IS_LINUX else "manylinux1_x86_64-cp-37-m"
-    resolve_current_and_foreign = functools.partial(
-        resolve_p537_wheel_names, cache=p537_resolve_cache, platforms=["current", foreign_platform]
-    )
+
+    def resolve_current_and_foreign(interpreters=()):
+        # type: (Iterable[PythonInterpreter]) -> List[str]
+
+        # N.B.: None stands in for the "current" platform at higher layers that parse platform
+        # strings to Platform objects.
+        platforms = (None, Platform.create(foreign_platform))
+        return resolve_p537_wheel_names(
+            cache_dir=p537_resolve_cache,
+            targets=Targets(platforms=platforms, interpreters=tuple(interpreters)),
+        )
 
     assert 2 == len(resolve_current_and_foreign())
 
-    other_python_version = PY36 if PY_VER == (3, 5) else PY35
+    other_python_version = PY310 if PY_VER == (3, 7) else PY37
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -276,6 +344,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
 
 
 def test_resolve_foreign_abi3():
+    # type: () -> None
     # For version 2.8, cryptography publishes the following abi3 wheels for linux and macosx:
     # cryptography-2.8-cp34-abi3-macosx_10_6_intel.whl
     # cryptography-2.8-cp34-abi3-manylinux1_x86_64.whl
@@ -283,17 +352,21 @@ def test_resolve_foreign_abi3():
 
     cryptogrpahy_resolve_cache = safe_mkdtemp()
     foreign_ver = "37" if PY_VER == (3, 6) else "36"
-    resolve_cryptography_wheel_names = functools.partial(
-        resolve_wheel_names,
-        requirements=["cryptography==2.8"],
-        platforms=[
-            "linux_x86_64-cp-{}-m".format(foreign_ver),
-            "macosx_10.11_x86_64-cp-{}-m".format(foreign_ver),
-        ],
-        transitive=False,
-        build=False,
-        cache=cryptogrpahy_resolve_cache,
-    )
+
+    def resolve_cryptography_wheel_names(manylinux):
+        with cache(cryptogrpahy_resolve_cache):
+            return resolve_wheel_names(
+                requirements=["cryptography==2.8"],
+                targets=Targets(
+                    platforms=(
+                        Platform.create("linux_x86_64-cp-{}-m".format(foreign_ver)),
+                        Platform.create("macosx_10.11_x86_64-cp-{}-m".format(foreign_ver)),
+                    ),
+                    assume_manylinux=manylinux,
+                ),
+                transitive=False,
+                build=False,
+            )
 
     wheel_names = resolve_cryptography_wheel_names(manylinux="manylinux2014")
     assert {
@@ -315,19 +388,24 @@ def test_resolve_foreign_abi3():
 
 
 def test_issues_851():
-    # Previously, the PY36 resolve would fail post-resolution checks for configparser, pathlib2 and
+    # type: () -> None
+    # Previously, the PY37 resolve would fail post-resolution checks for configparser, pathlib2 and
     # contextlib2 which are only required for python_version<3.
 
     def resolve_pytest(python_version, pytest_version):
         interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(python_version))
-        resolved_dists = resolve_multi(
-            interpreters=[interpreter], requirements=["pytest=={}".format(pytest_version)]
+        result = resolve(
+            targets=Targets(interpreters=(interpreter,)),
+            requirements=["pytest=={}".format(pytest_version)],
         )
-        project_to_version = {rd.requirement.key: rd.distribution.version for rd in resolved_dists}
+        project_to_version = {
+            installed_dist.distribution.project_name: installed_dist.distribution.version
+            for installed_dist in result.installed_distributions
+        }
         assert project_to_version["pytest"] == pytest_version
         return project_to_version
 
-    resolved_project_to_version = resolve_pytest(python_version=PY36, pytest_version="5.3.4")
+    resolved_project_to_version = resolve_pytest(python_version=PY37, pytest_version="5.3.4")
     assert "importlib-metadata" in resolved_project_to_version
     assert "configparser" not in resolved_project_to_version
     assert "pathlib2" not in resolved_project_to_version
@@ -341,6 +419,7 @@ def test_issues_851():
 
 
 def test_issues_892():
+    # type: () -> None
     python27 = ensure_python_interpreter(PY27)
     program = dedent(
         """\
@@ -350,24 +429,26 @@ def test_issues_892():
         import sys
 
 
-        # This puts python3.6 stdlib on PYTHONPATH.
+        # This puts python3.8 stdlib on PYTHONPATH.
         os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
 
 
         from pex import resolver
         from pex.interpreter import PythonInterpreter
+        from pex.targets import Targets
 
 
         python27 = PythonInterpreter.from_binary({python27!r})
-        result = resolver.resolve(requirements=['packaging==19.2'], interpreter=python27)
-        print('Resolved: {{}}'.format(result))
-  """.format(
-            python27=python27
+        result = resolver.resolve(
+            targets=Targets(interpreters=(python27,)),
+            requirements=['packaging==19.2'],
         )
-    )
+        print('Resolved: {{}}'.format(result))
+        """
+    ).format(python27=python27)
 
-    python36 = ensure_python_interpreter(PY36)
-    cmd, process = PythonInterpreter.from_binary(python36).open_process(
+    python310 = ensure_python_interpreter(PY310)
+    cmd, process = PythonInterpreter.from_binary(python310).open_process(
         args=["-c", program], stderr=subprocess.PIPE
     )
     _, stderr = process.communicate()
@@ -385,6 +466,7 @@ def test_issues_892():
 
 
 def test_download():
+    # type: () -> None
     project1_sdist = create_sdist(
         name="project1", version="1.0.0", extras_require={"foo": ["project2"]}
     )
@@ -396,17 +478,18 @@ def test_download():
     )
 
     downloaded_by_target = defaultdict(list)
-    for local_distribution in download(
+    result = download(
         requirements=["{}[foo]".format(project1_sdist)],
         find_links=[os.path.dirname(project2_wheel)],
-    ):
+    )
+    for local_distribution in result.local_distributions:
         distribution = pkginfo.get_metadata(local_distribution.path)
         downloaded_by_target[local_distribution.target].append(distribution)
 
     assert 1 == len(downloaded_by_target)
 
     target, distributions = downloaded_by_target.popitem()
-    assert DistributionTarget.current() == target
+    assert targets.current() == target
 
     distributions_by_name = {distribution.name: distribution for distribution in distributions}
     assert 3 == len(distributions_by_name)
@@ -421,57 +504,114 @@ def test_download():
     assert_dist("setuptools", pkginfo.Wheel, "44.1.0")
 
 
-def test_install():
-    project1_sdist = create_sdist(name="project1", version="1.0.0")
-    project2_wheel = build_wheel(name="project2", version="2.0.0")
+def test_resolve_arbitrary_equality_issues_940():
+    # type: () -> None
+    dist = create_sdist(
+        name="foo",
+        version="1.0.2-fba4511",
+        python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
+    )
+    installed_distributions = local_resolve(
+        requirements=[dist],
+        # We need this to allow the invalid version above to sneak by pip wheel metadata
+        # verification.
+        verify_wheels=False,
+    )
 
-    installed_by_target = defaultdict(list)
-    for installed_distribution in install(
-        [LocalDistribution.create(path=dist) for dist in (project1_sdist, project2_wheel)]
-    ):
-        installed_by_target[installed_distribution.target].append(
-            installed_distribution.distribution
-        )
-
-    assert 1 == len(installed_by_target)
-
-    target, distributions = installed_by_target.popitem()
-    assert DistributionTarget.current() == target
-
-    distributions_by_name = {distribution.key: distribution for distribution in distributions}
-    assert 2 == len(distributions_by_name)
-    assert "1.0.0" == distributions_by_name["project1"].version
-    assert "2.0.0" == distributions_by_name["project2"].version
-
-    assert 2 == len(
-        {distribution.location for distribution in distributions}
-    ), "Expected installed distributions to have independent chroot paths."
+    assert len(installed_distributions) == 1
+    requirements = installed_distributions[0].direct_requirements
+    assert 1 == len(requirements), (
+        "The foo requirement was direct; so the resulting resolved distribution should carry the "
+        "associated requirement."
+    )
+    assert "===1.0.2-fba4511" == str(requirements[0].specifier)
+    assert requirements[0].marker is None
 
 
-def test_install_unsatisfiable():
-    project1_sdist = create_sdist(name="project1", version="1.0.0")
-    project2_wheel = build_wheel(name="project2", version="2.0.0", install_reqs=["project1==1.0.1"])
-    local_distributions = [
-        LocalDistribution.create(path=dist) for dist in (project1_sdist, project2_wheel)
-    ]
+def test_resolve_overlapping_requirements_discriminated_by_markers_issues_1196(py27):
+    # type: (PythonInterpreter) -> None
+    installed_distributions = resolve(
+        requirements=[
+            "setuptools<45; python_full_version == '2.7.*'",
+            "setuptools; python_version > '2.7'",
+        ],
+        targets=Targets(
+            interpreters=(py27,),
+        ),
+    ).installed_distributions
+    assert 1 == len(installed_distributions)
+    installed_distribution = installed_distributions[0]
+    assert 1 == len(installed_distribution.direct_requirements)
+    assert (
+        Requirement.parse("setuptools<45; python_full_version == '2.7.*'")
+        == installed_distribution.direct_requirements[0]
+    )
+    assert (
+        Requirement.parse("setuptools==44.1.1")
+        == installed_distribution.distribution.as_requirement()
+    )
 
-    assert 2 == len(install(local_distributions, ignore_errors=True))
+
+def test_pip_proprietary_url_with_markers_issues_1415():
+    # type: () -> None
+    installed_dists = resolve(
+        requirements=[
+            (
+                "https://files.pythonhosted.org/packages/53/18/"
+                "a56e2fe47b259bb52201093a3a9d4a32014f9d85071ad07e9d60600890ca/"
+                "ansicolors-1.1.8-py2.py3-none-any.whl; sys_platform != '{}'".format(sys.platform)
+            ),
+            "ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform),
+        ]
+    ).installed_distributions
+    assert len(installed_dists) == 1
+
+    installed_dist = installed_dists[0]
+    assert Requirement.parse("ansicolors==1.1.8") == installed_dist.distribution.as_requirement()
+    assert 1 == len(installed_dist.direct_requirements)
+    assert (
+        Requirement.parse("ansicolors==1.1.8; sys_platform == '{}'".format(sys.platform))
+        == installed_dist.direct_requirements[0]
+    )
+
+
+def test_duplicate_requirements_issues_1550():
+    # type: () -> None
 
     with pytest.raises(Unsatisfiable):
-        install(local_distributions, ignore_errors=False)
+        resolve(requirements=["PyJWT", "PyJWT==1.7.1"], resolver_version=ResolverVersion.PIP_LEGACY)
+
+    installed_dists = resolve(
+        requirements=["PyJWT", "PyJWT==1.7.1"], resolver_version=ResolverVersion.PIP_2020
+    )
+    assert len(installed_dists.installed_distributions) == 1
+    installed_distribution = installed_dists.installed_distributions[0]
+    assert {Requirement.parse("PyJWT"), Requirement.parse("PyJWT==1.7.1")} == set(
+        installed_distribution.direct_requirements
+    )
+    distribution = installed_distribution.distribution
+    assert "PyJWT" == distribution.project_name
+    assert "1.7.1" == distribution.version
 
 
-def test_install_invalid_local_distribution():
-    project1_sdist = create_sdist(name="project1", version="1.0.0")
+def test_check_resolve_prerelease_transitive_dependencies_issue_1730(tmpdir):
+    # type: (Any) -> None
 
-    valid_local_sdist = LocalDistribution.create(project1_sdist)
-    assert 1 == len(install([valid_local_sdist]))
+    indirect_wheel = build_wheel(name="indirect", version="2.12.0.dev3")
+    direct_wheel = build_wheel(
+        name="direct", version="2.12.0.dev3", install_reqs=["indirect==2.12.0.dev3"]
+    )
 
-    with pytest.raises(IntegrityError):
-        install([LocalDistribution.create(project1_sdist, fingerprint="mismatch")])
+    find_links = os.path.join(str(tmpdir), "find-links")
+    os.mkdir(find_links)
+    for wheel in direct_wheel, indirect_wheel:
+        shutil.move(wheel, find_links)
 
-    project1_wheel = build_wheel(name="project1", version="1.0.0")
-    with pytest.raises(IntegrityError):
-        install(
-            [LocalDistribution.create(project1_wheel, fingerprint=valid_local_sdist.fingerprint)]
-        )
+    installed = resolve(
+        requirements=["direct==2.12.dev3"],
+        allow_prereleases=False,
+        ignore_errors=False,
+        indexes=[],
+        find_links=[find_links],
+    )
+    assert 2 == len(installed.installed_distributions)

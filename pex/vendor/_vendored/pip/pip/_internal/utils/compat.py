@@ -7,6 +7,7 @@ distributions."""
 from __future__ import absolute_import, division
 
 import codecs
+import functools
 import locale
 import logging
 import os
@@ -18,7 +19,15 @@ from pip._vendor.six import PY2, text_type
 from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 
 if MYPY_CHECK_RUNNING:
-    from typing import Optional, Text, Tuple, Union
+    from typing import Callable, Optional, Protocol, Text, Tuple, TypeVar, Union
+
+    # Used in the @lru_cache polyfill.
+    F = TypeVar('F')
+
+    class LruCache(Protocol):
+        def __call__(self, maxsize=None):
+            # type: (Optional[int]) -> Callable[[F], F]
+            raise NotImplementedError
 
 try:
     import ipaddress
@@ -64,7 +73,7 @@ if PY2:
         raw_bytes = (err.object[i] for i in range(err.start, err.end))
         # Python 2 gave us characters - convert to numeric bytes
         raw_bytes = (ord(b) for b in raw_bytes)
-        return u"".join(u"\\x%x" % c for c in raw_bytes), err.end
+        return u"".join(map(u"\\x{:x}".format, raw_bytes)), err.end
     codecs.register_error(
         "backslashreplace_decode",
         backslashreplace_decode_fn,
@@ -121,10 +130,11 @@ def str_to_display(data, desc=None):
     try:
         decoded_data = data.decode(encoding)
     except UnicodeDecodeError:
-        if desc is None:
-            desc = 'Bytes object'
-        msg_format = '{} does not appear to be encoded as %s'.format(desc)
-        logger.warning(msg_format, encoding)
+        logger.warning(
+            '%s does not appear to be encoded as %s',
+            desc or 'Bytes object',
+            encoding,
+        )
         decoded_data = data.decode(encoding, errors=backslashreplace_decode)
 
     # Make sure we can print the output, by encoding it to the output
@@ -184,7 +194,8 @@ def get_path_uid(path):
         else:
             # raise OSError for parity with os.O_NOFOLLOW above
             raise OSError(
-                "%s is a symlink; Will not return uid for symlinks" % path
+                "{} is a symlink; Will not return uid for symlinks".format(
+                    path)
             )
     return file_uid
 
@@ -244,8 +255,8 @@ else:
         def ioctl_GWINSZ(fd):
             try:
                 import fcntl
-                import termios
                 import struct
+                import termios
                 cr = struct.unpack_from(
                     'hh',
                     fcntl.ioctl(fd, termios.TIOCGWINSZ, '12345678')
@@ -257,12 +268,26 @@ else:
             return cr
         cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
         if not cr:
-            try:
-                fd = os.open(os.ctermid(), os.O_RDONLY)
-                cr = ioctl_GWINSZ(fd)
-                os.close(fd)
-            except Exception:
-                pass
+            if sys.platform != "win32":
+                try:
+                    fd = os.open(os.ctermid(), os.O_RDONLY)
+                    cr = ioctl_GWINSZ(fd)
+                    os.close(fd)
+                except Exception:
+                    pass
         if not cr:
             cr = (os.environ.get('LINES', 25), os.environ.get('COLUMNS', 80))
         return int(cr[1]), int(cr[0])
+
+
+# Fallback to noop_lru_cache in Python 2
+# TODO: this can be removed when python 2 support is dropped!
+def noop_lru_cache(maxsize=None):
+    # type: (Optional[int]) -> Callable[[F], F]
+    def _wrapper(f):
+        # type: (F) -> F
+        return f
+    return _wrapper
+
+
+lru_cache = getattr(functools, "lru_cache", noop_lru_cache)  # type: LruCache

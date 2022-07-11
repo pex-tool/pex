@@ -25,9 +25,9 @@ from pip._vendor.urllib3.exceptions import InsecureRequestWarning
 from pip import __version__
 from pip._internal.network.auth import MultiDomainBasicAuth
 from pip._internal.network.cache import SafeFileCache
+
 # Import ssl from compat so the initial import occurs in only one place.
 from pip._internal.utils.compat import has_tls, ipaddress
-from pip._internal.utils.filesystem import check_path_owner
 from pip._internal.utils.glibc import libc_ver
 from pip._internal.utils.misc import (
     build_url_from_netloc,
@@ -38,9 +38,7 @@ from pip._internal.utils.typing import MYPY_CHECK_RUNNING
 from pip._internal.utils.urls import url_to_path
 
 if MYPY_CHECK_RUNNING:
-    from typing import (
-        Dict, Iterator, List, Optional, Tuple, Union,
-    )
+    from typing import Iterator, List, Optional, Tuple, Union
 
     from pip._internal.models.link import Link
 
@@ -218,6 +216,14 @@ class InsecureHTTPAdapter(HTTPAdapter):
         )
 
 
+class InsecureCacheControlAdapter(CacheControlAdapter):
+
+    def cert_verify(self, conn, url, verify, cert):
+        super(InsecureCacheControlAdapter, self).cert_verify(
+            conn=conn, url=url, verify=False, cert=cert
+        )
+
+
 class PipSession(requests.Session):
 
     timeout = None  # type: Optional[int]
@@ -231,7 +237,6 @@ class PipSession(requests.Session):
         cache = kwargs.pop("cache", None)
         trusted_hosts = kwargs.pop("trusted_hosts", [])  # type: List[str]
         index_urls = kwargs.pop("index_urls", None)
-        headers = kwargs.pop("headers", {})  # type: Dict(str, str)
 
         super(PipSession, self).__init__(*args, **kwargs)
 
@@ -241,10 +246,6 @@ class PipSession(requests.Session):
 
         # Attach our User Agent to the request
         self.headers["User-Agent"] = user_agent()
-
-        # Attach provided HTTP headers to the request
-        if headers:
-            self.headers.update(**headers)
 
         # Attach our Authentication handler to the session
         self.auth = MultiDomainBasicAuth(index_urls=index_urls)
@@ -269,21 +270,16 @@ class PipSession(requests.Session):
             backoff_factor=0.25,
         )
 
-        # Check to ensure that the directory containing our cache directory
-        # is owned by the user current executing pip. If it does not exist
-        # we will check the parent directory until we find one that does exist.
-        if cache and not check_path_owner(cache):
-            logger.warning(
-                "The directory '%s' or its parent directory is not owned by "
-                "the current user and the cache has been disabled. Please "
-                "check the permissions and owner of that directory. If "
-                "executing pip with sudo, you may want sudo's -H flag.",
-                cache,
-            )
-            cache = None
+        # Our Insecure HTTPAdapter disables HTTPS validation. It does not
+        # support caching so we'll use it for all http:// URLs.
+        # If caching is disabled, we will also use it for
+        # https:// hosts that we've marked as ignoring
+        # TLS errors for (trusted-hosts).
+        insecure_adapter = InsecureHTTPAdapter(max_retries=retries)
 
-        # We want to _only_ cache responses on securely fetched origins. We do
-        # this because we can't validate the response of an insecurely fetched
+        # We want to _only_ cache responses on securely fetched origins or when
+        # the host is specified as trusted. We do this because
+        # we can't validate the response of an insecurely/untrusted fetched
         # origin, and we don't want someone to be able to poison the cache and
         # require manual eviction from the cache to fix it.
         if cache:
@@ -291,16 +287,13 @@ class PipSession(requests.Session):
                 cache=SafeFileCache(cache),
                 max_retries=retries,
             )
+            self._trusted_host_adapter = InsecureCacheControlAdapter(
+                cache=SafeFileCache(cache),
+                max_retries=retries,
+            )
         else:
             secure_adapter = HTTPAdapter(max_retries=retries)
-
-        # Our Insecure HTTPAdapter disables HTTPS validation. It does not
-        # support caching (see above) so we'll use it for all http:// URLs as
-        # well as any https:// host that we've marked as ignoring TLS errors
-        # for.
-        insecure_adapter = InsecureHTTPAdapter(max_retries=retries)
-        # Save this for later use in add_insecure_host().
-        self._insecure_adapter = insecure_adapter
+            self._trusted_host_adapter = insecure_adapter
 
         self.mount("https://", secure_adapter)
         self.mount("http://", insecure_adapter)
@@ -310,6 +303,14 @@ class PipSession(requests.Session):
 
         for host in trusted_hosts:
             self.add_trusted_host(host, suppress_logging=True)
+
+    def update_index_urls(self, new_index_urls):
+        # type: (List[str]) -> None
+        """
+        :param new_index_urls: New index urls to update the authentication
+            handler with.
+        """
+        self.auth.index_urls = new_index_urls
 
     def add_trusted_host(self, host, source=None, suppress_logging=False):
         # type: (str, Optional[str], bool) -> None
@@ -329,12 +330,15 @@ class PipSession(requests.Session):
         if host_port not in self.pip_trusted_origins:
             self.pip_trusted_origins.append(host_port)
 
-        self.mount(build_url_from_netloc(host) + '/', self._insecure_adapter)
+        self.mount(
+            build_url_from_netloc(host) + '/',
+            self._trusted_host_adapter
+        )
         if not host_port[1]:
             # Mount wildcard ports for the same host.
             self.mount(
                 build_url_from_netloc(host) + ':',
-                self._insecure_adapter
+                self._trusted_host_adapter
             )
 
     def iter_secure_origins(self):

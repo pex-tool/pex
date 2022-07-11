@@ -1,17 +1,17 @@
-******
+***
 pex
-******
+***
 This project is the home of the .pex file, and the ``pex`` tool which can create them.
 ``pex`` also provides a general purpose Python environment-virtualization solution similar to `virtualenv <http://virtualenv.org>`_.
 pex is short for "Python Executable"
 
 in brief
-===
+========
 To quickly get started building .pex files, go straight to :ref:`buildingpex`.
 New to python packaging?  Check out `packaging.python.org <https://packaging.python.org>`_.
 
 intro & history
-===
+===============
 pex contains the Python packaging and distribution libraries originally available through the
 `twitter commons <https://github.com/twitter/commons>`_ but since split out into a separate project.
 The most notable components of pex are the .pex (Python EXecutable) format and the
@@ -32,4 +32,4 @@ Guide:
    whatispex
    buildingpex
    recipes
-   api/index
+   api/vars

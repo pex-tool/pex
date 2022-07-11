@@ -8,29 +8,54 @@ sources, requirements and their dependencies.
 
 from __future__ import absolute_import, print_function
 
+import itertools
+import json
 import os
 import sys
-from optparse import OptionGroup, OptionParser, OptionValueError
+from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
 from textwrap import TextWrapper
 
 from pex import pex_warnings
-from pex.common import die, safe_delete, safe_mkdtemp
-from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import (
-    UnsatisfiableInterpreterConstraintsError,
-    validate_constraints,
+from pex.argparse import HandleBoolAction
+from pex.bin.sh_boot import create_sh_boot_script
+from pex.commands.command import (
+    GlobalConfigurationError,
+    global_environment,
+    register_global_arguments,
 )
-from pex.jobs import DEFAULT_MAX_JOBS
-from pex.network_configuration import NetworkConfiguration
+from pex.common import die, safe_mkdtemp
+from pex.enum import Enum
+from pex.inherit_path import InheritPath
+from pex.layout import Layout, maybe_install
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
-from pex.pex_bootstrapper import iter_compatible_interpreters
-from pex.pex_builder import PEXBuilder
-from pex.platforms import Platform
-from pex.resolver import Unsatisfiable, parsed_platform, resolve_multi
+from pex.pex_bootstrapper import ensure_venv
+from pex.pex_builder import CopyMode, PEXBuilder
+from pex.pex_info import PexInfo
+from pex.resolve import requirement_options, resolver_options, target_configuration, target_options
+from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.lock_resolver import resolve_from_lock
+from pex.resolve.pex_repository_resolver import resolve_from_pex
+from pex.resolve.requirement_configuration import RequirementConfiguration
+from pex.resolve.resolver_configuration import (
+    LockRepositoryConfiguration,
+    PexRepositoryConfiguration,
+)
+from pex.resolve.resolvers import Unsatisfiable
+from pex.resolver import resolve
+from pex.result import catch, try_
+from pex.targets import Targets
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
+from pex.venv.bin_path import BinPath
 from pex.version import __version__
+
+if TYPE_CHECKING:
+    from argparse import Namespace
+    from typing import Dict, List, Optional
+
+    from pex.resolve.resolver_options import ResolverConfiguration
 
 CANNOT_SETUP_INTERPRETER = 102
 INVALID_OPTIONS = 103
@@ -41,109 +66,41 @@ def log(msg, V=0):
         print(msg, file=sys.stderr)
 
 
-def parse_bool(option, opt_str, _, parser):
-    setattr(parser.values, option.dest, not opt_str.startswith("--no"))
+class HandleVenvAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        kwargs["choices"] = (BinPath.PREPEND.value, BinPath.APPEND.value)
+        super(HandleVenvAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        bin_path = BinPath.FALSE if value is None else BinPath.for_value(value)
+        setattr(namespace, self.dest, bin_path)
 
 
-def increment_verbosity(option, opt_str, _, parser):
-    verbosity = getattr(parser.values, option.dest, 0)
-    setattr(parser.values, option.dest, verbosity + 1)
-
-
-def process_disable_cache(option, option_str, option_value, parser):
-    setattr(parser.values, option.dest, None)
-
-
-class PyPiSentinel(object):
-    def __str__(self):
-        return "https://pypi.org/simple"
-
-
-_PYPI = PyPiSentinel()
-
-
-def process_pypi_option(option, option_str, option_value, parser):
-    if option_str.startswith("--no"):
-        setattr(parser.values, option.dest, [])
-    else:
-        indexes = getattr(parser.values, option.dest, [])
-        if _PYPI not in indexes:
-            indexes.append(_PYPI)
-        setattr(parser.values, option.dest, indexes)
-
-
-def process_find_links(option, option_str, option_value, parser):
-    find_links = getattr(parser.values, option.dest, [])
-    if option_value not in find_links:
-        find_links.append(option_value)
-    setattr(parser.values, option.dest, find_links)
-
-
-def process_index_url(option, option_str, option_value, parser):
-    indexes = getattr(parser.values, option.dest, [])
-    if option_value not in indexes:
-        indexes.append(option_value)
-    setattr(parser.values, option.dest, indexes)
-
-
-_DEFAULT_MANYLINUX_STANDARD = "manylinux2014"
-
-
-def process_manylinux(option, option_str, option_value, parser):
-    if option_str.startswith("--no"):
-        setattr(parser.values, option.dest, None)
-    elif option_value.startswith("manylinux"):
-        setattr(parser.values, option.dest, option_value)
-    else:
-        raise OptionValueError(
-            "Please specify a manylinux standard; ie: --manylinux=manylinux1. "
-            "Given {}".format(option_value)
-        )
-
-
-def process_transitive(option, option_str, option_value, parser):
-    transitive = option_str == "--transitive"
-    setattr(parser.values, option.dest, transitive)
-
-
-def print_variable_help(option, option_str, option_value, parser):
-    for variable_name, variable_type, variable_help in Variables.iter_help():
-        print("\n%s: %s\n" % (variable_name, variable_type))
-        for line in TextWrapper(initial_indent=" " * 4, subsequent_indent=" " * 4).wrap(
-            variable_help
-        ):
-            print(line)
-    sys.exit(0)
-
-
-def process_platform(option, option_str, option_value, parser):
-    platforms = getattr(parser.values, option.dest, [])
-    try:
-        platforms.append(parsed_platform(option_value))
-    except Platform.InvalidPlatformError as e:
-        raise OptionValueError("The {} option is invalid:\n{}".format(option_str, e))
+class PrintVariableHelpAction(Action):
+    def __call__(self, parser, namespace, values, option_str=None):
+        for variable_name, variable_type, variable_help in Variables.iter_help():
+            print("\n%s: %s\n" % (variable_name, variable_type))
+            for line in TextWrapper(initial_indent=" " * 4, subsequent_indent=" " * 4).wrap(
+                variable_help
+            ):
+                print(line)
+        sys.exit(0)
 
 
 def configure_clp_pex_resolution(parser):
-    group = OptionGroup(
-        parser,
-        "Resolver options",
-        "Tailor how to find, resolve and translate the packages that get put into the PEX "
-        "environment.",
+    # type: (ArgumentParser) -> None
+    group = parser.add_argument_group(
+        title="Resolver options",
+        description=(
+            "Tailor how to find, resolve and translate the packages that get put into the PEX "
+            "environment."
+        ),
     )
 
-    group.add_option(
-        "--pypi",
-        "--no-pypi",
-        "--no-index",
-        action="callback",
-        dest="indexes",
-        default=[_PYPI],
-        callback=process_pypi_option,
-        help="Whether to use pypi to resolve dependencies; Default: use pypi",
-    )
+    resolver_options.register(group, include_pex_repository=True, include_lock=True)
 
-    group.add_option(
+    group.add_argument(
         "--pex-path",
         dest="pex_path",
         type=str,
@@ -151,334 +108,218 @@ def configure_clp_pex_resolution(parser):
         help="A colon separated list of other pex files to merge into the runtime environment.",
     )
 
-    group.add_option(
-        "-f",
-        "--find-links",
-        "--repo",
-        metavar="PATH/URL",
-        action="callback",
-        default=[],
-        dest="find_links",
-        callback=process_find_links,
-        type=str,
-        help="Additional repository path (directory or URL) to look for requirements.",
-    )
-
-    group.add_option(
-        "-i",
-        "--index",
-        "--index-url",
-        metavar="URL",
-        action="callback",
-        dest="indexes",
-        callback=process_index_url,
-        type=str,
-        help="Additional cheeseshop indices to use to satisfy requirements.",
-    )
-
-    default_net_config = NetworkConfiguration.create()
-
-    group.add_option(
-        "--cache-ttl",
-        metavar="SECS",
-        default=default_net_config.cache_ttl,
-        type=int,
-        help="Set the maximum age of items in the HTTP cache in seconds. [Default: %default]",
-    )
-
-    group.add_option(
-        "--retries",
-        default=default_net_config.retries,
-        type=int,
-        help="Maximum number of retries each connection should attempt. [Default: %default]",
-    )
-
-    group.add_option(
-        "--timeout",
-        metavar="SECS",
-        default=default_net_config.timeout,
-        type=int,
-        help="Set the socket timeout in seconds. [Default: %default]",
-    )
-
-    group.add_option(
-        "-H",
-        "--header",
-        dest="headers",
-        metavar="NAME:VALUE",
-        default=[],
-        type=str,
-        action="append",
-        help="Additional HTTP headers to include in all requests.",
-    )
-
-    group.add_option(
-        "--proxy",
-        type=str,
-        default=None,
-        help="Specify a proxy in the form [user:passwd@]proxy.server:port.",
-    )
-
-    group.add_option(
-        "--cert", metavar="PATH", type=str, default=None, help="Path to alternate CA bundle."
-    )
-
-    group.add_option(
-        "--client-cert",
-        metavar="PATH",
-        type=str,
-        default=None,
-        help="Path to an SSL client certificate which should be a single file containing the private "
-        "key and the certificate in PEM format.",
-    )
-
-    group.add_option(
-        "--pre",
-        "--no-pre",
-        dest="allow_prereleases",
-        default=False,
-        action="callback",
-        callback=parse_bool,
-        help="Whether to include pre-release and development versions of requirements; "
-        "Default: only stable versions are used, unless explicitly requested",
-    )
-
-    group.add_option(
-        "--disable-cache",
-        dest="disable_cache",
-        default=False,
-        action="store_true",
-        help="Disable caching in the pex tool entirely.",
-    )
-
-    group.add_option(
-        "--cache-dir",
-        dest="cache_dir",
-        default=None,
-        help="DEPRECATED: Use --pex-root instead. "
-        "The local cache directory to use for speeding up requirement "
-        "lookups. [Default: {}]".format(ENV.PEX_ROOT),
-    )
-
-    group.add_option(
-        "--wheel",
-        "--no-wheel",
-        "--no-use-wheel",
-        dest="use_wheel",
-        default=True,
-        action="callback",
-        callback=parse_bool,
-        help="Whether to allow wheel distributions; Default: allow wheels",
-    )
-
-    group.add_option(
-        "--build",
-        "--no-build",
-        dest="build",
-        default=True,
-        action="callback",
-        callback=parse_bool,
-        help="Whether to allow building of distributions from source; Default: allow builds",
-    )
-
-    group.add_option(
-        "--manylinux",
-        "--no-manylinux",
-        "--no-use-manylinux",
-        dest="manylinux",
-        type=str,
-        default=_DEFAULT_MANYLINUX_STANDARD,
-        action="callback",
-        callback=process_manylinux,
-        help=(
-            "Whether to allow resolution of manylinux wheels for linux target "
-            "platforms; Default: allow manylinux wheels compatible with {}".format(
-                _DEFAULT_MANYLINUX_STANDARD
-            )
-        ),
-    )
-
-    group.add_option(
-        "--transitive",
-        "--no-transitive",
-        "--intransitive",
-        dest="transitive",
-        default=True,
-        action="callback",
-        callback=process_transitive,
-        help="Whether to transitively resolve requirements. Default: True",
-    )
-
-    group.add_option(
-        "-j",
-        "--jobs",
-        metavar="JOBS",
-        dest="max_parallel_jobs",
-        type=int,
-        default=DEFAULT_MAX_JOBS,
-        help="The maximum number of parallel jobs to use when resolving, building and installing "
-        "distributions. You might want to increase the maximum number of parallel jobs to "
-        "potentially improve the latency of the pex creation process at the expense of other"
-        "processes on your system. [Default: %default]",
-    )
-
-    parser.add_option_group(group)
-
 
 def configure_clp_pex_options(parser):
-    group = OptionGroup(
-        parser,
+    # type: (ArgumentParser) -> None
+    group = parser.add_argument_group(
         "PEX output options",
         "Tailor the behavior of the emitted .pex file if -o is specified.",
     )
 
-    group.add_option(
+    group.add_argument(
+        "--include-tools",
+        dest="include_tools",
+        default=False,
+        action=HandleBoolAction,
+        help="Whether to include runtime tools in the pex file. If included, these can be run by "
+        "exporting PEX_TOOLS=1 and following the usage and --help information.",
+    )
+
+    group.add_argument(
         "--zip-safe",
         "--not-zip-safe",
         dest="zip_safe",
-        default=True,
-        action="callback",
-        callback=parse_bool,
-        help="Whether or not the sources in the pex file are zip safe.  If they are not zip safe, "
-        "they will be written to disk prior to execution. Also see --unzip which will cause the "
-        "complete pex file, including dependencies, to be unzipped."
-        "[Default: zip safe.]",
+        metavar="DEPRECATED",
+        default=None,
+        action=HandleBoolAction,
+        help=(
+            "Deprecated: This option is no longer used since user code is now always unzipped "
+            "before execution."
+        ),
+    )
+    group.add_argument(
+        "--layout",
+        dest="layout",
+        default=Layout.ZIPAPP,
+        choices=Layout.values(),
+        type=Layout.for_value,
+        help=(
+            "By default, a PEX is created as a single file zipapp when `-o` is specified, but "
+            "either a packed or loose directory tree based layout can be chosen instead. A packed "
+            "layout PEX is an executable directory structure designed to have cache-friendly "
+            "characteristics for syncing incremental updates to PEXed applications over a network. "
+            "At the top level of the packed directory tree there is an executable `__main__.py`"
+            "script. The directory can also be executed by passing its path to a Python "
+            "executable; e.g: `python packed-pex-dir/`. The Pex bootstrap code and all dependency "
+            "code are packed into individual zip files for efficient caching and syncing. A loose "
+            "layout PEX is similar to a packed PEX, except that neither the Pex bootstrap code nor "
+            "the dependency code are packed into zip files, but are instead present as collections "
+            "of loose files in the directory tree providing different caching and syncing "
+            "tradeoffs. Both zipapp and packed layouts install themselves in the PEX_ROOT as loose "
+            "apps by default before executing, but these layouts compose with `--venv` execution "
+            "mode as well and support `--seed`ing."
+        ),
     )
 
-    group.add_option(
+    group.add_argument(
+        "--compress",
+        "--compressed",
+        "--no-compress",
+        "--not-compressed",
+        "--no-compression",
+        dest="compress",
+        default=True,
+        action=HandleBoolAction,
+        help=(
+            "Whether to compress zip entries when creating either a zipapp PEX file or a packed "
+            "PEX's bootstrap and dependency zip files. Does nothing for loose layout PEXes."
+        ),
+    )
+
+    runtime_mode = group.add_mutually_exclusive_group()
+    runtime_mode.add_argument(
         "--unzip",
         "--no-unzip",
         dest="unzip",
+        metavar="DEPRECATED",
+        default=None,
+        action=HandleBoolAction,
+        help=(
+            "Deprecated: This option is no longer used since unzipping PEX zip files before "
+            "execution is now the default."
+        ),
+    )
+    runtime_mode.add_argument(
+        "--venv",
+        dest="venv",
+        metavar="{prepend,append}",
         default=False,
-        action="callback",
-        callback=parse_bool,
-        help="Whether or not the pex file should be unzipped before executing it. If the pex file will "
-        "be run multiple times under a stable runtime PEX_ROOT the unzipping will only be "
-        "performed once and subsequent runs will enjoy lower startup latency. "
-        "[Default: do not unzip.]",
+        action=HandleVenvAction,
+        help="Convert the pex file to a venv before executing it. If 'prepend' or 'append' is "
+        "specified, then all scripts and console scripts provided by distributions in the pex file "
+        "will be added to the PATH in the corresponding position. If the the pex file will be run "
+        "multiple times under a stable runtime PEX_ROOT, the venv creation will only be done once "
+        "and subsequent runs will enjoy lower startup latency.",
+    )
+    group.add_argument(
+        "--venv-copies",
+        "--no-venv-copies",
+        dest="venv_copies",
+        default=False,
+        action=HandleBoolAction,
+        help=(
+            "If --venv is specified, create the venv using copies of base interpreter files "
+            "instead of symlinks. This allows --venv mode PEXes to work across interpreter "
+            "upgrades without being forced to remove the PEX_ROOT to allow the venv to re-build "
+            "using the upgraded interpreter."
+        ),
+    )
+    group.add_argument(
+        "--venv-site-packages-copies",
+        "--no-venv-site-packages-copies",
+        dest="venv_site_packages_copies",
+        default=False,
+        action=HandleBoolAction,
+        help=(
+            "If --venv is specified, populate the venv site packages using hard links or copies of "
+            "resolved PEX dependencies instead of symlinks. This can be used to work around "
+            "problems with tools or libraries that are confused by symlinked source files."
+        ),
     )
 
-    group.add_option(
+    group.add_argument(
         "--always-write-cache",
         dest="always_write_cache",
-        default=False,
+        default=None,
         action="store_true",
-        help="Always write the internally cached distributions to disk prior to invoking "
-        "the pex source code.  This can use less memory in RAM constrained "
-        "environments. [Default: %default]",
+        help=(
+            "Deprecated: This option is no longer used; all internally cached distributions in a "
+            "PEX are always installed into the local Pex dependency cache."
+        ),
     )
 
-    group.add_option(
+    group.add_argument(
         "--ignore-errors",
         dest="ignore_errors",
         default=False,
         action="store_true",
         help="Ignore requirement resolution solver errors when building pexes and later invoking "
-        "them. [Default: %default]",
+        "them.",
     )
 
-    group.add_option(
+    group.add_argument(
         "--inherit-path",
         dest="inherit_path",
-        default="false",
-        action="store",
-        choices=["false", "fallback", "prefer"],
+        default=InheritPath.FALSE,
+        choices=InheritPath.values(),
+        type=InheritPath.for_value,
         help="Inherit the contents of sys.path (including site-packages, user site-packages and "
-        "PYTHONPATH) running the pex. Possible values: false (does not inherit sys.path), "
-        "fallback (inherits sys.path after packaged dependencies), prefer (inherits sys.path "
+        "PYTHONPATH) running the pex. Possible values: {false} (does not inherit sys.path), "
+        "{fallback} (inherits sys.path after packaged dependencies), {prefer} (inherits sys.path "
         "before packaged dependencies), No value (alias for prefer, for backwards "
-        "compatibility). [Default: %default]",
+        "compatibility).".format(
+            false=InheritPath.FALSE, fallback=InheritPath.FALLBACK, prefer=InheritPath.PREFER
+        ),
     )
 
-    group.add_option(
+    group.add_argument(
         "--compile",
         "--no-compile",
         dest="compile",
         default=False,
-        action="callback",
-        callback=parse_bool,
+        action=HandleBoolAction,
         help="Compiling means that the built pex will include .pyc files, which will result in "
         "slightly faster startup performance. However, compiling means that the generated pex "
         "likely will not be reproducible, meaning that if you were to run `./pex -o` with the "
         "same inputs then the new pex would not be byte-for-byte identical to the original.",
     )
 
-    group.add_option(
+    group.add_argument(
         "--use-system-time",
         "--no-use-system-time",
         dest="use_system_time",
         default=False,
-        action="callback",
-        callback=parse_bool,
+        action=HandleBoolAction,
         help="Use the current system time to generate timestamps for the new pex. Otherwise, Pex "
         "will use midnight on January 1, 1980. By using system time, the generated pex "
         "will not be reproducible, meaning that if you were to run `./pex -o` with the "
         "same inputs then the new pex would not be byte-for-byte identical to the original.",
     )
 
-    group.add_option(
+    group.add_argument(
         "--runtime-pex-root",
         dest="runtime_pex_root",
         default=None,
-        help="Specify the pex root to be used in the generated .pex file. [Default: ~/.pex]",
+        help="Specify the pex root to be used in the generated .pex file (if unspecified, "
+        "uses ~/.pex).",
     )
 
-    group.add_option(
+    group.add_argument(
         "--strip-pex-env",
         "--no-strip-pex-env",
         dest="strip_pex_env",
         default=True,
-        action="callback",
-        callback=parse_bool,
+        action=HandleBoolAction,
         help="Strip all `PEX_*` environment variables used to control the pex runtime before handing "
         "off control to the pex entrypoint. You might want to set this to `False` if the new "
-        "pex executes other pexes (or the Pex CLI itself and you want the executed pex to be "
-        "controllable via `PEX_*` environment variables. [Default: %default]",
+        "pex executes other pexes (or the Pex CLI itself) and you want the executed pex to be "
+        "controllable via `PEX_*` environment variables.",
     )
-
-    parser.add_option_group(group)
 
 
 def configure_clp_pex_environment(parser):
-    group = OptionGroup(
-        parser,
-        "PEX environment options",
-        "Tailor the interpreter and platform targets for the PEX environment.",
+    # type: (ArgumentParser) -> None
+    group = parser.add_argument_group(
+        "PEX target environment options",
+        "Specify which target environments the PEX should run on. If more than one interpreter or "
+        "platform is specified, a multi-platform PEX will be created that can run on all specified "
+        "targets. N.B.: You may need to adjust the `--python-shebang` so that it works in all "
+        "the specified target environments.",
     )
 
-    group.add_option(
-        "--python",
-        dest="python",
-        default=[],
-        type="str",
-        action="append",
-        help="The Python interpreter to use to build the pex.  Either specify an explicit "
-        "path to an interpreter, or specify a binary accessible on $PATH. This option "
-        "can be passed multiple times to create a multi-interpreter compatible pex. "
-        "Default: Use current interpreter.",
-    )
+    target_options.register(group)
 
-    group.add_option(
-        "--interpreter-constraint",
-        dest="interpreter_constraint",
-        default=[],
-        type="str",
-        action="append",
-        help="Constrain the selected Python interpreter. Specify with Requirement-style syntax, "
-        'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3) '
-        'or "PyPy" (A pypy interpreter of any version). This argument may be repeated multiple '
-        "times to OR the constraints.",
-    )
-
-    group.add_option(
-        "--rcfile",
-        dest="rc_file",
-        default=None,
-        help="An additional path to a pexrc file to read during configuration parsing. "
-        "Used primarily for testing.",
-    )
-
-    group.add_option(
+    group.add_argument(
         "--python-shebang",
         dest="python_shebang",
         default=None,
@@ -486,65 +327,36 @@ def configure_clp_pex_environment(parser):
         "#!. This overrides the default behavior, which picks an environment Python "
         "interpreter compatible with the one used to build the PEX file.",
     )
-
-    current_interpreter = PythonInterpreter.get()
-    group.add_option(
-        "--platform",
-        dest="platforms",
-        default=[],
-        type=str,
-        action="callback",
-        callback=process_platform,
-        help="The platform for which to build the PEX. This option can be passed multiple times "
-        "to create a multi-platform pex. To use the platform corresponding to the current "
-        "interpreter you can pass `current`. To target any other platform you pass a string "
-        "composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. These fields "
-        "stem from wheel name conventions as outlined in "
-        "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
-        "https://www.python.org/dev/peps/pep-0425. For the current interpreter at {} the full "
-        "platform string is {}. To find out more, try `{} --platform explain`.".format(
-            current_interpreter.binary, current_interpreter.platform, sys.argv[0]
-        ),
-    )
-
-    group.add_option(
-        "--resolve-local-platforms",
-        dest="resolve_local_platforms",
+    group.add_argument(
+        "--sh-boot",
+        "--no-sh-boot",
+        dest="sh_boot",
         default=False,
-        action="callback",
-        callback=parse_bool,
-        help="When --platforms are specified, attempt to resolve a local interpreter that matches "
-        "each platform specified. If found, use the interpreter to resolve distributions; if "
-        "not, resolve for the platform only allowing matching binary distributions and failing "
-        "if only sdists or non-matching binary distributions can be found.",
-    )
-
-    group.add_option(
-        "--use-first-matching-interpreter",
-        dest="use_first_matching_interpreter",
-        default=False,
-        action="callback",
-        callback=parse_bool,
+        action=HandleBoolAction,
         help=(
-            "If multiple interpreters are valid, use the first one, which is the minimum "
-            "compatible Python version. Normally, when multiple interpreters match, Pex will "
-            "resolve requirements for each interpreter; this allows the resulting Pex to be "
-            "compatible with more interpreters, such as different Python versions. However, "
-            "resolving for multiple interpreters results in worse performance."
+            "Create a modified ZIPAPP that uses `/bin/sh` to boot. If you know the machines that "
+            "the PEX will be distributed to have POSIX compliant `/bin/sh` (almost all do, "
+            "see: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/sh.html); then this "
+            "is probably the way you want your PEX to boot. Instead of launching via a Python "
+            "shebang, the PEX will launch via a `#!/bin/sh` shebang that executes a small script "
+            "embedded in the head of the PEX ZIPAPP that performs initial interpreter selection "
+            "and re-execution of the underlying PEX in a way that is often more robust than a "
+            "Python shebang and always faster on 2nd and subsequent runs since the sh script has a "
+            "constant overhead of O(1ms) whereas the Python overhead to perform the same "
+            "interpreter selection and re-execution is O(100ms)."
         ),
     )
-
-    parser.add_option_group(group)
 
 
 def configure_clp_pex_entry_points(parser):
-    group = OptionGroup(
-        parser,
+    # type: (ArgumentParser) -> None
+    group = parser.add_argument_group(
         "PEX entry point options",
         "Specify what target/module the PEX should invoke if any.",
     )
 
-    group.add_option(
+    entry_point = group.add_mutually_exclusive_group()
+    entry_point.add_argument(
         "-m",
         "-e",
         "--entry-point",
@@ -553,10 +365,10 @@ def configure_clp_pex_entry_points(parser):
         default=None,
         help="Set the entry point to module or module:symbol.  If just specifying module, pex "
         "behaves like python -m, e.g. python -m SimpleHTTPServer.  If specifying "
-        "module:symbol, pex imports that symbol and invokes it as if it were main.",
+        "module:symbol, pex assume symbol is a n0-arg callable and imports that symbol and invokes "
+        "it as if via `sys.exit(symbol())`.",
     )
-
-    group.add_option(
+    entry_point.add_argument(
         "-c",
         "--script",
         "--console-script",
@@ -566,34 +378,74 @@ def configure_clp_pex_entry_points(parser):
         help="Set the entry point as to the script or console_script as defined by a any of the "
         'distributions in the pex.  For example: "pex -c fab fabric" or "pex -c mturk boto".',
     )
-
-    group.add_option(
+    entry_point.add_argument(
+        "--exe",
+        "--executable",
+        "--python-script",
+        dest="executable",
+        default=None,
+        metavar="EXECUTABLE",
+        help=(
+            "Set the entry point to an existing local python script. For example: "
+            '"pex --exe bin/my-python-script".'
+        ),
+    )
+    group.add_argument(
         "--validate-entry-point",
         dest="validate_ep",
         default=False,
         action="store_true",
         help="Validate the entry point by importing it in separate process. Warning: this could have "
         "side effects. For example, entry point `a.b.c:m` will translate to "
-        "`from a.b.c import m` during validation. [Default: %default]",
+        "`from a.b.c import m` during validation.",
     )
 
-    parser.add_option_group(group)
+
+class Seed(Enum["Seed.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    NONE = Value("none")
+    ARGS = Value("args")
+    VERBOSE = Value("verbose")
+
+
+class HandleSeedAction(Action):
+    def __init__(self, *args, **kwargs):
+        kwargs["nargs"] = "?"
+        kwargs["choices"] = [seed.value for seed in Seed.values()]
+        super(HandleSeedAction, self).__init__(*args, **kwargs)
+
+    def __call__(self, parser, namespace, value, option_str=None):
+        seed = Seed.ARGS if value is None else Seed.for_value(value)
+        setattr(namespace, self.dest, seed)
 
 
 def configure_clp():
+    # type: () -> ArgumentParser
     usage = (
-        "%prog [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n"
-        "%prog builds a PEX (Python Executable) file based on the given specifications: "
+        "%(prog)s [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n"
+        "%(prog)s builds a PEX (Python Executable) file based on the given specifications: "
         "sources, requirements, their dependencies and other options."
+        "\n"
+        "Command-line options can be provided in one or more files by prefixing the filenames "
+        "with an @ symbol. These files must contain one argument per line."
     )
 
-    parser = OptionParser(usage=usage, version="%prog {}".format(__version__))
+    parser = ArgumentParser(
+        usage=usage,
+        formatter_class=ArgumentDefaultsHelpFormatter,
+        fromfile_prefix_chars="@",
+    )
+
+    parser.add_argument("-V", "--version", action="version", version=__version__)
+
     configure_clp_pex_resolution(parser)
     configure_clp_pex_options(parser)
     configure_clp_pex_environment(parser)
     configure_clp_pex_entry_points(parser)
 
-    parser.add_option(
+    parser.add_argument(
         "-o",
         "--output-file",
         dest="pex_name",
@@ -602,7 +454,7 @@ def configure_clp():
         "immediately and not save it to a file.",
     )
 
-    parser.add_option(
+    parser.add_argument(
         "-p",
         "--preamble-file",
         dest="preamble_file",
@@ -612,7 +464,7 @@ def configure_clp():
         help="The name of a file to be included as the preamble for the generated .pex file",
     )
 
-    parser.add_option(
+    parser.add_argument(
         "-D",
         "--sources-directory",
         dest="sources_directory",
@@ -620,11 +472,13 @@ def configure_clp():
         default=[],
         type=str,
         action="append",
-        help="Add sources directory to be packaged into the generated .pex file."
-        "  This option can be used multiple times.",
+        help=(
+            "Add a directory containing sources and/or resources to be packaged into the generated "
+            ".pex file. This option can be used multiple times."
+        ),
     )
 
-    parser.add_option(
+    parser.add_argument(
         "-R",
         "--resources-directory",
         dest="resources_directory",
@@ -632,34 +486,16 @@ def configure_clp():
         default=[],
         type=str,
         action="append",
-        help="Add resources directory to be packaged into the generated .pex file."
-        "  This option can be used multiple times.",
+        help=(
+            "Add resources directory to be packaged into the generated .pex file."
+            " This option can be used multiple times. DEPRECATED: Use -D/--sources-directory "
+            "instead."
+        ),
     )
 
-    parser.add_option(
-        "-r",
-        "--requirement",
-        dest="requirement_files",
-        metavar="FILE",
-        default=[],
-        type=str,
-        action="append",
-        help="Add requirements from the given requirements file.  This option can be used multiple "
-        "times.",
-    )
+    requirement_options.register(parser)
 
-    parser.add_option(
-        "--constraints",
-        dest="constraint_files",
-        metavar="FILE",
-        default=[],
-        type=str,
-        action="append",
-        help="Add constraints from the given constraints file.  This option can be used multiple "
-        "times.",
-    )
-
-    parser.add_option(
+    parser.add_argument(
         "--requirements-pex",
         dest="requirements_pexes",
         metavar="FILE",
@@ -669,38 +505,34 @@ def configure_clp():
         help="Add requirements from the given .pex file.  This option can be used multiple times.",
     )
 
-    parser.add_option(
-        "-v",
-        dest="verbosity",
-        default=0,
-        action="callback",
-        callback=increment_verbosity,
-        help="Turn on logging verbosity, may be specified multiple times.",
+    register_global_arguments(parser, include_verbosity=True)
+
+    parser.add_argument(
+        "--seed",
+        dest="seed",
+        action=HandleSeedAction,
+        default=Seed.NONE,
+        help=(
+            "Seed local Pex caches for the generated PEX and print out the command line to run "
+            "directly from the seed with ({args}) or else a json object including the 'pex_root' "
+            "path, the 'python' binary path and the seeded 'pex' path ({seed}).".format(
+                args=Seed.ARGS, seed=Seed.VERBOSE
+            )
+        ),
+    )
+    parser.add_argument(
+        "--no-seed",
+        dest="seed",
+        action="store_const",
+        const=Seed.NONE,
+        metavar="DEPRECATED",
+        help="Deprecated: Use --seed=none instead.",
     )
 
-    parser.add_option(
-        "--emit-warnings",
-        "--no-emit-warnings",
-        dest="emit_warnings",
-        action="callback",
-        callback=parse_bool,
-        default=True,
-        help="Emit runtime UserWarnings on stderr. If false, only emit them when PEX_VERBOSE is set."
-        "Default: emit user warnings to stderr",
-    )
-
-    parser.add_option(
-        "--pex-root",
-        dest="pex_root",
-        default=None,
-        help="Specify the pex root used in this invocation of pex. "
-        "[Default: {}]".format(ENV.PEX_ROOT),
-    )
-
-    parser.add_option(
+    parser.add_argument(
         "--help-variables",
-        action="callback",
-        callback=print_variable_help,
+        action=PrintVariableHelpAction,
+        nargs=0,
         help="Print out help about the various environment variables used to change the behavior of "
         "a running PEX file.",
     )
@@ -708,196 +540,184 @@ def configure_clp():
     return parser
 
 
-def _safe_link(src, dst):
-    try:
-        os.unlink(dst)
-    except OSError:
-        pass
-    os.symlink(src, dst)
+def build_pex(
+    requirement_configuration,  # type: RequirementConfiguration
+    resolver_configuration,  # type: ResolverConfiguration
+    targets,  # type: Targets
+    options,  # type: Namespace
+):
+    # type: (...) -> PEXBuilder
 
-
-def build_pex(reqs, options, cache=None):
-    interpreters = None  # Default to the current interpreter.
-
-    pex_python_path = None  # Defaults to $PATH
-    if options.rc_file or not ENV.PEX_IGNORE_RCFILES:
-        rc_variables = Variables(rc=options.rc_file)
-        pex_python_path = rc_variables.PEX_PYTHON_PATH
-
-    # NB: options.python and interpreter constraints cannot be used together.
-    if options.python:
-        with TRACER.timed("Resolving interpreters", V=2):
-
-            def to_python_interpreter(full_path_or_basename):
-                if os.path.isfile(full_path_or_basename):
-                    return PythonInterpreter.from_binary(full_path_or_basename)
-                else:
-                    interpreter = PythonInterpreter.from_env(full_path_or_basename)
-                    if interpreter is None:
-                        die("Failed to find interpreter: %s" % full_path_or_basename)
-                    return interpreter
-
-            interpreters = [to_python_interpreter(interp) for interp in options.python]
-    elif options.interpreter_constraint:
-        with TRACER.timed("Resolving interpreters", V=2):
-            constraints = options.interpreter_constraint
-            validate_constraints(constraints)
-            try:
-                interpreters = list(iter_compatible_interpreters(pex_python_path, constraints))
-            except UnsatisfiableInterpreterConstraintsError as e:
-                die(
-                    e.create_message("Could not find a compatible interpreter."),
-                    CANNOT_SETUP_INTERPRETER,
-                )
-
-    platforms = OrderedSet(options.platforms)
-    interpreters = interpreters or []
-    if options.platforms and options.resolve_local_platforms:
-        with TRACER.timed(
-            "Searching for local interpreters matching {}".format(", ".join(map(str, platforms)))
-        ):
-            candidate_interpreters = OrderedSet(iter_compatible_interpreters(pex_python_path))
-            candidate_interpreters.add(PythonInterpreter.get())
-            for candidate_interpreter in candidate_interpreters:
-                resolved_platforms = candidate_interpreter.supported_platforms.intersection(
-                    platforms
-                )
-                if resolved_platforms:
-                    for resolved_platform in resolved_platforms:
-                        TRACER.log(
-                            "Resolved {} for platform {}".format(
-                                candidate_interpreter, resolved_platform
-                            )
-                        )
-                        platforms.remove(resolved_platform)
-                    interpreters.append(candidate_interpreter)
-        if platforms:
-            TRACER.log(
-                "Could not resolve a local interpreter for {}, will resolve only binary distributions "
-                "for {}.".format(
-                    ", ".join(map(str, platforms)),
-                    "this platform" if len(platforms) == 1 else "these platforms",
-                )
-            )
-
-    interpreter = min(interpreters) if interpreters else None
-    if options.use_first_matching_interpreter and interpreters:
-        if len(interpreters) > 1:
-            unused_interpreters = set(interpreters) - {interpreter}
-            TRACER.log(
-                "Multiple interpreters resolved, but only using {} because "
-                "`--use-first-matching-interpreter` was used. These interpreters were matched but "
-                "will not be used: {}".format(
-                    interpreter.binary,
-                    ", ".join(interpreter.binary for interpreter in sorted(unused_interpreters)),
-                )
-            )
-        interpreters = [interpreter]
-
-    try:
+    preamble = None  # type: Optional[str]
+    if options.preamble_file:
         with open(options.preamble_file) as preamble_fd:
             preamble = preamble_fd.read()
-    except TypeError:
-        # options.preamble_file is None
-        preamble = None
 
-    pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter, preamble=preamble)
+    pex_builder = PEXBuilder(
+        path=safe_mkdtemp(),
+        interpreter=targets.interpreter,
+        preamble=preamble,
+        copy_mode=CopyMode.SYMLINK,
+    )
 
-    def walk_and_do(fn, src_dir):
-        src_dir = os.path.normpath(src_dir)
-        for root, dirs, files in os.walk(src_dir):
+    if options.resources_directory:
+        pex_warnings.warn(
+            "The `-R/--resources-directory` option is deprecated. Resources should be added via "
+            "`-D/--sources-directory` instead."
+        )
+
+    if options.zip_safe is not None:
+        pex_warnings.warn(
+            "The `--zip-safe/--not-zip-safe` option is deprecated. This option is no longer used "
+            "since user code is now always unzipped before execution."
+        )
+
+    if options.unzip is not None:
+        pex_warnings.warn(
+            "The `--unzip/--no-unzip` option is deprecated. This option is no longer used since "
+            "unzipping PEX zip files before execution is now the default."
+        )
+
+    if options.always_write_cache is not None:
+        pex_warnings.warn(
+            "The `--always-write-cache` option is deprecated. This option is no longer used; all "
+            "internally cached distributions in a PEX are always installed into the local Pex "
+            "dependency cache."
+        )
+
+    directories = OrderedSet(
+        options.sources_directory + options.resources_directory
+    )  # type: OrderedSet[str]
+    for directory in directories:
+        src_dir = os.path.normpath(directory)
+        for root, _, files in os.walk(src_dir):
             for f in files:
                 src_file_path = os.path.join(root, f)
                 dst_path = os.path.relpath(src_file_path, src_dir)
-                fn(src_file_path, dst_path)
-
-    for directory in options.sources_directory:
-        walk_and_do(pex_builder.add_source, directory)
-
-    for directory in options.resources_directory:
-        walk_and_do(pex_builder.add_resource, directory)
+                pex_builder.add_source(src_file_path, dst_path)
 
     pex_info = pex_builder.info
-    pex_info.zip_safe = options.zip_safe
-    pex_info.unzip = options.unzip
+    pex_info.venv = bool(options.venv)
+    pex_info.venv_bin_path = options.venv or BinPath.FALSE
+    pex_info.venv_copies = options.venv_copies
+    pex_info.venv_site_packages_copies = options.venv_site_packages_copies
+    pex_info.includes_tools = options.include_tools or options.venv
     pex_info.pex_path = options.pex_path
-    pex_info.always_write_cache = options.always_write_cache
     pex_info.ignore_errors = options.ignore_errors
     pex_info.emit_warnings = options.emit_warnings
     pex_info.inherit_path = options.inherit_path
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
 
-    # If we're only building the PEX for the first of many interpreters due to
-    # `--use-first-matching-interpreter` selection, we do not want to enable those same interpreter
-    # constraints at runtime, where they could lead to a different interpreter being selected
-    # leading to a failure to execute the PEX. Instead we rely on the shebang set by that single
-    # interpreter to pick out a similar interpreter at runtime (for a CPython interpreter, the
-    # shebang will be `#!/usr/bin/env pythonX.Y` which should generally be enough to select a
-    # matching interpreter. To be clear though, there are many corners this will not work for
-    # including mismatching abi (python2.7m vs python2.7mu) when the PEX contains platform specific
-    # wheels, etc.
-    if options.interpreter_constraint and not options.use_first_matching_interpreter:
+    if options.interpreter_constraint:
         for ic in options.interpreter_constraint:
             pex_builder.add_interpreter_constraint(ic)
-
-    # NB: `None` means use the default (pypi) index, `[]` means use no indexes.
-    indexes = None
-    if options.indexes != [_PYPI] and options.indexes is not None:
-        indexes = [str(index) for index in options.indexes]
 
     for requirements_pex in options.requirements_pexes:
         pex_builder.add_from_requirements_pex(requirements_pex)
 
-    with TRACER.timed("Resolving distributions ({})".format(reqs + options.requirement_files)):
-        network_configuration = NetworkConfiguration.create(
-            cache_ttl=options.cache_ttl,
-            retries=options.retries,
-            timeout=options.timeout,
-            headers=options.headers,
-            proxy=options.proxy,
-            cert=options.cert,
-            client_cert=options.client_cert,
-        )
-
-        try:
-            resolveds = resolve_multi(
-                requirements=reqs,
-                requirement_files=options.requirement_files,
-                constraint_files=options.constraint_files,
-                allow_prereleases=options.allow_prereleases,
-                transitive=options.transitive,
-                interpreters=interpreters,
-                platforms=list(platforms),
-                indexes=indexes,
-                find_links=options.find_links,
-                network_configuration=network_configuration,
-                cache=cache,
-                build=options.build,
-                use_wheel=options.use_wheel,
-                compile=options.compile,
-                manylinux=options.manylinux,
-                max_parallel_jobs=options.max_parallel_jobs,
-                ignore_errors=options.ignore_errors,
-            )
-
-            for resolved_dist in resolveds:
-                log(
-                    "  %s -> %s" % (resolved_dist.requirement, resolved_dist.distribution),
-                    V=options.verbosity,
+    with TRACER.timed(
+        "Resolving distributions ({})".format(
+            " ".join(
+                itertools.chain.from_iterable(
+                    (
+                        requirement_configuration.requirements or (),
+                        requirement_configuration.requirement_files or (),
+                    )
                 )
-                pex_builder.add_distribution(resolved_dist.distribution)
-                pex_builder.add_requirement(resolved_dist.requirement)
-        except Unsatisfiable as e:
-            die(e)
+            )
+        )
+    ):
+        try:
+            if isinstance(resolver_configuration, LockRepositoryConfiguration):
+                lock = try_(resolver_configuration.parse_lock())
+                with TRACER.timed(
+                    "Resolving requirements from lock file {lock_file}".format(
+                        lock_file=lock.source
+                    )
+                ):
+                    pip_configuration = resolver_configuration.pip_configuration
+                    result = try_(
+                        resolve_from_lock(
+                            targets=targets,
+                            lock=lock,
+                            resolver=ConfiguredResolver(pip_configuration=pip_configuration),
+                            requirements=requirement_configuration.requirements,
+                            requirement_files=requirement_configuration.requirement_files,
+                            constraint_files=requirement_configuration.constraint_files,
+                            transitive=pip_configuration.transitive,
+                            indexes=pip_configuration.repos_configuration.indexes,
+                            find_links=pip_configuration.repos_configuration.find_links,
+                            resolver_version=pip_configuration.resolver_version,
+                            network_configuration=pip_configuration.network_configuration,
+                            password_entries=pip_configuration.repos_configuration.password_entries,
+                            build=pip_configuration.allow_builds,
+                            use_wheel=pip_configuration.allow_wheels,
+                            prefer_older_binary=pip_configuration.prefer_older_binary,
+                            use_pep517=pip_configuration.use_pep517,
+                            build_isolation=pip_configuration.build_isolation,
+                            compile=options.compile,
+                            max_parallel_jobs=pip_configuration.max_jobs,
+                        )
+                    )
+            elif isinstance(resolver_configuration, PexRepositoryConfiguration):
+                with TRACER.timed(
+                    "Resolving requirements from PEX {pex_repository}.".format(
+                        pex_repository=resolver_configuration.pex_repository
+                    )
+                ):
+                    result = resolve_from_pex(
+                        targets=targets,
+                        pex=resolver_configuration.pex_repository,
+                        requirements=requirement_configuration.requirements,
+                        requirement_files=requirement_configuration.requirement_files,
+                        constraint_files=requirement_configuration.constraint_files,
+                        network_configuration=resolver_configuration.network_configuration,
+                        transitive=resolver_configuration.transitive,
+                        ignore_errors=options.ignore_errors,
+                    )
+            else:
+                with TRACER.timed("Resolving requirements."):
+                    result = resolve(
+                        targets=targets,
+                        requirements=requirement_configuration.requirements,
+                        requirement_files=requirement_configuration.requirement_files,
+                        constraint_files=requirement_configuration.constraint_files,
+                        allow_prereleases=resolver_configuration.allow_prereleases,
+                        transitive=resolver_configuration.transitive,
+                        indexes=resolver_configuration.repos_configuration.indexes,
+                        find_links=resolver_configuration.repos_configuration.find_links,
+                        resolver_version=resolver_configuration.resolver_version,
+                        network_configuration=resolver_configuration.network_configuration,
+                        password_entries=resolver_configuration.repos_configuration.password_entries,
+                        build=resolver_configuration.allow_builds,
+                        use_wheel=resolver_configuration.allow_wheels,
+                        prefer_older_binary=resolver_configuration.prefer_older_binary,
+                        use_pep517=resolver_configuration.use_pep517,
+                        build_isolation=resolver_configuration.build_isolation,
+                        compile=options.compile,
+                        max_parallel_jobs=resolver_configuration.max_jobs,
+                        ignore_errors=options.ignore_errors,
+                        preserve_log=resolver_configuration.preserve_log,
+                    )
 
-    if options.entry_point and options.script:
-        die("Must specify at most one entry point or script.", INVALID_OPTIONS)
+            for installed_dist in result.installed_distributions:
+                pex_builder.add_distribution(
+                    installed_dist.distribution, fingerprint=installed_dist.fingerprint
+                )
+                for direct_req in installed_dist.direct_requirements:
+                    pex_builder.add_requirement(direct_req)
+        except Unsatisfiable as e:
+            die(str(e))
 
     if options.entry_point:
         pex_builder.set_entry_point(options.entry_point)
     elif options.script:
         pex_builder.set_script(options.script)
+    elif options.executable:
+        pex_builder.set_executable(
+            filename=options.executable, env_filename="__pex_executable__.py"
+        )
 
     if options.python_shebang:
         pex_builder.set_shebang(options.python_shebang)
@@ -906,11 +726,12 @@ def build_pex(reqs, options, cache=None):
 
 
 def transform_legacy_arg(arg):
+    # type: (str) -> str
     # inherit-path used to be a boolean arg (so either was absent, or --inherit-path)
     # Now it takes a string argument, so --inherit-path is invalid.
     # Fix up the args we're about to parse to preserve backwards compatibility.
     if arg == "--inherit-path":
-        return "--inherit-path=prefer"
+        return "--inherit-path={}".format(InheritPath.PREFER.value)
     return arg
 
 
@@ -933,73 +754,145 @@ def main(args=None):
     except ValueError:
         args, cmdline = args, []
 
-    options, reqs = parser.parse_args(args=args)
+    options = parser.parse_args(args=args)
+    try:
+        with global_environment(options) as env:
+            requirement_configuration = requirement_options.configure(options)
 
-    if options.cache_dir:
-        pex_warnings.warn("The --cache-dir option is deprecated, use --pex-root instead.")
-        if options.pex_root and options.cache_dir != options.pex_root:
-            die(
-                "Both --cache-dir and --pex-root were passed with conflicting values. "
-                "Just set --pex-root."
+            try:
+                resolver_configuration = resolver_options.configure(options)
+            except resolver_options.InvalidConfigurationError as e:
+                die(str(e))
+
+            try:
+                targets = target_options.configure(options).resolve_targets()
+            except target_configuration.InterpreterNotFound as e:
+                die(str(e))
+            except target_configuration.InterpreterConstraintsNotSatisfied as e:
+                die(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
+
+            sys.exit(
+                catch(
+                    do_main,
+                    options=options,
+                    requirement_configuration=requirement_configuration,
+                    resolver_configuration=resolver_configuration,
+                    targets=targets,
+                    cmdline=cmdline,
+                    env=env,
+                )
             )
+    except GlobalConfigurationError as e:
+        die(str(e))
 
-    if options.disable_cache:
 
-        def warn_ignore_pex_root(set_via):
-            pex_warnings.warn(
-                "The pex root has been set via {via} but --disable-cache is also set. "
-                "Ignoring {via} and disabling caches.".format(via=set_via)
-            )
-
-        if options.cache_dir:
-            warn_ignore_pex_root("--cache-dir")
-        elif options.pex_root:
-            warn_ignore_pex_root("--pex-root")
-        elif os.environ.get("PEX_ROOT"):
-            warn_ignore_pex_root("PEX_ROOT")
-
-        pex_root = safe_mkdtemp()
-    else:
-        pex_root = options.cache_dir or options.pex_root or ENV.PEX_ROOT
-
-    if options.python and options.interpreter_constraint:
-        die('The "--python" and "--interpreter-constraint" options cannot be used together.')
-
-    with ENV.patch(PEX_VERBOSE=str(options.verbosity), PEX_ROOT=pex_root) as patched_env:
-        with TRACER.timed("Building pex"):
-            pex_builder = build_pex(reqs, options, cache=ENV.PEX_ROOT)
-
-        pex_builder.freeze(bytecode_compile=options.compile)
-        interpreter = pex_builder.interpreter
-        pex = PEX(
-            pex_builder.path(), interpreter=interpreter, verify_entry_point=options.validate_ep
+def do_main(
+    options,  # type: Namespace
+    requirement_configuration,  # type: RequirementConfiguration
+    resolver_configuration,  # type: ResolverConfiguration
+    targets,  # type: Targets
+    cmdline,  # type: List[str]
+    env,  # type: Dict[str, str]
+):
+    with TRACER.timed("Building pex"):
+        pex_builder = build_pex(
+            requirement_configuration=requirement_configuration,
+            resolver_configuration=resolver_configuration,
+            targets=targets,
+            options=options,
         )
 
-        if options.pex_name is not None:
-            log("Saving PEX file to %s" % options.pex_name, V=options.verbosity)
-            tmp_name = options.pex_name + "~"
-            safe_delete(tmp_name)
-            pex_builder.build(
-                tmp_name,
-                bytecode_compile=options.compile,
-                deterministic_timestamp=not options.use_system_time,
-            )
-            os.rename(tmp_name, options.pex_name)
-        else:
-            if not _compatible_with_current_platform(interpreter, options.platforms):
-                log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
-                log(
-                    "Running on platform {} but built for {}".format(
-                        interpreter.platform, ", ".join(map(str, options.platforms))
-                    ),
-                    V=1,
-                )
+    pex_builder.freeze(bytecode_compile=options.compile)
+    interpreter = pex_builder.interpreter
+    pex = PEX(
+        pex_builder.path(),
+        interpreter=interpreter,
+        verify_entry_point=options.validate_ep,
+    )
 
+    pex_file = options.pex_name
+    if pex_file is not None:
+        log("Saving PEX file to {pex_file}".format(pex_file=pex_file), V=options.verbosity)
+        if options.sh_boot:
+            with TRACER.timed("Creating /bin/sh boot script"):
+                pex_builder.set_shebang("/bin/sh")
+                script = create_sh_boot_script(
+                    pex_name=pex_file,
+                    pex_info=pex.pex_info(),
+                    targets=targets,
+                    interpreter=pex.interpreter,
+                    python_shebang=options.python_shebang,
+                )
+                pex_builder.set_header(script)
+
+        pex_builder.build(
+            pex_file,
+            bytecode_compile=options.compile,
+            deterministic_timestamp=not options.use_system_time,
+            layout=options.layout,
+            compress=options.compress,
+        )
+        if options.seed != Seed.NONE:
+            seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)
+            print(seed_info)
+    else:
+        if not _compatible_with_current_platform(interpreter, targets.platforms):
+            log("WARNING: attempting to run PEX with incompatible platforms!", V=1)
             log(
-                "Running PEX file at %s with args %s" % (pex_builder.path(), cmdline),
-                V=options.verbosity,
+                "Running on platform {} but built for {}".format(
+                    interpreter.platform, ", ".join(map(str, targets.platforms))
+                ),
+                V=1,
             )
-            sys.exit(pex.run(args=list(cmdline), env=patched_env))
+
+        log(
+            "Running PEX file at %s with args %s" % (pex_builder.path(), cmdline),
+            V=options.verbosity,
+        )
+        sys.exit(pex.run(args=list(cmdline), env=env))
+
+
+def seed_cache(
+    options,  # type: Namespace
+    pex,  # type: PEX
+    verbose=False,  # type : bool
+):
+    # type: (...) -> str
+
+    pex_path = cast(str, options.pex_name)
+    with TRACER.timed("Seeding local caches for {}".format(pex_path)):
+        pex_info = pex.pex_info()
+        pex_root = pex_info.pex_root
+
+        def create_verbose_info(final_pex_path):
+            # type: (str) -> Dict[str, str]
+            return dict(pex_root=pex_root, python=pex.interpreter.binary, pex=final_pex_path)
+
+        if options.venv:
+            with TRACER.timed("Creating venv from {}".format(pex_path)):
+                with ENV.patch(PEX=os.path.realpath(os.path.expanduser(pex_path))):
+                    venv_pex = ensure_venv(pex)
+                    if verbose:
+                        return json.dumps(create_verbose_info(final_pex_path=venv_pex))
+                    else:
+                        return venv_pex
+
+        pex_hash = pex_info.pex_hash
+        if pex_hash is None:
+            raise AssertionError(
+                "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex_path)
+            )
+
+        with TRACER.timed("Seeding caches for {}".format(pex_path)):
+            final_pex_path = os.path.join(
+                maybe_install(pex=pex_path, pex_root=pex_root, pex_hash=pex_hash)
+                or os.path.abspath(pex_path),
+                "__main__.py",
+            )
+            if verbose:
+                return json.dumps(create_verbose_info(final_pex_path=final_pex_path))
+            else:
+                return final_pex_path
 
 
 if __name__ == "__main__":

@@ -26,8 +26,9 @@ _svn_info_xml_url_re = re.compile(r'<url>(.*)</url>')
 
 if MYPY_CHECK_RUNNING:
     from typing import Optional, Tuple
-    from pip._internal.utils.subprocess import CommandArgs
+
     from pip._internal.utils.misc import HiddenText
+    from pip._internal.utils.subprocess import CommandArgs
     from pip._internal.vcs.versioncontrol import AuthInfo, RevOptions
 
 
@@ -56,7 +57,7 @@ class Subversion(VersionControl):
         # Note: taken from setuptools.command.egg_info
         revision = 0
 
-        for base, dirs, files in os.walk(location):
+        for base, dirs, _ in os.walk(location):
             if cls.dirname not in dirs:
                 dirs[:] = []
                 continue    # no sense walking uncontrolled subdirs
@@ -151,7 +152,8 @@ class Subversion(VersionControl):
         elif data.startswith('<?xml'):
             match = _svn_xml_url_re.search(data)
             if not match:
-                raise ValueError('Badly formatted data: %r' % data)
+                raise ValueError(
+                    'Badly formatted data: {data!r}'.format(**locals()))
             url = match.group(1)    # get repository URL
             revs = [int(m.group(1)) for m in _svn_rev_re.finditer(data)] + [0]
         else:
@@ -165,6 +167,7 @@ class Subversion(VersionControl):
                 xml = cls.run_command(
                     ['info', '--xml', location],
                     show_stdout=False,
+                    stdout_only=True,
                 )
                 url = _svn_info_xml_url_re.search(xml).group(1)
                 revs = [
@@ -213,13 +216,17 @@ class Subversion(VersionControl):
         #      compiled Feb 25 2019, 14:20:39 on x86_64-apple-darwin17.0.0
         #   svn, version 1.7.14 (r1542130)
         #      compiled Mar 28 2018, 08:49:13 on x86_64-pc-linux-gnu
+        #   svn, version 1.12.0-SlikSvn (SlikSvn/1.12.0)
+        #      compiled May 28 2019, 13:44:56 on x86_64-microsoft-windows6.2
         version_prefix = 'svn, version '
-        version = self.run_command(['--version'], show_stdout=False)
+        version = self.run_command(
+            ['--version'], show_stdout=False, stdout_only=True
+        )
         if not version.startswith(version_prefix):
             return ()
 
         version = version[len(version_prefix):].split()[0]
-        version_list = version.split('.')
+        version_list = version.partition('-')[0].split('.')
         try:
             parsed_version = tuple(map(int, version_list))
         except ValueError:

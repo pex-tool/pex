@@ -9,6 +9,7 @@ author-email = "pantsbuild@gmail.com"
 home-page = "https://github.com/pantsbuild/pex"
 description-file = "README.rst"
 classifiers = [
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: Apache Software License",
   "Operating System :: Unix",
@@ -22,8 +23,17 @@ classifiers = [
   "Programming Language :: Python :: 3.6",
   "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Topic :: Software Development :: Build Tools",
+  "Topic :: System :: Archiving :: Packaging",
+  "Topic :: System :: Software Distribution",
+  "Topic :: Utilities",
 ]
-requires-python = ">=2.7,<3.9,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
+requires-python = ">=2.7,<3.12,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
 
 [tool.flit.metadata.requires-extra]
 # For improved subprocess robustness under python2.7.
@@ -31,22 +41,27 @@ subprocess = ["subprocess32>=3.2.7; python_version<'3'"]
 
 [tool.flit.scripts]
 pex = "pex.bin.pex:main"
+pex3 = "pex.cli.pex:main"
+pex-tools = "pex.tools.main:main"
 
 [tool.flit.entrypoints."distutils.commands"]
 # Make bdist_pex available for folks who install the pex distribution.
-bdist_pex = "pex.commands.bdist_pex:bdist_pex"
+bdist_pex = "pex.distutils.commands.bdist_pex:bdist_pex"
 
 [tool.flit.sdist]
 include = ["CHANGES.rst"]
 
+[tool.flit.metadata.urls]
+Changelog = "https://github.com/pantsbuild/pex/blob/main/CHANGES.rst"
+Documentation = "https://pex.readthedocs.io/en/latest/"
+
 [tool.black]
 line-length = 100
 target-version = ["py27"]
-exclude = '''
+extend-exclude = '''
 /(
-  | \.git
-  | \pex/vendor/_vendored
-  | \.pyenv_test
+  | pex/vendor/_vendored
+  | pex/venv/virtualenv_.*_py
 )/
 '''
 
@@ -58,3 +73,7 @@ use_parentheses = true
 line_length = 100
 default_section = "THIRDPARTY"
 known_first_party = "pex"
+skip_glob = [
+  "pex/vendor/_vendored/**",
+  "pex/venv/virtualenv_16.7.12_py"
+]

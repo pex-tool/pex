@@ -4,99 +4,77 @@ Pex Release Process
 
 .. contents:: Table of Contents
 
+Pre-requisites
+==============
+
+PGP
+---
+
+All release tags are signed (using ``git tag --sign``) so that users of Pex can verify maintainers
+have performed & trust a release. This requires releasers having a PGP key configured with git and
+published to key servers. An additional nicety is to configure you PGP key with GitHub for those who
+like to check provenance via a web UI.
+
+Some documentation to help you get things set up if you don't have all of these pre-requisites:
+
++ Creating a key and configuring your key with Git and GitHub is all described `here <https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification>`_
++ Publishing your key to a keyserver is described `here <https://www.gnupg.org/gph/en/manual/x457.html>`_
+
+Some key servers you probably want to publish your key to explicitly above and beyond your PGP setup's
+default configured keyserver include:
+
++ hkps://pgp.mit.edu
++ hkps://keyserver.ubuntu.com
++ hkps://keys.openpgp.org
+
 Preparation
 ===========
 
 Version Bump and Changelog
 --------------------------
 
-Bump the version in ``pex/version.py`` and update ``CHANGES.rst`` in a
-local commit:
+Bump the version in ``pex/version.py`` and update ``CHANGES.rst``. Open a PR with these changes and
+land it on https://github.com/pantsbuild/pex main.
+
+Release
+=======
+
+Push Release tag to Master
+--------------------------
+
+Sync a local branch with https://github.com/pantsbuild/pex main and confirm it has the version
+bump and changelog update as the tip commit:
 
 ::
 
-    $ git log --stat -1 v2.0.3
-    commit 6b3e12a86ae98682f1f1df468a960be6911d6557 (HEAD -> master, tag: v2.0.3, origin/master, origin/HEAD)
+    $ git log --stat -1 HEAD
+    commit f76a3d896867a5787c151c6afe1820f14dd88848 (tag: v2.1.29, origin/main, origin/HEAD, main)
     Author: John Sirois <john.sirois@gmail.com>
-    Date:   Thu Dec 5 23:51:41 2019 -0800
+    Date:   Fri Feb 5 10:24:28 2021 -0800
 
-        Prepare the 2.0.3 release. (#822)
+        Prepare the 2.1.29 release. (#1220)
 
-        Fixes #814
-
-     CHANGES.rst    | 20 ++++++++++++++++++++
+     CHANGES.rst    | 19 +++++++++++++++++--
      pex/version.py |  2 +-
-     2 files changed, 21 insertions(+), 1 deletion(-)
+     2 files changed, 18 insertions(+), 3 deletions(-)
 
-Push to Master
---------------
-
-Tag, push and watch Travis CI go green:
+Tag the release and push the tag to https://github.com/pantsbuild/pex main:
 
 ::
 
-    $ git tag --sign -am 'Release 2.0.3' v2.0.3
-    $ git push --tags origin HEAD
+    $ git tag --sign -am 'Release 2.1.29' v2.1.29
+    $ git push --tags https://github.com/pantsbuild/pex HEAD:main
 
-PyPI Release
-============
+If you're on macOS and commit signing fails, try setting ``export GPG_TTY=$(tty)``.
 
-Upload to PyPI
---------------
+Open the Release workflow run and wait for it to go green:
+https://github.com/pantsbuild/pex/actions?query=workflow%3ARelease+branch%3Av2.1.29
 
-::
+Edit the Github Release Page
+----------------------------
 
-    $ tox -e publish
+Open the release page for edit:
+https://github.com/pantsbuild/pex/releases/edit/v2.1.29
 
-Dogfood
--------
-
-::
-
-    $ pip install --no-cache-dir --upgrade pex
-    ...
-    $ pex --version
-    pex 2.0.3
-
-Github Release
-==============
-
-Prepare binary assets
----------------------
-
-::
-
-    $ tox -e package
-    ...
-    $ ./dist/pex --version
-    pex 2.0.3
-
-Craft the Release
------------------
-
-Open a tab on prior release as a template:
-
--  https://github.com/pantsbuild/pex/releases/edit/v2.0.2
-
-Open a tab to construct the current:
-
--  https://github.com/pantsbuild/pex/releases/new?tag=v2.0.3
-
-1. Use "Release <VERSION>" as the release name (e.g. "Release 2.0.3")
-2. Copy and paste the most recent CHANGES.rst section.
-3. Adapt the syntax from RestructuredText to Markdown (e.g. ``#ID <links>`` -> ``#ID``).
-4. Upload the ``pex`` artifact.
-
-Check your work
----------------
-
-::
-
-    $ curl -L https://github.com/pantsbuild/pex/releases/download/v2.0.3/pex > /tmp/pex
-      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                     Dload  Upload   Total   Spent    Left  Speed
-    100   593    0   593    0     0   1222      0 --:--:-- --:--:-- --:--:--  1222
-    100 2370k  100 2370k    0     0   962k      0  0:00:02  0:00:02 --:--:-- 1383k
-    $ chmod +x /tmp/pex
-    $ /tmp/pex --version
-    pex 2.0.3
+1. Copy and paste the most recent CHANGES.rst section.
+2. Adapt the syntax from RestructuredText to Markdown (e.g. remove RST links ```PR #... <...>`_``).

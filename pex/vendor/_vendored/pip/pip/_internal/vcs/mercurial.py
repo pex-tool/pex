@@ -92,7 +92,10 @@ class Mercurial(VersionControl):
     def get_remote_url(cls, location):
         url = cls.run_command(
             ['showconfig', 'paths.default'],
-            show_stdout=False, cwd=location).strip()
+            show_stdout=False,
+            stdout_only=True,
+            cwd=location,
+        ).strip()
         if cls._is_local_repository(url):
             url = path_to_url(url)
         return url.strip()
@@ -104,7 +107,10 @@ class Mercurial(VersionControl):
         """
         current_revision = cls.run_command(
             ['parents', '--template={rev}'],
-            show_stdout=False, cwd=location).strip()
+            show_stdout=False,
+            stdout_only=True,
+            cwd=location,
+        ).strip()
         return current_revision
 
     @classmethod
@@ -115,7 +121,10 @@ class Mercurial(VersionControl):
         """
         current_rev_hash = cls.run_command(
             ['parents', '--template={node}'],
-            show_stdout=False, cwd=location).strip()
+            show_stdout=False,
+            stdout_only=True,
+            cwd=location,
+        ).strip()
         return current_rev_hash
 
     @classmethod
@@ -131,25 +140,33 @@ class Mercurial(VersionControl):
         """
         # find the repo root
         repo_root = cls.run_command(
-            ['root'], show_stdout=False, cwd=location).strip()
+            ['root'], show_stdout=False, stdout_only=True, cwd=location
+        ).strip()
         if not os.path.isabs(repo_root):
             repo_root = os.path.abspath(os.path.join(location, repo_root))
         return find_path_to_setup_from_repo_root(location, repo_root)
 
     @classmethod
-    def controls_location(cls, location):
-        if super(Mercurial, cls).controls_location(location):
-            return True
+    def get_repository_root(cls, location):
+        loc = super(Mercurial, cls).get_repository_root(location)
+        if loc:
+            return loc
         try:
-            cls.run_command(
-                ['identify'],
+            r = cls.run_command(
+                ['root'],
                 cwd=location,
                 show_stdout=False,
+                stdout_only=True,
                 on_returncode='raise',
-                log_failed_cmd=False)
-            return True
-        except (BadCommand, InstallationError):
-            return False
+                log_failed_cmd=False,
+            )
+        except BadCommand:
+            logger.debug("could not determine if %s is under hg control "
+                         "because hg is not available", location)
+            return None
+        except InstallationError:
+            return None
+        return os.path.normpath(r.rstrip('\r\n'))
 
 
 vcs.register(Mercurial)

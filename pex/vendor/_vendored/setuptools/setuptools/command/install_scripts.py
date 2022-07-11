@@ -40,8 +40,11 @@ class install_scripts(orig.install_scripts):
         )
         bs_cmd = self.get_finalized_command('build_scripts')
         exec_param = getattr(bs_cmd, 'executable', None)
-        bw_cmd = self.get_finalized_command("bdist_wininst")
-        is_wininst = getattr(bw_cmd, '_is_running', False)
+        is_wininst = False
+        # The distutils bdist_wininst command was removed in Python 3.10.
+        if sys.version_info[:2] < (3, 10):
+            bw_cmd = self.get_finalized_command("bdist_wininst")
+            is_wininst = getattr(bw_cmd, '_is_running', False)
         writer = ei.ScriptWriter
         if is_wininst:
             exec_param = "python.exe"

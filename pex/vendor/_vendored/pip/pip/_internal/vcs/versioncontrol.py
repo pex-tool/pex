@@ -11,7 +11,7 @@ import sys
 from pip._vendor import pkg_resources
 from pip._vendor.six.moves.urllib import parse as urllib_parse
 
-from pip._internal.exceptions import BadCommand
+from pip._internal.exceptions import BadCommand, InstallationError
 from pip._internal.utils.compat import samefile
 from pip._internal.utils.misc import (
     ask_path_exists,
@@ -27,10 +27,20 @@ from pip._internal.utils.urls import get_url_scheme
 
 if MYPY_CHECK_RUNNING:
     from typing import (
-        Any, Dict, Iterable, Iterator, List, Mapping, Optional, Text, Tuple,
-        Type, Union
+        Any,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Text,
+        Tuple,
+        Type,
+        Union,
     )
-    from pip._internal.utils.ui import SpinnerInterface
+
+    from pip._internal.cli.spinners import SpinnerInterface
     from pip._internal.utils.misc import HiddenText
     from pip._internal.utils.subprocess import CommandArgs
 
@@ -232,12 +242,24 @@ class VcsSupport(object):
         Return a VersionControl object if a repository of that type is found
         at the given directory.
         """
+        vcs_backends = {}
         for vcs_backend in self._registry.values():
-            if vcs_backend.controls_location(location):
-                logger.debug('Determine that %s uses VCS: %s',
-                             location, vcs_backend.name)
-                return vcs_backend
-        return None
+            repo_path = vcs_backend.get_repository_root(location)
+            if not repo_path:
+                continue
+            logger.debug('Determine that %s uses VCS: %s',
+                         location, vcs_backend.name)
+            vcs_backends[repo_path] = vcs_backend
+
+        if not vcs_backends:
+            return None
+
+        # Choose the VCS in the inner-most directory. Since all repository
+        # roots found here would be either `location` or one of its
+        # parents, the longest path should have the most path components,
+        # i.e. the backend representing the inner-most repository.
+        inner_most_repo_path = max(vcs_backends, key=len)
+        return vcs_backends[inner_most_repo_path]
 
     def get_backend_for_scheme(self, scheme):
         # type: (str) -> Optional[VersionControl]
@@ -424,6 +446,12 @@ class VersionControl(object):
         rev = None
         if '@' in path:
             path, rev = path.rsplit('@', 1)
+            if not rev:
+                raise InstallationError(
+                    "The URL {!r} has an empty revision (after @) "
+                    "which is not supported. Include a revision after @ "
+                    "or remove @ from the URL.".format(url)
+                )
         url = urllib_parse.urlunsplit((scheme, netloc, path, query, ''))
         return url, rev, user_pass
 
@@ -574,7 +602,8 @@ class VersionControl(object):
             self.name,
             url,
         )
-        response = ask_path_exists('What to do?  %s' % prompt[0], prompt[1])
+        response = ask_path_exists('What to do?  {}'.format(
+            prompt[0]), prompt[1])
 
         if response == 'a':
             sys.exit(-1)
@@ -647,7 +676,8 @@ class VersionControl(object):
         command_desc=None,  # type: Optional[str]
         extra_environ=None,  # type: Optional[Mapping[str, Any]]
         spinner=None,  # type: Optional[SpinnerInterface]
-        log_failed_cmd=True  # type: bool
+        log_failed_cmd=True,  # type: bool
+        stdout_only=False,  # type: bool
     ):
         # type: (...) -> Text
         """
@@ -664,15 +694,16 @@ class VersionControl(object):
                                    extra_environ=extra_environ,
                                    unset_environ=cls.unset_environ,
                                    spinner=spinner,
-                                   log_failed_cmd=log_failed_cmd)
+                                   log_failed_cmd=log_failed_cmd,
+                                   stdout_only=stdout_only)
         except OSError as e:
             # errno.ENOENT = no such file or directory
             # In other words, the VCS executable isn't available
             if e.errno == errno.ENOENT:
                 raise BadCommand(
-                    'Cannot find command %r - do you have '
-                    '%r installed and in your '
-                    'PATH?' % (cls.name, cls.name))
+                    'Cannot find command {cls.name!r} - do you have '
+                    '{cls.name!r} installed and in your '
+                    'PATH?'.format(**locals()))
             else:
                 raise  # re-raise exception if a different error occurred
 
@@ -687,14 +718,18 @@ class VersionControl(object):
         return os.path.exists(os.path.join(path, cls.dirname))
 
     @classmethod
-    def controls_location(cls, location):
-        # type: (str) -> bool
+    def get_repository_root(cls, location):
+        # type: (str) -> Optional[str]
         """
-        Check if a location is controlled by the vcs.
+        Return the "root" (top-level) directory controlled by the vcs,
+        or `None` if the directory is not in any.
+
         It is meant to be overridden to implement smarter detection
         mechanisms for specific vcs.
 
-        This can do more than is_repository_directory() alone.  For example,
-        the Git override checks that Git is actually available.
+        This can do more than is_repository_directory() alone. For
+        example, the Git override checks that Git is actually available.
         """
-        return cls.is_repository_directory(location)
+        if cls.is_repository_directory(location):
+            return location
+        return None

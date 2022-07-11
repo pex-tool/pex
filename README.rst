@@ -1,8 +1,8 @@
 ***
 PEX
 ***
-.. image:: https://travis-ci.org/pantsbuild/pex.svg?branch=master
-    :target: https://travis-ci.org/pantsbuild/pex
+.. image:: https://github.com/pantsbuild/pex/workflows/CI/badge.svg?branch=main
+    :target: https://github.com/pantsbuild/pex/actions?query=branch%3Amain+workflow%3ACI
 .. image:: https://img.shields.io/pypi/l/pex.svg
     :target: https://pypi.org/project/pex/
 .. image:: https://img.shields.io/pypi/v/pex.svg
@@ -64,13 +64,19 @@ Launch an interpreter with ``requests``, ``flask`` and ``psutil`` in the environ
 
     $ pex requests flask 'psutil>2,<3'
 
+Save Dependencies From Pip
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Or instead freeze your current virtualenv via requirements.txt and execute it anywhere:
 
 .. code-block:: bash
 
-    $ pex -r <(pip freeze) -o my_virtualenv.pex
+    $ pex $(pip freeze) -o my_virtualenv.pex
     $ deactivate
     $ ./my_virtualenv.pex
+
+Ephemeral Environments
+~~~~~~~~~~~~~~~~~~~~~~
 
 Run webserver.py in an environment containing ``flask`` as a quick way to experiment:
 
@@ -84,20 +90,32 @@ Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sph
 
     $ pex sphinx -e sphinx:main -- --help
 
-Build a standalone pex binary into ``pex.pex`` using the ``pex`` console_scripts entry point:
+Using Entry Points
+~~~~~~~~~~~~~~~~~~
+
+Projects specifying a ``console_scripts`` entry point in their configuration
+can build standalone executables for those entry points.
+
+To build a standalone ``pex-tools-executable.pex`` binary that runs the
+``pex-tools`` console script found in all pex version ``2.1.35`` and newer distributions:
 
 .. code-block:: bash
 
-    $ pex pex -c pex -o pex.pex
+    $ pex "pex>=2.1.35" --console-script pex-tools --output-file pex-tools-executable.pex
+
+Specifying A Specific Interpreter
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can also build pex files that use a specific interpreter type:
 
 .. code-block:: bash
 
-    $ pex pex -c pex --python=pypy -o pypy-pex.pex
+    $ pex "pex>=2.1.35" -c pex-tools --python=pypy -o pex-tools-pypy-executable.pex
 
 Most pex options compose well with one another, so the above commands can be
-mixed and matched.  For a full list of options, just type ``pex --help``.
+mixed and matched, and equivalent short options are available.
+
+For a full list of options, just type ``pex --help``.
 
 
 Integrating pex into your workflow
@@ -112,7 +130,7 @@ workflow is to add a packaging test environment to your ``tox.ini``:
     deps = pex
     commands = pex . -o dist/app.pex
 
-Then ``tox -e package`` will produce a relocateable copy of your application
+Then ``tox -e package`` will produce a relocatable copy of your application
 that you can copy to staging or production environments.
 
 
@@ -142,7 +160,7 @@ If you don't have tox, you can generate a pex of tox:
 Tox provides many useful commands and options, explained at https://tox.readthedocs.io/en/latest/.
 Below, we provide some of the most commonly used commands used when working on Pex, but the
 docs are worth acquainting yourself with to better understand how Tox works and how to do more
-advanced commmands.
+advanced commands.
 
 To run a specific environment, identify the name of the environment you'd like to invoke by
 running ``tox --listenvs-all``, then invoke like this:
@@ -150,6 +168,12 @@ running ``tox --listenvs-all``, then invoke like this:
 .. code-block::
 
     $ tox -e format-run
+
+To run MyPy:
+
+.. code-block::
+
+    $ tox -e typecheck
 
 All of our tox test environments allow passthrough arguments, which can be helpful to run
 specific tests:

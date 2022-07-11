@@ -6,7 +6,10 @@ from __future__ import absolute_import, print_function
 import atexit
 import contextlib
 import errno
+import fcntl
+import itertools
 import os
+import re
 import shutil
 import stat
 import sys
@@ -14,25 +17,101 @@ import tempfile
 import threading
 import time
 import zipfile
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from contextlib import contextmanager
 from datetime import datetime
 from uuid import uuid4
+
+from pex.enum import Enum
+from pex.typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from typing import (
+        Any,
+        Callable,
+        DefaultDict,
+        Iterable,
+        Iterator,
+        NoReturn,
+        Optional,
+        Set,
+        Sized,
+        Tuple,
+        Union,
+    )
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
 DETERMINISTIC_DATETIME = datetime(
     year=1980, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None
 )
+_UNIX_EPOCH = datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tzinfo=None)
+DETERMINISTIC_DATETIME_TIMESTAMP = (DETERMINISTIC_DATETIME - _UNIX_EPOCH).total_seconds()
+
+
+def find_site_packages(prefix_dir):
+    # type: (str) -> Optional[str]
+    """Return the absolute path to the site-packages directory of the given Python installation."""
+    for root, dirs, _ in os.walk(prefix_dir):
+        for d in dirs:
+            if "site-packages" == d:
+                return os.path.join(root, d)
+    return None
+
+
+def filter_pyc_dirs(dirs):
+    # type: (Iterable[str]) -> Iterator[str]
+    """Return an iterator over the input `dirs` filtering out Python bytecode cache directories."""
+    for d in dirs:
+        if d != "__pycache__":
+            yield d
+
+
+def filter_pyc_files(files):
+    # type: (Iterable[str]) -> Iterator[str]
+    """Iterate the input `files` filtering out any Python bytecode files."""
+    for f in files:
+        # For Python 2.7, `.pyc` files are compiled as siblings to `.py` files (there is no
+        # __pycache__ dir).
+        if not f.endswith((".pyc", ".pyo")) and not is_pyc_temporary_file(f):
+            yield f
+
+
+def is_pyc_temporary_file(file_path):
+    # type: (str) -> bool
+    """Check if `file` is a temporary Python bytecode file."""
+    # We rely on the fact that the temporary files created by CPython have object id (integer)
+    # suffixes to avoid picking up files where Python bytecode compilation is in-flight; i.e.:
+    # `.pyc.0123456789`-style files.
+    return re.search(r"\.pyc\.[0-9]+$", file_path) is not None
 
 
 def die(msg, exit_code=1):
+    # type: (str, int) -> NoReturn
     print(msg, file=sys.stderr)
     sys.exit(exit_code)
 
 
+def pluralize(
+    subject,  # type: Sized
+    noun,  # type: str
+):
+    # type: (...) -> str
+    if noun == "":
+        return ""
+    count = len(subject)
+    if count == 1:
+        return noun
+    if noun[-1] in ("s", "x", "z") or noun[-2:] in ("sh", "ch"):
+        return noun + "es"
+    else:
+        return noun + "s"
+
+
 def safe_copy(source, dest, overwrite=False):
+    # type: (str, str, bool) -> None
     def do_copy():
+        # type: () -> None
         temp_dest = dest + uuid4().hex
         shutil.copy(source, temp_dest)
         os.rename(temp_dest, dest)
@@ -72,26 +151,27 @@ def safe_copy(source, dest, overwrite=False):
 # See http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
 class MktempTeardownRegistry(object):
     def __init__(self):
-        self._registry = defaultdict(set)
-        self._getpid = os.getpid
+        # type: () -> None
+        self._registry = defaultdict(set)  # type: DefaultDict[int, Set[str]]
         self._lock = threading.RLock()
-        self._exists = os.path.exists
-        self._getenv = os.getenv
+        self._getpid = os.getpid
         self._rmtree = shutil.rmtree
         atexit.register(self.teardown)
 
     def __del__(self):
+        # type: () -> None
         self.teardown()
 
     def register(self, path):
+        # type: (str) -> str
         with self._lock:
             self._registry[self._getpid()].add(path)
         return path
 
     def teardown(self):
+        # type: () -> None
         for td in self._registry.pop(self._getpid(), []):
-            if self._exists(td):
-                self._rmtree(td)
+            self._rmtree(td, ignore_errors=True)
 
 
 _MKDTEMP_SINGLETON = MktempTeardownRegistry()
@@ -100,14 +180,17 @@ _MKDTEMP_SINGLETON = MktempTeardownRegistry()
 class PermPreservingZipFile(zipfile.ZipFile, object):
     """A ZipFile that works around https://bugs.python.org/issue15795."""
 
-    @classmethod
-    def zip_info_from_file(cls, filename, arcname=None, date_time=None):
-        """Construct a ZipInfo for a file on the filesystem.
+    class ZipEntry(namedtuple("ZipEntry", ["info", "data"])):
+        pass
 
-        Usually this is provided directly as a method of ZipInfo, but it is not implemented in Python
-        2.7 so we re-implement it here. The main divergance we make from the original is adding a
-        parameter for the datetime (a time.struct_time), which allows us to use a deterministic
-        timestamp. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495.
+    @classmethod
+    def zip_entry_from_file(cls, filename, arcname=None, date_time=None):
+        """Construct a ZipEntry for a file on the filesystem.
+
+        Usually a similar `zip_info_from_file` method is provided by `ZipInfo`, but it is not
+        implemented in Python 2.7 so we re-implement it here to construct the `info` for `ZipEntry`
+        adding the possibility to control the `ZipInfo` date_time separately from the underlying
+        file mtime. See https://github.com/python/cpython/blob/master/Lib/zipfile.py#L495.
         """
         st = os.stat(filename)
         isdir = stat.S_ISDIR(st.st_mode)
@@ -125,9 +208,14 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
         if isdir:
             zinfo.file_size = 0
             zinfo.external_attr |= 0x10  # MS-DOS directory flag
+            zinfo.compress_type = zipfile.ZIP_STORED
+            data = b""
         else:
             zinfo.file_size = st.st_size
-        return zinfo
+            zinfo.compress_type = zipfile.ZIP_DEFLATED
+            with open(filename, "rb") as fp:
+                data = fp.read()
+        return cls.ZipEntry(info=zinfo, data=data)
 
     def _extract_member(self, member, targetpath, pwd):
         result = super(PermPreservingZipFile, self)._extract_member(member, targetpath, pwd)
@@ -155,6 +243,7 @@ def open_zip(path, *args, **kwargs):
 
 @contextlib.contextmanager
 def temporary_dir(cleanup=True):
+    # type: (bool) -> Iterator[str]
     td = tempfile.mkdtemp()
     try:
         yield td
@@ -164,6 +253,7 @@ def temporary_dir(cleanup=True):
 
 
 def safe_mkdtemp(**kw):
+    # type: (**Any) -> str
     """Create a temporary directory that is cleaned up on process exit.
 
     Takes the same parameters as tempfile.mkdtemp.
@@ -173,11 +263,13 @@ def safe_mkdtemp(**kw):
 
 
 def register_rmtree(directory):
+    # type: (str) -> str
     """Register an existing directory to be cleaned up at process exit."""
     return _MKDTEMP_SINGLETON.register(directory)
 
 
 def safe_mkdir(directory, clean=False):
+    # type: (str, bool) -> str
     """Safely create a directory.
 
     Ensures a directory is present.  If it's not there, it is created.  If it is, it's a no-op. If
@@ -190,6 +282,8 @@ def safe_mkdir(directory, clean=False):
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
+    finally:
+        return directory
 
 
 def safe_open(filename, *args, **kwargs):
@@ -198,11 +292,14 @@ def safe_open(filename, *args, **kwargs):
     ``safe_open`` ensures that the directory components leading up the specified file have been
     created first.
     """
-    safe_mkdir(os.path.dirname(filename))
+    parent_dir = os.path.dirname(filename)
+    if parent_dir:
+        safe_mkdir(parent_dir)
     return open(filename, *args, **kwargs)  # noqa: T802
 
 
 def safe_delete(filename):
+    # type: (str) -> None
     """Delete a file safely.
 
     If it's not present, no-op.
@@ -215,6 +312,7 @@ def safe_delete(filename):
 
 
 def safe_rmtree(directory):
+    # type: (str) -> None
     """Delete a directory if it's present.
 
     If it's not present, no-op.
@@ -224,6 +322,7 @@ def safe_rmtree(directory):
 
 
 def safe_sleep(seconds):
+    # type: (float) -> None
     """Ensure that the thread sleeps at a minimum the requested seconds.
 
     Until Python 3.5, there was no guarantee that time.sleep() would actually sleep the requested
@@ -241,31 +340,35 @@ def safe_sleep(seconds):
 
 class AtomicDirectory(object):
     def __init__(self, target_dir):
+        # type: (str) -> None
         self._target_dir = target_dir
         self._work_dir = "{}.{}".format(target_dir, uuid4().hex)
 
     @property
     def work_dir(self):
+        # type: () -> str
         return self._work_dir
 
     @property
     def target_dir(self):
+        # type: () -> str
         return self._target_dir
 
-    @property
     def is_finalized(self):
+        # type: () -> bool
         return os.path.exists(self._target_dir)
 
     def finalize(self, source=None):
+        # type: (Optional[str]) -> None
         """Rename `work_dir` to `target_dir` using `os.rename()`.
 
-        :param str source: An optional source offset into the `work_dir`` to use for the atomic
-                           update of `target_dir`. By default the whole `work_dir` is used.
+        :param source: An optional source offset into the `work_dir`` to use for the atomic update
+                       of `target_dir`. By default the whole `work_dir` is used.
 
         If a race is lost and `target_dir` already exists, the `target_dir` dir is left unchanged and
         the `work_dir` directory will simply be removed.
         """
-        if self.is_finalized:
+        if self.is_finalized():
             return
 
         source = os.path.join(self._work_dir, source) if source else self._work_dir
@@ -287,39 +390,102 @@ class AtomicDirectory(object):
             self.cleanup()
 
     def cleanup(self):
+        # type: () -> None
         safe_rmtree(self._work_dir)
 
 
+class FileLockStyle(Enum["FileLockStyle.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    BSD = Value("bsd")
+    POSIX = Value("posix")
+
+
 @contextmanager
-def atomic_directory(target_dir, source=None):
-    """A context manager that yields a new empty work directory path it will move to `target_dir`.
+def atomic_directory(
+    target_dir,  # type: str
+    exclusive,  # type: Union[bool, FileLockStyle.Value]
+    source=None,  # type: Optional[str]
+):
+    # type: (...) -> Iterator[AtomicDirectory]
+    """A context manager that yields a potentially exclusively locked AtomicDirectory.
 
-    :param str target_dir: The target directory to atomically update.
-    :param str source: An optional source offset into the work directory to use for the atomic update
-                       of the target directory. By default the whole work directory is used.
+    :param target_dir: The target directory to atomically update.
+    :param exclusive: If `True`, its guaranteed that only one process will be yielded a non `None`
+                      workdir; otherwise two or more processes might be yielded unique non-`None`
+                      workdirs with the last process to finish "winning". By default, a POSIX fcntl
+                      lock will be used to ensure exclusivity. To change this, pass an explicit
+                      `LockStyle` instead of `True`.
+    :param source: An optional source offset into the work directory to use for the atomic update
+                   of the target directory. By default the whole work directory is used.
 
-    If the `target_dir` already exists the enclosed block will be yielded `None` to signal there is
-    no work to do.
+    If the `target_dir` already exists the enclosed block will be yielded an AtomicDirectory that
+    `is_finalized` to signal there is no work to do.
 
     If the enclosed block fails the `target_dir` will be undisturbed.
 
     The new work directory will be cleaned up regardless of whether or not the enclosed block
     succeeds.
+
+    If the contents of the resulting directory will be subsequently mutated it's probably correct to
+    pass `exclusive=True` to ensure mutations that race the creation process are not lost.
     """
     atomic_dir = AtomicDirectory(target_dir=target_dir)
-    if atomic_dir.is_finalized:
-        yield None
+    if atomic_dir.is_finalized():
+        # Our work is already done for us so exit early.
+        yield atomic_dir
         return
 
-    safe_mkdir(atomic_dir.work_dir)
+    lock_fd = None  # type: Optional[int]
+    lock_api = cast(
+        "Callable[[int, int], None]",
+        fcntl.flock if exclusive is FileLockStyle.BSD else fcntl.lockf,
+    )
+
+    def unlock():
+        # type: () -> None
+        if lock_fd is None:
+            return
+        try:
+            lock_api(lock_fd, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_fd)
+
+    if exclusive:
+        head, tail = os.path.split(atomic_dir.target_dir)
+        if head:
+            safe_mkdir(head)
+        # N.B.: We don't actually write anything to the lock file but the fcntl file locking
+        # operations only work on files opened for at least write.
+        lock_fd = os.open(
+            os.path.join(head, ".{}.atomic_directory.lck".format(tail or "here")),
+            os.O_CREAT | os.O_WRONLY,
+        )
+        # N.B.: Since lockf and flock operate on an open file descriptor and these are
+        # guaranteed to be closed by the operating system when the owning process exits,
+        # this lock is immune to staleness.
+        lock_api(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
+        if atomic_dir.is_finalized():
+            # We lost the double-checked locking race and our work was done for us by the race
+            # winner so exit early.
+            try:
+                yield atomic_dir
+            finally:
+                unlock()
+            return
+
     try:
-        yield atomic_dir.work_dir
+        safe_mkdir(atomic_dir.work_dir)
+        yield atomic_dir
         atomic_dir.finalize(source=source)
     finally:
+        unlock()
         atomic_dir.cleanup()
 
 
 def chmod_plus_x(path):
+    # type: (str) -> None
     """Equivalent of unix `chmod a+x path`"""
     path_mode = os.stat(path).st_mode
     path_mode &= int("777", 8)
@@ -333,6 +499,7 @@ def chmod_plus_x(path):
 
 
 def chmod_plus_w(path):
+    # type: (str) -> None
     """Equivalent of unix `chmod +w path`"""
     path_mode = os.stat(path).st_mode
     path_mode &= int("777", 8)
@@ -340,7 +507,51 @@ def chmod_plus_w(path):
     os.chmod(path, path_mode)
 
 
+def is_exe(path):
+    # type: (str) -> bool
+    """Determines if the given path is a file executable by the current user.
+
+    :param path: The path to check.
+    :return: `True if the given path is a file executable by the current user.
+    """
+    return os.path.isfile(path) and os.access(path, os.R_OK | os.X_OK)
+
+
+def is_script(
+    path,  # type: str
+    pattern=None,  # type: Optional[str]
+    check_executable=True,  # type: bool
+):
+    # type: (...) -> bool
+    """Determines if the given path is a script.
+
+    A script is a file that starts with a shebang (#!...) line.
+
+    :param path: The path to check.
+    :param pattern: An optional pattern to match against the shebang (excluding the leading #!).
+    :param check_executable: Check that the script is executable by the current user.
+    :return: True if the given path is a script.
+    """
+    if check_executable and not is_exe(path):
+        return False
+    with open(path, "rb") as fp:
+        if b"#!" != fp.read(2):
+            return False
+        if not pattern:
+            return True
+        return bool(re.match(pattern, fp.readline().decode("utf-8")))
+
+
+def is_python_script(
+    path,  # type: str
+    check_executable=True,  # type: bool
+):
+    # type: (...) -> bool
+    return is_script(path, pattern=r"(?i)^.*(?:python|pypy)", check_executable=check_executable)
+
+
 def can_write_dir(path):
+    # type: (str) -> bool
     """Determines if the directory at path can be written to by the current process.
 
     If the directory doesn't exist, determines if it can be created and thus written to.
@@ -348,9 +559,8 @@ def can_write_dir(path):
     N.B.: This is a best-effort check only that uses permission heuristics and does not actually test
     that the directory can be written to with and writes.
 
-    :param str path: The directory path to test.
-    :return: `True` if the given path is a directory that can be written to by the current process.
-    :rtype boo:
+    :param path: The directory path to test.
+    :return:`True` if the given path is a directory that can be written to by the current process.
     """
     while not os.access(path, os.F_OK):
         parent_path = os.path.dirname(path)
@@ -361,29 +571,15 @@ def can_write_dir(path):
     return os.path.isdir(path) and os.access(path, os.R_OK | os.W_OK | os.X_OK)
 
 
-def touch(file, times=None):
-    """Equivalent of unix `touch path`.
-
-    :file The file to touch.
-    :times Either a tuple of (atime, mtime) or else a single time to use for both.  If not
-    specified both atime and mtime are updated to the current time.
-    """
-    if times:
-        if len(times) > 2:
-            raise ValueError(
-                "times must either be a tuple of (atime, mtime) or else a single time value "
-                "to use for both."
-            )
-
-        if len(times) == 1:
-            times = (times, times)
-
+def touch(file):
+    # type: (str) -> None
+    """Equivalent of unix `touch path`."""
     with safe_open(file, "a"):
-        os.utime(file, times)
+        os.utime(file, None)
 
 
 class Chroot(object):
-    """A chroot of files overlayed from one directory to another directory.
+    """A chroot of files overlaid from one directory to another directory.
 
     Files may be tagged when added in order to keep track of multiple overlays in the chroot.
     """
@@ -399,6 +595,7 @@ class Chroot(object):
             )
 
     def __init__(self, chroot_base):
+        # type: (str) -> None
         """Create the chroot.
 
         :chroot_base Directory for the creation of the target chroot.
@@ -406,9 +603,9 @@ class Chroot(object):
         try:
             safe_mkdir(chroot_base)
         except OSError as e:
-            raise self.ChrootException("Unable to create chroot in %s: %s" % (chroot_base, e))
+            raise self.Error("Unable to create chroot in %s: %s" % (chroot_base, e))
         self.chroot = chroot_base
-        self.filesets = defaultdict(set)
+        self.filesets = defaultdict(set)  # type: DefaultDict[str, Set[str]]
 
     def clone(self, into=None):
         """Clone this chroot.
@@ -428,6 +625,7 @@ class Chroot(object):
         return new_chroot
 
     def path(self):
+        # type: () -> str
         """The path of the chroot."""
         return self.chroot
 
@@ -480,7 +678,21 @@ class Chroot(object):
         safe_copy(abs_src, abs_dst, overwrite=False)
         # TODO: Ensure the target and dest are the same if the file already exists.
 
-    def write(self, data, dst, label=None, mode="wb"):
+    def symlink(
+        self,
+        src,  # type: str
+        dst,  # type: str
+        label=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
+        dst = self._normalize(dst)
+        self._tag(dst, label)
+        self._ensure_parent(dst)
+        abs_src = os.path.abspath(src)
+        abs_dst = os.path.join(self.chroot, dst)
+        os.symlink(abs_src, abs_dst)
+
+    def write(self, data, dst, label=None, mode="wb", executable=False):
         """Write data to ``chroot/dst`` with optional label.
 
         Has similar exceptional cases as ``Chroot.copy``
@@ -490,6 +702,8 @@ class Chroot(object):
         self._ensure_parent(dst)
         with open(os.path.join(self.chroot, dst), mode) as wp:
             wp.write(data)
+        if executable:
+            chmod_plus_x(wp.name)
 
     def touch(self, dst, label=None):
         """Perform 'touch' on ``chroot/dst`` with optional label.
@@ -523,17 +737,79 @@ class Chroot(object):
     def delete(self):
         shutil.rmtree(self.chroot)
 
-    def zip(self, filename, mode="w", deterministic_timestamp=False):
-        with open_zip(filename, mode) as zf:
-            for f in sorted(self.files()):
-                full_path = os.path.join(self.chroot, f)
-                zinfo = zf.zip_info_from_file(
-                    filename=full_path,
-                    arcname=f,
+    def zip(
+        self,
+        filename,  # type: str
+        mode="w",  # type: str
+        deterministic_timestamp=False,  # type: bool
+        exclude_file=lambda _: False,  # type: Callable[[str], bool]
+        strip_prefix=None,  # type: Optional[str]
+        labels=None,  # type: Optional[Iterable[str]]
+        compress=True,  # type: bool
+    ):
+        # type: (...) -> None
+
+        if labels:
+            selected_files = set(
+                itertools.chain.from_iterable(self.filesets.get(label, ()) for label in labels)
+            )
+        else:
+            selected_files = self.files()
+
+        compression = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
+        with open_zip(filename, mode, compression) as zf:
+
+            def write_entry(
+                filename,  # type: str
+                arcname,  # type: str
+            ):
+                # type: (...) -> None
+                zip_entry = zf.zip_entry_from_file(
+                    filename=filename,
+                    arcname=os.path.relpath(arcname, strip_prefix) if strip_prefix else arcname,
                     date_time=DETERMINISTIC_DATETIME.timetuple()
                     if deterministic_timestamp
                     else None,
                 )
-                with open(full_path, "rb") as open_f:
-                    data = open_f.read()
-                zf.writestr(zinfo, data, compress_type=zipfile.ZIP_DEFLATED)
+                zf.writestr(zip_entry.info, zip_entry.data, compression)
+
+            def get_parent_dir(path):
+                # type: (str) -> Optional[str]
+                parent_dir = os.path.normpath(os.path.dirname(path))
+                if parent_dir and parent_dir != os.curdir:
+                    return parent_dir
+                return None
+
+            written_dirs = set()
+
+            def maybe_write_parent_dirs(path):
+                # type: (str) -> None
+                parent_dir = get_parent_dir(path)
+                if parent_dir is None or parent_dir in written_dirs:
+                    return
+                maybe_write_parent_dirs(parent_dir)
+                if parent_dir != strip_prefix:
+                    write_entry(filename=os.path.join(self.chroot, parent_dir), arcname=parent_dir)
+                written_dirs.add(parent_dir)
+
+            def iter_files():
+                # type: () -> Iterator[Tuple[str, str]]
+                for path in sorted(selected_files):
+                    full_path = os.path.join(self.chroot, path)
+                    if os.path.isfile(full_path):
+                        if exclude_file(full_path):
+                            continue
+                        yield full_path, path
+                        continue
+
+                    for root, _, files in os.walk(full_path):
+                        for f in sorted(files):
+                            if exclude_file(f):
+                                continue
+                            abs_path = os.path.join(root, f)
+                            rel_path = os.path.join(path, os.path.relpath(abs_path, full_path))
+                            yield abs_path, rel_path
+
+            for filename, arcname in iter_files():
+                maybe_write_parent_dirs(arcname)
+                write_entry(filename, arcname)

@@ -4,10 +4,26 @@
 from __future__ import absolute_import
 
 import errno
+import subprocess
+from abc import abstractmethod
 from threading import BoundedSemaphore, Event, Thread
 
 from pex.compatibility import Queue, cpu_count
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING, Generic
+
+if TYPE_CHECKING:
+    from typing import Any, Callable, Iterable, Iterator, Optional, Text, Tuple, TypeVar, Union
+
+    import attr  # vendor:skip
+
+    _I = TypeVar("_I")
+    _O = TypeVar("_O")
+    _T = TypeVar("_T")
+    _SE = TypeVar("_SE")
+    _JE = TypeVar("_JE")
+else:
+    from pex.third_party import attr
 
 
 class Job(object):
@@ -19,25 +35,53 @@ class Job(object):
     class Error(Exception):
         """Indicates that a Job exited non-zero."""
 
-    def __init__(self, command, process):
+        def __init__(
+            self,
+            pid,  # type: int
+            command,  # type: Tuple[str, ...]
+            exitcode,  # type: int
+            stderr,  # type: Optional[Text]
+            message,  # type: str
+        ):
+            # type: (...) -> None
+            super(Job.Error, self).__init__(message)
+            self.pid = pid
+            self.command = command
+            self.exitcode = exitcode
+            self.stderr = stderr
+
+    def __init__(
+        self,
+        command,  # type: Iterable[str]
+        process,  # type: subprocess.Popen
+        finalizer=None,  # type: Optional[Callable[[int], None]]
+    ):
+        # type: (...) -> None
         """
         :param command: The command used to spawn the job process.
-        :type command: list of str
         :param process: The spawned process handle.
-        :type process: :class:`subprocess.Popen`
+        :param finalizer: An optional cleanup function to call exactly once with the process return
+                          code when the underlying process terminates in the course of calling this
+                          job's public methods.
         """
-        self._command = command
+        self._command = tuple(command)
         self._process = process
+        self._finalizer = finalizer
 
     def wait(self):
+        # type: () -> None
         """Waits for the job to complete.
 
         :raises: :class:`Job.Error` if the job exited non-zero.
         """
-        self._process.wait()
-        self._check_returncode()
+        try:
+            _, stderr = self._process.communicate()
+            self._check_returncode(stderr)
+        finally:
+            self._finalize_job()
 
     def communicate(self, input=None):
+        # type: (Optional[bytes]) -> Tuple[bytes, bytes]
         """Communicates with the job sending any input data to stdin and collecting stdout and
         stderr.
 
@@ -45,11 +89,15 @@ class Job(object):
         :return: A tuple of the job's stdout and stderr as per the `subprocess` API.
         :raises: :class:`Job.Error` if the job exited non-zero.
         """
-        stdout, stderr = self._process.communicate(input=input)
-        self._check_returncode(stderr)
-        return stdout, stderr
+        try:
+            stdout, stderr = self._process.communicate(input=input)
+            self._check_returncode(stderr)
+            return stdout, stderr
+        finally:
+            self._finalize_job()
 
     def kill(self):
+        # type: () -> None
         """Terminates the job if it is still running.
 
         N.B.: This method is idempotent.
@@ -59,104 +107,227 @@ class Job(object):
         except OSError as e:
             if e.errno != errno.ESRCH:
                 raise e
+        finally:
+            self._finalize_job()
+
+    def create_error(
+        self,
+        msg,  # type: str
+        stderr=None,  # type: Optional[bytes]
+    ):
+        # type: (...) -> Job.Error
+        """Creates an error with this Job's details.
+
+        :param msg: The message for the error.
+        :param stderr: Any stderr output captured from the job.
+        :return: A job error.
+        """
+        err = None
+        if stderr:
+            err = stderr.decode("utf-8")
+            msg += "\nSTDERR:\n{}".format(err)
+        raise self.Error(
+            pid=self._process.pid,
+            command=self._command,
+            exitcode=self._process.returncode,
+            stderr=err,
+            message=msg,
+        )
+
+    def _finalize_job(self):
+        if self._finalizer is not None:
+            self._finalizer(self._process.returncode)
+            self._finalizer = None
 
     def _check_returncode(self, stderr=None):
+        # type: (Optional[bytes]) -> None
         if self._process.returncode != 0:
             msg = "Executing {} failed with {}".format(
                 " ".join(self._command), self._process.returncode
             )
-            if stderr:
-                msg += "\nSTDERR:\n{}".format(stderr.decode("utf-8"))
-            raise self.Error(msg)
+            raise self.create_error(msg, stderr=stderr)
 
     def __str__(self):
+        # type: () -> str
         return "pid: {pid} -> {command}".format(
             pid=self._process.pid, command=" ".join(self._command)
         )
 
 
-class SpawnedJob(object):
+class SpawnedJob(Generic["_T"]):
     """A handle to a spawned :class:`Job` and its associated result."""
 
     @classmethod
     def completed(cls, result):
+        # type: (_T) -> SpawnedJob[_T]
         """Wrap an already completed result in a SpawnedJob.
 
         The returned job will no-op when `kill` is called since the job is already completed.
 
         :param result: The completed result.
         :return: A spawned job whose result is already complete.
-        :rtype: :class:`SpawnedJob`
         """
 
         class Completed(SpawnedJob):
-            def __init__(self):
-                super(Completed, self).__init__(job=None, result_func=lambda: result)
+            def await_result(self):
+                # type: () -> _T
+                return result
 
             def kill(self):
+                # type: () -> None
                 pass
 
-            def __str__(self):
-                return "SpawnedJob.completed({})".format(result)
+            def __repr__(self):
+                # type: () -> str
+                return "SpawnedJob.completed({!r})".format(result)
 
         return Completed()
 
     @classmethod
-    def wait(cls, job, result):
+    def wait(
+        cls,
+        job,  # type: Job
+        result,  # type: _T
+    ):
+        # type: (...) -> SpawnedJob[_T]
         """Wait for the job to complete and return a fixed result upon success.
 
         :param job: The spawned job.
-        :type job: :class:`Job`
         :param result: The fixed success result.
         :return: A spawned job whose result is a side effect of the job (a written file, a populated
                  directory, etc.).
-        :rtype: :class:`SpawnedJob`
         """
-
-        def wait_result_func():
-            job.wait()
-            return result
-
-        return cls(job=job, result_func=wait_result_func)
+        return cls.and_then(job, lambda: result)
 
     @classmethod
-    def stdout(cls, job, result_func, input=None):
+    def and_then(
+        cls,
+        job,  # type: Job
+        result_func,  # type: Callable[[], _T]
+    ):
+        # type: (...) -> SpawnedJob[_T]
+        """Wait for the job to complete and return a result derived from its side effects.
+
+        :param job: The spawned job.
+        :param result_func: A function that will be called to produce the result upon job success.
+        :return: A spawned job whose result is derived from a side effect of the job (a written
+                 file, a populated directory, etc.).
+        """
+
+        class AndThen(SpawnedJob):
+            def await_result(self):
+                # type: () -> _T
+                job.wait()
+                return result_func()
+
+            def kill(self):
+                # type: () -> None
+                job.kill()
+
+            def __repr__(self):
+                # type: () -> str
+                return "SpawnedJob.and_then({!r})".format(job)
+
+        return AndThen()
+
+    @classmethod
+    def stdout(
+        cls,
+        job,  # type: Job
+        result_func,  # type: Callable[[bytes], _T]
+        input=None,  # type: Optional[bytes]
+    ):
+        # type: (...) -> SpawnedJob[_T]
         """Wait for the job to complete and return a result derived from its stdout.
 
         :param job: The spawned job.
-        :type job: :class:`Job`
-        :param result_func: A function taking the stdout byte string collected from the spawned job and
-                            returning the desired result.
+        :param result_func: A function taking the stdout byte string collected from the spawned job
+                            and returning the desired result.
         :param input: Optional input stream data to pass to the process as per the
                       `subprocess.Popen.communicate` API.
         :return: A spawned job whose result is derived from stdout contents.
-        :rtype: :class:`SpawnedJob`
         """
 
-        def stdout_result_func():
-            stdout, _ = job.communicate(input=input)
-            return result_func(stdout)
+        class Stdout(SpawnedJob):
+            def await_result(self):
+                # type: () -> _T
+                stdout, _ = job.communicate(input=input)
+                return result_func(stdout)
 
-        return cls(job=job, result_func=stdout_result_func)
+            def kill(self):
+                # type: () -> None
+                job.kill()
 
-    def __init__(self, job, result_func):
-        """Not intended for direct use, see `wait` and `stdout` factories."""
-        self._job = job
-        self._result_func = result_func
+            def __repr__(self):
+                # type: () -> str
+                return "SpawnedJob.stdout({!r})".format(job)
+
+        return Stdout()
+
+    @classmethod
+    def file(
+        cls,
+        job,  # type: Job
+        output_file,  # type: str
+        result_func,  # type: Callable[[bytes], _T]
+        input=None,  # type: Optional[bytes]
+    ):
+        # type: (...) -> SpawnedJob[_T]
+        """Wait for the job to complete and return a result derived from a file the job creates.
+
+        :param job: The spawned job.
+        :param output_file: The path of the file the job will create.
+        :param result_func: A function taking the byte contents of the file the spawned job
+                            created and returning the desired result.
+        :param input: Optional input stream data to pass to the process as per the
+                      `subprocess.Popen.communicate` API.
+        :return: A spawned job whose result is derived from the contents of a file it creates.
+        """
+
+        def _read_file(stderr=None):
+            # type: (Optional[bytes]) -> bytes
+            try:
+                with open(output_file, "rb") as fp:
+                    return fp.read()
+            except (OSError, IOError) as e:
+                raise job.create_error(
+                    "Expected job to create file {output_file!r} but it did not exist or could not "
+                    "be read: {err}".format(output_file=output_file, err=e),
+                    stderr=stderr,
+                )
+
+        class File(SpawnedJob):
+            def await_result(self):
+                # type: () -> _T
+                _, stderr = job.communicate(input=input)
+                return result_func(_read_file(stderr=stderr))
+
+            def kill(self):
+                # type: () -> None
+                job.kill()
+
+            def __repr__(self):
+                # type: () -> str
+                return "SpawnedJob.file({job!r}, output_file={output_file!r})".format(
+                    job=job, output_file=output_file
+                )
+
+        return File()
 
     def await_result(self):
+        # type: () -> _T
         """Waits for the spawned job to complete and returns its result."""
-        return self._result_func()
+        raise NotImplementedError()
 
     def kill(self):
+        # type: () -> None
         """Terminates the spawned job if it's not already complete."""
-        self._job.kill()
-
-    def __str__(self):
-        return str(self._job)
+        raise NotImplementedError()
 
 
-_CPU_COUNT = cpu_count()
+# If `cpu_count` fails, we default to 2. This is relatively arbitrary, based on what seems to be
+# common in CI.
+_CPU_COUNT = cpu_count() or 2
 _ABSOLUTE_MAX_JOBS = _CPU_COUNT * 2
 
 
@@ -172,20 +343,132 @@ def _sanitize_max_jobs(max_jobs=None):
         return min(max_jobs, _ABSOLUTE_MAX_JOBS)
 
 
-def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
+class ErrorHandler(Generic["_I", "_SE", "_JE"]):
+    """Handles errors encountered in the context of spawning and awaiting the result of a `Job`."""
+
+    @classmethod
+    def spawn_error_message(
+        cls,
+        item,  # type: _I
+        exception,  # type: Exception
+    ):
+        # type: (...) -> str
+        return "Failed to spawn a job for {item}: {exception}".format(
+            item=item, exception=exception
+        )
+
+    @classmethod
+    def job_error_message(
+        cls,
+        _item,  # type: _I
+        job_error,  # type: Job.Error
+    ):
+        # type: (...) -> str
+        return "pid {pid} -> {command} exited with {exitcode} and STDERR:\n{stderr}".format(
+            pid=job_error.pid,
+            command=" ".join(job_error.command),
+            exitcode=job_error.exitcode,
+            stderr=job_error.stderr,
+        )
+
+    @abstractmethod
+    def handle_spawn_error(
+        self,
+        item,  # type: _I
+        exception,  # type: Exception
+    ):
+        # type: (...) -> _SE
+        """Handle an error encountered spawning a job.
+
+        :param item: The item that was the input for the spawned job.
+        :param exception: The exception encountered attempting to spawn the job for `item`.
+        :type exception: :class:`Exception`
+        :returns: A value to represent the failed processing of the item or else `None` to skip
+                  processing of the item altogether.
+        :raise: To indicate all item processing should be cancelled and the exception raised.
+        """
+
+    @abstractmethod
+    def handle_job_error(
+        self,
+        item,  # type: _I
+        job_error,  # type: Job.Error
+    ):
+        # type: (...) -> _JE
+        """Handle a job that exits unsuccessfully.
+
+        :param item: The item that was the input for the spawned job.
+        :param job_error: An error capturing the details of the job failure.
+        :type job_error: :class:`Job.Error`
+        :returns: A value to represent the failed processing of the item or else `None` to skip
+                  processing of the item altogether.
+        :raise: To indicate all item processing should be cancelled and the exception raised.
+        """
+
+
+class Raise(ErrorHandler["_I", "_O", "_O"], Generic["_I", "_O"]):
+    """Re-raises errors encountered spawning or awaiting the result of a `Job`."""
+
+    def __init__(self, raise_type):
+        """
+        :param raise_type: The type of exception to raise when a `Job` fails.
+        :type raise_type: An :class:`Exception` subclass.
+        """
+        self._raise_type = raise_type
+
+    def handle_spawn_error(self, item, exception):
+        raise self._raise_type(self.spawn_error_message(item, exception))
+
+    def handle_job_error(self, item, job_error):
+        raise self._raise_type(self.job_error_message(item, job_error))
+
+
+class Retain(ErrorHandler["_I", "Tuple[_I, Exception]", "Tuple[_I, Job.Error]"], Generic["_I"]):
+    """Retains errors encountered spawning or awaiting the result of a `Job`.
+
+    The retained errors are returned as the result of the failed `Job` in the form of (item, error)
+    tuples. In the case of a spawn failure, the error item is likely an instance of `OSError`. In
+    the case of the `Job` failing (exiting non-zero), the error will be an instance of `Job.Error`.
+    """
+
+    def handle_spawn_error(self, item, exception):
+        return item, exception
+
+    def handle_job_error(self, item, job_error):
+        return item, job_error
+
+
+class Log(ErrorHandler["_I", "_O", "_O"], Generic["_I", "_O"]):
+    """Logs errors encountered spawning or awaiting the result of a `Job`."""
+
+    def handle_spawn_error(self, item, exception):
+        TRACER.log(self.spawn_error_message(item, exception))
+        return None
+
+    def handle_job_error(self, item, job_error):
+        TRACER.log(self.job_error_message(item, job_error))
+        return None
+
+
+def execute_parallel(
+    inputs,  # type: Iterable[_I]
+    spawn_func,  # type: Callable[[_I], SpawnedJob[_O]]
+    error_handler=None,  # type: Optional[ErrorHandler[_I, _SE, _JE]]
+    max_jobs=None,  # type: Optional[int]
+):
+    # type: (...) -> Iterator[Union[_O, _SE, _JE]]
     """Execute jobs for the given inputs in parallel.
 
     :param int max_jobs: The maximum number of parallel jobs to spawn.
     :param inputs: An iterable of the data to parallelize over `spawn_func`.
     :param spawn_func: A function taking a single input and returning a :class:`SpawnedJob`.
-    :param raise_type: An optional type that takes a single string argument and will be used to
-                       construct a raiseable value when any of the spawned jobs errors. `None` by
-                       default which indicates spawned jobs that error should be skipped; i.e.: the
-                       returned iterator over spawned job results will return less results than
-                       inputs.
+    :param error_handler: An optional :class:`ErrorHandler`, defaults to :class:`Log`.
     :returns: An iterator over the spawned job results as they come in.
     :raises: A `raise_type` exception if any individual job errors and `raise_type` is not `None`.
     """
+    handler = (
+        error_handler or Log["_I", "_O"]()
+    )  # type: Union[ErrorHandler[_I, _SE, _JE], Log[_I, _O]]
     size = _sanitize_max_jobs(max_jobs)
     TRACER.log(
         "Spawning a maximum of {} parallel jobs to process:\n  {}".format(
@@ -194,15 +477,24 @@ def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
         V=9,
     )
 
-    class SpawnError(Exception):
-        def __init__(self, item, error):
-            self.item = item
-            self.error = error
+    @attr.s(frozen=True)
+    class Spawn(object):
+        item = attr.ib()  # type: Any
+        spawned_job = attr.ib()  # type: SpawnedJob
+
+    @attr.s(frozen=True)
+    class SpawnError(object):
+        item = attr.ib()  # type: Any
+        error = attr.ib()  # type: Exception
 
     stop = Event()  # Used as a signal to stop spawning further jobs once any one job fails.
     job_slots = BoundedSemaphore(value=size)
-    done_sentinel = object()
-    spawned_job_queue = Queue()  # Queue[Union[SpawnedJob, SpawnError, Literal[done_sentinel]]]
+
+    class DoneSentinel(object):
+        pass
+
+    done_sentinel = DoneSentinel()
+    spawn_queue = Queue()  # type: Queue[Union[Spawn, SpawnError, DoneSentinel]]
 
     def spawn_jobs():
         for item in inputs:
@@ -210,12 +502,12 @@ def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
                 break
             job_slots.acquire()
             try:
-                result = spawn_func(item)
+                result = Spawn(item, spawn_func(item))
             except Exception as e:
                 result = SpawnError(item, e)
             finally:
-                spawned_job_queue.put(result)
-        spawned_job_queue.put(done_sentinel)
+                spawn_queue.put(result)
+        spawn_queue.put(done_sentinel)
 
     spawner = Thread(name="PEX Parallel Job Spawner", target=spawn_jobs)
     spawner.daemon = True
@@ -223,38 +515,38 @@ def execute_parallel(inputs, spawn_func, raise_type=None, max_jobs=None):
 
     error = None
     while True:
-        item = spawned_job_queue.get()
+        spawn_result = spawn_queue.get()
 
-        if item is done_sentinel:
+        if isinstance(spawn_result, DoneSentinel):
             if error:
                 raise error
             return
 
         try:
-            if isinstance(item, SpawnError):
-                if raise_type:
-                    error = item.error
-                else:
-                    # Otherwise, if we were given no `raise_type`, we skip over the input that raised.
-                    TRACER.log(
-                        "Failed to spawn a job for {}: {} raised {}".format(
-                            item.item, spawn_func, item.error
-                        )
-                    )
+            if isinstance(spawn_result, SpawnError):
+                try:
+                    se_result = handler.handle_spawn_error(spawn_result.item, spawn_result.error)
+                    if se_result is not None:
+                        yield se_result
+                except Exception as e:
+                    # Fail fast and proceed to kill all outstanding spawned jobs.
+                    stop.set()
+                    error = e
             elif (
                 error is not None
             ):  # I.E.: `item` is not an exception, but there was a prior exception.
-                item.kill()
+                spawn_result.spawned_job.kill()
             else:
                 try:
-                    yield item.await_result()
+                    yield spawn_result.spawned_job.await_result()
                 except Job.Error as e:
-                    if raise_type:
+                    try:
+                        je_result = handler.handle_job_error(spawn_result.item, e)
+                        if je_result is not None:
+                            yield je_result
+                    except Exception as e:
                         # Fail fast and proceed to kill all outstanding spawned jobs.
                         stop.set()
-                        error = raise_type("{} raised {}".format(item, e))
-                    else:
-                        # Otherwise, if we were given no `raise_type`, we continue on and just log the failure.
-                        TRACER.log("{} raised {}".format(item, e))
+                        error = e
         finally:
             job_slots.release()

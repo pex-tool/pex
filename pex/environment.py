@@ -3,23 +3,44 @@
 
 from __future__ import absolute_import
 
-import importlib
 import itertools
 import os
 import site
 import sys
-import zipfile
 from collections import OrderedDict, defaultdict
 
-from pex import dist_metadata, pex_builder, pex_warnings
-from pex.bootstrap import Bootstrap
-from pex.common import atomic_directory, die, open_zip
-from pex.interpreter import PythonInterpreter
+from pex import dist_metadata, pex_warnings, targets
+from pex.common import pluralize
+from pex.dist_metadata import Distribution, Requirement
+from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.inherit_path import InheritPath
+from pex.layout import maybe_install
 from pex.orderedset import OrderedSet
-from pex.third_party.packaging import tags
-from pex.third_party.pkg_resources import DistributionNotFound, Environment, Requirement, WorkingSet
+from pex.pep_425 import CompatibilityTags, TagRank
+from pex.pep_503 import ProjectName
+from pex.pex_info import PexInfo
+from pex.targets import Target
+from pex.third_party.packaging import specifiers
 from pex.tracer import TRACER
-from pex.util import CacheHelper, DistributionHelper
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import (
+        DefaultDict,
+        Dict,
+        FrozenSet,
+        Iterable,
+        Iterator,
+        List,
+        MutableMapping,
+        Optional,
+        Tuple,
+        Union,
+    )
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 def _import_pkg_resources():
@@ -36,308 +57,544 @@ def _import_pkg_resources():
         return pkg_resources, True
 
 
-class PEXEnvironment(Environment):
-    class _CachingZipImporter(object):
-        class _CachingLoader(object):
-            def __init__(self, delegate):
-                self._delegate = delegate
+@attr.s(frozen=True)
+class _RankedDistribution(object):
+    # N.B.: A distribution implements rich comparison with the leading component being the
+    # `parsed_version`; as such, a _RankedDistribution sorts as a whole 1st by `rank` (which is a
+    # rank of the distribution's tags specificity for the target interpreter), then by version and
+    # finally by redundant components of distribution metadata we never get to since they are
+    # encoded in the tag specificity rank value.
 
-            def load_module(self, fullname):
-                loaded = sys.modules.get(fullname)
-                # Technically a PEP-302 loader should re-load the existing module object here - notably
-                # re-exec'ing the code found in the zip against the existing module __dict__. We don't do
-                # this since the zip is assumed immutable during our run and this is enough to work around
-                # the issue.
-                if not loaded:
-                    loaded = self._delegate.load_module(fullname)
-                    loaded.__loader__ = self
-                return loaded
-
-        _REGISTERED = False
-
-        @classmethod
-        def _ensure_namespace_handler_registered(cls):
-            if not cls._REGISTERED:
-                pkg_resources, _ = _import_pkg_resources()
-                pkg_resources.register_namespace_handler(cls, pkg_resources.file_ns_handler)
-                cls._REGISTERED = True
-
-        def __init__(self, path):
-            import zipimport
-
-            self._delegate = zipimport.zipimporter(path)
-
-        def find_module(self, fullname, path=None):
-            loader = self._delegate.find_module(fullname, path)
-            if loader is None:
-                return None
-            self._ensure_namespace_handler_registered()
-            caching_loader = self._CachingLoader(loader)
-            return caching_loader
+    # The attr project type stub file simply misses this.
+    _fd_cmp = attr.cmp_using(  # type: ignore[attr-defined]
+        eq=FingerprintedDistribution.__eq__,
+        # Since we want to rank higher versions higher (earlier) we need to reverse the natural
+        # ordering of Version in Distribution which is least to greatest.
+        lt=FingerprintedDistribution.__ge__,
+    )
 
     @classmethod
-    def _install_pypy_zipimporter_workaround(cls, pex_file):
-        # The pypy zipimporter implementation always freshly loads a module instead of re-importing
-        # when the module already exists in sys.modules. This breaks the PEP-302 importer protocol and
-        # violates pkg_resources assumptions based on that protocol in its handling of namespace
-        # packages. See: https://bitbucket.org/pypy/pypy/issues/1686
+    def highest_rank(cls, fingerprinted_distribution):
+        # type: (FingerprintedDistribution) -> _RankedDistribution
+        return cls(
+            rank=TagRank.highest_natural().higher(),
+            fingerprinted_distribution=fingerprinted_distribution,
+        )
 
-        def pypy_zipimporter_workaround(path):
-            import os
+    rank = attr.ib()  # type: TagRank
+    fingerprinted_distribution = attr.ib(
+        eq=_fd_cmp, order=_fd_cmp
+    )  # type: FingerprintedDistribution
 
-            if not path.startswith(pex_file) or "." in os.path.relpath(path, pex_file):
-                # We only need to claim the pex zipfile root modules.
-                #
-                # The protocol is to raise if we don't want to hook the given path.
-                # See: https://www.python.org/dev/peps/pep-0302/#specification-part-2-registering-hooks
-                raise ImportError()
+    @property
+    def distribution(self):
+        # type: () -> Distribution
+        return self.fingerprinted_distribution.distribution
 
-            return cls._CachingZipImporter(path)
+    @property
+    def fingerprint(self):
+        # type: () -> str
+        return self.fingerprinted_distribution.fingerprint
 
-        for path in list(sys.path_importer_cache):
-            if path.startswith(pex_file):
-                sys.path_importer_cache.pop(path)
+    def satisfies(self, requirement):
+        # type: (Requirement) -> bool
+        return self.distribution in requirement
 
-        sys.path_hooks.insert(0, pypy_zipimporter_workaround)
 
-    @classmethod
-    def _force_local(cls, pex_file, pex_info):
-        if pex_info.code_hash is None:
-            # Do not support force_local if code_hash is not set. (It should always be set.)
-            return pex_file
-        explode_dir = os.path.join(pex_info.zip_unsafe_cache, pex_info.code_hash)
-        TRACER.log("PEX is not zip safe, exploding to %s" % explode_dir)
-        with atomic_directory(explode_dir) as explode_tmp:
-            if explode_tmp:
-                with TRACER.timed("Unzipping %s" % pex_file):
-                    with open_zip(pex_file) as pex_zip:
-                        pex_files = (
-                            x
-                            for x in pex_zip.namelist()
-                            if not x.startswith(pex_builder.BOOTSTRAP_DIR)
-                            and not x.startswith(pex_info.internal_cache)
-                        )
-                        pex_zip.extractall(explode_tmp, pex_files)
-        return explode_dir
+@attr.s(frozen=True)
+class _UnrankedDistribution(object):
+    fingerprinted_distribution = attr.ib()  # type: FingerprintedDistribution
 
-    @classmethod
-    def _update_module_paths(cls, pex_file):
-        bootstrap = Bootstrap.locate()
+    @property
+    def dist(self):
+        # type: () -> Distribution
+        return self.fingerprinted_distribution.distribution
 
-        # Un-import any modules already loaded from within the .pex file.
-        to_reimport = []
-        for name, module in reversed(sorted(sys.modules.items())):
-            if bootstrap.imported_from_bootstrap(module):
-                TRACER.log("Not re-importing module %s from bootstrap." % module, V=3)
-                continue
+    def render_message(self, target):
+        # type: (Target) -> str
+        return "The distribution {dist} cannot be used by {target}.".format(
+            dist=self.dist, target=target
+        )
 
-            pkg_path = getattr(module, "__path__", None)
-            if pkg_path and any(
-                os.path.realpath(path_item).startswith(pex_file) for path_item in pkg_path
-            ):
-                sys.modules.pop(name)
-                to_reimport.append((name, pkg_path, True))
-            elif (
-                name != "__main__"
-            ):  # The __main__ module is special in python and is not re-importable.
-                mod_file = getattr(module, "__file__", None)
-                if mod_file and os.path.realpath(mod_file).startswith(pex_file):
-                    sys.modules.pop(name)
-                    to_reimport.append((name, mod_file, False))
 
-        # And re-import them from the exploded pex.
-        for name, existing_path, is_pkg in to_reimport:
-            TRACER.log(
-                "Re-importing %s %s loaded via %r from exploded pex."
-                % ("package" if is_pkg else "module", name, existing_path)
+@attr.s(frozen=True)
+class _InvalidWheelName(_UnrankedDistribution):
+    filename = attr.ib()  # type: str
+
+    def render_message(self, _target):
+        # type: (Target) -> str
+        return (
+            "The filename of {dist} is not a valid wheel file name that can be parsed for "
+            "tags.".format(dist=self.dist)
+        )
+
+
+@attr.s(frozen=True)
+class _TagMismatch(_UnrankedDistribution):
+    wheel_tags = attr.ib()  # type: CompatibilityTags
+
+    def render_message(self, target):
+        # type: (Target) -> str
+        return (
+            "The wheel tags for {dist} are {wheel_tags} which do not match the supported tags of "
+            "{target}:\n{tag}\n... {count} more ...".format(
+                dist=self.dist,
+                wheel_tags=", ".join(map(str, self.wheel_tags)),
+                target=target,
+                tag=target.supported_tags[0],
+                count=len(target.supported_tags) - 1,
             )
-            reimported_module = importlib.import_module(name)
-            if is_pkg:
-                for path_item in existing_path:
-                    # NB: It is not guaranteed that __path__ is a list, it may be a PEP-420 namespace package
-                    # object which supports a limited mutation API; so we append each item individually.
-                    reimported_module.__path__.append(path_item)
+        )
+
+
+@attr.s(frozen=True)
+class _PythonRequiresMismatch(_UnrankedDistribution):
+    python_requires = attr.ib()  # type: specifiers.SpecifierSet
+
+    def render_message(self, target):
+        # type: (Target) -> str
+        return (
+            "The distribution has a python requirement of {python_requires} which does not match "
+            "the python version of {python_version} for {target}.".format(
+                python_requires=self.python_requires,
+                python_version=target.python_version_str,
+                target=target,
+            )
+        )
+
+
+@attr.s(frozen=True)
+class _QualifiedRequirement(object):
+    requirement = attr.ib()  # type: Requirement
+    required = attr.ib(default=True)  # type: bool
+
+
+@attr.s(frozen=True)
+class _DistributionNotFound(object):
+    requirement = attr.ib()  # type: Requirement
+    required_by = attr.ib(default=None)  # type: Optional[Distribution]
+
+
+if TYPE_CHECKING:
+    QualifiedRequirementOrNotFound = Union[_QualifiedRequirement, _DistributionNotFound]
+
+
+class ResolveError(Exception):
+    """Indicates an error resolving requirements from within a PEX."""
+
+
+@attr.s(frozen=True)
+class _RequirementKey(ProjectName):
+    @classmethod
+    def create(cls, requirement):
+        # type: (Requirement) -> _RequirementKey
+        return cls(requirement.name, frozenset(requirement.extras))
+
+    extras = attr.ib()  # type: FrozenSet[str]
+
+    def satisfied_keys(self):
+        # type: () -> Iterator[_RequirementKey]
+
+        # If we resolve a requirement with extras then we've satisfied resolves for the powerset of
+        # the extras.
+        # For example, if we resolve `cake[birthday,wedding]` then we satisfy resolves for:
+        # `cake[]`
+        # `cake[birthday]`
+        # `cake[wedding]`
+        # `cake[birthday,wedding]`
+        items = list(self.extras)
+        for size in range(len(items) + 1):
+            for combination_of_size in itertools.combinations(items, size):
+                yield _RequirementKey(self.raw, frozenset(combination_of_size))
+
+
+class PEXEnvironment(object):
+    _CACHE = {}  # type: Dict[Tuple[str, str, Target], PEXEnvironment]
 
     @classmethod
-    def _write_zipped_internal_cache(cls, zf, pex_info):
-        cached_distributions = []
-        for distribution_name, dist_digest in pex_info.distributions.items():
-            internal_dist_path = "/".join([pex_info.internal_cache, distribution_name])
-            cached_location = os.path.join(pex_info.install_cache, dist_digest, distribution_name)
-            dist = CacheHelper.cache_distribution(zf, internal_dist_path, cached_location)
-            cached_distributions.append(dist)
-        return cached_distributions
+    def mount(
+        cls,
+        pex,  # type: str
+        pex_info=None,  # type: Optional[PexInfo]
+        target=None,  # type: Optional[Target]
+    ):
+        # type: (...) -> PEXEnvironment
+        pex_file = os.path.realpath(pex)
+        if not pex_info:
+            pex_info = PexInfo.from_pex(pex_file)
+            pex_info.update(PexInfo.from_env())
+        pex_hash = pex_info.pex_hash
+        if pex_hash is None:
+            raise AssertionError(
+                "There was no pex_hash stored in {} for {}.".format(PexInfo.PATH, pex)
+            )
+        target = target or targets.current()
+        key = (pex_file, pex_hash, target)
+        mounted = cls._CACHE.get(key)
+        if mounted is None:
+            pex_root = pex_info.pex_root
+            pex = maybe_install(pex=pex, pex_root=pex_root, pex_hash=pex_hash) or pex
+            mounted = cls(pex=pex, pex_info=pex_info, target=target)
+            cls._CACHE[key] = mounted
+        return mounted
 
-    @classmethod
-    def _load_internal_cache(cls, pex, pex_info):
-        """Possibly cache out the internal cache."""
-        internal_cache = os.path.join(pex, pex_info.internal_cache)
+    def __init__(
+        self,
+        pex,  # type: str
+        pex_info=None,  # type: Optional[PexInfo]
+        target=None,  # type: Optional[Target]
+    ):
+        # type: (...) -> None
+        self._pex = os.path.realpath(pex)
+        self._pex_info = pex_info or PexInfo.from_pex(pex)
+        self._target = target or targets.current()
+
+        self._available_ranked_dists_by_project_name = defaultdict(
+            list
+        )  # type: DefaultDict[ProjectName, List[_RankedDistribution]]
+        self._unavailable_dists_by_project_name = defaultdict(
+            list
+        )  # type: DefaultDict[ProjectName, List[_UnrankedDistribution]]
+        self._resolved_dists = None  # type: Optional[Iterable[Distribution]]
+        self._activated_dists = None  # type: Optional[Iterable[Distribution]]
+
+    @property
+    def path(self):
+        # type: () -> str
+        return self._pex
+
+    def iter_distributions(self):
+        # type: () -> Iterator[FingerprintedDistribution]
+        internal_cache = os.path.join(self._pex, self._pex_info.internal_cache)
         with TRACER.timed("Searching dependency cache: %s" % internal_cache, V=2):
-            if len(pex_info.distributions) == 0:
-                # We have no .deps to load.
-                return
-
-            if os.path.isdir(pex):
-                search_path = [
-                    os.path.join(internal_cache, dist_chroot)
-                    for dist_chroot in os.listdir(internal_cache)
-                ]
-                internal_env = Environment(search_path=search_path)
-                for dist_name in internal_env:
-                    for dist in internal_env[dist_name]:
-                        yield dist
-            else:
-                with open_zip(pex) as zf:
-                    for dist in cls._write_zipped_internal_cache(zf, pex_info):
-                        yield dist
-
-    def __init__(self, pex, pex_info, interpreter=None, **kw):
-        self._internal_cache = os.path.join(pex, pex_info.internal_cache)
-        self._pex = pex
-        self._pex_info = pex_info
-        self._activated = False
-        self._working_set = None
-        self._interpreter = interpreter or PythonInterpreter.get()
-        self._inherit_path = pex_info.inherit_path
-        self._supported_tags = frozenset(self._interpreter.identity.supported_tags)
-        self._target_interpreter_env = self._interpreter.identity.env_markers
-
-        # For the bug this works around, see: https://bitbucket.org/pypy/pypy/issues/1686
-        # NB: This must be installed early before the underlying pex is loaded in any way.
-        if self._interpreter.identity.python_tag.startswith("pp") and zipfile.is_zipfile(self._pex):
-            self._install_pypy_zipimporter_workaround(self._pex)
-
-        super(PEXEnvironment, self).__init__(
-            search_path=[] if pex_info.inherit_path == "false" else sys.path,
-            platform=self._interpreter.identity.platform_tag,
-            **kw
-        )
-        TRACER.log(
-            "E: tags for %r x %r -> %s" % (self.platform, self._interpreter, self._supported_tags),
-            V=9,
-        )
+            for distribution_name, fingerprint in self._pex_info.distributions.items():
+                dist_path = os.path.join(internal_cache, distribution_name)
+                yield FingerprintedDistribution(
+                    distribution=Distribution.load(dist_path),
+                    fingerprint=fingerprint,
+                )
 
     def _update_candidate_distributions(self, distribution_iter):
-        for dist in distribution_iter:
-            if self.can_add(dist):
-                with TRACER.timed("Adding %s" % dist, V=2):
-                    self.add(dist)
+        # type: (Iterable[FingerprintedDistribution]) -> None
+        for fingerprinted_dist in distribution_iter:
+            ranked_dist = self._can_add(fingerprinted_dist)
+            project_name = fingerprinted_dist.project_name
+            if isinstance(ranked_dist, _RankedDistribution):
+                with TRACER.timed("Adding %s" % fingerprinted_dist.distribution, V=2):
+                    self._available_ranked_dists_by_project_name[project_name].append(ranked_dist)
+            else:
+                self._unavailable_dists_by_project_name[project_name].append(ranked_dist)
 
-    def can_add(self, dist):
-        filename, ext = os.path.splitext(os.path.basename(dist.location))
+    def _can_add(self, fingerprinted_dist):
+        # type: (FingerprintedDistribution) -> Union[_RankedDistribution, _UnrankedDistribution]
+        filename, ext = os.path.splitext(os.path.basename(fingerprinted_dist.location))
         if ext.lower() != ".whl":
-            # This supports resolving pex's own vendored distributions which are vendored in directory
+            # This supports resolving pex's own vendored distributions which are vendored in a
             # directory with the project name (`pip/` for pip) and not the corresponding wheel name
-            # (`pip-19.3.1-py2.py3-none-any.whl/` for pip). Pex only vendors universal wheels for all
-            # platforms it supports at buildtime and runtime so this is always safe.
-            return True
+            # (`pip-19.3.1-py2.py3-none-any.whl/` for pip). Pex only vendors universal wheels for
+            # all platforms it supports at buildtime and runtime so this is always safe.
+            return _RankedDistribution.highest_rank(fingerprinted_dist)
 
-        # Wheel filename format: https://www.python.org/dev/peps/pep-0427/#file-name-convention
-        # `{distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl`
-        wheel_components = filename.split("-")
-        if len(wheel_components) < 3:
-            return False
+        try:
+            wheel_tags = CompatibilityTags.from_wheel(fingerprinted_dist.location)
+        except ValueError:
+            return _InvalidWheelName(fingerprinted_dist, filename)
 
-        wheel_tags = "-".join(wheel_components[-3:])  # `{python tag}-{abi tag}-{platform tag}`
-        if self._supported_tags.isdisjoint(tags.parse_tag(wheel_tags)):
-            return False
+        # There will be multiple parsed tags for compressed tag sets. Ensure we grab the parsed tag
+        # with highest rank from that expanded set.
+        best_match = self._target.supported_tags.best_match(wheel_tags)
+        if best_match is None:
+            return _TagMismatch(fingerprinted_dist, wheel_tags)
 
-        python_requires = dist_metadata.requires_python(dist)
-        if not python_requires:
-            return True
+        python_requires = dist_metadata.requires_python(fingerprinted_dist.distribution)
+        if python_requires and not self._target.requires_python_applies(
+            python_requires, source=fingerprinted_dist.distribution.as_requirement()
+        ):
+            return _PythonRequiresMismatch(fingerprinted_dist, python_requires)
 
-        return self._interpreter.identity.version_str in python_requires
+        return _RankedDistribution(best_match.rank, fingerprinted_dist)
 
     def activate(self):
-        if not self._activated:
+        # type: () -> Iterable[Distribution]
+        if self._activated_dists is None:
             with TRACER.timed("Activating PEX virtual environment from %s" % self._pex):
-                self._working_set = self._activate()
-            self._activated = True
+                self._activated_dists = self._activate()
+        return self._activated_dists
 
-        return self._working_set
+    def _evaluate_marker(
+        self,
+        requirement,  # type: Requirement
+        extras=(),  # type: Iterable[str]
+    ):
+        # type: (...) -> bool
+        applies = self._target.requirement_applies(requirement, extras=extras)
+        if not applies:
+            TRACER.log(
+                "Skipping activation of `{}` due to environment marker de-selection".format(
+                    requirement
+                ),
+                V=3,
+            )
+        return applies
 
-    def _resolve(self, working_set, reqs):
-        environment = self._target_interpreter_env.copy()
-        environment["extra"] = list(set(itertools.chain(*(req.extras for req in reqs))))
+    def _resolve_requirement(
+        self,
+        requirement,  # type: Requirement
+        resolved_dists_by_key,  # type: MutableMapping[_RequirementKey, FingerprintedDistribution]
+        required,  # type: bool
+        required_by=None,  # type: Optional[Distribution]
+    ):
+        # type: (...) -> Iterator[_DistributionNotFound]
+        requirement_key = _RequirementKey.create(requirement)
+        if requirement_key in resolved_dists_by_key:
+            return
 
-        reqs_by_key = OrderedDict()
-        for req in reqs:
-            if req.marker and not req.marker.evaluate(environment=environment):
-                TRACER.log(
-                    "Skipping activation of `%s` due to environment marker de-selection" % req
-                )
+        available_distributions = [
+            ranked_dist
+            for ranked_dist in self._available_ranked_dists_by_project_name[
+                requirement.project_name
+            ]
+            if ranked_dist.satisfies(requirement)
+        ]
+        if not available_distributions:
+            if required:
+                yield _DistributionNotFound(requirement, required_by=required_by)
+            return
+
+        resolved_distribution = sorted(available_distributions)[0].fingerprinted_distribution
+        if len(available_distributions) > 1:
+            TRACER.log(
+                "Resolved {req} to {dist} and discarded {discarded}.".format(
+                    req=requirement,
+                    dist=resolved_distribution.distribution,
+                    discarded=", ".join(
+                        str(ranked_dist.distribution) for ranked_dist in available_distributions[1:]
+                    ),
+                ),
+                V=9,
+            )
+
+        resolved_dists_by_key.update(
+            (key, resolved_distribution) for key in requirement_key.satisfied_keys()
+        )
+
+        for dep_requirement in dist_metadata.requires_dists(resolved_distribution.distribution):
+            # A note regarding extras and why they're passed down one level (we don't pass / use
+            # dep_requirement.extras for example):
+            #
+            # Say we're resolving the `requirement` 'requests[security]==2.25.1'. That means
+            # `resolved_distribution` is the requests distribution. It will have metadata that
+            # looks like so:
+            #
+            # $ grep Requires-Dist requests-2.25.1.dist-info/METADATA | grep security -C1
+            # Requires-Dist: certifi (>=2017.4.17)
+            # Requires-Dist: pyOpenSSL (>=0.14) ; extra == 'security'
+            # Requires-Dist: cryptography (>=1.3.4) ; extra == 'security'
+            # Requires-Dist: PySocks (!=1.5.7,>=1.5.6) ; extra == 'socks'
+            #
+            # We want to recurse and resolve all standard requests requirements but also those that
+            # are part of the 'security' extra. In order to resolve the latter we need to include
+            # the 'security' extra environment marker.
+            required = self._evaluate_marker(dep_requirement, extras=requirement.extras)
+            if not required:
                 continue
-            reqs_by_key.setdefault(req.key, []).append(req)
 
-        unresolved_reqs = OrderedDict()
-        resolveds = OrderedSet()
+            for not_found in self._resolve_requirement(
+                dep_requirement,
+                resolved_dists_by_key,
+                required,
+                required_by=resolved_distribution.distribution,
+            ):
+                yield not_found
 
-        # Resolve them one at a time so that we can figure out which ones we need to elide should
-        # there be an interpreter incompatibility.
-        for key, reqs in reqs_by_key.items():
-            with TRACER.timed("Resolving {} from {}".format(key, reqs), V=2):
-                # N.B.: We resolve the bare requirement with no version specifiers since the resolve process
-                # used to build this pex already did so. There may be multiple distributions satisfying any
-                # particular key (e.g.: a Python 2 specific version and a Python 3 specific version for a
-                # multi-python PEX) and we want the working set to pick the most appropriate one.
-                req = Requirement.parse(key)
-                try:
-                    resolveds.update(working_set.resolve([req], env=self))
-                except DistributionNotFound as e:
-                    TRACER.log("Failed to resolve a requirement: %s" % e)
-                    requirers = unresolved_reqs.setdefault(e.req, OrderedSet())
-                    if e.requirers:
-                        for requirer in e.requirers:
-                            requirers.update(reqs_by_key[requirer])
+    def _root_requirements_iter(self, reqs):
+        # type: (Iterable[Requirement]) -> Iterator[QualifiedRequirementOrNotFound]
+
+        # We want to pick one requirement for each key (required project) to then resolve
+        # recursively.
+
+        # First, the selected requirement clearly needs to be applicable (its environment markers
+        # must apply to our interpreter). For example, for a Python 3.6 interpreter this would
+        # select just "isort==5.6.4; python_version>='3.6'" from the input set:
+        # {
+        #   "isort==4.3.21; python_version<'3.6'",
+        #   "setuptools==44.1.1; python_version<'3.6'",
+        #   "isort==5.6.4; python_version>='3.6'",
+        # }
+        qualified_reqs_by_project_name = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, List[_QualifiedRequirement]]
+        for req in reqs:
+            required = self._evaluate_marker(req)
+            if not required:
+                continue
+            project_name = req.project_name
+            requirements = qualified_reqs_by_project_name.get(project_name)
+            if requirements is None:
+                qualified_reqs_by_project_name[project_name] = requirements = []
+            requirements.append(_QualifiedRequirement(req, required=required))
+
+        # Next, from among the remaining applicable requirements for a given project, we want to
+        # select the most tailored (highest ranked) available distribution. That distribution's
+        # transitive requirements will later fill in the full resolve.
+        for project_name, qualified_requirements in qualified_reqs_by_project_name.items():
+            ranked_dists = self._available_ranked_dists_by_project_name.get(project_name)
+            if ranked_dists is None:
+                # We've winnowed down reqs_by_key to just those requirements whose environment
+                # markers apply; so, we should always have an available distribution.
+                message = (
+                    "A distribution for {project_name} could not be resolved for {target}.".format(
+                        project_name=project_name, target=self._target
+                    )
+                )
+                unavailable_dists = self._unavailable_dists_by_project_name.get(project_name)
+                if unavailable_dists:
+                    message += (
+                        "\nFound {count} {distributions} for {project_name} that do not apply:\n"
+                        "{unavailable_dists}".format(
+                            count=len(unavailable_dists),
+                            distributions=pluralize(unavailable_dists, "distribution"),
+                            project_name=project_name,
+                            unavailable_dists="\n".join(
+                                "{index}.) {message}".format(
+                                    index=index,
+                                    message=unavailable_dist.render_message(self._target),
+                                )
+                                for index, unavailable_dist in enumerate(unavailable_dists, start=1)
+                            ),
+                        )
+                    )
+                raise ResolveError(message)
+            candidates = [
+                (ranked_dist, qualified_requirement)
+                for qualified_requirement in qualified_requirements
+                for ranked_dist in ranked_dists
+                if ranked_dist.satisfies(qualified_requirement.requirement)
+            ]
+            if not candidates:
+                for qualified_requirement in qualified_requirements:
+                    yield _DistributionNotFound(qualified_requirement.requirement)
+                continue
+
+            ranked_dist, qualified_requirement = sorted(candidates, key=lambda tup: tup[0])[0]
+            if len(candidates) > 1:
+                TRACER.log(
+                    "Selected {dist} via {req} and discarded {discarded}.".format(
+                        req=qualified_requirement.requirement,
+                        dist=ranked_dist.distribution,
+                        discarded=", ".join(
+                            "{dist} via {req}".format(
+                                req=qualified_req.requirement, dist=ranked_dist.distribution
+                            )
+                            for ranked_dist, qualified_req in candidates[1:]
+                        ),
+                    ),
+                    V=9,
+                )
+            yield qualified_requirement
+
+    def resolve(self):
+        # type: () -> Iterable[Distribution]
+        if self._resolved_dists is None:
+            all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
+            self._resolved_dists = tuple(
+                fingerprinted_distribution.distribution
+                for fingerprinted_distribution in self.resolve_dists(all_reqs)
+            )
+        return self._resolved_dists
+
+    def resolve_dists(self, reqs):
+        # type: (Iterable[Requirement]) -> Iterable[FingerprintedDistribution]
+
+        self._update_candidate_distributions(self.iter_distributions())
+
+        unresolved_reqs = OrderedDict()  # type: OrderedDict[Requirement, OrderedSet]
+
+        def record_unresolved(dist_not_found):
+            # type: (_DistributionNotFound) -> None
+            TRACER.log("Failed to resolve a requirement: {}".format(dist_not_found.requirement))
+            requirers = unresolved_reqs.get(dist_not_found.requirement)
+            if requirers is None:
+                requirers = OrderedSet()
+                unresolved_reqs[dist_not_found.requirement] = requirers
+            if dist_not_found.required_by:
+                requirers.add(dist_not_found.required_by)
+
+        resolved_dists_by_key = (
+            OrderedDict()
+        )  # type: OrderedDict[_RequirementKey, FingerprintedDistribution]
+        for qualified_req_or_not_found in self._root_requirements_iter(reqs):
+            if isinstance(qualified_req_or_not_found, _DistributionNotFound):
+                record_unresolved(qualified_req_or_not_found)
+                continue
+
+            with TRACER.timed("Resolving {}".format(qualified_req_or_not_found.requirement), V=2):
+                for not_found in self._resolve_requirement(
+                    requirement=qualified_req_or_not_found.requirement,
+                    required=qualified_req_or_not_found.required,
+                    resolved_dists_by_key=resolved_dists_by_key,
+                ):
+                    record_unresolved(not_found)
 
         if unresolved_reqs:
             TRACER.log("Unresolved requirements:")
             for req in unresolved_reqs:
-                TRACER.log("  - %s" % req)
+                TRACER.log("  - {}".format(req))
 
             TRACER.log("Distributions contained within this pex:")
-            distributions_by_key = defaultdict(list)
             if not self._pex_info.distributions:
                 TRACER.log("  None")
             else:
-                for dist_name, dist_digest in self._pex_info.distributions.items():
-                    TRACER.log("  - %s" % dist_name)
-                    distribution = DistributionHelper.distribution_from_path(
-                        path=os.path.join(self._pex_info.install_cache, dist_digest, dist_name)
-                    )
-                    distributions_by_key[distribution.as_requirement().key].append(distribution)
+                for dist_name in self._pex_info.distributions:
+                    TRACER.log("  - {}".format(dist_name))
 
             if not self._pex_info.ignore_errors:
                 items = []
                 for index, (requirement, requirers) in enumerate(unresolved_reqs.items()):
                     rendered_requirers = ""
                     if requirers:
-                        rendered_requirers = ("\n    Required by:" "\n      {requirers}").format(
+                        rendered_requirers = "\n    Required by:" "\n      {requirers}".format(
                             requirers="\n      ".join(map(str, requirers))
                         )
-
+                    contains = self._available_ranked_dists_by_project_name[
+                        requirement.project_name
+                    ]
+                    if contains:
+                        rendered_contains = (
+                            "\n    But this pex only contains:"
+                            "\n      {distributions}".format(
+                                distributions="\n      ".join(
+                                    os.path.basename(ranked_dist.distribution.location)
+                                    for ranked_dist in contains
+                                ),
+                            )
+                        )
+                    else:
+                        rendered_contains = (
+                            "\n    But this pex had no {project_name!r} distributions.".format(
+                                project_name=requirement.project_name
+                            )
+                        )
                     items.append(
                         "{index: 2d}: {requirement}"
                         "{rendered_requirers}"
-                        "\n    But this pex only contains:"
-                        "\n      {distributions}".format(
+                        "{rendered_contains}".format(
                             index=index + 1,
                             requirement=requirement,
                             rendered_requirers=rendered_requirers,
-                            distributions="\n      ".join(
-                                os.path.basename(d.location)
-                                for d in distributions_by_key[requirement.key]
-                            ),
+                            rendered_contains=rendered_contains,
                         )
                     )
 
-                die(
-                    "Failed to execute PEX file. Needed {platform} compatible dependencies for:\n{items}".format(
-                        platform=self._interpreter.platform, items="\n".join(items)
+                raise ResolveError(
+                    "Failed to resolve requirements from PEX environment @ {pex}.\n"
+                    "Needed {platform} compatible dependencies for:\n"
+                    "{items}".format(
+                        pex=self._pex, platform=self._target.platform.tag, items="\n".join(items)
                     )
                 )
 
-        return resolveds
+        return OrderedSet(resolved_dists_by_key.values())
 
     _NAMESPACE_PACKAGE_METADATA_RESOURCE = "namespace_packages.txt"
 
@@ -349,7 +606,8 @@ class PEXEnvironment(Environment):
             return []
 
     @classmethod
-    def declare_namespace_packages(cls, resolved_dists):
+    def _declare_namespace_packages(cls, resolved_dists):
+        # type: (Iterable[Distribution]) -> None
         namespace_packages_by_dist = OrderedDict()
         for dist in resolved_dists:
             namespace_packages = cls._get_namespace_packages(dist)
@@ -404,35 +662,20 @@ class PEXEnvironment(Environment):
                 pkg_resources.declare_namespace(pkg)
 
     def _activate(self):
-        pex_file = os.path.realpath(self._pex)
+        # type: () -> Iterable[Distribution]
 
-        self._update_candidate_distributions(self._load_internal_cache(pex_file, self._pex_info))
+        if not any(self._pex == os.path.realpath(path) for path in sys.path):
+            TRACER.log("Adding pex environment to the head of sys.path: {}".format(self._pex))
+            sys.path.insert(0, self._pex)
 
-        is_zipped_pex = os.path.isfile(pex_file)
-        if not self._pex_info.zip_safe and is_zipped_pex:
-            explode_dir = self._force_local(pex_file=pex_file, pex_info=self._pex_info)
-            # Force subsequent imports to come from the exploded .pex directory rather than the .pex file.
-            TRACER.log("Adding exploded non zip-safe pex to the head of sys.path: %s" % explode_dir)
-            sys.path[:] = [path for path in sys.path if pex_file != os.path.realpath(path)]
-            sys.path.insert(0, explode_dir)
-            self._update_module_paths(pex_file=pex_file)
-        elif not any(pex_file == os.path.realpath(path) for path in sys.path):
-            TRACER.log(
-                "Adding pex %s to the head of sys.path: %s"
-                % ("file" if is_zipped_pex else "dir", pex_file)
-            )
-            sys.path.insert(0, pex_file)
-
-        all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
-
-        working_set = WorkingSet([])
-        resolved = self._resolve(working_set, all_reqs)
-
+        resolved = self.resolve()
         for dist in resolved:
+            # N.B.: Since there can be more than one PEXEnvironment on the PEX_PATH we take care to
+            # avoid re-installing duplicate distributions we have in common with them.
+            if dist.location in sys.path:
+                continue
             with TRACER.timed("Activating %s" % dist, V=2):
-                working_set.add(dist)
-
-                if self._inherit_path == "fallback":
+                if self._pex_info.inherit_path == InheritPath.FALLBACK:
                     # Prepend location to sys.path.
                     #
                     # This ensures that bundled versions of libraries will be used before system-installed
@@ -450,5 +693,4 @@ class PEXEnvironment(Environment):
 
                 with TRACER.timed("Adding sitedir", V=2):
                     site.addsitedir(dist.location)
-
-        return working_set
+        return resolved

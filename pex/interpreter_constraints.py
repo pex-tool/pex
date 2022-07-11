@@ -5,91 +5,212 @@
 
 from __future__ import absolute_import
 
-from pex.common import die
-from pex.interpreter import PythonIdentity
-from pex.tracer import TRACER
+import itertools
 
+from pex.compatibility import indent
+from pex.enum import Enum
+from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
+from pex.third_party.packaging.specifiers import SpecifierSet
+from pex.typing import TYPE_CHECKING
 
-def validate_constraints(constraints):
-    # TODO: add check to see if constraints are mutually exclusive (bad) so no time is wasted:
-    # https://github.com/pantsbuild/pex/issues/432
-    for req in constraints:
-        # Check that the compatibility requirements are well-formed.
-        try:
-            PythonIdentity.parse_requirement(req)
-        except ValueError as e:
-            die("Compatibility requirements are not formatted properly: %s" % str(e))
+if TYPE_CHECKING:
+    from typing import Iterable, Iterator, Optional, Tuple
+
+    import attr  # vendor:skip
+
+    from pex.interpreter import InterpreterIdentificationError
+else:
+    from pex.third_party import attr
 
 
 class UnsatisfiableInterpreterConstraintsError(Exception):
     """Indicates interpreter constraints could not be satisfied."""
 
-    def __init__(self, constraints, candidates):
+    def __init__(
+        self,
+        constraints,  # type: Iterable[str]
+        candidates,  # type: Iterable[PythonInterpreter]
+        failures,  # type: Iterable[InterpreterIdentificationError]
+        preamble=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
         """
-    :param constraints: The constraints that could not be satisfied.
-    :type constraints: iterable of str
-    :param candidates: The python interpreters that were compared against the constraints.
-    :type candidates: iterable of :class:`pex.interpreter.PythonInterpreter`
-    """
+        :param constraints: The constraints that could not be satisfied.
+        :param candidates: The python interpreters that were compared against the constraints.
+        :param failures: Descriptions of the python interpreters that were unidentifiable.
+        :param preamble: An optional preamble for the exception message.
+        """
         self.constraints = tuple(constraints)
         self.candidates = tuple(candidates)
-        super(UnsatisfiableInterpreterConstraintsError, self).__init__(self.create_message())
+        self.failures = tuple(failures)
+        super(UnsatisfiableInterpreterConstraintsError, self).__init__(
+            self.create_message(preamble=preamble)
+        )
+
+    def with_preamble(self, preamble):
+        # type: (str) -> UnsatisfiableInterpreterConstraintsError
+        return UnsatisfiableInterpreterConstraintsError(
+            self.constraints, self.candidates, self.failures, preamble=preamble
+        )
 
     def create_message(self, preamble=None):
+        # type: (Optional[str]) -> str
         """Create a message describing  failure to find matching interpreters with an optional
         preamble.
 
-        :param str preamble: An optional preamble to the message that will be displayed above it
+        :param preamble: An optional preamble to the message that will be displayed above it
                              separated by an empty blank line.
-        :return: A descriptive message useable for display to an end user.
-        :rtype: str
+        :return: A descriptive message usable for display to an end user.
         """
+        preamble = "{}\n\n".format(preamble) if preamble else ""
+
+        failures_message = ""
+        if self.failures:
+            seen = set()
+            broken_interpreters = []
+            for python, error in self.failures:
+                canonical_python = PythonInterpreter.canonicalize_path(python)
+                if canonical_python not in seen:
+                    broken_interpreters.append((canonical_python, error))
+                    seen.add(canonical_python)
+
+            failures_message = (
+                "{}\n"
+                "\n"
+                "(See https://github.com/pantsbuild/pex/issues/1027 for a list of known breaks and "
+                "workarounds.)"
+            ).format(
+                "\n".join(
+                    "{index}.) {binary}:\n{error}".format(index=i, binary=python, error=error)
+                    for i, (python, error) in enumerate(broken_interpreters, start=1)
+                )
+            )
+
+        if not self.candidates:
+            if failures_message:
+                return (
+                    "{preamble}"
+                    "Interpreters were found but they all appear to be broken:\n"
+                    "{failures}"
+                ).format(preamble=preamble, failures=failures_message)
+            return "{}No interpreters could be found on the system.".format(preamble)
+
         binary_column_width = max(len(candidate.binary) for candidate in self.candidates)
-        interpreters_format = "{{binary: >{}}} {{requirement}}".format(binary_column_width)
+        interpreters_format = "{{index}}.) {{binary: >{}}} {{requirement}}".format(
+            binary_column_width
+        )
+
+        qualifier = ""
+        if failures_message:
+            failures_message = "Skipped the following broken interpreters:\n{}".format(
+                failures_message
+            )
+            qualifier = "working "
+
+        constraints_message = ""
+        if self.constraints:
+            constraints_message = (
+                "No {qualifier}interpreter compatible with the requested constraints was found:\n"
+                "\n{constraints}"
+            ).format(
+                qualifier=qualifier,
+                constraints="\n\n".join(
+                    indent(constraint, "  ") for constraint in self.constraints
+                ),
+            )
+
+        problems = "\n\n".join(msg for msg in (failures_message, constraints_message) if msg)
+        if problems:
+            problems = "\n\n{}".format(problems)
+
         return (
             "{preamble}"
-            "Examined the following interpreters:\n  {interpreters}\n\n"
-            "None were compatible with the requested constraints:\n  {constraints}"
+            "Examined the following {qualifier}interpreters:\n"
+            "{interpreters}"
+            "{problems}"
         ).format(
-            preamble="{}\n\n".format(preamble) if preamble else "",
-            interpreters="\n  ".join(
+            preamble=preamble,
+            qualifier=qualifier,
+            interpreters="\n".join(
                 interpreters_format.format(
-                    binary=candidate.binary, requirement=candidate.identity.requirement
+                    index=i, binary=candidate.binary, requirement=candidate.identity.requirement
                 )
-                for candidate in self.candidates
+                for i, candidate in enumerate(self.candidates, start=1)
             ),
-            constraints="\n  ".join(self.constraints),
+            problems=problems,
         )
 
 
-def matched_interpreters_iter(interpreters_iter, constraints):
-    """Given some filters, yield any interpreter that matches at least one of them.
+class Lifecycle(Enum["Lifecycle.Value"]):
+    class Value(Enum.Value):
+        pass
 
-    :param interpreters_iter: A `PythonInterpreter` iterable for filtering.
-    :param constraints: A sequence of strings that constrain the interpreter compatibility for this
-      pex. Each string uses the Requirement-style format, e.g. 'CPython>=3' or '>=2.7,<3' for
-      requirements agnostic to interpreter class. Multiple requirement strings may be combined
-      into a list to OR the constraints, such as ['CPython>=2.7,<3', 'CPython>=3.4'].
-    :return: returns a generator that yields compatible interpreters
-    :raises: :class:`UnsatisfiableInterpreterConstraintsError` if constraints were given and could
-             not be satisfied. The exception will only be raised when the returned generator is fully
-             consumed.
-    """
-    candidates = []
-    found = False
+    DEV = Value("dev")
+    STABLE = Value("stable")
+    EOL = Value("eol")
 
-    for interpreter in interpreters_iter:
-        if any(interpreter.identity.matches(filt) for filt in constraints):
-            TRACER.log(
-                "Constraints on interpreters: %s, Matching Interpreter: %s"
-                % (constraints, interpreter.binary),
-                V=3,
-            )
-            found = True
-            yield interpreter
 
-        if not found:
-            candidates.append(interpreter)
+# This value is based off of:
+# 1. Past releases: https://www.python.org/downloads/ where the max patch level was achieved by
+#    2.7.18.
+# 2. The 3.9+ annual release cycle formalization: https://www.python.org/dev/peps/pep-0602/ where
+#    the last bugfix release will be at a patch level of ~10 and then 3.5 years of security fixes
+#    as needed before going to EOL at the 5-year mark.
+DEFAULT_MAX_PATCH = 30
 
-    if not found:
-        raise UnsatisfiableInterpreterConstraintsError(constraints, candidates)
+
+@attr.s(frozen=True)
+class PythonVersion(object):
+    lifecycle = attr.ib()  # type: Lifecycle.Value
+    major = attr.ib()  # type: int
+    minor = attr.ib()  # type: int
+    patch = attr.ib()  # type: int
+
+    def iter_compatible_versions(
+        self,
+        specifier_sets,  # type: Iterable[SpecifierSet]
+        max_patch=DEFAULT_MAX_PATCH,  # type: int
+    ):
+        # type: (...) -> Iterator[Tuple[int, int, int]]
+        last_patch = self.patch if self.lifecycle == Lifecycle.EOL else max_patch
+        for patch in range(last_patch + 1):
+            version = (self.major, self.minor, patch)
+            version_string = ".".join(map(str, version))
+            if not specifier_sets:
+                yield version
+            else:
+                for specifier_set in specifier_sets:
+                    if version_string in specifier_set:
+                        yield version
+                        break
+
+
+# TODO(John Sirois): Integrate a `pyenv install -l` based lint / generate script for CI / local
+# use that emits the current max patch for these versions so we automatically stay up to date
+# mod dormancy in the project.
+
+COMPATIBLE_PYTHON_VERSIONS = (
+    PythonVersion(Lifecycle.EOL, 2, 7, 18),
+    # N.B.: Pex does not support the missing 3.x versions here.
+    PythonVersion(Lifecycle.EOL, 3, 5, 10),
+    PythonVersion(Lifecycle.EOL, 3, 6, 15),
+    PythonVersion(Lifecycle.STABLE, 3, 7, 13),
+    PythonVersion(Lifecycle.STABLE, 3, 8, 13),
+    PythonVersion(Lifecycle.STABLE, 3, 9, 12),
+    PythonVersion(Lifecycle.STABLE, 3, 10, 4),
+    PythonVersion(Lifecycle.DEV, 3, 11, 0),
+)
+
+
+def iter_compatible_versions(
+    requires_python,  # type: Iterable[str]
+    max_patch=DEFAULT_MAX_PATCH,  # type: int
+):
+    # type: (...) -> Iterator[Tuple[int, int, int]]
+
+    specifier_sets = OrderedSet(SpecifierSet(req) for req in requires_python)
+    return itertools.chain.from_iterable(
+        python_version.iter_compatible_versions(specifier_sets, max_patch=max_patch)
+        for python_version in COMPATIBLE_PYTHON_VERSIONS
+    )

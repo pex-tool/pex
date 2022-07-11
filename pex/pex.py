@@ -3,36 +3,48 @@
 
 from __future__ import absolute_import, print_function
 
+import ast
 import os
 import sys
 from distutils import sysconfig
 from site import USER_SITE
+from types import ModuleType
 
-import pex.third_party.pkg_resources as pkg_resources
 from pex import third_party
 from pex.bootstrap import Bootstrap
 from pex.common import die
+from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint, find_distributions
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
+from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
-from pex.third_party.pkg_resources import EntryPoint, WorkingSet, find_distributions
+from pex.targets import LocalInterpreter
 from pex.tracer import TRACER
+from pex.typing import TYPE_CHECKING
 from pex.util import iter_pth_paths, named_temporary_file
-from pex.variables import ENV
+from pex.variables import ENV, Variables
 
+if TYPE_CHECKING:
+    from typing import (
+        Any,
+        Dict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        NoReturn,
+        Optional,
+        Set,
+        Tuple,
+        TypeVar,
+        Union,
+    )
 
-class DevNull(object):
-    def __init__(self):
-        pass
-
-    def write(self, *args, **kw):
-        pass
-
-    def flush(self):
-        pass
+    _K = TypeVar("_K")
+    _V = TypeVar("_V")
 
 
 class PEX(object):  # noqa: T000
@@ -53,37 +65,50 @@ class PEX(object):  # noqa: T000
     @classmethod
     def _clean_environment(cls, env=None, strip_pex_env=True):
         env = env or os.environ
-
-        try:
-            del env["MACOSX_DEPLOYMENT_TARGET"]
-        except KeyError:
-            pass
-
         if strip_pex_env:
             for key in list(env):
                 if key.startswith("PEX_"):
                     del env[key]
 
-    def __init__(self, pex=sys.argv[0], interpreter=None, env=ENV, verify_entry_point=False):
+    def __init__(
+        self,
+        pex=sys.argv[0],  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+        env=ENV,  # type: Variables
+        verify_entry_point=False,  # type: bool
+    ):
+        # type: (...) -> None
         self._pex = pex
         self._interpreter = interpreter or PythonInterpreter.get()
         self._pex_info = PexInfo.from_pex(self._pex)
         self._pex_info_overrides = PexInfo.from_env(env=env)
         self._vars = env
-        self._envs = []
-        self._working_set = None
+        self._envs = None  # type: Optional[Iterable[PEXEnvironment]]
+        self._activated_dists = None  # type: Optional[Iterable[Distribution]]
         if verify_entry_point:
             self._do_entry_point_verification()
 
-    def _activate(self):
-        if not self._working_set:
-            working_set = WorkingSet([])
-
-            # set up the local .pex environment
-            pex_info = self._pex_info.copy()
+    def pex_info(self, include_env_overrides=True):
+        # type: (bool) -> PexInfo
+        pex_info = self._pex_info.copy()
+        if include_env_overrides:
             pex_info.update(self._pex_info_overrides)
             pex_info.merge_pex_path(self._vars.PEX_PATH)
-            self._envs.append(PEXEnvironment(self._pex, pex_info, interpreter=self._interpreter))
+        return pex_info
+
+    @property
+    def interpreter(self):
+        # type: () -> PythonInterpreter
+        return self._interpreter
+
+    @property
+    def _loaded_envs(self):
+        # type: () -> Iterable[PEXEnvironment]
+        if self._envs is None:
+            # set up the local .pex environment
+            pex_info = self.pex_info()
+            target = LocalInterpreter.create(self._interpreter)
+            envs = [PEXEnvironment.mount(self._pex, pex_info, target=target)]
             # N.B. by this point, `pex_info.pex_path` will contain a single pex path
             # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
             # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
@@ -93,34 +118,61 @@ class PEX(object):  # noqa: T000
                 for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
                     pex_info = PexInfo.from_pex(pex_path)
                     pex_info.update(self._pex_info_overrides)
-                    self._envs.append(
-                        PEXEnvironment(pex_path, pex_info, interpreter=self._interpreter)
-                    )
+                    envs.append(PEXEnvironment.mount(pex_path, pex_info, target=target))
+            self._envs = tuple(envs)
+        return self._envs
 
-            # activate all of them
-            for env in self._envs:
-                for dist in env.activate():
-                    working_set.add(dist)
+    def resolve(self):
+        # type: () -> Iterator[Distribution]
+        """Resolves all distributions loadable from this PEX by the current interpreter."""
+        seen = set()
+        for env in self._loaded_envs:
+            for dist in env.resolve():
+                # N.B.: Since there can be more than one PEX env on the PEX_PATH we take care to
+                # de-dup distributions they have in common.
+                if dist in seen:
+                    continue
+                seen.add(dist)
+                yield dist
 
-            # Ensure that pkg_resources is not imported until at least every pex environment
-            # (i.e. PEX_PATH) has been merged into the environment
-            PEXEnvironment.declare_namespace_packages(working_set)
-            self._working_set = working_set
+    def _activate(self):
+        # type: () -> Iterable[Distribution]
 
-        return self._working_set
+        activated_dists = []  # type: List[Distribution]
+        for env in self._loaded_envs:
+            activated_dists.extend(env.activate())
+
+        # Ensure that pkg_resources is not imported until at least every pex environment
+        # (i.e. PEX_PATH) has been merged into the environment
+        PEXEnvironment._declare_namespace_packages(activated_dists)
+        return activated_dists
+
+    def activate(self):
+        # type: () -> Iterable[Distribution]
+        if self._activated_dists is None:
+            # 1. Scrub the sys.path to present a minimal Python environment.
+            self.patch_sys()
+            # 2. Activate all code and distributions in the PEX.
+            self._activated_dists = self._activate()
+        return self._activated_dists
 
     @classmethod
     def _extras_paths(cls):
+        # type: () -> Iterator[str]
         standard_lib = sysconfig.get_python_lib(standard_lib=True)
 
         try:
-            makefile = sysconfig.parse_makefile(sysconfig.get_makefile_filename())
+            makefile = sysconfig.parse_makefile(  # type: ignore[attr-defined]
+                sysconfig.get_makefile_filename()
+            )
         except (AttributeError, IOError):
             # This is not available by default in PyPy's distutils.sysconfig or it simply is
             # no longer available on the system (IOError ENOENT)
             makefile = {}
 
-        extras_paths = filter(None, makefile.get("EXTRASPATH", "").split(":"))
+        extras_paths = filter(
+            None, makefile.get("EXTRASPATH", "").split(":")
+        )  # type: Iterable[str]
         for path in extras_paths:
             yield os.path.join(standard_lib, path)
 
@@ -144,6 +196,7 @@ class PEX(object):  # noqa: T000
 
     @staticmethod
     def _get_site_packages():
+        # type: () -> Set[str]
         try:
             from site import getsitepackages
 
@@ -153,6 +206,7 @@ class PEX(object):  # noqa: T000
 
     @classmethod
     def site_libs(cls):
+        # type: () -> Set[str]
         site_libs = cls._get_site_packages()
         site_libs.update(
             [
@@ -168,11 +222,13 @@ class PEX(object):  # noqa: T000
 
     @classmethod
     def _tainted_path(cls, path, site_libs):
+        # type: (str, Iterable[str]) -> bool
         paths = frozenset([path, os.path.realpath(path)])
         return any(path.startswith(site_lib) for site_lib in site_libs for path in paths)
 
     @classmethod
     def minimum_sys_modules(cls, site_libs, modules=None):
+        # type: (Iterable[str], Optional[Mapping[str, ModuleType]]) -> Mapping[str, ModuleType]
         """Given a set of site-packages paths, return a "clean" sys.modules.
 
         When importing site, modules within sys.modules have their __path__'s populated with
@@ -194,24 +250,25 @@ class PEX(object):  # noqa: T000
                 TRACER.log("Dropping %s" % (module_name,), V=3)
                 continue
 
+            module_path = getattr(module, "__path__", None)
             # Untainted non-packages (builtin modules) need no further special handling and can stay.
-            if not hasattr(module, "__path__"):
+            if module_path is None:
                 new_modules[module_name] = module
                 continue
 
             # Unexpected objects, e.g. PEP 420 namespace packages, should just be dropped.
-            if not isinstance(module.__path__, list):
+            if not isinstance(module_path, list):
                 TRACER.log("Dropping %s" % (module_name,), V=3)
                 continue
 
             # Drop tainted package paths.
-            for k in reversed(range(len(module.__path__))):
-                if cls._tainted_path(module.__path__[k], site_libs):
-                    TRACER.log("Scrubbing %s.__path__: %s" % (module_name, module.__path__[k]), V=3)
-                    module.__path__.pop(k)
+            for k in reversed(range(len(module_path))):
+                if cls._tainted_path(module_path[k], site_libs):
+                    TRACER.log("Scrubbing %s.__path__: %s" % (module_name, module_path[k]), V=3)
+                    module_path.pop(k)
 
             # The package still contains untainted path elements, so it can stay.
-            if module.__path__:
+            if module_path:
                 new_modules[module_name] = module
 
         return new_modules
@@ -221,6 +278,7 @@ class PEX(object):  # noqa: T000
 
     @classmethod
     def stash_pythonpath(cls):
+        # type: () -> Optional[str]
         pythonpath = os.environ.pop(cls._PYTHONPATH, None)
         if pythonpath is not None:
             os.environ[cls._STASHED_PYTHONPATH] = pythonpath
@@ -228,6 +286,7 @@ class PEX(object):  # noqa: T000
 
     @classmethod
     def unstash_pythonpath(cls):
+        # type: () -> Optional[str]
         pythonpath = os.environ.pop(cls._STASHED_PYTHONPATH, None)
         if pythonpath is not None:
             os.environ[cls._PYTHONPATH] = pythonpath
@@ -235,13 +294,17 @@ class PEX(object):  # noqa: T000
 
     @classmethod
     def minimum_sys_path(cls, site_libs, inherit_path):
-        scrub_paths = OrderedSet()
-        site_distributions = OrderedSet()
-        user_site_distributions = OrderedSet()
+        # type: (Iterable[str], InheritPath.Value) -> Tuple[List[str], Mapping[str, Any]]
+        scrub_paths = OrderedSet()  # type: OrderedSet[str]
+        site_distributions = OrderedSet()  # type: OrderedSet[str]
+        user_site_distributions = OrderedSet()  # type: OrderedSet[str]
 
         def all_distribution_paths(path):
+            # type: (Optional[str]) -> Iterable[str]
+            if path is None:
+                return ()
             locations = set(dist.location for dist in find_distributions(path))
-            return set([path]) | locations | set(os.path.realpath(path) for path in locations)
+            return {path} | locations | set(os.path.realpath(path) for path in locations)
 
         for path_element in sys.path:
             if cls._tainted_path(path_element, site_libs):
@@ -252,8 +315,9 @@ class PEX(object):  # noqa: T000
 
         user_site_distributions.update(all_distribution_paths(USER_SITE))
 
-        if inherit_path == "false":
-            scrub_paths = site_distributions | user_site_distributions
+        if inherit_path == InheritPath.FALSE:
+            scrub_paths = OrderedSet(site_distributions)
+            scrub_paths.update(user_site_distributions)
             for path in user_site_distributions:
                 TRACER.log("Scrubbing from user site: %s" % path)
             for path in site_distributions:
@@ -274,13 +338,13 @@ class PEX(object):  # noqa: T000
                     V=2,
                 )
 
-            if inherit_path == "false":
+            if inherit_path == InheritPath.FALSE:
                 for path in user_pythonpath:
                     TRACER.log("Scrubbing user PYTHONPATH element: %s" % path)
-            elif inherit_path == "prefer":
+            elif inherit_path == InheritPath.PREFER:
                 TRACER.log("Prepending user PYTHONPATH: %s" % os.pathsep.join(user_pythonpath))
                 scrubbed_sys_path = user_pythonpath + scrubbed_sys_path
-            elif inherit_path == "fallback":
+            elif inherit_path == InheritPath.FALLBACK:
                 TRACER.log("Appending user PYTHONPATH: %s" % os.pathsep.join(user_pythonpath))
                 scrubbed_sys_path = scrubbed_sys_path + user_pythonpath
 
@@ -301,12 +365,13 @@ class PEX(object):  # noqa: T000
 
     @classmethod
     def minimum_sys(cls, inherit_path):
+        # type: (InheritPath.Value) -> Tuple[List[str], Mapping[str, Any], Mapping[str, ModuleType]]
         """Return the minimum sys necessary to run this interpreter, a la python -S.
 
         :returns: (sys.path, sys.path_importer_cache, sys.modules) tuple of a
           bare python installation.
         """
-        site_libs = set(cls.site_libs())
+        site_libs = cls.site_libs()
         for site_lib in site_libs:
             TRACER.log("Found site-library: %s" % site_lib)
         for extras_path in cls._extras_paths():
@@ -319,34 +384,48 @@ class PEX(object):  # noqa: T000
 
         return sys_path, sys_path_importer_cache, sys_modules
 
-    @classmethod
-    def patch_pkg_resources(cls, working_set):
-        """Patch pkg_resources given a new working set."""
-        pkg_resources.working_set = working_set
-        pkg_resources.require = working_set.require
-        pkg_resources.iter_entry_points = working_set.iter_entry_points
-        pkg_resources.run_script = pkg_resources.run_main = working_set.run_script
-        pkg_resources.add_activation_listener = working_set.subscribe
-
     # Thar be dragons -- when this function exits, the interpreter is potentially in a wonky state
     # since the patches here (minimum_sys_modules for example) actually mutate global state.
-    def patch_sys(self, inherit_path):
+    def patch_sys(self):
+        # type: () -> None
         """Patch sys with all site scrubbed."""
+        inherit_path = self._vars.PEX_INHERIT_PATH
+        if inherit_path == InheritPath.FALSE:
+            inherit_path = self._pex_info.inherit_path
 
         def patch_dict(old_value, new_value):
+            # type: (Dict[_K, _V], Mapping[_K, _V]) -> None
             old_value.clear()
             old_value.update(new_value)
 
         def patch_all(path, path_importer_cache, modules):
+            # type: (List[str], Mapping[str, Any], Mapping[str, ModuleType]) -> None
             sys.path[:] = path
             patch_dict(sys.path_importer_cache, path_importer_cache)
             patch_dict(sys.modules, modules)
+
+            # N.B.: These hooks may contain custom code set via site.py or `.pth` files that we've
+            # just scrubbed. Reset them to factory defaults to avoid scrubbed code.
+            sys.displayhook = sys.__displayhook__
+            sys.excepthook = sys.__excepthook__  # type: ignore[assignment] # Builtin typeshed bug.
 
         new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
         if self._vars.PEX_EXTRA_SYS_PATH:
             TRACER.log("Adding %s to sys.path" % self._vars.PEX_EXTRA_SYS_PATH)
-            new_sys_path.extend(self._vars.PEX_EXTRA_SYS_PATH.split(":"))
+            extra_sys_path = self._vars.PEX_EXTRA_SYS_PATH.split(":")
+            new_sys_path.extend(extra_sys_path)
+
+            # Let Python subprocesses see the same sys.path additions we see. If those Python
+            # subprocesses are PEX subprocesses, they'll do their own (re-)scrubbing as needed.
+            if inherit_path is InheritPath.FALSE:
+                pythonpath_entries = extra_sys_path
+            else:
+                raw_pythonpath = os.environ.get(self._PYTHONPATH)
+                pythonpath = raw_pythonpath.split(os.pathsep) if raw_pythonpath else []
+                pythonpath_entries = pythonpath + extra_sys_path
+            os.environ[self._PYTHONPATH] = os.pathsep.join(pythonpath_entries)
+
         TRACER.log("New sys.path: %s" % new_sys_path)
 
         patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
@@ -404,53 +483,53 @@ class PEX(object):  # noqa: T000
                 profiler.print_stats(sort=pex_profile_sort)
 
     def path(self):
+        # type: () -> str
         """Return the path this PEX was built at."""
         return self._pex
 
     def execute(self):
+        # type: () -> None
         """Execute the PEX.
 
         This function makes assumptions that it is the last function called by the interpreter.
         """
-        teardown_verbosity = self._vars.PEX_TEARDOWN_VERBOSE
-        try:
-            pex_inherit_path = self._vars.PEX_INHERIT_PATH
-            if pex_inherit_path == "false":
-                pex_inherit_path = self._pex_info.inherit_path
-            self.patch_sys(pex_inherit_path)
-            working_set = self._activate()
-            self.patch_pkg_resources(working_set)
-            exit_code = self._wrap_coverage(self._wrap_profiling, self._execute)
-            if exit_code:
-                sys.exit(exit_code)
-        except Exception:
-            # Allow the current sys.excepthook to handle this app exception before we tear things down in
-            # finally, then reraise so that the exit status is reflected correctly.
-            sys.excepthook(*sys.exc_info())
-            raise
-        except SystemExit as se:
-            # Print a SystemExit error message, avoiding a traceback in python3.
-            # This must happen here, as sys.stderr is about to be torn down
-            if not isinstance(se.code, int) and se.code is not None:
-                print(se.code, file=sys.stderr)
-            raise
-        finally:
-            # squash all exceptions on interpreter teardown -- the primary type here are
-            # atexit handlers failing to run because of things such as:
-            #   http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
-            if not teardown_verbosity:
-                sys.stderr.flush()
-                sys.stderr = DevNull()
-                sys.excepthook = lambda *a, **kw: None
+        if self._vars.PEX_TOOLS:
+            if not self._pex_info.includes_tools:
+                die(
+                    "The PEX_TOOLS environment variable was set, but this PEX was not built "
+                    "with tools (Re-build the PEX file with `pex --include-tools ...`)"
+                )
+
+            from pex.tools import main as tools
+
+            sys.exit(tools.main(pex=PEX(sys.argv[0])))
+
+        self.activate()
+
+        pex_file = os.environ.get("PEX", None)
+        if pex_file:
+            try:
+                from setproctitle import setproctitle  # type: ignore[import]
+
+                setproctitle(
+                    "{python} {pex_file} {args}".format(
+                        python=sys.executable,
+                        pex_file=pex_file,
+                        args=" ".join(sys.argv[1:]),
+                    )
+                )
+            except ImportError:
+                TRACER.log(
+                    "Not setting process title since setproctitle is not available in "
+                    "{pex_file}".format(pex_file=pex_file),
+                    V=3,
+                )
+
+        sys.exit(self._wrap_coverage(self._wrap_profiling, self._execute))
 
     def _execute(self):
+        # type: () -> Any
         force_interpreter = self._vars.PEX_INTERPRETER
-
-        # N.B.: This is set in `__main__.py` of the executed PEX by `PEXBuilder` when we've been
-        # executed from within a PEX zip file in `--unzip` mode.  We replace `sys.argv[0]` to avoid
-        # confusion and allow the user code we hand off to to provide useful messages and fully valid
-        # re-execs that always re-directed through the PEX file.
-        sys.argv[0] = os.environ.pop("__PEX_EXE__", sys.argv[0])
 
         self._clean_environment(strip_pex_env=self._pex_info.strip_pex_env)
 
@@ -459,19 +538,23 @@ class PEX(object):  # noqa: T000
             return self.execute_interpreter()
 
         if self._pex_info_overrides.script and self._pex_info_overrides.entry_point:
-            die("Cannot specify both script and entry_point for a PEX!")
+            return "Cannot specify both script and entry_point for a PEX!"
 
         if self._pex_info.script and self._pex_info.entry_point:
-            die("Cannot specify both script and entry_point for a PEX!")
+            return "Cannot specify both script and entry_point for a PEX!"
 
         if self._pex_info_overrides.script:
             return self.execute_script(self._pex_info_overrides.script)
         elif self._pex_info_overrides.entry_point:
-            return self.execute_entry(self._pex_info_overrides.entry_point)
+            return self.execute_entry(
+                EntryPoint.parse("run = {}".format(self._pex_info_overrides.entry_point))
+            )
         elif self._pex_info.script:
             return self.execute_script(self._pex_info.script)
         elif self._pex_info.entry_point:
-            return self.execute_entry(self._pex_info.entry_point)
+            return self.execute_entry(
+                EntryPoint.parse("run = {}".format(self._pex_info.entry_point))
+            )
         else:
             TRACER.log("No entry point specified, dropping into interpreter")
             return self.execute_interpreter()
@@ -506,89 +589,169 @@ class PEX(object):  # noqa: T000
         log("  * - paths that do not exist or will be imported via zipimport")
 
     def execute_interpreter(self):
+        # type: () -> Any
+
+        # A Python interpreter always inserts the CWD at the head of the sys.path.
+        sys.path.insert(0, "")
+
         args = sys.argv[1:]
+        python_options = []
+        for index, arg in enumerate(args):
+            # Check if the arg is an expected startup arg.
+            if arg.startswith("-") and arg not in ("-", "-c", "-m"):
+                python_options.append(arg)
+            else:
+                args = args[index:]
+                break
+
+        # The pex was called with Python interpreter options
+        if python_options:
+            return self.execute_with_options(python_options, args)
+
         if args:
             # NB: We take care here to setup sys.argv to match how CPython does it for each case.
             arg = args[0]
             if arg == "-c":
                 content = args[1]
                 sys.argv = ["-c"] + args[2:]
-                self.execute_content("-c <cmd>", content, argv0="-c")
+                return self.execute_content("-c <cmd>", content, argv0="-c")
             elif arg == "-m":
                 module = args[1]
                 sys.argv = args[1:]
-                self.execute_module(module)
+                return self.execute_module(module)
             else:
                 try:
                     if arg == "-":
                         content = sys.stdin.read()
                     else:
-                        with open(arg) as fp:
+                        file_path = arg if os.path.isfile(arg) else os.path.join(arg, "__main__.py")
+                        with open(file_path) as fp:
                             content = fp.read()
                 except IOError as e:
-                    die("Could not open %s in the environment [%s]: %s" % (arg, sys.argv[0], e))
+                    return "Could not open {} in the environment [{}]: {}".format(
+                        arg, sys.argv[0], e
+                    )
                 sys.argv = args
-                self.execute_content(arg, content)
+                return self.execute_content(arg, content)
         else:
             self.demote_bootstrap()
 
             import code
 
             code.interact()
+            return None
+
+    def execute_with_options(
+        self,
+        python_options,  # type: List[str]
+        args,  # List[str]
+    ):
+        # type: (...) -> Union[NoReturn, Any]
+        """
+        Restart the process passing the given options to the python interpreter
+        """
+        # Find the installed (unzipped) PEX entry point.
+        main = sys.modules.get("__main__")
+        if not main or not main.__file__:
+            # N.B.: This should never happen.
+            return "Unable to resolve PEX __main__ module file: {}".format(main)
+
+        python = sys.executable
+        cmdline = [python] + python_options + [main.__file__] + args
+        TRACER.log(
+            "Re-executing with Python interpreter options: cmdline={cmdline!r}".format(
+                cmdline=" ".join(cmdline)
+            )
+        )
+        os.execv(python, cmdline)
 
     def execute_script(self, script_name):
-        dists = list(self._activate())
+        # type: (str) -> Any
+        dists = list(self.activate())
 
-        dist, entry_point = get_entry_point_from_console_script(script_name, dists)
-        if entry_point:
-            TRACER.log("Found console_script %r in %r" % (entry_point, dist))
-            sys.exit(self.execute_entry(entry_point))
+        dist_entry_point = get_entry_point_from_console_script(script_name, dists)
+        if dist_entry_point:
+            TRACER.log(
+                "Found console_script {!r} in {!r}.".format(
+                    dist_entry_point.entry_point, dist_entry_point.dist
+                )
+            )
+            return self.execute_entry(dist_entry_point.entry_point)
 
         dist_script = get_script_from_distributions(script_name, dists)
         if not dist_script:
-            raise self.NotFound("Could not find script %r in pex!" % script_name)
-        TRACER.log("Found script %r in %r" % (script_name, dist))
-        return self.execute_content(
-            dist_script.path, dist_script.read_contents(), argv0=script_name
-        )
+            return "Could not find script {!r} in pex!".format(script_name)
+
+        TRACER.log("Found script {!r} in {!r}.".format(script_name, dist_script.dist))
+        ast = dist_script.python_script()
+        if ast:
+            return self.execute_ast(dist_script.path, ast, argv0=script_name)
+        else:
+            return self.execute_external(dist_script.path)
+
+    @staticmethod
+    def execute_external(binary):
+        # type: (str) -> Any
+        args = [binary] + sys.argv[1:]
+        try:
+            return Executor.open_process(args).wait()
+        except Executor.ExecutionError as e:
+            return "Could not invoke script {}: {}".format(binary, e)
 
     @classmethod
-    def execute_content(cls, name, content, argv0=None):
-        argv0 = argv0 or name
+    def execute_content(
+        cls,
+        name,  # type: str
+        content,  # type: str
+        argv0=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Optional[str]
         try:
-            ast = compile(content, name, "exec", flags=0, dont_inherit=1)
-        except SyntaxError:
-            die("Unable to parse %s. PEX script support only supports Python scripts." % name)
+            program = compile(content, name, "exec", flags=0, dont_inherit=1)
+        except SyntaxError as e:
+            return "Unable to parse {}: {}".format(name, e)
+        return cls.execute_ast(name, program, argv0=argv0)
 
+    @classmethod
+    def execute_ast(
+        cls,
+        name,  # type: str
+        program,  # type: ast.AST
+        argv0=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Optional[str]
         cls.demote_bootstrap()
 
         from pex.compatibility import exec_function
 
-        sys.argv[0] = argv0
+        sys.argv[0] = argv0 or name
         globals_map = globals().copy()
         globals_map["__name__"] = "__main__"
         globals_map["__file__"] = name
-        exec_function(ast, globals_map)
+        exec_function(program, globals_map)
+        return None
 
-    @classmethod
-    def execute_entry(cls, entry_point):
-        runner = cls.execute_pkg_resources if ":" in entry_point else cls.execute_module
-        return runner(entry_point)
+    def execute_entry(self, entry_point):
+        # type: (EntryPoint) -> Any
+        if isinstance(entry_point, CallableEntryPoint):
+            return self.execute_entry_point(entry_point)
 
-    @classmethod
-    def execute_module(cls, module_name):
-        cls.demote_bootstrap()
+        return self.execute_module(entry_point.module)
+
+    def execute_module(self, module_name):
+        # type: (str) -> None
+        self.demote_bootstrap()
 
         import runpy
 
-        runpy.run_module(module_name, run_name="__main__")
+        runpy.run_module(module_name, run_name="__main__", alter_sys=True)
 
     @classmethod
-    def execute_pkg_resources(cls, spec):
-        entry = EntryPoint.parse("run = {}".format(spec))
+    def execute_entry_point(cls, entry_point):
+        # type: (CallableEntryPoint) -> Any
         cls.demote_bootstrap()
 
-        runner = entry.resolve()
+        runner = entry_point.resolve()
         return runner()
 
     def cmdline(self, args=()):
@@ -597,10 +760,8 @@ class PEX(object):  # noqa: T000
         :keyword args: Additional arguments to be passed to the application being invoked by the
           environment.
         """
-        cmds = [self._interpreter.binary]
-        cmds.append(self._pex)
-        cmds.extend(args)
-        return cmds
+        cmd, _ = self._interpreter.create_isolated_cmd([self._pex] + list(args))
+        return cmd
 
     def run(self, args=(), with_chroot=False, blocking=True, setsid=False, env=None, **kwargs):
         """Run the PythonEnvironment in an interpreter in a subprocess.
@@ -616,16 +777,15 @@ class PEX(object):  # noqa: T000
         Remaining keyword arguments are passed directly to subprocess.Popen.
         """
         if env is not None:
-            # If explicit env vars are passed, we don't want clean any of these.
+            # If explicit env vars are passed, we don't want to clean any of these.
             env = env.copy()
         else:
             env = os.environ.copy()
             self._clean_environment(env=env)
 
-        cmdline = self.cmdline(args)
-        TRACER.log("PEX.run invoking %s" % " ".join(cmdline))
-        process = Executor.open_process(
-            cmdline,
+        TRACER.log("PEX.run invoking {}".format(" ".join(self.cmdline(args))))
+        _, process = self._interpreter.open_process(
+            [self._pex] + list(args),
             cwd=self._pex if with_chroot else os.getcwd(),
             preexec_fn=os.setsid if setsid else None,
             stdin=kwargs.pop("stdin", None),

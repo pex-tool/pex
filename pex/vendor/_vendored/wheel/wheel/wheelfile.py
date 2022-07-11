@@ -5,6 +5,7 @@ import hashlib
 import os.path
 import re
 import stat
+import sys
 import time
 from collections import OrderedDict
 from distutils import log as logger
@@ -12,6 +13,16 @@ from zipfile import ZIP_DEFLATED, ZipInfo, ZipFile
 
 from wheel.cli import WheelError
 from wheel.util import urlsafe_b64decode, as_unicode, native, urlsafe_b64encode, as_bytes, StringIO
+
+if sys.version_info >= (3,):
+    from io import TextIOWrapper
+
+    def read_csv(fp):
+        return csv.reader(TextIOWrapper(fp, newline='', encoding='utf-8'))
+else:
+    def read_csv(fp):
+        for line in csv.reader(fp):
+            yield [column.decode('utf-8') for column in line]
 
 # Non-greedy matching of an optional build number may be too clever (more
 # invalid wheel filenames will match). Separate regex for .dist-info?
@@ -35,13 +46,13 @@ class WheelFile(ZipFile):
 
     _default_algorithm = hashlib.sha256
 
-    def __init__(self, file, mode='r'):
+    def __init__(self, file, mode='r', compression=ZIP_DEFLATED):
         basename = os.path.basename(file)
         self.parsed_filename = WHEEL_INFO_RE.match(basename)
         if not basename.endswith('.whl') or self.parsed_filename is None:
             raise WheelError("Bad wheel filename {!r}".format(basename))
 
-        ZipFile.__init__(self, file, mode, compression=ZIP_DEFLATED, allowZip64=True)
+        ZipFile.__init__(self, file, mode, compression=compression, allowZip64=True)
 
         self.dist_info_path = '{}.dist-info'.format(self.parsed_filename.group('namever'))
         self.record_path = self.dist_info_path + '/RECORD'
@@ -60,23 +71,24 @@ class WheelFile(ZipFile):
                 raise WheelError('Missing {} file'.format(self.record_path))
 
             with record:
-                for line in record:
-                    line = line.decode('utf-8')
-                    path, hash_sum, size = line.rsplit(u',', 2)
-                    if hash_sum:
-                        algorithm, hash_sum = hash_sum.split(u'=')
-                        try:
-                            hashlib.new(algorithm)
-                        except ValueError:
-                            raise WheelError('Unsupported hash algorithm: {}'.format(algorithm))
+                for line in read_csv(record):
+                    path, hash_sum, size = line
+                    if not hash_sum:
+                        continue
 
-                        if algorithm.lower() in {'md5', 'sha1'}:
-                            raise WheelError(
-                                'Weak hash algorithm ({}) is not permitted by PEP 427'
-                                .format(algorithm))
+                    algorithm, hash_sum = hash_sum.split(u'=')
+                    try:
+                        hashlib.new(algorithm)
+                    except ValueError:
+                        raise WheelError('Unsupported hash algorithm: {}'.format(algorithm))
 
-                        self._file_hashes[path] = (
-                            algorithm, urlsafe_b64decode(hash_sum.encode('ascii')))
+                    if algorithm.lower() in {'md5', 'sha1'}:
+                        raise WheelError(
+                            'Weak hash algorithm ({}) is not permitted by PEP 427'
+                            .format(algorithm))
+
+                    self._file_hashes[path] = (
+                        algorithm, urlsafe_b64decode(hash_sum.encode('ascii')))
 
     def open(self, name_or_info, mode="r", pwd=None):
         def _update_crc(newdata, eof=None):
@@ -90,13 +102,13 @@ class WheelFile(ZipFile):
             if eof and running_hash.digest() != expected_hash:
                 raise WheelError("Hash mismatch for file '{}'".format(native(ef_name)))
 
-        ef = ZipFile.open(self, name_or_info, mode, pwd)
         ef_name = as_unicode(name_or_info.filename if isinstance(name_or_info, ZipInfo)
                              else name_or_info)
-        if mode == 'r' and not ef_name.endswith('/'):
-            if ef_name not in self._file_hashes:
-                raise WheelError("No hash found for file '{}'".format(native(ef_name)))
+        if mode == 'r' and not ef_name.endswith('/') and ef_name not in self._file_hashes:
+            raise WheelError("No hash found for file '{}'".format(native(ef_name)))
 
+        ef = ZipFile.open(self, name_or_info, mode, pwd)
+        if mode == 'r' and not ef_name.endswith('/'):
             algorithm, expected_hash = self._file_hashes[ef_name]
             if expected_hash is not None:
                 # Monkey patch the _update_crc method to also check for the hash from RECORD
@@ -115,7 +127,7 @@ class WheelFile(ZipFile):
             for name in sorted(filenames):
                 path = os.path.normpath(os.path.join(root, name))
                 if os.path.isfile(path):
-                    arcname = os.path.relpath(path, base_dir)
+                    arcname = os.path.relpath(path, base_dir).replace(os.path.sep, '/')
                     if arcname == self.record_path:
                         pass
                     elif root.endswith('.dist-info'):
@@ -134,7 +146,7 @@ class WheelFile(ZipFile):
 
         zinfo = ZipInfo(arcname or filename, date_time=get_zipinfo_datetime(st.st_mtime))
         zinfo.external_attr = (stat.S_IMODE(st.st_mode) | stat.S_IFMT(st.st_mode)) << 16
-        zinfo.compress_type = ZIP_DEFLATED
+        zinfo.compress_type = compress_type or self.compression
         self.writestr(zinfo, data, compress_type)
 
     def writestr(self, zinfo_or_arcname, bytes, compress_type=None):
@@ -162,7 +174,7 @@ class WheelFile(ZipFile):
             ))
             writer.writerow((format(self.record_path), "", ""))
             zinfo = ZipInfo(native(self.record_path), date_time=get_zipinfo_datetime())
-            zinfo.compress_type = ZIP_DEFLATED
+            zinfo.compress_type = self.compression
             zinfo.external_attr = 0o664 << 16
             self.writestr(zinfo, as_bytes(data.getvalue()))
 
