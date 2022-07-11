@@ -5,7 +5,7 @@ Release Notes
 ------
 
 This is a hotfix release that fixes ``--venv`` mode
-``PEX_EXTRA_SYS_PATH`` propogation introduced in Pex 2.1.94 to only
+``PEX_EXTRA_SYS_PATH`` propogation introduced in Pex 2.1.95 to only
 apply to ``sys.executable`` and not other Pythons.
 
 *  Fix ``--venv`` ``PEX PEX_EXTRA_SYS_PATH`` propagation. (#1837)
