@@ -64,7 +64,11 @@ class _Importable(namedtuple("_Importable", ["module", "is_pkg", "path", "prefix
             target = fullname
 
         if target == self.module or self.is_pkg and target.startswith(self.module + "."):
-            vendor_path = os.path.join(self.path, *target.split("."))
+            vendor_path = (
+                os.path.join(*target.split("."))
+                if not self.path or self.path == os.curdir
+                else os.path.join(self.path, *target.split("."))
+            )
             vendor_module_name = vendor_path.replace(os.sep, ".")
             return _Loader(fullname, vendor_module_name)
 
