@@ -303,6 +303,17 @@ def _populate_sources(
     ):
         yield src, dst
 
+    with open(os.path.join(venv.site_packages_dir, "PEX_EXTRA_SYS_PATH.pth"), "w") as fp:
+        # N.B.: .pth import lines must be single lines: https://docs.python.org/3/library/site.html
+        for env_var in "PEX_EXTRA_SYS_PATH", "__PEX_EXTRA_SYS_PATH__":
+            print(
+                "import os, sys; "
+                "sys.path.extend("
+                "entry for entry in os.environ.get('{env_var}', '').split(':') if entry"
+                ")".format(env_var=env_var),
+                file=fp,
+            )
+
     with open(os.path.join(venv.venv_dir, pex_info.PATH), "w") as fp:
         fp.write(pex_info.dump())
 
@@ -375,7 +386,8 @@ def _populate_sources(
                 "{{}}={{}}".format(name, value)
                 for name, value in os.environ.items()
                 if name.startswith(("PEX_", "_PEX_", "__PEX_")) and name not in (
-                    # These are used inside this script.
+                    # These are used inside this script / the PEX_EXTRA_SYS_PATH.pth site-packages
+                    # file.
                     "_PEX_SHOULD_EXIT_VENV_REEXEC",
                     "PEX_EXTRA_SYS_PATH",
                     "PEX_VENV_BIN_PATH",
@@ -421,14 +433,6 @@ def _populate_sources(
             # A Python interpreter always inserts the CWD at the head of the sys.path.
             sys.path.insert(0, "")
 
-            pex_extra_sys_path = os.environ.get("PEX_EXTRA_SYS_PATH")
-            if pex_extra_sys_path:
-                sys.path.extend(pex_extra_sys_path.split(":"))
-
-                # Let Python subprocesses see the same sys.path additions we see. If those Python
-                # subprocesses are PEX subprocesses, they'll do their own (re-)scrubbing as needed.
-                os.environ["PYTHONPATH"] = pex_extra_sys_path
-
             bin_path = os.environ.get("PEX_VENV_BIN_PATH", {bin_path!r})
             if bin_path != "false":
                 PATH = os.environ.get("PATH", "").split(os.pathsep)
@@ -461,6 +465,13 @@ def _populate_sources(
             if {strip_pex_env!r}:
                 for key in list(os.environ):
                     if key.startswith("PEX_"):
+                        if key == "PEX_EXTRA_SYS_PATH":
+                            # We always want sys.path additions to propagate so that the venv PEX
+                            # acts like a normal Python interpreter where sys.path seen in
+                            # subprocesses is the same as the sys.executable in the parent process.
+                            os.environ["__PEX_EXTRA_SYS_PATH__"] = os.environ.get(
+                                "PEX_EXTRA_SYS_PATH"
+                            )
                         del os.environ[key]
 
             pex_script = pex_overrides.get("PEX_SCRIPT") if pex_overrides else {script!r}
