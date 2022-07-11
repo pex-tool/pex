@@ -303,7 +303,8 @@ def test_osx_platform_intel_issue_523():
         # Verify this worked along side the previously problematic pkg_resources-reported platform.
         release, _, _ = platform.mac_ver()
         major_minor = ".".join(release.split(".")[:2])
-        assert "macosx-{}-intel".format(major_minor) == stdout.strip()
+        machine = platform.machine()
+        assert "macosx-{}-{}".format(major_minor, machine) == stdout.strip()
 
 
 def test_activate_extras_issue_615():
