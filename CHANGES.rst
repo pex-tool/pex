@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.96
+------
+
+This is a hotfix release that fixes ``--venv`` mode
+``PEX_EXTRA_SYS_PATH`` propogation introduced in Pex 2.1.95 to only
+apply to ``sys.executable`` and not other Pythons.
+
+*  Fix ``--venv`` ``PEX PEX_EXTRA_SYS_PATH`` propagation. (#1837)
+  `PR #1837 <https://github.com/pantsbuild/pex/pull/1837>`_
+
 2.1.95
 ------
 
