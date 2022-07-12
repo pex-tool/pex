@@ -873,9 +873,9 @@ def seed_cache(
                 with ENV.patch(PEX=os.path.realpath(os.path.expanduser(pex_path))):
                     venv_pex = ensure_venv(pex)
                     if verbose:
-                        return json.dumps(create_verbose_info(final_pex_path=venv_pex))
+                        return json.dumps(create_verbose_info(final_pex_path=venv_pex.pex))
                     else:
-                        return venv_pex
+                        return venv_pex.pex
 
         pex_hash = pex_info.pex_hash
         if pex_hash is None:

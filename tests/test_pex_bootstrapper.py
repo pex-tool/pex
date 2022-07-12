@@ -207,7 +207,7 @@ def test_ensure_venv_activate_issues_1276(tmpdir):
     expected_python_bin_dir = (
         subprocess.check_output(
             args=[
-                venv_pex,
+                venv_pex.pex,
                 "-c",
                 "import os, sys; print(os.path.realpath(os.path.dirname(sys.executable)))",
             ],
@@ -215,7 +215,7 @@ def test_ensure_venv_activate_issues_1276(tmpdir):
         .decode("utf-8")
         .strip()
     )
-    bash_activate = os.path.join(os.path.dirname(venv_pex), "bin", "activate")
+    bash_activate = venv_pex.bin_file("activate")
 
     subprocess.check_call(
         args=[

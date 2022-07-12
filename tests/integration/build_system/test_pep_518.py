@@ -41,5 +41,5 @@ def test_load_build_system_pyproject_custom_repos(
     build_system = load_build_system(custom_resolver, pex_project_dir)
     assert isinstance(build_system, BuildSystem)
     subprocess.check_call(
-        args=[build_system.pex, "-c", "import {}".format(build_system.build_backend)]
+        args=[build_system.venv_pex.pex, "-c", "import {}".format(build_system.build_backend)]
     )

@@ -7,7 +7,7 @@ import os.path
 
 from pex.dist_metadata import Distribution
 from pex.pex import PEX
-from pex.pex_bootstrapper import ensure_venv
+from pex.pex_bootstrapper import VenvPex, ensure_venv
 from pex.pex_builder import PEXBuilder
 from pex.resolve.resolvers import Resolver
 from pex.result import Error
@@ -74,15 +74,17 @@ class BuildSystem(object):
         for dist in resolved:
             pex_builder.add_distribution(dist)
         pex_builder.freeze(bytecode_compile=False)
-        pex = ensure_venv(PEX(pex_builder.path()))
+        venv_pex = ensure_venv(PEX(pex_builder.path()))
 
         env = os.environ.copy()
         if extra_env:
             env.update(extra_env)
 
-        return cls(pex=pex, build_backend=build_backend, requires=tuple(requires), env=env)
+        return cls(
+            venv_pex=venv_pex, build_backend=build_backend, requires=tuple(requires), env=env
+        )
 
-    pex = attr.ib()  # type: str
+    venv_pex = attr.ib()  # type: VenvPex
     build_backend = attr.ib()  # type: str
     requires = attr.ib()  # type: Tuple[str, ...]
     env = attr.ib()  # type: Mapping[str, str]

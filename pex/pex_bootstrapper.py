@@ -444,11 +444,35 @@ def _bootstrap(entry_point):
     return pex_info
 
 
+@attr.s(frozen=True)
+class VenvPex(object):
+    venv_dir = attr.ib()  # type: str
+    pex = attr.ib(init=False)  # type: str
+    python = attr.ib(init=False)  # type: str
+
+    def bin_file(self, name):
+        # type: (str) -> str
+        return os.path.join(self.venv_dir, "bin", name)
+
+    def __attrs_post_init__(self):
+        # type: () -> None
+        object.__setattr__(self, "pex", os.path.join(self.venv_dir, "pex"))
+        object.__setattr__(self, "python", self.bin_file("python"))
+
+    def execute_args(self, *additional_args):
+        # type: (*str) -> List[str]
+        return [self.python, "-sE", self.pex] + list(additional_args)
+
+    def execv(self, *additional_args):
+        # type: (*str) -> NoReturn
+        os.execv(self.python, self.execute_args(*additional_args))
+
+
 def ensure_venv(
     pex,  # type: PEX
     collisions_ok=True,  # type: bool
 ):
-    # type: (...) -> str
+    # type: (...) -> VenvPex
     pex_info = pex.pex_info()
     venv_dir = pex_info.venv_dir(pex_file=pex.path(), interpreter=pex.interpreter)
     if venv_dir is None:
@@ -536,7 +560,7 @@ def ensure_venv(
 
                     break
 
-    return os.path.join(venv_dir, "pex")
+    return VenvPex(venv_dir)
 
 
 # NB: This helper is used by the PEX bootstrap __main__.py code.
@@ -559,8 +583,7 @@ def bootstrap_pex(entry_point):
                 venv_pex = ensure_venv(pex.PEX(entry_point, interpreter=target))
             except ValueError as e:
                 die(str(e))
-            venv_python = os.path.join(os.path.dirname(venv_pex), "bin", "python")
-            os.execv(venv_python, [venv_python, "-sE", venv_pex] + sys.argv[1:])
+            venv_pex.execv(*sys.argv[1:])
         else:
             maybe_reexec_pex(interpreter_test=interpreter_test)
             from . import pex
