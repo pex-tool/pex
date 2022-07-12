@@ -22,7 +22,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.pep_376 import Record
 from pex.pep_425 import CompatibilityTags
 from pex.pex import PEX
-from pex.pex_bootstrapper import ensure_venv
+from pex.pex_bootstrapper import VenvPex, ensure_venv
 from pex.pip import foreign_platform
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
@@ -277,7 +277,7 @@ class Pip(object):
                 isolated_pip_builder.freeze()
         return cls(ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter)))
 
-    _pip_pex_path = attr.ib()  # type: str
+    _pip_pex = attr.ib()  # type: VenvPex
 
     @staticmethod
     def _calculate_resolver_version(package_index_configuration=None):
@@ -404,7 +404,7 @@ class Pip(object):
                 popen_kwargs["stdout"] = sys.stderr.fileno()
             popen_kwargs.update(stderr=subprocess.PIPE)
 
-            args = [self._pip_pex_path] + command
+            args = self._pip_pex.execute_args(*command)
             return args, subprocess.Popen(args=args, env=env, **popen_kwargs)
 
     def _spawn_pip_isolated_job(

@@ -117,7 +117,7 @@ def test_ensure_venv_short_link(
     venv_pex = ensure_venv(PEX(collisions_pex), collisions_ok=True)
     # We happen to know built distributions are always ordered before downloaded wheels in PEXes
     # as a detail of how `pex/resolver.py` works.
-    assert 42 == subprocess.Popen(args=[venv_pex], env=make_env(PEX_SCRIPT="pex")).wait()
+    assert 42 == subprocess.Popen(args=[venv_pex.pex], env=make_env(PEX_SCRIPT="pex")).wait()
 
 
 def test_ensure_venv_namespace_packages(tmpdir):
@@ -153,7 +153,7 @@ def test_ensure_venv_namespace_packages(tmpdir):
         venv_dir = pex_info.venv_dir(nspkgs_pex)
         assert venv_dir is not None
         venv = Virtualenv(venv_dir=venv_dir)
-        assert os.path.realpath(nspkgs_venv_pex) == os.path.realpath(venv.join_path("pex"))
+        assert os.path.realpath(nspkgs_venv_pex.pex) == os.path.realpath(venv.join_path("pex"))
         return venv
 
     venv_copies = create_ns_pkg_pex(copies=True)

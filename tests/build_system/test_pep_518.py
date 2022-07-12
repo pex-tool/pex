@@ -64,9 +64,10 @@ def test_load_build_system_pyproject(
     assert isinstance(build_system, BuildSystem)
     assert "flit_core.buildapi" == build_system.build_backend
     dists = {
-        dist.metadata.project_name for dist in PEXEnvironment.mount(build_system.pex).resolve()
+        dist.metadata.project_name
+        for dist in PEXEnvironment.mount(build_system.venv_pex.pex).resolve()
     }
     assert ProjectName("flit_core") in dists
     subprocess.check_call(
-        args=[build_system.pex, "-c", "import {}".format(build_system.build_backend)]
+        args=[build_system.venv_pex.pex, "-c", "import {}".format(build_system.build_backend)]
     )

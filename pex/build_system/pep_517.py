@@ -85,8 +85,7 @@ def build_sdist(
     build_backend_module, _, _ = build_system.build_backend.partition(":")
     build_backend_object = build_system.build_backend.replace(":", ".")
     with named_temporary_file(mode="r") as fp:
-        args = [
-            build_system.pex,
+        args = build_system.venv_pex.execute_args(
             "-c",
             dedent(
                 """\
@@ -103,7 +102,7 @@ def build_sdist(
                 dist_dir=dist_dir,
                 result_file=fp.name,
             ),
-        ]
+        )
         try:
             subprocess.check_output(
                 args=args, env=build_system.env, cwd=project_directory, stderr=subprocess.STDOUT
