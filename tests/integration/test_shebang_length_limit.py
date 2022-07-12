@@ -7,12 +7,16 @@ import errno
 import json
 import os
 import subprocess
+from textwrap import dedent
 from typing import Any, Callable, List
 
+import colors
 import pytest
 
+from pex.cli.testing import run_pex3
 from pex.common import chmod_plus_x, touch
 from pex.testing import IS_PYPY, run_pex_command
+from pex.version import __version__
 
 
 def find_max_length(
@@ -118,22 +122,13 @@ def shebang_length_limit(
     )
 
 
-EXECUTION_MODE_ARGS_PERMUTATIONS = [
-    pytest.param([], id="ZIPAPP"),
-    pytest.param(["--venv"], id="VENV"),
-    pytest.param(["--sh-boot"], id="ZIPAPP (--sh-boot)"),
-    pytest.param(["--venv", "--sh-boot"], id="VENV (--sh-boot)"),
-]
-
-
-@pytest.mark.parametrize("execution_mode_args", EXECUTION_MODE_ARGS_PERMUTATIONS)
-def test_shebang_length_limit(
+@pytest.fixture
+def too_deep_pex_root(
     tmpdir,  # type: Any
-    execution_mode_args,  # type: List[str]
     file_path_length_limit,  # type: int
     shebang_length_limit,  # type: int
 ):
-    # type: (...) -> None
+    # type: (...) -> str
 
     # The short venv python used in --venv shebangs is of the form:
     #   <PEX_ROOT>/venvs/s/592c68dc/venv/bin/python
@@ -176,14 +171,32 @@ def test_shebang_length_limit(
         padding_dirs_path, "x" * (padding_dirs_length - len(padding_dirs_path + os.sep))
     )
 
-    pex_root = os.path.realpath(os.path.join(str(tmpdir), padding_dirs_path, "pex_root"))
-    pex = os.path.realpath(os.path.join(str(tmpdir), "pex.sh"))
+    return os.path.realpath(os.path.join(str(tmpdir), padding_dirs_path, "pex_root"))
+
+
+@pytest.mark.parametrize(
+    "execution_mode_args",
+    [
+        pytest.param([], id="ZIPAPP"),
+        pytest.param(["--venv"], id="VENV"),
+        pytest.param(["--sh-boot"], id="ZIPAPP (--sh-boot)"),
+        pytest.param(["--venv", "--sh-boot"], id="VENV (--sh-boot)"),
+    ],
+)
+def test_shebang_length_limit_runtime(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+    too_deep_pex_root,  # type: str
+):
+    # type: (...) -> None
+
+    pex = os.path.realpath(os.path.join(str(tmpdir), "pex"))
     result = run_pex_command(
         args=[
             "--pex-root",
-            pex_root,
+            too_deep_pex_root,
             "--runtime-pex-root",
-            pex_root,
+            too_deep_pex_root,
             "-o",
             pex,
             "--seed",
@@ -200,7 +213,7 @@ def test_shebang_length_limit(
         assert (
             subprocess.check_output(args=[pex_file] + test_pex_args)
             .decode("utf8")
-            .startswith(pex_root)
+            .startswith(too_deep_pex_root)
         )
 
     if "--venv" in execution_mode_args:
@@ -212,3 +225,91 @@ def test_shebang_length_limit(
         assert_pex_works(seeded_pex)
 
     assert_pex_works(pex)
+
+
+def test_shebang_length_limit_buildtime_resolve(
+    tmpdir,  # type: Any
+    too_deep_pex_root,  # type: str
+):
+    # type: (...) -> None
+
+    pex = os.path.realpath(os.path.join(str(tmpdir), "pex"))
+    # N.B.: This runs the vendored Pip tool in a dogfood venv to resolve ansicolors.
+    run_pex_command(
+        args=[
+            "--pex-root",
+            too_deep_pex_root,
+            "--runtime-pex-root",
+            too_deep_pex_root,
+            "-o",
+            pex,
+            "ansicolors==1.1.8",
+        ]
+    ).assert_success()
+
+    assert (
+        colors.cyan("Jane")
+        == subprocess.check_output(args=[pex, "-c", "import colors; print(colors.cyan('Jane'))"])
+        .decode("utf-8")
+        .strip()
+    )
+
+
+def test_shebang_length_limit_buildtime_lock_local_project(
+    tmpdir,  # type: Any
+    pex_project_dir,  # type: str
+    too_deep_pex_root,  # type: str
+):
+    # type: (...) -> None
+
+    lock = os.path.realpath(os.path.join(str(tmpdir), "lock.json"))
+    # N.B.: This runs the vendored PEP 517 / 518 sdist build tool in a dogfood venv to create an
+    # sdist for the local Pex project that can be consistently hashed.
+    run_pex3(
+        "lock",
+        "create",
+        "--pex-root",
+        too_deep_pex_root,
+        "-o",
+        lock,
+        "--indent",
+        "2",
+        "ansicolors==1.1.8",
+        pex_project_dir,
+    ).assert_success()
+
+    pex = os.path.realpath(os.path.join(str(tmpdir), "pex"))
+    run_pex_command(
+        args=[
+            "--pex-root",
+            too_deep_pex_root,
+            "--runtime-pex-root",
+            too_deep_pex_root,
+            "-o",
+            pex,
+            "--lock",
+            lock,
+        ]
+    ).assert_success()
+
+    assert (
+        colors.yellow(__version__)
+        == subprocess.check_output(
+            args=[
+                pex,
+                "-c",
+                dedent(
+                    """\
+                    import colors
+
+                    from pex.version import __version__
+
+
+                    print(colors.yellow(__version__))
+                    """
+                ),
+            ]
+        )
+        .decode("utf-8")
+        .strip()
+    )
