@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.97
+------
+
+This release patches a hole left by #1828 in the Pex 2.1.95 release
+whereby, although you could run a PEX under a too-long PEX_ROOT you
+could not build a PEX under a tool-long PEX_ROOT.
+
+*  Avoid ENOEXEC for Pex internal --venvs. (#1843)
+   `PR #1843 <https://github.com/pantsbuild/pex/pull/1843>`_
+
 2.1.96
 ------
 
@@ -9,7 +19,7 @@ This is a hotfix release that fixes ``--venv`` mode
 apply to ``sys.executable`` and not other Pythons.
 
 *  Fix ``--venv`` ``PEX PEX_EXTRA_SYS_PATH`` propagation. (#1837)
-  `PR #1837 <https://github.com/pantsbuild/pex/pull/1837>`_
+   `PR #1837 <https://github.com/pantsbuild/pex/pull/1837>`_
 
 2.1.95
 ------
