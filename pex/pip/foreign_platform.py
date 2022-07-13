@@ -124,10 +124,9 @@ def patch(target):
     if isinstance(target, AbbreviatedPlatform):
         args = tuple(iter_platform_args(target.platform, target.manylinux))
 
-    if isinstance(target, CompletePlatform):
-        compatible_tags = target.supported_tags
-        if compatible_tags:
-            env.update(patch_tags(compatible_tags).env)
+    compatible_tags = target.supported_tags
+    if compatible_tags:
+        env.update(patch_tags(compatible_tags).env)
 
     TRACER.log(
         "Patching environment markers for {} with {}".format(target, patched_environment),
