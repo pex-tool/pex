@@ -5,14 +5,15 @@ import shutil
 
 from pex import hashing
 from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
-from pex.compatibility import urlparse
+from pex.compatibility import unquote, urlparse
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
-from pex.pip.tool import PackageIndexConfiguration, Pip, get_pip
-from pex.resolve.locked_resolve import Artifact, FileArtifact
+from pex.pip.tool import PackageIndexConfiguration, get_pip
+from pex.resolve import locker
+from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, LockStyle
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact
+from pex.resolve.resolvers import Resolver
 from pex.result import Error
-from pex.targets import LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -42,14 +43,10 @@ def get_downloads_dir(pex_root=None):
 
 @attr.s(frozen=True)
 class ArtifactDownloader(object):
+    resolver = attr.ib()  # type: Resolver
     package_index_configuration = attr.ib(
         default=PackageIndexConfiguration.create()
     )  # type: PackageIndexConfiguration
-    target = attr.ib(default=LocalInterpreter.create())  # type: Target
-    _pip = attr.ib(init=False)  # type: Pip
-
-    def __attrs_post_init__(self):
-        object.__setattr__(self, "_pip", get_pip(interpreter=self.target.get_interpreter()))
 
     @staticmethod
     def _fingerprint_and_move(path):
@@ -92,21 +89,40 @@ class ArtifactDownloader(object):
                 url = credentialed_url
                 break
 
-        return self._pip.spawn_download_distributions(
+        # Although we don't actually need to observe the download, we do need to patch Pip to not
+        # care about wheel tags, environment markers or Requires-Python. The locker's download
+        # observer does just this for universal locks with no target system or requires python
+        # restrictions.
+        download_observer = locker.patch(
+            resolver=self.resolver,
+            lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL),
+            download_dir=download_dir,
+        )
+        return get_pip().spawn_download_distributions(
             download_dir=download_dir,
             requirements=[url],
             transitive=False,
-            target=self.target,
             package_index_configuration=self.package_index_configuration,
+            observer=download_observer,
         )
 
     def _download_and_fingerprint(self, url):
         # type: (str) -> SpawnedJob[FileArtifact]
         downloads = get_downloads_dir()
         download_dir = safe_mkdtemp(prefix="fingerprint_artifact.", dir=downloads)
-        temp_dest = os.path.join(
-            download_dir, os.path.basename(urlparse.unquote(urlparse.urlparse(url).path))
-        )
+
+        url_info = urlparse.urlparse(url)
+        src_file = urlparse.unquote(url_info.path)
+        temp_dest = os.path.join(download_dir, os.path.basename(src_file))
+
+        if url_info.scheme == "file":
+            shutil.copy(src_file, temp_dest)
+            return SpawnedJob.completed(
+                self._create_file_artifact(
+                    url, fingerprint=self._fingerprint_and_move(temp_dest), verified=True
+                )
+            )
+
         return SpawnedJob.and_then(
             self._download(url=url, download_dir=download_dir),
             result_func=lambda: self._create_file_artifact(
@@ -139,9 +155,19 @@ class ArtifactDownloader(object):
         digest,  # type: HintedDigest
     ):
         # type: (...) -> Union[str, Error]
-        try:
-            self._download(url=artifact.url, download_dir=dest_dir).wait()
-        except Job.Error as e:
-            return Error((e.stderr or str(e)).splitlines()[-1])
-        hashing.file_hash(os.path.join(dest_dir, artifact.filename), digest)
+        dest_file = os.path.join(dest_dir, artifact.filename)
+
+        url_info = urlparse.urlparse(artifact.url)
+        if url_info.scheme == "file":
+            src_file = unquote(url_info.path)
+            try:
+                shutil.copy(src_file, dest_file)
+            except (IOError, OSError) as e:
+                return Error(str(e))
+        else:
+            try:
+                self._download(url=artifact.url, download_dir=dest_dir).wait()
+            except Job.Error as e:
+                return Error((e.stderr or str(e)).splitlines()[-1])
+        hashing.file_hash(dest_file, digest)
         return artifact.filename
