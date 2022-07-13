@@ -279,8 +279,8 @@ def resolve_from_lock(
             file_download_managers_by_target[target] = FileArtifactDownloadManager(
                 file_lock_style=file_lock_style,
                 downloader=ArtifactDownloader(
+                    resolver=resolver,
                     package_index_configuration=package_index_configuration,
-                    target=target,
                 ),
             )
 

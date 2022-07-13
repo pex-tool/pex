@@ -201,7 +201,8 @@ class LockObserver(ResolveObserver):
                 resolved_requirements=resolved_requirements,
                 dist_metadatas=dist_metadatas_by_target[target],
                 fingerprinter=ArtifactDownloader(
-                    package_index_configuration=self.package_index_configuration, target=target
+                    resolver=self.resolver,
+                    package_index_configuration=self.package_index_configuration,
                 ),
                 platform_tag=None
                 if self.lock_configuration.style == LockStyle.UNIVERSAL
