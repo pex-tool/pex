@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import hashlib
 import os
 
+from pex.common import open_zip
 from pex.typing import TYPE_CHECKING, Generic
 
 if TYPE_CHECKING:
@@ -210,3 +211,48 @@ def dir_hash(
 
     for name in names:
         file_hash(os.path.join(directory, name), digest)
+
+
+def zip_hash(
+    zip_path,  # type: str
+    digest,  # type: HintedDigest
+    relpath=None,  # type: Optional[str]
+    dir_filter=lambda dirs: dirs,  # type: Callable[[Iterable[str]], Iterable[str]]
+    file_filter=lambda files: files,  # type: Callable[[Iterable[str]], Iterable[str]]
+):
+    # type: (...) -> None
+    """Digest the contents of a zip file in a reproducible manner.
+
+    If a `relpath` is specified, descend into that path only and take the hash with names recoded
+    in the hash relative to the `relpath`.
+    """
+    with open_zip(zip_path) as zf:
+        namelist = (
+            [name for name in zf.namelist() if name.startswith(relpath)]
+            if relpath
+            else zf.namelist()
+        )
+
+        dirs = frozenset(name.rstrip("/") for name in namelist if name.endswith("/"))
+        accept_dir_names = frozenset(dir_filter(os.path.basename(d) for d in dirs))
+        accept_dirs = frozenset(d for d in dirs if os.path.basename(d) in accept_dir_names)
+        reject_dirs = dirs - accept_dirs
+
+        accept_files = sorted(
+            file_filter(
+                name
+                for name in namelist
+                if not (
+                    name.endswith("/")
+                    or any(name.startswith(reject_dir) for reject_dir in reject_dirs)
+                )
+            )
+        )
+
+        hashed_names = (
+            [os.path.relpath(name, relpath) for name in accept_files] if relpath else accept_files
+        )
+        digest.update("".join(hashed_names).encode("utf-8"))
+
+        for filename in accept_files:
+            update_hash(zf.open(filename, "r"), digest)

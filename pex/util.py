@@ -84,12 +84,12 @@ class CacheHelper(object):
         return digest.hexdigest()
 
     @classmethod
-    def pex_code_hash(cls, d):
+    def pex_code_hash(cls, directory):
         # type: (str) -> str
         """Return a reproducible hash of the contents of a loose PEX; excluding all `.pyc` files."""
         digest = hashlib.sha1()
         hashing.dir_hash(
-            directory=d,
+            directory=directory,
             digest=digest,
             dir_filter=filter_pyc_dirs,
             file_filter=lambda files: (f for f in filter_pyc_files(files) if not f.startswith(".")),
@@ -97,13 +97,34 @@ class CacheHelper(object):
         return digest.hexdigest()
 
     @classmethod
-    def dir_hash(cls, d, digest=None, hasher=sha1):
+    def dir_hash(cls, directory, digest=None, hasher=sha1):
         # type: (str, Optional[Hasher], Callable[[], Hasher]) -> str
         """Return a reproducible hash of the contents of a directory; excluding all `.pyc` files."""
         if digest is None:
             digest = hasher()
         hashing.dir_hash(
-            directory=d, digest=digest, dir_filter=filter_pyc_dirs, file_filter=filter_pyc_files
+            directory=directory,
+            digest=digest,
+            dir_filter=filter_pyc_dirs,
+            file_filter=filter_pyc_files,
+        )
+        return digest.hexdigest()
+
+    @classmethod
+    def zip_hash(
+        cls,
+        zip_path,  # type: str
+        relpath=None,  # type: Optional[str]
+    ):
+        # type: (...) -> str
+        """Return a reproducible hash of the contents of a zip; excluding all `.pyc` files."""
+        digest = hashlib.sha1()
+        hashing.zip_hash(
+            zip_path=zip_path,
+            digest=digest,
+            relpath=relpath,
+            dir_filter=filter_pyc_dirs,
+            file_filter=filter_pyc_files,
         )
         return digest.hexdigest()
 
