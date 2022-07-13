@@ -4,8 +4,8 @@ Release Notes
 2.1.98
 ------
 
-This releases fixes a regression in foreign `--platform` handling
-introduced by #1787 in Pex 2.1.91.
+This releases fixes regressions in foreign `--platform` handling and
+artifact downloading introduced by #1787 in Pex 2.1.91.
 
 In addition, PEXes can now be used as `sys.path` entries. Once on the 
 `sys.path`, via `PYTHONPATH` or other means, the code in the PEX can be
@@ -19,6 +19,9 @@ as a prefix of the code to import from the PEX; e.g.:
 
 * Add support for importing from PEXes. (#1845) 
   `PR #1845 <https://github.com/pantsbuild/pex/pull/1845>`_
+
+* Fix artifact downloads for foreign platforms. #1851
+  `PR #1851 <https://github.com/pantsbuild/pex/pull/1851>`_
 
 2.1.97
 ------
