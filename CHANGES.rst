@@ -1,6 +1,25 @@
 Release Notes
 =============
 
+2.1.98
+------
+
+This releases fixes a regression in foreign `--platform` handling
+introduced by #1787 in Pex 2.1.91.
+
+In addition, PEXes can now be used as `sys.path` entries. Once on the 
+`sys.path`, via `PYTHONPATH` or other means, the code in the PEX can be
+made importable by first importing `__pex__` either as its own
+stand-alone import statement; e.g.: `import __pex__; import psutil` or
+as a prefix of the code to import from the PEX; e.g.:
+`from __pex__ import psutil`.
+
+* Tags should be patched for --platform. (#1846)
+  `PR #1846 <https://github.com/pantsbuild/pex/pull/1846>`_
+
+* Add support for importing from PEXes. (#1845) 
+  `PR #1845 <https://github.com/pantsbuild/pex/pull/1845>`_
+
 2.1.97
 ------
 
