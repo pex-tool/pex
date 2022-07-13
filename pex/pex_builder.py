@@ -60,13 +60,15 @@ def __re_exec__(argv0, *extra_launch_args):
   os.execv(argv0, [argv0] + list(extra_launch_args) + sys.argv[1:])
 
 
+__execute__ = __name__ == "__main__"
+
 def __maybe_install_pex__(pex, pex_root, pex_hash):
   from pex.layout import maybe_install
   from pex.tracer import TRACER
 
   installed_location = maybe_install(pex, pex_root, pex_hash)
-  if not installed_location:
-    return
+  if not __execute__ or not installed_location:
+    return installed_location
 
   # N.B.: This is read upon re-exec below to point sys.argv[0] back to the original pex before
   # unconditionally scrubbing the env var and handing off to user code.
@@ -81,32 +83,41 @@ def __maybe_run_venv__(pex, pex_root, pex_path):
   from pex.tracer import TRACER
   from pex.variables import venv_dir
 
-  venv_home = venv_dir(
+  venv_dir = venv_dir(
     pex_file=pex,
     pex_root=pex_root, 
     pex_hash={pex_hash!r},
     has_interpreter_constraints={has_interpreter_constraints!r},
     pex_path=pex_path,
   )
-  venv_pex = os.path.join(venv_home, 'pex')
-  if not is_exe(venv_pex):
+  venv_pex = os.path.join(venv_dir, 'pex')
+  if not __execute__ or not is_exe(venv_pex):
     # Code in bootstrap_pex will (re)create the venv after selecting the correct interpreter. 
-    return
+    return venv_dir
 
   TRACER.log('Executing venv PEX for {{}} at {{}}'.format(pex, venv_pex))
-  venv_python = os.path.join(venv_home, 'bin', 'python')
+  venv_python = os.path.join(venv_dir, 'bin', 'python')
   __re_exec__(venv_python, '-sE', venv_pex)
 
 
+def __entry_point_from_filename__(filename):
+    # Either the entry point is "__main__" and we're in execute mode or "__pex__/__init__.py" and
+    # we're in import hook mode.
+    entry_point = os.path.dirname(filename)
+    if __execute__:
+        return entry_point
+    return os.path.dirname(entry_point)
+
+
 __entry_point__ = None
-if '__file__' in locals() and __file__ is not None:
-  __entry_point__ = os.path.dirname(__file__)
+if '__file__' in locals() and __file__ is not None and os.path.exists(__file__):
+  __entry_point__ = __entry_point_from_filename__(__file__)
 elif '__loader__' in locals():
   from pkgutil import ImpLoader
   if hasattr(__loader__, 'archive'):
     __entry_point__ = __loader__.archive
   elif isinstance(__loader__, ImpLoader):
-    __entry_point__ = os.path.dirname(__loader__.get_filename())
+    __entry_point__ = __entry_point_from_filename__(__loader__.get_filename())
 
 if __entry_point__ is None:
   sys.stderr.write('Could not launch python executable!\\n')
@@ -118,22 +129,27 @@ sys.argv[0] = os.path.realpath(__installed_from__ or sys.argv[0])
 sys.path[0] = os.path.abspath(sys.path[0])
 sys.path.insert(0, os.path.abspath(os.path.join(__entry_point__, {bootstrap_dir!r})))
 
+__venv_dir__ = None
 if not __installed_from__:
     os.environ['PEX'] = os.path.realpath(__entry_point__)
     from pex.variables import ENV, Variables
     __pex_root__ = Variables.PEX_ROOT.value_or(ENV, {pex_root!r})
     if not ENV.PEX_TOOLS and Variables.PEX_VENV.value_or(ENV, {is_venv!r}):
-      __maybe_run_venv__(
+      __venv_dir__ = __maybe_run_venv__(
         __entry_point__,
         pex_root=__pex_root__,
         pex_path=Variables.PEX_PATH.value_or(ENV, {pex_path!r}),
       )
-    __maybe_install_pex__(__entry_point__, pex_root=__pex_root__, pex_hash={pex_hash!r})
+    __installed_location__ = __maybe_install_pex__(
+      __entry_point__, pex_root=__pex_root__, pex_hash={pex_hash!r}
+    )
+    if __installed_location__:
+      __entry_point__ = __installed_location__
 else:
     os.environ['PEX'] = os.path.realpath(__installed_from__)
 
 from pex.pex_bootstrapper import bootstrap_pex
-bootstrap_pex(__entry_point__)
+bootstrap_pex(__entry_point__, execute=__execute__, venv_dir=__venv_dir__)
 """
 
 
@@ -522,6 +538,11 @@ class PEXBuilder(object):
             executable=True,
             label="main",
         )
+        self._chroot.write(
+            data=to_bytes(bootstrap),
+            dst=os.path.join("__pex__", "__init__.py"),
+            label="importhook",
+        )
 
     def _copy_or_link(self, src, dst, label=None):
         if src is None:
@@ -659,7 +680,7 @@ class PEXBuilder(object):
         pex_info.update(PexInfo.from_env())
 
         # Include user sources, PEX-INFO and __main__ as loose files in src/.
-        for fileset in "source", "resource", "executable", "main", "manifest":
+        for fileset in ("executable", "importhook", "main", "manifest", "resource", "source"):
             for f in self._chroot.filesets.get(fileset, ()):
                 dest = os.path.join(dirname, f)
                 safe_mkdir(os.path.dirname(dest))

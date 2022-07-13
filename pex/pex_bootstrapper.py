@@ -563,32 +563,105 @@ def ensure_venv(
     return VenvPex(venv_dir)
 
 
-# NB: This helper is used by the PEX bootstrap __main__.py code.
-def bootstrap_pex(entry_point):
-    # type: (str) -> None
+# NB: This helper is used by the PEX bootstrap __main__.py as well as the __pex__/__init__.py
+# import hook code.
+def bootstrap_pex(
+    entry_point,  # type: str
+    execute=True,  # type: bool
+    venv_dir=None,  # type: Optional[str]
+):
+    # type: (...) -> None
+
     pex_info = _bootstrap(entry_point)
-    interpreter_test = InterpreterTest(entry_point=entry_point, pex_info=pex_info)
 
     # ENV.PEX_ROOT is consulted by PythonInterpreter and Platform so set that up as early as
     # possible in the run.
     with ENV.patch(PEX_ROOT=pex_info.pex_root):
+        if not execute:
+            for location in _activate_pex(entry_point, pex_info, venv_dir=venv_dir):
+                from pex.third_party import VendorImporter
+
+                VendorImporter.install(
+                    uninstallable=False, prefix="__pex__", path_items=["."], root=location
+                )
+            return
+
+        interpreter_test = InterpreterTest(entry_point=entry_point, pex_info=pex_info)
         if not (ENV.PEX_UNZIP or ENV.PEX_TOOLS) and pex_info.venv:
             try:
                 target = find_compatible_interpreter(interpreter_test=interpreter_test)
             except UnsatisfiableInterpreterConstraintsError as e:
                 die(str(e))
-            from . import pex
-
-            try:
-                venv_pex = ensure_venv(pex.PEX(entry_point, interpreter=target))
-            except ValueError as e:
-                die(str(e))
+            venv_pex = _bootstrap_venv(entry_point, interpreter=target)
             venv_pex.execv(*sys.argv[1:])
         else:
             maybe_reexec_pex(interpreter_test=interpreter_test)
             from . import pex
 
             pex.PEX(entry_point).execute()
+
+
+def _activate_pex(
+    entry_point,  # type: str
+    pex_info,  # type: PexInfo
+    venv_dir=None,  # type: Optional[str]
+):
+    # type: (...) -> Iterator[str]
+
+    if pex_info.venv:
+        for location in _activate_venv_dir(entry_point, venv_dir=venv_dir):
+            yield location
+        return
+
+    from . import pex
+
+    yield entry_point
+    for distribution in pex.PEX(entry_point).activate():
+        yield distribution.location
+
+
+def _activate_venv_dir(
+    entry_point,  # type: str
+    venv_dir=None,  # type: Optional[str]
+):
+    # type: (...) -> Iterable[str]
+
+    venv_python = None
+
+    if venv_dir:
+        python = os.path.join(venv_dir, "bin", "python")
+        if os.path.exists(python):
+            venv_python = python
+
+    if not venv_python:
+        venv_python = _bootstrap_venv(entry_point).python
+
+    from pex.venv.virtualenv import Virtualenv
+
+    venv = Virtualenv.enclosing(venv_python)
+    if not venv:
+        die("Failed to load virtualenv for interpreter at {path}.".format(path=venv_python))
+
+    site_packages_dir = venv.site_packages_dir
+    sys.path[:-1] = [site_packages_dir]
+    import site
+
+    site.addsitedir(site_packages_dir)
+    yield site_packages_dir
+
+
+def _bootstrap_venv(
+    entry_point,  # type: str
+    interpreter=None,  # type: Optional[PythonInterpreter]
+):
+    # type: (...) -> VenvPex
+
+    from . import pex
+
+    try:
+        return ensure_venv(pex.PEX(entry_point, interpreter=interpreter))
+    except ValueError as e:
+        die(str(e))
 
 
 # NB: This helper is used by third party libs - namely https://github.com/wickman/lambdex.

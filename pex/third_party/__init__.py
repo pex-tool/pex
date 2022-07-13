@@ -7,14 +7,20 @@ import contextlib
 import importlib
 import os
 import re
+import shutil
 import sys
 import zipfile
 from collections import OrderedDict, namedtuple
 
-
-# NB: All pex imports are performed lazily to play well with the un-imports performed by both the
+# NB: ~All pex imports are performed lazily to play well with the un-imports performed by both the
 # PEX runtime when it demotes the bootstrap code and any pex modules that uninstalled
 # VendorImporters un-import.
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Container, Optional, Tuple
+
+
 def _tracer():
     from pex.tracer import TRACER
 
@@ -64,7 +70,11 @@ class _Importable(namedtuple("_Importable", ["module", "is_pkg", "path", "prefix
             target = fullname
 
         if target == self.module or self.is_pkg and target.startswith(self.module + "."):
-            vendor_path = os.path.join(self.path, *target.split("."))
+            vendor_path = (
+                os.path.join(*target.split("."))
+                if not self.path or self.path == os.curdir
+                else os.path.join(self.path, *target.split("."))
+            )
             vendor_module_name = vendor_path.replace(os.sep, ".")
             return _Loader(fullname, vendor_module_name)
 
@@ -330,6 +340,47 @@ class IsolationResult(namedtuple("IsolatedPex", ["pex_hash", "chroot_path"])):
 _ISOLATED = None
 
 
+def _isolate_pex_from_dir(
+    pex_directory,  # type: str
+    isolate_to_dir,  # type: str
+    exclude_files,  # type: Container[str]
+):
+    from pex.common import filter_pyc_dirs, filter_pyc_files, is_pyc_temporary_file, safe_copy
+
+    for root, dirs, files in os.walk(pex_directory):
+        relroot = os.path.relpath(root, pex_directory)
+        for d in filter_pyc_dirs(dirs):
+            os.makedirs(os.path.join(isolate_to_dir, "pex", relroot, d))
+        for f in filter_pyc_files(files):
+            rel_f = os.path.join(relroot, f)
+            if not is_pyc_temporary_file(rel_f) and rel_f not in exclude_files:
+                safe_copy(
+                    os.path.join(root, f),
+                    os.path.join(isolate_to_dir, "pex", rel_f),
+                )
+
+
+def _isolate_pex_from_zip(
+    pex_zip,  # type: str
+    pex_package_relpath,  # type: str
+    isolate_to_dir,  # type: str
+    exclude_files,  # type: Container[str]
+):
+    from pex.common import open_zip, safe_open
+
+    with open_zip(pex_zip) as zf:
+        for name in zf.namelist():
+            if name.endswith("/") or not name.startswith(pex_package_relpath):
+                continue
+            rel_name = os.path.relpath(name, pex_package_relpath)
+            if rel_name in exclude_files:
+                continue
+            with zf.open(name) as from_fp, safe_open(
+                os.path.join(isolate_to_dir, rel_name), "wb"
+            ) as to_fp:
+                shutil.copyfileobj(from_fp, to_fp)
+
+
 def isolated():
     """Returns a chroot for third_party isolated from the ``sys.path``.
 
@@ -343,14 +394,8 @@ def isolated():
     """
     global _ISOLATED
     if _ISOLATED is None:
-        from pex import vendor
-        from pex.common import (
-            atomic_directory,
-            filter_pyc_dirs,
-            filter_pyc_files,
-            is_pyc_temporary_file,
-            safe_copy,
-        )
+        from pex import layout, vendor
+        from pex.common import atomic_directory
         from pex.util import CacheHelper
         from pex.variables import ENV
 
@@ -363,37 +408,56 @@ def isolated():
             for vendor_spec in vendor.iter_vendor_specs()
         )
 
+        pex_zip_paths = None  # type: Optional[Tuple[str, str]]
         pex_path = os.path.join(vendor.VendorSpec.ROOT, "pex")
         with _tracer().timed("Hashing pex"):
-            assert os.path.isdir(pex_path), (
-                "Expected the `pex` module to be available via an installed distribution or "
-                "else via an installed or loose PEX. Loaded the `pex` module from {} and argv0 is "
-                "{}.".format(pex_path, sys.argv[0])
-            )
-            dir_hash = CacheHelper.dir_hash(pex_path)
-        isolated_dir = os.path.join(ENV.PEX_ROOT, "isolated", dir_hash)
+            if os.path.isdir(pex_path):
+                pex_hash = CacheHelper.dir_hash(pex_path)
+            else:
+                # The zip containing the `pex` package could either be a traditional PEX zipapp
+                # with the `pex` package in `.bootstrap/pex` or a .bootstrap zip with the `pex`
+                # package in the root of the zip. We deal with both cases below.
+                zip_path = os.path.dirname(pex_path)
+                if (
+                    not zipfile.is_zipfile(zip_path)
+                    and os.path.basename(zip_path) == layout.BOOTSTRAP_DIR
+                ):
+                    zip_path = os.path.dirname(zip_path)
+                assert zipfile.is_zipfile(zip_path), (
+                    "Expected the `pex` module to be available via an installed distribution "
+                    "or else via a PEX. Loaded the `pex` module from {} and but the enclosing "
+                    "PEX has an unexpected layout {}".format(pex_path, zip_path)
+                )
 
+                pex_package_relpath = (
+                    ""
+                    if os.path.basename(zip_path) == layout.BOOTSTRAP_DIR
+                    else layout.BOOTSTRAP_DIR
+                )
+                pex_zip_paths = (zip_path, pex_package_relpath)
+                pex_hash = CacheHelper.zip_hash(zip_path, relpath=pex_package_relpath)
+
+        isolated_dir = os.path.join(ENV.PEX_ROOT, "isolated", pex_hash)
         with _tracer().timed("Isolating pex"):
             with atomic_directory(isolated_dir, exclusive=True) as chroot:
                 if not chroot.is_finalized():
                     with _tracer().timed("Extracting pex to {}".format(isolated_dir)):
-                        pex_path = os.path.join(vendor.VendorSpec.ROOT, "pex")
-                        for root, dirs, files in os.walk(pex_path):
-                            relroot = os.path.relpath(root, pex_path)
-                            for d in filter_pyc_dirs(dirs):
-                                os.makedirs(os.path.join(chroot.work_dir, "pex", relroot, d))
-                            for f in filter_pyc_files(files):
-                                rel_f = os.path.join(relroot, f)
-                                if (
-                                    not is_pyc_temporary_file(rel_f)
-                                    and rel_f not in vendor_lockfiles
-                                ):
-                                    safe_copy(
-                                        os.path.join(root, f),
-                                        os.path.join(chroot.work_dir, "pex", rel_f),
-                                    )
+                        if pex_zip_paths:
+                            pex_zip, pex_package_relpath = pex_zip_paths
+                            _isolate_pex_from_zip(
+                                pex_zip=pex_zip,
+                                pex_package_relpath=pex_package_relpath,
+                                isolate_to_dir=chroot.work_dir,
+                                exclude_files=vendor_lockfiles,
+                            )
+                        else:
+                            _isolate_pex_from_dir(
+                                pex_directory=pex_path,
+                                isolate_to_dir=chroot.work_dir,
+                                exclude_files=vendor_lockfiles,
+                            )
 
-        _ISOLATED = IsolationResult(pex_hash=dir_hash, chroot_path=isolated_dir)
+        _ISOLATED = IsolationResult(pex_hash=pex_hash, chroot_path=isolated_dir)
     return _ISOLATED
 
 
