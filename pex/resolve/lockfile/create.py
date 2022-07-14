@@ -14,7 +14,7 @@ from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
-from pex.pip.tool import PackageIndexConfiguration, get_pip
+from pex.pip.tool import PackageIndexConfiguration
 from pex.resolve import lock_resolver, locker, resolvers
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
