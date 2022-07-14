@@ -8,7 +8,7 @@ from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
 from pex.compatibility import unquote, urlparse
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
-from pex.pip.tool import PackageIndexConfiguration, get_pip
+from pex.pip.tool import PackageIndexConfiguration, Pip, get_pip
 from pex.resolve import locker
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, LockStyle
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact
@@ -44,6 +44,7 @@ def get_downloads_dir(pex_root=None):
 @attr.s(frozen=True)
 class ArtifactDownloader(object):
     resolver = attr.ib()  # type: Resolver
+    pip = attr.ib(factory=get_pip)  # type: Pip
     package_index_configuration = attr.ib(
         default=PackageIndexConfiguration.create()
     )  # type: PackageIndexConfiguration
@@ -98,7 +99,7 @@ class ArtifactDownloader(object):
             lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL),
             download_dir=download_dir,
         )
-        return get_pip().spawn_download_distributions(
+        return self.pip.spawn_download_distributions(
             download_dir=download_dir,
             requirements=[url],
             transitive=False,

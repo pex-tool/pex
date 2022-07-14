@@ -6,7 +6,6 @@ from __future__ import absolute_import
 import base64
 import csv
 import errno
-import fileinput
 import hashlib
 import itertools
 import json
@@ -599,7 +598,7 @@ class Record(object):
         if not scripts:
             return
 
-        with closing(fileinput.input(files=scripts.keys(), inplace=True, mode="rb")) as script_fi:
+        with closing(FileInput(files=scripts.keys(), inplace=True, mode="rb")) as script_fi:
             first_non_shebang_line = None  # type: Optional[bytes]
             for line in script_fi:
                 buffer = get_stdout_bytes_buffer()

@@ -14,9 +14,10 @@ from pex.auth import PasswordDatabase, PasswordEntry
 from pex.common import FileLockStyle, pluralize
 from pex.compatibility import cpu_count
 from pex.network_configuration import NetworkConfiguration
+from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project
-from pex.pip.tool import PackageIndexConfiguration
+from pex.pip.tool import PackageIndexConfiguration, get_pip
 from pex.pip.vcs import digest_vcs_archive
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
@@ -33,12 +34,12 @@ from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed, Resolver
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
 from pex.result import Error, catch, try_
-from pex.targets import Target, Targets
+from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
+    from typing import Dict, Iterable, Optional, Sequence, Union
 
     from pex.hashing import HintedDigest
 
@@ -175,14 +176,12 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
 
 
 def download_artifact(
-    downloadable_artifact_and_target,  # type: Tuple[DownloadableArtifact, Target]
-    file_download_managers_by_target,  # type: Mapping[Target, FileArtifactDownloadManager]
+    downloadable_artifact,  # type: DownloadableArtifact
+    file_download_manager,  # type: FileArtifactDownloadManager
     vcs_download_manager,  # type: VCSArtifactDownloadManager
     local_project_download_manager,  # type: LocalProjectDownloadManager
 ):
     # type: (...) -> Union[DownloadedArtifact, Error]
-
-    downloadable_artifact, target = downloadable_artifact_and_target
 
     if isinstance(downloadable_artifact.artifact, VCSArtifact):
         return catch(
@@ -192,7 +191,6 @@ def download_artifact(
         )
 
     if isinstance(downloadable_artifact.artifact, FileArtifact):
-        file_download_manager = file_download_managers_by_target[target]
         return catch(
             file_download_manager.store,
             downloadable_artifact.artifact,
@@ -251,8 +249,8 @@ def resolve_from_lock(
             transitive=transitive,
         )
     )
-    target_by_downloadable_artifact = OrderedDict(
-        (downloadable_artifact, resolved_subset.target)
+    downloadable_artifacts = OrderedSet(
+        downloadable_artifact
         for resolved_subset in subset_result.subsets
         for downloadable_artifact in resolved_subset.resolved.downloadable_artifacts
     )
@@ -264,25 +262,24 @@ def resolve_from_lock(
     # errors under the right interleaving of processes and threads and download artifact targets.
     file_lock_style = FileLockStyle.BSD
 
-    file_download_managers_by_target = {}
-    package_index_configuration = None  # type: Optional[PackageIndexConfiguration]
-    for downloadable_artifact, target in target_by_downloadable_artifact.items():
-        if target not in file_download_managers_by_target:
-            if package_index_configuration is None:
-                package_index_configuration = PackageIndexConfiguration.create(
-                    resolver_version=resolver_version,
-                    indexes=indexes,
-                    find_links=find_links,
-                    network_configuration=network_configuration,
-                    password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
-                )
-            file_download_managers_by_target[target] = FileArtifactDownloadManager(
-                file_lock_style=file_lock_style,
-                downloader=ArtifactDownloader(
-                    resolver=resolver,
-                    package_index_configuration=package_index_configuration,
-                ),
-            )
+    # We eagerly initialize a Pip tool for reasons alluded to above, creation of the Pip tool venv
+    # is not thread-safe and this can lead to errors.
+    pip = get_pip()
+
+    file_download_manager = FileArtifactDownloadManager(
+        file_lock_style=file_lock_style,
+        downloader=ArtifactDownloader(
+            resolver=resolver,
+            pip=pip,
+            package_index_configuration=PackageIndexConfiguration.create(
+                resolver_version=resolver_version,
+                indexes=indexes,
+                find_links=find_links,
+                network_configuration=network_configuration,
+                password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
+            ),
+        ),
+    )
 
     vcs_download_manager = VCSArtifactDownloadManager(
         file_lock_style=file_lock_style,
@@ -301,12 +298,12 @@ def resolve_from_lock(
     )
 
     max_threads = min(
-        len(target_by_downloadable_artifact) or 1,
+        len(downloadable_artifacts) or 1,
         min(MAX_PARALLEL_DOWNLOADS, 4 * (max_parallel_jobs or cpu_count() or 1)),
     )
     with TRACER.timed(
         "Downloading {url_count} distributions to satisfy {requirement_count} requirements".format(
-            url_count=len(target_by_downloadable_artifact),
+            url_count=len(downloadable_artifacts),
             requirement_count=len(subset_result.requirements),
         )
     ):
@@ -314,15 +311,15 @@ def resolve_from_lock(
         try:
             download_results = tuple(
                 zip(
-                    target_by_downloadable_artifact,
+                    downloadable_artifacts,
                     pool.map(
                         functools.partial(
                             download_artifact,
-                            file_download_managers_by_target=file_download_managers_by_target,
+                            file_download_manager=file_download_manager,
                             vcs_download_manager=vcs_download_manager,
                             local_project_download_manager=local_project_download_manager,
                         ),
-                        target_by_downloadable_artifact.items(),
+                        downloadable_artifacts,
                     ),
                 )
             )

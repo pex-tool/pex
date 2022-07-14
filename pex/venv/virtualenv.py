@@ -3,11 +3,12 @@
 
 from __future__ import absolute_import
 
-import fileinput
 import logging
 import os
 import pkgutil
 import re
+from fileinput import FileInput
+
 import sys
 from contextlib import closing
 from pex.common import AtomicDirectory, is_exe, safe_mkdir
@@ -286,7 +287,7 @@ class Virtualenv(object):
         ]
         if scripts:
             rewritten_files = set()
-            with closing(fileinput.input(files=sorted(scripts), inplace=True)) as fi:
+            with closing(FileInput(files=sorted(scripts), inplace=True)) as fi:
                 for line in fi:
                     rewritten_line = line.replace(self._venv_dir, real_venv_dir)
                     if rewritten_line != line:
@@ -307,9 +308,9 @@ class Virtualenv(object):
         ]
         if python_scripts:
             with closing(
-                fileinput.input(files=sorted(python_scripts), inplace=True, mode="rb")
+                FileInput(files=sorted(python_scripts), inplace=True, mode="rb")
             ) as fi:
-                # N.B.: `fileinput` is strange, but useful: the context manager above monkey-patches
+                # N.B.: `FileInput` is strange, but useful: the context manager above monkey-patches
                 # sys.stdout to print to the corresponding original input file, which is has moved
                 # aside.
                 for line in fi:
