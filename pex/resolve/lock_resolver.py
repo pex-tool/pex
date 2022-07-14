@@ -17,7 +17,7 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project
-from pex.pip.tool import PackageIndexConfiguration
+from pex.pip.tool import PackageIndexConfiguration, get_pip
 from pex.pip.vcs import digest_vcs_archive
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
@@ -262,10 +262,15 @@ def resolve_from_lock(
     # errors under the right interleaving of processes and threads and download artifact targets.
     file_lock_style = FileLockStyle.BSD
 
+    # We eagerly initialize a Pip tool for reasons alluded to above, creation of the Pip tool venv
+    # is not thread-safe and this can lead to errors.
+    pip = get_pip()
+
     file_download_manager = FileArtifactDownloadManager(
         file_lock_style=file_lock_style,
         downloader=ArtifactDownloader(
             resolver=resolver,
+            pip=pip,
             package_index_configuration=PackageIndexConfiguration.create(
                 resolver_version=resolver_version,
                 indexes=indexes,
