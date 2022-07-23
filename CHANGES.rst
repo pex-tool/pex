@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.100
+-------
+
+This release fixes a hole in the lock creation ``--target-system``
+feature added in #1823 in Pex 2.1.95.
+
+* Fix lock creation ``--target-system`` handling. (#1858)
+  `PR #1858 <https://github.com/pantsbuild/pex/pull/1858>`_
+
 2.1.99
 ------
 
