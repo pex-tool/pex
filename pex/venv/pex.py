@@ -418,6 +418,7 @@ def _populate_sources(
                     "_PEX_PATCHED_TAGS_FILE",
                     # These are used by Pex's Pip venv to implement universal locks.
                     "_PEX_PYTHON_VERSIONS_FILE",
+                    "_PEX_TARGET_SYSTEMS_FILE",
                 )
             ]
             if ignored_pex_env_vars:
