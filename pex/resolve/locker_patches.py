@@ -9,6 +9,7 @@ python_full_versions = []
 python_versions = []
 python_majors = []
 
+os_names = []
 platform_systems = []
 sys_platforms = []
 platform_tag_regexps = []
