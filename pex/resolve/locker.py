@@ -309,6 +309,11 @@ class Locker(LogAnalyzer):
 
 
 # See https://www.python.org/dev/peps/pep-0508/#environment-markers for more about these values.
+_OS_NAME = {
+    TargetSystem.LINUX: "posix",
+    TargetSystem.MAC: "posix",
+    TargetSystem.WINDOWS: "nt",
+}
 _PLATFORM_SYSTEM = {
     TargetSystem.LINUX: "Linux",
     TargetSystem.MAC: "Darwin",
@@ -364,6 +369,9 @@ def patch(
             TargetSystem.values()
         ):
             target_systems = {
+                "os_names": [
+                    _OS_NAME[target_system] for target_system in lock_configuration.target_systems
+                ],
                 "platform_systems": [
                     _PLATFORM_SYSTEM[target_system]
                     for target_system in lock_configuration.target_systems

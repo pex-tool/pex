@@ -31,6 +31,7 @@ if target_systems_file:
 
     with open(target_systems_file) as fp:
         target_systems = json.load(fp)
+    os_names = target_systems["os_names"]
     platform_systems = target_systems["platform_systems"]
     sys_platforms = target_systems["sys_platforms"]
     platform_tag_regexps = target_systems["platform_tag_regexps"]
@@ -56,6 +57,7 @@ def patch_marker_evaluate():
 
     python_versions_strings = versions_to_string(python_versions) or skip
     python_full_versions_strings = versions_to_string(python_full_versions) or skip
+    os_names_strings = os_names or skip
     platform_systems_strings = platform_systems or skip
     sys_platforms_strings = sys_platforms or skip
 
@@ -66,6 +68,8 @@ def patch_marker_evaluate():
             return python_versions_strings
         if name == "python_full_version":
             return python_full_versions_strings
+        if name == "os_name":
+            return os_names_strings
         if name == "platform_system":
             return platform_systems_strings
         if name == "sys_platform":
