@@ -15,11 +15,9 @@ from pex.common import (
     atomic_directory,
     can_write_dir,
     chmod_plus_x,
-    find_site_packages,
     is_exe,
     is_script,
     open_zip,
-    safe_mkdir,
     safe_open,
     temporary_dir,
     touch,
@@ -388,31 +386,3 @@ def test_is_script(tmpdir):
     assert is_script(exe, check_executable=False)
     assert not is_script(exe)
     assert not is_exe(exe)
-
-
-def test_find_site_packages(tmpdir):
-    # type: (Any) -> None
-
-    def tmp_path(*components):
-        # type: (*str) -> str
-        return os.path.join(str(tmpdir), *components)
-
-    assert find_site_packages(tmp_path("does_not_exist")) is None
-
-    file_path = tmp_path("file")
-    touch(file_path)
-    assert find_site_packages(file_path) is None
-
-    empty = tmp_path("empty")
-    os.mkdir(empty)
-    assert find_site_packages(empty) is None
-
-    pypy_venv = tmp_path("pypy_venv")
-    pypy_site_packages = os.path.join(pypy_venv, "site-packages")
-    safe_mkdir(pypy_site_packages)
-    assert pypy_site_packages == find_site_packages(pypy_venv)
-
-    cpython_venv = tmp_path("cpython_venv")
-    cpython_site_packages = os.path.join(cpython_venv, "lib", "python3.10", "site-packages")
-    safe_mkdir(cpython_site_packages)
-    assert cpython_site_packages == find_site_packages(cpython_venv)

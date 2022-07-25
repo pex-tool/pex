@@ -14,14 +14,7 @@ from collections import OrderedDict, defaultdict
 from colors import bold, green, yellow
 from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
-from pex.common import (
-    find_site_packages,
-    safe_delete,
-    safe_mkdir,
-    safe_mkdtemp,
-    safe_open,
-    safe_rmtree,
-)
+from pex.common import safe_delete, safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
 from pex.vendor import VendorSpec, iter_vendor_specs
 
 
@@ -199,6 +192,18 @@ class ImportRewriter(object):
 
 class VendorizeError(Exception):
     """Indicates an error was encountered updating vendored libraries."""
+
+
+def find_site_packages(prefix_dir):
+    for root, dirs, _ in os.walk(prefix_dir):
+        for d in dirs:
+            if "site-packages" == d:
+                return os.path.join(root, d)
+
+    raise VendorizeError(
+        "Failed to locate a site-packages directory within installation prefix "
+        "{prefix_dir}.".format(prefix_dir=prefix_dir)
+    )
 
 
 def vendorize(root_dir, vendor_specs, prefix, update):
