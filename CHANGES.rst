@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.101
+-------
+
+This release fixes a corner-case revealed by python-certifi-win32 1.6.1
+that was not previously handled when installing certain distributions.
+
+* Make wheel install ``site-packages`` detection robust. (#1863)
+  `PR #1863 <https://github.com/pantsbuild/pex/pull/1863>`_
+
 2.1.100
 -------
 
