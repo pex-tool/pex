@@ -15,7 +15,6 @@ from pex.common import AtomicDirectory, is_exe, safe_mkdir
 from pex.compatibility import get_stdout_bytes_buffer
 from pex.dist_metadata import find_distributions, Distribution
 from pex.interpreter import PythonInterpreter
-from pex.result import Error
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
