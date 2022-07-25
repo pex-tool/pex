@@ -15,19 +15,12 @@ from contextlib import closing
 from fileinput import FileInput
 
 from pex import dist_metadata, hashing
-from pex.common import (
-    filter_pyc_dirs,
-    filter_pyc_files,
-    find_site_packages,
-    is_python_script,
-    safe_mkdir,
-    safe_open,
-)
+from pex.common import filter_pyc_dirs, filter_pyc_files, is_python_script, safe_mkdir, safe_open
 from pex.compatibility import get_stdout_bytes_buffer, urlparse
 from pex.dist_metadata import Distribution, EntryPoint
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv, find_site_packages_dir
 
 if TYPE_CHECKING:
     from typing import (
@@ -424,13 +417,14 @@ class Record(object):
         prefix_dir,  # type: str
         project_name,  # type: str
         version,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
     ):
-
-        site_packages = find_site_packages(prefix_dir=prefix_dir)
-        if site_packages is None:
+        try:
+            site_packages = find_site_packages_dir(venv_dir=prefix_dir, interpreter=interpreter)
+        except InvalidVirtualenvError as e:
             raise RecordNotFoundError(
                 "Could not find a site-packages directory under installation prefix "
-                "{prefix_dir}.".format(prefix_dir=prefix_dir)
+                "{prefix_dir}: {err}".format(prefix_dir=prefix_dir, err=e)
             )
 
         site_packages_listing = [
