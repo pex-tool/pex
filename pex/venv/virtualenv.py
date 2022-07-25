@@ -77,6 +77,37 @@ class InvalidVirtualenvError(Exception):
     """Indicates a virtualenv is malformed."""
 
 
+def find_site_packages_dir(
+    venv_dir,  # type: str
+    interpreter=None,  # type: Optional[PythonInterpreter]
+):
+    # type: (...) -> str
+    interpreter = interpreter or PythonInterpreter.get()
+    if (
+        interpreter.identity.interpreter == "PyPy"
+        and interpreter.version[:2] <= (3, 7)
+    ):
+        site_packages_dir = os.path.join(venv_dir, "site-packages")
+    else:
+        site_packages_dir = os.path.join(
+            venv_dir,
+            "lib",
+            "{python}{major_minor}".format(
+                python="pypy" if interpreter.identity.interpreter == "PyPy" else "python",
+                major_minor=".".join(map(str, interpreter.version[:2]))
+            ),
+            "site-packages",
+        )
+    if not os.path.isdir(site_packages_dir):
+        raise InvalidVirtualenvError(
+            "The virtualenv at {venv_dir} is not valid. The expected site-packages directory "
+            "at {site_packages_dir} does not exist.".format(
+                venv_dir=venv_dir, site_packages_dir=site_packages_dir
+            )
+        )
+    return site_packages_dir
+
+
 class Virtualenv(object):
     @classmethod
     def enclosing(cls, python):
@@ -198,28 +229,7 @@ class Virtualenv(object):
                     venv_dir=self._venv_dir, python_exe_path=python_exe_path, err=e
                 )
             )
-        if (
-            self._interpreter.identity.interpreter == "PyPy"
-            and self._interpreter.version[:2] <= (3, 7)
-        ):
-            self._site_packages_dir = os.path.join(venv_dir, "site-packages")
-        else:
-            self._site_packages_dir = os.path.join(
-                venv_dir,
-                "lib",
-                "{python}{major_minor}".format(
-                    python="pypy" if self._interpreter.identity.interpreter == "PyPy" else "python",
-                    major_minor=".".join(map(str, self._interpreter.version[:2]))
-                ),
-                "site-packages",
-            )
-        if not os.path.isdir(self._site_packages_dir):
-            raise InvalidVirtualenvError(
-                "The virtualenv at {venv_dir} is not valid. The expected site-packages directory "
-                "at {site_packages_dir} does not exist.".format(
-                    venv_dir=venv_dir, site_packages_dir=self._site_packages_dir
-                )
-            )
+        self._site_packages_dir = find_site_packages_dir(venv_dir, self._interpreter)
         self._base_bin = frozenset(_iter_files(self._bin_dir))
         self._sys_path = None  # type: Optional[Tuple[str, ...]]
 
