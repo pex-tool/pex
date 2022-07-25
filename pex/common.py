@@ -49,16 +49,6 @@ _UNIX_EPOCH = datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tz
 DETERMINISTIC_DATETIME_TIMESTAMP = (DETERMINISTIC_DATETIME - _UNIX_EPOCH).total_seconds()
 
 
-def find_site_packages(prefix_dir):
-    # type: (str) -> Optional[str]
-    """Return the absolute path to the site-packages directory of the given Python installation."""
-    for root, dirs, _ in os.walk(prefix_dir):
-        for d in dirs:
-            if "site-packages" == d:
-                return os.path.join(root, d)
-    return None
-
-
 def filter_pyc_dirs(dirs):
     # type: (Iterable[str]) -> Iterator[str]
     """Return an iterator over the input `dirs` filtering out Python bytecode cache directories."""
