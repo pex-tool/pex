@@ -326,7 +326,10 @@ class PythonpathIsolationTest(object):
 
             # Test the PEX.run API.
             process = PEX(pex_builder.path()).run(
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, blocking=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                blocking=False,
             )
             stdout, stderr = process.communicate()
             assert process.returncode == 0, stderr.decode("utf-8")
