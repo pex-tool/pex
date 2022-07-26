@@ -425,8 +425,8 @@ class Record(object):
         # `site-packages` that are not in-fact located in site-packages (the "purelib" or "platlib"
         # sysconfig install paths). Work around these broken packages by just looking for all
         # `site-packages` subdirectories of the `prefix_dir` and checking each for the installation
-        # RECORD. There should always be just one such installation RECORD resulting from a
-        # `pip install --prefix <prefix_dir> --no-deps ...` and so this is safe.
+        # `RECORD`. There should always be just one such installation `RECORD` resulting from a
+        # `pip install --prefix <prefix_dir> --no-deps <wheel file>` and so this is safe.
         site_packages_dirs = [
             os.path.join(root, d)
             for root, dirs, _ in os.walk(prefix_dir)
