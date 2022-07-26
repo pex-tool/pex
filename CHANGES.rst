@@ -8,8 +8,15 @@ This is a hotfix release that fixes a further corner missed by #1863 in
 the Pex 2.1.101 release whereby Pex would fail to install
 platform-specific packages on Red Hat based OSes.
 
+In addition, an old but only newly discovered bug in
+``--inherit-path={prefer,fallback}`` handling is fixed. Previously only
+using ``PEX_INHERIT_PATH={prefer,fallback}`` at runtime worked properly.
+
 * Fix wheel installs: account for purelib & platlib. (#1867)
   `PR #1867 <https://github.com/pantsbuild/pex/pull/1867>`_
+
+* Fix ``--inhert-path`` handling. (#1871)
+  `PR #1871 <https://github.com/pantsbuild/pex/pull/1871>`_
 
 2.1.101
 -------
