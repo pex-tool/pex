@@ -7,7 +7,7 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
-from pex.testing import PY27, PY310, ensure_python_venv, make_env, run_simple_pex_test
+from pex.testing import PY27, PY310, ensure_python_venv, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,9 +21,12 @@ if TYPE_CHECKING:
         pytest.param(PY310, id="pyvenv"),
     ],
 )
-def test_setuptools_isolation_with_system_site_packages(py_version):
-    # type: (str) -> None
-    system_site_packages_venv, _ = ensure_python_venv(
+def test_setuptools_isolation_with_system_site_packages(
+    tmpdir,  # type: Any
+    py_version,  # type: str
+):
+    # type: (...) -> None
+    system_site_packages_venv_python, _ = ensure_python_venv(
         py_version, latest_pip=False, system_site_packages=True
     )
     standard_venv, _ = ensure_python_venv(py_version, latest_pip=False, system_site_packages=False)
@@ -37,7 +40,7 @@ def test_setuptools_isolation_with_system_site_packages(py_version):
         )
         return OrderedSet(stdout.strip().splitlines())
 
-    system_site_packages_venv_sys_path = get_sys_path(system_site_packages_venv)
+    system_site_packages_venv_sys_path = get_sys_path(system_site_packages_venv_python)
     standard_venv_sys_path = get_sys_path(standard_venv)
 
     def venv_dir(python):
@@ -49,7 +52,7 @@ def test_setuptools_isolation_with_system_site_packages(py_version):
     system_site_packages = {
         p
         for p in (system_site_packages_venv_sys_path - standard_venv_sys_path)
-        if not p.startswith((venv_dir(system_site_packages_venv), venv_dir(standard_venv)))
+        if not p.startswith((venv_dir(system_site_packages_venv_python), venv_dir(standard_venv)))
     }
     assert len(system_site_packages) == 1, (
         "system_site_packages_venv_sys_path:\n"
@@ -65,22 +68,37 @@ def test_setuptools_isolation_with_system_site_packages(py_version):
     )
     system_site_packages_path = system_site_packages.pop()
 
-    def get_system_site_packages_pex_sys_path(**env):
-        # type: (**Any) -> MutableSet[str]
-        output, returncode = run_simple_pex_test(
-            body=print_sys_path_code,
-            interpreter=PythonInterpreter.from_binary(system_site_packages_venv),
+    def get_system_site_packages_pex_sys_path(
+        *args,  # type: str
+        **env  # type: str
+    ):
+        # type: (...) -> MutableSet[str]
+        result = run_pex_command(
+            args=args + ("--", "-c", print_sys_path_code),
+            python=system_site_packages_venv_python,
             env=make_env(**env),
         )
-        assert returncode == 0
-        return OrderedSet(output.decode("utf-8").strip().splitlines())
+        result.assert_success()
+        return OrderedSet(result.output.strip().splitlines())
 
     assert system_site_packages_path not in get_system_site_packages_pex_sys_path()
+
+    assert system_site_packages_path not in get_system_site_packages_pex_sys_path(
+        "--inherit-path=false"
+    )
     assert system_site_packages_path not in get_system_site_packages_pex_sys_path(
         PEX_INHERIT_PATH="false"
     )
+
+    assert system_site_packages_path in get_system_site_packages_pex_sys_path(
+        "--inherit-path=prefer"
+    )
     assert system_site_packages_path in get_system_site_packages_pex_sys_path(
         PEX_INHERIT_PATH="prefer"
+    )
+
+    assert system_site_packages_path in get_system_site_packages_pex_sys_path(
+        "--inherit-path=fallback"
     )
     assert system_site_packages_path in get_system_site_packages_pex_sys_path(
         PEX_INHERIT_PATH="fallback"
