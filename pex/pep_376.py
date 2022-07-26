@@ -20,7 +20,7 @@ from pex.compatibility import get_stdout_bytes_buffer, urlparse
 from pex.dist_metadata import Distribution, EntryPoint
 from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING, cast
-from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv, find_site_packages_dir
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     from typing import (
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
         Dict,
         Iterable,
         Iterator,
+        List,
         Optional,
         Protocol,
         Tuple,
@@ -411,31 +412,49 @@ class Record(object):
             size = int(file_size) if file_size else None
             yield InstalledFile(path=path, hash=file_hash, size=size)
 
+    @staticmethod
+    def _find_installation(
+        prefix_dir,  # type: str
+        project_name,  # type: str
+        version,  # type: str
+    ):
+        # type: (...) -> Optional[Tuple[str, str, List[str]]]
+
+        # Some distributions in the wild (namely python-certifi-win32 1.6.1,
+        # see: https://github.com/pantsbuild/pex/issues/1861) create their own directories named
+        # `site-packages` that are not in-fact located in site-packages (the "purelib" or "platlib"
+        # sysconfig install paths). Work around these broken packages by just looking for all
+        # `site-packages` subdirectories of the `prefix_dir` and checking each for the installation
+        # RECORD. There should always be just one such installation RECORD resulting from a
+        # `pip install --prefix <prefix_dir> --no-deps ...` and so this is safe.
+        site_packages_dirs = [
+            os.path.join(root, d)
+            for root, dirs, _ in os.walk(prefix_dir)
+            for d in dirs
+            if d == "site-packages"
+        ]
+        for site_packages_dir in site_packages_dirs:
+            site_packages_listing = [
+                os.path.relpath(os.path.join(root, f), site_packages_dir)
+                for root, _, files in os.walk(site_packages_dir)
+                for f in files
+            ]
+            record_relative_path = dist_metadata.find_dist_info_file(
+                project_name, version=version, filename="RECORD", listing=site_packages_listing
+            )
+            if record_relative_path:
+                return record_relative_path, site_packages_dir, site_packages_listing
+        return None
+
     @classmethod
     def from_prefix_install(
         cls,
         prefix_dir,  # type: str
         project_name,  # type: str
         version,  # type: str
-        interpreter=None,  # type: Optional[PythonInterpreter]
     ):
-        try:
-            site_packages = find_site_packages_dir(venv_dir=prefix_dir, interpreter=interpreter)
-        except InvalidVirtualenvError as e:
-            raise RecordNotFoundError(
-                "Could not find a site-packages directory under installation prefix "
-                "{prefix_dir}: {err}".format(prefix_dir=prefix_dir, err=e)
-            )
-
-        site_packages_listing = [
-            os.path.relpath(os.path.join(root, f), site_packages)
-            for root, _, files in os.walk(site_packages)
-            for f in files
-        ]
-        record_relative_path = dist_metadata.find_dist_info_file(
-            project_name, version=version, filename="RECORD", listing=site_packages_listing
-        )
-        if not record_relative_path:
+        result = cls._find_installation(prefix_dir, project_name, version)
+        if not result:
             raise RecordNotFoundError(
                 "Could not find the installation RECORD for {project_name} {version} under "
                 "{prefix_dir}".format(
@@ -443,6 +462,7 @@ class Record(object):
                 )
             )
 
+        record_relative_path, site_packages, site_packages_listing = result
         metadata_dir = os.path.dirname(record_relative_path)
         base_dir = os.path.relpath(site_packages, prefix_dir)
         return cls(
