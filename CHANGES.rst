@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.102
+-------
+
+This is a hotfix release that fixes a further corner missed by #1863 in
+the Pex 2.1.101 release whereby Pex would fail to install
+platform-specific packages on Red Hat based OSes.
+
+* Fix wheel installs: account for purelib & platlib. (#1867)
+  `PR #1867 <https://github.com/pantsbuild/pex/pull/1867>`_
+
 2.1.101
 -------
 
