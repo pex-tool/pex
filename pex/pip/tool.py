@@ -712,7 +712,6 @@ class Pip(object):
                 prefix_dir=install_dir,
                 project_name=project_name_and_version.project_name,
                 version=project_name_and_version.version,
-                interpreter=interpreter,
             )
             record.fixup_install(interpreter=interpreter)
 
