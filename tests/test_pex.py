@@ -324,6 +324,17 @@ class PythonpathIsolationTest(object):
                 exe_contents=self.exe,
             )
 
+            # Test the PEX.run API.
+            process = PEX(pex_builder.path()).run(
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                blocking=False,
+            )
+            stdout, stderr = process.communicate()
+            assert process.returncode == 0, stderr.decode("utf-8")
+            assert expected_output == stdout.decode("utf-8")
+
             # Test direct PEX execution.
             assert expected_output == subprocess.check_output(
                 [sys.executable, pex_builder.path()], env=env
