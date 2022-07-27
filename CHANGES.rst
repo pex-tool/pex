@@ -12,10 +12,18 @@ In addition, an old but only newly discovered bug in
 ``--inherit-path={prefer,fallback}`` handling is fixed. Previously only
 using ``PEX_INHERIT_PATH={prefer,fallback}`` at runtime worked properly.
 
+In the process of fixing the old ``--inherit-path={prefer,fallback}``
+bug, also fix another old bug handling modern virtualenv venvs under
+Python 2.7 during zipapp execution mode PEX boots.
+
 * Fix wheel installs: account for purelib & platlib. (#1867)
   `PR #1867 <https://github.com/pantsbuild/pex/pull/1867>`_
 
 * Fix ``--inhert-path`` handling. (#1871)
+  `PR #1871 <https://github.com/pantsbuild/pex/pull/1871>`_
+
+* Error using pex + virtualenv >=20.0.0 + python 2.7 (#992)
+  `Issue #992 <https://github.com/pantsbuild/pex/issues/992>`_
   `PR #1871 <https://github.com/pantsbuild/pex/pull/1871>`_
 
 2.1.101
