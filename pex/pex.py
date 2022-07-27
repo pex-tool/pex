@@ -240,13 +240,25 @@ class PEX(object):  # noqa: T000
         irreversible operation.
         """
 
+        is_venv = PythonInterpreter.get().is_venv
         modules = modules or sys.modules
         new_modules = {}
 
         for module_name, module in modules.items():
             # Tainted modules should be dropped.
             module_file = getattr(module, "__file__", None)
-            if module_file and cls._tainted_path(module_file, site_libs):
+            if (
+                # The `_virtualenv` module is a known special case provided by the virtualenv
+                # project. It should not be un-imported or else the virtualenv importer it installs
+                # for performing needed patches to the `distutils` stdlib breaks.
+                #
+                # See:
+                # + https://github.com/pantsbuild/pex/issues/992
+                # + https://github.com/pypa/virtualenv/pull/1688
+                (not is_venv or module_name != "_virtualenv")
+                and module_file
+                and cls._tainted_path(module_file, site_libs)
+            ):
                 TRACER.log("Dropping %s" % (module_name,), V=3)
                 continue
 
