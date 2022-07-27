@@ -383,7 +383,7 @@ def maybe_reexec_pex(interpreter_test):
     os.environ.pop("PEX_PYTHON", None)
     os.environ.pop("PEX_PYTHON_PATH", None)
 
-    if ENV.PEX_INHERIT_PATH == InheritPath.FALSE:
+    if interpreter_test.pex_info.inherit_path == InheritPath.FALSE:
         # Now that we've found a compatible Python interpreter, make sure we resolve out of any
         # virtual environments it may be contained in since virtual environments created with
         # `--system-site-packages` foil PEX attempts to scrub the sys.path.
