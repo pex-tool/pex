@@ -38,7 +38,11 @@ def test_pep_518_venv_pex_env_scrubbing(
         "\n"
         "STDERR:\n"
         "===\n"
-        "{stderr}\n".format(returncode=process.returncode, stdout=stdout, stderr=stderr)
+        "{stderr}\n".format(
+            returncode=process.returncode,
+            stdout=stdout.decode("utf-8"),
+            stderr=stderr.decode("utf-8"),
+        )
     )
 
     lock = os.path.join(str(tmpdir), "lock.json")
