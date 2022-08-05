@@ -24,8 +24,21 @@ def test_pep_518_venv_pex_env_scrubbing(
     # type: (...) -> None
 
     pex_pex = os.path.join(str(tmpdir), "pex")
-    subprocess.check_call(
-        args=["tox", "-e", "package", "--", "--local", "--pex-output-file", pex_pex]
+    process = subprocess.Popen(
+        args=["tox", "-e", "package", "--", "--local", "--pex-output-file", pex_pex],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout, stderr = process.communicate()
+    assert 0 == process.returncode, (
+        "Failed to package a Pex PEX: {returncode}\n"
+        "STDOUT:\n"
+        "===\n"
+        "{stdout}\n"
+        "\n"
+        "STDERR:\n"
+        "===\n"
+        "{stderr}\n".format(returncode=process.returncode, stdout=stdout, stderr=stderr)
     )
 
     lock = os.path.join(str(tmpdir), "lock.json")
