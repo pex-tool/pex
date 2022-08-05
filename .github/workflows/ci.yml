@@ -27,11 +27,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 10], [3, 11, "0-beta.4"]]
+        python-version: [[2, 7], [3, 10], [3, 11, "0-beta.5"]]
         os: [ubuntu-20.04, macos-11]
         exclude:
           - os: macos-11
-            python-version: [3, 11, "0-beta.4"]
+            python-version: [3, 11, "0-beta.5"]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
