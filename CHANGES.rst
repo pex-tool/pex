@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.103
+-------
+
+This release fixes things such that pex lockfiles can be created and
+updated using the Pex PEX when local projects are involved.
+
+* Fix ``pex3 lock ...`` when run from the Pex PEX. (#1874)
+  `PR #1874 <https://github.com/pantsbuild/pex/pull/1874>`_
+
 2.1.102
 -------
 
