@@ -13,6 +13,7 @@ from pex.pep_503 import ProjectName
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.result import Error
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import Any, Optional, Union
@@ -71,3 +72,18 @@ def test_load_build_system_pyproject(
     subprocess.check_call(
         args=[build_system.venv_pex.pex, "-c", "import {}".format(build_system.build_backend)]
     )
+
+
+def test_load_build_system_env_strip_issue_1872(
+    tmpdir,  # type: Any
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
+
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    with ENV.patch(PEX_ROOT=pex_root, PEX_VERBOSE="2", PEX_SCRIPT="pex3"):
+        build_system = load_build_system(pex_project_dir)
+        assert isinstance(build_system, BuildSystem)
+        assert pex_root == build_system.env["PEX_ROOT"]
+        assert "2" == build_system.env["PEX_VERBOSE"]
+        assert "PEX_SCRIPT" not in build_system.env
