@@ -18,40 +18,18 @@ if TYPE_CHECKING:
     from typing import Any
 
 
-def test_pep_518_venv_pex_env_scrubbing(
-    tmpdir,  # type: Any
-    pex_project_dir,  # type: str
+def execute(
+    *args,  # type: str
+    **env  # type: Any
 ):
-    # type: (...) -> None
-
-    package_script = os.path.join(pex_project_dir, "scripts", "package.py")
-    pex_pex = os.path.join(str(tmpdir), "pex")
-    subprocess.check_call(
-        args=[sys.executable, package_script, "--local", "--pex-output-file", pex_pex],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-
-    lock = os.path.join(str(tmpdir), "lock.json")
-    process = subprocess.Popen(
-        args=[
-            sys.executable,
-            pex_pex,
-            "lock",
-            "create",
-            pex_project_dir,
-            "-o",
-            lock,
-            "--indent",
-            "2",
-        ],
-        env=make_env(PEX_SCRIPT="pex3", PEX_VERBOSE=9),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    env = make_env(**env)
+    process = subprocess.Popen(args=args, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     assert 0 == process.returncode, (
-        "Failed to create lock using Pex PEX: {returncode}\n"
+        "Executing `{args}` failed with exit code {exit_code}:\n"
+        "Environment:\n"
+        "{env}\n"
+        "\n"
         "STDOUT:\n"
         "===\n"
         "{stdout}\n"
@@ -59,10 +37,38 @@ def test_pep_518_venv_pex_env_scrubbing(
         "STDERR:\n"
         "===\n"
         "{stderr}\n".format(
-            returncode=process.returncode,
+            args=" ".join(args),
+            env="\n".join("{key}={value}".format(key=k, value=v) for k, v in env.items()),
+            exit_code=process.returncode,
             stdout=stdout.decode("utf-8"),
             stderr=stderr.decode("utf-8"),
         )
+    )
+
+
+def test_pep_518_venv_pex_env_scrubbing(
+    tmpdir,  # type: Any
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
+
+    pex_pex = os.path.join(str(tmpdir), "pex")
+    execute("tox", "-e", "package", "--", "--local", "--pex-output-file", pex_pex)
+
+    lock = os.path.join(str(tmpdir), "lock.json")
+    execute(
+        # Although the package script requires Python 3 to create the Pex PEX, we should be able to
+        # execute the Pex PEX with any interpreter.
+        sys.executable,
+        pex_pex,
+        "lock",
+        "create",
+        pex_project_dir,
+        "-o",
+        lock,
+        "--indent",
+        "2",
+        PEX_SCRIPT="pex3",
     )
 
     lockfile = json_codec.load(lock)
