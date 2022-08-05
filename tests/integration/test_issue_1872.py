@@ -58,10 +58,12 @@ def test_pep_518_venv_pex_env_scrubbing(
     # type: (...) -> None
 
     pex_pex = os.path.join(str(tmpdir), "pex")
-    execute("tox", "-e", "package", "--", "--local", "--pex-output-file", pex_pex)
+    message = execute("tox", "-e", "package", "--", "--local", "--pex-output-file", pex_pex)
+    print(">>> {}".format(message), file=sys.stderr)
+    print(">>> Exists {}?: {}".format(pex_pex, os.path.exists(pex_pex)), file=sys.stderr)
 
     lock = os.path.join(str(tmpdir), "lock.json")
-    message = execute(
+    execute(
         # Although the package script requires Python 3 to create the Pex PEX, we should be able to
         # execute the Pex PEX with any interpreter.
         sys.executable,
@@ -75,8 +77,6 @@ def test_pep_518_venv_pex_env_scrubbing(
         "2",
         PEX_SCRIPT="pex3",
     )
-    print(">>> {}".format(message), file=sys.stderr)
-    print(">>> Exists {}?: {}".format(pex_pex, os.path.exists(pex_pex)))
 
     lockfile = json_codec.load(lock)
     assert 1 == len(lockfile.locked_resolves)
