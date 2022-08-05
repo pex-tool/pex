@@ -16,6 +16,9 @@ DIST_DIR = Path("dist")
 
 
 def python_requires() -> str:
+    # N.B.: We run this script directly from integration tests where toml is not needed; so we lazy
+    # import to allow for this direct running of the script without dependency installation by tox
+    # in ITs.
     import toml
 
     project_metadata = toml.loads(PROJECT_METADATA.read_text())
