@@ -13,6 +13,7 @@ from pex.resolve.resolvers import Resolver
 from pex.result import Error
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
 from pex.venv.bin_path import BinPath
 
 if TYPE_CHECKING:
@@ -76,13 +77,15 @@ class BuildSystem(object):
         pex_builder.freeze(bytecode_compile=False)
         venv_pex = ensure_venv(PEX(pex_builder.path()))
 
-        env = os.environ.copy()
-        if extra_env:
-            env.update(extra_env)
-
-        return cls(
-            venv_pex=venv_pex, build_backend=build_backend, requires=tuple(requires), env=env
-        )
+        # Ensure all PEX* env vars are stripped except for PEX_ROOT and PEX_VERBOSE. We want folks
+        # to be able to steer the location of the cache and the logging verbosity, but nothing else.
+        # We control the entry-point, etc. of the PEP-518 build backend venv for internal use.
+        with ENV.strip().patch(PEX_ROOT=ENV.PEX_ROOT, PEX_VERBOSE=str(ENV.PEX_VERBOSE)) as env:
+            if extra_env:
+                env.update(extra_env)
+            return cls(
+                venv_pex=venv_pex, build_backend=build_backend, requires=tuple(requires), env=env
+            )
 
     venv_pex = attr.ib()  # type: VenvPex
     build_backend = attr.ib()  # type: str

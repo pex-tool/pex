@@ -93,9 +93,12 @@ def build_pex_dists(dist_fmt: Format, *additional_dist_fmts: Format, verbose: bo
 
 
 def main(
-    *additional_dist_formats: Format, verbosity: int = 0, local: bool = False, serve: bool = False
+    *additional_dist_formats: Format,
+    verbosity: int = 0,
+    pex_output_file: Path = DIST_DIR / "pex",
+    local: bool = False,
+    serve: bool = False
 ) -> None:
-    pex_output_file = DIST_DIR / "pex"
     print(f"Building Pex PEX to `{pex_output_file}` ...")
     build_pex_pex(pex_output_file, local, verbosity)
 
@@ -150,6 +153,12 @@ if __name__ == "__main__":
         help="Package Pex in additional formats.",
     )
     parser.add_argument(
+        "--pex-output-file",
+        default=DIST_DIR / "pex",
+        type=Path,
+        help="Build the Pex PEX at this path.",
+    )
+    parser.add_argument(
         "--local",
         default=False,
         action="store_true",
@@ -166,6 +175,7 @@ if __name__ == "__main__":
     main(
         *(args.additional_formats or ()),
         verbosity=args.verbosity,
+        pex_output_file=args.pex_output_file,
         local=args.local,
         serve=args.serve
     )
