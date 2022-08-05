@@ -3,6 +3,7 @@
 
 import os
 import subprocess
+import sys
 
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -23,15 +24,34 @@ def test_pep_518_venv_pex_env_scrubbing(
 ):
     # type: (...) -> None
 
+    package_script = os.path.join(pex_project_dir, "scripts", "package.py")
     pex_pex = os.path.join(str(tmpdir), "pex")
+    subprocess.check_call(
+        args=[sys.executable, package_script, "--local", "--pex-output-file", pex_pex],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    lock = os.path.join(str(tmpdir), "lock.json")
     process = subprocess.Popen(
-        args=["tox", "-e", "package", "--", "--local", "--pex-output-file", pex_pex],
+        args=[
+            sys.executable,
+            pex_pex,
+            "lock",
+            "create",
+            pex_project_dir,
+            "-o",
+            lock,
+            "--indent",
+            "2",
+        ],
+        env=make_env(PEX_SCRIPT="pex3", PEX_VERBOSE=9),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     stdout, stderr = process.communicate()
     assert 0 == process.returncode, (
-        "Failed to package a Pex PEX: {returncode}\n"
+        "Failed to create lock using Pex PEX: {returncode}\n"
         "STDOUT:\n"
         "===\n"
         "{stdout}\n"
@@ -45,11 +65,6 @@ def test_pep_518_venv_pex_env_scrubbing(
         )
     )
 
-    lock = os.path.join(str(tmpdir), "lock.json")
-    subprocess.check_call(
-        args=[pex_pex, "lock", "create", pex_project_dir, "-o", lock, "--indent", "2"],
-        env=make_env(PEX_SCRIPT="pex3"),
-    )
     lockfile = json_codec.load(lock)
     assert 1 == len(lockfile.locked_resolves)
 
