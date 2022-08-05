@@ -11,13 +11,13 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
 from typing import Tuple
 
-import toml
-
 PROJECT_METADATA = Path("pyproject.toml")
 DIST_DIR = Path("dist")
 
 
 def python_requires() -> str:
+    import toml
+
     project_metadata = toml.loads(PROJECT_METADATA.read_text())
     return project_metadata["tool"]["flit"]["metadata"]["requires-python"].strip()
 
