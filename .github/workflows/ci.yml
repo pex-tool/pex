@@ -165,6 +165,9 @@ jobs:
           echo "::set-output name=skip::${skip}"
       - name: Checkout Pex
         uses: actions/checkout@v2
+        with:
+          # We need branches and tags for some ITs.
+          fetch-depth: 0
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: actions/setup-python@v3
         with:
@@ -200,6 +203,9 @@ jobs:
           echo "::set-output name=skip::${skip}"
       - name: Checkout Pex
         uses: actions/checkout@v2
+        with:
+          # We need branches and tags for some ITs.
+          fetch-depth: 0
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: actions/setup-python@v3
         with:
