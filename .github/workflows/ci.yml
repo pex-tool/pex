@@ -33,7 +33,9 @@ jobs:
             tox-env: format-check
             fetch-depth: 1
           - check-name: Types
-            python-version: "3.10"
+            # N.B.: Python 3.10.6 introduces support for parenthesized context managers which
+            # breaks typechecking against --python-version 2.7 and so we pin low.
+            python-version: "3.10.5"
             tox-env: typecheck
             fetch-depth: 1
           - check-name: Vendoring
