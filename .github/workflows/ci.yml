@@ -65,7 +65,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11, "0-beta.5"]]
+        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11, "0-rc.1"]]
         os: [ubuntu-20.04, macos-11]
         exclude:
           - os: macos-11
@@ -79,7 +79,7 @@ jobs:
           - os: macos-11
             python-version: [3, 9]
           - os: macos-11
-            python-version: [3, 11, "0-beta.5"]
+            python-version: [3, 11, "0-rc.1"]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -149,11 +149,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 10], [3, 11, "0-beta.5"]]
+        python-version: [[2, 7], [3, 10], [3, 11, "0-rc.1"]]
         os: [ubuntu-20.04, macos-11]
         exclude:
           - os: macos-11
-            python-version: [3, 11, "0-beta.5"]
+            python-version: [3, 11, "0-rc.1"]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
