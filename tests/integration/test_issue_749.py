@@ -41,7 +41,7 @@ def test_pkg_resource_early_import_on_pex_path():
         setuptools_pex = os.path.join(td, "autopep8.pex")
         run_pex_command(
             [
-                "autopep8",
+                "autopep8==1.6.0",
                 "setuptools",
                 "-D",
                 src_dir,

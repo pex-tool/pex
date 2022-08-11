@@ -33,7 +33,9 @@ jobs:
             tox-env: format-check
             fetch-depth: 1
           - check-name: Types
-            python-version: "3.10"
+            # N.B.: Python 3.10.6 introduces support for parenthesized context managers which
+            # breaks typechecking against --python-version 2.7 and so we pin low.
+            python-version: "3.10.5"
             tox-env: typecheck
             fetch-depth: 1
           - check-name: Vendoring
@@ -65,7 +67,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11, "0-beta.5"]]
+        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11, "0-rc.1"]]
         os: [ubuntu-20.04, macos-11]
         exclude:
           - os: macos-11
@@ -79,7 +81,7 @@ jobs:
           - os: macos-11
             python-version: [3, 9]
           - os: macos-11
-            python-version: [3, 11, "0-beta.5"]
+            python-version: [3, 11, "0-rc.1"]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -149,11 +151,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 10], [3, 11, "0-beta.5"]]
+        python-version: [[2, 7], [3, 10], [3, 11, "0-rc.1"]]
         os: [ubuntu-20.04, macos-11]
         exclude:
           - os: macos-11
-            python-version: [3, 11, "0-beta.5"]
+            python-version: [3, 11, "0-rc.1"]
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
