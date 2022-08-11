@@ -735,24 +735,20 @@ def test_pex_resource_bundling():
             assert stdout == b"hello\n"
 
 
-def test_entry_point_verification_3rdparty():
-    # type: () -> None
-    with temporary_dir() as td:
-        pex_out_path = os.path.join(td, "pex.pex")
-        res = run_pex_command(
-            ["Pillow==5.2.0", "-e", "PIL:Image", "-o", pex_out_path, "--validate-entry-point"]
-        )
-        res.assert_success()
+def test_entry_point_verification_3rdparty(tmpdir):
+    # type: (Any) -> None
+    pex_out_path = os.path.join(str(tmpdir), "pex.pex")
+    run_pex_command(
+        args=["ansicolors==1.1.8", "-e", "colors:red", "-o", pex_out_path, "--validate-entry-point"]
+    ).assert_success()
 
 
-def test_invalid_entry_point_verification_3rdparty():
-    # type: () -> None
-    with temporary_dir() as td:
-        pex_out_path = os.path.join(td, "pex.pex")
-        res = run_pex_command(
-            ["Pillow==5.2.0", "-e", "PIL:invalid", "-o", pex_out_path, "--validate-entry-point"]
-        )
-        res.assert_failure()
+def test_invalid_entry_point_verification_3rdparty(tmpdir):
+    # type: (Any) -> None
+    pex_out_path = os.path.join(str(tmpdir), "pex.pex")
+    run_pex_command(
+        args=["ansicolors==1.1.8", "-e", "colors:bad", "-o", pex_out_path, "--validate-entry-point"]
+    ).assert_failure()
 
 
 def test_multiplatform_entrypoint():
