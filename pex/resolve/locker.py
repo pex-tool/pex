@@ -273,19 +273,6 @@ class Locker(LogAnalyzer):
                 self._links[project_name_and_version].add(partial_artifact)
                 return self.Continue()
 
-        if LockStyle.UNIVERSAL == self.style:
-            match = re.search(
-                r"Skipping link: none of the wheel's tags \([^)]+\) are compatible "
-                r"\(run pip debug --verbose to show compatible tags\): "
-                r"(?P<url>[^\s]+) ",
-                line,
-            )
-            if match:
-                project_name_and_version, partial_artifact = self._extract_resolve_data(
-                    match.group("url")
-                )
-                self._links[project_name_and_version].add(partial_artifact)
-
         return self.Continue()
 
     def analysis_completed(self):
