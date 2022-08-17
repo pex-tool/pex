@@ -31,7 +31,7 @@ from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.resolve.resolvers import Installed, Resolver
+from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Installed, Resolver
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
 from pex.result import Error, catch, try_
 from pex.targets import Targets
@@ -202,11 +202,6 @@ def download_artifact(
         downloadable_artifact.artifact,
         downloadable_artifact.pin.project_name,
     )
-
-
-# Derived from notes in the bandersnatch PyPI mirroring tool:
-# https://github.com/pypa/bandersnatch/blob/1485712d6aa77fba54bbf5a2df0d7314124ad097/src/bandersnatch/default.conf#L30-L35
-MAX_PARALLEL_DOWNLOADS = 10
 
 
 def resolve_from_lock(

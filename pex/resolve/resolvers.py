@@ -7,7 +7,6 @@ from abc import abstractmethod
 
 from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
-from pex.resolve.locked_resolve import LockedResolve
 from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -19,6 +18,11 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
+
+
+# Derived from notes in the bandersnatch PyPI mirroring tool:
+# https://github.com/pypa/bandersnatch/blob/1485712d6aa77fba54bbf5a2df0d7314124ad097/src/bandersnatch/default.conf#L30-L35
+MAX_PARALLEL_DOWNLOADS = 10
 
 
 class ResolveError(Exception):
