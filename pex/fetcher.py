@@ -24,7 +24,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import BinaryIO, Dict, Iterable, Iterator, Optional, Text
+    from typing import BinaryIO, Dict, Iterable, Iterator, Mapping, Optional, Text
 else:
     BinaryIO = None
 
@@ -63,8 +63,12 @@ class URLFetcher(object):
         self._handlers = tuple(handlers)
 
     @contextmanager
-    def get_body_stream(self, url):
-        # type: (Text) -> Iterator[BinaryIO]
+    def get_body_stream(
+        self,
+        url,  # type: Text
+        extra_headers=None,  # type: Optional[Mapping[str, str]]
+    ):
+        # type: (...) -> Iterator[BinaryIO]
 
         handlers = list(self._handlers)
         if self._password_database.entries:
@@ -91,11 +95,13 @@ class URLFetcher(object):
                 retry_delay_secs *= 2
 
             opener = build_opener(*handlers)
+            headers = dict(extra_headers) if extra_headers else {}
+            headers["User-Agent"] = self.USER_AGENT
             request = Request(
                 # N.B.: MyPy incorrectly thinks url must be a str in Python 2 where a unicode url
                 # actually works fine.
                 url,  # type: ignore[arg-type]
-                headers={"User-Agent": self.USER_AGENT},
+                headers=headers,
             )
             # The fp is typed as Optional[...] for Python 2 only in the typeshed. A `None`
             # can only be returned if a faulty custom handler is installed and we only
