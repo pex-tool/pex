@@ -80,8 +80,8 @@ class Client(object):
                         if sys.version_info[:2] == (3, 5)
                         else fp
                     )
-                    # The above is tested to work with PyPy 27,3.{6,7,8,9} and
-                    # CPython 2.7,3.{5,6,7,8,9,10,11}, so the type suppression is well vetted here.
+                    # The above is tested to work with PyPy 2.7, PyPy 3.{6,7,8,9}, CPython 2.7 and
+                    # CPython 3.{5,6,7,8,9,10,11}; so the type suppression is well vetted here.
                     data = json.load(stream)  # type: ignore[arg-type]
         except (IOError, OSError, HTTPError) as e:
             raise request_error("failed: {err}".format(err=e))
