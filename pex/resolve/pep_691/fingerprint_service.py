@@ -64,8 +64,8 @@ class FingerprintService(object):
                     """
                     CREATE TABLE IF NOT EXISTS hashes (
                         url TEXT PRIMARY KEY ASC,
-                        algorithm TEXT,
-                        hash TEXT
+                        algorithm TEXT NOT NULL,
+                        hash TEXT NOT NULL
                     ) WITHOUT ROWID;
                     """
                 ).close()
