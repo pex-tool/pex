@@ -66,7 +66,7 @@ class FingerprintService(object):
                         url TEXT PRIMARY KEY ASC,
                         algorithm TEXT,
                         hash TEXT
-                    ) STRICT, WITHOUT ROWID;
+                    ) WITHOUT ROWID;
                     """
                 ).close()
                 # N.B.: Maximum parameter count is 999 in pre-2020 versions of SQLite 3; so we limit
