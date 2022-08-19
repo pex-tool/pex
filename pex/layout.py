@@ -30,6 +30,22 @@ class Layout(Enum["Layout.Value"]):
     PACKED = Value("packed")
     LOOSE = Value("loose")
 
+    @classmethod
+    def identify(cls, pex):
+        # type: (str) -> Layout.Value
+        """Assumes pex is a valid PEX and identifies its layout."""
+        if zipfile.is_zipfile(pex) and is_script(
+            pex,
+            # N.B.: A PEX file need not be executable since it can always be run via `python a.pex`.
+            check_executable=False,
+        ):
+            return cls.ZIPAPP
+
+        if os.path.isdir(pex) and zipfile.is_zipfile(os.path.join(pex, BOOTSTRAP_DIR)):
+            return cls.PACKED
+
+        return cls.LOOSE
+
 
 class _Layout(object):
     def __init__(self, path):
@@ -253,14 +269,12 @@ class _PackedPEX(_Layout):
 @contextmanager
 def _identify_layout(pex):
     # type: (str) -> Iterator[Optional[_Layout]]
-    if zipfile.is_zipfile(pex) and is_script(
-        pex,
-        # N.B.: A PEX file need not be executable since it can always be run via `python a.pex`.
-        check_executable=False,
-    ):
+
+    layout = Layout.identify(pex)
+    if Layout.ZIPAPP is layout:
         with open_zip(pex) as zfp:
             yield _ZipAppPEX(pex, zfp)
-    elif os.path.isdir(pex) and zipfile.is_zipfile(os.path.join(pex, BOOTSTRAP_DIR)):
+    elif Layout.PACKED is layout:
         yield _PackedPEX(pex)
     else:
         # A loose PEX which needs no layout.

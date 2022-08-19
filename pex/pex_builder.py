@@ -15,10 +15,10 @@ from pex.common import (
     chmod_plus_x,
     is_pyc_temporary_file,
     safe_copy,
+    safe_delete,
     safe_mkdir,
     safe_mkdtemp,
     safe_open,
-    safe_rmtree,
 )
 from pex.compatibility import to_bytes
 from pex.compiler import Compiler
@@ -645,28 +645,35 @@ class PEXBuilder(object):
         """
         if not self._frozen:
             self.freeze(bytecode_compile=bytecode_compile)
-        if layout in (Layout.LOOSE, Layout.PACKED):
-            safe_rmtree(path)
 
-            # N.B.: We want an atomic directory, but we don't expect a user to race themselves
-            # building to a single non-PEX_ROOT user-requested output path; so we don't grab an
-            # exclusive lock and dirty the target directory with a `.lck` file.
-            with atomic_directory(path, source="app", exclusive=False) as app_chroot:
-                if not app_chroot.is_finalized():
-                    dirname = os.path.join(app_chroot.work_dir, "app")
-                    if layout == Layout.LOOSE:
-                        shutil.copytree(self.path(), dirname)
-                    else:
-                        os.mkdir(dirname)
-                        self._build_packedapp(
-                            dirname=dirname,
-                            deterministic_timestamp=deterministic_timestamp,
-                            compress=compress,
-                        )
+        # The PEX building proceeds assuming a user will not race themselves building to a single
+        # non-PEX_ROOT output path they requested;
+        tmp_pex = path + "~"
+        if os.path.exists(tmp_pex):
+            self._logger.warning("Previous binary unexpectedly exists, cleaning: {}".format(path))
+            if os.path.isfile(tmp_pex):
+                os.unlink(tmp_pex)
+            else:
+                shutil.rmtree(tmp_pex, True)
+
+        if layout == Layout.LOOSE:
+            shutil.copytree(self.path(), tmp_pex)
+        elif layout == Layout.PACKED:
+            self._build_packedapp(
+                dirname=tmp_pex,
+                deterministic_timestamp=deterministic_timestamp,
+                compress=compress,
+            )
         else:
             self._build_zipapp(
-                filename=path, deterministic_timestamp=deterministic_timestamp, compress=compress
+                filename=tmp_pex, deterministic_timestamp=deterministic_timestamp, compress=compress
             )
+
+        if os.path.isdir(path):
+            shutil.rmtree(path, True)
+        elif os.path.isdir(tmp_pex):
+            safe_delete(path)
+        os.rename(tmp_pex, path)
 
     def _build_packedapp(
         self,
@@ -756,23 +763,14 @@ class PEXBuilder(object):
         compress=True,  # type: bool
     ):
         # type: (...) -> None
-        tmp_zip = filename + "~"
-        try:
-            os.unlink(tmp_zip)
-            self._logger.warning(
-                "Previous binary unexpectedly exists, cleaning: {}".format(tmp_zip)
-            )
-        except OSError:
-            # The expectation is that the file does not exist, so continue
-            pass
-        with safe_open(tmp_zip, "ab") as pexfile:
+        with safe_open(filename, "wb") as pexfile:
             assert os.path.getsize(pexfile.name) == 0
             pexfile.write(to_bytes("{}\n".format(self._shebang)))
             if self._header:
                 pexfile.write(to_bytes(self._header))
         with TRACER.timed("Zipping PEX file."):
             self._chroot.zip(
-                tmp_zip,
+                filename,
                 mode="a",
                 deterministic_timestamp=deterministic_timestamp,
                 # When configured with a `copy_mode` of `CopyMode.SYMLINK`, we symlink distributions
@@ -785,7 +783,4 @@ class PEXBuilder(object):
                 exclude_file=is_pyc_temporary_file,
                 compress=compress,
             )
-        if os.path.exists(filename):
-            os.unlink(filename)
-        os.rename(tmp_zip, filename)
         chmod_plus_x(filename)
