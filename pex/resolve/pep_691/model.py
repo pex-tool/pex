@@ -52,11 +52,13 @@ class File(object):
     def select_fingerprint(self):
         # type: () -> Optional[Fingerprint]
         """Selects the "best" fingerprint, if any, for this file from amongst its hashes."""
-        hashes = {fingerprint.algorithm: fingerprint.hash for fingerprint in self.hashes}
-        algorithm = self._select_algorithm(hashes)
+        fingerprints_by_algorithm = {
+            fingerprint.algorithm: fingerprint for fingerprint in self.hashes
+        }
+        algorithm = self._select_algorithm(fingerprints_by_algorithm)
         if algorithm is None:
             return None
-        return Fingerprint(algorithm=algorithm, hash=hashes[algorithm])
+        return fingerprints_by_algorithm[algorithm]
 
 
 @attr.s(frozen=True)
