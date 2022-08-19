@@ -31,6 +31,8 @@ PY2 = sys_version_info[0] == 2
 PY3 = sys_version_info[0] == 3
 
 string = cast("Tuple[Type, ...]", (str,) if PY3 else (str, unicode))  # type: ignore[name-defined]
+text = cast("Type[Text]", str if PY3 else unicode)  # type: ignore[name-defined]
+
 
 if PY2:
     from collections import Iterable as Iterable
