@@ -110,6 +110,20 @@ class FingerprintService(object):
         # type: (Endpoint) -> Union[Project, Error]
         return catch(self._api.request, endpoint)
 
+    @staticmethod
+    def _warn_database_error(
+        error,  # type: sqlite3.DatabaseError
+        message,  # type: str
+    ):
+        pex_warnings.warn(
+            "{message}: {error}\n"
+            "\n"
+            "If you encounter this error frequently, Pex may need to adjust how it uses SQLite for "
+            "its cache of artifact fingerprints obtained from PEP-691 indexes. Please consider "
+            "reporting the problem by filing an issue at "
+            "https://github.com/pantsbuild/pex/issues/new.".format(message=message, error=error)
+        )
+
     def fingerprint(
         self,
         endpoints,  # type: Set[Endpoint]
@@ -152,9 +166,12 @@ class FingerprintService(object):
                 cached += 1
             TRACER.log("Found {count} fingerprints cached in database.".format(count=cached))
         except sqlite3.DatabaseError as e:
-            pex_warnings.warn(
-                "Failed to read fingerprints from the cache, continuing to fetch them via the "
-                "PEP-691 JSON API instead: {err}".format(err=e)
+            self._warn_database_error(
+                error=e,
+                message=(
+                    "Failed to read fingerprints from the cache, continuing to fetch them via the "
+                    "PEP-691 JSON API instead"
+                )
             )
 
         if not artifacts_to_fingerprint:
@@ -210,8 +227,9 @@ class FingerprintService(object):
         try:
             self._cache(fingerprinted_urls)
         except sqlite3.DatabaseError as e:
-            pex_warnings.warn(
-                "Failed to cache fingerprints for {count} URLs, continuing: {err}".format(
-                    count=len(fingerprinted_urls), err=e
+            self._warn_database_error(
+                error=e,
+                message="Failed to cache fingerprints for {count} URLs, continuing".format(
+                    count=len(fingerprinted_urls)
                 )
             )
