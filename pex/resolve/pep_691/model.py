@@ -21,8 +21,10 @@ else:
 
 @attr.s(frozen=True)
 class File(object):
-    _GUARANTEED_HASH_ALGORITHM_DIGEST_SIZES = {
-        algorithm: hashlib.new(algorithm).digest_size for algorithm in hashlib.algorithms_guaranteed
+    # These ranks prefer the highest digest size and then use alphabetic order for a tie-break.
+    _GUARANTEED_HASH_ALGORITHM_DIGEST_RANKS = {
+        algorithm: (-hashlib.new(algorithm).digest_size, algorithm)
+        for algorithm in hashlib.algorithms_guaranteed
     }
 
     @classmethod
@@ -39,9 +41,8 @@ class File(object):
             return "sha256"
 
         ranked_algorithms = sorted(
-            (alg for alg in algorithms if alg in cls._GUARANTEED_HASH_ALGORITHM_DIGEST_SIZES),
-            key=lambda alg: cls._GUARANTEED_HASH_ALGORITHM_DIGEST_SIZES[alg],
-            reverse=True,  # We want to select the largest digest size.
+            (alg for alg in algorithms if alg in cls._GUARANTEED_HASH_ALGORITHM_DIGEST_RANKS),
+            key=lambda alg: cls._GUARANTEED_HASH_ALGORITHM_DIGEST_RANKS[alg],
         )
         return ranked_algorithms[0] if ranked_algorithms else None
 

@@ -171,7 +171,7 @@ class FingerprintService(object):
                 message=(
                     "Failed to read fingerprints from the cache, continuing to fetch them via the "
                     "PEP-691 JSON API instead"
-                )
+                ),
             )
 
         if not artifacts_to_fingerprint:
@@ -231,5 +231,5 @@ class FingerprintService(object):
                 error=e,
                 message="Failed to cache fingerprints for {count} URLs, continuing".format(
                     count=len(fingerprinted_urls)
-                )
+                ),
             )
