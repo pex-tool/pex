@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import io
 import json
 
 from pex.compatibility import HTTPError, text, urlparse
@@ -70,7 +71,9 @@ class Client(object):
                 with self._url_fetcher.get_body_stream(
                     endpoint.url, extra_headers={"Accept": endpoint.content_type}
                 ) as fp:
-                    data = json.load(fp)
+                    # JSON exchanged between systems must be UTF-8:
+                    # https://www.rfc-editor.org/rfc/rfc8259#section-8.1
+                    data = json.load(io.TextIOWrapper(fp, encoding="utf-8"))
         except (IOError, OSError, HTTPError) as e:
             raise request_error("failed: {err}".format(err=e))
         except ValueError as e:
