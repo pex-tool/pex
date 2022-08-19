@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import io
 import json
+import sys
 
 from pex.compatibility import HTTPError, text, urlparse
 from pex.fetcher import URLFetcher
@@ -71,9 +72,17 @@ class Client(object):
                 with self._url_fetcher.get_body_stream(
                     endpoint.url, extra_headers={"Accept": endpoint.content_type}
                 ) as fp:
-                    # JSON exchanged between systems must be UTF-8:
+                    # Python 3.5 alone amongst Pex supported Python versions requires a text
+                    # stream and JSON exchanged between systems must be UTF-8:
                     # https://www.rfc-editor.org/rfc/rfc8259#section-8.1
-                    data = json.load(io.TextIOWrapper(fp, encoding="utf-8"))
+                    stream = (
+                        io.TextIOWrapper(fp, encoding="utf-8")
+                        if sys.version_info[:2] == (3, 5)
+                        else fp
+                    )
+                    # The above is tested to work with PyPy 27,3.{6,7,8,9} and
+                    # CPython 2.7,3.{5,6,7,8,9,10,11}, so the type suppression is well vetted here.
+                    data = json.load(stream)  # type: ignore[arg-type]
         except (IOError, OSError, HTTPError) as e:
             raise request_error("failed: {err}".format(err=e))
         except ValueError as e:
