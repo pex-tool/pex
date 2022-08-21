@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import itertools
 import logging
 import os
 from collections import OrderedDict
@@ -14,10 +15,17 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import LockConfiguration, LockedRequirement, LockedResolve
+from pex.resolve.locked_resolve import (
+    Artifact,
+    FileArtifact,
+    LockConfiguration,
+    LockedRequirement,
+    LockedResolve,
+)
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.requirement_configuration import RequirementConfiguration
+from pex.resolve.resolved_requirement import Fingerprint
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.result import Error, ResultError, catch, try_
 from pex.sorted_tuple import SortedTuple
@@ -27,7 +35,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Iterator, Mapping, Optional, Union
+    from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -44,9 +52,127 @@ class VersionUpdate(object):
 
 
 @attr.s(frozen=True)
+class URLUpdate(object):
+    original = attr.ib()  # type: str
+    updated = attr.ib()  # type: str
+
+    def render_update(self):
+        # type: () -> str
+        return "{original} -> {updated}".format(original=self.original, updated=self.updated)
+
+
+@attr.s(frozen=True)
+class FingerprintUpdate(object):
+    source = attr.ib()  # type: str
+    original = attr.ib()  # type: Fingerprint
+    updated = attr.ib()  # type: Fingerprint
+
+    def render_update(self):
+        # type: () -> str
+        return "{source} {o_alg}:{o_hash} -> {u_alg}:{u_hash}".format(
+            source=self.source,
+            o_alg=self.original.algorithm,
+            o_hash=self.original.hash,
+            u_alg=self.updated.algorithm,
+            u_hash=self.updated.hash,
+        )
+
+
+@attr.s(frozen=True)
+class ArtifactUpdate(object):
+    original = attr.ib()  # type: Artifact
+    updated = attr.ib()  # type: Artifact
+
+    def render_update(self):
+        # type: () -> str
+        return "{o_url}#{o_alg}:{o_hash} -> {u_url}#{u_alg}:{u_hash}".format(
+            o_url=self.original.url,
+            o_alg=self.original.fingerprint.algorithm,
+            o_hash=self.original.fingerprint.hash,
+            u_url=self.updated.url,
+            u_alg=self.updated.fingerprint.algorithm,
+            u_hash=self.updated.fingerprint.hash,
+        )
+
+
+@attr.s(frozen=True)
+class ArtifactsUpdate(object):
+    @classmethod
+    def calculate(
+        cls,
+        version,  # type: Version
+        original,  # type: Tuple[Artifact, ...]
+        updated,  # type: Tuple[Artifact, ...]
+    ):
+        # type: (...) -> ArtifactsUpdate
+
+        def calculate_updates(
+            original_art,  # type: Artifact
+            updated_art,  # type: Artifact
+        ):
+            # type: (...) -> Iterator[Union[URLUpdate, FingerprintUpdate, ArtifactUpdate]]
+
+            # N.B.: We don't care if fingerprints have been verified or not, we just care if the
+            # advertised value has changed. That could indicate the original advertised value was
+            # bad and is now corrected, but if that's the case the user can choose to ignore the
+            # potentially dangerous update if they know for a fact from out of band investigation
+            # that the new fingerprint is the correct one.
+            if attr.evolve(original_art, verified=False) == attr.evolve(
+                updated_art, verified=False
+            ):
+                return
+
+            if original_art.fingerprint == updated_art.fingerprint:
+                yield URLUpdate(original=original_art.url, updated=updated_art.url)
+            elif original_art.url == updated_art.url:
+                yield FingerprintUpdate(
+                    source=(
+                        original_art.filename
+                        if isinstance(original_art, FileArtifact)
+                        else original_art.url
+                    ),
+                    original=original_art.fingerprint,
+                    updated=updated_art.fingerprint,
+                )
+            else:
+                yield ArtifactUpdate(original=original_art, updated=updated_art)
+
+        def key(artifact):
+            # type: (Artifact) -> str
+            return artifact.filename if isinstance(artifact, FileArtifact) else artifact.url
+
+        original_artifacts = {key(artifact): artifact for artifact in original}
+        added_artifacts = []  # type: List[Artifact]
+        updated_artifacts = []  # type: List[Union[URLUpdate, FingerprintUpdate, ArtifactUpdate]]
+        for updated_artifact in updated:
+            original_artifact = original_artifacts.pop(key(updated_artifact), None)
+            if not original_artifact:
+                added_artifacts.append(updated_artifact)
+            else:
+                updated_artifacts.extend(
+                    calculate_updates(original_art=original_artifact, updated_art=updated_artifact)
+                )
+        removed_artifacts = tuple(original_artifacts.values())
+
+        return cls(
+            version=version,
+            added=tuple(added_artifacts),
+            updated=tuple(updated_artifacts),
+            removed=tuple(removed_artifacts),
+        )
+
+    version = attr.ib()  # type: Version
+    added = attr.ib()  # type: Tuple[Artifact, ...]
+    updated = attr.ib()  # type: Tuple[Union[URLUpdate, FingerprintUpdate, ArtifactUpdate], ...]
+    removed = attr.ib()  # type: Tuple[Artifact, ...]
+
+
+@attr.s(frozen=True)
 class ResolveUpdate(object):
     updated_resolve = attr.ib()  # type: LockedResolve
-    updates = attr.ib()  # type: Mapping[ProjectName, Optional[VersionUpdate]]
+    updates = (
+        attr.ib()
+    )  # type: Mapping[ProjectName, Optional[Union[VersionUpdate, ArtifactsUpdate]]]
 
 
 @attr.s(frozen=True)
@@ -110,9 +236,13 @@ class ResolveUpdater(object):
     pip_configuration = attr.ib()  # type: PipConfiguration
 
     @contextmanager
-    def _calculate_requirement_configuration(self, locked_resolve):
-        # type: (LockedResolve) -> Iterator[RequirementConfiguration]
-        if not self.update_constraints_by_project_name:
+    def _calculate_requirement_configuration(
+        self,
+        locked_resolve,  # type: LockedResolve
+        pin_all=False,  # type: bool
+    ):
+        # type: (...) -> Iterator[RequirementConfiguration]
+        if not self.update_constraints_by_project_name and not pin_all:
             yield RequirementConfiguration(requirements=self.original_requirements)
             return
 
@@ -151,10 +281,13 @@ class ResolveUpdater(object):
         self,
         locked_resolve,  # type: LockedResolve
         targets,  # type: Targets
+        pin_all=False,  # type: bool
     ):
         # type: (...) -> Union[ResolveUpdate, Error]
 
-        with self._calculate_requirement_configuration(locked_resolve) as requirement_configuration:
+        with self._calculate_requirement_configuration(
+            locked_resolve, pin_all=pin_all
+        ) as requirement_configuration:
             updated_lock_file = try_(
                 create(
                     lock_configuration=self.lock_configuration,
@@ -172,7 +305,9 @@ class ResolveUpdater(object):
             for updated_requirement in updated_resolve.locked_requirements
         )  # type: OrderedDict[ProjectName, LockedRequirement]
 
-        updates = OrderedDict()  # type: OrderedDict[ProjectName, Optional[VersionUpdate]]
+        updates = (
+            OrderedDict()
+        )  # type: OrderedDict[ProjectName, Optional[Union[VersionUpdate, ArtifactsUpdate]]]
         for locked_requirement in locked_resolve.locked_requirements:
             original_pin = locked_requirement.pin
             project_name = original_pin.project_name
@@ -180,6 +315,8 @@ class ResolveUpdater(object):
             if not updated_requirement:
                 continue
             updated_pin = updated_requirement.pin
+            original_artifacts = tuple(locked_requirement.iter_artifacts())
+            updated_artifacts = tuple(updated_requirement.iter_artifacts())
             if (
                 self.update_constraints_by_project_name
                 and project_name not in self.update_constraints_by_project_name
@@ -193,6 +330,12 @@ class ResolveUpdater(object):
             elif original_pin != updated_pin:
                 updates[project_name] = VersionUpdate(
                     original=original_pin.version, updated=updated_pin.version
+                )
+            elif original_artifacts != updated_artifacts:
+                updates[project_name] = ArtifactsUpdate.calculate(
+                    version=original_pin.version,
+                    original=original_artifacts,
+                    updated=updated_artifacts,
                 )
             elif project_name in self.update_constraints_by_project_name:
                 updates[project_name] = None
@@ -279,6 +422,7 @@ class LockUpdater(object):
         self,
         update_requests,  # type: Iterable[ResolveUpdateRequest]
         updates,  # type: Iterable[Requirement]
+        pin=False,  # type: bool
         assume_manylinux=None,  # type: Optional[str]
     ):
         # type: (...) -> Union[LockUpdate, Error]
@@ -307,6 +451,7 @@ class LockUpdater(object):
                 resolve_updater.update_resolve,
                 locked_resolve=update_request.locked_resolve,
                 targets=update_request.targets(assume_manylinux=assume_manylinux),
+                pin_all=pin,
             )
             if isinstance(result, Error):
                 error_by_target[update_request.target] = result
