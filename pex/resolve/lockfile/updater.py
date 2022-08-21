@@ -106,6 +106,10 @@ class ArtifactsUpdate(object):
     ):
         # type: (...) -> ArtifactsUpdate
 
+        def key(artifact):
+            # type: (Artifact) -> str
+            return artifact.filename if isinstance(artifact, FileArtifact) else artifact.url
+
         def calculate_updates(
             original_art,  # type: Artifact
             updated_art,  # type: Artifact
@@ -126,20 +130,12 @@ class ArtifactsUpdate(object):
                 yield URLUpdate(original=original_art.url, updated=updated_art.url)
             elif original_art.url == updated_art.url:
                 yield FingerprintUpdate(
-                    source=(
-                        original_art.filename
-                        if isinstance(original_art, FileArtifact)
-                        else original_art.url
-                    ),
+                    source=key(original_art),
                     original=original_art.fingerprint,
                     updated=updated_art.fingerprint,
                 )
             else:
                 yield ArtifactUpdate(original=original_art, updated=updated_art)
-
-        def key(artifact):
-            # type: (Artifact) -> str
-            return artifact.filename if isinstance(artifact, FileArtifact) else artifact.url
 
         original_artifacts = {key(artifact): artifact for artifact in original}
         added_artifacts = []  # type: List[Artifact]
