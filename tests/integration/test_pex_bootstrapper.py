@@ -267,7 +267,8 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
     # type: (Any) -> None
 
     pex = os.path.join(str(tmpdir), "pex")
-    run_pex_command(args=["psutil==5.9.0", "-o", pex]).assert_success()
+    result = run_pex_command(args=["psutil==5.9.0", "-o", pex, "-vvvvvvvvvv"])
+    result.assert_success()
 
     def assert_boot(python=None):
         # type: (Optional[str]) -> None
@@ -297,23 +298,33 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
 
         assert 0 == process.returncode, dedent(
             """
-                Env:
-                {env}
-                Args: {args}
-                Exit Code: {exit_code}
-                STDERR:
-                {stderr}
+            Build STDERR for {pex} using {sys_executable} was:
+            {build_stderr}
 
-                Interpreters:
-                {interpreters}
-                """
+            Env:
+            {env}
+            Args: {args}
+            Exit Code: {exit_code}
+            STDERR:
+            {stderr}
+
+            Sys Executable:
+            {sys_executable_info}:
+
+            Other Interpreters:
+            {interpreters}
+            """
         ).format(
+            sys_executable=sys.executable,
+            pex=pex,
+            build_stderr=result.error,
             env="\n".join(
                 sorted("{key}={value}".format(key=k, value=v) for k, v in os.environ.items())
             ),
             args=" ".join(args),
             exit_code=process.returncode,
             stderr=stderr.decode("utf-8"),
+            sys_executable_info=interp_info(PythonInterpreter.from_binary(sys.executable)),
             interpreters="\n".join(
                 "{index}: {interp_info}".format(index=index, interp_info=interp_info(interpreter))
                 for index, interpreter in enumerate(PythonInterpreter.all(), start=1)
