@@ -342,6 +342,8 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
         .strip()
     )
 
+    pyenv_python = ensure_python_interpreter(PY27)
+
     def assert_boot(python=None):
         # type: (Optional[str]) -> None
         args = [python] if python else []
@@ -368,7 +370,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
                 ),
             )
 
-        assert 1 == process.returncode, dedent(
+        assert 0 == process.returncode, dedent(
             """
             Pex file: {pex}
             Pex shebang:
@@ -392,6 +394,9 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
 
             Other Interpreters:
             {interpreters}
+            
+            Pyenv Python:
+            {pyenv_python}
             """
         ).format(
             pex=pex,
@@ -410,6 +415,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
                 "{index}: {interp_info}".format(index=index, interp_info=interp_info(interpreter))
                 for index, interpreter in enumerate(PythonInterpreter.all(), start=1)
             ),
+            pyenv_python=interp_info(PythonInterpreter.from_binary(pyenv_python)),
         )
 
         # N.B.: We expect the current interpreter the PEX was built with to be selected since the
