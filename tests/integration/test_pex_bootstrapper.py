@@ -4,6 +4,7 @@
 import json
 import os.path
 import re
+import shlex
 import subprocess
 import sys
 from textwrap import dedent
@@ -330,6 +331,17 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
     result = run_pex_command(args=["psutil==5.9.0", "-o", pex, "-vvvvvvvvvv"])
     result.assert_success()
 
+    with open(pex) as fp:
+        shebang = fp.readline().strip()
+
+    shebang_python = str(
+        subprocess.check_output(
+            args=shlex.split(shebang[2:]) + ["-c", "import sys; print(sys.executable)"]
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
     def assert_boot(python=None):
         # type: (Optional[str]) -> None
         args = [python] if python else []
@@ -356,8 +368,15 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
                 ),
             )
 
-        assert 0 == process.returncode, dedent(
+        assert 1 == process.returncode, dedent(
             """
+            Pex file: {pex}
+            Pex shebang:
+            {shebang}
+
+            Shebang python:
+            {shebang_python}
+
             Build STDERR for {pex} using {sys_executable} was:
             {build_stderr}
 
@@ -369,14 +388,16 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
             {stderr}
 
             Sys Executable:
-            {sys_executable_info}:
+            {sys_executable_info}
 
             Other Interpreters:
             {interpreters}
             """
         ).format(
-            sys_executable=sys.executable,
             pex=pex,
+            shebang=shebang,
+            shebang_python=interp_info(PythonInterpreter.from_binary(shebang_python)),
+            sys_executable=sys.executable,
             build_stderr=result.error,
             env="\n".join(
                 sorted("{key}={value}".format(key=k, value=v) for k, v in os.environ.items())
