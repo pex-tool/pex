@@ -1,6 +1,7 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+import itertools
+import json
 import os.path
 import re
 import subprocess
@@ -272,7 +273,52 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
         # type: (Optional[str]) -> None
         args = [python] if python else []
         args.extend([pex, "-c", "import psutil, sys; print(sys.executable)"])
-        output = subprocess.check_output(args=args)
+        process = subprocess.Popen(args=args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        def interp_info(interp):
+            # type: (PythonInterpreter) -> str
+            identity = interp.identity
+            return "{binary}:\n{data}".format(
+                binary=interp.binary,
+                data=json.dumps(
+                    {
+                        "version": identity.version_str,
+                        "macosx_deployment_target": identity.configured_macosx_deployment_target,
+                        "top_tags": [
+                            str(tag)
+                            # Our MyPy version doesn't understand slice types.
+                            for tag in identity.supported_tags[:5]  # type: ignore[attr-defined]
+                        ],
+                    },
+                    indent=2,
+                ),
+            )
+
+        assert 0 == process.returncode, dedent(
+            """
+                Env:
+                {env}
+                Args: {args}
+                Exit Code: {exit_code}
+                STDERR:
+                {stderr}
+
+                Interpreters:
+                {interpreters}
+                """
+        ).format(
+            env="\n".join(
+                sorted("{key}={value}".format(key=k, value=v) for k, v in os.environ.items())
+            ),
+            args=" ".join(args),
+            exit_code=process.returncode,
+            stderr=stderr.decode("utf-8"),
+            interpreters="\n".join(
+                "{index}: {interp_info}".format(index=index, interp_info=interp_info(interpreter))
+                for index, interpreter in enumerate(PythonInterpreter.all(), start=1)
+            ),
+        )
 
         # N.B.: We expect the current interpreter the PEX was built with to be selected since the
         # PEX contains a single platform specific distribution that only works with that
@@ -284,7 +330,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
         assert (
             PythonInterpreter.get().resolve_base_interpreter()
             == PythonInterpreter.from_binary(
-                str(output.decode("ascii").strip())
+                str(stdout.decode("ascii").strip())
             ).resolve_base_interpreter()
         )
 
