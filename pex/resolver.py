@@ -233,13 +233,21 @@ class BuildResult(object):
         # type: (...) -> BuildResult
         dist_type = "sdists" if os.path.isfile(build_request.source_path) else "local_projects"
 
-        # For the purposes of building a wheel from source, the product should be uniqued by the wheel
-        # name which is unique on the host os up to the python and abi tags. In other words, the product
-        # of a CPython 2.7.6 wheel build and a CPython 2.7.18 wheel build should be functionally
-        # interchangeable if the two CPython interpreters have matching abis.
+        # For the purposes of building a wheel from source, the product should be uniqued by the
+        # wheel name which is unique on the host os up to the python and abi tags. In other words,
+        # the product of a CPython 2.7.6 wheel build and a CPython 2.7.18 wheel build should be
+        # functionally interchangeable if the two CPython interpreters have matching abis. However,
+        # this is foiled by at least two scenarios:
+        # 1. Running a vm / container with shared storage mounted. This can introduce a different
+        #    platform on the host.
+        # 2. On macOS the same host can report / use different OS versions (c.f.: the
+        #    MACOSX_DEPLOYMENT_TARGET environment variable and the 10.16 / 11.0 macOS case in
+        #    particular)
         interpreter = build_request.target.get_interpreter()
-        target_tags = "{python_tag}-{abi_tag}".format(
-            python_tag=interpreter.identity.python_tag, abi_tag=interpreter.identity.abi_tag
+        target_tags = "{python_tag}-{abi_tag}-{platform_tag}".format(
+            python_tag=interpreter.identity.python_tag,
+            abi_tag=interpreter.identity.abi_tag,
+            platform_tag=interpreter.identity.platform_tag,
         )
 
         dist_dir = os.path.join(
