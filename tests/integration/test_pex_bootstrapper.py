@@ -263,6 +263,66 @@ def test_ensure_venv_site_packages_copies(
     assert_venv_site_packages_copies(copies=False)
 
 
+def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
+    # type: (Any) -> None
+    other_interpreter = PythonInterpreter.from_binary(
+        ensure_python_interpreter(PY27) if PY_VER != (2, 7) else ensure_python_interpreter(PY37)
+    )
+    current_interpreter = PythonInterpreter.get()
+
+    min_interpreter, max_interpreter = (
+        (other_interpreter, current_interpreter)
+        if other_interpreter.version < current_interpreter.version
+        else (current_interpreter, other_interpreter)
+    )
+    assert min_interpreter.version < max_interpreter.version
+
+    # Try to build a PEX that works for min and max, but only find max locally.
+    pex = os.path.join(str(tmpdir), "pex")
+    run_pex_command(
+        args=[
+            "psutil==5.9.0",
+            "-o",
+            pex,
+            "--python-path",
+            max_interpreter.binary,
+            "--interpreter-constraint",
+            "{python}=={major}.{minor}.*".format(
+                python=max_interpreter.identity.interpreter,
+                major=min_interpreter.version[0],
+                minor=min_interpreter.version[1],
+            ),
+            "--interpreter-constraint",
+            "{python}=={major}.{minor}.*".format(
+                python=max_interpreter.identity.interpreter,
+                major=max_interpreter.version[0],
+                minor=max_interpreter.version[1],
+            ),
+        ]
+    ).assert_success()
+
+    # Now try to run the PEX remotely where both min and max exist.
+    output = subprocess.check_output(
+        args=[min_interpreter.binary, pex, "-c", "import psutil, sys; print(sys.executable)"],
+        env=make_env(PEX_PYTHON_PATH=":".join((min_interpreter.binary, max_interpreter.binary))),
+        stderr=subprocess.PIPE,
+    )
+
+    # N.B.: We expect the max interpreter the PEX was built with to be selected since the
+    # PEX contains a single platform specific distribution that only works with that
+    # interpreter. If the max interpreter is in a venv though, we expect the PEX bootstrap
+    # to have broken out of the venv and used its base system interpreter.
+    # See:
+    #   https://github.com/pantsbuild/pex/pull/1130
+    #   https://github.com/pantsbuild/pex/issues/1031
+    assert (
+        max_interpreter.resolve_base_interpreter()
+        == PythonInterpreter.from_binary(
+            str(output.decode("ascii").strip())
+        ).resolve_base_interpreter()
+    )
+
+
 def test_boot_compatible_issue_1020_no_ic(tmpdir):
     # type: (Any) -> None
 
@@ -352,66 +412,6 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
         ensure_python_interpreter(PY27) if PY_VER != (2, 7) else ensure_python_interpreter(PY37)
     )
     assert_boot(other_interpreter)
-
-
-def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
-    # type: (Any) -> None
-    other_interpreter = PythonInterpreter.from_binary(
-        ensure_python_interpreter(PY27) if PY_VER != (2, 7) else ensure_python_interpreter(PY37)
-    )
-    current_interpreter = PythonInterpreter.get()
-
-    min_interpreter, max_interpreter = (
-        (other_interpreter, current_interpreter)
-        if other_interpreter.version < current_interpreter.version
-        else (current_interpreter, other_interpreter)
-    )
-    assert min_interpreter.version < max_interpreter.version
-
-    # Try to build a PEX that works for min and max, but only find max locally.
-    pex = os.path.join(str(tmpdir), "pex")
-    run_pex_command(
-        args=[
-            "psutil==5.9.0",
-            "-o",
-            pex,
-            "--python-path",
-            max_interpreter.binary,
-            "--interpreter-constraint",
-            "{python}=={major}.{minor}.*".format(
-                python=max_interpreter.identity.interpreter,
-                major=min_interpreter.version[0],
-                minor=min_interpreter.version[1],
-            ),
-            "--interpreter-constraint",
-            "{python}=={major}.{minor}.*".format(
-                python=max_interpreter.identity.interpreter,
-                major=max_interpreter.version[0],
-                minor=max_interpreter.version[1],
-            ),
-        ]
-    ).assert_success()
-
-    # Now try to run the PEX remotely where both min and max exist.
-    output = subprocess.check_output(
-        args=[min_interpreter.binary, pex, "-c", "import psutil, sys; print(sys.executable)"],
-        env=make_env(PEX_PYTHON_PATH=":".join((min_interpreter.binary, max_interpreter.binary))),
-        stderr=subprocess.PIPE,
-    )
-
-    # N.B.: We expect the max interpreter the PEX was built with to be selected since the
-    # PEX contains a single platform specific distribution that only works with that
-    # interpreter. If the max interpreter is in a venv though, we expect the PEX bootstrap
-    # to have broken out of the venv and used its base system interpreter.
-    # See:
-    #   https://github.com/pantsbuild/pex/pull/1130
-    #   https://github.com/pantsbuild/pex/issues/1031
-    assert (
-        max_interpreter.resolve_base_interpreter()
-        == PythonInterpreter.from_binary(
-            str(output.decode("ascii").strip())
-        ).resolve_base_interpreter()
-    )
 
 
 def test_boot_resolve_fail(
