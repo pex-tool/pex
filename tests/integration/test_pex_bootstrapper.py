@@ -272,7 +272,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
         # type: (Optional[str]) -> None
         args = [python] if python else []
         args.extend([pex, "-c", "import psutil, sys; print(sys.executable)"])
-        output = subprocess.check_output(args=args, stderr=subprocess.PIPE)
+        output = subprocess.check_output(args=args)
 
         # N.B.: We expect the current interpreter the PEX was built with to be selected since the
         # PEX contains a single platform specific distribution that only works with that
