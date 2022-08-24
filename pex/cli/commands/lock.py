@@ -11,16 +11,26 @@ from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
+from pex.common import pluralize
 from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.orderedset import OrderedSet
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.resolve import requirement_options, resolver_options, target_options
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle, Resolved, TargetSystem
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.create import create
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
-from pex.resolve.lockfile.updater import LockUpdater, ResolveUpdateRequest
+from pex.resolve.lockfile.updater import (
+    ArtifactUpdate,
+    FingerprintUpdate,
+    LockUpdater,
+    ResolveUpdateRequest,
+    VersionUpdate,
+)
+from pex.resolve.path_mappings import PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
@@ -32,11 +42,20 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, List, Optional, Tuple, Union
+    from typing import IO, Dict, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
     from pex.third_party import attr
+
+
+class FingerprintMismatch(Enum["FingerprintMismatch.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    IGNORE = Value("ignore")
+    WARN = Value("warn")
+    ERROR = Value("error")
 
 
 class ExportFormat(Enum["ExportFormat.Value"]):
@@ -248,6 +267,36 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "execute the lock update with, the update will fail."
             ),
         )
+
+        update_parser.add_argument(
+            "--pin",
+            action=HandleBoolAction,
+            default=False,
+            type=bool,
+            help=(
+                "When performing the update, pin all projects in the lock to their current "
+                "versions. This is useful to pick up newly published wheels for those projects or "
+                "else switch repositories from the original ones when used in conjunction with any "
+                "of --index, --no-pypi and --find-links."
+            ),
+        )
+
+        update_parser.add_argument(
+            "--fingerprint-mismatch",
+            default=FingerprintMismatch.ERROR,
+            choices=FingerprintMismatch.values(),
+            type=FingerprintMismatch.for_value,
+            help=(
+                "What to do when a lock update would result in at least one artifact fingerprint "
+                "changing: {ignore!r} the mismatch and use the new fingerprint, {warn!r} about the "
+                "mismatch but use the new fingerprint anyway or {error!r} and refuse to use the "
+                "new mismatching fingerprint".format(
+                    ignore=FingerprintMismatch.IGNORE,
+                    warn=FingerprintMismatch.WARN,
+                    error=FingerprintMismatch.ERROR,
+                )
+            ),
+        )
         update_parser.add_argument(
             "-n",
             "--dry-run",
@@ -388,21 +437,25 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         lock_file_path = self.options.lockfile[0]
         return lock_file_path, try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
 
+    def _get_path_mappings(self):
+        # type: () -> PathMappings
+        return resolver_options.get_path_mappings(self.options)
+
     def _dump_lockfile(
         self,
         lock_file,  # type: Lockfile
         output=None,  # type: Optional[IO]
     ):
         # type: (...) -> None
-        path_mappings = resolver_options.get_path_mappings(self.options)
-
         def dump_with_terminating_newline(out):
             # json.dump() does not write the newline terminating the last line, but some
             # JSON linters, and line-based tools in general, expect it, and since these
             # files are intended to be checked in to repos that may enforce this, we oblige.
             self.dump_json(
                 self.options,
-                json_codec.as_json_data(lockfile=lock_file, path_mappings=path_mappings),
+                json_codec.as_json_data(
+                    lockfile=lock_file, path_mappings=self._get_path_mappings()
+                ),
                 out=out,
                 sort_keys=True,
             )
@@ -582,6 +635,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             lock_updater.update(
                 update_requests=update_requests,
                 updates=update_requirements,
+                pin=self.options.pin,
                 assume_manylinux=targets.assume_manylinux,
             )
         )
@@ -590,48 +644,110 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             constraint.project_name: constraint for constraint in lock_file.constraints
         }
         dry_run = self.options.dry_run
+        path_mappings = self._get_path_mappings()
         output = sys.stdout if dry_run is DryRunStyle.DISPLAY else sys.stderr
-        version_updates = []
+        updates = []
+        warnings = []  # type: List[str]
         for resolve_update in lock_update.resolves:
             platform = resolve_update.updated_resolve.platform_tag or "universal"
-            for project_name, version_update in resolve_update.updates.items():
-                if version_update:
-                    version_updates.append(version_update)
-                    if version_update.original:
+            print("Updates for lock generated by {platform}".format(platform=platform), file=output)
+            fingerprint_updates = {}  # type: Dict[ProjectName, Version]
+            for project_name, update in resolve_update.updates.items():
+                if not update:
+                    print(
+                        "  There {tense} no updates for {project_name}".format(
+                            tense="would be" if dry_run else "were",
+                            project_name=project_name,
+                        ),
+                        file=output,
+                    )
+                    continue
+
+                updates.append(update)
+                if isinstance(update, VersionUpdate):
+                    if update.original:
                         print(
-                            "{lead_in} {project_name} from {original_version} to {updated_version} "
-                            "in lock generated by {platform}.".format(
+                            "  {lead_in} {project_name} from {original_version} to "
+                            "{updated_version}".format(
                                 lead_in="Would update" if dry_run else "Updated",
                                 project_name=project_name,
-                                original_version=version_update.original,
-                                updated_version=version_update.updated,
-                                platform=platform,
+                                original_version=update.original,
+                                updated_version=update.updated,
                             ),
                             file=output,
                         )
                     else:
                         print(
-                            "{lead_in} {project_name} {updated_version} to lock generated by "
-                            "{platform}.".format(
+                            "  {lead_in} {project_name} {updated_version}".format(
                                 lead_in="Would add" if dry_run else "Added",
                                 project_name=project_name,
-                                updated_version=version_update.updated,
-                                platform=platform,
+                                updated_version=update.updated,
                             ),
                             file=output,
                         )
                 else:
-                    print(
-                        "There {tense} no updates for {project_name} in lock generated by "
-                        "{platform}.".format(
-                            tense="would be" if dry_run else "were",
+                    message_lines = [
+                        "  {lead_in} {project_name} {version} artifacts:".format(
+                            lead_in="Would update" if dry_run else "Updated",
                             project_name=project_name,
-                            platform=platform,
+                            version=update.version,
+                        )
+                    ]
+                    if update.added:
+                        message_lines.extend(
+                            "    + {added}".format(
+                                added=path_mappings.maybe_canonicalize(artifact.url)
+                            )
+                            for artifact in update.added
+                        )
+                    if update.updated:
+                        if any(
+                            isinstance(change, (FingerprintUpdate, ArtifactUpdate))
+                            for change in update.updated
+                        ):
+                            fingerprint_updates[project_name] = update.version
+                        message_lines.extend(
+                            "    {changed}".format(
+                                changed=path_mappings.maybe_canonicalize(change.render_update())
+                            )
+                            for change in update.updated
+                        )
+                    if update.removed:
+                        message_lines.extend(
+                            "    - {removed}".format(
+                                removed=path_mappings.maybe_canonicalize(artifact.url)
+                            )
+                            for artifact in update.removed
+                        )
+
+                    print("\n".join(message_lines), file=output)
+            if fingerprint_updates:
+                warnings.append(
+                    "Detected fingerprint changes in the following locked {projects} for lock "
+                    "generated by {platform}!\n{ids}".format(
+                        platform=platform,
+                        projects=pluralize(fingerprint_updates, "project"),
+                        ids="\n".join(
+                            "{project_name} {version}".format(
+                                project_name=project_name, version=version
+                            )
+                            for project_name, version in fingerprint_updates.items()
                         ),
-                        file=output,
                     )
-        if not version_updates:
+                )
+
+        if not updates:
             return Ok()
+
+        if warnings:
+            if self.options.fingerprint_mismatch in (
+                FingerprintMismatch.WARN,
+                FingerprintMismatch.ERROR,
+            ):
+                message = "\n".join(warnings)
+                if self.options.fingerprint_mismatch is FingerprintMismatch.ERROR:
+                    return Error(message)
+                pex_warnings.warn(message)
 
         if dry_run:
             return Error() if dry_run is DryRunStyle.CHECK else Ok()
