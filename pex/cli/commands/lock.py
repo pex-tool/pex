@@ -288,7 +288,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             type=FingerprintMismatch.for_value,
             help=(
                 "What to do when a lock update would result in at least one artifact fingerprint "
-                "changing."
+                "changing: {ignore!r} the mismatch and use the new fingerprint, {warn!r} about the "
+                "mismatch but use the new fingerprint anyway or {error!r} and refuse to use the "
+                "new mismatching fingerprint".format(
+                    ignore=FingerprintMismatch.IGNORE,
+                    warn=FingerprintMismatch.WARN,
+                    error=FingerprintMismatch.ERROR,
+                )
             ),
         )
         update_parser.add_argument(
