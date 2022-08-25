@@ -23,7 +23,7 @@ from pex.dist_metadata import (
     requires_python,
 )
 from pex.pex_warnings import PEXWarning
-from pex.pip.tool import get_pip
+from pex.pip.installation import get_pip
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV

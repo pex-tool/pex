@@ -23,7 +23,8 @@ from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip.download_observer import DownloadObserver
-from pex.pip.tool import PackageIndexConfiguration, get_pip
+from pex.pip.installation import get_pip
+from pex.pip.tool import PackageIndexConfiguration
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.downloads import get_downloads_dir
 from pex.resolve.requirement_configuration import RequirementConfiguration

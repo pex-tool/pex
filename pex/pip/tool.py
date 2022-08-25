@@ -10,30 +10,27 @@ import subprocess
 import sys
 from collections import deque
 from tempfile import mkdtemp
-from textwrap import dedent
 
-from pex import dist_metadata, targets, third_party
+from pex import dist_metadata, targets
 from pex.auth import PasswordEntry
-from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
+from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, urlparse
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_376 import Record
 from pex.pep_425 import CompatibilityTags
-from pex.pex import PEX
-from pex.pex_bootstrapper import VenvPex, ensure_venv
+from pex.pex_bootstrapper import VenvPex
 from pex.pip import foreign_platform
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.targets import LocalInterpreter, Target
-from pex.third_party import isolated
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import named_temporary_file
 from pex.variables import ENV
 
 if TYPE_CHECKING:
@@ -138,6 +135,7 @@ class PackageIndexConfiguration(object):
     @classmethod
     def create(
         cls,
+        pip_version=PipVersion.VENDORED,  # type: PipVersionValue
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
         indexes=None,  # type: Optional[Sequence[str]]
         find_links=None,  # type: Optional[Iterable[str]]
@@ -154,6 +152,7 @@ class PackageIndexConfiguration(object):
         isolated = not network_configuration.client_cert
 
         return cls(
+            pip_version=pip_version,
             resolver_version=resolver_version,
             network_configuration=network_configuration,
             args=cls._calculate_args(
@@ -166,6 +165,7 @@ class PackageIndexConfiguration(object):
 
     def __init__(
         self,
+        pip_version,  # type: PipVersionValue
         resolver_version,  # type: ResolverVersion.Value
         network_configuration,  # type: NetworkConfiguration
         args,  # type: Iterable[str]
@@ -174,6 +174,7 @@ class PackageIndexConfiguration(object):
         password_entries=(),  # type: Iterable[PasswordEntry]
     ):
         # type: (...) -> None
+        self.pip_version = pip_version  # type: PipVersionValue
         self.resolver_version = resolver_version  # type: ResolverVersion.Value
         self.network_configuration = network_configuration  # type: NetworkConfiguration
         self.args = tuple(args)  # type: Iterable[str]
@@ -231,51 +232,6 @@ class Pip(object):
         with open(os.path.join(patches_dir, python_file), "wb") as code_fp:
             code_fp.write(code.encode("utf-8"))
         return {"PEX_EXTRA_SYS_PATH": patches_dir, cls._PATCHES_MODULE_ENV_VAR_NAME: patches_module}
-
-    @classmethod
-    def create(
-        cls,
-        path,  # type: str
-        interpreter=None,  # type: Optional[PythonInterpreter]
-    ):
-        # type: (...) -> Pip
-        """Creates a pip tool with PEX isolation at path.
-
-        :param path: The path to assemble the pip tool at.
-        :param interpreter: The interpreter to run Pip with. The current interpreter by default.
-        :return: The path of a PEX that can be used to execute Pip in isolation.
-        """
-        pip_interpreter = interpreter or PythonInterpreter.get()
-        pip_pex_path = os.path.join(path, isolated().pex_hash)
-        with atomic_directory(pip_pex_path, exclusive=True) as chroot:
-            if not chroot.is_finalized():
-                from pex.pex_builder import PEXBuilder
-
-                isolated_pip_builder = PEXBuilder(path=chroot.work_dir)
-                isolated_pip_builder.info.venv = True
-                for dist_location in third_party.expose(["pip", "setuptools", "wheel"]):
-                    isolated_pip_builder.add_dist_location(dist=dist_location)
-                with named_temporary_file(prefix="", suffix=".py", mode="w") as fp:
-                    fp.write(
-                        dedent(
-                            """\
-                            import os
-                            import runpy
-                            
-                            patches_module = os.environ.pop({patches_module_env_var_name!r}, None)
-                            if patches_module:
-                                # Apply runtime patches to Pip to work around issues or else bend
-                                # Pip to Pex's needs.
-                                __import__(patches_module)
-                            
-                            runpy.run_module(mod_name="pip", run_name="__main__", alter_sys=True)
-                            """
-                        ).format(patches_module_env_var_name=cls._PATCHES_MODULE_ENV_VAR_NAME)
-                    )
-                    fp.close()
-                    isolated_pip_builder.set_executable(fp.name, "__pex_patched_pip__.py")
-                isolated_pip_builder.freeze()
-        return cls(ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter)))
 
     _pip_pex = attr.ib()  # type: VenvPex
 
@@ -539,11 +495,11 @@ class Pip(object):
         if log_analyzers:
             prefix = "pex-pip-log."
             log = os.path.join(
-                mkdtemp(prefix) if preserve_log else safe_mkdtemp(prefix=prefix), "pip.log"
+                mkdtemp(prefix=prefix) if preserve_log else safe_mkdtemp(prefix=prefix), "pip.log"
             )
             if preserve_log:
                 TRACER.log(
-                    "Preserving `pip download` log at {log_path}.".format(log_path=log),
+                    "Preserving `pip download` log at {log_path}".format(log_path=log),
                     V=ENV.PEX_VERBOSE,
                 )
 
@@ -742,16 +698,3 @@ class Pip(object):
         return self._spawn_pip_isolated_job(
             debug_command, pip_verbosity=1, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-
-
-_PIP = {}  # type: Dict[Optional[PythonInterpreter], Pip]
-
-
-def get_pip(interpreter=None):
-    # type: (Optional[PythonInterpreter]) -> Pip
-    """Returns a lazily instantiated global Pip object that is safe for un-coordinated use."""
-    pip = _PIP.get(interpreter)
-    if pip is None:
-        pip = Pip.create(path=os.path.join(ENV.PEX_ROOT, "pip.pex"), interpreter=interpreter)
-        _PIP[interpreter] = pip
-    return pip

@@ -8,7 +8,8 @@ from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
 from pex.compatibility import unquote, urlparse
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
-from pex.pip.tool import PackageIndexConfiguration, Pip, get_pip
+from pex.pip.installation import get_pip
+from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.resolve import locker
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, LockStyle
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact

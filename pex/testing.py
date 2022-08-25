@@ -29,7 +29,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.pip.tool import get_pip
+from pex.pip.installation import get_pip
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file

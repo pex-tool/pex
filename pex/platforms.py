@@ -212,7 +212,7 @@ class Platform(object):
     ):
         # type: (...) -> Iterator[tags.Tag]
         from pex.jobs import SpawnedJob
-        from pex.pip.tool import get_pip
+        from pex.pip.installation import get_pip
 
         def parse_tags(output):
             # type: (bytes) -> Iterator[tags.Tag]

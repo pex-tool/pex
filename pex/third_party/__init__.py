@@ -18,7 +18,7 @@ from collections import OrderedDict, namedtuple
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Container, Optional, Tuple
+    from typing import Container, Iterator, Optional, Sequence, Tuple
 
 
 def _tracer():
@@ -521,14 +521,14 @@ def install(root=None, expose=None):
 
 
 def expose(dists):
+    # type: (Sequence[str]) -> Iterator[str]
     """Exposes vendored code in isolated chroots.
 
-    Any vendored distributions listed in ``dists`` will be unpacked to individual chroots for addition
-    to the ``sys.path``; ie: ``expose(['setuptools', 'wheel'])`` will unpack these vendored
+    Any vendored distributions listed in ``dists`` will be unpacked to individual chroots for
+    addition to the ``sys.path``; ie: ``expose(['setuptools', 'wheel'])`` will unpack these vendored
     distributions and yield the two chroot paths they were unpacked to.
 
-    :param dists: A list of vendored distribution names to expose.
-    :type dists: list of str
+    :param dists: A sequence of vendored distribution names to expose.
     :raise: :class:`ValueError` if any distributions to expose cannot be found.
     :returns: An iterator of exposed vendored distribution chroot paths.
     """

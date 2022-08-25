@@ -8,7 +8,7 @@ import subprocess
 import pytest
 
 from pex.common import temporary_dir
-from pex.pip.tool import get_pip
+from pex.pip.installation import get_pip
 from pex.testing import IS_PYPY, PY_VER, run_pex_command
 
 

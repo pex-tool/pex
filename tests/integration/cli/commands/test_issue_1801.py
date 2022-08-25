@@ -17,7 +17,7 @@ def test_preserve_pip_download_log():
     result = run_pex3("lock", "create", "ansicolors==1.1.8", "--preserve-pip-download-log")
     result.assert_success()
 
-    match = re.search(r"^pex: Preserving `pip download` log at (?P<log_path>.*)\.$", result.error)
+    match = re.search(r"^pex: Preserving `pip download` log at (?P<log_path>.*)$", result.error)
     assert match is not None
     log_path = match.group("log_path")
     assert os.path.exists(log_path)
