@@ -407,9 +407,10 @@ def _populate_sources(
                     "PEX_EMIT_WARNINGS",
                     # This is used by the vendoring system.
                     "__PEX_UNVENDORED__",
-                    # This is _not_ used (it is ignored), but it's present under CI and simplest to
-                    # add an exception for here and not warn about in CI runs.
+                    # These are _not_ used at runtime, but are present under CI and simplest to add
+                    # an exception for here and not warn about in CI runs.
                     "_PEX_TEST_PYENV_ROOT",
+                    "_PEX_PIP_VERSION",
                     # This is used by Pex's Pip to inject runtime patches dynamically.
                     "_PEX_PIP_RUNTIME_PATCHES",
                     # These are used by Pex's Pip venv to provide foreign platform support and work

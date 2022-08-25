@@ -22,54 +22,38 @@ jobs:
       - name: Noop
         run: "true"
   checks:
-    name:  TOXENV=${{ matrix.tox-env }}
+    name:  TOXENV=format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
     needs: org-check
     runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        include:
-          - check-name: Formatting
-            python-version: "3.10"
-            tox-env: format-check
-            fetch-depth: 1
-          - check-name: Types
-            # N.B.: Python 3.10.6 introduces support for parenthesized context managers which
-            # breaks typechecking against --python-version 2.7 and so we pin low.
-            python-version: "3.10.5"
-            tox-env: typecheck
-            fetch-depth: 1
-          - check-name: Vendoring
-            python-version: "3.8"
-            tox-env: vendor-check
-            fetch-depth: 1
-          - check-name: Packaging
-            python-version: "3.10"
-            tox-env: package -- --additional-format sdist --additional-format wheel
-            # We need branches and tags since package leans on `git describe`. Passing 0 gets us
-            # complete history.
-            fetch-depth: 0
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v2
         with:
-          fetch-depth: ${{ matrix.fetch-depth }}
-      - name: Setup Python ${{ matrix.python-version }}
+          # We need branches and tags since package leans on `git describe`. Passing 0 gets us
+          # complete history.
+          fetch-depth: 0
+      - name: Setup Python 3.8
         uses: actions/setup-python@v3
         with:
-          python-version: "${{ matrix.python-version }}"
-      - name: Check ${{ matrix.check-name }}
+          # We need to keep Python 3.8 for consistent vendoring with tox.
+          python-version: "3.8"
+      - name: Check Formatting, Types, Vendoring and Packaging
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: ${{ matrix.tox-env }}
+          tox-env: format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
   cpython-unit-tests:
-    name: (${{ matrix.os }}) TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
+    name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
     needs: org-check
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11, "0-rc.1"]]
         os: [ubuntu-20.04, macos-11]
+        pip-version: ["20", "22"]
         exclude:
+          - os: macos-11
+            python-version: [2, 7]
+            pip-version: "22"
           - os: macos-11
             python-version: [3, 5]
           - os: macos-11
@@ -81,7 +65,28 @@ jobs:
           - os: macos-11
             python-version: [3, 9]
           - os: macos-11
+            python-version: [3, 10]
+            pip-version: "20"
+          - os: macos-11
             python-version: [3, 11, "0-rc.1"]
+          - os: ubuntu-20.04
+            python-version: [3, 5]
+            pip-version: "22"
+          - os: ubuntu-20.04
+            python-version: [3, 6]
+            pip-version: "22"
+          - os: ubuntu-20.04
+            python-version: [3, 7]
+            pip-version: "20"
+          - os: ubuntu-20.04
+            python-version: [3, 8]
+            pip-version: "20"
+          - os: ubuntu-20.04
+            python-version: [3, 9]
+            pip-version: "20"
+          - os: ubuntu-20.04
+            python-version: [3, 11, "0-rc.1"]
+            pip-version: "20"
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -109,14 +114,18 @@ jobs:
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
+          tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   pypy-unit-tests:
-    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ join(matrix.pypy-version, '') }}
+    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
     runs-on: ubuntu-20.04
     strategy:
       matrix:
         pypy-version: [[2, 7], [3, 9]]
+        pip-version: ["20", "22"]
+        exclude:
+          - pypy-version: [2, 7]
+            pip-version: "22"
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -144,18 +153,25 @@ jobs:
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: pypy${{ join(matrix.pypy-version, '') }}
+          tox-env: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}
   cpython-integration-tests:
-    name: (${{ matrix.os }}) TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
+    name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
     needs: org-check
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         python-version: [[2, 7], [3, 10], [3, 11, "0-rc.1"]]
         os: [ubuntu-20.04, macos-11]
+        pip-version: ["20", "22"]
         exclude:
           - os: macos-11
             python-version: [3, 11, "0-rc.1"]
+          - os: macos-11
+            python-version: [2, 7]
+            pip-version: "22"
+          - os: ubuntu-20.04
+            python-version: [3, 11, "0-rc.1"]
+            pip-version: "22"
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -186,14 +202,18 @@ jobs:
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
+          tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   pypy-integration-tests:
-    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
+    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
     runs-on: ubuntu-20.04
     strategy:
       matrix:
         pypy-version: [[2, 7], [3, 9]]
+        pip-version: ["20", "22"]
+        exclude:
+          - pypy-version: [2, 7]
+            pip-version: "22"
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -228,7 +248,7 @@ jobs:
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
-          tox-env: pypy${{ join(matrix.pypy-version, '') }}-integration
+          tox-env: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}-integration
   final-status:
     name: Gather Final Status
     needs:
