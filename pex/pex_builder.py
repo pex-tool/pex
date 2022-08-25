@@ -13,6 +13,7 @@ from pex.common import (
     Chroot,
     atomic_directory,
     chmod_plus_x,
+    filter_pyc_files,
     is_pyc_temporary_file,
     safe_copy,
     safe_delete,
@@ -586,8 +587,8 @@ class PEXBuilder(object):
             if root == package_root:
                 dirs[:] = bootstrap_packages
 
-            for f in files:
-                if f.endswith((".pyc", "testing.py")):
+            for f in filter_pyc_files(files):
+                if f.endswith("testing.py"):
                     continue
                 abs_src = os.path.join(root, f)
                 with open(abs_src, "rb") as fp:
