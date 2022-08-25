@@ -33,6 +33,7 @@ from pex.pex_bootstrapper import ensure_venv
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve import requirement_options, resolver_options, target_configuration, target_options
+from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.lock_resolver import resolve_from_lock
 from pex.resolve.pex_repository_resolver import resolve_from_pex
@@ -658,6 +659,7 @@ def build_pex(
                             build_isolation=pip_configuration.build_isolation,
                             compile=options.compile,
                             max_parallel_jobs=pip_configuration.max_jobs,
+                            pip_version=lock.pip_version,
                         )
                     )
             elif isinstance(resolver_configuration, PexRepositoryConfiguration):
@@ -699,6 +701,8 @@ def build_pex(
                         max_parallel_jobs=resolver_configuration.max_jobs,
                         ignore_errors=options.ignore_errors,
                         preserve_log=resolver_configuration.preserve_log,
+                        pip_version=resolver_configuration.version,
+                        resolver=ConfiguredResolver(pip_configuration=resolver_configuration),
                     )
 
             for installed_dist in result.installed_distributions:
@@ -770,6 +774,10 @@ def main(args=None):
                 die(str(e))
             except target_configuration.InterpreterConstraintsNotSatisfied as e:
                 die(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
+
+            resolver_configuration = finalize_resolve_config(
+                resolver_configuration, targets, context="PEX building"
+            )
 
             sys.exit(
                 catch(

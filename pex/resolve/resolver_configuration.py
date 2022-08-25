@@ -9,6 +9,7 @@ from pex.auth import PasswordEntry
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.network_configuration import NetworkConfiguration
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -73,6 +74,8 @@ class PipConfiguration(object):
     transitive = attr.ib(default=True)  # type: bool
     max_jobs = attr.ib(default=DEFAULT_MAX_JOBS)  # type: int
     preserve_log = attr.ib(default=False)  # type: bool
+    version = attr.ib(default=PipVersion.VENDORED)  # type: PipVersionValue
+    allow_version_fallback = attr.ib(default=False)  # type: bool
 
 
 @attr.s(frozen=True)

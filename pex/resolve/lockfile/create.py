@@ -11,6 +11,7 @@ from pex import hashing, resolver
 from pex.auth import PasswordDatabase
 from pex.common import pluralize, safe_mkdtemp
 from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
+from pex.fetcher import URLFetcher
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
@@ -30,6 +31,7 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.locker import Locker
 from pex.resolve.lockfile.download_manager import DownloadManager
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Pin, ResolvedRequirement
 from pex.resolve.resolver_configuration import PipConfiguration
@@ -141,9 +143,17 @@ class LockObserver(ResolveObserver):
     ):
         # type: (...) -> DownloadObserver
         patch = locker.patch(
+            pip_version=self.package_index_configuration.pip_version,
             resolver=self.resolver,
             lock_configuration=self.lock_configuration,
             download_dir=download_dir,
+            fingerprint_service=FingerprintService.create(
+                url_fetcher=URLFetcher(
+                    network_configuration=self.package_index_configuration.network_configuration,
+                    password_entries=self.package_index_configuration.password_entries,
+                ),
+                max_parallel_jobs=self.max_parallel_jobs,
+            ),
         )
         self._analysis.add(
             _LockAnalysis(target=target, analyzer=patch.analyzer, download_dir=download_dir)
@@ -202,7 +212,9 @@ class LockObserver(ResolveObserver):
                 dist_metadatas=dist_metadatas_by_target[target],
                 fingerprinter=ArtifactDownloader(
                     resolver=self.resolver,
+                    target=target,
                     package_index_configuration=self.package_index_configuration,
+                    max_parallel_jobs=self.max_parallel_jobs,
                 ),
                 platform_tag=None
                 if self.lock_configuration.style == LockStyle.UNIVERSAL
@@ -229,6 +241,7 @@ def create(
     )
 
     package_index_configuration = PackageIndexConfiguration.create(
+        pip_version=pip_configuration.version,
         resolver_version=pip_configuration.resolver_version,
         network_configuration=network_configuration,
         find_links=pip_configuration.repos_configuration.find_links,
@@ -247,6 +260,8 @@ def create(
             prefer_older_binary=pip_configuration.prefer_older_binary,
             use_pep517=pip_configuration.use_pep517,
             build_isolation=pip_configuration.build_isolation,
+            pip_version=pip_configuration.version,
+            resolver=configured_resolver,
         ),
         package_index_configuration=package_index_configuration,
         max_parallel_jobs=pip_configuration.max_jobs,
@@ -283,6 +298,8 @@ def create(
             observer=lock_observer,
             dest=download_dir,
             preserve_log=pip_configuration.preserve_log,
+            pip_version=pip_configuration.version,
+            resolver=configured_resolver,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
@@ -301,6 +318,7 @@ def create(
         style=lock_configuration.style,
         requires_python=lock_configuration.requires_python,
         target_systems=lock_configuration.target_systems,
+        pip_version=pip_configuration.version,
         resolver_version=pip_configuration.resolver_version,
         requirements=parsed_requirements,
         constraints=constraints,
@@ -342,6 +360,7 @@ def create(
                     build_isolation=pip_configuration.build_isolation,
                     transitive=pip_configuration.transitive,
                     max_parallel_jobs=pip_configuration.max_jobs,
+                    pip_version=pip_configuration.version,
                 )
             )
 

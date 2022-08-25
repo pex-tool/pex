@@ -75,11 +75,10 @@ class PipVersion(Enum["PipVersionValue"]):
     )
 
     v22_2_2 = PipVersionValue(
-        # TODO(John Sirois): Consider exposing pip version via an env var since changing that is
-        #  advanced.
         version="22.2.2",
         # TODO(John Sirois): Expose setuptools and wheel version flags - these don't affect
-        #  Pex; so we should allow folks to experiment with upgrade easily.
+        #  Pex; so we should allow folks to experiment with upgrade easily:
+        #  https://github.com/pantsbuild/pex/issues/1895
         setuptools_version="65.3.0",
         wheel_version="0.37.1",
         requires_python=">=3.7",

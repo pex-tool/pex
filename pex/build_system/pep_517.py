@@ -11,6 +11,7 @@ from textwrap import dedent
 from pex import third_party
 from pex.build_system.pep_518 import BuildSystem, load_build_system
 from pex.dist_metadata import Distribution
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.resolvers import Resolver
 from pex.result import Error
 from pex.tracer import TRACER
@@ -18,35 +19,53 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Optional, Union
+    from typing import Dict, Union
 
 _DEFAULT_BUILD_BACKEND = "setuptools.build_meta:__legacy__"
-_DEFAULT_REQUIRES = ["setuptools"]
-_DEFAULT_BUILD_SYSTEM = None  # type: Optional[BuildSystem]
+_DEFAULT_BUILD_SYSTEMS = {}  # type: Dict[PipVersionValue, BuildSystem]
 
 
-def _default_build_system():
-    # type: () -> BuildSystem
-    global _DEFAULT_BUILD_SYSTEM
-    if _DEFAULT_BUILD_SYSTEM is None:
+def _default_build_system(
+    pip_version,  # type: PipVersionValue
+    resolver,  # type: Resolver
+):
+    # type: (...) -> BuildSystem
+    global _DEFAULT_BUILD_SYSTEMS
+    build_system = _DEFAULT_BUILD_SYSTEMS.get(pip_version)
+    if build_system is None:
         with TRACER.timed(
             "Building {build_backend} build_backend PEX".format(
                 build_backend=_DEFAULT_BUILD_BACKEND
             )
         ):
-            _DEFAULT_BUILD_SYSTEM = BuildSystem.create(
-                requires=_DEFAULT_REQUIRES,
-                resolved=tuple(
+            extra_env = {}  # type: Dict[str, str]
+            if pip_version is PipVersion.VENDORED:
+                requires = ["setuptools"]
+                resolved = tuple(
                     Distribution.load(dist_location)
-                    for dist_location in third_party.expose(_DEFAULT_REQUIRES)
-                ),
+                    for dist_location in third_party.expose(requires)
+                )
+                extra_env.update(__PEX_UNVENDORED__="1")
+            else:
+                requires = [pip_version.setuptools_requirement]
+                resolved = tuple(
+                    installed_distribution.fingerprinted_distribution.distribution
+                    for installed_distribution in resolver.resolve_requirements(
+                        requires
+                    ).installed_distributions
+                )
+            build_system = BuildSystem.create(
+                requires=requires,
+                resolved=resolved,
                 build_backend=_DEFAULT_BUILD_BACKEND,
-                __PEX_UNVENDORED__="1",
+                **extra_env
             )
-    return _DEFAULT_BUILD_SYSTEM
+            _DEFAULT_BUILD_SYSTEMS[pip_version] = build_system
+    return build_system
 
 
 def _get_build_system(
+    pip_version,  # type: PipVersionValue
     resolver,  # type: Resolver
     project_directory,  # type: str
 ):
@@ -54,12 +73,13 @@ def _get_build_system(
     custom_build_system_or_error = load_build_system(resolver, project_directory)
     if custom_build_system_or_error:
         return custom_build_system_or_error
-    return _default_build_system()
+    return _default_build_system(pip_version=pip_version, resolver=resolver)
 
 
 def build_sdist(
     project_directory,  # type: str
     dist_dir,  # type: str
+    pip_version,  # type: PipVersionValue
     resolver,  # type: Resolver
 ):
     # type: (...) -> Union[str, Error]
@@ -76,7 +96,7 @@ def build_sdist(
             )
         )
 
-    build_system_or_error = _get_build_system(resolver, project_directory)
+    build_system_or_error = _get_build_system(pip_version, resolver, project_directory)
     if isinstance(build_system_or_error, Error):
         return build_system_or_error
     build_system = build_system_or_error

@@ -62,6 +62,7 @@ class ConfiguredResolver(Resolver):
                 transitive=self.pip_configuration.transitive,
                 verify_wheels=True,
                 max_parallel_jobs=self.pip_configuration.max_jobs,
+                pip_version=pip_version or self.pip_configuration.version,
             )
         )
 
@@ -91,4 +92,6 @@ class ConfiguredResolver(Resolver):
             max_parallel_jobs=self.pip_configuration.max_jobs,
             ignore_errors=False,
             verify_wheels=True,
+            pip_version=pip_version or self.pip_configuration.version,
+            resolver=self,
         )

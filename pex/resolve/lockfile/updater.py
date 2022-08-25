@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import itertools
 import logging
 import os
 from collections import OrderedDict
@@ -392,6 +391,7 @@ class LockUpdater(object):
             target_systems=lock_file.target_systems,
         )
         pip_configuration = PipConfiguration(
+            version=lock_file.pip_version,
             resolver_version=lock_file.resolver_version,
             allow_prereleases=lock_file.allow_prereleases,
             allow_wheels=lock_file.allow_wheels,

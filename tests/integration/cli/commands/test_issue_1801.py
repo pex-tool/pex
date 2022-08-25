@@ -17,7 +17,9 @@ def test_preserve_pip_download_log():
     result = run_pex3("lock", "create", "ansicolors==1.1.8", "--preserve-pip-download-log")
     result.assert_success()
 
-    match = re.search(r"^pex: Preserving `pip download` log at (?P<log_path>.*)$", result.error)
+    match = re.search(
+        r"^pex: Preserving `pip download` log at (?P<log_path>.*)$", result.error, re.MULTILINE
+    )
     assert match is not None
     log_path = match.group("log_path")
     assert os.path.exists(log_path)
@@ -29,11 +31,15 @@ def test_preserve_pip_download_log():
     expected_algorithm = "sha256"
     expected_hash = "00d2dde5a675579325902536738dd27e4fac1fd68f773fe36c21044eb559e187"
     with open(log_path) as fp:
-        assert (
-            "Added ansicolors==1.1.8 from {url}#{algorithm}={hash} to build tracker".format(
-                url=expected_url, algorithm=expected_algorithm, hash=expected_hash
-            )
-            in fp.read()
+        # N.B.: Modern Pip excludes hashes from logged URLs when the index serves up PEP-691 json
+        # responses.
+        assert re.search(
+            r"Added ansicolors==1\.1\.8 from {url}(?:#{algorithm}={hash})? to build tracker".format(
+                url=re.escape(expected_url),
+                algorithm=re.escape(expected_algorithm),
+                hash=re.escape(expected_hash),
+            ),
+            fp.read(),
         )
 
     lockfile = json_codec.loads(result.output)
@@ -70,4 +76,4 @@ def test_preserve_pip_download_log_none():
     assert (
         "pex: The `pip download` log is not being utilized, to see more `pip download` details, "
         "re-run with more Pex verbosity (more `-v`s).\n"
-    ) == result.error
+    ) in result.error

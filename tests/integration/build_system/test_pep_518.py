@@ -5,8 +5,10 @@ import os.path
 import subprocess
 
 from pex.build_system.pep_518 import BuildSystem, load_build_system
+from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
+from pex.targets import LocalInterpreter
 from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -20,7 +22,15 @@ def test_load_build_system_pyproject_custom_repos(
 ):
     # type: (...) -> None
 
-    build_system = load_build_system(ConfiguredResolver.default(), pex_project_dir)
+    pip_version = (
+        PipVersion.v22_2_2
+        if PipVersion.v22_2_2.requires_python_applies(LocalInterpreter.create())
+        else PipVersion.VENDORED
+    )
+    build_system = load_build_system(
+        ConfiguredResolver(PipConfiguration(version=pip_version)),
+        pex_project_dir,
+    )
     assert isinstance(build_system, BuildSystem)
 
     # Verify that we can still resolve a build backend even when our toml lock is unuseable.
@@ -37,7 +47,9 @@ def test_load_build_system_pyproject_custom_repos(
 
     repos_configuration = ReposConfiguration.create(find_links=[find_links])
     assert not repos_configuration.indexes
-    custom_resolver = ConfiguredResolver(PipConfiguration(repos_configuration=repos_configuration))
+    custom_resolver = ConfiguredResolver(
+        PipConfiguration(repos_configuration=repos_configuration, version=pip_version)
+    )
     build_system = load_build_system(custom_resolver, pex_project_dir)
     assert isinstance(build_system, BuildSystem)
     subprocess.check_call(

@@ -84,9 +84,8 @@ def test_fingerprint_stability(
     assert re.search(
         r"There was 1 error downloading required artifacts:\n"
         r"1\. ansicolors 1\.1\.8 from file://{project_dir}\n"
-        r"    Expected sha256 hash of "
-        r"fca533d24ea5fc1b0fc8bc10ee146535bddda1c40c85510544c5766cef4d10b6 when downloading "
-        r"ansicolors but hashed to ".format(project_dir=ansicolors_1_1_8),
+        r"    Expected sha256 hash of [a-f0-9]+ when downloading "
+        r"ansicolors but hashed to [a-f0-9]+".format(project_dir=ansicolors_1_1_8),
         result.error,
     ), result.error
 

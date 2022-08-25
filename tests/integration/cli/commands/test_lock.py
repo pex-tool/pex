@@ -17,6 +17,7 @@ from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import Artifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.download_manager import DownloadedArtifact
@@ -288,7 +289,7 @@ def test_create_universal_platform_check(tmpdir):
                 Cannot ignore wheels (use_wheel=False) when resolving for a platform: given abbreviated platform cp310-cp310-linux_x86_64
             """
         )
-        == result.error
+        in result.error
     )
     run_pex3(
         "lock",
@@ -370,7 +371,7 @@ def test_create_universal_platform_check(tmpdir):
                 https://files.pythonhosted.org/packages/fd/ba/c5a3f46f351ab609cc0be6a563e492900c57e3d5c9bda0b79b84d8c3eae9/psutil-5.9.1-cp38-cp38-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl
             """
         )
-        == result.error
+        in result.error
     )
 
 
@@ -527,8 +528,8 @@ def run_lock_update_for_py310(
     **popen_kwargs  # type: Any
 ):
     # type: (...) -> IntegResults
-    py38 = ensure_py310()
-    return run_lock_update("--python", py38, *args, **popen_kwargs)
+    py310 = ensure_py310()
+    return run_lock_update("--python", py310, *args, **popen_kwargs)
 
 
 def test_update_noop(lock_file_path):
@@ -817,12 +818,32 @@ def test_update_targeted_impossible(
         ),
         error_lines[7],
     )
-    assert [
-        "ERROR: Could not find a version that satisfies the requirement urllib3<1.27,>=1.21.1 "
-        "(from requests)",
-        "ERROR: No matching distribution found for urllib3<1.27,>=1.21.1",
-        "",
-    ] == error_lines[8:]
+    assert (
+        [
+            "ERROR: Could not find a version that satisfies the requirement urllib3<1.27,>=1.21.1 "
+            "(from requests)",
+            "ERROR: No matching distribution found for urllib3<1.27,>=1.21.1",
+            "",
+        ]
+        if json_codec.load(lock_file_path).pip_version == PipVersion.v20_3_4_patched
+        else [
+            "ERROR: Cannot install requests==2.26.0 because these package versions have "
+            "conflicting dependencies.",
+            "ERROR: ResolutionImpossible: for help visit "
+            "https://pip.pypa.io/en/latest/topics/dependency-resolution/"
+            "#dealing-with-dependency-conflicts",
+            " ",
+            " The conflict is caused by:",
+            "     requests 2.26.0 depends on urllib3<1.27 and >=1.21.1",
+            "     The user requested (constraint) urllib3<1.16",
+            " ",
+            " To fix this you could try to:",
+            " 1. loosen the range of package versions you've specified",
+            " 2. remove package versions to allow pip attempt to solve the dependency " "conflict",
+            "",
+        ]
+        == error_lines[8:]
+    )
 
     # The pip legacy resolver, though is not strict and will let us get away with this.
     updated_lock_file_path = os.path.join(str(tmpdir), "lock.updated")
@@ -886,12 +907,33 @@ def test_update_add_impossible(
         ),
         error_lines[7],
     )
-    assert [
-        "ERROR: Could not find a version that satisfies the requirement certifi<2017.4.17 "
-        "(from conflicting-certifi-requirement)",
-        "ERROR: No matching distribution found for certifi<2017.4.17",
-        "",
-    ] == error_lines[8:]
+    assert (
+        [
+            "ERROR: Could not find a version that satisfies the requirement certifi<2017.4.17 "
+            "(from conflicting-certifi-requirement)",
+            "ERROR: No matching distribution found for certifi<2017.4.17",
+            "",
+        ]
+        if json_codec.load(lock_file_path).pip_version == PipVersion.v20_3_4_patched
+        else [
+            "ERROR: Cannot install conflicting-certifi-requirement==1.2.3 and requests==2.26.0 "
+            "because these package versions have conflicting dependencies.",
+            "ERROR: ResolutionImpossible: for help visit "
+            "https://pip.pypa.io/en/latest/topics/dependency-resolution/"
+            "#dealing-with-dependency-conflicts",
+            " ",
+            " The conflict is caused by:",
+            "     requests 2.26.0 depends on certifi>=2017.4.17",
+            "     conflicting-certifi-requirement 1.2.3 depends on certifi<2017.4.17",
+            "     The user requested (constraint) certifi==2021.5.30",
+            " ",
+            " To fix this you could try to:",
+            " 1. loosen the range of package versions you've specified",
+            " 2. remove package versions to allow pip attempt to solve the dependency " "conflict",
+            "",
+        ]
+        == error_lines[8:]
+    )
 
     # The pip legacy resolver, though is not strict and will let us get away with this.
     updated_lock_file_path = os.path.join(str(tmpdir), "lock.updated")
@@ -1006,15 +1048,22 @@ def test_update_partial(tmpdir):
         lock_file_path,
     )
     result.assert_failure()
-    assert [
-        (
-            "This lock update is --strict but the following platforms present in {lock_file_path} "
-            "were not found on the local machine:".format(lock_file_path=lock_file_path)
-        ),
-        "+ cp37-cp37m-manylinux2014_x86_64",
-        "You might be able to correct this by adjusting target options like --python-path or else "
-        "by relaxing the update to be --non-strict.",
-    ] == result.error.splitlines()
+    assert (
+        "\n".join(
+            [
+                (
+                    "This lock update is --strict but the following platforms present in "
+                    "{lock_file_path} were not found on the local machine:".format(
+                        lock_file_path=lock_file_path
+                    )
+                ),
+                "+ cp37-cp37m-manylinux2014_x86_64",
+                "You might be able to correct this by adjusting target options like --python-path "
+                "or else by relaxing the update to be --non-strict.",
+            ]
+        )
+        in result.error
+    )
 
     result = run_lock_update(
         "--platform",
@@ -1793,4 +1842,7 @@ def test_universal_lock(
     result.assert_success()
     lock = json_codec.loads(result.output)
 
-    assert attr.evolve(expected_lockfile, pex_version=__version__) == lock
+    assert (
+        attr.evolve(expected_lockfile, pex_version=__version__, pip_version=lock.pip_version)
+        == lock
+    )

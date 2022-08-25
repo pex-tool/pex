@@ -6,6 +6,7 @@ import os.path
 from pex.build_system.pep_517 import build_sdist
 from pex.build_system.testing import assert_build_sdist
 from pex.common import touch
+from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.result import Error
 from pex.testing import make_project
@@ -21,7 +22,7 @@ def test_build_sdist_project_directory_dne(tmpdir):
 
     project_dir = os.path.join(str(tmpdir), "project_dir")
     dist_dir = os.path.join(str(tmpdir), "dists")
-    result = build_sdist(project_dir, dist_dir, ConfiguredResolver.default())
+    result = build_sdist(project_dir, dist_dir, PipVersion.VENDORED, ConfiguredResolver.default())
     assert isinstance(result, Error)
     assert str(result).startswith(
         "Project directory {project_dir} does not exist.".format(project_dir=project_dir)
@@ -34,7 +35,7 @@ def test_build_sdist_project_directory_is_file(tmpdir):
     project_dir = os.path.join(str(tmpdir), "project_dir")
     touch(project_dir)
     dist_dir = os.path.join(str(tmpdir), "dists")
-    result = build_sdist(project_dir, dist_dir, ConfiguredResolver.default())
+    result = build_sdist(project_dir, dist_dir, PipVersion.VENDORED, ConfiguredResolver.default())
     assert isinstance(result, Error)
     assert str(result).startswith(
         "Project directory {project_dir} is not a directory.".format(project_dir=project_dir)

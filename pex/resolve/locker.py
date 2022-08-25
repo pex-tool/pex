@@ -20,8 +20,11 @@ from pex.pip.download_observer import DownloadObserver, Patch
 from pex.pip.local_project import fingerprint_local_project
 from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
+from pex.pip.version import PipVersionValue
 from pex.requirements import VCS, VCSScheme, parse_scheme
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle, TargetSystem
+from pex.resolve.pep_691.fingerprint_service import FingerprintService
+from pex.resolve.pep_691.model import Endpoint
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
 from pex.resolve.resolvers import Resolver
 from pex.tracer import TRACER
@@ -50,18 +53,23 @@ class LockResult(object):
 class Locker(LogAnalyzer):
     def __init__(
         self,
+        pip_version,  # type: PipVersionValue
         resolver,  # type: Resolver
         lock_configuration,  # type: LockConfiguration
         download_dir,  # type: str
+        fingerprint_service=None,  # type: Optional[FingerprintService]
     ):
         # type: (...) -> None
+        self._pip_version = pip_version
         self._resolver = resolver
         self._lock_configuration = lock_configuration
         self._download_dir = download_dir
+        self._fingerprint_service = fingerprint_service or FingerprintService()
 
         self._saved = set()  # type: Set[Pin]
 
         self._resolved_requirements = []  # type: List[ResolvedRequirement]
+        self._pep_691_endpoints = set()  # type: Set[Endpoint]
         self._links = defaultdict(OrderedSet)  # type: DefaultDict[Pin, OrderedSet[PartialArtifact]]
         self._done_building_re = None  # type: Optional[Pattern]
         self._source_built_re = None  # type: Optional[Pattern]
@@ -185,7 +193,9 @@ class Locker(LogAnalyzer):
                 pin = Pin(project_name=requirement.project_name, version=Version(version))
 
                 local_project_path = urlparse.urlparse(file_url).path
-                digest = fingerprint_local_project(local_project_path, self._resolver)
+                digest = fingerprint_local_project(
+                    local_project_path, self._pip_version, self._resolver
+                )
                 self._local_projects.add(local_project_path)
                 self._resolved_requirements.append(
                     ResolvedRequirement(
@@ -199,6 +209,20 @@ class Locker(LogAnalyzer):
                     )
                 )
                 self._saved.add(pin)
+            return self.Continue()
+
+        match = re.search(
+            r"Fetched page (?P<index_url>[^\s]+) as (?P<content_type>{content_types})".format(
+                content_types="|".join(
+                    re.escape(content_type) for content_type in self._fingerprint_service.accept
+                )
+            ),
+            line,
+        )
+        if match:
+            self._pep_691_endpoints.add(
+                Endpoint(url=match.group("index_url"), content_type=match.group("content_type"))
+            )
             return self.Continue()
 
         match = re.search(
@@ -277,11 +301,39 @@ class Locker(LogAnalyzer):
 
     def analysis_completed(self):
         # type: () -> None
+        resolved_requirements = [
+            resolved_requirement
+            for resolved_requirement in self._resolved_requirements
+            if resolved_requirement.pin in self._saved
+        ]
+
+        fingerprinted_artifacts = {
+            artifact.url: artifact
+            for artifact in self._fingerprint_service.fingerprint(
+                endpoints=self._pep_691_endpoints,
+                artifacts=tuple(
+                    artifact
+                    for resolved_requirement in resolved_requirements
+                    for artifact in resolved_requirement.iter_artifacts()
+                ),
+            )
+        }
+
+        def maybe_fill_in_fingerprints(resolved_requirement):
+            # type: (ResolvedRequirement) -> ResolvedRequirement
+            return attr.evolve(
+                resolved_requirement,
+                artifact=fingerprinted_artifacts.get(resolved_requirement.artifact.url),
+                additional_artifacts=tuple(
+                    fingerprinted_artifacts.get(artifact.url)
+                    for artifact in resolved_requirement.additional_artifacts
+                ),
+            )
+
         self._lock_result = LockResult(
             resolved_requirements=tuple(
-                resolved_requirement
-                for resolved_requirement in self._resolved_requirements
-                if resolved_requirement.pin in self._saved
+                maybe_fill_in_fingerprints(resolved_requirement)
+                for resolved_requirement in resolved_requirements
             ),
             local_projects=tuple(self._local_projects),
         )
@@ -321,9 +373,11 @@ _PLATFORM_TAG_REGEXP = {
 
 
 def patch(
+    pip_version,  # type: PipVersionValue
     resolver,  # type: Resolver
     lock_configuration,  # type: LockConfiguration
     download_dir,  # type: str
+    fingerprint_service=None,  # type: Optional[FingerprintService]
 ):
     # type: (...) -> DownloadObserver[Locker]
 
@@ -381,7 +435,11 @@ def patch(
 
     return DownloadObserver(
         analyzer=Locker(
-            resolver=resolver, lock_configuration=lock_configuration, download_dir=download_dir
+            pip_version=pip_version,
+            resolver=resolver,
+            lock_configuration=lock_configuration,
+            download_dir=download_dir,
+            fingerprint_service=fingerprint_service,
         ),
         patch=Patch(code=code, env=env),
     )

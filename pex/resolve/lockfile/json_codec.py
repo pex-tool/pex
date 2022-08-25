@@ -10,6 +10,7 @@ from pex.dist_metadata import Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import (
     Artifact,
     LockedRequirement,
@@ -20,7 +21,7 @@ from pex.resolve.locked_resolve import (
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMappings
 from pex.resolve.resolved_requirement import Fingerprint, Pin
-from pex.resolve.resolver_configuration import ResolverVersion
+from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging import tags
 from pex.third_party.packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -72,6 +73,9 @@ def _load_json(
             "The lock file at {source} does not contain valid JSON: "
             "{err}".format(source=source, err=e)
         )
+
+
+_DEFAULT_PIP_CONFIGURATION = PipConfiguration()
 
 
 def loads(
@@ -142,12 +146,14 @@ def loads(
         enum_type,  # type: Type[Enum[_V]]
         key,  # type: str
         path=".",  # type: str
+        default=None,  # type: Optional[_V]
     ):
         # type: (...) -> _V
+        value = get(key, path=path, optional=default is not None)
+        if not value and default:
+            return default
         return parse_enum_value(
-            enum_type=enum_type,
-            value=get(key, path=path),
-            path='{path}["{key}"]'.format(path=path, key=key),
+            enum_type=enum_type, value=value, path='{path}["{key}"]'.format(path=path, key=key)
         )
 
     def parse_requirement(
@@ -295,6 +301,9 @@ def loads(
         style=get_enum_value(LockStyle, "style"),
         requires_python=get("requires_python", list),
         target_systems=target_systems,
+        pip_version=get_enum_value(
+            PipVersion, "pip_version", default=_DEFAULT_PIP_CONFIGURATION.version
+        ),
         resolver_version=get_enum_value(ResolverVersion, "resolver_version"),
         requirements=requirements,
         constraints=constraints,
@@ -334,6 +343,7 @@ def as_json_data(
         "style": str(lockfile.style),
         "requires_python": list(lockfile.requires_python),
         "target_systems": [str(target_system) for target_system in lockfile.target_systems],
+        "pip_version": str(lockfile.pip_version),
         "resolver_version": str(lockfile.resolver_version),
         "requirements": [
             path_mappings.maybe_canonicalize(str(req)) for req in lockfile.requirements

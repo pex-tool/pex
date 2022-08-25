@@ -18,6 +18,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve import requirement_options, resolver_options, target_options
+from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle, Resolved, TargetSystem
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.create import create
@@ -419,7 +420,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 target_configuration=target_configuration,
             )
         )
-        pip_configuration = resolver_options.create_pip_configuration(self.options)
+        pip_configuration = try_(
+            finalize_resolve_config(
+                resolver_configuration=resolver_options.create_pip_configuration(self.options),
+                targets=targets,
+                context="lock creation",
+            )
+        )
         self._dump_lockfile(
             try_(
                 create(
@@ -573,6 +580,19 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 action="updating", style=lock_file.style, target_configuration=target_configuration
             )
         )
+
+        lock_updater = attr.evolve(
+            lock_updater,
+            pip_configuration=try_(
+                finalize_resolve_config(
+                    resolver_configuration=lock_updater.pip_configuration,
+                    targets=targets,
+                    context="lock updating",
+                    pip_version=lock_file.pip_version,
+                )
+            ),
+        )
+
         with TRACER.timed("Selecting locks to update"):
             subset_result = try_(
                 subset(

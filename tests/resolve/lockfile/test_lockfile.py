@@ -73,6 +73,7 @@ LOCK_STYLE_SOURCES = json_codec.loads(
             }
           ],
           "pex_version": "2.1.50",
+          "pip_version": "20.3.4-patched",
           "prefer_older_binary": false,
           "requirements": [
             "p537==1.0.4"

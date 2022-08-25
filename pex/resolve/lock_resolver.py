@@ -20,6 +20,7 @@ from pex.pip.installation import get_pip
 from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.vcs import digest_vcs_archive
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
@@ -35,12 +36,12 @@ from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Installed, Resolver
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
 from pex.result import Error, catch, try_
-from pex.targets import Targets
+from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Optional, Sequence, Union
+    from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple, Union
 
     from pex.hashing import HintedDigest
 
@@ -81,6 +82,8 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         pex_root=None,  # type: Optional[str]
+        pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+        resolver=None,  # type: Optional[Resolver]
     ):
         super(VCSArtifactDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style
@@ -93,6 +96,8 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._cache = cache
         self._use_pep517 = use_pep517
         self._build_isolation = build_isolation
+        self._pip_version = pip_version
+        self._resolver = resolver
 
     def save(
         self,
@@ -117,6 +122,8 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             use_pep517=self._use_pep517,
             build_isolation=self._build_isolation,
             max_parallel_jobs=1,
+            pip_version=self._pip_version,
+            resolver=self._resolver,
         )
         if len(downloaded_vcs.local_distributions) != 1:
             return Error(
@@ -149,13 +156,15 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
     def __init__(
         self,
         file_lock_style,  # type: FileLockStyle.Value
-        build_requires_resolver,  # type: Resolver
+        pip_version,  # type: PipVersionValue
+        resolver,  # type: Resolver
         pex_root=None,  # type: Optional[str]
     ):
         super(LocalProjectDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style
         )
-        self._resolver = build_requires_resolver
+        self._pip_version = pip_version
+        self._resolver = resolver
 
     def save(
         self,
@@ -168,6 +177,7 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
         source_dir_or_error = digest_local_project(
             directory=artifact.directory,
             digest=digest,
+            pip_version=self._pip_version,
             resolver=self._resolver,
             dest_dir=dest_dir,
         )
@@ -177,13 +187,13 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
 
 
 def download_artifact(
-    downloadable_artifact,  # type: DownloadableArtifact
-    file_download_manager,  # type: FileArtifactDownloadManager
+    downloadable_artifact_and_target,  # type: Tuple[DownloadableArtifact, Target]
+    file_download_managers_by_target,  # type: Mapping[Target, FileArtifactDownloadManager]
     vcs_download_manager,  # type: VCSArtifactDownloadManager
     local_project_download_manager,  # type: LocalProjectDownloadManager
 ):
     # type: (...) -> Union[DownloadedArtifact, Error]
-
+    downloadable_artifact, target = downloadable_artifact_and_target
     if isinstance(downloadable_artifact.artifact, VCSArtifact):
         return catch(
             vcs_download_manager.store,
@@ -193,7 +203,7 @@ def download_artifact(
 
     if isinstance(downloadable_artifact.artifact, FileArtifact):
         return catch(
-            file_download_manager.store,
+            file_download_managers_by_target[target].store,
             downloadable_artifact.artifact,
             downloadable_artifact.pin.project_name,
         )
@@ -226,6 +236,7 @@ def resolve_from_lock(
     transitive=True,  # type: bool
     verify_wheels=True,  # type: bool
     max_parallel_jobs=None,  # type: Optional[int]
+    pip_version=PipVersion.VENDORED,  # type: PipVersionValue
 ):
     # type: (...) -> Union[Installed, Error]
 
@@ -245,8 +256,8 @@ def resolve_from_lock(
             transitive=transitive,
         )
     )
-    downloadable_artifacts = OrderedSet(
-        downloadable_artifact
+    downloadable_artifacts_and_targets = OrderedSet(
+        (downloadable_artifact, resolved_subset.target)
         for resolved_subset in subset_result.subsets
         for downloadable_artifact in resolved_subset.resolved.downloadable_artifacts
     )
@@ -258,24 +269,25 @@ def resolve_from_lock(
     # errors under the right interleaving of processes and threads and download artifact targets.
     file_lock_style = FileLockStyle.BSD
 
-    # We eagerly initialize a Pip tool for reasons alluded to above, creation of the Pip tool venv
-    # is not thread-safe and this can lead to errors.
-    pip = get_pip()
-
-    file_download_manager = FileArtifactDownloadManager(
-        file_lock_style=file_lock_style,
-        downloader=ArtifactDownloader(
-            resolver=resolver,
-            pip=pip,
-            package_index_configuration=PackageIndexConfiguration.create(
-                resolver_version=resolver_version,
-                indexes=indexes,
-                find_links=find_links,
-                network_configuration=network_configuration,
-                password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
+    file_download_managers_by_target = {
+        resolved_subset.target: FileArtifactDownloadManager(
+            file_lock_style=file_lock_style,
+            downloader=ArtifactDownloader(
+                resolver=resolver,
+                target=resolved_subset.target,
+                package_index_configuration=PackageIndexConfiguration.create(
+                    pip_version=pip_version,
+                    resolver_version=resolver_version,
+                    indexes=indexes,
+                    find_links=find_links,
+                    network_configuration=network_configuration,
+                    password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
+                ),
+                max_parallel_jobs=max_parallel_jobs,
             ),
-        ),
-    )
+        )
+        for resolved_subset in subset_result.subsets
+    }
 
     vcs_download_manager = VCSArtifactDownloadManager(
         file_lock_style=file_lock_style,
@@ -286,20 +298,23 @@ def resolve_from_lock(
         password_entries=password_entries,
         use_pep517=use_pep517,
         build_isolation=build_isolation,
+        pip_version=pip_version,
+        resolver=resolver,
     )
 
     local_project_download_manager = LocalProjectDownloadManager(
         file_lock_style=file_lock_style,
-        build_requires_resolver=resolver,
+        pip_version=pip_version,
+        resolver=resolver,
     )
 
     max_threads = min(
-        len(downloadable_artifacts) or 1,
+        len(downloadable_artifacts_and_targets) or 1,
         min(MAX_PARALLEL_DOWNLOADS, 4 * (max_parallel_jobs or cpu_count() or 1)),
     )
     with TRACER.timed(
         "Downloading {url_count} distributions to satisfy {requirement_count} requirements".format(
-            url_count=len(downloadable_artifacts),
+            url_count=len(downloadable_artifacts_and_targets),
             requirement_count=len(subset_result.requirements),
         )
     ):
@@ -307,15 +322,18 @@ def resolve_from_lock(
         try:
             download_results = tuple(
                 zip(
-                    downloadable_artifacts,
+                    tuple(
+                        downloadable_artifact
+                        for downloadable_artifact, _ in downloadable_artifacts_and_targets
+                    ),
                     pool.map(
                         functools.partial(
                             download_artifact,
-                            file_download_manager=file_download_manager,
+                            file_download_managers_by_target=file_download_managers_by_target,
                             vcs_download_manager=vcs_download_manager,
                             local_project_download_manager=local_project_download_manager,
                         ),
-                        downloadable_artifacts,
+                        downloadable_artifacts_and_targets,
                     ),
                 )
             )
@@ -386,6 +404,7 @@ def resolve_from_lock(
             install_requests=install_requests,
             direct_requirements=subset_result.requirements,
             package_index_configuration=PackageIndexConfiguration.create(
+                pip_version=pip_version,
                 resolver_version=resolver_version,
                 indexes=indexes,
                 find_links=find_links,
@@ -397,6 +416,8 @@ def resolve_from_lock(
             use_pep517=use_pep517,
             build_isolation=build_isolation,
             verify_wheels=verify_wheels,
+            pip_version=pip_version,
+            resolver=resolver,
         )
         installed_distributions = build_and_install_request.install_distributions(
             # This otherwise checks that resolved distributions all meet internal requirement
