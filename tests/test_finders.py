@@ -10,7 +10,7 @@ from pex.finders import get_entry_point_from_console_script, get_script_from_dis
 from pex.pep_376 import InstalledWheel
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.pip.tool import get_pip
+from pex.pip.installation import get_pip
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

@@ -7,6 +7,7 @@ from abc import abstractmethod
 
 from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
+from pex.pip.version import PipVersionValue
 from pex.resolve.lockfile.model import Lockfile
 from pex.sorted_tuple import SortedTuple
 from pex.targets import Target, Targets
@@ -94,6 +95,7 @@ class Resolver(object):
         self,
         lock,  # type: Lockfile
         targets=Targets(),  # type: Targets
+        pip_version=None,  # type: Optional[PipVersionValue]
     ):
         # type: (...) -> Installed
         raise NotImplementedError()
@@ -102,6 +104,7 @@ class Resolver(object):
         self,
         requirements,  # type: Iterable[str]
         targets=Targets(),  # type: Targets
+        pip_version=None,  # type: Optional[PipVersionValue]
     ):
         # type: (...) -> Installed
         raise NotImplementedError()

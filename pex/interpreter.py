@@ -47,6 +47,7 @@ if TYPE_CHECKING:
         Mapping,
         MutableMapping,
         Optional,
+        Sequence,
         Text,
         Tuple,
         Union,
@@ -1264,7 +1265,7 @@ def spawn_python_job(
     args,  # type: Iterable[str]
     env=None,  # type: Optional[Mapping[str, str]]
     interpreter=None,  # type: Optional[PythonInterpreter]
-    expose=None,  # type: Optional[Iterable[str]]
+    expose=None,  # type: Optional[Sequence[str]]
     pythonpath=None,  # type: Optional[Iterable[str]]
     **subprocess_kwargs  # type: Any
 ):

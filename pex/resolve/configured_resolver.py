@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 from pex import resolver
+from pex.pip.version import PipVersionValue
 from pex.resolve import lock_resolver
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
@@ -13,7 +14,7 @@ from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable
+    from typing import Iterable, Optional
 
     import attr  # vendor:skip
 else:
@@ -39,8 +40,10 @@ class ConfiguredResolver(Resolver):
         self,
         lock,  # type: Lockfile
         targets=Targets(),  # type: Targets
+        pip_version=None,  # type: Optional[PipVersionValue]
     ):
         # type: (...) -> Installed
+        # TODO(John Sirois): Use pip_version.
         return try_(
             lock_resolver.resolve_from_lock(
                 targets=targets,
@@ -66,8 +69,10 @@ class ConfiguredResolver(Resolver):
         self,
         requirements,  # type: Iterable[str]
         targets=Targets(),  # type: Targets
+        pip_version=None,  # type: Optional[PipVersionValue]
     ):
         # type: (...) -> Installed
+        # TODO(John Sirois): Use pip_version.
         return resolver.resolve(
             targets=targets,
             requirements=requirements,

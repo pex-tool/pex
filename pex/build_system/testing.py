@@ -10,7 +10,7 @@ from pex.build_system.pep_517 import build_sdist
 from pex.dist_metadata import Distribution
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.pip.tool import get_pip
+from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.result import Error
 from pex.typing import TYPE_CHECKING

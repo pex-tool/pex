@@ -13,8 +13,11 @@ from pex import targets
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
+from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
 from pex.testing import PY310, ensure_python_interpreter, environment_as
 from pex.typing import TYPE_CHECKING
@@ -27,6 +30,7 @@ if TYPE_CHECKING:
         def __call__(
             self,
             interpreter,  # type: Optional[PythonInterpreter]
+            version=PipVersion.VENDORED,  # type: PipVersionValue
             **extra_env  # type: str
         ):
             # type: (...) -> Pip
@@ -52,26 +56,45 @@ def create_pip(
 ):
     # type: (...) -> Iterator[CreatePip]
     pex_root = os.path.join(str(tmpdir), "pex_root")
-    pip_root = os.path.join(str(tmpdir), "pip_root")
 
     def create_pip(
         interpreter,  # type: Optional[PythonInterpreter]
+        version=PipVersion.VENDORED,  # type: PipVersionValue
         **extra_env  # type: str
     ):
         # type: (...) -> Pip
         with ENV.patch(PEX_ROOT=pex_root, **extra_env):
-            return Pip.create(path=pip_root, interpreter=interpreter)
+            return get_pip(
+                interpreter=interpreter, version=version, resolver=ConfiguredResolver.default()
+            )
 
     yield create_pip
 
 
+all_pip_versions = pytest.mark.parametrize(
+    "version", [pytest.param(version, id=str(version)) for version in PipVersion.values()]
+)
+
+
+applicable_pip_versions = pytest.mark.parametrize(
+    "version",
+    [
+        pytest.param(version, id=str(version))
+        for version in PipVersion.values()
+        if version.requires_python_applies(LocalInterpreter.create())
+    ],
+)
+
+
+@applicable_pip_versions
 def test_no_duplicate_constraints_pex_warnings(
     create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
     current_interpreter,  # type: PythonInterpreter
 ):
     # type: (...) -> None
     with warnings.catch_warnings(record=True) as events:
-        pip = create_pip(current_interpreter)
+        pip = create_pip(current_interpreter, version=version)
 
     pip.spawn_debug(platform=current_interpreter.platform).wait()
 
@@ -81,13 +104,15 @@ def test_no_duplicate_constraints_pex_warnings(
     )
 
 
+@applicable_pip_versions
 def test_download_platform_issues_1355(
     create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
     current_interpreter,  # type: PythonInterpreter
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
-    pip = create_pip(current_interpreter)
+    pip = create_pip(current_interpreter, version=version)
     download_dir = os.path.join(str(tmpdir), "downloads")
 
     def download_ansicolors(
@@ -145,11 +170,12 @@ def test_download_platform_issues_1355(
 
 def assert_download_platform_markers_issue_1366(
     create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
     python310_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
-    pip = create_pip(python310_interpreter)
+    pip = create_pip(python310_interpreter, version=version)
 
     python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
     download_dir = os.path.join(str(tmpdir), "downloads")
@@ -163,16 +189,20 @@ def assert_download_platform_markers_issue_1366(
     assert ["typing_extensions-3.7.4.2-py2-none-any.whl"] == os.listdir(download_dir)
 
 
+@all_pip_versions
 def test_download_platform_markers_issue_1366(
     create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
-    assert_download_platform_markers_issue_1366(create_pip, tmpdir)
+    assert_download_platform_markers_issue_1366(create_pip, version, tmpdir)
 
 
+@all_pip_versions
 def test_download_platform_markers_issue_1366_issue_1387(
     create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
     pex_root,  # type: str
     tmpdir,  # type: Any
 ):
@@ -184,16 +214,18 @@ def test_download_platform_markers_issue_1366_issue_1387(
     # patch - like PEX_ROOT - are also present in the ambient environment. This test verifies we
     # are not tripped up by such ambient environment variables.
     with environment_as(PEX_ROOT=pex_root):
-        assert_download_platform_markers_issue_1366(create_pip, tmpdir)
+        assert_download_platform_markers_issue_1366(create_pip, version, tmpdir)
 
 
+@all_pip_versions
 def test_download_platform_markers_issue_1366_indeterminate(
     create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
     python310_interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(PY310))
-    pip = create_pip(python310_interpreter)
+    pip = create_pip(python310_interpreter, version=version)
 
     python27_platform = Platform.create("manylinux_2_33_x86_64-cp-27-cp27mu")
     download_dir = os.path.join(str(tmpdir), "downloads")
@@ -212,8 +244,10 @@ def test_download_platform_markers_issue_1366_indeterminate(
     ) in str(exc_info.value)
 
 
+@applicable_pip_versions
 def test_download_platform_markers_issue_1488(
     create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
@@ -225,7 +259,7 @@ def test_download_platform_markers_issue_1488(
     download_dir = os.path.join(str(tmpdir), "downloads")
 
     python39_platform = Platform.create("linux-x86_64-cp-39-cp39")
-    create_pip(None).spawn_download_distributions(
+    create_pip(None, version=version).spawn_download_distributions(
         target=AbbreviatedPlatform.create(python39_platform, manylinux="manylinux2014"),
         requirements=["SQLAlchemy==1.4.25"],
         constraint_files=[constraints_file],
@@ -247,14 +281,16 @@ def test_download_platform_markers_issue_1488(
     )
 
 
+@applicable_pip_versions
 def test_create_confounding_env_vars_issue_1668(
     create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
 
     download_dir = os.path.join(str(tmpdir), "downloads")
-    create_pip(None, PEX_SCRIPT="pex3").spawn_download_distributions(
+    create_pip(None, version=version, PEX_SCRIPT="pex3").spawn_download_distributions(
         requirements=["ansicolors==1.1.8"], download_dir=download_dir
     ).wait()
     assert ["ansicolors-1.1.8-py2.py3-none-any.whl"] == os.listdir(download_dir)
