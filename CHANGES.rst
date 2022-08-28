@@ -1,6 +1,42 @@
 Release Notes
 =============
 
+2.1.104
+-------
+
+This release brings a long-awaited upgrade of the Pip Pex uses, but
+behind a ``--pip-version 22.2.2`` flag you must opt in to. Pex will then
+use that version of Pip if it can (your Pex operations target Python
+``>=3.7``) and warn and fall back to the older vendored Pip (20.3.4) if
+it can't. To turn the need to fallback to older Pip from a warning into
+a hard error you can also specify ``--no-allow-pip-version-fallback``.
+
+The ``pex3 lock update`` command now gains the ability to update just
+the index and find links repos the lock's artifacts originate from by
+using a combination of ``--no-pypi``, ``--index`` & ``--find-links``
+along with ``--pin`` to ensure the project versions stay pinned as they
+are in the lockfile and just the repos they are downloaded from is
+altered. Consult the CLI ``--help`` for
+``--fingerprint-mismatch {ignore,warn,error}`` to gain more control over
+repo migration behavior.
+
+There are several bug fixes as well dealing with somewhat esoteric
+corner cases involving changing a PEX ``--layout`` from one form to
+another and building artifacts using certain interpreters on macOS 11.0
+(aka: 10.16).
+
+* Add support for Pip 22.2.2. (#1893)
+  `PR #1893 <https://github.com/pantsbuild/pex/pull/1893>`_
+
+* Make lock update sensitive to artifacts. (#1887)
+  `PR #1887 <https://github.com/pantsbuild/pex/pull/1887>`_
+
+* Ensure locally built wheel is consumable locally. (#1886)
+  `PR #1886 <https://github.com/pantsbuild/pex/pull/1886>`_
+
+* Ensure ``--output`` always overwrites destination. (#1883)
+  `PR #1883 <https://github.com/pantsbuild/pex/pull/1883>`_
+
 2.1.103
 -------
 
