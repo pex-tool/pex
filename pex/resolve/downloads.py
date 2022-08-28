@@ -6,15 +6,18 @@ import shutil
 from pex import hashing
 from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
 from pex.compatibility import unquote, urlparse
+from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.resolve import locker
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, LockStyle
+from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact
 from pex.resolve.resolvers import Resolver
 from pex.result import Error
+from pex.targets import LocalInterpreter, Target
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -45,10 +48,20 @@ def get_downloads_dir(pex_root=None):
 @attr.s(frozen=True)
 class ArtifactDownloader(object):
     resolver = attr.ib()  # type: Resolver
-    pip = attr.ib(factory=get_pip)  # type: Pip
+    target = attr.ib(default=LocalInterpreter.create())  # type: Target
     package_index_configuration = attr.ib(
         default=PackageIndexConfiguration.create()
     )  # type: PackageIndexConfiguration
+    max_parallel_jobs = attr.ib(default=None)  # type: Optional[int]
+    pip = attr.ib(init=False)  # type: Pip
+
+    @pip.default
+    def _pip(self):
+        return get_pip(
+            interpreter=self.target.get_interpreter(),
+            version=self.package_index_configuration.pip_version,
+            resolver=self.resolver,
+        )
 
     @staticmethod
     def _fingerprint_and_move(path):
@@ -96,9 +109,17 @@ class ArtifactDownloader(object):
         # observer does just this for universal locks with no target system or requires python
         # restrictions.
         download_observer = locker.patch(
+            pip_version=self.package_index_configuration.pip_version,
             resolver=self.resolver,
             lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL),
             download_dir=download_dir,
+            fingerprint_service=FingerprintService.create(
+                url_fetcher=URLFetcher(
+                    network_configuration=self.package_index_configuration.network_configuration,
+                    password_entries=self.package_index_configuration.password_entries,
+                ),
+                max_parallel_jobs=self.max_parallel_jobs,
+            ),
         )
         return self.pip.spawn_download_distributions(
             download_dir=download_dir,

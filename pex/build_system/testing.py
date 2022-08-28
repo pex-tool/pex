@@ -11,7 +11,9 @@ from pex.dist_metadata import Distribution
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.installation import get_pip
+from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.result import Error
 from pex.typing import TYPE_CHECKING
 
@@ -33,7 +35,17 @@ def assert_build_sdist(
         assert Version(version) == dist.metadata.version
 
     sdist_dir = os.path.join(str(tmpdir), "sdist_dir")
-    location = build_sdist(project_dir, sdist_dir, ConfiguredResolver.default())
+
+    # This test utility is used by all versions of Python Pex supports; so we need to use the
+    # vendored Pip which is guaranteed to work with all those Python versions.
+    pip_version = PipVersion.VENDORED
+
+    location = build_sdist(
+        project_dir,
+        sdist_dir,
+        pip_version,
+        ConfiguredResolver(PipConfiguration(version=pip_version)),
+    )
     assert not isinstance(location, Error)
     assert sdist_dir == os.path.dirname(location)
 

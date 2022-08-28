@@ -9,6 +9,7 @@ from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pip.version import PipVersion
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
@@ -77,6 +78,26 @@ def register(
         help=(
             "The dependency resolver version to use. Read more at "
             "https://pip.pypa.io/en/stable/user_guide/#resolver-changes-2020"
+        ),
+    )
+    parser.add_argument(
+        "--pip-version",
+        dest="pip_version",
+        default=str(default_resolver_configuration.version),
+        choices=["vendored"] + [str(value) for value in PipVersion.values()],
+        help="The version of Pip to use for resolving dependencies.",
+    )
+    parser.add_argument(
+        "--allow-pip-version-fallback",
+        "--no-allow-pip-version-fallback",
+        dest="allow_pip_version_fallback",
+        default=default_resolver_configuration.allow_version_fallback,
+        action=HandleBoolAction,
+        help=(
+            "Whether to allow --pip-version to be ignored if the requested version is not "
+            "compatible with all of the selected interpreters. If fallback is allowed, a warning "
+            "will be emitted when fallback is necessary. If fallback is not allowed, Pex will fail "
+            "fast indicating the problematic selected interpreters."
         ),
     )
 
@@ -410,6 +431,13 @@ def create_pip_configuration(options):
         pex_warnings.warn("The --header option is deprecated and no longer has any effect.")
 
     repos_configuration = create_repos_configuration(options)
+
+    pip_version = (
+        PipVersion.VENDORED
+        if options.pip_version == "vendored"
+        else PipVersion.for_value(options.pip_version)
+    )
+
     return PipConfiguration(
         resolver_version=options.resolver_version,
         repos_configuration=repos_configuration,
@@ -423,6 +451,8 @@ def create_pip_configuration(options):
         transitive=options.transitive,
         max_jobs=get_max_jobs_value(options),
         preserve_log=options.preserve_pip_download_log,
+        version=pip_version,
+        allow_version_fallback=options.allow_pip_version_fallback,
     )
 
 

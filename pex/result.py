@@ -4,8 +4,10 @@
 from __future__ import absolute_import, print_function
 
 import sys
+import traceback
 
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Text, TypeVar, Union
@@ -103,3 +105,7 @@ def catch(
         return func(*args, **kwargs)
     except ResultError as e:
         return e.error
+    except Exception as e:
+        if ENV.PEX_VERBOSE > 0:
+            traceback.print_exc()
+        return Error(str(e))

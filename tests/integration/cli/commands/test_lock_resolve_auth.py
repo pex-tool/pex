@@ -148,6 +148,8 @@ def secured_ansicolors_lock(
             "--no-pypi",
             "--find-links",
             secured_lock.repo_url_with_credentials,
+            # Since we have no PyPI access, ensure we're using vendored Pip for this test.
+            "--pip-version=vendored",
             "ansicolors",
             "--indent",
             "2",

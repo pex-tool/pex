@@ -10,7 +10,9 @@ from pex.build_system.pep_518 import BuildSystem
 from pex.common import touch
 from pex.environment import PEXEnvironment
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.result import Error
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -21,7 +23,9 @@ if TYPE_CHECKING:
 
 def load_build_system(project_directory):
     # type: (...) -> Union[Optional[BuildSystem], Error]
-    return pep_518.load_build_system(ConfiguredResolver.default(), project_directory)
+    return pep_518.load_build_system(
+        ConfiguredResolver(PipConfiguration(version=PipVersion.VENDORED)), project_directory
+    )
 
 
 def test_load_build_system_not_a_python_project(tmpdir):

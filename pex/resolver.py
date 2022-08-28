@@ -25,11 +25,18 @@ from pex.pex_info import PexInfo
 from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.downloads import get_downloads_dir
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable, Untranslatable
+from pex.resolve.resolvers import (
+    Installed,
+    InstalledDistribution,
+    Resolver,
+    Unsatisfiable,
+    Untranslatable,
+)
 from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -68,6 +75,8 @@ class DownloadRequest(object):
     build_isolation = attr.ib(default=True)  # type: bool
     observer = attr.ib(default=None)  # type: Optional[ResolveObserver]
     preserve_log = attr.ib(default=False)  # type: bool
+    pip_version = attr.ib(default=PipVersion.VENDORED)  # type: PipVersionValue
+    resolver = attr.ib(default=None)  # type: Optional[Resolver]
 
     def iter_local_projects(self):
         # type: () -> Iterator[BuildRequest]
@@ -110,7 +119,11 @@ class DownloadRequest(object):
         )
 
         download_result = DownloadResult(target, download_dir)
-        download_job = get_pip(interpreter=target.get_interpreter()).spawn_download_distributions(
+        download_job = get_pip(
+            interpreter=target.get_interpreter(),
+            version=self.pip_version,
+            resolver=self.resolver,
+        ).spawn_download_distributions(
             download_dir=download_dir,
             requirements=self.requirements,
             requirement_files=self.requirement_files,
@@ -471,6 +484,8 @@ class WheelBuilder(object):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         verify_wheels=True,  # type: bool
+        pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+        resolver=None,  # type: Optional[Resolver]
     ):
         # type: (...) -> None
         self._package_index_configuration = package_index_configuration
@@ -478,6 +493,8 @@ class WheelBuilder(object):
         self._use_pep517 = use_pep517
         self._build_isolation = build_isolation
         self._verify_wheels = verify_wheels
+        self._pip_version = pip_version
+        self._resolver = resolver
 
     @staticmethod
     def _categorize_build_requests(
@@ -512,7 +529,11 @@ class WheelBuilder(object):
     ):
         # type: (...) -> SpawnedJob[BuildResult]
         build_result = build_request.result(built_wheels_dir)
-        build_job = get_pip(interpreter=build_request.target.get_interpreter()).spawn_build_wheels(
+        build_job = get_pip(
+            interpreter=build_request.target.get_interpreter(),
+            version=self._pip_version,
+            resolver=self._resolver,
+        ).spawn_build_wheels(
             distributions=[build_request.source_path],
             wheel_dir=build_result.build_dir,
             package_index_configuration=self._package_index_configuration,
@@ -568,6 +589,8 @@ class BuildAndInstallRequest(object):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         verify_wheels=True,  # type: bool
+        pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+        resolver=None,  # type: Optional[Resolver]
     ):
         # type: (...) -> None
         self._build_requests = tuple(build_requests)
@@ -580,7 +603,11 @@ class BuildAndInstallRequest(object):
             use_pep517=use_pep517,
             build_isolation=build_isolation,
             verify_wheels=verify_wheels,
+            pip_version=pip_version,
+            resolver=resolver,
         )
+        self._pip_version = pip_version
+        self._resolver = resolver
 
     @staticmethod
     def _categorize_install_requests(
@@ -618,7 +645,9 @@ class BuildAndInstallRequest(object):
         # type: (...) -> SpawnedJob[InstallResult]
         install_result = install_request.result(installed_wheels_dir)
         install_job = get_pip(
-            interpreter=install_request.target.get_interpreter()
+            interpreter=install_request.target.get_interpreter(),
+            version=self._pip_version,
+            resolver=self._resolver,
         ).spawn_install_wheel(
             wheel=install_request.wheel_path,
             install_dir=install_result.build_chroot,
@@ -830,6 +859,8 @@ def resolve(
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
     preserve_log=False,  # type: bool
+    pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+    resolver=None,  # type: Optional[Resolver]
 ):
     # type: (...) -> Installed
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
@@ -915,6 +946,7 @@ def resolve(
 
     direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
     package_index_configuration = PackageIndexConfiguration.create(
+        pip_version=pip_version,
         resolver_version=resolver_version,
         indexes=indexes,
         find_links=find_links,
@@ -937,6 +969,8 @@ def resolve(
         build_isolation=build_isolation,
         max_parallel_jobs=max_parallel_jobs,
         preserve_log=preserve_log,
+        pip_version=pip_version,
+        resolver=resolver,
     )
 
     install_requests = []  # type: List[InstallRequest]
@@ -954,6 +988,8 @@ def resolve(
         use_pep517=use_pep517,
         build_isolation=build_isolation,
         verify_wheels=verify_wheels,
+        pip_version=pip_version,
+        resolver=resolver,
     )
 
     ignore_errors = ignore_errors or not transitive
@@ -983,6 +1019,8 @@ def _download_internal(
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
     preserve_log=False,  # type: bool
+    pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+    resolver=None,  # type: Optional[Resolver]
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
 
@@ -1003,6 +1041,8 @@ def _download_internal(
         build_isolation=build_isolation,
         observer=observer,
         preserve_log=preserve_log,
+        pip_version=pip_version,
+        resolver=resolver,
     )
 
     local_projects = list(download_request.iter_local_projects())
@@ -1064,6 +1104,8 @@ def download(
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
     preserve_log=False,  # type: bool
+    pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+    resolver=None,  # type: Optional[Resolver]
 ):
     # type: (...) -> Downloaded
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
@@ -1112,6 +1154,7 @@ def download(
     """
     direct_requirements = _parse_reqs(requirements, requirement_files, network_configuration)
     package_index_configuration = PackageIndexConfiguration.create(
+        pip_version=pip_version,
         resolver_version=resolver_version,
         indexes=indexes,
         find_links=find_links,
@@ -1136,6 +1179,8 @@ def download(
         max_parallel_jobs=max_parallel_jobs,
         observer=observer,
         preserve_log=preserve_log,
+        pip_version=pip_version,
+        resolver=resolver,
     )
 
     local_distributions = []

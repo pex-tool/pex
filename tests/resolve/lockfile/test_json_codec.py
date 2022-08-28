@@ -14,6 +14,7 @@ from pex.compatibility import PY2
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.json_codec import ParseError, PathMappingError
@@ -44,6 +45,7 @@ def test_roundtrip(tmpdir):
         style=LockStyle.STRICT,
         requires_python=(),
         target_systems=(),
+        pip_version=PipVersion.VENDORED,
         resolver_version=ResolverVersion.PIP_2020,
         requirements=(
             Requirement.parse("ansicolors"),

@@ -24,7 +24,6 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import (
-        IO,
         Any,
         DefaultDict,
         Deque,
@@ -35,7 +34,6 @@ if TYPE_CHECKING:
         Optional,
         Protocol,
         Set,
-        Sized,
         Tuple,
         Union,
     )

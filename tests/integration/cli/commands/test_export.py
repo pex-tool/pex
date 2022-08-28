@@ -12,6 +12,7 @@ from pex.cli.testing import run_pex3
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.pip.version import PipVersion
 from pex.resolve.locked_resolve import Artifact, LockedRequirement, LockedResolve, LockStyle
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
@@ -33,6 +34,7 @@ UNIVERSAL_ANSICOLORS = Lockfile(
     style=LockStyle.UNIVERSAL,
     requires_python=SortedTuple(),
     target_systems=SortedTuple(),
+    pip_version=PipVersion.VENDORED,
     resolver_version=ResolverVersion.PIP_2020,
     requirements=SortedTuple([Requirement.parse("ansicolors")]),
     constraints=SortedTuple(),

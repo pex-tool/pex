@@ -78,6 +78,16 @@ def assert_installed_wheels(label, pex_root):
     ), "Expected {label} pex root to be populated with buildtime artifacts.".format(label=label)
 
 
+def assert_empty_home_dir(home_dir):
+    # type: (str) -> None
+    assert os.listdir(home_dir) in ([], [".rustup"]), (
+        "Expected ~empty home dir (Modern Pip attempts to run rustc --version to fill in "
+        "User-Agent data re available local compiler toolchains and this can leave a .rustup "
+        "dir in HOME.).\n"
+        "Found:\n{items}".format(items="\n".join(os.listdir(home_dir)))
+    )
+
+
 def test_pex_root_build():
     # type: () -> None
     with temporary_dir() as td, temporary_dir() as home:
@@ -95,7 +105,7 @@ def test_pex_root_build():
         results = run_pex_command(args=args, env=make_env(HOME=home, PEX_INTERPRETER="1"))
         results.assert_success()
         assert ["pex.pex"] == os.listdir(output_dir), "Expected built pex file."
-        assert [] == os.listdir(home), "Expected empty home dir."
+        assert_empty_home_dir(home_dir=home)
         assert_installed_wheels(label="buildtime", pex_root=buildtime_pex_root)
 
 
@@ -125,7 +135,7 @@ def test_pex_root_run():
         results = run_pex_command(args=args, env=pex_env, python=python310)
         results.assert_success()
         assert ["pex.pex"] == os.listdir(output_dir), "Expected built pex file."
-        assert [] == os.listdir(home), "Expected empty home dir."
+        assert_empty_home_dir(home_dir=home)
 
         assert_interpreters(label="buildtime", pex_root=buildtime_pex_root)
         assert_installed_wheels(label="buildtime", pex_root=buildtime_pex_root)
@@ -141,7 +151,7 @@ def test_pex_root_run():
         assert [] == os.listdir(
             buildtime_pex_root
         ), "Expected buildtime pex root to be empty after runs using a separate runtime pex root."
-        assert [] == os.listdir(home), "Expected empty home dir."
+        assert_empty_home_dir(home_dir=home)
 
 
 def test_cache_disable():
@@ -159,7 +169,7 @@ def test_cache_disable():
         results = run_pex_command(args=args, env=make_env(HOME=tmp_home, PEX_INTERPRETER="1"))
         results.assert_success()
         assert ["pex.pex"] == os.listdir(output_dir), "Expected built pex file."
-        assert [] == os.listdir(tmp_home), "Expected empty temp home dir."
+        assert_empty_home_dir(tmp_home)
 
 
 def test_pex_interpreter():
@@ -627,6 +637,8 @@ def test_cross_platform_abi_targeting_behavior_exact():
                 "--no-pypi",
                 "--platform=linux-x86_64-cp-27-mu",
                 "--find-links=tests/example_packages/",
+                # Since we have no PyPI access, ensure we're using vendored Pip for this test.
+                "--pip-version=vendored",
                 "MarkupSafe==1.0",
                 "-o",
                 pex_out_path,
@@ -1520,10 +1532,10 @@ def test_pip_issues_9420_workaround():
         dedent(
             """\
             ERROR: Cannot install colorama==0.4.1 and isort[colors]==5.7.0 because these package versions have conflicting dependencies.
-            ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/user_guide/#fixing-conflicting-dependencies
+            ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/
             """
-        )
-    )
+        ).strip()
+    ), normalized_stderr
     assert normalized_stderr.endswith(
         dedent(
             """\
@@ -1570,7 +1582,18 @@ def test_constraint_file_from_url(tmpdir):
         "/3rdparty/python/requirements.txt"
     )
     results = run_pex_command(
-        args=["fasteners", "--constraints", pants_requirements_url, "-o", pex_file], python=python
+        args=[
+            "fasteners",
+            "--constraints",
+            pants_requirements_url,
+            # N.B.: Newer Pip only allows package name + version specifier for constraints and the
+            # requirements URL contains `requests[security]>=2.20.1` which uses an extra; so we use
+            # older Pip here.
+            "--pip-version=20.3.4-patched",
+            "-o",
+            pex_file,
+        ],
+        python=python,
     )
     results.assert_success()
     output, returncode = run_simple_pex(

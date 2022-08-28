@@ -7,6 +7,7 @@ import os
 
 from pex.dist_metadata import Requirement
 from pex.orderedset import OrderedSet
+from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.locked_resolve import LocalProjectArtifact, LockedResolve, LockStyle, TargetSystem
 from pex.resolve.resolver_configuration import ResolverVersion
@@ -32,6 +33,7 @@ class Lockfile(object):
         style,  # type: LockStyle.Value
         requires_python,  # type: Iterable[str]
         target_systems,  # type: Iterable[TargetSystem.Value]
+        pip_version,  # type: PipVersionValue
         resolver_version,  # type: ResolverVersion.Value
         requirements,  # type: Iterable[Union[Requirement, ParsedRequirement]]
         constraints,  # type: Iterable[Requirement]
@@ -83,6 +85,7 @@ class Lockfile(object):
             style=style,
             requires_python=SortedTuple(requires_python),
             target_systems=SortedTuple(target_systems),
+            pip_version=pip_version,
             resolver_version=resolver_version,
             requirements=SortedTuple(resolve_requirements, key=str),
             constraints=SortedTuple(constraints, key=str),
@@ -102,6 +105,7 @@ class Lockfile(object):
     style = attr.ib()  # type: LockStyle.Value
     requires_python = attr.ib()  # type: SortedTuple[str]
     target_systems = attr.ib()  # type: SortedTuple[TargetSystem.Value]
+    pip_version = attr.ib()  # type: PipVersionValue
     resolver_version = attr.ib()  # type: ResolverVersion.Value
     requirements = attr.ib()  # type: SortedTuple[Requirement]
     constraints = attr.ib()  # type: SortedTuple[Requirement]

@@ -4,11 +4,14 @@
 from __future__ import absolute_import
 
 import itertools
+import os
 
 from pex.auth import PasswordEntry
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
+from pex.layout import PEX_INFO_PATH
 from pex.network_configuration import NetworkConfiguration
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -59,6 +62,12 @@ class ReposConfiguration(object):
     password_entries = attr.ib(default=())  # type: Tuple[PasswordEntry, ...]
 
 
+# We make an affordance for CI with a purposefully undocumented PEX env var.
+_DEFAULT_PIP_VERSION = PipVersion.for_value(
+    os.environ.get("_PEX_PIP_VERSION", PipVersion.VENDORED.value)
+)
+
+
 @attr.s(frozen=True)
 class PipConfiguration(object):
     resolver_version = attr.ib(default=ResolverVersion.PIP_LEGACY)  # type: ResolverVersion.Value
@@ -73,6 +82,8 @@ class PipConfiguration(object):
     transitive = attr.ib(default=True)  # type: bool
     max_jobs = attr.ib(default=DEFAULT_MAX_JOBS)  # type: int
     preserve_log = attr.ib(default=False)  # type: bool
+    version = attr.ib(default=_DEFAULT_PIP_VERSION)  # type: PipVersionValue
+    allow_version_fallback = attr.ib(default=True)  # type: bool
 
 
 @attr.s(frozen=True)

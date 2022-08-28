@@ -194,7 +194,7 @@ def test_unwriteable_contents():
         my_app_whl = WheelBuilder(my_app_project_dir).bdist()
 
         with make_project(name="uses_my_app", install_reqs=["my_app"]) as uses_my_app_project_dir:
-            pex_args = "--pex-args=--disable-cache --no-pypi -f {}".format(
+            pex_args = "--pex-args=--disable-cache --pip-version=vendored --no-pypi -f {}".format(
                 os.path.dirname(my_app_whl)
             )
             with bdist_pex(uses_my_app_project_dir, bdist_args=[pex_args]) as (uses_my_app_pex,):

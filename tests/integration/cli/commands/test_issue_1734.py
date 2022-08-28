@@ -51,11 +51,13 @@ def test_lock_create_sdist_requires_python_different_from_current(
         "ERROR: Package 'aioconsole' requires a different Python: {pyver} not in '>=3.7'".format(
             pyver=py27.identity.version_str
         )
-        == result.error.splitlines()[0]
+        in result.error.splitlines()
     )
 
     # Now show it currently works.
-    subprocess.check_call(args=[py27.binary, "-m", "pex.cli"] + create_lock_args)
+    subprocess.check_call(
+        args=[py27.binary, "-m", "pex.cli"] + create_lock_args + ["--pip-version", "20.3.4-patched"]
+    )
     run_pex_command(
         args=["--lock", lock, "--", "-c", "import aioconsole"],
         python=py310.binary,

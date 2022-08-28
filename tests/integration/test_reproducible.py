@@ -158,7 +158,10 @@ def test_reproducible_build_c_flag_from_source():
         {"setup.cfg": setup_cfg, "setup.py": setup_py, "my_app.py": my_app}
     ) as project_dir:
         assert_reproducible_build(
-            [project_dir, "-c", "my_app_function"], pythons=MIXED_MAJOR_PYTHONS
+            [project_dir, "-c", "my_app_function"],
+            # Modern Pip / Setuptools produce different metadata for sdists than legacy Pip /
+            # Setuptools; so we don't mix them.
+            pythons=MAJOR_COMPATIBLE_PYTHONS,
         )
 
 

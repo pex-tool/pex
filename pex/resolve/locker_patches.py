@@ -154,6 +154,11 @@ def patch_wheel_model():
         check(*args, **kwargs) for check in supported_checks
     )
 
+    # N.B.: This patch is a noop for the 20.3.4-patched Pip but is required in newer Pip.
+    # The method is used as a speedup hack by newer Pip in some cases instead of
+    # Wheel.support_index_min.
+    Wheel.find_most_preferred_tag = lambda *args, **kwargs: 0
+
 
 patch_wheel_model()
 del patch_wheel_model
