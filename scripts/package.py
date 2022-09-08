@@ -9,7 +9,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from enum import Enum, unique
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
-from typing import Tuple
+from typing import Tuple, cast
 
 PROJECT_METADATA = Path("pyproject.toml")
 DIST_DIR = Path("dist")
@@ -22,17 +22,17 @@ def python_requires() -> str:
     import toml
 
     project_metadata = toml.loads(PROJECT_METADATA.read_text())
-    return project_metadata["tool"]["flit"]["metadata"]["requires-python"].strip()
+    return cast(str, project_metadata["tool"]["flit"]["metadata"]["requires-python"].strip())
 
 
 def build_pex_pex(output_file: PurePath, local: bool = False, verbosity: int = 0) -> None:
     # NB: We do not include the subprocess extra (which would be spelled: `.[subprocess]`) since we
     # would then produce a pex that would not be consumable by all python interpreters otherwise
     # meeting `python_requires`; ie: we'd need to then come up with a deploy environment / deploy
-    # tooling, that built subprocess32 for linux cp27m, cp27mu, pypy, ... etc. Even with all the work
-    # expended to do this, we'd still miss some platform someone wanted to run the Pex PEX on. As
-    # such, we just ship unadorned Pex which is pure-python and universal. Any user wanting the extra
-    # is encouraged to build a Pex PEX for their particular platform themselves.
+    # tooling, that built subprocess32 for linux cp27m, cp27mu, pypy, ... etc. Even with all the
+    # work expended to do this, we'd still miss some platform someone wanted to run the Pex PEX on.
+    # As such, we just ship unadorned Pex which is pure-python and universal. Any user wanting the
+    # extra is encouraged to build a Pex PEX for their particular platform themselves.
     pex_requirement = "."
 
     args = [
@@ -78,11 +78,12 @@ def describe_file(path: Path) -> Tuple[str, int]:
 
 
 @unique
-class Format(str, Enum):
+class Format(Enum):
     SDIST = "sdist"
     WHEEL = "wheel"
 
-    __repr__ = __str__ = lambda self: self.value
+    def __str__(self) -> str:
+        return cast(str, self.value)
 
 
 def build_pex_dists(dist_fmt: Format, *additional_dist_fmts: Format, verbose: bool = False) -> None:

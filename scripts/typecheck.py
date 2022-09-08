@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Iterable, Iterator, Sequence
+
+from pex.common import safe_mkdtemp
+
+
+def find_files_to_check(include: Iterable[str], exclude: Iterable[str] = ()) -> Iterator[str]:
+    excluded = frozenset(os.path.normpath(e) for e in exclude)
+    for root, dirs, files in os.walk(os.curdir):
+        if os.path.realpath(root) == os.path.realpath(os.curdir):
+            dirs[:] = list(include)
+        else:
+            dirs[:] = [
+                d for d in dirs if os.path.relpath(os.path.join(root, d), os.curdir) not in excluded
+            ]
+
+        for f in files:
+            if f.endswith(".py"):
+                yield os.path.join(root, f)
+
+
+def run_mypy(python_version: str, files: Sequence[str], subject: str = "files") -> None:
+    print(
+        f"Typechecking {len(files)} {subject} using Python "
+        f"{'.'.join(map(str, sys.version_info[:3]))} against Python {python_version} ..."
+    )
+    with (Path(safe_mkdtemp()) / "files.txt").open(mode="w") as fp:
+        for f in sorted(files):
+            print(f, file=fp)
+        fp.close()
+
+        subprocess.run(args=["mypy", "--python-version", python_version, f"@{fp.name}"], check=True)
+
+
+def main() -> None:
+    run_mypy("3.8", files=sorted(find_files_to_check(include=["scripts"])), subject="scripts")
+
+    source_and_tests = sorted(
+        find_files_to_check(include=["pex", "tests"], exclude=["pex/vendor/_vendored"])
+    )
+    for python_version in ("3.11", "3.10", "3.5", "2.7"):
+        run_mypy(python_version, files=source_and_tests)
+
+
+if __name__ == "__main__":
+    main()
