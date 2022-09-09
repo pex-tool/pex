@@ -40,6 +40,7 @@ def test_undeclared_setuptools_import_on_pex_path(tmpdir):
     # compilation terminated.
     constraints = os.path.join(str(tmpdir), "constraints.txt")
     with open(constraints, "w") as fp:
+        print("google-api-core==1.32.0", file=fp)
         print("google-crc32c==1.1.2", file=fp)
         print("protobuf<=3.17.3", file=fp)
 
