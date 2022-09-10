@@ -59,4 +59,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     options = parser.parse_args()
-    main(check=options.check)
+    try:
+        main(check=options.check)
+    except subprocess.CalledProcessError as e:
+        sys.exit(e.returncode)
