@@ -230,9 +230,10 @@ def test_vcs_transitive(
     with safe_open(os.path.join(src, "setup.py"), "w") as fp:
         fp.write("from setuptools import setup; setup()")
 
-    subprocess.check_call(args=["git", "init", "-b", "Golgafrincham", src])
+    subprocess.check_call(args=["git", "init", src])
     subprocess.check_call(args=["git", "config", "user.email", "forty@two.com"], cwd=src)
     subprocess.check_call(args=["git", "config", "user.name", "Douglas Adams"], cwd=src)
+    subprocess.check_call(args=["git", "checkout", "-b", "Golgafrincham"], cwd=src)
     subprocess.check_call(args=["git", "add", "."], cwd=src)
     subprocess.check_call(args=["git", "commit", "-m", "Only commit."], cwd=src)
 
