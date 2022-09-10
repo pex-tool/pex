@@ -153,5 +153,5 @@ def test_pex_run_inherit_path_and_extra_sys_path(
 
     expected = [esp] if inherit_path is InheritPath.FALSE else [pp1, pp2, esp]
     assert_inherited(
-        tmpdir, pex, *expected, PEX_EXTRA_SYS_PATH=esp, PYTHONPATH=":".join((pp1, pp2))
+        tmpdir, pex, *expected, PEX_EXTRA_SYS_PATH=esp, PYTHONPATH=os.pathsep.join((pp1, pp2))
     )

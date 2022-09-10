@@ -5,7 +5,7 @@ import sys
 from textwrap import dedent
 
 from pex.common import temporary_dir
-from pex.dist_metadata import Requirement, find_distribution
+from pex.dist_metadata import find_distribution
 from pex.interpreter import PythonInterpreter
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
@@ -96,7 +96,7 @@ def test_interpreter_resolution_with_pex_python_path():
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:
             # set pex python path
-            pex_python_path = ":".join(
+            pex_python_path = os.pathsep.join(
                 [ensure_python_interpreter(PY27), ensure_python_interpreter(PY37)]
             )
             pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
@@ -124,9 +124,9 @@ def test_interpreter_resolution_with_pex_python_path():
 
         assert rc == 0
         if sys.version_info[0] == 3:
-            assert str(pex_python_path.split(":")[1]).encode() in stdout
+            assert str(pex_python_path.split(os.pathsep)[1]).encode() in stdout
         else:
-            assert str(pex_python_path.split(":")[0]).encode() in stdout
+            assert str(pex_python_path.split(os.pathsep)[0]).encode() in stdout
 
 
 def test_interpreter_constraints_honored_without_ppp_or_pp(tmpdir):
@@ -171,7 +171,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
     # type: (Any) -> None
 
     pexrc_path = os.path.join(str(tmpdir), ".pexrc")
-    ppp = ":".join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY27, PY37))
+    ppp = os.pathsep.join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY27, PY37))
     with open(pexrc_path, "w") as pexrc:
         # set both PPP and PP
         pexrc.write(
@@ -247,7 +247,7 @@ def test_pex_exec_with_pex_python_path_only():
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:
             # set pex python path
-            pex_python_path = ":".join(
+            pex_python_path = os.pathsep.join(
                 [ensure_python_interpreter(PY27), ensure_python_interpreter(PY310)]
             )
             pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
@@ -261,7 +261,7 @@ def test_pex_exec_with_pex_python_path_only():
         stdin_payload = b"import sys; print(sys.executable); sys.exit(0)"
         stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
         assert rc == 0
-        assert str(pex_python_path.split(":")[0]).encode() in stdout
+        assert str(pex_python_path.split(os.pathsep)[0]).encode() in stdout
 
 
 def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints(tmpdir):
@@ -275,7 +275,9 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints(tmpdir)
                 PEX_PYTHON_PATH={}
                 PEX_PYTHON=python
                 """.format(
-                    ":".join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY310, PY27))
+                    os.pathsep.join(
+                        os.path.dirname(ensure_python_interpreter(py)) for py in (PY310, PY27)
+                    )
                 )
             )
         )
@@ -297,7 +299,9 @@ def test_pex_python():
     # type: () -> None
     py2_path_interpreter = ensure_python_interpreter(PY27)
     py3_path_interpreter = ensure_python_interpreter(PY37)
-    path = ":".join([os.path.dirname(py2_path_interpreter), os.path.dirname(py3_path_interpreter)])
+    path = os.pathsep.join(
+        [os.path.dirname(py2_path_interpreter), os.path.dirname(py3_path_interpreter)]
+    )
     env = make_env(PATH=path)
     with temporary_dir() as td:
         pexrc_path = os.path.join(td, ".pexrc")

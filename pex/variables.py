@@ -17,6 +17,7 @@ from textwrap import dedent
 from pex import pex_warnings
 from pex.common import can_write_dir, die, safe_mkdtemp
 from pex.inherit_path import InheritPath
+from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, Generic, overload
 from pex.venv.bin_path import BinPath
 
@@ -300,6 +301,15 @@ class Variables(object):
                 % (variable, self._environ[variable])
             )
 
+    def _maybe_get_path_tuple(self, variable):
+        # type: (str) -> Optional[Tuple[str, ...]]
+        value = self._maybe_get_string(variable)
+        if value is None:
+            return None
+        return tuple(
+            OrderedSet(os.path.normpath(os.path.expanduser(p)) for p in value.split(os.pathsep))
+        )
+
     def strip(self):
         # type: () -> Variables
         stripped_environ = {
@@ -519,36 +529,38 @@ class Variables(object):
 
     @property
     def PEX_PYTHON_PATH(self):
-        # type: () -> Optional[str]
+        # type: () -> Optional[Tuple[str, ...]]
         """String.
 
-        A colon-separated string containing paths of blessed Python interpreters
-        for overriding the Python interpreter used to invoke this PEX. Can be absolute paths to
-        interpreters or standard $PATH style directory entries that are searched for child files that
-        are python binaries.
+        A {pathsep!r} separated string containing paths of blessed Python interpreters for
+        overriding the Python interpreter used to invoke this PEX. Can be absolute paths to
+        interpreters or standard $PATH style directory entries that are searched for child files
+        that are python binaries.
 
-        Ex: "/path/to/python27:/path/to/python36-distribution/bin"
+        For example, on a Unix system: "/path/to/python27:/path/to/python36-distribution/bin"
         """
-        return self._maybe_get_string("PEX_PYTHON_PATH")
+        return self._maybe_get_path_tuple("PEX_PYTHON_PATH")
 
     @property
     def PEX_EXTRA_SYS_PATH(self):
-        # type: () -> Optional[str]
+        # type: () -> Tuple[str, ...]
         """String.
 
-        A colon-separated string containing paths to add to the runtime sys.path.
+        A {pathsep!r} separated string containing paths to add to the runtime sys.path.
 
         Should be used sparingly, e.g., if you know that code inside this PEX needs to
         interact with code outside it.
 
-        Ex: "/path/to/lib1:/path/to/lib2"
+        For example, on a Unix system: "/path/to/lib1:/path/to/lib2"
 
         This is distinct from PEX_INHERIT_PATH, which controls how the interpreter's
         existing sys.path (which you may not have control over) is scrubbed.
 
         See also PEX_PATH for how to merge packages from other pexes into the current environment.
-        """
-        return self._maybe_get_string("PEX_EXTRA_SYS_PATH")
+        """.format(
+            pathsep=os.pathsep
+        )
+        return self._maybe_get_path_tuple("PEX_EXTRA_SYS_PATH") or ()
 
     @defaulted_property(default="~/.pex")
     def PEX_ROOT(self):
@@ -575,20 +587,20 @@ class Variables(object):
             pex_root = self._environ["PEX_ROOT"] = tmp_root
         return pex_root
 
-    @defaulted_property(default="")
+    @property
     def PEX_PATH(self):
-        # type: () -> str
+        # type: () -> Tuple[str, ...]
         """A set of one or more PEX files.
 
         Merge the packages from other PEX files into the current environment.  This allows you to
         do things such as create a PEX file containing the "coverage" module or create PEX files
         containing plugin entry points to be consumed by a main application.  Paths should be
-        specified in the same manner as $PATH, e.g. PEX_PATH=/path/to/pex1.pex:/path/to/pex2.pex
-        and so forth.
+        specified in the same manner as $PATH. For example, on a Unix system
+        PEX_PATH=/path/to/pex1.pex:/path/to/pex2.pex and so forth.
 
         See also PEX_EXTRA_SYS_PATH for how to add arbitrary entries to the sys.path.
         """
-        return self._get_string("PEX_PATH")
+        return self._maybe_get_path_tuple("PEX_PATH") or ()
 
     @property
     def PEX_SCRIPT(self):
@@ -691,7 +703,7 @@ def venv_dir(
     pex_hash,  # type: str
     has_interpreter_constraints,  # type: bool
     interpreter=None,  # type: Optional[PythonInterpreter]
-    pex_path=None,  # type: Optional[str]
+    pex_path=(),  # type: Tuple[str, ...]
 ):
     # type: (...) -> str
 
@@ -705,13 +717,13 @@ def venv_dir(
     # PexInfo.pex_path and PEX_PATH are merged by PEX at runtime, so we include both and hash just
     # the distributions since those are the only items used from PEX_PATH adjoined PEX files; i.e.:
     # neither the entry_point nor any other PEX file data or metadata is used.
-    def add_pex_path_items(path):
-        # type: (Optional[str]) -> None
-        if not path:
+    def add_pex_path_items(pexes):
+        # type: (Tuple[str, ...]) -> None
+        if not pexes:
             return
         from pex.pex_info import PexInfo
 
-        for pex in path.split(":"):
+        for pex in pexes:
             pex_path_contents[pex] = PexInfo.from_pex(pex).distributions
 
     add_pex_path_items(pex_path)
@@ -741,11 +753,10 @@ def venv_dir(
         # Otherwise we can calculate the exact interpreter the PEX runtime will use. This ensures
         # ~unconstrained PEXes get a venv per interpreter used to invoke them with (user chooses).
         interpreter_binary = interpreter.binary if interpreter else sys.executable
-        pex_python_path = tuple(ENV.PEX_PYTHON_PATH.split(":")) if ENV.PEX_PYTHON_PATH else None
         if (
-            not pex_python_path
-            or interpreter_binary.startswith(pex_python_path)
-            or os.path.realpath(interpreter_binary).startswith(pex_python_path)
+            not ENV.PEX_PYTHON_PATH
+            or interpreter_binary.startswith(ENV.PEX_PYTHON_PATH)
+            or os.path.realpath(interpreter_binary).startswith(ENV.PEX_PYTHON_PATH)
         ):
             interpreter_path = interpreter_binary
     if interpreter_path:
@@ -803,7 +814,7 @@ def venv_dir(
                 with PEX_EMIT_WARNINGS=False.
                 """
             ).format(
-                ppp=ENV.PEX_PYTHON_PATH,
+                ppp=os.pathsep.join(ENV.PEX_PYTHON_PATH),
                 pex_file=os.path.normpath(pex_file),
                 venv_path=venv_path,
             )

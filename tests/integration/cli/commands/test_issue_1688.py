@@ -24,7 +24,7 @@ def test_multiplatform_sdist(
     # type: (...) -> None
 
     all_interpreters = (py27, py37, py310)
-    python_path = ":".join((interp.binary for interp in all_interpreters))
+    python_path = os.pathsep.join((interp.binary for interp in all_interpreters))
     interpreter_selection_args = [
         "--python-path",
         python_path,

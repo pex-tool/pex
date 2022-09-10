@@ -115,12 +115,12 @@ def test_inspect_interpreter_selection(
     ).splitlines()
 
     assert [py37.binary, py310.binary] == assert_inspect(
-        "--all", "--python-path", ":".join([os.path.dirname(py37.binary), py310.binary])
+        "--all", "--python-path", os.pathsep.join([os.path.dirname(py37.binary), py310.binary])
     ).splitlines()
 
     assert [py37.binary] == assert_inspect(
         "--interpreter-constraint",
         "<3.10",
         "--python-path",
-        ":".join([os.path.dirname(py37.binary), py310.binary]),
+        os.pathsep.join([os.path.dirname(py37.binary), py310.binary]),
     ).splitlines()

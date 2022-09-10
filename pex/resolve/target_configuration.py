@@ -10,7 +10,7 @@ from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
 from pex.orderedset import OrderedSet
-from pex.pex_bootstrapper import iter_compatible_interpreters, parse_path
+from pex.pex_bootstrapper import iter_compatible_interpreters, normalize_path
 from pex.platforms import Platform
 from pex.targets import CompletePlatform, Targets
 from pex.tracer import TRACER
@@ -27,13 +27,13 @@ else:
 
 @attr.s(frozen=True)
 class InterpreterConfiguration(object):
-    _python_path = attr.ib(default=None)  # type: Optional[str]
+    _python_path = attr.ib(default=None)  # type: Optional[Tuple[str, ...]]
     pythons = attr.ib(default=())  # type: Tuple[str, ...]
     interpreter_constraints = attr.ib(default=())  # type: Tuple[Requirement, ...]
 
     @property
     def python_path(self):
-        # type: () -> Optional[str]
+        # type: () -> Optional[Tuple[str, ...]]
         # TODO(#1075): stop looking at PEX_PYTHON_PATH and solely consult the `--python-path` flag.
         return self._python_path or ENV.PEX_PYTHON_PATH
 
@@ -48,7 +48,7 @@ class InterpreterConfiguration(object):
                         return PythonInterpreter.from_binary(full_path_or_basename)
                     else:
                         interpreter = PythonInterpreter.from_env(
-                            full_path_or_basename, paths=parse_path(self.python_path)
+                            full_path_or_basename, paths=normalize_path(self.python_path)
                         )
                         if interpreter is None:
                             raise InterpreterNotFound(

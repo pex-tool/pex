@@ -165,7 +165,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
         builder1.build(pex1)
 
         pex_info2 = PexInfo.default()
-        pex_info2.pex_path = pex1
+        pex_info2.pex_path = [pex1]
         pex2 = os.path.join(root, "pex2")
         builder2 = PEXBuilder(path=pex2, interpreter=interpreter, pex_info=pex_info2)
         add_requirements(builder2, cache)
@@ -385,7 +385,7 @@ def create_dist(
 def cpython_37_environment(python_37_interpreter):
     return PEXEnvironment(
         pex="",
-        pex_info=PexInfo.default(python_37_interpreter),
+        pex_info=PexInfo.default(),
         target=LocalInterpreter.create(python_37_interpreter),
     )
 

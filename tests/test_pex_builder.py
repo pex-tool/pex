@@ -252,7 +252,7 @@ def test_pex_builder_script_from_pex_path(tmpdir):
 
     pex_file = os.path.join(str(tmpdir), "app.pex")
     pb = PEXBuilder()
-    pb.info.pex_path = pex_with_script
+    pb.info.pex_path = [pex_with_script]
     pb.set_script("my_app")
     pb.build(pex_file)
 

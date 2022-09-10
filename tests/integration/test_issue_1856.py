@@ -50,7 +50,7 @@ def test_os_name_spoofing(tmpdir):
     # CPython>=3.7.5 on the PATH which we arrange for if not already present here.
     if sys.version_info[:3] < (3, 7, 5):
         python_path = os.environ["PATH"].split(os.pathsep) + [ensure_python_interpreter(PY37)]
-        create_lock_args.extend(["--python-path", ":".join(python_path)])
+        create_lock_args.extend(["--python-path", os.pathsep.join(python_path)])
 
     run_pex3(*create_lock_args, env=env).assert_success()
 

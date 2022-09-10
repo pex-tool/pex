@@ -113,12 +113,11 @@ class PEX(object):  # noqa: T000
             # merged from pex_path in `PEX-INFO` and `PEX_PATH` set in the environment.
             # `PEX_PATH` entries written into `PEX-INFO` take precedence over those set
             # in the environment.
-            if pex_info.pex_path:
-                # set up other environments as specified in pex_path
-                for pex_path in filter(None, pex_info.pex_path.split(os.pathsep)):
-                    pex_info = PexInfo.from_pex(pex_path)
-                    pex_info.update(self._pex_info_overrides)
-                    envs.append(PEXEnvironment.mount(pex_path, pex_info, target=target))
+            for pex_path in pex_info.pex_path:
+                # Set up other environments as specified in pex_path.
+                pex_info = PexInfo.from_pex(pex_path)
+                pex_info.update(self._pex_info_overrides)
+                envs.append(PEXEnvironment.mount(pex_path, pex_info, target=target))
             self._envs = tuple(envs)
         return self._envs
 
@@ -424,8 +423,10 @@ class PEX(object):  # noqa: T000
         new_sys_path, new_sys_path_importer_cache, new_sys_modules = self.minimum_sys(inherit_path)
 
         if self._vars.PEX_EXTRA_SYS_PATH:
-            TRACER.log("Adding %s to sys.path" % self._vars.PEX_EXTRA_SYS_PATH)
-            extra_sys_path = self._vars.PEX_EXTRA_SYS_PATH.split(":")
+            TRACER.log(
+                "Adding {} to sys.path".format(os.pathsep.join(self._vars.PEX_EXTRA_SYS_PATH))
+            )
+            extra_sys_path = self._vars.PEX_EXTRA_SYS_PATH
             new_sys_path.extend(extra_sys_path)
 
             # Let Python subprocesses see the same sys.path additions we see. If those Python
@@ -434,11 +435,11 @@ class PEX(object):  # noqa: T000
                 pythonpath_entries = extra_sys_path
             else:
                 raw_pythonpath = os.environ.get(self._PYTHONPATH)
-                pythonpath = raw_pythonpath.split(os.pathsep) if raw_pythonpath else []
+                pythonpath = tuple(raw_pythonpath.split(os.pathsep)) if raw_pythonpath else ()
                 pythonpath_entries = pythonpath + extra_sys_path
             os.environ[self._PYTHONPATH] = os.pathsep.join(pythonpath_entries)
 
-        TRACER.log("New sys.path: %s" % new_sys_path)
+        TRACER.log("New sys.path: {}".format(new_sys_path))
 
         patch_all(new_sys_path, new_sys_path_importer_cache, new_sys_modules)
 

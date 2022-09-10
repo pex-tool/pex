@@ -105,5 +105,5 @@ def test_unconstrained_universal_venv_pex(tmpdir):
         python=py310,
         expected_version=(3, 7),
         PEX_PYTHON=py37,
-        PEX_PYTHON_PATH=":".join(os.path.dirname(py) for py in (py27, py37)),
+        PEX_PYTHON_PATH=os.pathsep.join(os.path.dirname(py) for py in (py27, py37)),
     )

@@ -171,7 +171,9 @@ def test_pex_re_exec_failure():
         pex2_path = os.path.join(output_dir, "pex2.pex")
         res2 = run_pex_command(["--disable-cache", "flask", "-o", pex2_path])
         res2.assert_success()
-        pex_path = ":".join(os.path.join(output_dir, name) for name in ("pex1.pex", "pex2.pex"))
+        pex_path = os.pathsep.join(
+            os.path.join(output_dir, name) for name in ("pex1.pex", "pex2.pex")
+        )
 
         # create test file test.py that attmepts to import modules from pex1/pex2
         test_file_path = os.path.join(output_dir, "test.py")

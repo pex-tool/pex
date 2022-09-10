@@ -139,7 +139,7 @@ if not __installed_from__:
       __venv_dir__ = __maybe_run_venv__(
         __entry_point__,
         pex_root=__pex_root__,
-        pex_path=Variables.PEX_PATH.value_or(ENV, {pex_path!r}),
+        pex_path=ENV.PEX_PATH or {pex_path!r},
       )
     __installed_location__ = __maybe_install_pex__(
       __entry_point__, pex_root=__pex_root__, pex_hash={pex_hash!r}
@@ -200,7 +200,7 @@ class PEXBuilder(object):
         """
         self._interpreter = interpreter or PythonInterpreter.get()
         self._chroot = chroot or Chroot(path or safe_mkdtemp())
-        self._pex_info = pex_info or PexInfo.default(self._interpreter)
+        self._pex_info = pex_info or PexInfo.default()
         self._preamble = preamble or ""
         self._copy_mode = copy_mode
 
@@ -358,10 +358,9 @@ class PEXBuilder(object):
         """
 
         distributions = OrderedSet(self._distributions.values())
-        if self._pex_info.pex_path:
-            for pex in self._pex_info.pex_path.split(":"):
-                if os.path.exists(pex):
-                    distributions.update(PEX(pex, interpreter=self._interpreter).resolve())
+        for pex in self._pex_info.pex_path:
+            if os.path.exists(pex):
+                distributions.update(PEX(pex, interpreter=self._interpreter).resolve())
 
         # Check if 'script' is a console_script.
         dist_entry_point = get_entry_point_from_console_script(script, distributions)

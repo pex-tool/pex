@@ -43,7 +43,7 @@ def find_interpreters(
     return [
         interp.binary
         for interp in iter_compatible_interpreters(
-            path=os.pathsep.join(path),
+            path=tuple(path),
             valid_basenames=valid_basenames,
             interpreter_constraints=constraints,
             preferred_interpreter=preferred_interpreter,
