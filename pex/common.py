@@ -466,7 +466,7 @@ def atomic_directory(
             return
 
     try:
-        safe_mkdir(atomic_dir.work_dir)
+        os.makedirs(atomic_dir.work_dir)
         yield atomic_dir
         atomic_dir.finalize(source=source)
     finally:
