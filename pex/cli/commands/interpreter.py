@@ -105,12 +105,7 @@ class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
             return Error(str(e))
 
         if self.options.all:
-            python_path = (
-                interpreter_configuration.python_path.split(":")
-                if interpreter_configuration.python_path
-                else None
-            )
-            interpreters.update(PythonInterpreter.all(paths=python_path))
+            interpreters.update(PythonInterpreter.all(paths=interpreter_configuration.python_path))
         if not interpreters:
             interpreters.add(PythonInterpreter.get())
 

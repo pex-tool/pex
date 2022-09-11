@@ -9,7 +9,7 @@ import zipfile
 
 from pex import layout, pex_warnings, variables
 from pex.common import can_write_dir, open_zip, safe_mkdtemp
-from pex.compatibility import PY2
+from pex.compatibility import PY2, WINDOWS
 from pex.compatibility import string as compatibility_string
 from pex.inherit_path import InheritPath
 from pex.orderedset import OrderedSet
@@ -19,7 +19,7 @@ from pex.venv.bin_path import BinPath
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, List, Mapping, Optional, Text, Union
+    from typing import Any, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
 
     from pex.interpreter import PythonInterpreter
 
@@ -62,14 +62,9 @@ class PexInfo(object):
         }
 
     @classmethod
-    def default(cls, interpreter=None):
-        # type: (Optional[PythonInterpreter]) -> PexInfo
-        pex_info = {
-            "requirements": [],
-            "distributions": {},
-            "build_properties": cls.make_build_properties(),
-        }
-        return cls(info=pex_info)
+    def default(cls):
+        # type: () -> PexInfo
+        return cls(info={"build_properties": cls.make_build_properties()})
 
     @classmethod
     def from_pex(cls, pex):
@@ -107,7 +102,7 @@ class PexInfo(object):
             "ignore_errors": Variables.PEX_IGNORE_ERRORS.strip_default(env),
         }
         # Filter out empty entries not explicitly set in the environment.
-        return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))
+        return cls(info={k: v for k, v in pex_info.items() if v is not None})
 
     @classmethod
     def _parse_requirement_tuple(cls, requirement_tuple):
@@ -254,18 +249,31 @@ class PexInfo(object):
 
     @property
     def pex_path(self):
-        # type: () -> Optional[str]
-        """A colon separated list of other pex files to merge into the runtime environment.
+        # type: () -> Tuple[str, ...]
+        """A list of other pex files to merge into the runtime environment.
 
         This pex info property is used to persist the PEX_PATH environment variable into the pex
         info metadata for reuse within a built pex.
         """
-        return cast("Optional[str]", self._pex_info.get("pex_path"))
+        pex_paths = self._pex_info.get("pex_paths")
+        if pex_paths:
+            return tuple(cast("Iterable[str]", pex_paths))
+
+        # Legacy PEX-INFO stored this in a single string as a colon-separated list.
+        pex_path = self._pex_info.get("pex_path")
+        if pex_path:
+            return tuple(pex_path.split(":"))
+
+        return ()
 
     @pex_path.setter
     def pex_path(self, value):
-        # type: (str) -> None
-        self._pex_info["pex_path"] = value
+        # type: (Iterable[str]) -> None
+        if not WINDOWS:
+            # Store in the legacy format on the legacy supported OSes for backwards compatibility
+            # with old tools reading new PEX-INFO.
+            self._pex_info["pex_path"] = ":".join(value)
+        self._pex_info["pex_paths"] = tuple(value)
 
     @property
     def inherit_path(self):
@@ -460,19 +468,17 @@ class PexInfo(object):
         # type: () -> PexInfo
         return PexInfo(self.as_json_dict())
 
-    @staticmethod
-    def _merge_split(*paths):
-        filtered_paths = filter(None, paths)
-        return [p for p in ":".join(filtered_paths).split(":") if p]
-
     def merge_pex_path(self, pex_path):
+        # type: (Iterable[str]) -> None
         """Merges a new PEX_PATH definition into the existing one (if any).
 
-        :param str pex_path: The PEX_PATH to merge.
+        :param pex_path: The PEX_PATH to merge.
         """
         if not pex_path:
             return
-        self.pex_path = ":".join(self._merge_split(self.pex_path, pex_path))
+        merged_pex_path = OrderedSet(self.pex_path)
+        merged_pex_path.update(pex_path)
+        self.pex_path = tuple(merged_pex_path)
 
     def __repr__(self):
         return "{}({!r})".format(type(self).__name__, self._pex_info)

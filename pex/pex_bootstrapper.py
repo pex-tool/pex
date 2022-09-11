@@ -32,14 +32,10 @@ else:
     from pex.third_party import attr
 
 
-def parse_path(path):
-    # type: (Optional[str]) -> Optional[OrderedSet[str]]
-    """Parses a PATH string into a de-duped list of paths."""
-    return (
-        OrderedSet(PythonInterpreter.canonicalize_path(p) for p in path.split(os.pathsep))
-        if path
-        else None
-    )
+def normalize_path(path):
+    # type: (Optional[Iterable[str]]) -> Optional[OrderedSet[str]]
+    """Normalizes a PATH list into a de-duped list of paths."""
+    return OrderedSet(PythonInterpreter.canonicalize_path(p) for p in path) if path else None
 
 
 @attr.s(frozen=True)
@@ -78,7 +74,7 @@ class InterpreterTest(object):
 #  and this file use this function. The Pex CLI should not depend on this file which hosts code
 #  used at PEX runtime.
 def iter_compatible_interpreters(
-    path=None,  # type: Optional[str]
+    path=None,  # type: Optional[Tuple[str, ...]]
     valid_basenames=None,  # type: Optional[Iterable[str]]
     interpreter_constraints=None,  # type: Optional[Iterable[Union[str, Requirement]]]
     preferred_interpreter=None,  # type: Optional[PythonInterpreter]
@@ -87,7 +83,7 @@ def iter_compatible_interpreters(
     # type: (...) -> Iterator[PythonInterpreter]
     """Find all compatible interpreters on the system within the supplied constraints.
 
-    :param path: A PATH-style string with files or directories separated by os.pathsep.
+    :param path: A search PATH of files or directories.
     :param valid_basenames: Valid basenames for discovered interpreter binaries. If not specified,
                             Then all typical names are accepted (i.e.: python, python3, python2.7,
                             pypy, etc.).
@@ -116,7 +112,7 @@ def iter_compatible_interpreters(
         # type: () -> Iterator[InterpreterOrError]
         seen = set()  # type: Set[InterpreterOrError]
 
-        normalized_paths = parse_path(path)
+        normalized_paths = normalize_path(path)
 
         # Prefer the current interpreter, if valid.
         current_interpreter = preferred_interpreter or PythonInterpreter.get()
@@ -198,7 +194,7 @@ def iter_compatible_interpreters(
 
 
 def _select_path_interpreter(
-    path=None,  # type: Optional[str]
+    path=None,  # type: Optional[Tuple[str, ...]]
     valid_basenames=None,  # type: Optional[Tuple[str, ...]]
     interpreter_constraints=None,  # type: Optional[Iterable[str]]
     preferred_interpreter=None,  # type: Optional[PythonInterpreter]
@@ -277,7 +273,7 @@ def find_compatible_interpreter(interpreter_test=None):
             try:
                 if os.path.isabs(ENV.PEX_PYTHON):
                     target = _select_path_interpreter(
-                        path=ENV.PEX_PYTHON,
+                        path=(ENV.PEX_PYTHON,),
                         interpreter_constraints=interpreter_constraints,
                         preferred_interpreter=preferred_interpreter,
                         interpreter_test=interpreter_test,
@@ -314,7 +310,11 @@ def find_compatible_interpreter(interpreter_test=None):
             except UnsatisfiableInterpreterConstraintsError as e:
                 raise e.with_preamble(
                     "Failed to find compatible interpreter on path {path}.".format(
-                        path=ENV.PEX_PYTHON_PATH or os.getenv("PATH")
+                        path=(
+                            os.pathsep.join(ENV.PEX_PYTHON_PATH)
+                            if ENV.PEX_PYTHON_PATH
+                            else os.getenv("PATH")
+                        )
                     )
                 )
 

@@ -106,7 +106,10 @@ def configure_clp_pex_resolution(parser):
         dest="pex_path",
         type=str,
         default=None,
-        help="A colon separated list of other pex files to merge into the runtime environment.",
+        help=(
+            "A {pathsep!r} separated list of other pex files to merge into the runtime "
+            "environment.".format(pathsep=os.pathsep)
+        ),
     )
 
 
@@ -603,7 +606,7 @@ def build_pex(
     pex_info.venv_copies = options.venv_copies
     pex_info.venv_site_packages_copies = options.venv_site_packages_copies
     pex_info.includes_tools = options.include_tools or options.venv
-    pex_info.pex_path = options.pex_path
+    pex_info.pex_path = options.pex_path.split(os.pathsep) if options.pex_path else ()
     pex_info.ignore_errors = options.ignore_errors
     pex_info.emit_warnings = options.emit_warnings
     pex_info.inherit_path = options.inherit_path

@@ -150,8 +150,8 @@ def test_pex_vars_defaults_stripped():
     assert Variables.PEX_ALWAYS_CACHE.strip_default(v) is None
 
     # string
-    assert v.PEX_PATH is not None
-    assert Variables.PEX_PATH.strip_default(v) is None
+    assert v.PEX_PROFILE_SORT is not None
+    assert Variables.PEX_PROFILE_SORT.strip_default(v) is None
 
     # int
     assert v.PEX_VERBOSE is not None

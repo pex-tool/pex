@@ -338,7 +338,9 @@ def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
     # Now try to run the PEX remotely where both min and max exist.
     output = subprocess.check_output(
         args=[min_interpreter.binary, pex, "-c", "import psutil, sys; print(sys.executable)"],
-        env=make_env(PEX_PYTHON_PATH=":".join((min_interpreter.binary, max_interpreter.binary))),
+        env=make_env(
+            PEX_PYTHON_PATH=os.pathsep.join((min_interpreter.binary, max_interpreter.binary))
+        ),
         stderr=subprocess.PIPE,
     )
 
@@ -368,7 +370,7 @@ def test_boot_resolve_fail(
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(args=["--python", py37.binary, "psutil==5.9.0", "-o", pex]).assert_success()
 
-    pex_python_path = ":".join((py27.binary, py310.binary))
+    pex_python_path = os.pathsep.join((py27.binary, py310.binary))
     process = subprocess.Popen(
         args=[py27.binary, pex, "-c", ""],
         env=make_env(PEX_PYTHON_PATH=pex_python_path),

@@ -22,7 +22,6 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.testing import (
-    IS_PYPY,
     PY27,
     PY310,
     WheelBuilder,
@@ -564,7 +563,7 @@ def test_activate_interpreter_different_from_current():
         custom_interpreter = PythonInterpreter.from_binary(
             ensure_python_interpreter(interp_version)
         )
-        pex_info = PexInfo.default(custom_interpreter)
+        pex_info = PexInfo.default()
         pex_info.pex_root = pex_root
         with temporary_dir() as pex_chroot:
             pex_builder = PEXBuilder(

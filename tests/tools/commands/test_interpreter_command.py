@@ -71,7 +71,7 @@ class InterpreterTool(object):
         interpreters = [self.interpreter]
         interpreters.extend(self.other_interpreters)
         environ.update(
-            PEX_PYTHON_PATH=":".join(interpreter.binary for interpreter in interpreters),
+            PEX_PYTHON_PATH=os.pathsep.join(interpreter.binary for interpreter in interpreters),
             PEX_TOOLS="1",
         )
         environ.update(env)

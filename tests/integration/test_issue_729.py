@@ -66,7 +66,7 @@ def test_undeclared_setuptools_import_on_pex_path(tmpdir):
 
     res = run_pex_command(
         [
-            "--pex-path={}".format(":".join([setuptools_pex, bigquery_pex])),
+            "--pex-path={}".format(os.pathsep.join([setuptools_pex, bigquery_pex])),
             "-D",
             src_dir,
             "--entry-point",

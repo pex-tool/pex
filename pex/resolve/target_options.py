@@ -48,13 +48,14 @@ def register(
         default=None,
         type=str,
         help=(
-            "Colon-separated paths to search for interpreters in when `--interpreter-constraint` "
-            "{and_maybe_platforms} specified (default: $PATH). Each element "
-            "can be the absolute path of an interpreter binary or a directory containing "
+            "A {pathsep!r} separated list of paths to search for interpreters in when "
+            "`--interpreter-constraint` {and_maybe_platforms} specified (default: $PATH). Each "
+            "element can be the absolute path of an interpreter binary or a directory containing "
             "interpreter binaries.".format(
-                and_maybe_platforms="and/or `--resolve-local-platforms` are"
-                if include_platforms
-                else "is"
+                pathsep=os.pathsep,
+                and_maybe_platforms=(
+                    "and/or `--resolve-local-platforms` are" if include_platforms else "is"
+                ),
             )
         ),
     )
@@ -200,7 +201,11 @@ def configure_interpreters(options):
 
     return InterpreterConfiguration(
         interpreter_constraints=interpreter_constraints,
-        python_path=options.python_path,
+        python_path=(
+            tuple(OrderedSet(options.python_path.split(os.pathsep)))
+            if options.python_path
+            else None
+        ),
         pythons=tuple(OrderedSet(options.python)),
     )
 

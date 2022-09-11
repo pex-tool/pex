@@ -307,7 +307,9 @@ def test_pex_path_arg():
         pex2_path = os.path.join(output_dir, "pex2.pex")
         res2 = run_pex_command(["--disable-cache", "flask", "-o", pex2_path])
         res2.assert_success()
-        pex_path = ":".join(os.path.join(output_dir, name) for name in ("pex1.pex", "pex2.pex"))
+        pex_path = os.pathsep.join(
+            os.path.join(output_dir, name) for name in ("pex1.pex", "pex2.pex")
+        )
 
         # parameterize the pex arg for test.py
         pex_out_path = os.path.join(output_dir, "out.pex")
@@ -356,7 +358,9 @@ def test_pex_path_in_pex_info_and_env():
         pex2_path = os.path.join(output_dir, "pex2.pex")
         res2 = run_pex_command(["--disable-cache", "flask", "-o", pex2_path])
         res2.assert_success()
-        pex_path = ":".join(os.path.join(output_dir, name) for name in ("pex1.pex", "pex2.pex"))
+        pex_path = os.pathsep.join(
+            os.path.join(output_dir, name) for name in ("pex1.pex", "pex2.pex")
+        )
 
         # create a pex for environment PEX_PATH
         pex3_path = os.path.join(output_dir, "pex3.pex")
