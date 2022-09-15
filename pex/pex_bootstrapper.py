@@ -474,7 +474,7 @@ def ensure_venv(
 ):
     # type: (...) -> VenvPex
     pex_info = pex.pex_info()
-    venv_dir = pex_info.venv_dir(pex_file=pex.path(), interpreter=pex.interpreter)
+    venv_dir = pex_info.runtime_venv_dir(pex_file=pex.path(), interpreter=pex.interpreter)
     if venv_dir is None:
         raise AssertionError(
             "Expected PEX-INFO for {} to have the components of a venv directory".format(pex.path())

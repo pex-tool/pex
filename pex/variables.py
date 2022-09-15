@@ -692,9 +692,11 @@ def _expand_pex_root(pex_root):
 def unzip_dir(
     pex_root,  # type: str
     pex_hash,  # type: str
+    expand_pex_root=True,  # type: bool
 ):
     # type: (...) -> str
-    return os.path.join(_expand_pex_root(pex_root), "unzipped_pexes", pex_hash)
+    pex_root = _expand_pex_root(pex_root) if expand_pex_root else pex_root
+    return os.path.join(pex_root, "unzipped_pexes", pex_hash)
 
 
 def venv_dir(
@@ -704,6 +706,7 @@ def venv_dir(
     has_interpreter_constraints,  # type: bool
     interpreter=None,  # type: Optional[PythonInterpreter]
     pex_path=(),  # type: Tuple[str, ...]
+    expand_pex_root=True,  # type: bool
 ):
     # type: (...) -> str
 
@@ -765,7 +768,8 @@ def venv_dir(
     venv_contents_hash = hashlib.sha1(
         json.dumps(venv_contents, sort_keys=True).encode("utf-8")
     ).hexdigest()
-    venv_path = os.path.join(_expand_pex_root(pex_root), "venvs", pex_hash, venv_contents_hash)
+    pex_root = _expand_pex_root(pex_root) if expand_pex_root else pex_root
+    venv_path = os.path.join(pex_root, "venvs", pex_hash, venv_contents_hash)
 
     def warn(message):
         # type: (str) -> None

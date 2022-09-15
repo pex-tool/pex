@@ -9,6 +9,7 @@ import os
 import shutil
 
 from pex import pex_warnings
+from pex.bin.sh_boot import create_sh_boot_script
 from pex.common import (
     Chroot,
     atomic_directory,
@@ -32,6 +33,7 @@ from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_info import PexInfo
+from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
@@ -674,6 +676,28 @@ class PEXBuilder(object):
         elif os.path.isdir(tmp_pex):
             safe_delete(path)
         os.rename(tmp_pex, path)
+
+    def set_sh_boot_script(
+        self,
+        pex_name,  # type: str
+        targets,  # type: Targets
+        python_shebang,  # type: Optional[str]
+    ):
+        if not self._frozen:
+            self._logger.warning(
+                "Generating the sh_boot script requires pex to be frozen. Freezing now."
+            )
+            self.freeze()
+
+        self.set_shebang("/bin/sh")
+        script = create_sh_boot_script(
+            pex_name=pex_name,
+            pex_info=self._pex_info,
+            targets=targets,
+            interpreter=self.interpreter,
+            python_shebang=python_shebang,
+        )
+        self.set_header(script)
 
     def _build_packedapp(
         self,

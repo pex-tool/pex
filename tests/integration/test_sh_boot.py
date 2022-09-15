@@ -5,15 +5,12 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 from textwrap import dedent
 from typing import Text, Tuple
-from pex.interpreter import PythonInterpreter
 
 import pytest
 
 from pex.common import safe_open
-from pex.pex import PEX
 from pex.testing import ALL_PY_VERSIONS, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -41,33 +38,56 @@ def test_execute(
     assert "4.0" == subprocess.check_output(args=[cowsay, "--version"]).decode("utf-8").strip()
 
 
+@pytest.mark.parametrize(
+    ["execution_mode_args"],
+    [
+        pytest.param([], id="zipapp"),
+        pytest.param(["--venv"], id="venv"),
+    ],
+)
 def test_issue_1881(
     tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
 ):
     # type: (...) -> None
 
-    pex_root = Path(str(tmpdir)) / "pex_root"
-    pex_root.mkdir()
-    # make the pex root unwritable at build time.
-    pex_root.chmod(0o555)
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    os.mkdir(pex_root)
+    # Test that the runtime_pex_root is respected even when it is unwritable at build time.
+    os.chmod(pex_root, 0o555)
     cowsay = os.path.join(str(tmpdir), "cowsay.pex")
     run_pex_command(
-        args=["cowsay==4.0", "-c", "cowsay", "-o", cowsay, "--python-shebang", sys.executable, "--sh-boot", "--venv", "--runtime-pex-root", pex_root.as_posix()]
-
+        args=[
+            "cowsay==4.0",
+            "-c",
+            "cowsay",
+            "-o",
+            cowsay,
+            "--python-shebang",
+            sys.executable,
+            "--sh-boot",
+            "--runtime-pex-root",
+            pex_root,
+        ]
+        + execution_mode_args
     ).assert_success()
     # simulate pex_root writable at runtime.
-    pex_root.chmod(0o777)
+    os.chmod(pex_root, 0o777)
 
     def _execute_cowsay_pex():
-        output =  subprocess.check_output(args=[cowsay, "--version"], env=make_env(PEX_VERBOSE=1), stderr=subprocess.STDOUT).decode("utf-8").strip().splitlines()
-        print(output)
-        return output
+        return (
+            subprocess.check_output(
+                args=[cowsay, "--version"], env=make_env(PEX_VERBOSE=1), stderr=subprocess.STDOUT
+            )
+            .decode("utf-8")
+            .strip()
+        )
 
-    # In the first run the sh_boot script should layout the venv under the pex root
-    assert "Running zipapp pex to lay itself out under PEX_ROOT." in _execute_cowsay_pex()
-    installed_pex = PEX(cowsay).pex_info().runtime_venv_dir(cowsay, PythonInterpreter.get())
-    assert Path(installed_pex).exists()
-    assert "Running zipapp pex to lay itself out under PEX_ROOT."  not in _execute_cowsay_pex()
+    # When this string is logged from the sh_boot script it indicates that the slow
+    # path of running the zipapp via python interpreter taken.
+    slow_path_output = "Running zipapp pex to lay itself out under PEX_ROOT."
+    assert slow_path_output in _execute_cowsay_pex()
+    assert slow_path_output not in _execute_cowsay_pex()
 
 
 def interpreters():

@@ -161,7 +161,7 @@ def test_mixed_pex_root(
         env=make_env(PEX_IGNORE_ERRORS=True),
     )
 
-    py37_venv_dir_old = PexInfo.from_pex(pex_app_new).venv_dir(pex_app_old, py37)
+    py37_venv_dir_old = PexInfo.from_pex(pex_app_new).runtime_venv_dir(pex_app_old, py37)
     assert py37_venv_dir_old is not None
     assert not os.path.exists(py37_venv_dir_old)
 
@@ -171,7 +171,7 @@ def test_mixed_pex_root(
     )
     assert not os.path.exists(greenlet_include_venv_path(py37_venv_dir_old))
 
-    py37_venv_dir_new = PexInfo.from_pex(pex_app_new).venv_dir(pex_app_new, py37)
+    py37_venv_dir_new = PexInfo.from_pex(pex_app_new).runtime_venv_dir(pex_app_new, py37)
     assert py37_venv_dir_new is not None
     assert not os.path.exists(py37_venv_dir_new)
 

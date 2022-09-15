@@ -826,15 +826,11 @@ def do_main(
         log("Saving PEX file to {pex_file}".format(pex_file=pex_file), V=options.verbosity)
         if options.sh_boot:
             with TRACER.timed("Creating /bin/sh boot script"):
-                pex_builder.set_shebang("/bin/sh")
-                script = create_sh_boot_script(
+                pex_builder.set_sh_boot_script(
                     pex_name=pex_file,
-                    pex_info=pex.pex_info(),
                     targets=targets,
-                    interpreter=pex.interpreter,
                     python_shebang=options.python_shebang,
                 )
-                pex_builder.set_header(script)
 
         pex_builder.build(
             pex_file,
@@ -872,6 +868,9 @@ def seed_cache(
 
     pex_path = cast(str, options.pex_name)
     with TRACER.timed("Seeding local caches for {}".format(pex_path)):
+        # NB: This pattern causes the defaulted PEX_ROOT property to overwrite any runtime_pex_root in the written PEX-INFO.
+        # Consider using include_env_overrides=False and picking the non-defaulted version of PEX_ROOT from the
+        # environment iff it exists.
         pex_info = pex.pex_info()
         pex_root = pex_info.pex_root
 
