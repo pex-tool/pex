@@ -1,13 +1,13 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from pex.bin import sh_boot
-from pex.bin.sh_boot import PythonBinaryName
+from pex import sh_boot
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
+from pex.sh_boot import PythonBinaryName
 from pex.targets import CompletePlatform, Targets
 from pex.typing import TYPE_CHECKING
 

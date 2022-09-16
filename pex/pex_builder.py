@@ -9,7 +9,6 @@ import os
 import shutil
 
 from pex import pex_warnings
-from pex.bin.sh_boot import create_sh_boot_script
 from pex.common import (
     Chroot,
     atomic_directory,
@@ -33,6 +32,7 @@ from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_info import PexInfo
+from pex.sh_boot import create_sh_boot_script
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -684,10 +684,7 @@ class PEXBuilder(object):
         python_shebang,  # type: Optional[str]
     ):
         if not self._frozen:
-            self._logger.warning(
-                "Generating the sh_boot script requires pex to be frozen. Freezing now."
-            )
-            self.freeze()
+            raise Exception("Generating a sh_boot script requires the pex to be frozen.")
 
         self.set_shebang("/bin/sh")
         script = create_sh_boot_script(

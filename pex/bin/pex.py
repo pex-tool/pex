@@ -17,7 +17,6 @@ from textwrap import TextWrapper
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
-from pex.bin.sh_boot import create_sh_boot_script
 from pex.commands.command import (
     GlobalConfigurationError,
     global_environment,
@@ -45,6 +44,7 @@ from pex.resolve.resolver_configuration import (
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
 from pex.result import catch, try_
+from pex.sh_boot import create_sh_boot_script
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -868,9 +868,6 @@ def seed_cache(
 
     pex_path = cast(str, options.pex_name)
     with TRACER.timed("Seeding local caches for {}".format(pex_path)):
-        # NB: This pattern causes the defaulted PEX_ROOT property to overwrite any runtime_pex_root in the written PEX-INFO.
-        # Consider using include_env_overrides=False and picking the non-defaulted version of PEX_ROOT from the
-        # environment iff it exists.
         pex_info = pex.pex_info()
         pex_root = pex_info.pex_root
 
