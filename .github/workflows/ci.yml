@@ -47,7 +47,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11, "0-rc.1"]]
+        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11, "0-rc.2"]]
         os: [ubuntu-20.04, macos-11]
         pip-version: ["20", "22"]
         exclude:
@@ -68,7 +68,7 @@ jobs:
             python-version: [3, 10]
             pip-version: "20"
           - os: macos-11
-            python-version: [3, 11, "0-rc.1"]
+            python-version: [3, 11, "0-rc.2"]
           - os: ubuntu-20.04
             python-version: [3, 5]
             pip-version: "22"
@@ -85,7 +85,7 @@ jobs:
             python-version: [3, 9]
             pip-version: "20"
           - os: ubuntu-20.04
-            python-version: [3, 11, "0-rc.1"]
+            python-version: [3, 11, "0-rc.2"]
             pip-version: "20"
     steps:
       - name: Calculate Pythons to Expose
@@ -160,17 +160,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 10], [3, 11, "0-rc.1"]]
+        python-version: [[2, 7], [3, 10], [3, 11, "0-rc.2"]]
         os: [ubuntu-20.04, macos-11]
         pip-version: ["20", "22"]
         exclude:
           - os: macos-11
-            python-version: [3, 11, "0-rc.1"]
+            python-version: [3, 11, "0-rc.2"]
           - os: macos-11
             python-version: [2, 7]
             pip-version: "22"
           - os: ubuntu-20.04
-            python-version: [3, 11, "0-rc.1"]
+            python-version: [3, 11, "0-rc.2"]
             pip-version: "22"
     steps:
       - name: Calculate Pythons to Expose
