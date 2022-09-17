@@ -205,10 +205,12 @@ class PexInfo(object):
         # type: (bool) -> None
         self._pex_info["venv_site_packages_copies"] = value
 
-    def venv_dir(
+    def _venv_dir(
         self,
+        pex_root,  # type: str
         pex_file,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
+        expand_pex_root=True,  # type: bool
     ):
         # type: (...) -> Optional[str]
         if not self.venv:
@@ -217,12 +219,33 @@ class PexInfo(object):
             raise ValueError("The venv_dir was requested but no pex_hash was set.")
         return variables.venv_dir(
             pex_file=pex_file,
-            pex_root=self.pex_root,
+            pex_root=pex_root,
             pex_hash=self.pex_hash,
             has_interpreter_constraints=bool(self.interpreter_constraints),
             interpreter=interpreter,
             pex_path=self.pex_path,
+            expand_pex_root=expand_pex_root,
         )
+
+    def runtime_venv_dir(
+        self,
+        pex_file,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> Optional[str]
+        return self._venv_dir(self.pex_root, pex_file, interpreter)
+
+    def raw_venv_dir(
+        self,
+        pex_file,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> Optional[str]
+        """Distiguished from ``venv_dir`` by use of the raw_pex_root.
+        We don't expand the pex_root at build time in case the pex_root is not
+        writable or doesn't exist at build time.
+        """
+        return self._venv_dir(self.raw_pex_root, pex_file, interpreter, expand_pex_root=False)
 
     @property
     def includes_tools(self):

@@ -38,6 +38,58 @@ def test_execute(
     assert "4.0" == subprocess.check_output(args=[cowsay, "--version"]).decode("utf-8").strip()
 
 
+@pytest.mark.parametrize(
+    ["execution_mode_args"],
+    [
+        pytest.param([], id="zipapp"),
+        pytest.param(["--venv"], id="venv"),
+    ],
+)
+def test_issue_1881(
+    tmpdir,  # type: Any
+    execution_mode_args,  # type: List[str]
+):
+    # type: (...) -> None
+
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    os.mkdir(pex_root)
+    # Test that the runtime_pex_root is respected even when it is unwritable at build time.
+    os.chmod(pex_root, 0o555)
+    cowsay = os.path.join(str(tmpdir), "cowsay.pex")
+    run_pex_command(
+        args=[
+            "cowsay==4.0",
+            "-c",
+            "cowsay",
+            "-o",
+            cowsay,
+            "--python-shebang",
+            sys.executable,
+            "--sh-boot",
+            "--runtime-pex-root",
+            pex_root,
+        ]
+        + execution_mode_args
+    ).assert_success()
+    # simulate pex_root writable at runtime.
+    os.chmod(pex_root, 0o777)
+
+    def _execute_cowsay_pex():
+        return (
+            subprocess.check_output(
+                args=[cowsay, "--version"], env=make_env(PEX_VERBOSE=1), stderr=subprocess.STDOUT
+            )
+            .decode("utf-8")
+            .strip()
+        )
+
+    # When this string is logged from the sh_boot script it indicates that the slow
+    # path of running the zipapp via python interpreter taken.
+    slow_path_output = "Running zipapp pex to lay itself out under PEX_ROOT."
+    assert slow_path_output in _execute_cowsay_pex()
+    assert slow_path_output not in _execute_cowsay_pex()
+
+
 def interpreters():
     # type: () -> Iterable[Tuple[Text, List[Text]]]
 

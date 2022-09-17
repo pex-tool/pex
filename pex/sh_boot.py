@@ -153,14 +153,16 @@ def create_sh_boot_script(
         )
     )
 
-    venv_dir = pex_info.venv_dir(pex_file=pex_name, interpreter=interpreter)
+    venv_dir = pex_info.raw_venv_dir(pex_file=pex_name, interpreter=interpreter)
     if venv_dir:
         pex_installed_path = venv_dir
     else:
         pex_hash = pex_info.pex_hash
         if pex_hash is None:
             raise ValueError("Expected pex_hash to be set already in PEX-INFO.")
-        pex_installed_path = variables.unzip_dir(pex_info.pex_root, pex_hash)
+        pex_installed_path = variables.unzip_dir(
+            pex_info.raw_pex_root, pex_hash, expand_pex_root=False
+        )
 
     return dedent(
         """\
@@ -215,6 +217,9 @@ def create_sh_boot_script(
             else
                 # The slow path: this PEX zipapp is not installed yet. Run the PEX zipapp so it
                 # can install itself, rebuilding its fast path layout under the PEX_ROOT.
+                if [ -n "${{PEX_VERBOSE:-}}" ]; then
+                    echo >&2 "Running zipapp pex to lay itself out under PEX_ROOT."
+                fi
                 exec ${{python_exe}} "$0" "$@"
             fi
         fi
@@ -237,5 +242,5 @@ def create_sh_boot_script(
         python_args=python_args,
         pythons=" \\\n".join('"{python}"'.format(python=python) for python in python_names),
         pex_root=pex_info.raw_pex_root,
-        pex_installed_relpath=os.path.relpath(pex_installed_path, pex_info.pex_root),
+        pex_installed_relpath=os.path.relpath(pex_installed_path, pex_info.raw_pex_root),
     )

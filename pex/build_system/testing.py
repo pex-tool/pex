@@ -46,7 +46,7 @@ def assert_build_sdist(
         pip_version,
         ConfiguredResolver(PipConfiguration(version=pip_version)),
     )
-    assert not isinstance(location, Error)
+    assert not isinstance(location, Error), location
     assert sdist_dir == os.path.dirname(location)
 
     sdist = Distribution.load(location)

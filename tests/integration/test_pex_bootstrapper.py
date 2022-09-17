@@ -99,7 +99,7 @@ def test_ensure_venv_short_link(
     #     <full hash1>/
     #       .<full hash2>.atomic_directory.lck
 
-    expected_venv_dir = PexInfo.from_pex(collisions_pex).venv_dir(collisions_pex)
+    expected_venv_dir = PexInfo.from_pex(collisions_pex).runtime_venv_dir(collisions_pex)
     assert expected_venv_dir is not None
 
     full_hash1_dir = os.path.basename(os.path.dirname(expected_venv_dir))
@@ -150,7 +150,7 @@ def test_ensure_venv_namespace_packages(tmpdir):
         nspkgs_venv_pex = ensure_venv(PEX(nspkgs_pex), collisions_ok=False)
 
         pex_info = PexInfo.from_pex(nspkgs_pex)
-        venv_dir = pex_info.venv_dir(nspkgs_pex)
+        venv_dir = pex_info.runtime_venv_dir(nspkgs_pex)
         assert venv_dir is not None
         venv = Virtualenv(venv_dir=venv_dir)
         assert os.path.realpath(nspkgs_venv_pex.pex) == os.path.realpath(venv.join_path("pex"))
@@ -251,7 +251,7 @@ def test_ensure_venv_site_packages_copies(
             ]
         ).assert_success()
 
-        venv_dir = PexInfo.from_pex(pex_file).venv_dir(pex_file)
+        venv_dir = PexInfo.from_pex(pex_file).runtime_venv_dir(pex_file)
         assert venv_dir is not None
         venv = Virtualenv(venv_dir=venv_dir)
         pex_package = os.path.join(venv.site_packages_dir, "pex")
