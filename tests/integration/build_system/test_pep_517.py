@@ -25,9 +25,9 @@ def test_build_sdist_pyproject_toml(
     # The Poetry backend is important to supprt and the Poetry project dogfoods itself in its build.
     project_dir = clone(
         "https://github.com/python-poetry/poetry",
-        "8cb3aab3d0eaf5a25b3cf57e0cfc633231774524",
+        "7cd761a6a0bdec7fab76cf742ee4109db854ab76",
     )
-    assert_build_sdist(project_dir, "poetry", "1.2.0-beta.2.dev0", tmpdir)
+    assert_build_sdist(project_dir, "poetry", "1.2.1", tmpdir)
 
 
 def test_build_sdist_setup_py(
