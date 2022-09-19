@@ -7,11 +7,11 @@ import errno
 import itertools
 import os
 import shutil
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from textwrap import dedent
 
 from pex import pex_warnings
-from pex.common import safe_mkdir, pluralize, chmod_plus_x
+from pex.common import chmod_plus_x, pluralize, safe_mkdir
 from pex.compatibility import is_valid_python_identifier
 from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
@@ -27,7 +27,7 @@ from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     import typing
-    from typing import Tuple, Iterator, Optional, Iterable
+    from typing import Iterable, Iterator, Optional, Tuple
 
 
 def _relative_symlink(
@@ -167,9 +167,11 @@ def _populate_legacy_dist(
     symlink=False,  # type: bool
     rel_extra_path=None,  # type: Optional[str]
 ):
-    dst = os.path.join(
-        venv.site_packages_dir, rel_extra_path
-    ) if rel_extra_path else venv.site_packages_dir
+    dst = (
+        os.path.join(venv.site_packages_dir, rel_extra_path)
+        if rel_extra_path
+        else venv.site_packages_dir
+    )
 
     # N.B.: We do not include the top_level __pycache__ for a dist since there may be
     # multiple dists with top-level modules. In that case, one dists top-level __pycache__
@@ -232,8 +234,8 @@ def _populate_deps(
                 name
                 for name in os.listdir(dist.location)
                 if name not in ("bin", "__pycache__")
-                   and is_valid_python_identifier(name)
-                   and os.path.isdir(os.path.join(dist.location, name))
+                and is_valid_python_identifier(name)
+                and os.path.isdir(os.path.join(dist.location, name))
             ]
             count = max(top_level_packages[package] for package in packages) if packages else 0
             if count > 0:
@@ -297,7 +299,11 @@ def _populate_sources(
         src=PEXEnvironment.mount(pex.path()).path,
         dst=venv.site_packages_dir,
         exclude=(
-            pex_info.internal_cache, pex_info.bootstrap, "__main__.py", "__pycache__", pex_info.PATH
+            pex_info.internal_cache,
+            pex_info.bootstrap,
+            "__main__.py",
+            "__pycache__",
+            pex_info.PATH,
         ),
         symlink=False,
     ):
