@@ -1028,24 +1028,28 @@ DUAL_UPDATE_LOCKFILE = json_codec.loads(DUAL_UPDATE_LOCKFILE_CONTENTS)
 
 def test_update_partial(tmpdir):
     # type: (Any) -> None
-    # The p537 project was created for Pex --platform tests and we know there will be no releases
-    # past 1.0.4; so an unconstrained lock update should be a noop.
+
     lock_file_path = write_lock_file(tmpdir, DUAL_UPDATE_LOCKFILE_CONTENTS)
-    result = run_lock_update(
+
+    def update_dual_lockfile(*extra_args):
+        # type: (*str) -> IntegResults
+        # The lock was created with an unconstrained p537 dep when 1.0.4 was the last version; so a
+        # constrained lock update for 1.0.4 should be a noop.
+        return run_lock_update(*(("-p", "p537==1.0.4", lock_file_path) + extra_args))
+
+    result = update_dual_lockfile(
         "--platform",
         "macosx-10.13-x86_64-cp-37-m",
         "--platform",
         "linux-x86_64-cp-37-m",
-        lock_file_path,
     )
     result.assert_success()
     assert DUAL_UPDATE_LOCKFILE == json_codec.load(lock_file_path)
 
     # By default, lock updates are strict: all locked resolves must be updated at once.
-    result = run_lock_update(
+    result = update_dual_lockfile(
         "--platform",
         "macosx-10.13-x86_64-cp-37-m",
-        lock_file_path,
     )
     result.assert_failure()
     assert (
@@ -1065,11 +1069,10 @@ def test_update_partial(tmpdir):
         in result.error
     )
 
-    result = run_lock_update(
+    result = update_dual_lockfile(
         "--platform",
         "macosx-10.13-x86_64-cp-37-m",
         "--non-strict",
-        lock_file_path,
     )
     result.assert_success()
     assert DUAL_UPDATE_LOCKFILE == json_codec.load(lock_file_path)
