@@ -58,21 +58,19 @@ Documentation = "https://pex.readthedocs.io/en/latest/"
 [tool.black]
 line-length = 100
 target-version = ["py27"]
-extend-exclude = '''
-/(
-  | pex/vendor/_vendored
-  | pex/venv/virtualenv_.*_py
-)/
+exclude = '''
+/pex/(
+  vendor/_vendored/
+  |venv/virtualenv_16\.7\.12_py
+)
 '''
 
 [tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
+profile = "black"
 line_length = 100
-default_section = "THIRDPARTY"
-known_first_party = "pex"
+# The default skip list includes venv which causes pex/venv/** to be skipped; so we blank out the
+# defaults here.
+skip = []
 skip_glob = [
   "pex/vendor/_vendored/**",
   "pex/venv/virtualenv_16.7.12_py"
