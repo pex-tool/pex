@@ -1012,7 +1012,7 @@ DUAL_UPDATE_LOCKFILE_CONTENTS = """\
   "pex_version": "2.1.50",
   "prefer_older_binary": false,
   "requirements": [
-    "p537"
+    "p537==1.0.4"
   ],
   "requires_python": [],
   "resolver_version": "pip-2020-resolver",
@@ -1066,6 +1066,8 @@ def test_update_partial(tmpdir):
     )
 
     result = run_lock_update(
+        "-p",
+        "p537==1.0.4",
         "--platform",
         "macosx-10.13-x86_64-cp-37-m",
         "--non-strict",

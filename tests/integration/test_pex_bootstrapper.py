@@ -14,7 +14,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
-from pex.testing import PY27, PY37, PY_VER, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import PY27, PY38, PY_VER, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.venv.pex import CollisionError
 from pex.venv.virtualenv import Virtualenv
@@ -292,7 +292,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
     assert_boot(sys.executable)
 
     other_interpreter = (
-        ensure_python_interpreter(PY27) if PY_VER != (2, 7) else ensure_python_interpreter(PY37)
+        ensure_python_interpreter(PY27) if PY_VER != (2, 7) else ensure_python_interpreter(PY38)
     )
     assert_boot(other_interpreter)
 
@@ -300,7 +300,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
 def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
     # type: (Any) -> None
     other_interpreter = PythonInterpreter.from_binary(
-        ensure_python_interpreter(PY27) if PY_VER != (2, 7) else ensure_python_interpreter(PY37)
+        ensure_python_interpreter(PY27) if PY_VER != (2, 7) else ensure_python_interpreter(PY38)
     )
     current_interpreter = PythonInterpreter.get()
 
@@ -362,13 +362,13 @@ def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
 def test_boot_resolve_fail(
     tmpdir,  # type: Any
     py27,  # type: PythonInterpreter
-    py37,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
     pex = os.path.join(str(tmpdir), "pex")
-    run_pex_command(args=["--python", py37.binary, "psutil==5.9.0", "-o", pex]).assert_success()
+    run_pex_command(args=["--python", py38.binary, "psutil==5.9.0", "-o", pex]).assert_success()
 
     pex_python_path = os.pathsep.join((py27.binary, py310.binary))
     process = subprocess.Popen(

@@ -6,7 +6,7 @@ import sys
 
 from pex.cli.testing import run_pex3
 from pex.resolve.lockfile import json_codec
-from pex.testing import PY37, ensure_python_interpreter, make_env
+from pex.testing import PY38, ensure_python_interpreter, make_env
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ def test_os_name_spoofing(tmpdir):
     # The above attempt to get pywinpty dependency metadata by building the sdist requires a
     # CPython>=3.7.5 on the PATH which we arrange for if not already present here.
     if sys.version_info[:3] < (3, 7, 5):
-        python_path = os.environ["PATH"].split(os.pathsep) + [ensure_python_interpreter(PY37)]
+        python_path = os.environ["PATH"].split(os.pathsep) + [ensure_python_interpreter(PY38)]
         create_lock_args.extend(["--python-path", os.pathsep.join(python_path)])
 
     run_pex3(*create_lock_args, env=env).assert_success()

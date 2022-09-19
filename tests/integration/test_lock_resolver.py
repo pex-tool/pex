@@ -301,7 +301,7 @@ def requests_lock_universal(tmpdir_factory):
 def test_multiplatform(
     tmpdir,  # type: Any
     requests_lock_universal,  # type: str
-    py37,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
@@ -310,7 +310,7 @@ def test_multiplatform(
     run_pex_command(
         args=[
             "--python",
-            py37.binary,
+            py38.binary,
             "--python",
             py310.binary,
             "--lock",
@@ -322,7 +322,7 @@ def test_multiplatform(
     ).assert_success()
 
     check_command = [pex_file, "-c", "import requests"]
-    py37.execute(check_command)
+    py38.execute(check_command)
     py310.execute(check_command)
 
 

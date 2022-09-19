@@ -11,7 +11,7 @@ from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LocalProjectArtifact
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
-from pex.testing import PY37, ensure_python_interpreter, make_env
+from pex.testing import PY38, ensure_python_interpreter, make_env
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
@@ -26,7 +26,7 @@ def test_pep_518_venv_pex_env_scrubbing(
     # type: (...) -> None
 
     # N.B.: The package script requires Python 3.
-    python = sys.executable if PY3 else ensure_python_interpreter(PY37)
+    python = sys.executable if PY3 else ensure_python_interpreter(PY38)
 
     package_script = os.path.join(pex_project_dir, "scripts", "package.py")
     pex_pex = os.path.join(str(tmpdir), "pex")

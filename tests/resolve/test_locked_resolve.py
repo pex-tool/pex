@@ -45,9 +45,9 @@ def current_target():
 
 
 @pytest.fixture
-def py37_target(py37):
+def py37_target(py38):
     # type: (PythonInterpreter) -> Target
-    return LocalInterpreter.create(py37)
+    return LocalInterpreter.create(py38)
 
 
 @pytest.fixture
