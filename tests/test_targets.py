@@ -53,7 +53,7 @@ def test_interpreter(
 
 def test_unique_targets(
     py27,  # type: PythonInterpreter
-    py37,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
     current_interpreter,  # type: PythonInterpreter
     current_platform,  # type: Platform
@@ -82,8 +82,8 @@ def test_unique_targets(
     )
 
     assert (
-        OrderedSet(LocalInterpreter.create(i) for i in (py27, py37, py310))
-        == Targets(interpreters=(py27, py37, py310)).unique_targets()
+        OrderedSet(LocalInterpreter.create(i) for i in (py27, py38, py310))
+        == Targets(interpreters=(py27, py38, py310)).unique_targets()
     )
 
     complete_platform_current = CompletePlatform.from_interpreter(current_interpreter)

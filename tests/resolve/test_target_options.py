@@ -232,16 +232,16 @@ def path_for(*interpreters):
 def test_configure_interpreter_path(
     parser,  # type: ArgumentParser
     py27,  # type: PythonInterpreter
-    py37,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
     target_options.register(parser)
 
-    with environment_as(PATH=path_for(py27, py37, py310)):
+    with environment_as(PATH=path_for(py27, py38, py310)):
         assert_interpreter(parser, ["--python", "python"], py27)
         assert_interpreter(parser, ["--python", "python2"], py27)
-        assert_interpreter(parser, ["--python", "python3"], py37)
+        assert_interpreter(parser, ["--python", "python3"], py38)
         assert_interpreter(parser, ["--python", "python3.10"], py310)
         with pytest.raises(pex.resolve.target_configuration.InterpreterNotFound):
             compute_target_configuration(parser, args=["--python", "python3.9"])
@@ -250,18 +250,18 @@ def test_configure_interpreter_path(
 def test_configure_interpreter_pex_python_path(
     parser,  # type: ArgumentParser
     py27,  # type: PythonInterpreter
-    py37,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
     target_options.register(parser)
 
-    path_env_var = path_for(py27, py37, py310)
+    path_env_var = path_for(py27, py38, py310)
 
     with ENV.patch(PEX_PYTHON_PATH=path_env_var):
         assert_interpreter(parser, ["--python", "python"], py27)
         assert_interpreter(parser, ["--python", "python2"], py27)
-        assert_interpreter(parser, ["--python", "python3"], py37)
+        assert_interpreter(parser, ["--python", "python3"], py38)
         assert_interpreter(parser, ["--python", "python3.10"], py310)
         with pytest.raises(pex.resolve.target_configuration.InterpreterNotFound):
             compute_target_configuration(parser, args=["--python", "python3.9"])
@@ -269,20 +269,20 @@ def test_configure_interpreter_pex_python_path(
     with ENV.patch(PEX_PYTHON_PATH=py27.binary):
         assert_interpreter(parser, ["--python", "python2.7"], py27)
 
-    assert_interpreter(parser, ["--python-path", path_env_var, "--python", "python3"], py37)
+    assert_interpreter(parser, ["--python-path", path_env_var, "--python", "python3"], py38)
     assert_interpreter(parser, ["--python-path", py310.binary, "--python", "python3.10"], py310)
 
 
 def test_configure_interpreter_constraints(
     parser,  # type: ArgumentParser
     py27,  # type: PythonInterpreter
-    py37,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
     target_options.register(parser)
 
-    path_env_var = path_for(py310, py27, py37)
+    path_env_var = path_for(py310, py27, py38)
 
     def interpreter_constraint_args(interpreter_constraints):
         # type: (Iterable[str]) -> List[str]
@@ -307,13 +307,13 @@ def test_configure_interpreter_constraints(
             *expected_interpreters
         )
 
-    assert_interpreter_constraint(["CPython"], [py310, py27, py37], expected_interpreter=py27)
-    assert_interpreter_constraint([">=2"], [py310, py27, py37], expected_interpreter=py27)
-    assert_interpreter_constraint([">=2,!=3.7.*"], [py310, py27], expected_interpreter=py27)
-    assert_interpreter_constraint(["==3.*"], [py310, py37], expected_interpreter=py37)
+    assert_interpreter_constraint(["CPython"], [py310, py27, py38], expected_interpreter=py27)
+    assert_interpreter_constraint([">=2"], [py310, py27, py38], expected_interpreter=py27)
+    assert_interpreter_constraint([">=2,!=3.8.*"], [py310, py27], expected_interpreter=py27)
+    assert_interpreter_constraint(["==3.*"], [py310, py38], expected_interpreter=py38)
     assert_interpreter_constraint(["==3.10.*"], [py310], expected_interpreter=py310)
-    assert_interpreter_constraint([">3"], [py310, py37], expected_interpreter=py37)
-    assert_interpreter_constraint([">=3.7,<3.8"], [py37], expected_interpreter=py37)
+    assert_interpreter_constraint([">3"], [py310, py38], expected_interpreter=py38)
+    assert_interpreter_constraint([">=3.8,<3.9"], [py38], expected_interpreter=py38)
     assert_interpreter_constraint(["==3.10.*", "==2.7.*"], [py310, py27], expected_interpreter=py27)
 
     def assert_interpreter_constraint_not_satisfied(interpreter_constraints):
@@ -331,13 +331,13 @@ def test_configure_interpreter_constraints(
 def test_configure_resolve_local_platforms(
     parser,  # type: ArgumentParser
     py27,  # type: PythonInterpreter
-    py37,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
     target_options.register(parser)
 
-    path_env_var = path_for(py27, py37, py310)
+    path_env_var = path_for(py27, py38, py310)
 
     def assert_local_platforms(
         platforms,  # type: Iterable[str]
@@ -363,17 +363,17 @@ def test_configure_resolve_local_platforms(
     foreign_platform = "linux-x86_64-cp-37-m" if IS_MAC else "macosx-10.13-x86_64-cp-37-m"
 
     assert_local_platforms(
-        platforms=[foreign_platform, str(py37.platform)],
+        platforms=[foreign_platform, str(py38.platform)],
         expected_platforms=[foreign_platform],
-        expected_interpreter=py37,
+        expected_interpreter=py38,
     )
 
     assert_local_platforms(
-        platforms=[foreign_platform, str(py37.platform)],
+        platforms=[foreign_platform, str(py38.platform)],
         extra_args=["--interpreter-constraint", "CPython"],
         expected_platforms=[foreign_platform],
         expected_interpreter=py27,
-        expected_interpreters=(py27, py37, py310),
+        expected_interpreters=(py27, py38, py310),
     )
 
     assert_local_platforms(

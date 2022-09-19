@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 
-from pex.testing import PY37, PY310, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import PY38, PY310, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,10 +17,10 @@ def test_isolated_pex_zip(tmpdir):
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
 
-    python37 = ensure_python_interpreter(PY37)
+    python38 = ensure_python_interpreter(PY38)
     python310 = ensure_python_interpreter(PY310)
 
-    pex_env = make_env(PEX_PYTHON_PATH=os.pathsep.join((python37, python310)))
+    pex_env = make_env(PEX_PYTHON_PATH=os.pathsep.join((python38, python310)))
 
     def add_pex_args(*args):
         # type: (*str) -> List[str]
@@ -30,7 +30,7 @@ def test_isolated_pex_zip(tmpdir):
             "--runtime-pex-root",
             pex_root,
             "--interpreter-constraint",
-            "CPython=={version}".format(version=PY37),
+            "CPython=={version}".format(version=PY38),
         ]
 
     def tally_isolated_vendoreds():
@@ -60,7 +60,7 @@ def test_isolated_pex_zip(tmpdir):
     # ===
     current_pex_pex = os.path.join(str(tmpdir), "pex-current.pex")
     results = run_pex_command(
-        args=add_pex_args(".", "-c", "pex", "-o", current_pex_pex), env=pex_env, python=python37
+        args=add_pex_args(".", "-c", "pex", "-o", current_pex_pex), env=pex_env, python=python38
     )
     results.assert_success()
 

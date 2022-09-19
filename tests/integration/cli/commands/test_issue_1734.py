@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 def test_lock_create_sdist_requires_python_different_from_current(
     tmpdir,  # type: Any
     py27,  # type: PythonInterpreter
-    py37,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
@@ -32,7 +32,7 @@ def test_lock_create_sdist_requires_python_different_from_current(
         "--interpreter-constraint",
         "CPython<3.11,>=3.8",
         "--python-path",
-        os.pathsep.join(interp.binary for interp in (py27, py37, py310)),
+        os.pathsep.join(interp.binary for interp in (py27, py38, py310)),
         "aioconsole==0.4.1",
         "-o",
         lock,
@@ -67,7 +67,7 @@ def test_lock_create_sdist_requires_python_different_from_current(
 def test_lock_create_universal_interpreter_constraint_unsatisfiable(
     tmpdir,  # type: Any
     py27,  # type: PythonInterpreter
-    py37,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
 ):
     # type: (...) -> None
 
@@ -80,9 +80,9 @@ def test_lock_create_universal_interpreter_constraint_unsatisfiable(
         "--style",
         "universal",
         "--interpreter-constraint",
-        "CPython<3.11,>=3.8",
+        "CPython<3.11,>=3.9",
         "--python-path",
-        os.pathsep.join(interp.binary for interp in (py27, py37)),
+        os.pathsep.join(interp.binary for interp in (py27, py38)),
         "aioconsole==0.4.1",
         "-o",
         lock,
@@ -97,14 +97,14 @@ def test_lock_create_universal_interpreter_constraint_unsatisfiable(
         "\n"
         "Examined the following interpreters:\n"
         "1.) {py27_path} {py27_req}\n"
-        "2.) {py37_path} {py37_req}\n"
+        "2.) {py38_path} {py38_req}\n"
         "\n"
         "No interpreter compatible with the requested constraints was found:\n"
         "\n"
-        "  Version matches CPython<3.11,>=3.8\n".format(
+        "  Version matches CPython<3.11,>=3.9\n".format(
             py27_path=py27.binary,
             py27_req=py27.identity.requirement,
-            py37_path=py37.binary,
-            py37_req=py37.identity.requirement,
+            py38_path=py38.binary,
+            py38_req=py38.identity.requirement,
         )
     ) == result.error

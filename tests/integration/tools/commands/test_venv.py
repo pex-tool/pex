@@ -129,13 +129,15 @@ def test_collisions_mergeable_issue_1570(tmpdir):
             dedent(
                 """\
                 from __future__ import print_function
+                
+                import os
 
                 import opencensus
                 import opencensus.common
 
 
-                print(opencensus.__file__)
-                print(opencensus.common.__file__)
+                print(os.path.realpath(opencensus.__file__))
+                print(os.path.realpath(opencensus.common.__file__))
                 """
             ),
         ]

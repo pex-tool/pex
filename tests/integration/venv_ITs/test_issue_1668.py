@@ -4,7 +4,7 @@
 import os.path
 import subprocess
 
-from pex.testing import PY37, ensure_python_interpreter, make_env, pex_project_dir, run_pex_command
+from pex.testing import PY38, ensure_python_interpreter, make_env, pex_project_dir, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -23,12 +23,12 @@ def assert_venv_runtime_env_vars_ignored_during_create(
         args.append("--venv")
     run_pex_command(args=args).assert_success()
 
-    py37 = ensure_python_interpreter(PY37)
+    py38 = ensure_python_interpreter(PY38)
     pex_root = os.path.join(str(tmpdir), "pex_root")
     lock = os.path.join(str(tmpdir), "lock.json")
     subprocess.check_call(
         args=[
-            py37,
+            py38,
             pex_pex,
             "lock",
             "create",
@@ -43,7 +43,7 @@ def assert_venv_runtime_env_vars_ignored_during_create(
     ansicolors_path = (
         subprocess.check_output(
             args=[
-                py37,
+                py38,
                 pex_pex,
                 "--pex-root",
                 pex_root,
