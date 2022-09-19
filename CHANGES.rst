@@ -1,6 +1,47 @@
 Release Notes
 =============
 
+2.1.105
+-------
+
+This is a fix release which addresses issues related to build time work_dir creation,
+virtualenv and sh_boot support, as well as Windows compatibility. Also includes various CI fixes and improvements.
+
+In the unlikely event of a UUID collision in atomic workdir creation,
+pex could overwrite an existing directory and cause a corrupt state.
+When building a shell bootable ``--sh-boot`` pex the ``--runtime-pex-root``
+was not always respected based on the condition of the build environment,
+and the value of the PEX_ROOT.
+
+* Fail on atomic_directory work_dir collision. (#1905) 
+  `PR #1905 <https://github.com/pantsbuild/pex/pull/1905>`_
+
+* Use raw_pex_root when constructing sh_boot pexes. (#1906)
+  `PR #1906 <https://github.com/pantsbuild/pex/pull/1906>`_
+
+* Make Virtualenv more robust. (#1911) 
+  `PR #1911 <https://github.com/pantsbuild/pex/pull/1911>`_
+
+
+Docs.
+
+* Add support for offline downloads (#1898)
+  `PR #1898 <https://github.com/pantsbuild/pex/pull/1898>`_
+
+Various improvements to Windows support.
+
+* Upgrade 3.7 pyenv interpreter to 3.8. (#1912) 
+  `PR #1912 <https://github.com/pantsbuild/pex/pull/1912>`_
+
+* Convert scripts to Python for Windows interop. (#1900)
+  `PR #1900 <https://github.com/pantsbuild/pex/pull/1900>`_
+
+* Make test tolerant of older git. (#1904)
+  `PR #1904 <https://github.com/pantsbuild/pex/pull/1904>`_
+
+* Fix PATH-style inputs to use os.pathsep. (#1902)
+  `PR #1902 <https://github.com/pantsbuild/pex/pull/1902>`_
+
 2.1.104
 -------
 
