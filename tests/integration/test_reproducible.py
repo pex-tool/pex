@@ -14,7 +14,7 @@ from pex.compatibility import PY2
 from pex.testing import (
     IS_PYPY,
     PY27,
-    PY37,
+    PY38,
     PY310,
     PY_VER,
     create_pex_command,
@@ -82,12 +82,12 @@ def assert_reproducible_build(
 MAJOR_COMPATIBLE_PYTHONS = (
     (sys.executable, ensure_python_interpreter(PY27))
     if PY2
-    else (sys.executable, ensure_python_interpreter(PY37), ensure_python_interpreter(PY310))
+    else (sys.executable, ensure_python_interpreter(PY38), ensure_python_interpreter(PY310))
 )
 MIXED_MAJOR_PYTHONS = (
     sys.executable,
     ensure_python_interpreter(PY27),
-    ensure_python_interpreter(PY37),
+    ensure_python_interpreter(PY38),
     ensure_python_interpreter(PY310),
 )
 

@@ -11,7 +11,7 @@ from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.testing import (
     PY27,
-    PY37,
+    PY38,
     PY310,
     ensure_python_interpreter,
     make_env,
@@ -97,14 +97,14 @@ def test_interpreter_resolution_with_pex_python_path():
         with open(pexrc_path, "w") as pexrc:
             # set pex python path
             pex_python_path = os.pathsep.join(
-                [ensure_python_interpreter(PY27), ensure_python_interpreter(PY37)]
+                [ensure_python_interpreter(PY27), ensure_python_interpreter(PY38)]
             )
             pexrc.write("PEX_PYTHON_PATH=%s" % pex_python_path)
 
         # constraints to build pex cleanly; PPP + pex_bootstrapper.py
         # will use these constraints to override sys.executable on pex re-exec
         interpreter_constraint1 = ">3" if sys.version_info[0] == 3 else "<3"
-        interpreter_constraint2 = "<3.8" if sys.version_info[0] == 3 else ">=2.7"
+        interpreter_constraint2 = "<3.9" if sys.version_info[0] == 3 else ">=2.7"
 
         pex_out_path = os.path.join(td, "pex.pex")
         res = run_pex_command(
@@ -134,14 +134,14 @@ def test_interpreter_constraints_honored_without_ppp_or_pp(tmpdir):
     # Create a pex with interpreter constraints, but for not the default interpreter in the path.
 
     py310_path = ensure_python_interpreter(PY310)
-    py37_path = ensure_python_interpreter(PY37)
+    py38_path = ensure_python_interpreter(PY38)
 
     pex_out_path = os.path.join(str(tmpdir), "pex.pex")
     env = make_env(
         PEX_IGNORE_RCFILES="1",
         PATH=os.pathsep.join(
             [
-                os.path.dirname(py37_path),
+                os.path.dirname(py38_path),
                 os.path.dirname(py310_path),
             ]
         ),
@@ -171,7 +171,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
     # type: (Any) -> None
 
     pexrc_path = os.path.join(str(tmpdir), ".pexrc")
-    ppp = os.pathsep.join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY27, PY37))
+    ppp = os.pathsep.join(os.path.dirname(ensure_python_interpreter(py)) for py in (PY27, PY38))
     with open(pexrc_path, "w") as pexrc:
         # set both PPP and PP
         pexrc.write(
@@ -191,7 +191,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
             "--disable-cache",
             "--rcfile",
             pexrc_path,
-            "--interpreter-constraint=>3,<3.8",
+            "--interpreter-constraint=>3,<3.9",
             "-o",
             pex_out_path,
         ]
@@ -222,7 +222,7 @@ def test_interpreter_resolution_pex_python_path_precedence_over_pex_python(tmpdi
         )
     stdout, rc = run_simple_pex(pex_out_path, print_python_version_command)
     assert rc == 0
-    assert b"3.7\n" == stdout
+    assert b"3.8\n" == stdout
 
 
 def test_plain_pex_exec_no_ppp_no_pp_no_constraints():
@@ -298,7 +298,7 @@ def test_pex_exec_with_pex_python_path_and_pex_python_but_no_constraints(tmpdir)
 def test_pex_python():
     # type: () -> None
     py2_path_interpreter = ensure_python_interpreter(PY27)
-    py3_path_interpreter = ensure_python_interpreter(PY37)
+    py3_path_interpreter = ensure_python_interpreter(PY38)
     path = os.pathsep.join(
         [os.path.dirname(py2_path_interpreter), os.path.dirname(py3_path_interpreter)]
     )
@@ -306,7 +306,7 @@ def test_pex_python():
     with temporary_dir() as td:
         pexrc_path = os.path.join(td, ".pexrc")
         with open(pexrc_path, "w") as pexrc:
-            pex_python = ensure_python_interpreter(PY37)
+            pex_python = ensure_python_interpreter(PY38)
             pexrc.write("PEX_PYTHON=%s" % pex_python)
 
         # test PEX_PYTHON with valid constraints
@@ -315,7 +315,7 @@ def test_pex_python():
             [
                 "--disable-cache",
                 "--rcfile=%s" % pexrc_path,
-                "--interpreter-constraint=>3,<3.8",
+                "--interpreter-constraint=>3,<3.9",
                 "-o",
                 pex_out_path,
             ],
@@ -340,7 +340,7 @@ def test_pex_python():
             [
                 "--disable-cache",
                 "--rcfile=%s" % pexrc_path,
-                "--interpreter-constraint=>3,<3.8",
+                "--interpreter-constraint=>3,<3.9",
                 "-o",
                 pex_out_path,
             ],

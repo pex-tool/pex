@@ -30,7 +30,7 @@ from pex.testing import (
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
     PY27,
-    PY37,
+    PY38,
     PY310,
     PY_VER,
     IntegResults,
@@ -111,11 +111,11 @@ def test_pex_root_build():
 
 def test_pex_root_run():
     # type: () -> None
-    python37 = ensure_python_interpreter(PY37)
+    python38 = ensure_python_interpreter(PY38)
     python310 = ensure_python_interpreter(PY310)
 
     with temporary_dir() as td, temporary_dir() as runtime_pex_root, temporary_dir() as home:
-        pex_env = make_env(HOME=home, PEX_PYTHON_PATH=os.pathsep.join((python37, python310)))
+        pex_env = make_env(HOME=home, PEX_PYTHON_PATH=os.pathsep.join((python38, python310)))
 
         buildtime_pex_root = os.path.join(td, "buildtime_pex_root")
         output_dir = os.path.join(td, "output_dir")
@@ -130,7 +130,7 @@ def test_pex_root_run():
             "--not-zip-safe",
             "--pex-root={}".format(buildtime_pex_root),
             "--runtime-pex-root={}".format(runtime_pex_root),
-            "--interpreter-constraint=CPython=={version}".format(version=PY37),
+            "--interpreter-constraint=CPython=={version}".format(version=PY38),
         ]
         results = run_pex_command(args=args, env=pex_env, python=python310)
         results.assert_success()
@@ -272,18 +272,18 @@ def test_pex_multi_resolve():
     # type: () -> None
     """Tests multi-interpreter + multi-platform resolution."""
     python27 = ensure_python_interpreter(PY27)
-    python37 = ensure_python_interpreter(PY37)
+    python38 = ensure_python_interpreter(PY38)
     with temporary_dir() as output_dir:
         pex_path = os.path.join(output_dir, "pex.pex")
         results = run_pex_command(
             [
                 "--disable-cache",
-                "lxml==4.2.4",
+                "lxml==4.4.3",
                 "--no-build",
                 "--platform=linux-x86_64-cp-36-m",
-                "--platform=macosx-10.6-x86_64-cp-36-m",
+                "--platform=macosx-10.9-x86_64-cp-36-m",
                 "--python={}".format(python27),
-                "--python={}".format(python37),
+                "--python={}".format(python38),
                 "-o",
                 pex_path,
             ]
@@ -292,7 +292,7 @@ def test_pex_multi_resolve():
 
         included_dists = get_dep_dist_names_from_pex(pex_path, "lxml")
         assert len(included_dists) == 4
-        for dist_substr in ("-cp27-", "-cp36-", "-cp37-", "-manylinux1_x86_64", "-macosx_"):
+        for dist_substr in ("-cp27-", "-cp36-", "-cp38-", "-manylinux1_x86_64", "-macosx_"):
             assert any(dist_substr in f for f in included_dists)
 
 
@@ -771,15 +771,15 @@ def test_multiplatform_entrypoint():
     # type: () -> None
     with temporary_dir() as td:
         pex_out_path = os.path.join(td, "p537.pex")
-        interpreter = ensure_python_interpreter(PY37)
+        interpreter = ensure_python_interpreter(PY38)
         res = run_pex_command(
             [
-                "p537==1.0.4",
+                "p537==1.0.5",
                 "--no-build",
                 "--python={}".format(interpreter),
                 "--python-shebang=#!{}".format(interpreter),
                 "--platform=linux-x86_64-cp-37-m",
-                "--platform=macosx-10.13-x86_64-cp-37-m",
+                "--platform=macosx-10.15-x86_64-cp-37-m",
                 "-c",
                 "p537",
                 "-o",
@@ -911,7 +911,7 @@ def test_setup_python_path():
     # type: () -> None
     """Check that `--python-path` is used rather than the default $PATH."""
     py27_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY27))
-    py37_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY37))
+    py38_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY38))
     with temporary_dir() as out:
         pex = os.path.join(out, "pex.pex")
         # Even though we set $PATH="", we still expect for both interpreters to be used when
@@ -920,9 +920,9 @@ def test_setup_python_path():
             [
                 "more-itertools==5.0.0",
                 "--disable-cache",
-                "--interpreter-constraint=CPython>={},<={}".format(PY27, PY37),
+                "--interpreter-constraint=CPython>={},<={}".format(PY27, PY38),
                 "--python-path={}".format(
-                    os.pathsep.join([py27_interpreter_dir, py37_interpreter_dir])
+                    os.pathsep.join([py27_interpreter_dir, py38_interpreter_dir])
                 ),
                 "-o",
                 pex,
@@ -943,7 +943,7 @@ def test_setup_python_path():
         assert rc == 0
         assert b"(2, 7)" in stdout
 
-        py37_env = make_env(PEX_IGNORE_RCFILES="1", PATH=py37_interpreter_dir)
+        py37_env = make_env(PEX_IGNORE_RCFILES="1", PATH=py38_interpreter_dir)
         stdout, rc = run_simple_pex(
             pex,
             interpreter=py310_interpreter,
@@ -951,7 +951,7 @@ def test_setup_python_path():
             stdin=b"import more_itertools, sys; print(sys.version_info[:2])",
         )
         assert rc == 0
-        assert b"(3, 7)" in stdout
+        assert b"(3, 8)" in stdout
 
 
 def test_setup_python_multiple_transitive_markers():
@@ -985,12 +985,12 @@ def test_setup_python_multiple_transitive_markers():
         stdout = subprocess.check_output(both_program, env=py27_env)
         assert to_bytes(os.path.realpath(py27_interpreter)) == stdout.strip()
 
-        py38_env = make_env(PATH=os.path.dirname(py310_interpreter))
+        py310_env = make_env(PATH=os.path.dirname(py310_interpreter))
         with pytest.raises(subprocess.CalledProcessError) as err:
-            subprocess.check_output(py2_only_program, stderr=subprocess.STDOUT, env=py38_env)
+            subprocess.check_output(py2_only_program, stderr=subprocess.STDOUT, env=py310_env)
         assert b"ModuleNotFoundError: No module named 'functools32'" in err.value.output
 
-        stdout = subprocess.check_output(both_program, env=py38_env)
+        stdout = subprocess.check_output(both_program, env=py310_env)
         assert to_bytes(os.path.realpath(py310_interpreter)) == stdout.strip()
 
 
@@ -1184,7 +1184,7 @@ def iter_distributions(pex_root, project_name):
 
 def test_pex_cache_dir_and_pex_root():
     # type: () -> None
-    python = ensure_python_interpreter(PY37)
+    python = ensure_python_interpreter(PY38)
     with temporary_dir() as td:
         cache_dir = os.path.join(td, "cache_dir")
         pex_root = os.path.join(td, "pex_root")
@@ -1193,7 +1193,7 @@ def test_pex_cache_dir_and_pex_root():
         pex_file = os.path.join(td, "pex_file")
         run_pex_command(
             python=python,
-            args=["--cache-dir", cache_dir, "--pex-root", cache_dir, "p537==1.0.4", "-o", pex_file],
+            args=["--cache-dir", cache_dir, "--pex-root", cache_dir, "p537==1.0.5", "-o", pex_file],
         ).assert_success()
 
         dists = list(iter_distributions(pex_root=cache_dir, project_name="p537"))
@@ -1205,7 +1205,7 @@ def test_pex_cache_dir_and_pex_root():
         # When the options have conflicting values they should be rejected.
         run_pex_command(
             python=python,
-            args=["--cache-dir", cache_dir, "--pex-root", pex_root, "p537==1.0.4", "-o", pex_file],
+            args=["--cache-dir", cache_dir, "--pex-root", pex_root, "p537==1.0.5", "-o", pex_file],
         ).assert_failure()
 
         assert not os.path.exists(cache_dir)
@@ -1214,13 +1214,13 @@ def test_pex_cache_dir_and_pex_root():
 
 def test_disable_cache():
     # type: () -> None
-    python = ensure_python_interpreter(PY37)
+    python = ensure_python_interpreter(PY38)
     with temporary_dir() as td:
         pex_root = os.path.join(td, "pex_root")
         pex_file = os.path.join(td, "pex_file")
         run_pex_command(
             python=python,
-            args=["--disable-cache", "p537==1.0.4", "-o", pex_file],
+            args=["--disable-cache", "p537==1.0.5", "-o", pex_file],
             env=make_env(PEX_ROOT=pex_root),
         ).assert_success()
 

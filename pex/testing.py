@@ -455,11 +455,11 @@ def bootstrap_python_installer(dest):
 # issues with the combination of 7 total unique interpreter versions and a Travis-CI timeout of 50
 # minutes for a shard.
 PY27 = "2.7.18"
-PY37 = "3.7.11"
+PY38 = "3.8.10"
 PY310 = "3.10.1"
 
-ALL_PY_VERSIONS = (PY27, PY37, PY310)
-_ALL_PY3_VERSIONS = (PY37, PY310)
+ALL_PY_VERSIONS = (PY27, PY38, PY310)
+_ALL_PY3_VERSIONS = (PY38, PY310)
 
 
 def ensure_python_distribution(version):

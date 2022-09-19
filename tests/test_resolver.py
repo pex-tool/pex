@@ -25,7 +25,7 @@ from pex.testing import (
     IS_LINUX,
     IS_PYPY,
     PY27,
-    PY37,
+    PY38,
     PY310,
     PY_VER,
     built_wheel,
@@ -267,7 +267,7 @@ def resolve_p537_wheel_names(
 ):
     # type: (...) -> List[str]
     with cache(cache_dir):
-        return resolve_wheel_names(requirements=["p537==1.0.4"], transitive=False, **kwargs)
+        return resolve_wheel_names(requirements=["p537==1.0.5"], transitive=False, **kwargs)
 
 
 @pytest.fixture(scope="module")
@@ -292,7 +292,7 @@ def test_resolve_current_platform(p537_resolve_cache):
             targets=Targets(platforms=current_platform, interpreters=tuple(interpreters)),
         )
 
-    other_python_version = PY310 if PY_VER == (3, 7) else PY37
+    other_python_version = PY310 if PY_VER == (3, 8) else PY38
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -315,7 +315,7 @@ def test_resolve_current_platform(p537_resolve_cache):
 )
 def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
     # type: (str) -> None
-    foreign_platform = "macosx-10.13-x86_64-cp-37-m" if IS_LINUX else "manylinux1_x86_64-cp-37-m"
+    foreign_platform = "macosx-10.15-x86_64-cp-37-m" if IS_LINUX else "manylinux1_x86_64-cp-37-m"
 
     def resolve_current_and_foreign(interpreters=()):
         # type: (Iterable[PythonInterpreter]) -> List[str]
@@ -330,7 +330,7 @@ def test_resolve_current_and_foreign_platforms(p537_resolve_cache):
 
     assert 2 == len(resolve_current_and_foreign())
 
-    other_python_version = PY310 if PY_VER == (3, 7) else PY37
+    other_python_version = PY310 if PY_VER == (3, 8) else PY38
     other_python = PythonInterpreter.from_binary(ensure_python_interpreter(other_python_version))
     current_python = PythonInterpreter.get()
 
@@ -389,8 +389,8 @@ def test_resolve_foreign_abi3():
 
 def test_issues_851():
     # type: () -> None
-    # Previously, the PY37 resolve would fail post-resolution checks for configparser, pathlib2 and
-    # contextlib2 which are only required for python_version<3.
+    # Previously, the PY38 resolve would fail post-resolution checks for importlib-metadata,
+    # configparser, pathlib2 and contextlib2 which are only required for python_version<3.
 
     def resolve_pytest(python_version, pytest_version):
         interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(python_version))
@@ -405,8 +405,8 @@ def test_issues_851():
         assert project_to_version["pytest"] == pytest_version
         return project_to_version
 
-    resolved_project_to_version = resolve_pytest(python_version=PY37, pytest_version="5.3.4")
-    assert "importlib-metadata" in resolved_project_to_version
+    resolved_project_to_version = resolve_pytest(python_version=PY38, pytest_version="5.3.4")
+    assert "importlib-metadata" not in resolved_project_to_version
     assert "configparser" not in resolved_project_to_version
     assert "pathlib2" not in resolved_project_to_version
     assert "contextlib2" not in resolved_project_to_version
