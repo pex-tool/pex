@@ -11,7 +11,7 @@ from pex.testing import (
     ensure_python_interpreter,
     run_pex_command,
     run_simple_pex,
-    skip_unless_python_interpreter,
+    skip_unless_python27,
 )
 from pex.typing import TYPE_CHECKING
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 def test_top_level_environment_markers(tmpdir):
     # type: (Any) -> None
-    python27 = skip_unless_python_interpreter(version=(2, 7))
+    python27 = skip_unless_python27()
     python310 = ensure_python_interpreter(PY310)
 
     pex_file = os.path.join(str(tmpdir), "pex")

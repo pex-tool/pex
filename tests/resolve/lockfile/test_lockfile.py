@@ -15,7 +15,7 @@ from pex.testing import (
     IntegResults,
     ensure_python_interpreter,
     run_pex_command,
-    skip_unless_python_interpreter,
+    skip_unless_python27,
 )
 from pex.typing import TYPE_CHECKING
 
@@ -30,7 +30,7 @@ def create_target(python):
 
 @pytest.fixture
 def py27():
-    return create_target(skip_unless_python_interpreter(version=(2, 7)))
+    return create_target(skip_unless_python27())
 
 
 @pytest.fixture

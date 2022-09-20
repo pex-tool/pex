@@ -108,7 +108,7 @@ def interpreters():
 
         yield entry(sys.executable)
 
-        for interpreter in all_pythons(additional_optional_versions=[(2, 7)]):
+        for interpreter in all_pythons():
             yield entry(interpreter)
 
         locations = (

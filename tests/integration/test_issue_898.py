@@ -11,13 +11,13 @@ from pex.testing import (
     ensure_python_interpreter,
     make_env,
     run_pex_command,
-    skip_unless_python_interpreter,
+    skip_unless_python27,
 )
 
 
 def test_top_level_requirements_requires_python_env_markers():
     # type: () -> None
-    python27 = skip_unless_python_interpreter(version=(2, 7))
+    python27 = skip_unless_python27()
     python310 = ensure_python_interpreter(PY310)
     with temporary_dir() as td:
         src_dir = os.path.join(td, "src")

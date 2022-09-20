@@ -30,7 +30,7 @@ else:
     "venv_factory",
     [
         pytest.param(venv_factory, id=venv_factory.python_version)
-        for venv_factory in all_python_venvs(additional_optional_versions=[(2, 7)])
+        for venv_factory in all_python_venvs()
     ],
 )
 def test_build_isolation(

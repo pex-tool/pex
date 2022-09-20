@@ -41,8 +41,8 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
     run_simple_pex_test,
-    skip_unless_python_interpreter,
-    skip_unless_python_venv,
+    skip_unless_python27,
+    skip_unless_python27_venv,
     temporary_content,
 )
 from pex.typing import TYPE_CHECKING, cast
@@ -958,7 +958,7 @@ def test_setup_python_path():
 
 def test_setup_python_multiple_transitive_markers():
     # type: () -> None
-    py27_interpreter = skip_unless_python_interpreter(version=(2, 7))
+    py27_interpreter = skip_unless_python27()
     py310_interpreter = ensure_python_interpreter(PY310)
     with temporary_dir() as out:
         pex = os.path.join(out, "pex.pex")
@@ -1026,7 +1026,7 @@ def test_setup_python_direct_markers():
 def test_setup_python_multiple_direct_markers():
     # type: () -> None
     py310_interpreter = ensure_python_interpreter(PY310)
-    py27_interpreter = skip_unless_python_interpreter(version=(2, 7))
+    py27_interpreter = skip_unless_python27()
     with temporary_dir() as out:
         pex = os.path.join(out, "pex.pex")
         results = run_pex_command(
@@ -1097,7 +1097,7 @@ def test_no_emit_warnings_verbose_override():
 
 def test_trusted_host_handling():
     # type: () -> None
-    python = skip_unless_python_interpreter(version=(2, 7))
+    python = skip_unless_python27()
     # Since we explicitly ask Pex to find links at http://www.antlr3.org/download/Python, it should
     # implicitly trust the www.antlr3.org host.
     results = run_pex_command(

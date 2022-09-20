@@ -12,7 +12,7 @@ from pex.testing import (
     ensure_python_venv,
     make_env,
     run_pex_command,
-    skip_unless_python_venv,
+    skip_unless_python27_venv,
 )
 from pex.typing import TYPE_CHECKING
 
@@ -24,8 +24,8 @@ if TYPE_CHECKING:
     "create_venv",
     [
         pytest.param(
-            lambda system_site_packages: skip_unless_python_venv(
-                version=(2, 7), system_site_packages=system_site_packages
+            lambda system_site_packages: skip_unless_python27_venv(
+                system_site_packages=system_site_packages
             )[0],
             id="virtualenv-16.7.10",
         ),

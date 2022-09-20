@@ -8,14 +8,14 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, temporary_dir
-from pex.testing import make_env, run_pex_command, skip_unless_python_venv
+from pex.testing import make_env, run_pex_command, skip_unless_python27_venv
 
 
 def test_extras_isolation():
     # type: () -> None
     # Here we ensure one of our extras, `subprocess32`, is properly isolated in the transition from
     # pex bootstrapping where it is imported by `pex.executor` to execution of user code.
-    python, pip = skip_unless_python_venv(version=(2, 7))
+    python, pip = skip_unless_python27_venv()
     subprocess.check_call([pip, "install", "subprocess32"])
     with temporary_dir() as td:
         src_dir = os.path.join(td, "src")

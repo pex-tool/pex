@@ -68,7 +68,7 @@ def test_iter_distributions_setuptools_not_leaked(tmpdir):
     "venv_factory",
     [
         pytest.param(venv_factory, id=venv_factory.python_version)
-        for venv_factory in all_python_venvs(additional_optional_versions=[(2, 7)])
+        for venv_factory in all_python_venvs()
     ],
 )
 def test_iter_distributions(venv_factory):

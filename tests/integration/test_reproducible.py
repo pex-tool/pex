@@ -20,7 +20,7 @@ from pex.testing import (
     ensure_python_interpreter,
     run_command_with_jitter,
     run_commands_with_jitter,
-    skip_unless_python_interpreter,
+    skip_unless_python27,
     temporary_content,
 )
 from pex.typing import TYPE_CHECKING
@@ -83,7 +83,7 @@ def assert_reproducible_build(
 def major_compatible_pythons():
     # type: () -> Tuple[str, ...]
     return (
-        (sys.executable, skip_unless_python_interpreter(version=(2, 7)))
+        (sys.executable, skip_unless_python27())
         if PY2
         else (sys.executable, ensure_python_interpreter(PY38), ensure_python_interpreter(PY310))
     )
@@ -94,7 +94,7 @@ def mixed_major_pythons():
     # type: () -> Tuple[str, ...]
     return (
         sys.executable,
-        skip_unless_python_interpreter(version=(2, 7)),
+        skip_unless_python27(),
         ensure_python_interpreter(PY38),
         ensure_python_interpreter(PY310),
     )

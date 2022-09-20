@@ -498,7 +498,7 @@ def test_issue_1494_iter_candidates(macos_monterey_interpeter):
     "python",
     [
         pytest.param(python, id=str(PythonInterpreter.from_binary(python).identity))
-        for python in all_pythons(additional_optional_versions=[(2, 7)])
+        for python in all_pythons()
     ],
 )
 def test_sys_path(python):

@@ -463,11 +463,15 @@ def bootstrap_python_installer(dest):
 # N.B.: Make sure to stick to versions that have binary releases for all supported platforms to
 # support use of pyenv-win which does not build from source, just running released installers
 # robotically instead.
+PY27 = "2.7.18"
 PY38 = "3.8.10"
 PY39 = "3.9.13"
 PY310 = "3.10.7"
 
-ALL_PY_VERSIONS = (PY38, PY39, PY310)
+ALL_PY_VERSIONS = (PY27, PY38, PY39, PY310)
+_ALL_PY_VERSIONS_TO_VERSION_INFO = {
+    version: tuple(map(int, version.split("."))) for version in ALL_PY_VERSIONS
+}
 
 
 def ensure_python_distribution(version):
@@ -541,10 +545,17 @@ def ensure_python_venv(
     # type: (...) -> Tuple[str, str]
     _, python, pip, _ = ensure_python_distribution(version)
     venv = safe_mkdtemp()
-    args = [python, "-m", "venv", venv]
-    if system_site_packages:
-        args.append("--system-site-packages")
-    subprocess.check_call(args=args)
+    if _ALL_PY_VERSIONS_TO_VERSION_INFO[version][0] == 3:
+        args = [python, "-m", "venv", venv]
+        if system_site_packages:
+            args.append("--system-site-packages")
+        subprocess.check_call(args=args)
+    else:
+        subprocess.check_call(args=[pip, "install", "virtualenv==16.7.10"])
+        args = [python, "-m", "virtualenv", venv, "-q"]
+        if system_site_packages:
+            args.append("--system-site-packages")
+        subprocess.check_call(args=args)
     python, pip = tuple(os.path.join(venv, "bin", exe) for exe in ("python", "pip"))
     if latest_pip:
         subprocess.check_call(args=[pip, "install", "-U", "pip<22.1"])
@@ -570,26 +581,28 @@ def find_python_interpreter(
     implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
 ):
     # type: (...) -> Optional[str]
+    for pyenv_version, penv_version_info in _ALL_PY_VERSIONS_TO_VERSION_INFO.items():
+        if version and version == penv_version_info[: len(version)]:
+            return ensure_python_interpreter(pyenv_version)
+
     for interpreter in PythonInterpreter.iter():
         if version != interpreter.version[: len(version)]:
             continue
         if implementation != InterpreterImplementation.for_value(interpreter.identity.interpreter):
             continue
-        return interpreter.resolve_base_interpreter().binary
+        return interpreter.binary
+
     return None
 
 
-def skip_unless_python_interpreter(
-    version=(),  # type: Tuple[int, ...]
+def skip_unless_python27(
     implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
 ):
     # type: (...) -> str
-    python = find_python_interpreter(version=version, implementation=implementation)
+    python = find_python_interpreter(version=(2, 7), implementation=implementation)
     if python is not None:
         return python
-    pytest.skip(
-        "Test requires a Python {version} on the PATH".format(version=".".join(map(str, version)))
-    )
+    pytest.skip("Test requires a Python 2.7 on the PATH")
     raise AssertionError("Unreachable.")
 
 
@@ -608,30 +621,22 @@ def python_venv(
     return venv.interpreter.binary, venv.bin_path("pip")
 
 
-def skip_unless_python_venv(
-    version=(),  # type: Tuple[int, ...]
+def skip_unless_python27_venv(
     implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
     system_site_packages=False,  # type: bool
     venv_dir=None,  # type: Optional[str]
 ):
     # type: (...) -> Tuple[str, str]
     return python_venv(
-        skip_unless_python_interpreter(version=version, implementation=implementation),
+        skip_unless_python27(implementation=implementation),
         system_site_packages=system_site_packages,
         venv_dir=venv_dir,
     )
 
 
-def all_pythons(additional_optional_versions=()):
-    # type: (Iterable[Tuple[int, ...]]) -> Tuple[str, ...]
-    pythons = OrderedSet()  # type: OrderedSet[str]
-    for version in ALL_PY_VERSIONS:
-        pythons.add(ensure_python_interpreter(version))
-    for optional_version in additional_optional_versions:
-        python = find_python_interpreter(optional_version)
-        if python:
-            pythons.add(python)
-    return tuple(pythons)
+def all_pythons():
+    # type: () -> Tuple[str, ...]
+    return tuple(ensure_python_interpreter(version) for version in ALL_PY_VERSIONS)
 
 
 @attr.s(frozen=True)
@@ -644,33 +649,15 @@ class VenvFactory(object):
         return self._factory()
 
 
-def all_python_venvs(
-    additional_optional_versions=(),  # type: Iterable[Tuple[int, ...]]
-    system_site_packages=False,  # type: bool
-):
-    # type: (...) -> Iterable[VenvFactory]
-    all_venv_factories = [
+def all_python_venvs(system_site_packages=False):
+    # type: (bool) -> Iterable[VenvFactory]
+    return tuple(
         VenvFactory(
             python_version=version,
             factory=lambda: ensure_python_venv(version, system_site_packages=system_site_packages),
         )
         for version in ALL_PY_VERSIONS
-    ]
-    for optional_version in additional_optional_versions:
-        python = find_python_interpreter(optional_version)
-        if python is not None:
-            all_venv_factories.append(
-                VenvFactory(
-                    python_version=PythonInterpreter.from_binary(python).identity.version_str,
-                    factory=lambda: python_venv(
-                        # MyPy is not smart enough to track the None check above into the closure
-                        # capture.
-                        cast(str, python),
-                        system_site_packages=system_site_packages,
-                    ),
-                )
-            )
-    return all_venv_factories
+    )
 
 
 @contextmanager
