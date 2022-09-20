@@ -7,38 +7,50 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
-from pex.testing import PY27, PY310, ensure_python_venv, make_env, run_pex_command
+from pex.testing import (
+    PY310,
+    ensure_python_venv,
+    make_env,
+    run_pex_command,
+    skip_unless_python27_venv,
+)
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, MutableSet
+    from typing import Any, Callable, MutableSet
 
 
 @pytest.mark.parametrize(
-    "py_version",
+    "create_venv",
     [
-        pytest.param(PY27, id="virtualenv-16.7.10"),
-        pytest.param(PY310, id="pyvenv"),
+        pytest.param(
+            lambda system_site_packages: skip_unless_python27_venv(
+                system_site_packages=system_site_packages
+            )[0],
+            id="virtualenv-16.7.10",
+        ),
+        pytest.param(
+            lambda system_site_packages: ensure_python_venv(
+                PY310, system_site_packages=system_site_packages
+            )[0],
+            id="pyvenv",
+        ),
     ],
 )
 def test_setuptools_isolation_with_system_site_packages(
-    tmpdir,  # type: Any
-    py_version,  # type: str
+    create_venv,  # type: Callable[[bool], str]
 ):
     # type: (...) -> None
-    system_site_packages_venv_python, _ = ensure_python_venv(
-        py_version, latest_pip=False, system_site_packages=True
-    )
-    standard_venv, _ = ensure_python_venv(py_version, latest_pip=False, system_site_packages=False)
+    system_site_packages_venv_python = create_venv(True)
+    standard_venv = create_venv(False)
 
     print_sys_path_code = "import os, sys; print('\\n'.join(map(os.path.realpath, sys.path)))"
 
     def get_sys_path(python):
         # type: (str) -> MutableSet[str]
-        _, stdout, _ = PythonInterpreter.from_binary(python).execute(
-            args=["-c", print_sys_path_code]
+        return OrderedSet(
+            os.path.realpath(entry) for entry in PythonInterpreter.from_binary(python).sys_path
         )
-        return OrderedSet(stdout.strip().splitlines())
 
     system_site_packages_venv_sys_path = get_sys_path(system_site_packages_venv_python)
     standard_venv_sys_path = get_sys_path(standard_venv)
@@ -52,7 +64,12 @@ def test_setuptools_isolation_with_system_site_packages(
     system_site_packages = {
         p
         for p in (system_site_packages_venv_sys_path - standard_venv_sys_path)
-        if not p.startswith((venv_dir(system_site_packages_venv_python), venv_dir(standard_venv)))
+        if (
+            "site-packages" == os.path.basename(p)
+            and not p.startswith(
+                (venv_dir(system_site_packages_venv_python), venv_dir(standard_venv))
+            )
+        )
     }
     assert len(system_site_packages) == 1, (
         "system_site_packages_venv_sys_path:\n"

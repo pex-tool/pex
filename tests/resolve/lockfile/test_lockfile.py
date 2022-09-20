@@ -10,28 +10,32 @@ import pytest
 from pex.interpreter import PythonInterpreter
 from pex.resolve.lockfile import json_codec
 from pex.targets import LocalInterpreter, Target
-from pex.testing import PY27, PY38, IntegResults, ensure_python_interpreter, run_pex_command
+from pex.testing import (
+    PY38,
+    IntegResults,
+    ensure_python_interpreter,
+    run_pex_command,
+    skip_unless_python27,
+)
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any
 
 
-def create_target(python_version):
+def create_target(python):
     # type: (str) -> Target
-    return LocalInterpreter.create(
-        PythonInterpreter.from_binary(ensure_python_interpreter(python_version))
-    )
+    return LocalInterpreter.create(PythonInterpreter.from_binary(python))
 
 
 @pytest.fixture
 def py27():
-    return create_target(PY27)
+    return create_target(skip_unless_python27())
 
 
 @pytest.fixture
 def py38():
-    return create_target(PY38)
+    return create_target(ensure_python_interpreter(PY38))
 
 
 LOCK_STYLE_SOURCES = json_codec.loads(

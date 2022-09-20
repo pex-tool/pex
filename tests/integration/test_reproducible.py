@@ -13,7 +13,6 @@ from pex.common import temporary_dir
 from pex.compatibility import PY2
 from pex.testing import (
     IS_PYPY,
-    PY27,
     PY38,
     PY310,
     PY_VER,
@@ -21,12 +20,13 @@ from pex.testing import (
     ensure_python_interpreter,
     run_command_with_jitter,
     run_commands_with_jitter,
+    skip_unless_python27,
     temporary_content,
 )
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, List, Optional
+    from typing import Iterable, List, Optional, Tuple
 
 
 def assert_reproducible_build(
@@ -79,22 +79,30 @@ def assert_reproducible_build(
             assert filecmp.cmp(pex1, pex2, shallow=False)
 
 
-MAJOR_COMPATIBLE_PYTHONS = (
-    (sys.executable, ensure_python_interpreter(PY27))
-    if PY2
-    else (sys.executable, ensure_python_interpreter(PY38), ensure_python_interpreter(PY310))
-)
-MIXED_MAJOR_PYTHONS = (
-    sys.executable,
-    ensure_python_interpreter(PY27),
-    ensure_python_interpreter(PY38),
-    ensure_python_interpreter(PY310),
-)
+@pytest.fixture(scope="module")
+def major_compatible_pythons():
+    # type: () -> Tuple[str, ...]
+    return (
+        (sys.executable, skip_unless_python27())
+        if PY2
+        else (sys.executable, ensure_python_interpreter(PY38), ensure_python_interpreter(PY310))
+    )
 
 
-def test_reproducible_build_no_args():
-    # type: () -> None
-    assert_reproducible_build([], pythons=MIXED_MAJOR_PYTHONS)
+@pytest.fixture(scope="module")
+def mixed_major_pythons():
+    # type: () -> Tuple[str, ...]
+    return (
+        sys.executable,
+        skip_unless_python27(),
+        ensure_python_interpreter(PY38),
+        ensure_python_interpreter(PY310),
+    )
+
+
+def test_reproducible_build_no_args(mixed_major_pythons):
+    # type: (Tuple[str, ...]) -> None
+    assert_reproducible_build([], pythons=mixed_major_pythons)
 
 
 @pytest.mark.skipif(
@@ -118,20 +126,20 @@ def test_reproducible_build_bdist_requirements():
     )
 
 
-def test_reproducible_build_sdist_requirements():
-    # type: () -> None
+def test_reproducible_build_sdist_requirements(major_compatible_pythons):
+    # type: (Tuple[str, ...]) -> None
     # The python-crontab sdist will be built as py2-none-any or py3-none-any depending on the
     # Python major version since it is not marked as universal in the sdist.
-    assert_reproducible_build(["python-crontab==2.3.6"], pythons=MAJOR_COMPATIBLE_PYTHONS)
+    assert_reproducible_build(["python-crontab==2.3.6"], pythons=major_compatible_pythons)
 
 
-def test_reproducible_build_m_flag():
-    # type: () -> None
-    assert_reproducible_build(["-m", "pydoc"], pythons=MIXED_MAJOR_PYTHONS)
+def test_reproducible_build_m_flag(mixed_major_pythons):
+    # type: (Tuple[str, ...]) -> None
+    assert_reproducible_build(["-m", "pydoc"], pythons=mixed_major_pythons)
 
 
-def test_reproducible_build_c_flag_from_source():
-    # type: () -> None
+def test_reproducible_build_c_flag_from_source(major_compatible_pythons):
+    # type: (Tuple[str, ...]) -> None
     setup_cfg = dedent(
         """\
         [wheel]
@@ -161,22 +169,22 @@ def test_reproducible_build_c_flag_from_source():
             [project_dir, "-c", "my_app_function"],
             # Modern Pip / Setuptools produce different metadata for sdists than legacy Pip /
             # Setuptools; so we don't mix them.
-            pythons=MAJOR_COMPATIBLE_PYTHONS,
+            pythons=major_compatible_pythons,
         )
 
 
-def test_reproducible_build_c_flag_from_dependency():
-    # type: () -> None
+def test_reproducible_build_c_flag_from_dependency(major_compatible_pythons):
+    # type: (Tuple[str, ...]) -> None
     # The futurize script installed depends on the version of python being used; so we don't try
     # to mix Python 2 with Python 3 as in many other reproducibility tests.
     assert_reproducible_build(
-        ["future==0.17.1", "-c", "futurize"], pythons=MAJOR_COMPATIBLE_PYTHONS
+        ["future==0.17.1", "-c", "futurize"], pythons=major_compatible_pythons
     )
 
 
-def test_reproducible_build_python_flag():
-    # type: () -> None
-    assert_reproducible_build(["--python=python2.7"], pythons=MIXED_MAJOR_PYTHONS)
+def test_reproducible_build_python_flag(mixed_major_pythons):
+    # type: (Tuple[str, ...]) -> None
+    assert_reproducible_build(["--python=python2.7"], pythons=mixed_major_pythons)
 
 
 def test_reproducible_build_python_shebang_flag():

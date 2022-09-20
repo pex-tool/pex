@@ -10,8 +10,11 @@ import platform
 import random
 import subprocess
 import sys
+from collections import OrderedDict
 from contextlib import contextmanager
 from textwrap import dedent
+
+import pytest
 
 from pex.common import (
     atomic_directory,
@@ -24,15 +27,18 @@ from pex.common import (
 )
 from pex.compatibility import to_unicode
 from pex.dist_metadata import Distribution
+from pex.enum import Enum
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip.installation import get_pip
 from pex.targets import LocalInterpreter
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     from typing import (
@@ -454,12 +460,18 @@ def bootstrap_python_installer(dest):
 # otherwise encountered when fetching and building too many on a cache miss. In the past we had
 # issues with the combination of 7 total unique interpreter versions and a Travis-CI timeout of 50
 # minutes for a shard.
+# N.B.: Make sure to stick to versions that have binary releases for all supported platforms to
+# support use of pyenv-win which does not build from source, just running released installers
+# robotically instead.
 PY27 = "2.7.18"
 PY38 = "3.8.10"
-PY310 = "3.10.1"
+PY39 = "3.9.13"
+PY310 = "3.10.7"
 
-ALL_PY_VERSIONS = (PY27, PY38, PY310)
-_ALL_PY3_VERSIONS = (PY38, PY310)
+ALL_PY_VERSIONS = (PY27, PY38, PY39, PY310)
+_ALL_PY_VERSIONS_TO_VERSION_INFO = {
+    version: tuple(map(int, version.split("."))) for version in ALL_PY_VERSIONS
+}
 
 
 def ensure_python_distribution(version):
@@ -525,10 +537,15 @@ def ensure_python_distribution(version):
     return interpreter_location, python, pip, run_pyenv
 
 
-def ensure_python_venv(version, latest_pip=True, system_site_packages=False):
+def ensure_python_venv(
+    version,  # type: str
+    latest_pip=True,  # type: bool
+    system_site_packages=False,  # type: bool
+):
+    # type: (...) -> Tuple[str, str]
     _, python, pip, _ = ensure_python_distribution(version)
     venv = safe_mkdtemp()
-    if version in _ALL_PY3_VERSIONS:
+    if _ALL_PY_VERSIONS_TO_VERSION_INFO[version][0] == 3:
         args = [python, "-m", "venv", venv]
         if system_site_packages:
             args.append("--system-site-packages")
@@ -549,6 +566,98 @@ def ensure_python_interpreter(version):
     # type: (str) -> str
     _, python, _, _ = ensure_python_distribution(version)
     return python
+
+
+class InterpreterImplementation(Enum["InterpreterImplementation.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    CPython = Value("CPython")
+    PyPy = Value("PyPy")
+
+
+def find_python_interpreter(
+    version=(),  # type: Tuple[int, ...]
+    implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
+):
+    # type: (...) -> Optional[str]
+    for pyenv_version, penv_version_info in _ALL_PY_VERSIONS_TO_VERSION_INFO.items():
+        if version and version == penv_version_info[: len(version)]:
+            return ensure_python_interpreter(pyenv_version)
+
+    for interpreter in PythonInterpreter.iter():
+        if version != interpreter.version[: len(version)]:
+            continue
+        if implementation != InterpreterImplementation.for_value(interpreter.identity.interpreter):
+            continue
+        return interpreter.binary
+
+    return None
+
+
+def skip_unless_python27(
+    implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
+):
+    # type: (...) -> str
+    python = find_python_interpreter(version=(2, 7), implementation=implementation)
+    if python is not None:
+        return python
+    pytest.skip("Test requires a Python 2.7 on the PATH")
+    raise AssertionError("Unreachable.")
+
+
+def python_venv(
+    python,  # type: str
+    system_site_packages=False,  # type: bool
+    venv_dir=None,  # type: Optional[str]
+):
+    # type: (...) -> Tuple[str, str]
+    venv = Virtualenv.create(
+        venv_dir=venv_dir or safe_mkdtemp(),
+        interpreter=PythonInterpreter.from_binary(python),
+        system_site_packages=system_site_packages,
+    )
+    venv.install_pip()
+    return venv.interpreter.binary, venv.bin_path("pip")
+
+
+def skip_unless_python27_venv(
+    implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
+    system_site_packages=False,  # type: bool
+    venv_dir=None,  # type: Optional[str]
+):
+    # type: (...) -> Tuple[str, str]
+    return python_venv(
+        skip_unless_python27(implementation=implementation),
+        system_site_packages=system_site_packages,
+        venv_dir=venv_dir,
+    )
+
+
+def all_pythons():
+    # type: () -> Tuple[str, ...]
+    return tuple(ensure_python_interpreter(version) for version in ALL_PY_VERSIONS)
+
+
+@attr.s(frozen=True)
+class VenvFactory(object):
+    python_version = attr.ib()  # type: str
+    _factory = attr.ib()  # type: Callable[[], Tuple[str, str]]
+
+    def create_venv(self):
+        # type: () -> Tuple[str, str]
+        return self._factory()
+
+
+def all_python_venvs(system_site_packages=False):
+    # type: (bool) -> Iterable[VenvFactory]
+    return tuple(
+        VenvFactory(
+            python_version=version,
+            factory=lambda: ensure_python_venv(version, system_site_packages=system_site_packages),
+        )
+        for version in ALL_PY_VERSIONS
+    )
 
 
 @contextmanager

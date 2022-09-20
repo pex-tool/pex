@@ -11,7 +11,13 @@ from typing import Text, Tuple
 import pytest
 
 from pex.common import safe_open
-from pex.testing import ALL_PY_VERSIONS, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import (
+    ALL_PY_VERSIONS,
+    all_pythons,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+)
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -102,8 +108,7 @@ def interpreters():
 
         yield entry(sys.executable)
 
-        for version in ALL_PY_VERSIONS:
-            interpreter = ensure_python_interpreter(version)
+        for interpreter in all_pythons():
             yield entry(interpreter)
 
         locations = (

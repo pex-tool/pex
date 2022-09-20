@@ -16,7 +16,7 @@ from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
 from pex.targets import Targets
-from pex.testing import IS_LINUX, PY27, PY310, ensure_python_interpreter
+from pex.testing import IS_LINUX, PY310, ensure_python_interpreter, skip_unless_python27
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -62,7 +62,7 @@ def create_constraints_file(*requirements):
 @pytest.fixture(scope="module")
 def py27():
     # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(ensure_python_interpreter(PY27))
+    return PythonInterpreter.from_binary(skip_unless_python27())
 
 
 @pytest.fixture(scope="module")
@@ -102,9 +102,13 @@ def foreign_platform(
 def pex_repository(py27, py310, foreign_platform, manylinux):
     # type () -> str
 
-    # N.B.: requests 2.25.1 constrains urllib3 to <1.27,>=1.21.1 and pick 1.26.2 on its own as of
-    # this writing.
-    constraints_file = create_constraints_file("urllib3==1.26.1")
+    constraints_file = create_constraints_file(
+        # The 2.25.1 release of requests constrains urllib3 to <1.27,>=1.21.1 and picks 1.26.2 on
+        # its own as of this writing.
+        "urllib3==1.26.1",
+        # The 22.0.0 release of pyOpenSSL drops support for Python 2.7; so we pin lower.
+        "pyOpenSSL<22",
+    )
 
     return create_pex_repository(
         interpreters=[py27, py310],

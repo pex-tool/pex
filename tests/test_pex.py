@@ -22,8 +22,9 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.testing import (
-    PY27,
+    PY39,
     PY310,
+    PY_VER,
     WheelBuilder,
     ensure_python_interpreter,
     environment_as,
@@ -559,7 +560,7 @@ def test_pex_verify_entry_point_module_should_fail():
 def test_activate_interpreter_different_from_current():
     # type: () -> None
     with temporary_dir() as pex_root:
-        interp_version = PY310 if PY2 else PY27
+        interp_version = PY310 if PY_VER == (3, 9) else PY39
         custom_interpreter = PythonInterpreter.from_binary(
             ensure_python_interpreter(interp_version)
         )

@@ -13,7 +13,7 @@ from contextlib import closing
 from fileinput import FileInput
 
 from pex.common import AtomicDirectory, atomic_directory, is_exe, safe_mkdir, safe_open
-from pex.compatibility import get_stdout_bytes_buffer
+from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
@@ -84,12 +84,19 @@ def find_site_packages_dir(
     interpreter=None,  # type: Optional[PythonInterpreter]
 ):
     # type: (...) -> str
+
+    real_venv_dir = os.path.realpath(venv_dir)
+    site_packages_dirs = OrderedSet()  # type: OrderedSet[str]
+
     interpreter = interpreter or PythonInterpreter.get()
-    site_packages_dirs = []
-    for path in OrderedSet(os.path.realpath(entry) for entry in interpreter.sys_path):
-        _, tail = os.path.split(path)
-        if "site-packages" == tail and os.path.isdir(path):
-            site_packages_dirs.append(path)
+    for entry in interpreter.sys_path:
+        real_entry_path = os.path.realpath(entry)
+        if commonpath((real_venv_dir, real_entry_path)) != real_venv_dir:
+            # This ignores system site packages when the venv is built with --system-site-packages.
+            continue
+        if "site-packages" == os.path.basename(real_entry_path) and os.path.isdir(real_entry_path):
+            site_packages_dirs.add(real_entry_path)
+
     if not site_packages_dirs:
         raise InvalidVirtualenvError(
             "The virtualenv at {venv_dir} is not valid. No site-packages directory was found in "
@@ -104,7 +111,7 @@ def find_site_packages_dir(
                 venv_dir=venv_dir, site_packages="\n".join(site_packages_dirs)
             )
         )
-    return site_packages_dirs[0]
+    return site_packages_dirs.pop()
 
 
 class Virtualenv(object):
@@ -130,6 +137,7 @@ class Virtualenv(object):
         interpreter=None,  # type: Optional[PythonInterpreter]
         force=False,  # type: bool
         copies=False,  # type: bool
+        system_site_packages=False,  # type: bool
         prompt=None,  # type: Optional[str]
     ):
         # type: (...) -> Virtualenv
@@ -172,6 +180,8 @@ class Virtualenv(object):
                 args = [fp.name, "--no-pip", "--no-setuptools", "--no-wheel", venv_dir]
                 if copies:
                     args.append("--always-copy")
+                if system_site_packages:
+                    args.append("--system-site-packages")
                 if prompt:
                     args.extend(["--prompt", prompt])
                     custom_prompt = prompt
@@ -180,6 +190,8 @@ class Virtualenv(object):
             args = ["-m", "venv", "--without-pip", venv_dir]
             if copies:
                 args.append("--copies")
+            if system_site_packages:
+                args.append("--system-site-packages")
             if prompt and py_major_minor >= (3, 6):
                 args.extend(["--prompt", prompt])
                 custom_prompt = prompt
