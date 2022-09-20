@@ -13,7 +13,7 @@ from contextlib import closing
 from fileinput import FileInput
 
 from pex.common import AtomicDirectory, atomic_directory, is_exe, safe_mkdir, safe_open
-from pex.compatibility import get_stdout_bytes_buffer
+from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
@@ -91,7 +91,7 @@ def find_site_packages_dir(
     interpreter = interpreter or PythonInterpreter.get()
     for entry in interpreter.sys_path:
         real_entry_path = os.path.realpath(entry)
-        if os.path.commonprefix((real_venv_dir, real_entry_path)) != real_venv_dir:
+        if commonpath((real_venv_dir, real_entry_path)) != real_venv_dir:
             # This ignores system site packages when the venv is built with --system-site-packages.
             continue
         if "site-packages" == os.path.basename(real_entry_path) and os.path.isdir(real_entry_path):
