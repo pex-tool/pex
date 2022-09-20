@@ -280,7 +280,7 @@ def test_pex_multi_resolve():
         results = run_pex_command(
             [
                 "--disable-cache",
-                "lxml==4.5.2",
+                "lxml==4.6.1",
                 "--no-build",
                 "--platform=linux-x86_64-cp-36-m",
                 "--platform=macosx-10.9-x86_64-cp-36-m",
