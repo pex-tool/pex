@@ -251,7 +251,7 @@ else:
             return pieces
 
         prefix = []  # type: List[Text]
-        for index, atoms in enumerate(zip(*(components(path) for path in paths))):
+        for atoms in zip(*(components(path) for path in paths)):
             if len(set(atoms)) == 1:
                 prefix.append(atoms[0])
             else:
