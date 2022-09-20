@@ -3,7 +3,7 @@
 
 import pytest
 
-from pex.compatibility import PY3, indent, to_bytes, to_unicode
+from pex.compatibility import PY3, commonpath, indent, to_bytes, to_unicode
 
 unicode_string = (str,) if PY3 else (unicode,)  # type: ignore[name-defined]
 
@@ -44,3 +44,61 @@ def test_indent():
     assert "  line1\n\n  line3" == indent("line1\n\nline3", "  ")
     assert "  line1\n \n  line3" == indent("line1\n \nline3", "  ")
     assert "  line1\n  \n  line3" == indent("line1\n\nline3", "  ", lambda line: True)
+
+
+def test_commonpath_invalid():
+    # type: () -> None
+
+    with pytest.raises(ValueError):
+        commonpath([])
+
+    with pytest.raises(ValueError):
+        commonpath(["a", "/a"])
+
+
+def test_commonpath_single():
+    # type: () -> None
+
+    assert "" == commonpath([""])
+    assert "/" == commonpath(["/"])
+    assert "a" == commonpath(["a"])
+    assert "/a" == commonpath(["/a"])
+
+
+def test_commonpath_common():
+    # type: () -> None
+
+    assert "a" == commonpath(["a", "a"])
+    assert "a" == commonpath(["a", "a/"])
+    assert "a" == commonpath(["a", "a/b"])
+    assert "a" == commonpath(["a/", "a/b"])
+    assert "a" == commonpath(["a/c", "a/b"])
+
+    assert "/a" == commonpath(["/a", "/a"])
+    assert "/a" == commonpath(["/a", "/a/"])
+    assert "/a" == commonpath(["/a", "/a/b"])
+    assert "/a" == commonpath(["/a/", "/a/b"])
+    assert "/a" == commonpath(["/a/c", "/a/b"])
+
+    assert "a" == commonpath(["./a", "./a"])
+    assert "a" == commonpath(["./a", "./a/"])
+    assert "a" == commonpath(["./a", "./a/b"])
+    assert "a" == commonpath(["./a/", "./a/b"])
+    assert "a" == commonpath(["./a/c", "./a/b"])
+
+    assert "../a" == commonpath(["../a", "../a"])
+    assert "../a" == commonpath(["../a", "../a/"])
+    assert "../a" == commonpath(["../a", "../a/b"])
+    assert "../a" == commonpath(["../a/", "../a/b"])
+    assert "../a" == commonpath(["../a/c", "../a/b"])
+
+    assert "a/b" == commonpath(["./a/./b", "./a/b"])
+    assert "a/../b" == commonpath(["./a/.././b", "a/../b/c"])
+
+
+def test_commonpath_none():
+    # type: () -> None
+
+    assert "" == commonpath(["a", "b"])
+    assert "" == commonpath(["bad", "b"])
+    assert "" == commonpath(["a", "a", "b"])

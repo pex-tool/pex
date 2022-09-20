@@ -15,7 +15,19 @@ from sys import version_info as sys_version_info
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import IO, AnyStr, BinaryIO, Callable, Optional, Text, Tuple, Type
+    from typing import (
+        IO,
+        AnyStr,
+        BinaryIO,
+        Callable,
+        Deque,
+        List,
+        Optional,
+        Sequence,
+        Text,
+        Tuple,
+        Type,
+    )
 
 
 try:
@@ -37,6 +49,7 @@ text = cast("Type[Text]", str if PY3 else unicode)  # type: ignore[name-defined]
 if PY2:
     from collections import Iterable as Iterable
     from collections import MutableSet as MutableSet
+    from collections import deque
 else:
     from collections.abc import Iterable as Iterable
     from collections.abc import MutableSet as MutableSet
@@ -199,3 +212,50 @@ if PY2:
 
 else:
     from textwrap import indent as indent
+
+
+if PY3:
+    from os.path import commonpath as commonpath
+else:
+
+    def commonpath(paths):
+        # type: (Sequence[Text]) -> Text
+        if not paths:
+            raise ValueError("The paths given must be a non-empty sequence")
+        if len(paths) == 1:
+            return paths[0]
+        if len({os.path.isabs(path) for path in paths}) > 1:
+            raise ValueError(
+                "Can't mix absolute and relative paths, given:\n{paths}".format(
+                    paths="\n".join(paths)
+                )
+            )
+
+        def components(path):
+            # type: (Text) -> Iterable[Text]
+
+            pieces = deque()  # type: Deque[Text]
+
+            def append(piece):
+                if piece and piece != ".":
+                    pieces.appendleft(piece)
+
+            head, tail = os.path.split(path)
+            append(tail)
+            while head:
+                if "/" == head:
+                    append(head)
+                    break
+                head, tail = os.path.split(head)
+                append(tail)
+            return pieces
+
+        prefix = []  # type: List[Text]
+        for index, atoms in enumerate(zip(*(components(path) for path in paths))):
+            if len(set(atoms)) == 1:
+                prefix.append(atoms[0])
+            else:
+                break
+        if not prefix:
+            return ""
+        return os.path.join(*prefix)
