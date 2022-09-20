@@ -1,6 +1,29 @@
 Release Notes
 =============
 
+2.1.105
+-------
+
+This is a fix release which addresses issues related to build time work_dir creation,
+virtualenv, and sh_boot support.
+
+In the unlikely event of a UUID collision in atomic workdir creation,
+pex could overwrite an existing directory and cause a corrupt state.
+When building a shell bootable ``--sh-boot`` pex the ``--runtime-pex-root``
+was not always respected based on the condition of the build environment,
+and the value of the PEX_ROOT.
+
+* Fail on atomic_directory work_dir collision. (#1905) 
+  `PR #1905 <https://github.com/pantsbuild/pex/pull/1905>`_
+
+* Use raw_pex_root when constructing sh_boot pexes. (#1906)
+  `PR #1906 <https://github.com/pantsbuild/pex/pull/1906>`_
+
+Docs.
+
+* Add support for offline downloads (#1898)
+  `PR #1898 <https://github.com/pantsbuild/pex/pull/1898>`_
+
 2.1.104
 -------
 
