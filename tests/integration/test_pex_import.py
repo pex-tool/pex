@@ -11,7 +11,7 @@ import pytest
 
 from pex.common import safe_open
 from pex.layout import DEPS_DIR, Layout
-from pex.testing import IS_PYPY, PY27, PY_VER, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -30,19 +30,6 @@ def test_import_from_pex(
     execution_mode_args,  # type: List[str]
 ):
     # type: (...) -> None
-
-    # For CPython 2.7 we work around bad virtualenvs created by tox that lead to the following
-    # error by using a pyenv CPython 2.7 interpreter instead:
-    #
-    # Traceback (most recent call last):
-    #   File "<string>", line 1, in <module>
-    #   File "/tmp/pytest-of-jsirois/pytest-10/popen-gw5/test_import_from_pex_UNZIPPED_0/importable.pex/.bootstrap/pex/third_party/__init__.py", line 39, in load_module
-    #   File "/home/jsirois/.pyenv/versions/2.7.18/lib/python2.7/importlib/__init__.py", line 37, in import_module
-    #     __import__(name)
-    #   File "/home/jsirois/dev/pantsbuild/jsirois-pex/.tox/py27-integration/lib/python2.7/site-packages/_virtualenv.py", line 112, in find_module
-    #     if fullname in _DISTUTILS_PATCH:
-    # TypeError: argument of type 'NoneType' is not iterable
-    python = ensure_python_interpreter(PY27) if (2, 7) == PY_VER and not IS_PYPY else sys.executable
 
     src = os.path.join(str(tmpdir), "src")
     with safe_open(os.path.join(src, "first_party.py"), "w") as fp:
@@ -77,13 +64,12 @@ def test_import_from_pex(
             layout.value,
         ]
         + execution_mode_args,
-        python=python,
     ).assert_success()
 
     def execute_with_pex_on_pythonpath(code):
         # type: (str) -> Text
         return (
-            subprocess.check_output(args=[python, "-c", code], env=make_env(PYTHONPATH=pex))
+            subprocess.check_output(args=[sys.executable, "-c", code], env=make_env(PYTHONPATH=pex))
             .decode("utf-8")
             .strip()
         )

@@ -6,9 +6,12 @@ import subprocess
 
 import pytest
 
+from pex.interpreter import PythonInterpreter
 from pex.testing import (
     ALL_PY_VERSIONS,
     IntegResults,
+    VenvFactory,
+    all_python_venvs,
     ensure_python_venv,
     make_source_dir,
     run_pex_command,
@@ -23,15 +26,21 @@ else:
     from pex.third_party import toml
 
 
-@pytest.mark.parametrize("python_version", ALL_PY_VERSIONS)
+@pytest.mark.parametrize(
+    "venv_factory",
+    [
+        pytest.param(venv_factory, id=venv_factory.python_version)
+        for venv_factory in all_python_venvs(additional_optional_versions=[(2, 7)])
+    ],
+)
 def test_build_isolation(
-    python_version,  # type: str
+    venv_factory,  # type: VenvFactory
     pex_project_dir,  # type: str
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
 
-    python, pip = ensure_python_venv(python_version)
+    python, pip = venv_factory.create_venv()
     result = run_pex_command(args=[pex_project_dir, "--no-build-isolation"], python=python)
     result.assert_failure()
     assert "raise BackendUnavailable(" in result.error, (

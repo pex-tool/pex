@@ -58,7 +58,7 @@ def file_path_length_limit(tmpdir_factory):
             path = os.path.join(path, "directory")
             try:
                 os.mkdir(path)
-            except OSError as e:
+            except (IOError, OSError) as e:
                 if e.errno == errno.ENAMETOOLONG:
                     return True
                 elif e.errno != errno.EEXIST:
@@ -93,14 +93,14 @@ def shebang_length_limit(
             path = os.path.join(path, "directory")
             try:
                 os.mkdir(path)
-            except OSError as e:
+            except (IOError, OSError) as e:
                 if e.errno != errno.EEXIST:
                     raise e
 
         sh_path = os.path.join(path, "x" * (length - len("#!\n" + path + os.sep)))
         try:
             os.unlink(sh_path)
-        except OSError as e:
+        except (IOError, OSError) as e:
             if e.errno != errno.ENOENT:
                 raise e
         os.symlink("/bin/sh", sh_path)
@@ -112,7 +112,7 @@ def shebang_length_limit(
         chmod_plus_x(script)
         try:
             return 0 != subprocess.call(args=[script])
-        except OSError as e:
+        except (IOError, OSError) as e:
             if e.errno == errno.ENOEXEC:
                 return True
             raise e

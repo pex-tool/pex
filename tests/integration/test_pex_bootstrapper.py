@@ -14,7 +14,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
-from pex.testing import PY27, PY38, PY_VER, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import PY38, PY39, PY_VER, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.venv.pex import CollisionError
 from pex.venv.virtualenv import Virtualenv
@@ -292,7 +292,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
     assert_boot(sys.executable)
 
     other_interpreter = (
-        ensure_python_interpreter(PY27) if PY_VER != (2, 7) else ensure_python_interpreter(PY38)
+        ensure_python_interpreter(PY39) if PY_VER != (3, 9) else ensure_python_interpreter(PY38)
     )
     assert_boot(other_interpreter)
 
@@ -300,7 +300,7 @@ def test_boot_compatible_issue_1020_no_ic(tmpdir):
 def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
     # type: (Any) -> None
     other_interpreter = PythonInterpreter.from_binary(
-        ensure_python_interpreter(PY27) if PY_VER != (2, 7) else ensure_python_interpreter(PY38)
+        ensure_python_interpreter(PY39) if PY_VER != (3, 9) else ensure_python_interpreter(PY38)
     )
     current_interpreter = PythonInterpreter.get()
 
@@ -361,8 +361,8 @@ def test_boot_compatible_issue_1020_ic_min_compatible_build_time_hole(tmpdir):
 
 def test_boot_resolve_fail(
     tmpdir,  # type: Any
-    py27,  # type: PythonInterpreter
     py38,  # type: PythonInterpreter
+    py39,  # type: PythonInterpreter
     py310,  # type: PythonInterpreter
 ):
     # type: (...) -> None
@@ -370,9 +370,9 @@ def test_boot_resolve_fail(
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(args=["--python", py38.binary, "psutil==5.9.0", "-o", pex]).assert_success()
 
-    pex_python_path = os.pathsep.join((py27.binary, py310.binary))
+    pex_python_path = os.pathsep.join((py39.binary, py310.binary))
     process = subprocess.Popen(
-        args=[py27.binary, pex, "-c", ""],
+        args=[py39.binary, pex, "-c", ""],
         env=make_env(PEX_PYTHON_PATH=pex_python_path),
         stderr=subprocess.PIPE,
     )
@@ -383,16 +383,16 @@ def test_boot_resolve_fail(
         r"^Failed to find compatible interpreter on path {pex_python_path}.\n"
         r"\n"
         r"Examined the following interpreters:\n"
-        r"1\.\)\s+{py27_exe} {py27_req}\n"
+        r"1\.\)\s+{py39_exe} {py39_req}\n"
         r"2\.\)\s+{py310_exe} {py310_req}\n"
         r"\n"
         r"No interpreter compatible with the requested constraints was found:\n"
         r"\n"
-        r"  A distribution for psutil could not be resolved for {py27_exe}.\n"
+        r"  A distribution for psutil could not be resolved for {py39_exe}.\n"
         r"  Found 1 distribution for psutil that do not apply:\n"
         r"  1\.\) The wheel tags for psutil 5\.9\.0 are .+ which do not match the supported tags "
-        r"of {py27_exe}:\n"
-        r"  cp27-cp27.+\n"
+        r"of {py39_exe}:\n"
+        r"  cp39-cp39-.+\n"
         r"  ... \d+ more ...\n"
         r"\n"
         r"  A distribution for psutil could not be resolved for {py310_exe}.\n"
@@ -402,8 +402,8 @@ def test_boot_resolve_fail(
         r"  cp310-cp310-.+\n"
         r"  ... \d+ more ...".format(
             pex_python_path=re.escape(pex_python_path),
-            py27_exe=py27.binary,
-            py27_req=py27.identity.requirement,
+            py39_exe=py39.binary,
+            py39_req=py39.identity.requirement,
             py310_exe=py310.binary,
             py310_req=py310.identity.requirement,
         ),

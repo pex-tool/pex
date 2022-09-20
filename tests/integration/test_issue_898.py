@@ -6,12 +6,18 @@ import subprocess
 from textwrap import dedent
 
 from pex.common import safe_open, temporary_dir
-from pex.testing import PY27, PY310, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import (
+    PY310,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+    skip_unless_python_interpreter,
+)
 
 
 def test_top_level_requirements_requires_python_env_markers():
     # type: () -> None
-    python27 = ensure_python_interpreter(PY27)
+    python27 = skip_unless_python_interpreter(version=(2, 7))
     python310 = ensure_python_interpreter(PY310)
     with temporary_dir() as td:
         src_dir = os.path.join(td, "src")

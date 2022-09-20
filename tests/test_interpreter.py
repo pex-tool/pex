@@ -22,10 +22,11 @@ from pex.jobs import Job
 from pex.pyenv import Pyenv
 from pex.testing import (
     ALL_PY_VERSIONS,
-    PY27,
     PY38,
+    PY39,
     PY310,
     PY_VER,
+    all_pythons,
     ensure_python_distribution,
     ensure_python_interpreter,
     ensure_python_venv,
@@ -64,7 +65,7 @@ class TestPythonInterpreter(object):
                 reload(interpreter)
             PythonInterpreter.all()
 
-    TEST_INTERPRETER1_VERSION = PY27
+    TEST_INTERPRETER1_VERSION = PY39
     TEST_INTERPRETER1_VERSION_TUPLE = tuple_from_version(TEST_INTERPRETER1_VERSION)
 
     TEST_INTERPRETER2_VERSION = PY38
@@ -493,11 +494,17 @@ def test_issue_1494_iter_candidates(macos_monterey_interpeter):
     ] == list(PythonInterpreter.iter_candidates(paths=[sys.executable, macos_monterey_interpeter]))
 
 
-@pytest.mark.parametrize("py_version", ALL_PY_VERSIONS)
-def test_sys_path(py_version):
+@pytest.mark.parametrize(
+    "python",
+    [
+        pytest.param(python, id=str(PythonInterpreter.from_binary(python).identity))
+        for python in all_pythons(additional_optional_versions=[(2, 7)])
+    ],
+)
+def test_sys_path(python):
     # type: (str) -> None
 
-    interp = PythonInterpreter.from_binary(ensure_python_interpreter(py_version))
+    interp = PythonInterpreter.from_binary(python)
     _, stdout, _ = interp.execute(args=["-c", "import os, sys; print(os.linesep.join(sys.path))"])
     assert tuple(entry for entry in stdout.splitlines() if entry) == interp.sys_path, (
         'Its expected the sys_path matches the runtime sys.path with the exception of the PWD ("") '

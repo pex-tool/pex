@@ -5,6 +5,7 @@ import itertools
 import json
 import os
 import re
+import sys
 from argparse import ArgumentParser, ArgumentTypeError
 
 import pytest

@@ -6,7 +6,7 @@ import re
 import subprocess
 import sys
 
-from pex.testing import PY27, PY38, PY310, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import PY38, PY39, PY310, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -56,25 +56,25 @@ def test_unconstrained_universal_venv_pex(tmpdir):
         else:
             assert "PEXWarning" not in stderr_text
 
-    py27 = ensure_python_interpreter(PY27)
     py38 = ensure_python_interpreter(PY38)
+    py39 = ensure_python_interpreter(PY39)
     py310 = ensure_python_interpreter(PY310)
 
     assert_uses_python(python=sys.executable, expected_version=sys.version_info[:2])
-    assert_uses_python(python=py27, expected_version=(2, 7))
     assert_uses_python(python=py38, expected_version=(3, 8))
+    assert_uses_python(python=py39, expected_version=(3, 9))
     assert_uses_python(python=py310, expected_version=(3, 10))
 
     # When PEX_PYTHON is imprecise, the final python should be chosen by the PEX runtime.
-    py27_ppp = os.path.dirname(py27)
+    py39_ppp = os.path.dirname(py39)
     assert_uses_python(
         python=py310,
-        expected_version=(2, 7),
+        expected_version=(3, 9),
         PEX_PYTHON="python3.7",
-        PEX_PYTHON_PATH=py27_ppp,
+        PEX_PYTHON_PATH=py39_ppp,
         expected_warnings=[
             r"Using a venv restricted by PEX_PYTHON_PATH={ppp} for {pex} at ".format(
-                ppp=py27_ppp, pex=setuptools_pex
+                ppp=py39_ppp, pex=setuptools_pex
             )
         ],
     )
@@ -83,20 +83,20 @@ def test_unconstrained_universal_venv_pex(tmpdir):
     # issued.
     assert_uses_python(
         python=py310,
-        expected_version=(2, 7),
+        expected_version=(3, 9),
         PEX_PYTHON="python3",
-        PEX_PYTHON_PATH=py27_ppp,
+        PEX_PYTHON_PATH=py39_ppp,
         expected_warnings=[
             r"Using a venv selected by PEX_PYTHON=python3 for {pex} at".format(pex=setuptools_pex),
             r"Using a venv restricted by PEX_PYTHON_PATH={ppp} for {pex} at ".format(
-                ppp=py27_ppp, pex=setuptools_pex
+                ppp=py39_ppp, pex=setuptools_pex
             ),
         ],
     )
 
     # When PEX_PYTHON is precise but not on PEX_PYTHON_PATH, the final python should also be chosen
     # by the PEX runtime and selection should fail.
-    _, _, returncode = execute_pex(python=py310, PEX_PYTHON=py38, PEX_PYTHON_PATH=py27_ppp)
+    _, _, returncode = execute_pex(python=py310, PEX_PYTHON=py38, PEX_PYTHON_PATH=py39_ppp)
     assert 0 != returncode
 
     # But when PEX_PYTHON is precise and on the PEX_PYTHON_PATH, the final python should be
@@ -105,5 +105,5 @@ def test_unconstrained_universal_venv_pex(tmpdir):
         python=py310,
         expected_version=(3, 8),
         PEX_PYTHON=py38,
-        PEX_PYTHON_PATH=os.pathsep.join(os.path.dirname(py) for py in (py27, py38)),
+        PEX_PYTHON_PATH=os.pathsep.join(os.path.dirname(py) for py in (py38, py39)),
     )

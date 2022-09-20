@@ -19,7 +19,7 @@ from pex.compatibility import to_bytes
 from pex.interpreter import PythonInterpreter
 from pex.resolve import requirement_options, resolver_options, target_options
 from pex.testing import (
-    PY27,
+    PY39,
     built_wheel,
     ensure_python_interpreter,
     run_pex_command,
@@ -228,6 +228,6 @@ def test_run_pex():
         pex_args=["--platform={}".format(PythonInterpreter.get().platform)]
     )
 
-    py27 = ensure_python_interpreter(PY27)
-    stderr_lines = assert_run_pex(python=py27, pex_args=["--platform=macosx-10.13-x86_64-cp-37-m"])
+    py39 = ensure_python_interpreter(PY39)
+    stderr_lines = assert_run_pex(python=py39, pex_args=["--platform=macosx-10.13-x86_64-cp-37-m"])
     assert incompatible_platforms_warning_msg in stderr_lines

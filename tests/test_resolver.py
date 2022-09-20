@@ -24,7 +24,6 @@ from pex.targets import Targets
 from pex.testing import (
     IS_LINUX,
     IS_PYPY,
-    PY27,
     PY38,
     PY310,
     PY_VER,
@@ -32,6 +31,7 @@ from pex.testing import (
     ensure_python_interpreter,
     make_project,
     make_source_dir,
+    skip_unless_python_interpreter,
 )
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -392,8 +392,8 @@ def test_issues_851():
     # Previously, the PY38 resolve would fail post-resolution checks for importlib-metadata,
     # configparser, pathlib2 and contextlib2 which are only required for python_version<3.
 
-    def resolve_pytest(python_version, pytest_version):
-        interpreter = PythonInterpreter.from_binary(ensure_python_interpreter(python_version))
+    def resolve_pytest(python, pytest_version):
+        interpreter = PythonInterpreter.from_binary(python)
         result = resolve(
             targets=Targets(interpreters=(interpreter,)),
             requirements=["pytest=={}".format(pytest_version)],
@@ -405,13 +405,17 @@ def test_issues_851():
         assert project_to_version["pytest"] == pytest_version
         return project_to_version
 
-    resolved_project_to_version = resolve_pytest(python_version=PY38, pytest_version="5.3.4")
+    resolved_project_to_version = resolve_pytest(
+        python=ensure_python_interpreter(PY38), pytest_version="5.3.4"
+    )
     assert "importlib-metadata" not in resolved_project_to_version
     assert "configparser" not in resolved_project_to_version
     assert "pathlib2" not in resolved_project_to_version
     assert "contextlib2" not in resolved_project_to_version
 
-    resolved_project_to_version = resolve_pytest(python_version=PY27, pytest_version="4.6.9")
+    resolved_project_to_version = resolve_pytest(
+        python=skip_unless_python_interpreter(version=(2, 7)), pytest_version="4.6.9"
+    )
     assert "importlib-metadata" in resolved_project_to_version
     assert "configparser" in resolved_project_to_version
     assert "pathlib2" in resolved_project_to_version
@@ -420,7 +424,7 @@ def test_issues_851():
 
 def test_issues_892():
     # type: () -> None
-    python27 = ensure_python_interpreter(PY27)
+    python27 = skip_unless_python_interpreter(version=(2, 7))
     program = dedent(
         """\
         from __future__ import print_function
@@ -429,7 +433,7 @@ def test_issues_892():
         import sys
 
 
-        # This puts python3.8 stdlib on PYTHONPATH.
+        # This puts python3.10 stdlib on PYTHONPATH.
         os.environ['PYTHONPATH'] = os.pathsep.join(sys.path)
 
 
