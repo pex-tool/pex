@@ -8,6 +8,7 @@ from argparse import ArgumentParser, Namespace
 
 from pex import pex_bootstrapper
 from pex.commands.command import GlobalConfigurationError, Main
+from pex.compatibility import commonpath
 from pex.pex import PEX
 from pex.pex_bootstrapper import InterpreterTest
 from pex.pex_info import PexInfo
@@ -28,7 +29,7 @@ def simplify_pex_path(pex_path):
     # Generate the most concise path possible that is still cut/paste-able to the command line.
     pex_path = os.path.abspath(pex_path)
     cwd = os.getcwd()
-    if os.path.commonprefix((pex_path, cwd)) == cwd:
+    if commonpath((pex_path, cwd)) == cwd:
         pex_path = os.path.relpath(pex_path, cwd)
         # Handle users that do not have . as a PATH entry.
         if not os.path.dirname(pex_path) and os.curdir not in os.environ.get("PATH", "").split(
