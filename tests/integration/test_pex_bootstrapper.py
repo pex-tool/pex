@@ -10,6 +10,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open
+from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
@@ -213,7 +214,7 @@ def test_ensure_venv_namespace_packages(tmpdir):
         os.path.dirname(os.path.dirname(p)) for p in symlink_package_paths
     }
     assert os.path.realpath(os.path.join(pex_root, PexInfo.INSTALL_CACHE)) == os.path.realpath(
-        os.path.commonprefix(list(package_file_installed_wheel_dirs))
+        commonpath(list(package_file_installed_wheel_dirs))
     ), "Expected contributing wheel content to be symlinked from the installed wheel cache."
     assert {
         "twitter.common.{package}-0.3.11-py{py_major}-none-any.whl".format(

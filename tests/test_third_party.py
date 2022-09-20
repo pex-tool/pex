@@ -8,6 +8,7 @@ from contextlib import contextmanager
 
 from pex import third_party
 from pex.common import temporary_dir
+from pex.compatibility import commonpath
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -31,7 +32,7 @@ def test_isolated_pex_root():
     # type: () -> None
     with temporary_pex_root() as (pex_root, _):
         devendored_chroot = os.path.realpath(third_party.isolated().chroot_path)
-        assert pex_root == os.path.commonprefix([pex_root, devendored_chroot])
+        assert pex_root == commonpath([pex_root, devendored_chroot])
 
 
 def test_isolated_vendoring_constraints_omitted():
