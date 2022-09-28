@@ -8,7 +8,7 @@ import re
 from contextlib import contextmanager
 
 from pex import attrs, dist_metadata, pex_warnings
-from pex.compatibility import urlparse
+from pex.compatibility import unquote, urlparse
 from pex.dist_metadata import (
     MetadataError,
     ProjectNameAndVersion,
@@ -297,7 +297,7 @@ def parse_scheme(scheme):
             )
             |
             (?P<vcs_type>
-                # VCSs: https://pip.pypa.io/en/stable/reference/pip_install/#vcs-support       
+                # VCSs: https://pip.pypa.io/en/stable/reference/pip_install/#vcs-support
                   bzr
                 | git
                 | hg
@@ -481,7 +481,7 @@ def _parse_requirement_line(
         specifier = None  # type: Optional[SpecifierSet]
         if not project_name:
             project_name_and_specifier = _try_parse_project_name_and_specifier_from_path(
-                parsed_url.path
+                unquote(parsed_url.path)
             )
             if project_name_and_specifier is not None:
                 project_name = project_name_and_specifier.project_name
