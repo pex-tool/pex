@@ -286,6 +286,9 @@ def test_parse_requirements_stress(chroot):
                 Django@ git+https://github.com/django/django.git\\
                     @fd209f62f1d83233cc634443cfac5ee4328d98b8
                 Django @ file:projects/django-2.3.zip; python_version >= "3.10"
+
+                # Wheel with local version
+                http://download.pytorch.org/whl/cpu/torch-1.12.1%2Bcpu-cp310-cp310-linux_x86_64.whl
                 """
             )
         )
@@ -432,6 +435,11 @@ def test_parse_requirements_stress(chroot):
             url=os.path.realpath("extra/projects/django-2.3.zip"),
             specifier="==2.3",
             marker="python_version>='3.10'",
+        ),
+        url_req(
+            project_name="torch",
+            url="http://download.pytorch.org/whl/cpu/torch-1.12.1%2Bcpu-cp310-cp310-linux_x86_64.whl",
+            specifier="==1.12.1+cpu",
         ),
         url_req(
             project_name="numpy",
