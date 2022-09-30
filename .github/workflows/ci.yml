@@ -158,7 +158,6 @@ jobs:
     name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
     needs: org-check
     runs-on: ${{ matrix.os }}
-    environment: CI
     strategy:
       matrix:
         python-version: [[2, 7], [3, 10], [3, 11, "0-rc.2"]]
@@ -212,7 +211,6 @@ jobs:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
     runs-on: ubuntu-20.04
-    environment: CI
     strategy:
       matrix:
         pypy-version: [[2, 7], [3, 9]]
