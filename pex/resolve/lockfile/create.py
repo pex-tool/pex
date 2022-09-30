@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 
     from pex.hashing import HintedDigest
+    from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
 
@@ -129,6 +130,7 @@ class _LockAnalysis(object):
 
 @attr.s(frozen=True)
 class LockObserver(ResolveObserver):
+    root_requirements = attr.ib()  # type: Tuple[ParsedRequirement, ...]
     lock_configuration = attr.ib()  # type: LockConfiguration
     resolver = attr.ib()  # type: Resolver
     wheel_builder = attr.ib()  # type: WheelBuilder
@@ -143,6 +145,7 @@ class LockObserver(ResolveObserver):
     ):
         # type: (...) -> DownloadObserver
         patch = locker.patch(
+            root_requirements=self.root_requirements,
             pip_version=self.package_index_configuration.pip_version,
             resolver=self.resolver,
             lock_configuration=self.lock_configuration,
@@ -253,6 +256,7 @@ def create(
 
     configured_resolver = ConfiguredResolver(pip_configuration=pip_configuration)
     lock_observer = LockObserver(
+        root_requirements=parsed_requirements,
         lock_configuration=lock_configuration,
         resolver=configured_resolver,
         wheel_builder=WheelBuilder(

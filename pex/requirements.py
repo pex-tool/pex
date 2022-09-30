@@ -695,15 +695,20 @@ def parse_requirement_file(
             yield req_info
 
 
+def parse_requirement_string(requirement):
+    # type: (Text) -> ParsedRequirement
+    return _parse_requirement_line(
+        LogicalLine(
+            raw_text=requirement,
+            processed_text=requirement.strip(),
+            source="<string>",
+            start_line=1,
+            end_line=1,
+        )
+    )
+
+
 def parse_requirement_strings(requirements):
     # type: (Iterable[Text]) -> Iterator[ParsedRequirement]
     for requirement in requirements:
-        yield _parse_requirement_line(
-            LogicalLine(
-                raw_text=requirement,
-                processed_text=requirement.strip(),
-                source="<string>",
-                start_line=1,
-                end_line=1,
-            )
-        )
+        yield parse_requirement_string(requirement)

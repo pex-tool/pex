@@ -158,6 +158,7 @@ jobs:
     name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
     needs: org-check
     runs-on: ${{ matrix.os }}
+    environment: CI
     strategy:
       matrix:
         python-version: [[2, 7], [3, 10], [3, 11, "0-rc.2"]]
@@ -199,6 +200,10 @@ jobs:
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -207,6 +212,7 @@ jobs:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
     runs-on: ubuntu-20.04
+    environment: CI
     strategy:
       matrix:
         pypy-version: [[2, 7], [3, 9]]
@@ -245,6 +251,10 @@ jobs:
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:

@@ -11,6 +11,7 @@ from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
+from pex.requirements import parse_requirement_string
 from pex.resolve import locker
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, LockStyle
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
@@ -109,6 +110,7 @@ class ArtifactDownloader(object):
         # observer does just this for universal locks with no target system or requires python
         # restrictions.
         download_observer = locker.patch(
+            root_requirements=[parse_requirement_string(url)],
             pip_version=self.package_index_configuration.pip_version,
             resolver=self.resolver,
             lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL),
