@@ -26,6 +26,10 @@ VCS_URL = (
 )
 
 
+@pytest.mark.skipif(
+    not os.environ.get("SSH_AUTH_SOCK"),
+    reason="An ssh agent must be up and running for this test."
+)
 @pytest.mark.parametrize(
     ["requirement", "expected_url"],
     [
