@@ -1,7 +1,9 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import itertools
 import os.path
+import subprocess
 
 import pytest
 
@@ -26,8 +28,27 @@ VCS_URL = (
 )
 
 
+def has_ssh_access():
+    # type: () -> bool
+    process = subprocess.Popen(
+        args=[
+            "ssh",
+            "-T",
+            "-o",
+            "PasswordAuthentication=no",
+            "-o",
+            "NumberOfPasswordPrompts=0",
+            "git@github.com",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    output, _ = process.communicate()
+    return "You've successfully authenticated" in output.decode()
+
+
 @pytest.mark.skipif(
-    not os.environ.get("SSH_AUTH_SOCK"), reason="An ssh agent must be up and running for this test."
+    not has_ssh_access(), reason="Password-less ssh to git@github.com is required for this test."
 )
 @pytest.mark.parametrize(
     ["requirement", "expected_url"],
