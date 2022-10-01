@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.107
+-------
+
+This release fixes an issue handling credentials in git+ssh VCS urls
+when creating locks.
+
+* Fix locks for git+ssh with credentials. (#1923)
+  `PR #1923 <https://github.com/pantsbuild/pex/pull/1923>`_
+
 2.1.106
 -------
 
