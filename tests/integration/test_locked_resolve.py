@@ -50,6 +50,7 @@ def create_lock_observer(lock_configuration):
         network_configuration=pip_configuration.network_configuration,
     )
     return LockObserver(
+        root_requirements=(),
         lock_configuration=lock_configuration,
         resolver=ConfiguredResolver(pip_configuration=pip_configuration),
         wheel_builder=WheelBuilder(

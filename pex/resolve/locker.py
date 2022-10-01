@@ -8,6 +8,7 @@ import json
 import os
 import pkgutil
 import re
+import sys
 from collections import defaultdict
 
 from pex.common import safe_mkdtemp
@@ -21,7 +22,7 @@ from pex.pip.local_project import fingerprint_local_project
 from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.pip.version import PipVersionValue
-from pex.requirements import VCS, VCSScheme, parse_scheme
+from pex.requirements import VCS, VCSRequirement, VCSScheme, parse_scheme
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle, TargetSystem
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.pep_691.model import Endpoint
@@ -31,9 +32,22 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Dict, List, Optional, Pattern, Set, Text, Tuple
+    from typing import (
+        DefaultDict,
+        Dict,
+        Iterable,
+        List,
+        Mapping,
+        Optional,
+        Pattern,
+        Set,
+        Text,
+        Tuple,
+    )
 
     import attr  # vendor:skip
+
+    from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
 
@@ -50,9 +64,150 @@ class LockResult(object):
     local_projects = attr.ib()  # type: Tuple[str, ...]
 
 
+@attr.s(frozen=True)
+class Credentials(object):
+    username = attr.ib()  # type: str
+    password = attr.ib(default=None)  # type: Optional[str]
+
+    def are_redacted(self):
+        # type: () -> bool
+
+        # N.B.: Pip redacts here: pex/vendor/_vendored/pip/pip/_internal/utils/misc.py
+        return "****" in (self.username, self.password)
+
+    def render_basic_auth(self):
+        # type: () -> str
+        if self.password is not None:
+            return "{username}:{password}".format(username=self.username, password=self.password)
+        return self.username
+
+
+@attr.s(frozen=True)
+class Netloc(object):
+    host = attr.ib()  # type: str
+    port = attr.ib(default=None)  # type: Optional[int]
+
+    def render_host_port(self):
+        # type: () -> str
+        if self.port is not None:
+            return "{host}:{port}".format(host=self.host, port=self.port)
+        return self.host
+
+
+@attr.s(frozen=True)
+class CredentialedURL(object):
+    @classmethod
+    def parse(cls, url):
+        # type: (Text) -> CredentialedURL
+
+        url_info = urlparse.urlparse(url)
+
+        # The netloc component of the parsed url combines username, password, host and port. We need
+        # to track username and password; so we break up netloc into its four components.
+        credentials = (
+            Credentials(username=url_info.username, password=url_info.password)
+            if url_info.username
+            else None
+        )
+
+        netloc = Netloc(host=url_info.hostname, port=url_info.port) if url_info.hostname else None
+
+        return cls(
+            scheme=url_info.scheme,
+            credentials=credentials,
+            netloc=netloc,
+            path=url_info.path,
+            params=url_info.params,
+            query=url_info.query,
+            fragment=url_info.fragment,
+        )
+
+    scheme = attr.ib()  # type: str
+    credentials = attr.ib()  # type: Optional[Credentials]
+    netloc = attr.ib()  # type: Optional[Netloc]
+    path = attr.ib()  # type: str
+    params = attr.ib()  # type: str
+    query = attr.ib()  # type: str
+    fragment = attr.ib()  # type: str
+
+    @property
+    def has_redacted_credentials(self):
+        # type: () -> bool
+        if self.credentials is None:
+            return False
+        return self.credentials.are_redacted()
+
+    def strip_credentials(self):
+        # type: () -> CredentialedURL
+        return attr.evolve(self, credentials=None)
+
+    def strip_params_query_and_fragment(self):
+        # type: () -> CredentialedURL
+        return attr.evolve(self, params="", query="", fragment="")
+
+    def inject_credentials(self, credentials):
+        # type: (Optional[Credentials]) -> CredentialedURL
+        return attr.evolve(self, credentials=credentials)
+
+    def __str__(self):
+        # type: () -> str
+
+        netloc = ""
+        if self.netloc is not None:
+            host_port = self.netloc.render_host_port()
+            netloc = (
+                "{credentials}@{host_port}".format(
+                    credentials=self.credentials.render_basic_auth(), host_port=host_port
+                )
+                if self.credentials
+                else host_port
+            )
+
+        return urlparse.urlunparse(
+            (self.scheme, netloc, self.path, self.params, self.query, self.fragment)
+        )
+
+
+@attr.s(frozen=True)
+class VCSURLManager(object):
+    @staticmethod
+    def _normalize_vcs_url(credentialed_url):
+        # type: (CredentialedURL) -> str
+        return str(credentialed_url.strip_credentials().strip_params_query_and_fragment())
+
+    @classmethod
+    def create(cls, requirements):
+        # type: (Iterable[ParsedRequirement]) -> VCSURLManager
+
+        credentials_by_normalized_url = {}  # type: Dict[str, Optional[Credentials]]
+        for requirement in requirements:
+            if not isinstance(requirement, VCSRequirement):
+                continue
+            credentialed_url = CredentialedURL.parse(requirement.url)
+            vcs_url = "{vcs}+{url}".format(
+                vcs=requirement.vcs, url=cls._normalize_vcs_url(credentialed_url)
+            )
+            credentials_by_normalized_url[vcs_url] = credentialed_url.credentials
+        return cls(credentials_by_normalized_url)
+
+    _credentials_by_normalized_url = attr.ib()  # type: Mapping[str, Optional[Credentials]]
+
+    def normalize_url(self, url):
+        # type: (str) -> str
+
+        credentialed_url = CredentialedURL.parse(url)
+        if credentialed_url.has_redacted_credentials:
+            normalized_vcs_url = self._normalize_vcs_url(credentialed_url)
+            credentials = self._credentials_by_normalized_url.get(normalized_vcs_url)
+            if credentials is not None:
+                credentialed_url = credentialed_url.inject_credentials(credentials)
+        return str(credentialed_url)
+
+
 class Locker(LogAnalyzer):
     def __init__(
         self,
+        root_requirements,  # type: Iterable[ParsedRequirement]
         pip_version,  # type: PipVersionValue
         resolver,  # type: Resolver
         lock_configuration,  # type: LockConfiguration
@@ -60,6 +215,8 @@ class Locker(LogAnalyzer):
         fingerprint_service=None,  # type: Optional[FingerprintService]
     ):
         # type: (...) -> None
+
+        self._vcs_url_manager = VCSURLManager.create(root_requirements)
         self._pip_version = pip_version
         self._resolver = resolver
         self._lock_configuration = lock_configuration
@@ -161,7 +318,7 @@ class Locker(LogAnalyzer):
                                 project_name=requirement.project_name, version=Version(version)
                             ),
                             artifact=PartialArtifact(
-                                url=match.group("url"),
+                                url=self._vcs_url_manager.normalize_url(match.group("url")),
                                 fingerprint=fingerprint_downloaded_vcs_archive(
                                     download_dir=self._download_dir,
                                     project_name=str(requirement.project_name),
@@ -373,6 +530,7 @@ _PLATFORM_TAG_REGEXP = {
 
 
 def patch(
+    root_requirements,  # type: Iterable[ParsedRequirement]
     pip_version,  # type: PipVersionValue
     resolver,  # type: Resolver
     lock_configuration,  # type: LockConfiguration
@@ -435,6 +593,7 @@ def patch(
 
     return DownloadObserver(
         analyzer=Locker(
+            root_requirements=root_requirements,
             pip_version=pip_version,
             resolver=resolver,
             lock_configuration=lock_configuration,

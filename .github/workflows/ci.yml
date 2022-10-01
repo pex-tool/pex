@@ -199,6 +199,13 @@ jobs:
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.5.4
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        if: env.SSH_PRIVATE_KEY != ''
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
@@ -245,6 +252,13 @@ jobs:
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.5.4
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        if: env.SSH_PRIVATE_KEY != ''
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
         uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
         with:
