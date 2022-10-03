@@ -38,23 +38,31 @@ def test_zip64_fail_fast(tmpdir):
         Zip.load(zip_file)
 
 
-def assert_zipapp(path):
-    # type: (str) -> None
+def assert_zipapp(
+    path,  # type: str
+    expected_comment=b"",  # type: bytes
+):
+    # type: (...) -> None
 
     with open_zip(path) as zip_fp:
         assert ["__main__.py", "data.py", "data"] == zip_fp.namelist()
+        assert expected_comment == zip_fp.comment
     assert b"42" == subprocess.check_output(args=[sys.executable, path]).strip()
 
 
-def create_zipapp(tmpdir):
-    # type: (Any) -> str
+def create_zipapp(
+    tmpdir,  # type: Any
+    comment=b"",  # type: bytes
+):
+    # type: (...) -> str
 
     zip_file = os.path.join(str(tmpdir), "zip_file")
     with open_zip(zip_file, "w") as zip_fp:
         zip_fp.writestr("__main__.py", b"print('42')")
         zip_fp.writestr("data.py", b"import pkgutil; print(pkgutil.getdata(__name__, 'data'))")
         zip_fp.writestr("data", b"42")
-    assert_zipapp(zip_file)
+        zip_fp.comment = comment
+    assert_zipapp(zip_file, expected_comment=comment)
     return zip_file
 
 
@@ -62,13 +70,18 @@ def create_zipapp(tmpdir):
     "header",
     [pytest.param(b"", id="no header"), pytest.param(b"One line.\nAnother.\nTrailer", id="header")],
 )
+@pytest.mark.parametrize(
+    "comment",
+    [pytest.param(b"", id="no comment"), pytest.param(b"Phil Katz was here.", id="comment")],
+)
 def test_header_isolation(
     tmpdir,  # type: Any
     header,  # type: bytes
+    comment,  # type: bytes
 ):
     # type: (...) -> None
 
-    zip_file = create_zipapp(tmpdir)
+    zip_file = create_zipapp(tmpdir, comment=comment)
 
     zip_file_with_header = os.path.join(str(tmpdir), "zip_file_with_header")
     with open(zip_file, "rb") as in_fp, open(zip_file_with_header, "wb") as out_fp:
@@ -87,7 +100,7 @@ def test_header_isolation(
         zf.isolate_zip(out_fp)
 
     assert filecmp.cmp(zip_file, out_zip, shallow=False)
-    assert_zipapp(out_zip)
+    assert_zipapp(out_zip, expected_comment=comment)
 
 
 def test_sandwich(tmpdir):
