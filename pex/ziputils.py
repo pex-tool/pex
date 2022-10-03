@@ -11,7 +11,7 @@ import struct
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, BinaryIO, Optional, Type
+    from typing import BinaryIO, Optional
 
     import attr  # vendor:skip
 else:
@@ -23,11 +23,11 @@ class ZipError(Exception):
 
 
 @attr.s(frozen=True)
-class Zip64Error(ZipError):
+class _Zip64Error(ZipError):
     """Indicates Zip64 support is required but not implemented."""
 
-    record_type = attr.ib()  # type: Type
-    attribute = attr.ib()  # type: attr.Attribute
+    record_type = attr.ib()  # type: str
+    field = attr.ib()  # type: str
     value = attr.ib()  # type: int
     message = attr.ib(default="")  # type: str
 
@@ -37,8 +37,8 @@ class Zip64Error(ZipError):
         message_lines.append(
             "The {field} field of the {record_type} record has value {value} indicating Zip64 "
             "support is required, but Zip64 support is not implemented.".format(
-                record_type=self.record_type.__name__,
-                field=self.attribute.name,
+                record_type=self.record_type,
+                field=self.field,
                 value=self.value,
             )
         )
@@ -51,19 +51,6 @@ class Zip64Error(ZipError):
 
 _MAX_2_BYTES = 0xFFFF
 _MAX_4_BYTES = 0xFFFFFFFF
-
-
-def _validate_field_does_not_require_zip64(
-    record,  # type: Any
-    attribute,  # type: attr.Attribute
-    value,  # type: int
-):
-    # type: (...) -> None
-
-    # The zip format uses values of 0xFFFF for unit16 fields and 0xFFFFFFFF for uint32 fields to
-    # indicate Zip64 extensions are needed / used.
-    if value == attribute.metadata["max"]:
-        raise Zip64Error(type(record), attribute, value)
 
 
 @attr.s(frozen=True)
@@ -150,7 +137,10 @@ class _EndOfCentralDirectoryRecord(object):
         #       record is too small to hold required data, the field SHOULD be
         #       set to -1 (0xFFFF or 0xFFFFFFFF) and the ZIP64 format record
         #       SHOULD be created.
-        _validate_field_does_not_require_zip64(self, attribute, value)
+        if value == attribute.metadata["max"]:
+            raise _Zip64Error(
+                record_type="EndOfCentralDirectoryRecord", field=attribute.name, value=value
+            )
 
     @property
     def start_of_zip_offset_from_eof(self):
@@ -179,7 +169,7 @@ class Zip(object):
         """
         try:
             eocd = _EndOfCentralDirectoryRecord.load(path)
-        except Zip64Error as e:
+        except _Zip64Error as e:
             raise attr.evolve(
                 e, message="The zip at {path} requires Zip64 support.".format(path=path)
             )
