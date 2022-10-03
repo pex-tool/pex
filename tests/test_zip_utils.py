@@ -10,6 +10,7 @@ import sys
 from io import BytesIO
 
 import pytest
+from pex.testing import make_env, PY_VER
 
 from pex.common import open_zip
 from pex.typing import TYPE_CHECKING
@@ -47,7 +48,12 @@ def assert_zipapp(
     with open_zip(path) as zip_fp:
         assert ["__main__.py", "data.py", "data"] == zip_fp.namelist()
         assert expected_comment == zip_fp.comment
-    assert b"42" == subprocess.check_output(args=[sys.executable, path]).strip()
+
+    # Older Pythons cannot execute zipapps with comments. The C runtime has a separate zip
+    # implementation from the zipfile module, and it chokes.
+    # See the fix here in 3.8.0 alpha1: https://github.com/python/cpython/issues/50200
+    if not expected_comment or PY_VER >= (3, 8):
+        assert b"42" == subprocess.check_output(args=[sys.executable, path]).strip()
 
 
 def create_zipapp(
