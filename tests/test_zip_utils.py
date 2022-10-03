@@ -10,9 +10,9 @@ import sys
 from io import BytesIO
 
 import pytest
-from pex.testing import make_env, PY_VER
 
 from pex.common import open_zip
+from pex.testing import PY_VER, make_env
 from pex.typing import TYPE_CHECKING
 from pex.ziputils import Zip, ZipError
 
