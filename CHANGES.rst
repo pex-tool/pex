@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.108
+-------
+
+This release fixes a latent PEX boot performance bug triggered by
+requirements with large extras sets.
+
+* Fix slow PEX boot time when there are many extras. (#1929)
+  `PR #1929 <https://github.com/pantsbuild/pex/pull/1929>`_
+
 2.1.107
 -------
 
