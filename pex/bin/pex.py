@@ -25,6 +25,7 @@ from pex.commands.command import (
 from pex.common import die, safe_mkdtemp
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
+from pex.interpreter_constraints import InterpreterConstraints
 from pex.layout import Layout, maybe_install
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
@@ -547,6 +548,7 @@ def configure_clp():
 def build_pex(
     requirement_configuration,  # type: RequirementConfiguration
     resolver_configuration,  # type: ResolverConfiguration
+    interpreter_constraints,  # type: InterpreterConstraints
     targets,  # type: Targets
     options,  # type: Namespace
 ):
@@ -612,10 +614,7 @@ def build_pex(
     pex_info.inherit_path = options.inherit_path
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
-
-    if options.interpreter_constraint:
-        for ic in options.interpreter_constraint:
-            pex_builder.add_interpreter_constraint(ic)
+    pex_info.interpreter_constraints = interpreter_constraints
 
     for requirements_pex in options.requirements_pexes:
         pex_builder.add_from_requirements_pex(requirements_pex)
@@ -771,8 +770,9 @@ def main(args=None):
             except resolver_options.InvalidConfigurationError as e:
                 die(str(e))
 
+            target_config = target_options.configure(options)
             try:
-                targets = target_options.configure(options).resolve_targets()
+                targets = target_config.resolve_targets()
             except target_configuration.InterpreterNotFound as e:
                 die(str(e))
             except target_configuration.InterpreterConstraintsNotSatisfied as e:
@@ -788,6 +788,7 @@ def main(args=None):
                     options=options,
                     requirement_configuration=requirement_configuration,
                     resolver_configuration=resolver_configuration,
+                    interpreter_constraints=target_config.interpreter_constraints,
                     targets=targets,
                     cmdline=cmdline,
                     env=env,
@@ -801,6 +802,7 @@ def do_main(
     options,  # type: Namespace
     requirement_configuration,  # type: RequirementConfiguration
     resolver_configuration,  # type: ResolverConfiguration
+    interpreter_constraints,  # type: InterpreterConstraints
     targets,  # type: Targets
     cmdline,  # type: List[str]
     env,  # type: Dict[str, str]
@@ -809,6 +811,7 @@ def do_main(
         pex_builder = build_pex(
             requirement_configuration=requirement_configuration,
             resolver_configuration=resolver_configuration,
+            interpreter_constraints=interpreter_constraints,
             targets=targets,
             options=options,
         )

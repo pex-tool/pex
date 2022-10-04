@@ -12,6 +12,7 @@ from pex.common import can_write_dir, open_zip, safe_mkdtemp
 from pex.compatibility import PY2, WINDOWS
 from pex.compatibility import string as compatibility_string
 from pex.inherit_path import InheritPath
+from pex.interpreter_constraints import InterpreterConstraints
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
@@ -132,7 +133,9 @@ class PexInfo(object):
         self._pex_info = dict(info) if info else {}  # type: Dict[str, Any]
         self._distributions = self._pex_info.get("distributions", {})  # type: Dict[str, str]
         # cast as set because pex info from json must store interpreter_constraints as a list
-        self._interpreter_constraints = set(self._pex_info.get("interpreter_constraints", set()))
+        self._interpreter_constraints = InterpreterConstraints.parse(
+            *self._pex_info.get("interpreter_constraints", ())
+        )
         requirements = self._pex_info.get("requirements", [])
         if not isinstance(requirements, (list, tuple)):
             raise ValueError("Expected requirements to be a list, got %s" % type(requirements))
@@ -319,7 +322,7 @@ class PexInfo(object):
 
     @property
     def interpreter_constraints(self):
-        # type: () -> List[str]
+        # type: () -> InterpreterConstraints
         """A list of constraints that determine the interpreter compatibility for this pex, using
         the Requirement-style format, e.g. ``'CPython>=3', or just '>=2.7,<3'`` for requirements
         agnostic to interpreter class.
@@ -327,10 +330,12 @@ class PexInfo(object):
         This property will be used at exec time when bootstrapping a pex to search PEX_PYTHON_PATH
         for a list of compatible interpreters.
         """
-        return list(self._interpreter_constraints)
+        return self._interpreter_constraints
 
-    def add_interpreter_constraint(self, value):
-        self._interpreter_constraints.add(str(value))
+    @interpreter_constraints.setter
+    def interpreter_constraints(self, value):
+        # type: (InterpreterConstraints) -> None
+        self._interpreter_constraints = value
 
     @property
     def ignore_errors(self):
@@ -468,7 +473,9 @@ class PexInfo(object):
             raise TypeError("Cannot merge a %r with PexInfo" % type(other))
         self._pex_info.update(other._pex_info)
         self._distributions.update(other.distributions)
-        self._interpreter_constraints.update(other.interpreter_constraints)
+        self._interpreter_constraints = self.interpreter_constraints.merged(
+            other.interpreter_constraints
+        )
         self._requirements.update(other.requirements)
 
     def as_json_dict(self):
@@ -476,7 +483,7 @@ class PexInfo(object):
         data = self._pex_info.copy()
         data["inherit_path"] = self.inherit_path.value
         data["requirements"] = list(self._requirements)
-        data["interpreter_constraints"] = list(self._interpreter_constraints)
+        data["interpreter_constraints"] = [str(ic) for ic in self._interpreter_constraints]
         data["distributions"] = self._distributions.copy()
         return data
 

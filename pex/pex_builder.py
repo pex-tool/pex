@@ -301,14 +301,6 @@ class PEXBuilder(object):
         self._ensure_unfrozen("Adding a requirement")
         self._pex_info.add_requirement(req)
 
-    def add_interpreter_constraint(self, ic):
-        """Add an interpreter constraint to the PEX environment.
-
-        :param ic: A version constraint on the interpreter used to build and run this PEX environment.
-        """
-        self._ensure_unfrozen("Adding an interpreter constraint")
-        self._pex_info.add_interpreter_constraint(ic)
-
     def add_from_requirements_pex(self, pex):
         """Add requirements from an existing pex.
 

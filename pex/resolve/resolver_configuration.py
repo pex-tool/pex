@@ -9,7 +9,6 @@ import os
 from pex.auth import PasswordEntry
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
-from pex.layout import PEX_INFO_PATH
 from pex.network_configuration import NetworkConfiguration
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.typing import TYPE_CHECKING

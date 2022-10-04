@@ -9,6 +9,7 @@ from argparse import ArgumentParser, _ActionsContainer
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.resolve import target_options
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, InterpreterNotFound
 from pex.result import Error, Ok, Result
@@ -123,7 +124,7 @@ class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
                     if self.options.verbose:
                         interpreter_info.update(
                             version=interpreter.identity.version_str,
-                            requirement=str(interpreter.identity.requirement),
+                            requirement=str(InterpreterConstraint.exact_version(interpreter)),
                             platform=str(interpreter.platform),
                             venv=interpreter.is_venv,
                         )

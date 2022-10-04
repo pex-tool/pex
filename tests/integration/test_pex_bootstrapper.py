@@ -12,6 +12,7 @@ import pytest
 from pex.common import safe_open
 from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
@@ -404,9 +405,9 @@ def test_boot_resolve_fail(
         r"  ... \d+ more ...".format(
             pex_python_path=re.escape(pex_python_path),
             py39_exe=py39.binary,
-            py39_req=py39.identity.requirement,
+            py39_req=InterpreterConstraint.exact_version(py39),
             py310_exe=py310.binary,
-            py310_req=py310.identity.requirement,
+            py310_req=InterpreterConstraint.exact_version(py310),
         ),
     )
     assert pattern.match(error), "Got error:\n{error}\n\nExpected pattern\n{pattern}".format(

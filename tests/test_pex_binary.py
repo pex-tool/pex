@@ -76,10 +76,12 @@ def test_clp_preamble_file():
 
         requirement_configuration = requirement_options.configure(options)
         resolver_configuration = resolver_options.configure(options)
-        targets = target_options.configure(options).resolve_targets()
+        target_config = target_options.configure(options)
+        targets = target_config.resolve_targets()
         pex_builder = build_pex(
             requirement_configuration=requirement_configuration,
             resolver_configuration=resolver_configuration,
+            interpreter_constraints=target_config.interpreter_constraints,
             targets=targets,
             options=options,
         )
@@ -130,10 +132,12 @@ def test_clp_prereleases_resolver():
         assert not options.allow_prereleases
 
         with pytest.raises(SystemExit):
+            target_config = target_options.configure(options)
             build_pex(
                 requirement_configuration=requirement_options.configure(options),
                 resolver_configuration=resolver_options.configure(options),
-                targets=target_options.configure(options).resolve_targets(),
+                interpreter_constraints=target_config.interpreter_constraints,
+                targets=target_config.resolve_targets(),
                 options=options,
             )
 
@@ -162,10 +166,12 @@ def test_clp_prereleases_resolver():
         #     dep==1.2.3b1, dep
         #
         # With a correct behavior the assert line is reached and pex_builder object created.
+        target_config = target_options.configure(options)
         pex_builder = build_pex(
             requirement_configuration=requirement_options.configure(options),
             resolver_configuration=resolver_options.configure(options),
-            targets=target_options.configure(options).resolve_targets(),
+            interpreter_constraints=target_config.interpreter_constraints,
+            targets=target_config.resolve_targets(),
             options=options,
         )
         assert pex_builder is not None

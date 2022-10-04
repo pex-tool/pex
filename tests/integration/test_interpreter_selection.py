@@ -8,6 +8,7 @@ from textwrap import dedent
 from pex.common import temporary_dir
 from pex.dist_metadata import find_distribution
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraints
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.testing import (
@@ -41,7 +42,7 @@ def test_interpreter_constraints_to_pex_info_py2():
         )
         res.assert_success()
         pex_info = PexInfo.from_pex(pex_out_path)
-        assert {">=2.7,<3", ">=3.5"} == set(pex_info.interpreter_constraints)
+        assert InterpreterConstraints.parse(">=2.7,<3", ">=3.5") == pex_info.interpreter_constraints
 
 
 def test_interpreter_constraints_to_pex_info_py3():
@@ -56,7 +57,7 @@ def test_interpreter_constraints_to_pex_info_py3():
         )
         res.assert_success()
         pex_info = PexInfo.from_pex(pex_out_path)
-        assert [">3"] == pex_info.interpreter_constraints
+        assert InterpreterConstraints.parse(">3") == pex_info.interpreter_constraints
 
 
 def test_interpreter_resolution_with_constraint_option():
@@ -68,7 +69,7 @@ def test_interpreter_resolution_with_constraint_option():
         )
         res.assert_success()
         pex_info = PexInfo.from_pex(pex_out_path)
-        assert [">=2.7,<3"] == pex_info.interpreter_constraints
+        assert InterpreterConstraints.parse(">=2.7,<3") == pex_info.interpreter_constraints
 
 
 def test_interpreter_resolution_with_multiple_constraint_options():
@@ -88,7 +89,7 @@ def test_interpreter_resolution_with_multiple_constraint_options():
         )
         res.assert_success()
         pex_info = PexInfo.from_pex(pex_out_path)
-        assert {">=2.7,<3", ">=500"} == set(pex_info.interpreter_constraints)
+        assert InterpreterConstraints.parse(">=2.7,<3", ">=500") == pex_info.interpreter_constraints
 
 
 def test_interpreter_resolution_with_pex_python_path():

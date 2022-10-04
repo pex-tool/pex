@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from pex.commands.command import OutputMixin, try_open_file, try_run_program
 from pex.common import safe_mkdir
 from pex.dist_metadata import requires_dists
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.pex import PEX
 from pex.result import Ok, Result
 from pex.tools.command import PEXCommand
@@ -37,7 +38,9 @@ class Graph(OutputMixin, PEXCommand):
             fontsize="14",
             labelloc="t",
             label="Dependency graph of {} for interpreter {} ({})".format(
-                pex.path(), pex.interpreter.binary, pex.interpreter.identity.requirement
+                pex.path(),
+                pex.interpreter.binary,
+                InterpreterConstraint.exact_version(pex.interpreter),
             ),
         )
         marker_environment = pex.interpreter.identity.env_markers.as_dict()

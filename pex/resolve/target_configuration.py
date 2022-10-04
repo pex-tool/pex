@@ -6,9 +6,11 @@ from __future__ import absolute_import
 import os
 from collections import OrderedDict
 
-from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
-from pex.interpreter_constraints import UnsatisfiableInterpreterConstraintsError
+from pex.interpreter_constraints import (
+    InterpreterConstraints,
+    UnsatisfiableInterpreterConstraintsError,
+)
 from pex.orderedset import OrderedSet
 from pex.pex_bootstrapper import iter_compatible_interpreters, normalize_path
 from pex.platforms import Platform
@@ -29,7 +31,9 @@ else:
 class InterpreterConfiguration(object):
     _python_path = attr.ib(default=None)  # type: Optional[Tuple[str, ...]]
     pythons = attr.ib(default=())  # type: Tuple[str, ...]
-    interpreter_constraints = attr.ib(default=())  # type: Tuple[Requirement, ...]
+    interpreter_constraints = attr.ib(
+        default=InterpreterConstraints()
+    )  # type: InterpreterConstraints
 
     @property
     def python_path(self):
@@ -109,7 +113,7 @@ class TargetConfiguration(object):
 
     @property
     def interpreter_constraints(self):
-        # type: () -> Tuple[Requirement, ...]
+        # type: () -> InterpreterConstraints
         return self.interpreter_configuration.interpreter_constraints
 
     complete_platforms = attr.ib(default=())  # type: Tuple[CompletePlatform, ...]

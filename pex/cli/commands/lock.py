@@ -398,7 +398,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             lock_configuration = LockConfiguration(
                 style=LockStyle.UNIVERSAL,
                 requires_python=tuple(
-                    str(interpreter_constraint.specifier)
+                    str(interpreter_constraint.requires_python)
                     for interpreter_constraint in target_configuration.interpreter_constraints
                 ),
                 target_systems=tuple(self.options.target_systems),

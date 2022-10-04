@@ -12,15 +12,13 @@ import sys
 import tempfile
 from hashlib import sha1
 from site import makepath  # type: ignore[attr-defined]
-from zipfile import ZipFile
 
 from pex import hashing
-from pex.common import atomic_directory, filter_pyc_dirs, filter_pyc_files, safe_mkdir, safe_mkdtemp
+from pex.common import filter_pyc_dirs, filter_pyc_files, safe_mkdir, safe_mkdtemp
 from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function` is defined dynamically
     PY2,
     exec_function,
 )
-from pex.dist_metadata import Distribution
 from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -127,31 +125,6 @@ class CacheHelper(object):
             file_filter=filter_pyc_files,
         )
         return digest.hexdigest()
-
-    @classmethod
-    def cache_distribution(cls, zf, source, target_dir):
-        # type: (ZipFile, str, str) -> Distribution
-        """Possibly cache a wheel from within a zipfile into `target_dir`.
-
-        Given a zipfile handle and a source path prefix corresponding to a wheel install embedded within
-        that zip, maybe extract the wheel install into the target cache and then return a distribution
-        from the cache.
-
-        :param zf: An open zip file (a zipped pex).
-        :param source: The path prefix of a wheel install embedded in the zip file.
-        :param target_dir: The directory to cache the distribution in if not already cached.
-        :returns: The cached distribution.
-        """
-        with atomic_directory(target_dir, source=source, exclusive=True) as target_dir_tmp:
-            if target_dir_tmp.is_finalized():
-                TRACER.log("Using cached {}".format(target_dir), V=3)
-            else:
-                with TRACER.timed("Caching {}:{} in {}".format(zf.filename, source, target_dir)):
-                    for name in zf.namelist():
-                        if name.startswith(source) and not name.endswith("/"):
-                            zf.extract(name, target_dir_tmp.work_dir)
-
-        return Distribution.load(target_dir)
 
 
 @contextlib.contextmanager
