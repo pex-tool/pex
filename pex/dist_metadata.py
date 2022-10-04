@@ -508,7 +508,9 @@ class Requirement(object):
         return self._str
 
 
-@attr.s(frozen=True)
+# N.B.: DistributionMetadata can have an expensive hash when a distribution has many requirements;
+# so we cache the hash. See: https://github.com/pantsbuild/pex/issues/1928
+@attr.s(frozen=True, cache_hash=True)
 class DistMetadata(object):
     @classmethod
     def load(cls, location):

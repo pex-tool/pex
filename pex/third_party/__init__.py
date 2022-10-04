@@ -18,7 +18,7 @@ from collections import OrderedDict, namedtuple
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Container, Iterator, Optional, Sequence, Tuple
+    from typing import Container, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 
 def _tracer():
@@ -57,11 +57,17 @@ class _Importable(namedtuple("_Importable", ["module", "is_pkg", "path", "prefix
     _exposed = False  # noqa: We want instance variable access defaulting to cls here.
 
     def expose(self):
+        # type: () -> None
         self._exposed = True
-        importlib.import_module(self.module)
         _tracer().log("Exposed {}".format(self), V=3)
 
+    @property
+    def exposed(self):
+        # type: () -> bool
+        return self._exposed
+
     def loader_for(self, fullname):
+        # type: (str) -> Optional[_Loader]
         if fullname.startswith(self.prefix + "."):
             target = fullname[len(self.prefix + ".") :]
         else:
@@ -77,6 +83,8 @@ class _Importable(namedtuple("_Importable", ["module", "is_pkg", "path", "prefix
             )
             vendor_module_name = vendor_path.replace(os.sep, ".")
             return _Loader(fullname, vendor_module_name)
+
+        return None
 
 
 class _DirIterator(namedtuple("_DirIterator", ["rootdir"])):
@@ -141,6 +149,13 @@ class _ZipIterator(namedtuple("_ZipIterator", ["zipfile_path", "prefix"])):
                     yield match.group(group)
 
 
+def _vendored_path_items():
+    # type: () -> Iterable[str]
+    from pex import vendor
+
+    return tuple(spec.relpath for spec in vendor.iter_vendor_specs())
+
+
 class VendorImporter(object):
     """A `PEP-302 <https://www.python.org/dev/peps/pep-0302/>`_ meta_path importer for vendored
     code.
@@ -159,6 +174,7 @@ class VendorImporter(object):
 
     @staticmethod
     def _abs_root(root=None):
+        # type: (Optional[str]) -> str
         from pex import vendor
 
         return os.path.abspath(root or vendor.VendorSpec.ROOT)
@@ -181,35 +197,43 @@ class VendorImporter(object):
                 yield importer
 
     @classmethod
-    def _iter_installed_vendor_importers(cls, prefix, root, path_items):
+    def iter_installed_vendor_importers(
+        cls,
+        prefix,  # type: str
+        root=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Iterator[VendorImporter]
+        root = cls._abs_root(root)
+        vendored_paths = set(_vendored_path_items())
         for importer in cls._iter_all_installed_vendor_importers():
             # All Importables for a given VendorImporter will have the same prefix.
             if importer._importables and importer._importables[0].prefix == prefix:
                 if importer._root == root:
-                    if {importable.path for importable in importer._importables} == set(path_items):
+                    if {importable.path for importable in importer._importables} == vendored_paths:
                         yield importer
 
     @classmethod
-    def install_vendored(cls, prefix, root=None, expose=None):
+    def install_vendored(
+        cls,
+        prefix,  # type: str
+        root=None,  # type: Optional[str]
+        expose=None,  # type: Optional[Iterable[str]]
+    ):
+        # type: (...) -> None
         """Install an importer for all vendored code with the given import prefix.
 
         All distributions listed in ``expose`` will also be made available for import in direct,
         un-prefixed form.
 
-        :param str prefix: The import prefix the installed importer will be responsible for.
-        :param str root: The root path of the distribution containing the vendored code. NB: This is the
-                         the path to the pex code, which serves as the root under which code is vendored
-                         at ``pex/vendor/_vendored``.
+        :param prefix: The import prefix the installed importer will be responsible for.
+        :param root: The root path of the distribution containing the vendored code. NB: This is the
+                     path to the pex code, which serves as the root under which code is vendored at
+                     ``pex/vendor/_vendored``.
         :param expose: Optional names of distributions to expose for direct, un-prefixed import.
-        :type expose: list of str
         :raise: :class:`ValueError` if any distributions to expose cannot be found.
         """
-        from pex import vendor
-
         root = cls._abs_root(root)
-        vendored_path_items = [spec.relpath for spec in vendor.iter_vendor_specs()]
-
-        installed = list(cls._iter_installed_vendor_importers(prefix, root, vendored_path_items))
+        installed = tuple(cls.iter_installed_vendor_importers(prefix, root=root))
         assert (
             len(installed) <= 1
         ), "Unexpected extra importers installed for vendored code:\n\t{}".format(
@@ -218,9 +242,10 @@ class VendorImporter(object):
         if installed:
             vendor_importer = installed[0]
         else:
-            # Install all vendored code for pex internal access to it through the vendor import `prefix`.
+            # Install all vendored code for pex internal access to it through the vendor import
+            # `prefix`.
             vendor_importer = cls.install(
-                uninstallable=True, prefix=prefix, path_items=vendored_path_items, root=root
+                uninstallable=True, prefix=prefix, path_items=_vendored_path_items(), root=root
             )
 
         if expose:
@@ -233,7 +258,12 @@ class VendorImporter(object):
             vendor_importer._expose(exposed_paths)
 
     @classmethod
-    def expose(cls, dists, root=None):
+    def expose(
+        cls,
+        dists,  # type: Iterable[str]
+        root=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Iterator[str]
         from pex import vendor
 
         root = cls._abs_root(root)
@@ -288,13 +318,28 @@ class VendorImporter(object):
         for vendor_importer in cls._iter_all_installed_vendor_importers():
             vendor_importer.uninstall()
 
-    def __init__(self, root, importables, uninstallable=True):
+    def __init__(
+        self,
+        root,  # type: str
+        importables,  # type: Tuple[_Importable, ...]
+        uninstallable=True,  # type: bool
+    ):
+        # type: (...) -> None
         self._root = root
         self._importables = importables
-
         self._uninstallable = uninstallable
 
-        self._loaders = []
+        self._loaders = []  # type: List[_Loader]
+
+    @property
+    def root(self):
+        # type: () -> str
+        return self._root
+
+    @property
+    def importables(self):
+        # type: () -> Iterable[_Importable]
+        return self._importables
 
     def uninstall(self):
         """Uninstall this importer if possible and un-import any modules imported by it."""
@@ -520,8 +565,19 @@ def install(root=None, expose=None):
     VendorImporter.install_vendored(prefix=import_prefix(), root=root, expose=expose)
 
 
+def exposed(root=None):
+    # type: (Optional[str]) -> Iterator[str]
+    """Returns the ``sys.path`` entries of distributions that have been exposed."""
+    for importer in VendorImporter.iter_installed_vendor_importers(
+        prefix=import_prefix(), root=root
+    ):
+        for importable in importer.importables:
+            if importable.exposed:
+                yield os.path.join(importer.root, importable.path)
+
+
 def expose(dists):
-    # type: (Sequence[str]) -> Iterator[str]
+    # type: (Iterable[str]) -> Iterator[str]
     """Exposes vendored code in isolated chroots.
 
     Any vendored distributions listed in ``dists`` will be unpacked to individual chroots for
@@ -537,4 +593,6 @@ def expose(dists):
 
 
 # Implicitly install an importer for vendored code on the first import of pex.third_party.
-install()
+# N.B.: attrs must be exposed to make use of `cache_hash=True` since that generates and compiles
+# code on the fly that generated code does a bare `import attr`.
+install(expose=["attrs"])
