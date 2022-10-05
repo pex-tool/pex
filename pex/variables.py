@@ -301,10 +301,16 @@ class Variables(object):
                 % (variable, self._environ[variable])
             )
 
-    def _maybe_get_path_tuple(self, variable):
-        # type: (str) -> Optional[Tuple[str, ...]]
+    def _maybe_get_path_tuple(
+        self,
+        variable,  # type: str
+        empty_string_is_cwd=True,  # type: bool
+    ):
+        # type: (...) -> Optional[Tuple[str, ...]]
         value = self._maybe_get_string(variable)
         if value is None:
+            return None
+        if not value and not empty_string_is_cwd:
             return None
         return tuple(
             OrderedSet(os.path.normpath(os.path.expanduser(p)) for p in value.split(os.pathsep))
@@ -600,7 +606,7 @@ class Variables(object):
 
         See also PEX_EXTRA_SYS_PATH for how to add arbitrary entries to the sys.path.
         """
-        return self._maybe_get_path_tuple("PEX_PATH") or ()
+        return self._maybe_get_path_tuple("PEX_PATH", empty_string_is_cwd=False) or ()
 
     @property
     def PEX_SCRIPT(self):
