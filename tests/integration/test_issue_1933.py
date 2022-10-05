@@ -5,9 +5,9 @@ import os
 import subprocess
 
 import pytest
-from pex.testing import run_pex_command
 
 from pex.common import is_exe
+from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
