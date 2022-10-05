@@ -149,13 +149,6 @@ class _ZipIterator(namedtuple("_ZipIterator", ["zipfile_path", "prefix"])):
                     yield match.group(group)
 
 
-def _vendored_path_items():
-    # type: () -> Iterable[str]
-    from pex import vendor
-
-    return tuple(spec.relpath for spec in vendor.iter_vendor_specs())
-
-
 class VendorImporter(object):
     """A `PEP-302 <https://www.python.org/dev/peps/pep-0302/>`_ meta_path importer for vendored
     code.
@@ -171,6 +164,20 @@ class VendorImporter(object):
       * The requests distribution had its self-referential absolute imports re-written to use the
         vendored import prefix.
     """
+
+    @staticmethod
+    def _vendored_path_items():
+        # type: () -> Iterable[str]
+        from pex import vendor
+
+        return tuple(
+            spec.relpath
+            for spec in vendor.iter_vendor_specs(
+                # N.B.: The VendorImporter should only see the versions of vendored projects that
+                # support the current Python interpreter.
+                filter_requires_python=True
+            )
+        )
 
     @staticmethod
     def _abs_root(root=None):
@@ -204,7 +211,7 @@ class VendorImporter(object):
     ):
         # type: (...) -> Iterator[VendorImporter]
         root = cls._abs_root(root)
-        vendored_paths = set(_vendored_path_items())
+        vendored_paths = set(cls._vendored_path_items())
         for importer in cls._iter_all_installed_vendor_importers():
             # All Importables for a given VendorImporter will have the same prefix.
             if importer._importables and importer._importables[0].prefix == prefix:
@@ -245,7 +252,7 @@ class VendorImporter(object):
             # Install all vendored code for pex internal access to it through the vendor import
             # `prefix`.
             vendor_importer = cls.install(
-                uninstallable=True, prefix=prefix, path_items=_vendored_path_items(), root=root
+                uninstallable=True, prefix=prefix, path_items=cls._vendored_path_items(), root=root
             )
 
         if expose:

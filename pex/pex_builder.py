@@ -21,7 +21,7 @@ from pex.common import (
     safe_mkdtemp,
     safe_open,
 )
-from pex.compatibility import to_bytes
+from pex.compatibility import commonpath, to_bytes
 from pex.compiler import Compiler
 from pex.dist_metadata import Distribution, MetadataError
 from pex.enum import Enum
@@ -495,17 +495,15 @@ class PEXBuilder(object):
         self.add_requirement(distribution.as_requirement())
 
     def _precompile_source(self):
+        vendored_dir = os.path.join(self._pex_info.bootstrap, "pex/vendor/_vendored")
         source_relpaths = [
             path
             for label in ("source", "executable", "main", "bootstrap")
             for path in self._chroot.filesets.get(label, ())
             if path.endswith(".py")
-            # N.B.: This file if Python 3.6+ only and will not compile under Python 2.7 or
-            # Python 3.5. Since we don't actually use it we just skip compiling it.
-            and path
-            != os.path.join(
-                self._pex_info.bootstrap, "pex/vendor/_vendored/attrs/attr/_next_gen.py"
-            )
+            # N.B.: Some of our vendored code does not work with all versions of Python we support;
+            # so we just skip compiling it.
+            and vendored_dir != commonpath((vendored_dir, path))
         ]
 
         compiler = Compiler(self.interpreter)
