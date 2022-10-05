@@ -476,7 +476,7 @@ class Requirement(object):
         return self.project_name.normalized
 
     def __contains__(self, item):
-        # type: (Union[str, Version, Distribution]) -> bool
+        # type: (Union[str, Version, Distribution, ProjectNameAndVersion]) -> bool
 
         # We emulate pkg_resources.Requirement.__contains__ pre-release behavior here since the
         # codebase expects it.
@@ -484,14 +484,18 @@ class Requirement(object):
 
     def contains(
         self,
-        item,  # type: Union[str, Version, Distribution]
+        item,  # type: Union[str, Version, Distribution, ProjectNameAndVersion]
         prereleases=None,  # type: Optional[bool]
     ):
         # type: (...) -> bool
-        if isinstance(item, Distribution):
+        if isinstance(item, ProjectNameAndVersion):
+            if item.canonicalized_project_name != self.project_name:
+                return False
+            version = item.canonicalized_version.parsed_version  # type: Union[ParsedVersion, str]
+        elif isinstance(item, Distribution):
             if item.key != self.key:
                 return False
-            version = item.metadata.version.parsed_version  # type: Union[ParsedVersion, str]
+            version = item.metadata.version.parsed_version
         elif isinstance(item, Version):
             version = item.parsed_version
         else:

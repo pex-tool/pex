@@ -21,7 +21,6 @@ from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pyenv import Pyenv
 from pex.testing import (
-    ALL_PY_VERSIONS,
     PY38,
     PY39,
     PY310,

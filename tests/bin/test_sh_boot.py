@@ -3,6 +3,7 @@
 
 from pex import sh_boot
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraints
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
@@ -22,7 +23,7 @@ def calculate_binary_names(
     return list(
         sh_boot._calculate_applicable_binary_names(
             targets=targets,
-            interpreter_constraints=interpreter_constraints,
+            interpreter_constraints=InterpreterConstraints.parse(*interpreter_constraints),
         )
     )
 

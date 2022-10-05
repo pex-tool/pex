@@ -10,8 +10,8 @@ from textwrap import dedent
 
 from pex import dist_metadata, variables
 from pex.dist_metadata import Distribution
-from pex.interpreter import PythonIdentity, PythonInterpreter, calculate_binary_name
-from pex.interpreter_constraints import iter_compatible_versions
+from pex.interpreter import PythonInterpreter, calculate_binary_name
+from pex.interpreter_constraints import InterpreterConstraints, iter_compatible_versions
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pex_info import PexInfo
@@ -41,7 +41,7 @@ class PythonBinaryName(object):
 
 def _calculate_applicable_binary_names(
     targets,  # type: Targets
-    interpreter_constraints,  # type: Iterable[str]
+    interpreter_constraints,  # type: InterpreterConstraints
 ):
     # type: (...) -> Iterable[str]
 
@@ -50,15 +50,14 @@ def _calculate_applicable_binary_names(
     # those.
 
     ic_majors_minors = OrderedSet()  # type: OrderedSet[PythonBinaryName]
-    python_requirements = tuple(
-        PythonIdentity.parse_requirement(ic) for ic in interpreter_constraints
-    )
-    if python_requirements:
+    if interpreter_constraints:
         ic_majors_minors.update(
-            PythonBinaryName(name=calculate_binary_name(python_requirement.name), version=version)
-            for python_requirement in python_requirements
+            PythonBinaryName(
+                name=calculate_binary_name(interpreter_constraint.requirement.name), version=version
+            )
+            for interpreter_constraint in interpreter_constraints
             for version in iter_compatible_versions(
-                requires_python=[str(python_requirement.specifier)]
+                requires_python=[str(interpreter_constraint.requires_python)]
             )
         )
     # If we get targets from ICs, we only want explicitly specified local interpreter targets;

@@ -15,6 +15,7 @@ from pex.cli.testing import run_pex3
 from pex.common import safe_open
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
@@ -145,11 +146,12 @@ def test_create_style(
     # We should have 2 total artifacts for a sources lock for most interpreters since we know
     # psutil 5.9.0 provides an sdist and wheels for CPython 2.7 (but not for macOS) and CPython 3.6
     # through 3.10.
-    python_identity = PythonInterpreter.get().identity
     expected_additional = (
         1
         if not IS_PYPY
-        and ((PY_VER == (2, 7) and not IS_MAC) or python_identity.matches("CPython>=3.6,<3.11"))
+        and (
+            (PY_VER == (2, 7) and not IS_MAC) or InterpreterConstraint.matches("CPython>=3.6,<3.11")
+        )
         else 0
     )
     assert expected_additional == len(create_lock("sources").additional_artifacts)
@@ -1803,15 +1805,10 @@ def test_universal_lock(
 ):
     # type: (...) -> None
 
-    py39 = None
-    for interp in PythonInterpreter.iter():
-        if interp.identity.matches("CPython==3.9.*"):
-            py39 = interp
-            break
-
-    if py39 is None:
+    try:
+        next(InterpreterConstraint.parse("CPython==3.9.*").iter_matching())
+    except StopIteration:
         pytest.skip("A CPython 3.9 interpreter must be discoverable for this test.")
-        return
 
     constraints_file = os.path.join(str(tmpdir), "constraints.txt")
     with open(constraints_file, "w") as fp:

@@ -8,6 +8,7 @@ from __future__ import absolute_import
 import itertools
 
 from pex.compatibility import indent
+from pex.dist_metadata import ProjectNameAndVersion, Requirement, RequirementParseError
 from pex.enum import Enum
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
@@ -22,6 +23,124 @@ if TYPE_CHECKING:
     from pex.interpreter import InterpreterIdentificationError
 else:
     from pex.third_party import attr
+
+
+@attr.s(frozen=True)
+class InterpreterConstraint(object):
+    @classmethod
+    def parse(
+        cls,
+        constraint,  # type: str
+        default_interpreter="CPython",  # type: str
+    ):
+        # type: (...) -> InterpreterConstraint
+        try:
+            return cls(Requirement.parse(constraint))
+        except RequirementParseError:
+            try:
+                return cls(
+                    Requirement.parse(
+                        "{interpreter}{specifier}".format(
+                            interpreter=default_interpreter, specifier=constraint
+                        )
+                    )
+                )
+            except RequirementParseError as e:
+                raise ValueError(
+                    "Unparseable interpreter constraint {constraint}: {err}".format(
+                        constraint=constraint, err=e
+                    )
+                )
+
+    @classmethod
+    def matches(
+        cls,
+        constraint,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        return (interpreter or PythonInterpreter.get()) in cls.parse(constraint)
+
+    @classmethod
+    def exact_version(cls, interpreter=None):
+        # type: (Optional[PythonInterpreter]) -> InterpreterConstraint
+        python_identity = (interpreter or PythonInterpreter.get()).identity
+        return cls.parse(
+            "{interpreter}=={version}".format(
+                interpreter=python_identity.interpreter, version=python_identity.version_str
+            )
+        )
+
+    requirement = attr.ib()  # type: Requirement
+
+    def iter_matching(self, paths=None):
+        # type: (Optional[Iterable[str]]) -> Iterator[PythonInterpreter]
+        for interp in PythonInterpreter.iter(paths=paths):
+            if interp in self:
+                yield interp
+
+    @property
+    def requires_python(self):
+        # type: () -> SpecifierSet
+        return self.requirement.specifier
+
+    def __str__(self):
+        # type: () -> str
+        return str(self.requirement)
+
+    def __contains__(self, interpreter):
+        # type: (PythonInterpreter) -> bool
+        python_identity = interpreter.identity
+        return (
+            ProjectNameAndVersion(
+                project_name=python_identity.interpreter, version=python_identity.version_str
+            )
+            in self.requirement
+        )
+
+
+@attr.s(frozen=True)
+class InterpreterConstraints(object):
+    @classmethod
+    def parse(cls, *constraints):
+        # type: (str) -> InterpreterConstraints
+        return cls(
+            constraints=tuple(
+                InterpreterConstraint.parse(constraint) for constraint in OrderedSet(constraints)
+            )
+        )
+
+    constraints = attr.ib(default=())  # type: Tuple[InterpreterConstraint, ...]
+
+    def merged(self, other):
+        # type: (InterpreterConstraints) -> InterpreterConstraints
+        constraints = OrderedSet(self.constraints)
+        constraints.update(other.constraints)
+        return InterpreterConstraints(constraints=tuple(constraints))
+
+    def __str__(self):
+        # type: () -> str
+        return " or ".join(str(constraint.requirement) for constraint in self.constraints)
+
+    def __contains__(self, interpreter):
+        if not self.constraints:
+            return True
+        return any(interpreter in constraint for constraint in self.constraints)
+
+    def __iter__(self):
+        # type: () -> Iterator[InterpreterConstraint]
+        return iter(self.constraints)
+
+    def __bool__(self):
+        # type: () -> bool
+        return bool(self.constraints)
+
+    def __len__(self):
+        # type: () -> int
+        return len(self.constraints)
+
+    def __getitem__(self, item):
+        # type: (int) -> InterpreterConstraint
+        return self.constraints[item]
 
 
 class UnsatisfiableInterpreterConstraintsError(Exception):
@@ -134,7 +253,9 @@ class UnsatisfiableInterpreterConstraintsError(Exception):
             qualifier=qualifier,
             interpreters="\n".join(
                 interpreters_format.format(
-                    index=i, binary=candidate.binary, requirement=candidate.identity.requirement
+                    index=i,
+                    binary=candidate.binary,
+                    requirement=InterpreterConstraint.exact_version(candidate),
                 )
                 for i, candidate in enumerate(self.candidates, start=1)
             ),
@@ -195,10 +316,10 @@ COMPATIBLE_PYTHON_VERSIONS = (
     # N.B.: Pex does not support the missing 3.x versions here.
     PythonVersion(Lifecycle.EOL, 3, 5, 10),
     PythonVersion(Lifecycle.EOL, 3, 6, 15),
-    PythonVersion(Lifecycle.STABLE, 3, 7, 13),
-    PythonVersion(Lifecycle.STABLE, 3, 8, 13),
-    PythonVersion(Lifecycle.STABLE, 3, 9, 12),
-    PythonVersion(Lifecycle.STABLE, 3, 10, 4),
+    PythonVersion(Lifecycle.STABLE, 3, 7, 14),
+    PythonVersion(Lifecycle.STABLE, 3, 8, 14),
+    PythonVersion(Lifecycle.STABLE, 3, 9, 14),
+    PythonVersion(Lifecycle.STABLE, 3, 10, 7),
     PythonVersion(Lifecycle.DEV, 3, 11, 0),
 )
 

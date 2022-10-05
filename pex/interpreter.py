@@ -17,15 +17,11 @@ from collections import OrderedDict
 from textwrap import dedent
 
 from pex import third_party
-from pex.common import is_exe, safe_mkdtemp, safe_rmtree
-from pex.compatibility import string
-from pex.dist_metadata import DistMetadata, Distribution, Requirement, RequirementParseError
+from pex.common import is_exe, safe_mkdtemp, safe_open, safe_rmtree
 from pex.executor import Executor
 from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
-from pex.pep_440 import Version
-from pex.pep_503 import ProjectName
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.pyenv import Pyenv
@@ -299,21 +295,6 @@ class PythonIdentity(object):
     def interpreter(self):
         return self._interpreter_name
 
-    @property
-    def requirement(self):
-        # type: () -> Requirement
-        return self.distribution.as_requirement()
-
-    @property
-    def distribution(self):
-        # type: () -> Distribution
-        return Distribution(
-            location=self.binary,
-            metadata=DistMetadata(
-                project_name=ProjectName(self.interpreter), version=Version(self.version_str)
-            ),
-        )
-
     def iter_supported_platforms(self):
         # type: () -> Iterator[Platform]
         """All platforms supported by the associated interpreter ordered from most specific to
@@ -327,35 +308,6 @@ class PythonIdentity(object):
         )
         for tag in self._supported_tags:
             yield Platform.from_tag(tag)
-
-    @classmethod
-    def parse_requirement(
-        cls,
-        requirement,  # type: Union[Requirement, str]
-        default_interpreter="CPython",  # type: str
-    ):
-        # type: (...) -> Requirement
-        if isinstance(requirement, Requirement):
-            return requirement
-        elif isinstance(requirement, string):
-            try:
-                requirement = Requirement.parse(requirement)
-            except RequirementParseError:
-                try:
-                    requirement = Requirement.parse("%s%s" % (default_interpreter, requirement))
-                except RequirementParseError:
-                    raise ValueError("Unknown requirement string: %s" % requirement)
-            return requirement
-        else:
-            raise ValueError("Unknown requirement type: %r" % (requirement,))
-
-    def matches(self, requirement):
-        """Given a Requirement, check if this interpreter matches."""
-        try:
-            requirement = self.parse_requirement(requirement, self._interpreter_name)
-        except ValueError as e:
-            raise self.UnknownRequirement(str(e))
-        return self.distribution in requirement
 
     def binary_name(self, version_components=2):
         # type: (int) -> str

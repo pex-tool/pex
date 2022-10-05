@@ -11,6 +11,7 @@ import pytest
 
 from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.testing import (
     PY39,
     PY310,
@@ -116,7 +117,7 @@ def test_pex_reexec_no_constraints_pythonpath_present():
 
 def test_pex_no_reexec_constraints_match_current():
     # type: () -> None
-    _assert_exec_chain(interpreter_constraints=[str(PythonInterpreter.get().identity.requirement)])
+    _assert_exec_chain(interpreter_constraints=[str(InterpreterConstraint.exact_version())])
 
 
 def test_pex_reexec_constraints_match_current_pythonpath_present():
@@ -124,7 +125,7 @@ def test_pex_reexec_constraints_match_current_pythonpath_present():
     _assert_exec_chain(
         exec_chain=[sys.executable],
         pythonpath=["."],
-        interpreter_constraints=[str(PythonInterpreter.get().identity.requirement)],
+        interpreter_constraints=[str(InterpreterConstraint.exact_version())],
     )
 
 

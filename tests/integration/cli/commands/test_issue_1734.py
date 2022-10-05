@@ -7,6 +7,7 @@ import subprocess
 
 from pex.cli.testing import run_pex3
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -104,9 +105,9 @@ def test_lock_create_universal_interpreter_constraint_unsatisfiable(
         r"\n"
         r"  Version matches CPython<3\.11,>=3\.9\n".format(
             py27_path=py27.binary,
-            py27_req=py27.identity.requirement,
+            py27_req=InterpreterConstraint.exact_version(py27),
             py38_path=py38.binary,
-            py38_req=py38.identity.requirement,
+            py38_req=InterpreterConstraint.exact_version(py38),
         ),
         result.error,
     )

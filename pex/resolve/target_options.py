@@ -9,7 +9,8 @@ import sys
 from argparse import ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex.argparse import HandleBoolAction
-from pex.interpreter import PythonIdentity, PythonInterpreter
+from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraints
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
@@ -190,12 +191,7 @@ def configure_interpreters(options):
     :param options: The interpreter configuration options.
     """
     try:
-        interpreter_constraints = tuple(
-            OrderedSet(
-                PythonIdentity.parse_requirement(interpreter_constraint)
-                for interpreter_constraint in options.interpreter_constraint
-            )
-        )
+        interpreter_constraints = InterpreterConstraints.parse(*options.interpreter_constraint)
     except ValueError as e:
         raise ArgumentTypeError(str(e))
 

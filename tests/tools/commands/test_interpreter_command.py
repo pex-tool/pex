@@ -10,6 +10,7 @@ import pytest
 
 from pex.common import safe_mkdtemp
 from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import InterpreterConstraint
 from pex.pex_builder import PEXBuilder
 from pex.testing import PY38, PY310, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING
@@ -120,7 +121,7 @@ def expected_verbose(interpreter):
     return {
         "path": interpreter.binary,
         "platform": str(interpreter.platform),
-        "requirement": str(interpreter.identity.requirement),
+        "requirement": str(InterpreterConstraint.exact_version(interpreter)),
     }
 
 
