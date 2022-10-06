@@ -12,7 +12,6 @@ from pex.common import can_write_dir, open_zip, safe_mkdtemp
 from pex.compatibility import PY2, WINDOWS
 from pex.compatibility import string as compatibility_string
 from pex.inherit_path import InheritPath
-from pex.interpreter_constraints import InterpreterConstraints
 from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV, Variables
@@ -20,9 +19,12 @@ from pex.venv.bin_path import BinPath
 from pex.version import __version__ as pex_version
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, List, Mapping, Optional, Text, Tuple, Union
+    from typing import Any, Dict, Iterable, Mapping, Optional, Text, Tuple, Union
 
+    # N.B.: These are expensive imports and PexInfo is used during PEX bootstrapping which we want
+    # to be as fast as possible.
     from pex.interpreter import PythonInterpreter
+    from pex.interpreter_constraints import InterpreterConstraints
 
 
 # TODO(wickman) Split this into a PexInfoBuilder/PexInfo to ensure immutability.
@@ -132,10 +134,11 @@ class PexInfo(object):
             )
         self._pex_info = dict(info) if info else {}  # type: Dict[str, Any]
         self._distributions = self._pex_info.get("distributions", {})  # type: Dict[str, str]
-        # cast as set because pex info from json must store interpreter_constraints as a list
-        self._interpreter_constraints = InterpreterConstraints.parse(
-            *self._pex_info.get("interpreter_constraints", ())
-        )
+
+        # N.B.: InterpreterConstraints is an expensive type to import; so we do so lazily since
+        # PexInfo is used during PEX bootstrapping which we want to be fast.
+        self._interpreter_constraints = None  # type: Optional[InterpreterConstraints]
+
         requirements = self._pex_info.get("requirements", [])
         if not isinstance(requirements, (list, tuple)):
             raise ValueError("Expected requirements to be a list, got %s" % type(requirements))
@@ -224,7 +227,7 @@ class PexInfo(object):
             pex_file=pex_file,
             pex_root=pex_root,
             pex_hash=self.pex_hash,
-            has_interpreter_constraints=bool(self.interpreter_constraints),
+            has_interpreter_constraints=self.has_interpreter_constraints,
             interpreter=interpreter,
             pex_path=self.pex_path,
             expand_pex_root=expand_pex_root,
@@ -321,6 +324,13 @@ class PexInfo(object):
         self._pex_info["inherit_path"] = value.value
 
     @property
+    def has_interpreter_constraints(self):
+        # type: () -> bool
+        if self._interpreter_constraints is not None:
+            return bool(self._interpreter_constraints)
+        return bool(self._pex_info.get("interpreter_constraints", ()))
+
+    @property
     def interpreter_constraints(self):
         # type: () -> InterpreterConstraints
         """A list of constraints that determine the interpreter compatibility for this pex, using
@@ -330,6 +340,15 @@ class PexInfo(object):
         This property will be used at exec time when bootstrapping a pex to search PEX_PYTHON_PATH
         for a list of compatible interpreters.
         """
+        if self._interpreter_constraints is None:
+            # N.B.: InterpreterConstraints is an expensive import and PexInfo is used during PEX
+            # bootstrapping which we want to be as fast as possible; so we go through hoops to be
+            # lazy here.
+            from pex.interpreter_constraints import InterpreterConstraints
+
+            self._interpreter_constraints = InterpreterConstraints.parse(
+                *self._pex_info.get("interpreter_constraints", ())
+            )
         return self._interpreter_constraints
 
     @interpreter_constraints.setter
@@ -473,9 +492,10 @@ class PexInfo(object):
             raise TypeError("Cannot merge a %r with PexInfo" % type(other))
         self._pex_info.update(other._pex_info)
         self._distributions.update(other.distributions)
-        self._interpreter_constraints = self.interpreter_constraints.merged(
-            other.interpreter_constraints
-        )
+        if other.has_interpreter_constraints:
+            self._interpreter_constraints = self.interpreter_constraints.merged(
+                other.interpreter_constraints
+            )
         self._requirements.update(other.requirements)
 
     def as_json_dict(self):
@@ -483,7 +503,7 @@ class PexInfo(object):
         data = self._pex_info.copy()
         data["inherit_path"] = self.inherit_path.value
         data["requirements"] = list(self._requirements)
-        data["interpreter_constraints"] = [str(ic) for ic in self._interpreter_constraints]
+        data["interpreter_constraints"] = [str(ic) for ic in self.interpreter_constraints]
         data["distributions"] = self._distributions.copy()
         return data
 
