@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+2.1.109
+-------
+
+This release brings musllinux wheel support and a fix for a regression
+introduced in Pex 2.1.105 by #1902 that caused ``PEX_PATH=`` (an
+exported ``PEX_PATH`` with an empty string value) to raise an error in
+almost all use cases.
+
+* Vendor latest packaging; support musllinux wheels. (#1937)
+  `PR #1937 <https://github.com/pantsbuild/pex/pull/1937>`_
+
+* Don't treat ``PEX_PATH=`` as ``.`` like other PATHS. (#1938)
+  `PR #1938 <https://github.com/pantsbuild/pex/pull/1938>`_
+
 2.1.108
 -------
 
