@@ -258,3 +258,11 @@ def test_warnings():
             for env_var in ("PEX_ALWAYS_CACHE", "PEX_FORCE_LOCAL", "PEX_UNZIP")
         )
     ) == tuple(sorted(warning_by_message_first_sentence))
+
+
+def test_empty_pex_path_issue_1936():
+    # type: () -> None
+
+    assert () == Variables(environ={}).PEX_PATH
+    assert () == Variables(environ={"PEX_PATH": ""}).PEX_PATH
+    assert (".",) == Variables(environ={"PEX_PATH": "."}).PEX_PATH
