@@ -14,7 +14,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterator
+    from typing import Iterable, Iterator, Optional, Sequence, Text, Tuple
 
 _PACKAGE_COMPONENTS = __name__.split(".")
 
@@ -28,7 +28,7 @@ def _root():
 
 class VendorSpec(
     collections.namedtuple(
-        "VendorSpec", ["key", "requirement", "rewrite", "constrain", "constraints"]
+        "VendorSpec", ["key", "requirement", "import_path", "rewrite", "constrain", "constraints"]
     )
 ):
     """Represents a vendored distribution.
@@ -36,14 +36,15 @@ class VendorSpec(
     :field str key: The distribution requirement key; e.g.: for a requirement of
       requests[security]==2.22.0 the key is 'requests'.
     :field str requirement: The distribution requirement string; e.g.: requests[security]==2.22.0.
+    :field str import_path: A Python importable directory name to house the vendored distribution
+      in.
     :field bool rewrite: Whether to re-write the distribution's imports for use with the
       `pex.third_party` importer.
     :field bool constrain: Whether to attempt to constrain the requirement via pip's --constraint
       mechanism.
     :field constraints: An optional list of extra constraints on the vendored requirement.
-
     NB: Vendored distributions should comply with the host distribution platform constraints. In the
-    case of pex, which is a py2.py3 platform agnostic wheel, vendored libraries should be as well.
+    case of pex, which is a py2.py3 platform-agnostic wheel, vendored libraries should be as well.
     """
 
     ROOT = _root()
@@ -55,17 +56,34 @@ class VendorSpec(
         return os.path.join(cls.ROOT, *(_PACKAGE_COMPONENTS + [cls._VENDOR_DIR]))
 
     @classmethod
-    def pinned(cls, key, version, rewrite=True, constraints=None):
+    def pinned(
+        cls,
+        key,  # type: str
+        version,  # type: str
+        import_path=None,  # type: Optional[str]
+        rewrite=True,  # type: bool
+        constraints=(),  # type: Tuple[str, ...]
+    ):
         return cls(
             key=key,
             requirement="{}=={}".format(key, version),
+            import_path=import_path or key,
             rewrite=rewrite,
             constrain=True,
             constraints=constraints,
         )
 
     @classmethod
-    def git(cls, repo, commit, project_name, prep_command=None, rewrite=True, constraints=None):
+    def git(
+        cls,
+        repo,  # type: str
+        commit,  # type: Text
+        project_name,  # type: str
+        import_path=None,  # type: Optional[str]
+        prep_command=None,  # type: Optional[Sequence[str]]
+        rewrite=True,  # type: bool
+        constraints=(),  # type: Tuple[str, ...]
+    ):
         requirement = "git+{repo}@{commit}#egg={project_name}".format(
             repo=repo, commit=commit, project_name=project_name
         )
@@ -73,6 +91,7 @@ class VendorSpec(
             return cls(
                 key=project_name,
                 requirement=requirement,
+                import_path=import_path or project_name,
                 rewrite=rewrite,
                 constrain=False,
                 constraints=constraints,
@@ -93,6 +112,7 @@ class VendorSpec(
         return PreparedGit(
             key=project_name,
             requirement=requirement,
+            import_path=import_path or project_name,
             rewrite=rewrite,
             constrain=False,
             constraints=constraints,
@@ -100,7 +120,7 @@ class VendorSpec(
 
     @property
     def _subpath_components(self):
-        return [self._VENDOR_DIR, self.key]
+        return [self._VENDOR_DIR, self.import_path]
 
     @property
     def relpath(self):
@@ -116,8 +136,8 @@ class VendorSpec(
     def create_packages(self):
         """Create missing packages joining the vendor root to the base of the vendored distribution.
 
-        For example, given a root at ``/home/jake/dev/pantsbuild/pex`` and a vendored distribution at
-        ``pex/vendor/_vendored/requests`` this method would create the following package files::
+        For example, given a root at ``/home/jake/dev/pantsbuild/pex`` and a vendored distribution
+        at ``pex/vendor/_vendored/requests`` this method would create the following package files::
 
           pex/vendor/_vendored/__init__.py
           pex/vendor/_vendored/requests/__init__.py
@@ -127,7 +147,8 @@ class VendorSpec(
         :class:`pex.third_party.VendorImporter`.
         """
         if not self.rewrite:
-            # The extra package structure is only required for vendored code used via import rewrites.
+            # The extra package structure is only required for vendored code used via import
+            # rewrites.
             return
 
         for index, _ in enumerate(self._subpath_components):
@@ -135,8 +156,8 @@ class VendorSpec(
             touch(os.path.join(self.ROOT, *relpath))
 
 
-def iter_vendor_specs():
-    # type: () -> Iterator[VendorSpec]
+def iter_vendor_specs(filter_requires_python=False):
+    # type: (bool) -> Iterator[VendorSpec]
     """Iterate specifications for code vendored by pex.
 
     :return: An iterator over specs of all vendored code.
@@ -150,12 +171,21 @@ def iter_vendor_specs():
         repo="https://github.com/python-attrs/attrs",
         commit="947bfb542104209a587280701d8cb389c813459d",
         project_name="attrs",
-        rewrite=True,
     )
 
     # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
     # time to implement resolving distributions from a PEX repository.
-    yield VendorSpec.pinned("packaging", "20.9", constraints=("pyparsing<3",))
+    if not filter_requires_python or sys.version_info[:2] < (3, 6):
+        # N.B.: The pyparsing constraint is needed for 2.7 support.
+        yield VendorSpec.pinned(
+            "packaging", "20.9", import_path="packaging_20_9", constraints=("pyparsing<3",)
+        )
+    if not filter_requires_python or sys.version_info[:2] >= (3, 6):
+        # N.B.: The pyparsing constraint is needed because our import re-writer (RedBaron) chokes on
+        # newer versions.
+        yield VendorSpec.pinned(
+            "packaging", "21.3", import_path="packaging_21_3", constraints=("pyparsing<3",)
+        )
 
     # We use toml to read pyproject.toml when building sdists from local source projects.
     yield VendorSpec.pinned("toml", "0.10.2")

@@ -1,0 +1,2 @@
+packaging==21.3
+pyparsing==2.4.7
