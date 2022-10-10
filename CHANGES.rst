@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.110
+-------
+
+This release fixes Pex runtime ``sys.path`` scrubbing for cases where
+Pex is not the main entry point. An important example of this is in
+Lambdex where the AWS Lambda Python runtime packages (``boto3`` and
+``botocore``) are leaked into the PEX runtime ``sys.path``.
+
+* Fix ``sys.path`` scrubbing. (#1946)
+  `PR #1946 <https://github.com/pantsbuild/pex/pull/1946>`_
+
 2.1.109
 -------
 
