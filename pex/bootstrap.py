@@ -12,6 +12,7 @@ class Bootstrap(object):
 
     @classmethod
     def locate(cls):
+        # type: () -> Bootstrap
         """Locates the active PEX bootstrap.
 
         :rtype: :class:`Bootstrap`
@@ -30,8 +31,14 @@ class Bootstrap(object):
         return cls._INSTANCE
 
     def __init__(self, sys_path_entry):
+        # type: (str) -> None
         self._sys_path_entry = sys_path_entry
         self._realpath = os.path.realpath(self._sys_path_entry)
+
+    @property
+    def path(self):
+        # type: () -> str
+        return self._sys_path_entry
 
     def demote(self):
         """Demote the bootstrap code to the end of the `sys.path` so it is found last.

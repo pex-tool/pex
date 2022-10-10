@@ -3,6 +3,7 @@
 
 import json
 import os
+import site
 import subprocess
 import sys
 import tempfile
@@ -18,7 +19,7 @@ from pex.common import safe_mkdir, safe_open, temporary_dir
 from pex.compatibility import PY2, WINDOWS, to_bytes
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
-from pex.pex import PEX
+from pex.pex import PEX, IsolatedSysPath
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.testing import (
@@ -44,7 +45,7 @@ except ImportError:
     import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Dict, Iterable, Iterator, Union
+    from typing import Any, Dict, Iterable, Iterator, Mapping, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -132,13 +133,24 @@ def test_pex_atexit_swallowing():
 
 def test_minimum_sys_modules():
     # type: () -> None
+
+    def minimum_sys_modules(
+        sys_path=(),  # type: Iterable[str]
+        site_libs=(),  # type: Iterable[str]
+        modules=None,  # type: Optional[Mapping[str, ModuleType]]
+    ):
+        # type: (...) -> Mapping[str, ModuleType]
+        return PEX.minimum_sys_modules(
+            IsolatedSysPath(sys_path=sys_path, site_packages=site_libs), modules=modules
+        )
+
     # tainted modules evict
     tainted_module = ModuleType("tainted_module")
     tainted_module.__file__ = "bad_path"
     modules = {"tainted_module": tainted_module}
-    new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
+    new_modules = minimum_sys_modules(sys_path=["bad_path"], modules=modules)
     assert new_modules == modules
-    new_modules = PEX.minimum_sys_modules(site_libs=["bad_path"], modules=modules)
+    new_modules = minimum_sys_modules(site_libs=["bad_path"], modules=modules)
     assert new_modules == {}
 
     # builtins stay
@@ -146,18 +158,20 @@ def test_minimum_sys_modules():
     stdlib_module = ModuleType("my_stdlib")
     stdlib_module.__file__ = "good_path"
     modules = {"my_builtin": builtin_module, "my_stdlib": stdlib_module}
-    new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
+    new_modules = minimum_sys_modules(sys_path=["good_path"], modules=modules)
     assert new_modules == modules
-    new_modules = PEX.minimum_sys_modules(site_libs=["bad_path"], modules=modules)
+    new_modules = minimum_sys_modules(
+        sys_path=["good_path"], site_libs=["bad_path"], modules=modules
+    )
     assert new_modules == modules
 
     # tainted packages evict
     tainted_module = ModuleType("tainted_module")
     tainted_module.__path__ = ["bad_path"]  # type: ignore[attr-defined]
     modules = {"tainted_module": tainted_module}
-    new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
+    new_modules = minimum_sys_modules(sys_path=["bad_path"], modules=modules)
     assert new_modules == modules
-    new_modules = PEX.minimum_sys_modules(site_libs=["bad_path"], modules=modules)
+    new_modules = minimum_sys_modules(site_libs=["bad_path"], modules=modules)
     assert new_modules == {}
     assert tainted_module.__path__ == []  # type: ignore[attr-defined]
 
@@ -165,9 +179,11 @@ def test_minimum_sys_modules():
     tainted_module = ModuleType("tainted_module")
     tainted_module.__path__ = ["bad_path", "good_path"]  # type: ignore[attr-defined]
     modules = {"tainted_module": tainted_module}
-    new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
+    new_modules = minimum_sys_modules(sys_path=["good_path"], site_libs=[], modules=modules)
     assert new_modules == modules
-    new_modules = PEX.minimum_sys_modules(site_libs=["bad_path"], modules=modules)
+    new_modules = minimum_sys_modules(
+        sys_path=["good_path"], site_libs=["bad_path"], modules=modules
+    )
     assert new_modules == modules
     assert tainted_module.__path__ == ["good_path"]  # type: ignore[attr-defined]
 
@@ -187,44 +203,53 @@ def test_minimum_sys_modules():
     tainted_module = FakeModule()  # type: ignore[assignment]
     tainted_module.__path__ = bad_path  # type: ignore[attr-defined] # Not a list as expected
     modules = {"tainted_module": tainted_module}
-    new_modules = PEX.minimum_sys_modules(site_libs=["bad_path"], modules=modules)
+    new_modules = minimum_sys_modules(site_libs=["bad_path"], modules=modules)
     assert new_modules == {}
 
     # If __file__ is explicitly None we should gracefully proceed to __path__ checks.
     tainted_module = ModuleType("tainted_module")
     tainted_module.__file__ = None  # type: ignore[assignment]
     modules = {"tainted_module": tainted_module}
-    new_modules = PEX.minimum_sys_modules(site_libs=[], modules=modules)
+    new_modules = minimum_sys_modules(site_libs=[], modules=modules)
     assert new_modules == modules
 
 
-def test_site_libs():
-    # type: () -> None
-    with mock.patch.object(
-        PEX, "_get_site_packages"
-    ) as mock_site_packages, temporary_dir() as tempdir:
-        site_packages = os.path.join(tempdir, "site-packages")
+def test_site_libs(tmpdir):
+    # type: (Any) -> None
+    with mock.patch.object(site, "getsitepackages") as mock_site_packages:
+        site_packages = os.path.join(str(tmpdir), "site-packages")
         os.mkdir(site_packages)
-        mock_site_packages.return_value = set([site_packages])
-        site_libs = PEX.site_libs()
+        mock_site_packages.return_value = {site_packages}
+        with PythonInterpreter._cleared_memory_cache():
+            site_libs = PythonInterpreter.get().site_packages
         assert site_packages in site_libs
 
 
 @pytest.mark.skipif(WINDOWS, reason="No symlinks on windows")
-def test_site_libs_symlink():
-    # type: () -> None
-    with mock.patch.object(
-        PEX, "_get_site_packages"
-    ) as mock_site_packages, temporary_dir() as tempdir:
-        site_packages = os.path.join(tempdir, "site-packages")
-        os.mkdir(site_packages)
-        site_packages_link = os.path.join(tempdir, "site-packages-link")
-        os.symlink(site_packages, site_packages_link)
-        mock_site_packages.return_value = set([site_packages_link])
+def test_site_libs_symlink(tmpdir):
+    # type: (Any) -> None
 
-        site_libs = PEX.site_libs()
-        assert os.path.realpath(site_packages) in site_libs
-        assert site_packages_link in site_libs
+    sys_path_entry = os.path.join(str(tmpdir), "lib")
+    os.mkdir(sys_path_entry)
+    sys_path_entry_link = os.path.join(str(tmpdir), "lib-link")
+    os.symlink(sys_path_entry, sys_path_entry_link)
+
+    with mock.patch.object(site, "getsitepackages") as mock_site_packages, mock.patch(
+        "sys.path", new=[sys_path_entry_link]
+    ):
+        site_packages = os.path.join(str(tmpdir), "site-packages")
+        os.mkdir(site_packages)
+        site_packages_link = os.path.join(str(tmpdir), "site-packages-link")
+        os.symlink(site_packages, site_packages_link)
+        mock_site_packages.return_value = [site_packages_link]
+
+        with PythonInterpreter._cleared_memory_cache():
+            isolated_sys_path = IsolatedSysPath.for_pex(
+                interpreter=PythonInterpreter.get(), pex=os.devnull
+            )
+        assert os.path.join(sys_path_entry, "module.py") in isolated_sys_path
+        assert os.path.realpath(site_packages) not in isolated_sys_path
+        assert site_packages_link not in isolated_sys_path
 
 
 def test_site_libs_excludes_prefix():
@@ -235,12 +260,13 @@ def test_site_libs_excludes_prefix():
     """
 
     with mock.patch.object(
-        PEX, "_get_site_packages"
+        site, "getsitepackages"
     ) as mock_site_packages, temporary_dir() as tempdir:
         site_packages = os.path.join(tempdir, "site-packages")
         os.mkdir(site_packages)
-        mock_site_packages.return_value = set([site_packages, sys.prefix])
-        site_libs = PEX.site_libs()
+        mock_site_packages.return_value = [site_packages, sys.prefix]
+        with PythonInterpreter._cleared_memory_cache():
+            site_libs = PythonInterpreter.get().site_packages
         assert site_packages in site_libs
         assert sys.prefix not in site_libs
 

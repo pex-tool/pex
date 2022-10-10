@@ -1,6 +1,6 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+import json
 import os.path
 import subprocess
 import sys
@@ -10,9 +10,13 @@ import colors
 import pytest
 
 from pex.common import safe_open
+from pex.interpreter import PythonInterpreter
 from pex.layout import DEPS_DIR, Layout
+from pex.resolve.pex_repository_resolver import resolve_from_pex
+from pex.targets import Targets
 from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import Any, List, Text
@@ -74,9 +78,34 @@ def test_import_from_pex(
             .strip()
         )
 
-    # Verify 3rd party code can be imported.
+    # Verify 3rd party code can be imported hermetically from the PEX.
+    alternate_pex_root = os.path.join(str(tmpdir), "alternate_pex_root")
+    with ENV.patch(PEX_ROOT=alternate_pex_root):
+        ambient_sys_path = [
+            installed_distribution.fingerprinted_distribution.distribution.location
+            for installed_distribution in resolve_from_pex(
+                targets=Targets(interpreters=(PythonInterpreter.from_binary(sys.executable),)),
+                pex=pex,
+                requirements=["ansicolors==1.1.8"],
+            ).installed_distributions
+        ]
+
     third_party_path = execute_with_pex_on_pythonpath(
-        "from __pex__ import colors; print(colors.__file__)"
+        dedent(
+            """\
+            # Executor code like the AWS runtime.
+            import sys
+            
+            sys.path = {ambient_sys_path!r} + sys.path
+            
+            # User code residing in the PEX.
+            from __pex__ import colors
+            
+            print(colors.__file__)
+            """.format(
+                ambient_sys_path=ambient_sys_path
+            )
+        )
     )
     if is_venv:
         expected_prefix = os.path.join(pex_root, "venvs")
@@ -86,7 +115,7 @@ def test_import_from_pex(
         expected_prefix = os.path.join(pex_root, "installed_wheels")
     assert third_party_path.startswith(
         expected_prefix
-    ), "Expected 3rdp party ansicolors path {path} to start with {expected_prefix}".format(
+    ), "Expected 3rd party ansicolors path {path} to start with {expected_prefix}".format(
         path=third_party_path, expected_prefix=expected_prefix
     )
 
