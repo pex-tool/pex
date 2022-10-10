@@ -2,12 +2,19 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-from typing import Any, Dict, List
-from unittest import mock
 
 from pex.common import temporary_dir
 from pex.compatibility import to_bytes
 from pex.pth import iter_pth_paths
+from pex.typing import TYPE_CHECKING
+
+try:
+    from unittest import mock
+except ImportError:
+    import mock  # type: ignore[no-redef,import]
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, List
 
 
 @mock.patch("os.path.exists", autospec=True, spec_set=True)

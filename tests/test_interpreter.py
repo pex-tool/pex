@@ -13,9 +13,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex import interpreter
 from pex.common import chmod_plus_x, safe_mkdir, safe_mkdtemp, temporary_dir, touch
-from pex.compatibility import PY3
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
