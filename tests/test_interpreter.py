@@ -13,9 +13,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex import interpreter
 from pex.common import chmod_plus_x, safe_mkdir, safe_mkdtemp, temporary_dir, touch
-from pex.compatibility import PY3
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
@@ -55,13 +53,7 @@ class TestPythonInterpreter(object):
     def test_all_does_not_raise_with_empty_path_envvar(self):
         # type: () -> None
         """additionally, tests that the module does not raise at import."""
-        with patch.dict(os.environ, clear=True):
-            if PY3:
-                import importlib
-
-                importlib.reload(interpreter)
-            else:
-                reload(interpreter)
+        with patch.dict(os.environ, clear=True), PythonInterpreter._cleared_memory_cache():
             PythonInterpreter.all()
 
     TEST_INTERPRETER1_VERSION = PY39
@@ -416,7 +408,9 @@ def test_identify_cwd_isolation_issues_1231(tmpdir):
     subprocess.check_call(args=[pip, "install", "--target", polluted_cwd, "pex==2.1.16"])
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
-    with pushd(polluted_cwd), ENV.patch(PEX_ROOT=pex_root):
+    with pushd(polluted_cwd), ENV.patch(
+        PEX_ROOT=pex_root
+    ), PythonInterpreter._cleared_memory_cache():
         interp = PythonInterpreter.from_binary(python38)
 
     interp_info_files = {

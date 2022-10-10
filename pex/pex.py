@@ -6,7 +6,6 @@ from __future__ import absolute_import, print_function
 import ast
 import os
 import sys
-from distutils import sysconfig
 from site import USER_SITE
 from types import ModuleType
 
@@ -24,7 +23,7 @@ from pex.pex_info import PexInfo
 from pex.targets import LocalInterpreter
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
-from pex.util import iter_pth_paths, named_temporary_file
+from pex.util import named_temporary_file
 from pex.variables import ENV, Variables
 
 if TYPE_CHECKING:
@@ -45,6 +44,84 @@ if TYPE_CHECKING:
 
     _K = TypeVar("_K")
     _V = TypeVar("_V")
+
+
+class IsolatedSysPath(object):
+    @staticmethod
+    def _expand_paths(*paths):
+        # type: (*str) -> Iterator[str]
+        for path in paths:
+            yield path
+            if not os.path.isabs(path):
+                yield os.path.abspath(path)
+            yield os.path.realpath(path)
+
+    @classmethod
+    def for_pex(
+        cls,
+        interpreter,  # type: PythonInterpreter
+        pex,  # type: str
+        pex_pex=None,  # type: Optional[str]
+    ):
+        # type: (...) -> IsolatedSysPath
+        sys_path = OrderedSet(interpreter.sys_path)
+        sys_path.add(pex)
+        sys_path.add(Bootstrap.locate().path)
+        if pex_pex:
+            sys_path.add(pex_pex)
+
+        site_packages = OrderedSet()  # type: OrderedSet[str]
+        for site_lib in interpreter.site_packages:
+            TRACER.log("Discarding site packages path: {site_lib}".format(site_lib=site_lib))
+            site_packages.add(site_lib)
+
+        extras_paths = OrderedSet()  # type: OrderedSet[str]
+        for extras_path in interpreter.extras_paths:
+            TRACER.log("Discarding site extras path: {extras_path}".format(extras_path=extras_path))
+            extras_paths.add(extras_path)
+
+        return cls(
+            sys_path=sys_path,
+            site_packages=site_packages,
+            extras_paths=extras_paths,
+            is_venv=interpreter.is_venv,
+        )
+
+    def __init__(
+        self,
+        sys_path,  # type: Iterable[str]
+        site_packages,  # type: Iterable[str]
+        extras_paths=(),  # type: Iterable[str]
+        is_venv=False,  # type: bool
+    ):
+        # type: (...) -> None
+        self._sys_path_entries = tuple(self._expand_paths(*sys_path))
+        self._site_packages_entries = tuple(self._expand_paths(*site_packages))
+        self._extras_paths_entries = tuple(self._expand_paths(*extras_paths))
+        self._is_venv = is_venv
+
+    @property
+    def is_venv(self):
+        # type: () -> bool
+        return self._is_venv
+
+    def __contains__(self, entry):
+        # type: (str) -> bool
+        for path in self._expand_paths(entry):
+            # N.B.: Since site packages is contained in sys.path, process rejections 1st to ensure
+            # they never sneak by.
+            if path.startswith(self._site_packages_entries):
+                return False
+            if path.startswith(self._extras_paths_entries):
+                return False
+            if path.startswith(self._sys_path_entries):
+                return True
+
+        # A sys.path entry injected by calling code. This can happen when a PEX is used as a
+        # sys.path entry via the __pex__ importer mechanism or via the old pex_bootstrapper
+        # bootstrap_pex_env API used by at least lambdex and pyuwsgi_pex. Pointedly, the AWS lambda
+        # does this, adding /var/runtime to sys.path before executing user code.
+        return False
 
 
 class PEX(object):  # noqa: T000
@@ -156,90 +233,24 @@ class PEX(object):  # noqa: T000
         return self._activated_dists
 
     @classmethod
-    def _extras_paths(cls):
-        # type: () -> Iterator[str]
-        standard_lib = sysconfig.get_python_lib(standard_lib=True)
-
-        try:
-            makefile = sysconfig.parse_makefile(  # type: ignore[attr-defined]
-                sysconfig.get_makefile_filename()
-            )
-        except (AttributeError, IOError):
-            # This is not available by default in PyPy's distutils.sysconfig or it simply is
-            # no longer available on the system (IOError ENOENT)
-            makefile = {}
-
-        extras_paths = filter(
-            None, makefile.get("EXTRASPATH", "").split(":")
-        )  # type: Iterable[str]
-        for path in extras_paths:
-            yield os.path.join(standard_lib, path)
-
-        # Handle .pth injected paths as extras.
-        sitedirs = cls._get_site_packages()
-        for pth_path in cls._scan_pth_files(sitedirs):
-            TRACER.log("Found .pth file: %s" % pth_path, V=3)
-            for extras_path in iter_pth_paths(pth_path):
-                yield extras_path
-
-    @staticmethod
-    def _scan_pth_files(dir_paths):
-        """Given an iterable of directory paths, yield paths to all .pth files within."""
-        for dir_path in dir_paths:
-            if not os.path.exists(dir_path):
-                continue
-
-            pth_filenames = (f for f in os.listdir(dir_path) if f.endswith(".pth"))
-            for pth_filename in pth_filenames:
-                yield os.path.join(dir_path, pth_filename)
-
-    @staticmethod
-    def _get_site_packages():
-        # type: () -> Set[str]
-        try:
-            from site import getsitepackages
-
-            return set(getsitepackages())
-        except ImportError:
-            return set()
-
-    @classmethod
-    def site_libs(cls):
-        # type: () -> Set[str]
-        site_libs = cls._get_site_packages()
-        site_libs.update(
-            [
-                sysconfig.get_python_lib(plat_specific=False),
-                sysconfig.get_python_lib(plat_specific=True),
-            ]
-        )
-        # On windows getsitepackages() returns the python stdlib too.
-        if sys.prefix in site_libs:
-            site_libs.remove(sys.prefix)
-        real_site_libs = set(os.path.realpath(path) for path in site_libs)
-        return site_libs | real_site_libs
-
-    @classmethod
-    def _tainted_path(cls, path, site_libs):
-        # type: (str, Iterable[str]) -> bool
-        paths = frozenset([path, os.path.realpath(path)])
-        return any(path.startswith(site_lib) for site_lib in site_libs for path in paths)
-
-    @classmethod
-    def minimum_sys_modules(cls, site_libs, modules=None):
-        # type: (Iterable[str], Optional[Mapping[str, ModuleType]]) -> Mapping[str, ModuleType]
+    def minimum_sys_modules(
+        cls,
+        isolated_sys_path,  # type: IsolatedSysPath
+        modules=None,  # type: Optional[Mapping[str, ModuleType]]
+    ):
+        # type: (...) -> Mapping[str, ModuleType]
         """Given a set of site-packages paths, return a "clean" sys.modules.
 
-        When importing site, modules within sys.modules have their __path__'s populated with
-        additional paths as defined by *-nspkg.pth in site-packages, or alternately by distribution
-        metadata such as *.dist-info/namespace_packages.txt.  This can possibly cause namespace
-        packages to leak into imports despite being scrubbed from sys.path.
+        When importing site, modules within `sys.modules` have their `__path__`s populated with
+        additional paths as defined by `*-nspkg.pth` in `site-packages`, or alternately by
+        distribution metadata such as `*.dist-info/namespace_packages.txt`. This can possibly cause
+        namespace packages to leak into imports despite being scrubbed from `sys.path`.
 
-        NOTE: This method mutates modules' __path__ attributes in sys.modules, so this is currently an
-        irreversible operation.
+        NOTE: This method mutates modules' `__path__` attributes in `sys.modules`, so this is
+        currently an irreversible operation.
         """
 
-        is_venv = PythonInterpreter.get().is_venv
+        is_venv = isolated_sys_path.is_venv
         modules = modules or sys.modules
         new_modules = {}
 
@@ -256,13 +267,14 @@ class PEX(object):  # noqa: T000
                 # + https://github.com/pypa/virtualenv/pull/1688
                 (not is_venv or module_name != "_virtualenv")
                 and module_file
-                and cls._tainted_path(module_file, site_libs)
+                and module_file not in isolated_sys_path
             ):
                 TRACER.log("Dropping %s" % (module_name,), V=3)
                 continue
 
             module_path = getattr(module, "__path__", None)
-            # Untainted non-packages (builtin modules) need no further special handling and can stay.
+            # Untainted non-packages (builtin modules) need no further special handling and can
+            # stay.
             if module_path is None:
                 new_modules[module_name] = module
                 continue
@@ -274,7 +286,7 @@ class PEX(object):  # noqa: T000
 
             # Drop tainted package paths.
             for k in reversed(range(len(module_path))):
-                if cls._tainted_path(module_path[k], site_libs):
+                if module_path[k] not in isolated_sys_path:
                     TRACER.log("Scrubbing %s.__path__: %s" % (module_name, module_path[k]), V=3)
                     module_path.pop(k)
 
@@ -304,8 +316,12 @@ class PEX(object):  # noqa: T000
         return pythonpath
 
     @classmethod
-    def minimum_sys_path(cls, site_libs, inherit_path):
-        # type: (Iterable[str], InheritPath.Value) -> Tuple[List[str], Mapping[str, Any]]
+    def minimum_sys_path(
+        cls,
+        isolated_sys_path,  # type: IsolatedSysPath
+        inherit_path,  # type: InheritPath.Value
+    ):
+        # type: (...) -> Tuple[List[str], Mapping[str, Any]]
         scrub_paths = OrderedSet()  # type: OrderedSet[str]
         site_distributions = OrderedSet()  # type: OrderedSet[str]
         user_site_distributions = OrderedSet()  # type: OrderedSet[str]
@@ -318,7 +334,7 @@ class PEX(object):  # noqa: T000
             return {path} | locations | set(os.path.realpath(path) for path in locations)
 
         for path_element in sys.path:
-            if cls._tainted_path(path_element, site_libs):
+            if path_element not in isolated_sys_path:
                 TRACER.log("Tainted path element: %s" % path_element)
                 site_distributions.update(all_distribution_paths(path_element))
             else:
@@ -374,24 +390,18 @@ class PEX(object):  # noqa: T000
 
         return scrubbed_sys_path, scrubbed_importer_cache
 
-    @classmethod
-    def minimum_sys(cls, inherit_path):
+    def minimum_sys(self, inherit_path):
         # type: (InheritPath.Value) -> Tuple[List[str], Mapping[str, Any], Mapping[str, ModuleType]]
         """Return the minimum sys necessary to run this interpreter, a la python -S.
 
         :returns: (sys.path, sys.path_importer_cache, sys.modules) tuple of a
           bare python installation.
         """
-        site_libs = cls.site_libs()
-        for site_lib in site_libs:
-            TRACER.log("Found site-library: %s" % site_lib)
-        for extras_path in cls._extras_paths():
-            TRACER.log("Found site extra: %s" % extras_path)
-            site_libs.add(extras_path)
-        site_libs = set(os.path.normpath(path) for path in site_libs)
-
-        sys_path, sys_path_importer_cache = cls.minimum_sys_path(site_libs, inherit_path)
-        sys_modules = cls.minimum_sys_modules(site_libs)
+        isolated_sys_path = IsolatedSysPath.for_pex(
+            interpreter=self._interpreter, pex=self._pex, pex_pex=self._vars.PEX
+        )
+        sys_path, sys_path_importer_cache = self.minimum_sys_path(isolated_sys_path, inherit_path)
+        sys_modules = self.minimum_sys_modules(isolated_sys_path)
 
         return sys_path, sys_path_importer_cache, sys_modules
 
@@ -519,7 +529,7 @@ class PEX(object):  # noqa: T000
 
         self.activate()
 
-        pex_file = os.environ.get("PEX", None)
+        pex_file = self._vars.PEX
         if pex_file:
             try:
                 from setproctitle import setproctitle  # type: ignore[import]
