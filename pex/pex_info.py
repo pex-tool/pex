@@ -166,6 +166,26 @@ class PexInfo(object):
         self._pex_info["build_properties"].update(value)
 
     @property
+    def inject_env(self):
+        # type: () -> Dict[str, str]
+        return dict(self._pex_info.get("inject_env", {}))
+
+    @inject_env.setter
+    def inject_env(self, value):
+        # type: (Mapping[str, str]) -> None
+        self._pex_info["inject_env"] = dict(value)
+
+    @property
+    def inject_args(self):
+        # type: () -> Tuple[str, ...]
+        return tuple(self._pex_info.get("inject_args", ()))
+
+    @inject_args.setter
+    def inject_args(self, value):
+        # type: (Iterable[str]) -> None
+        self._pex_info["inject_args"] = tuple(value)
+
+    @property
     def venv(self):
         # type: () -> bool
         """Whether or not PEX should be converted to a venv before it's executed.
