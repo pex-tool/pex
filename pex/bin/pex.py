@@ -11,8 +11,9 @@ from __future__ import absolute_import, print_function
 import itertools
 import json
 import os
+import shlex
 import sys
-from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentParser
+from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
 from textwrap import TextWrapper
 
 from pex import pex_warnings
@@ -45,7 +46,6 @@ from pex.resolve.resolver_configuration import (
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
 from pex.result import catch, try_
-from pex.sh_boot import create_sh_boot_script
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -405,6 +405,37 @@ def configure_clp_pex_entry_points(parser):
         "`from a.b.c import m` during validation.",
     )
 
+    class InjectEnvAction(Action):
+        def __call__(self, parser, namespace, value, option_str=None):
+            components = value.split("=", 1)
+            if len(components) != 2:
+                raise ArgumentError(
+                    self,
+                    "Environment variable values must be of the form `name=value`. "
+                    "Given: {value}".format(value=value),
+                )
+            self.default.append(tuple(components))
+
+    group.add_argument(
+        "--inject-env",
+        dest="inject_env",
+        default=[],
+        action=InjectEnvAction,
+        help="Environment variables to freeze in to the application environment.",
+    )
+
+    class InjectArgAction(Action):
+        def __call__(self, parser, namespace, value, option_str=None):
+            self.default.extend(shlex.split(value))
+
+    group.add_argument(
+        "--inject-args",
+        dest="inject_args",
+        default=[],
+        action=InjectArgAction,
+        help="Command line arguments to the application to freeze in.",
+    )
+
 
 class Seed(Enum["Seed.Value"]):
     class Value(Enum.Value):
@@ -603,6 +634,8 @@ def build_pex(
                 pex_builder.add_source(src_file_path, dst_path)
 
     pex_info = pex_builder.info
+    pex_info.inject_env = dict(options.inject_env)
+    pex_info.inject_args = options.inject_args
     pex_info.venv = bool(options.venv)
     pex_info.venv_bin_path = options.venv or BinPath.FALSE
     pex_info.venv_copies = options.venv_copies

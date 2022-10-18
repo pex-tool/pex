@@ -3,6 +3,40 @@
 PEX Recipes and Notes
 =====================
 
+Uvicorn and other customizable application servers
+--------------------------------------------------
+
+Often you want to run a third-party application server and have it use your code. You can always do
+this by writing a shim bit of python code that starts the application server configured to use your
+code. It may be simpler though to use ``--inject-env`` and ``--inject-args`` to seal this
+configuration into a PEX file without needing to write a shim.
+
+For example, to package up a uvicorn-powered server of your app coroutine in ``example.py`` that ran
+on port 8888 by default you could:
+
+.. code-block:: bash
+
+    $ pex "uvicorn[standard]" -c uvicorn --inject-args 'example:app --port 8888' -oexample-app.pex
+    $ ./example-app.pex
+    INFO:     Started server process [2014]
+    INFO:     Waiting for application startup.
+    INFO:     ASGI 'lifespan' protocol appears unsupported.
+    INFO:     Application startup complete.
+    INFO:     Uvicorn running on http://127.0.0.1:8888 (Press CTRL+C to quit)
+    ^CINFO:     Shutting down
+    INFO:     Finished server process [2014]
+
+You could then over-ride the port with:
+
+.. code-block:: bash
+
+    $ ./example-app.pex --port 0
+    INFO:     Started server process [2248]
+    INFO:     Waiting for application startup.
+    INFO:     ASGI 'lifespan' protocol appears unsupported.
+    INFO:     Application startup complete.
+    INFO:     Uvicorn running on http://127.0.0.1:45751 (Press CTRL+C to quit)
+
 Long running PEX applications and daemons
 -----------------------------------------
 

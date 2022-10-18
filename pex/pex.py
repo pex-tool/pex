@@ -560,6 +560,17 @@ class PEX(object):  # noqa: T000
             TRACER.log("PEX_INTERPRETER specified, dropping into interpreter")
             return self.execute_interpreter()
 
+        if not any(
+            (
+                self._pex_info_overrides.script,
+                self._pex_info_overrides.entry_point,
+                self._pex_info.script,
+                self._pex_info.entry_point,
+            )
+        ):
+            TRACER.log("No entry point specified, dropping into interpreter")
+            return self.execute_interpreter()
+
         if self._pex_info_overrides.script and self._pex_info_overrides.entry_point:
             return "Cannot specify both script and entry_point for a PEX!"
 
@@ -568,19 +579,21 @@ class PEX(object):  # noqa: T000
 
         if self._pex_info_overrides.script:
             return self.execute_script(self._pex_info_overrides.script)
-        elif self._pex_info_overrides.entry_point:
+        if self._pex_info_overrides.entry_point:
             return self.execute_entry(
                 EntryPoint.parse("run = {}".format(self._pex_info_overrides.entry_point))
             )
-        elif self._pex_info.script:
+
+        for name, value in self._pex_info.inject_env.items():
+            os.environ.setdefault(name, value)
+        sys.argv[1:1] = list(self._pex_info.inject_args)
+
+        if self._pex_info.script:
             return self.execute_script(self._pex_info.script)
-        elif self._pex_info.entry_point:
+        else:
             return self.execute_entry(
                 EntryPoint.parse("run = {}".format(self._pex_info.entry_point))
             )
-        else:
-            TRACER.log("No entry point specified, dropping into interpreter")
-            return self.execute_interpreter()
 
     @classmethod
     def demote_bootstrap(cls):

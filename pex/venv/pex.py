@@ -470,6 +470,8 @@ def _populate_sources(
                     )
                 )
                 sys.exit(1)
+            is_exec_override = len(pex_overrides) == 1
+
             if {strip_pex_env!r}:
                 for key in list(os.environ):
                     if key.startswith("PEX_"):
@@ -559,6 +561,11 @@ def _populate_sources(
                     {exec_ast}
                     sys.exit(0)
 
+            if not is_exec_override:
+                for name, value in {inject_env!r}:
+                    os.environ.setdefault(name, value)
+                sys.argv[1:1] = {inject_args!r}
+
             module_name, _, function = entry_point.partition(":")
             if not function:
                 import runpy
@@ -578,6 +585,8 @@ def _populate_sources(
             shebang_python=venv_python,
             bin_path=bin_path,
             strip_pex_env=pex_info.strip_pex_env,
+            inject_env=tuple(pex_info.inject_env.items()),
+            inject_args=list(pex_info.inject_args),
             entry_point=pex_info.entry_point,
             script=pex_info.script,
             exec_ast=(
