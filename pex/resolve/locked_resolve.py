@@ -605,8 +605,8 @@ class LockedResolve(object):
                     # https://peps.python.org/pep-0440/#handling-of-pre-releases during the lock
                     # resolve; so we trust that resolve's conclusion about prereleases and are
                     # permissive here.
-                    if not resolve_request.requirement.specifier.contains(
-                        str(locked_requirement.pin.version), prereleases=True
+                    if not resolve_request.requirement.contains(
+                        locked_requirement.pin.version, prereleases=True
                     ):
                         version_mismatches.append(
                             "{specifier} ({via})".format(
