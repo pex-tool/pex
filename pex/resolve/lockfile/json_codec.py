@@ -368,7 +368,10 @@ def as_json_data(
                 "locked_requirements": [
                     {
                         "project_name": str(req.pin.project_name),
-                        "version": str(req.pin.version),
+                        # N.B.: We store the raw version so that `===` can work as intended against
+                        # the un-normalized form of versions that are non-legacy and thus
+                        # normalizable.
+                        "version": req.pin.version.raw,
                         "requires_dists": [
                             path_mappings.maybe_canonicalize(str(dependency))
                             for dependency in req.requires_dists
