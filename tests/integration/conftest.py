@@ -10,7 +10,8 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import atomic_directory, safe_mkdtemp, temporary_dir
+from pex.atomic_directory import atomic_directory
+from pex.common import safe_mkdtemp, temporary_dir
 from pex.testing import PY310, ensure_python_venv, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 

@@ -9,7 +9,8 @@ import re
 from textwrap import dedent
 
 from pex import compatibility
-from pex.common import atomic_directory, safe_open, safe_rmtree
+from pex.atomic_directory import atomic_directory
+from pex.common import safe_open, safe_rmtree
 from pex.pep_425 import CompatibilityTags
 from pex.third_party.packaging import tags
 from pex.tracer import TRACER

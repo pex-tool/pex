@@ -13,8 +13,9 @@ from abc import abstractmethod
 from collections import OrderedDict, defaultdict
 
 from pex import targets
+from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
-from pex.common import AtomicDirectory, atomic_directory, safe_mkdir, safe_mkdtemp
+from pex.common import safe_mkdir, safe_mkdtemp
 from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel

@@ -12,7 +12,8 @@ import sys
 from contextlib import closing
 from fileinput import FileInput
 
-from pex.common import AtomicDirectory, atomic_directory, is_exe, safe_mkdir, safe_open
+from pex.atomic_directory import AtomicDirectory, atomic_directory
+from pex.common import is_exe, safe_mkdir, safe_open
 from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
 from pex.executor import Executor

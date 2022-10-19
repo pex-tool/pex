@@ -7,7 +7,7 @@ import os
 from textwrap import dedent
 
 from pex import pex_warnings, third_party
-from pex.common import atomic_directory
+from pex.atomic_directory import atomic_directory
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pex import PEX

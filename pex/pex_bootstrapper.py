@@ -8,7 +8,8 @@ import os
 import sys
 
 from pex import pex_warnings
-from pex.common import atomic_directory, die, pluralize
+from pex.atomic_directory import atomic_directory
+from pex.common import die, pluralize
 from pex.environment import ResolveError
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter

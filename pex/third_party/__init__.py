@@ -447,7 +447,7 @@ def isolated():
     global _ISOLATED
     if _ISOLATED is None:
         from pex import layout, vendor
-        from pex.common import atomic_directory
+        from pex.atomic_directory import atomic_directory
         from pex.util import CacheHelper
         from pex.variables import ENV
 

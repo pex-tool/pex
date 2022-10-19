@@ -8,11 +8,10 @@ from contextlib import contextmanager
 
 import pytest
 
+from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.common import (
-    AtomicDirectory,
     Chroot,
     PermPreservingZipFile,
-    atomic_directory,
     can_write_dir,
     chmod_plus_x,
     is_exe,
@@ -40,7 +39,8 @@ def maybe_raises(exception=None):
     def noop():
         yield
 
-    with (noop() if exception is None else pytest.raises(exception)):
+    context = noop() if exception is None else pytest.raises(exception)
+    with context:
         yield
 
 

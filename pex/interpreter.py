@@ -828,7 +828,8 @@ class PythonInterpreter(object):
                         import os
                         import sys
 
-                        from pex.common import atomic_directory, safe_open
+                        from pex.atomic_directory import atomic_directory
+                        from pex.common import safe_open
                         from pex.interpreter import PythonIdentity
 
 

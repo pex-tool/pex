@@ -9,9 +9,9 @@ import os
 import shutil
 
 from pex import pex_warnings
+from pex.atomic_directory import atomic_directory
 from pex.common import (
     Chroot,
-    atomic_directory,
     chmod_plus_x,
     filter_pyc_files,
     is_pyc_temporary_file,

@@ -4,7 +4,8 @@ import os.path
 import shutil
 
 from pex import hashing
-from pex.common import atomic_directory, safe_mkdir, safe_mkdtemp
+from pex.atomic_directory import atomic_directory
+from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import unquote, urlparse
 from pex.fetcher import URLFetcher
 from pex.hashing import Sha256

@@ -8,7 +8,8 @@ import zipfile
 from abc import abstractmethod
 from contextlib import contextmanager
 
-from pex.common import atomic_directory, is_script, open_zip, safe_copy, safe_mkdir
+from pex.atomic_directory import atomic_directory
+from pex.common import is_script, open_zip, safe_copy, safe_mkdir
 from pex.enum import Enum
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
