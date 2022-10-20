@@ -33,7 +33,7 @@ jobs:
           # complete history.
           fetch-depth: 0
       - name: Setup Python 3.8
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           # We need to keep Python 3.8 for consistent vendoring with tox.
           python-version: "3.8"
@@ -84,7 +84,7 @@ jobs:
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
@@ -127,7 +127,7 @@ jobs:
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
@@ -192,7 +192,7 @@ jobs:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
@@ -245,7 +245,7 @@ jobs:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
