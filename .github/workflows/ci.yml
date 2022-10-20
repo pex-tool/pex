@@ -27,18 +27,18 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # We need branches and tags since package leans on `git describe`. Passing 0 gets us
           # complete history.
           fetch-depth: 0
       - name: Setup Python 3.8
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           # We need to keep Python 3.8 for consistent vendoring with tox.
           python-version: "3.8"
       - name: Check Formatting, Types, Vendoring and Packaging
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
   cpython-unit-tests:
@@ -80,24 +80,24 @@ jobs:
           if [[ "$(uname -s)" == "Linux" ]]; then
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
-          echo "::set-output name=skip::${skip}"
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
       - name: Run Unit Tests
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   pypy-unit-tests:
@@ -123,24 +123,24 @@ jobs:
           if [[ "$(uname -s)" == "Linux" ]]; then
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
-          echo "::set-output name=skip::${skip}"
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
       - name: Run Unit Tests
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}
   cpython-integration-tests:
@@ -185,22 +185,22 @@ jobs:
           if [[ "$(uname -s)" == "Linux" ]]; then
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
-          echo "::set-output name=skip::${skip}"
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
@@ -212,7 +212,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   pypy-integration-tests:
@@ -238,18 +238,18 @@ jobs:
           if [[ "$(uname -s)" == "Linux" ]]; then
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
-          echo "::set-output name=skip::${skip}"
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Install Packages
@@ -257,7 +257,7 @@ jobs:
           # This is needed for `test_requirement_file_from_url` for building `lxml`.
           sudo apt install --yes libxslt-dev
       - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
@@ -269,7 +269,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}-integration
   final-status:

@@ -33,8 +33,8 @@ jobs:
             RELEASE_TAG=${GITHUB_REF#refs/tags/}
           fi
           if [[ "${RELEASE_TAG}" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
-            echo "::set-output name=release-tag::${RELEASE_TAG}"
-            echo "::set-output name=release-version::${RELEASE_TAG#v}"
+            echo "release-tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
+            echo "release-version=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
           else
             echo "::error::Release tag '${RELEASE_TAG}' must match 'v\d+.\d+.\d+'."
             exit 1
@@ -46,15 +46,15 @@ jobs:
     environment: Release
     steps:
       - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ needs.determine-tag.outputs.release-tag }}
       - name: Setup Python 3.10
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: "3.10"
       - name: Publish Pex ${{ needs.determine-tag.outputs.release-tag }}
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         env:
           FLIT_USERNAME: ${{ secrets.PYPI_USERNAME }}
           FLIT_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
@@ -67,17 +67,17 @@ jobs:
     environment: Release
     steps:
       - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ needs.determine-tag.outputs.release-tag }}
           # This ensures we get all branches and tags which is needed for `tox -e package`.
           fetch-depth: 0
       - name: Setup Python 3.10
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: "3.10"
       - name: Package Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: package
       - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release
