@@ -83,4 +83,15 @@ class PipVersion(Enum["PipVersionValue"]):
         wheel_version="0.37.1",
         requires_python=">=3.7",
     )
+
+    v22_3 = PipVersionValue(
+        version="22.3",
+        # TODO(John Sirois): Expose setuptools and wheel version flags - these don't affect
+        #  Pex; so we should allow folks to experiment with upgrade easily:
+        #  https://github.com/pantsbuild/pex/issues/1895
+        setuptools_version="65.5.0",
+        wheel_version="0.37.1",
+        requires_python=">=3.7",
+    )
+
     VENDORED = v20_3_4_patched

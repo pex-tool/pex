@@ -370,8 +370,8 @@ def test_pex_python():
         assert py310 in stdout.decode("utf-8")
 
 
-def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
-    # type: () -> None
+def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(pex_project_dir):
+    # type: (str) -> None
     """This is a test for verifying the proper function of the pex bootstrapper's interpreter
     selection logic and validate a corresponding bugfix.
 
@@ -459,7 +459,15 @@ def test_interpreter_selection_using_os_environ_for_bootstrap_reexec():
 
         pex_out_path = os.path.join(td, "parent.pex")
         res = run_pex_command(
-            ["--disable-cache", "pex", "{}".format(td), "-e", "testing:tester", "-o", pex_out_path]
+            [
+                "--disable-cache",
+                pex_project_dir,
+                "{}".format(td),
+                "-e",
+                "testing:tester",
+                "-o",
+                pex_out_path,
+            ]
         )
         res.assert_success()
 

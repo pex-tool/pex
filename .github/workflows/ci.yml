@@ -47,46 +47,31 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 5], [3, 6], [3, 7], [3, 8], [3, 9], [3, 10], [3, 11, "0-rc.2"]]
-        os: [ubuntu-20.04, macos-11]
-        pip-version: ["20", "22"]
-        exclude:
+        include:
           - os: macos-11
-            python-version: [2, 7]
-            pip-version: "22"
-          - os: macos-11
-            python-version: [3, 5]
-          - os: macos-11
-            python-version: [3, 6]
-          - os: macos-11
-            python-version: [3, 7]
-          - os: macos-11
-            python-version: [3, 8]
-          - os: macos-11
-            python-version: [3, 9]
-          - os: macos-11
-            python-version: [3, 10]
-            pip-version: "20"
-          - os: macos-11
-            python-version: [3, 11, "0-rc.2"]
+            python-version: [ 2, 7 ]
+            pip-version: 20
           - os: ubuntu-20.04
-            python-version: [3, 5]
-            pip-version: "22"
+            python-version: [ 2, 7 ]
+            pip-version: 20
           - os: ubuntu-20.04
-            python-version: [3, 6]
-            pip-version: "22"
+            python-version: [ 3, 5 ]
+            pip-version: 20
+          - os: macos-11
+            python-version: [ 3, 10 ]
+            pip-version: 20
           - os: ubuntu-20.04
-            python-version: [3, 7]
-            pip-version: "20"
+            python-version: [ 3, 10 ]
+            pip-version: 20
           - os: ubuntu-20.04
-            python-version: [3, 8]
-            pip-version: "20"
+            python-version: [ 3, 10 ]
+            pip-version: 22_2
           - os: ubuntu-20.04
-            python-version: [3, 9]
-            pip-version: "20"
+            python-version: [ 3, 10 ]
+            pip-version: 22_3
           - os: ubuntu-20.04
-            python-version: [3, 11, "0-rc.2"]
-            pip-version: "20"
+            python-version: [ 3, 11, "0-rc.2" ]
+            pip-version: 20
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -121,11 +106,15 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        pypy-version: [[2, 7], [3, 9]]
-        pip-version: ["20", "22"]
-        exclude:
-          - pypy-version: [2, 7]
-            pip-version: "22"
+        include:
+          - pypy-version: [ 2, 7 ]
+            pip-version: 20
+          - pypy-version: [ 3, 9 ]
+            pip-version: 20
+          - pypy-version: [ 3, 9 ]
+            pip-version: 22_2
+          - pypy-version: [ 3, 9 ]
+            pip-version: 22_3
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -160,18 +149,34 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: [[2, 7], [3, 10], [3, 11, "0-rc.2"]]
-        os: [ubuntu-20.04, macos-11]
-        pip-version: ["20", "22"]
-        exclude:
+        include:
           - os: macos-11
-            python-version: [3, 11, "0-rc.2"]
-          - os: macos-11
-            python-version: [2, 7]
-            pip-version: "22"
+            python-version: [ 2, 7 ]
+            pip-version: 20
           - os: ubuntu-20.04
-            python-version: [3, 11, "0-rc.2"]
-            pip-version: "22"
+            python-version: [ 2, 7 ]
+            pip-version: 20
+          - os: ubuntu-20.04
+            python-version: [ 3, 7 ]
+            pip-version: 22_2
+          - os: ubuntu-20.04
+            python-version: [ 3, 7 ]
+            pip-version: 22_3
+          - os: macos-11
+            python-version: [ 3, 10 ]
+            pip-version: 20
+          - os: ubuntu-20.04
+            python-version: [ 3, 10 ]
+            pip-version: 20
+          - os: ubuntu-20.04
+            python-version: [ 3, 10 ]
+            pip-version: 22_2
+          - os: ubuntu-20.04
+            python-version: [ 3, 10 ]
+            pip-version: 22_3
+          - os: ubuntu-20.04
+            python-version: [ 3, 11, "0-rc.2" ]
+            pip-version: 20
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -216,11 +221,15 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        pypy-version: [[2, 7], [3, 9]]
-        pip-version: ["20", "22"]
-        exclude:
-          - pypy-version: [2, 7]
-            pip-version: "22"
+        include:
+          - pypy-version: [ 2, 7 ]
+            pip-version: 20
+          - pypy-version: [ 3, 9 ]
+            pip-version: 20
+          - pypy-version: [ 3, 9 ]
+            pip-version: 22_2
+          - pypy-version: [ 3, 9 ]
+            pip-version: 22_3
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
