@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # We need branches and tags since package leans on `git describe`. Passing 0 gets us
           # complete history.
@@ -82,7 +82,7 @@ jobs:
           fi
           echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: actions/setup-python@v4
         with:
@@ -92,7 +92,7 @@ jobs:
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
@@ -125,7 +125,7 @@ jobs:
           fi
           echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: actions/setup-python@v4
         with:
@@ -135,7 +135,7 @@ jobs:
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
@@ -187,7 +187,7 @@ jobs:
           fi
           echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
@@ -200,7 +200,7 @@ jobs:
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
@@ -240,7 +240,7 @@ jobs:
           fi
           echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
@@ -257,7 +257,7 @@ jobs:
           # This is needed for `test_requirement_file_from_url` for building `lxml`.
           sudo apt install --yes libxslt-dev
       - name: Cache Pyenv Interpreters
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
