@@ -41,7 +41,7 @@ class AtomicDirectory(object):
         """Rename `work_dir` to `target_dir` using `os.rename()`.
 
         :param source: An optional source offset into the `work_dir`` to use for the atomic update
-                       of `target_dir`. By default the whole `work_dir` is used.
+                       of `target_dir`. By default, the whole `work_dir` is used.
 
         If a race is lost and `target_dir` already exists, the `target_dir` dir is left unchanged and
         the `work_dir` directory will simply be removed.
@@ -88,7 +88,7 @@ def atomic_directory(
     source=None,  # type: Optional[str]
 ):
     # type: (...) -> Iterator[AtomicDirectory]
-    """A context manager that yields a potentially exclusively locked AtomicDirectory.
+    """A context manager that yields an exclusively locked AtomicDirectory.
 
     :param target_dir: The target directory to atomically update.
     :param lock_style: By default, a POSIX fcntl lock will be used to ensure exclusivity.
@@ -98,10 +98,14 @@ def atomic_directory(
     If the `target_dir` already exists the enclosed block will be yielded an AtomicDirectory that
     `is_finalized` to signal there is no work to do.
 
-    If the enclosed block fails the `target_dir` will not be created.
+    If the enclosed block fails the `target_dir` will not be created if it does not already exist.
 
     The new work directory will be cleaned up regardless of whether the enclosed block succeeds.
     """
+
+    # We use double-checked locking with the check being target_dir existence and the lock being an
+    # exclusive blocking file lock.
+
     atomic_dir = AtomicDirectory(target_dir=target_dir)
     if atomic_dir.is_finalized():
         # Our work is already done for us so exit early.
