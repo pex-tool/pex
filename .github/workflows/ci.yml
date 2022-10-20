@@ -38,7 +38,7 @@ jobs:
           # We need to keep Python 3.8 for consistent vendoring with tox.
           python-version: "3.8"
       - name: Check Formatting, Types, Vendoring and Packaging
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
   cpython-unit-tests:
@@ -88,7 +88,7 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
@@ -97,7 +97,7 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
       - name: Run Unit Tests
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   pypy-unit-tests:
@@ -131,7 +131,7 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
@@ -140,7 +140,7 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ runner.os }}-pyenv-root-v4
       - name: Run Unit Tests
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}
   cpython-integration-tests:
@@ -196,7 +196,7 @@ jobs:
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
@@ -212,7 +212,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   pypy-integration-tests:
@@ -249,7 +249,7 @@ jobs:
         with:
           python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
       - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@4c36480012d4d430c9d865222cdb2b6d91713acd
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Install Packages
@@ -269,7 +269,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        uses: pantsbuild/actions/run-tox@95209b287c817c78a765962d40ac6cea790fc511
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}-integration
   final-status:
