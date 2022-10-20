@@ -7,7 +7,6 @@ import errno
 import fcntl
 import os
 from contextlib import contextmanager
-from uuid import uuid4
 
 from pex.common import safe_mkdir, safe_rmtree
 from pex.enum import Enum
@@ -21,7 +20,7 @@ class AtomicDirectory(object):
     def __init__(self, target_dir):
         # type: (str) -> None
         self._target_dir = target_dir
-        self._work_dir = "{}.{}".format(target_dir, uuid4().hex)
+        self._work_dir = "{}.workdir".format(target_dir)
 
     @property
     def work_dir(self):
@@ -145,10 +144,16 @@ def atomic_directory(
             unlock()
         return
 
+    # If there is an error making the work_dir that means file-locking guarantees have failed
+    # somehow and another process has the lock and has made the work_dir already. We let the error
+    # from os.mkdir propagate in that case.
+    os.mkdir(atomic_dir.work_dir)
     try:
-        os.makedirs(atomic_dir.work_dir)
         yield atomic_dir
+    except Exception:
+        atomic_dir.cleanup()
+        raise
+    else:
         atomic_dir.finalize(source=source)
     finally:
         unlock()
-        atomic_dir.cleanup()

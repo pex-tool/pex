@@ -128,9 +128,12 @@ def test_storage_version_upgrade(
 
     downloaded_artifact2 = download_manager.store(artifact, project_name)
     assert downloaded_artifact1 == downloaded_artifact2
-    assert 2 == len(set(download_manager.save_calls)), (
-        "Expected two save calls, each with a different atomic directory work dir signalling a "
-        "re-build of the artifact storage"
+    assert 2 == len(
+        download_manager.save_calls
+    ), "Expected two save calls signalling a re-build of the artifact storage."
+    assert 1 == len(set(download_manager.save_calls)), (
+        "Expected each save call is with the same atomic directory work dir signalling a re-build "
+        "of the same artifact storage."
     )
 
 
