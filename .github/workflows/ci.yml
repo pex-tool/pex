@@ -80,7 +80,7 @@ jobs:
           if [[ "$(uname -s)" == "Linux" ]]; then
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
-          echo "::set-output name=skip::${skip}"
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
@@ -123,7 +123,7 @@ jobs:
           if [[ "$(uname -s)" == "Linux" ]]; then
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
-          echo "::set-output name=skip::${skip}"
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v2
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
@@ -185,7 +185,7 @@ jobs:
           if [[ "$(uname -s)" == "Linux" ]]; then
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
-          echo "::set-output name=skip::${skip}"
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v2
         with:
@@ -238,7 +238,7 @@ jobs:
           if [[ "$(uname -s)" == "Linux" ]]; then
             skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
           fi
-          echo "::set-output name=skip::${skip}"
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v2
         with:
