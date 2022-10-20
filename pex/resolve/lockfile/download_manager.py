@@ -128,7 +128,7 @@ class DownloadManager(Generic["_A"]):
         download_dir = os.path.join(
             get_downloads_dir(pex_root=self._pex_root), artifact.fingerprint.hash
         )
-        with atomic_directory(download_dir, exclusive=self._file_lock_style) as atomic_dir:
+        with atomic_directory(download_dir, lock_style=self._file_lock_style) as atomic_dir:
             if atomic_dir.is_finalized():
                 TRACER.log("Using cached artifact at {} for {}".format(download_dir, artifact))
             else:

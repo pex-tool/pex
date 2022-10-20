@@ -14,7 +14,7 @@ from pex.enum import Enum
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Callable, Iterator, Optional, Union
+    from typing import Callable, Iterator, Optional
 
 
 class AtomicDirectory(object):
@@ -85,31 +85,23 @@ class FileLockStyle(Enum["FileLockStyle.Value"]):
 @contextmanager
 def atomic_directory(
     target_dir,  # type: str
-    exclusive,  # type: Union[bool, FileLockStyle.Value]
+    lock_style=FileLockStyle.POSIX,  # type: FileLockStyle.Value
     source=None,  # type: Optional[str]
 ):
     # type: (...) -> Iterator[AtomicDirectory]
     """A context manager that yields a potentially exclusively locked AtomicDirectory.
 
     :param target_dir: The target directory to atomically update.
-    :param exclusive: If `True`, its guaranteed that only one process will be yielded a non `None`
-                      workdir; otherwise two or more processes might be yielded unique non-`None`
-                      workdirs with the last process to finish "winning". By default, a POSIX fcntl
-                      lock will be used to ensure exclusivity. To change this, pass an explicit
-                      `LockStyle` instead of `True`.
+    :param lock_style: By default, a POSIX fcntl lock will be used to ensure exclusivity.
     :param source: An optional source offset into the work directory to use for the atomic update
-                   of the target directory. By default the whole work directory is used.
+                   of the target directory. By default, the whole work directory is used.
 
     If the `target_dir` already exists the enclosed block will be yielded an AtomicDirectory that
     `is_finalized` to signal there is no work to do.
 
-    If the enclosed block fails the `target_dir` will be undisturbed.
+    If the enclosed block fails the `target_dir` will not be created.
 
-    The new work directory will be cleaned up regardless of whether or not the enclosed block
-    succeeds.
-
-    If the contents of the resulting directory will be subsequently mutated it's probably correct to
-    pass `exclusive=True` to ensure mutations that race the creation process are not lost.
+    The new work directory will be cleaned up regardless of whether the enclosed block succeeds.
     """
     atomic_dir = AtomicDirectory(target_dir=target_dir)
     if atomic_dir.is_finalized():
@@ -117,43 +109,41 @@ def atomic_directory(
         yield atomic_dir
         return
 
-    lock_fd = None  # type: Optional[int]
+    head, tail = os.path.split(atomic_dir.target_dir)
+    if head:
+        safe_mkdir(head)
+
+    # N.B.: We don't actually write anything to the lock file but the fcntl file locking
+    # operations only work on files opened for at least write.
+    lock_fd = os.open(
+        os.path.join(head, ".{}.atomic_directory.lck".format(tail or "here")),
+        os.O_CREAT | os.O_WRONLY,
+    )
+
     lock_api = cast(
         "Callable[[int, int], None]",
-        fcntl.flock if exclusive is FileLockStyle.BSD else fcntl.lockf,
+        fcntl.flock if lock_style is FileLockStyle.BSD else fcntl.lockf,
     )
 
     def unlock():
         # type: () -> None
-        if lock_fd is None:
-            return
         try:
             lock_api(lock_fd, fcntl.LOCK_UN)
         finally:
             os.close(lock_fd)
 
-    if exclusive:
-        head, tail = os.path.split(atomic_dir.target_dir)
-        if head:
-            safe_mkdir(head)
-        # N.B.: We don't actually write anything to the lock file but the fcntl file locking
-        # operations only work on files opened for at least write.
-        lock_fd = os.open(
-            os.path.join(head, ".{}.atomic_directory.lck".format(tail or "here")),
-            os.O_CREAT | os.O_WRONLY,
-        )
-        # N.B.: Since lockf and flock operate on an open file descriptor and these are
-        # guaranteed to be closed by the operating system when the owning process exits,
-        # this lock is immune to staleness.
-        lock_api(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
-        if atomic_dir.is_finalized():
-            # We lost the double-checked locking race and our work was done for us by the race
-            # winner so exit early.
-            try:
-                yield atomic_dir
-            finally:
-                unlock()
-            return
+    # N.B.: Since lockf and flock operate on an open file descriptor and these are
+    # guaranteed to be closed by the operating system when the owning process exits,
+    # this lock is immune to staleness.
+    lock_api(lock_fd, fcntl.LOCK_EX)  # A blocking write lock.
+    if atomic_dir.is_finalized():
+        # We lost the double-checked locking race and our work was done for us by the race
+        # winner so exit early.
+        try:
+            yield atomic_dir
+        finally:
+            unlock()
+        return
 
     try:
         os.makedirs(atomic_dir.work_dir)

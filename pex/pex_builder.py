@@ -724,9 +724,7 @@ class PEXBuilder(object):
         cached_bootstrap_zip_dir = zip_cache_dir(
             os.path.join(pex_info.pex_root, "bootstrap_zips", bootstrap_hash)
         )
-        with atomic_directory(
-            cached_bootstrap_zip_dir, exclusive=False
-        ) as atomic_bootstrap_zip_dir:
+        with atomic_directory(cached_bootstrap_zip_dir) as atomic_bootstrap_zip_dir:
             if not atomic_bootstrap_zip_dir.is_finalized():
                 self._chroot.zip(
                     os.path.join(atomic_bootstrap_zip_dir.work_dir, pex_info.bootstrap),
@@ -750,9 +748,7 @@ class PEXBuilder(object):
                 cached_installed_wheel_zip_dir = zip_cache_dir(
                     os.path.join(pex_info.pex_root, "installed_wheel_zips", fingerprint)
                 )
-                with atomic_directory(
-                    cached_installed_wheel_zip_dir, exclusive=False
-                ) as atomic_zip_dir:
+                with atomic_directory(cached_installed_wheel_zip_dir) as atomic_zip_dir:
                     if not atomic_zip_dir.is_finalized():
                         self._chroot.zip(
                             os.path.join(atomic_zip_dir.work_dir, location),

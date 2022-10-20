@@ -38,7 +38,7 @@ def _pip_venv(
     path = os.path.join(ENV.PEX_ROOT, "pip-{version}.pex".format(version=version))
     pip_interpreter = interpreter or PythonInterpreter.get()
     pip_pex_path = os.path.join(path, isolated().pex_hash)
-    with atomic_directory(pip_pex_path, exclusive=True) as chroot:
+    with atomic_directory(pip_pex_path) as chroot:
         if not chroot.is_finalized():
             from pex.pex_builder import PEXBuilder
 

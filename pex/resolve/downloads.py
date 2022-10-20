@@ -72,7 +72,7 @@ class ArtifactDownloader(object):
         hashing.file_hash(path, digest)
         fingerprint = digest.hexdigest()
         target_dir = os.path.join(get_downloads_dir(), fingerprint)
-        with atomic_directory(target_dir, exclusive=True) as atomic_dir:
+        with atomic_directory(target_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
                 shutil.move(path, os.path.join(atomic_dir.work_dir, os.path.basename(path)))
         return Fingerprint(algorithm=fingerprint.algorithm, hash=fingerprint)

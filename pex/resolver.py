@@ -450,7 +450,7 @@ class InstallResult(object):
         #
         wheel_dir_hash = fingerprint_path(self.install_chroot)
         runtime_key_dir = os.path.join(self._installation_root, wheel_dir_hash)
-        with atomic_directory(runtime_key_dir, exclusive=False) as atomic_dir:
+        with atomic_directory(runtime_key_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
                 # Note: Create a relative path symlink between the two directories so that the
                 # PEX_ROOT can be used within a chroot environment where the prefix of the path may

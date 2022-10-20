@@ -834,7 +834,7 @@ class PythonInterpreter(object):
 
 
                         encoded_identity = PythonIdentity.get(binary={binary!r}).encode()
-                        with atomic_directory({cache_dir!r}, exclusive=False) as cache_dir:
+                        with atomic_directory({cache_dir!r}) as cache_dir:
                             if not cache_dir.is_finalized():
                                 with safe_open(
                                     os.path.join(cache_dir.work_dir, {info_file!r}), 'w'

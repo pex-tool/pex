@@ -491,7 +491,7 @@ def isolated():
 
         isolated_dir = os.path.join(ENV.PEX_ROOT, "isolated", pex_hash)
         with _tracer().timed("Isolating pex"):
-            with atomic_directory(isolated_dir, exclusive=True) as chroot:
+            with atomic_directory(isolated_dir) as chroot:
                 if not chroot.is_finalized():
                     with _tracer().timed("Extracting pex to {}".format(isolated_dir)):
                         if pex_zip_paths:

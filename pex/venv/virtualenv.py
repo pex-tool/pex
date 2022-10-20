@@ -367,7 +367,7 @@ class Virtualenv(object):
                 url_rel_path = get_pip_script
                 dst_rel_path = os.path.join("default", get_pip_script)
             get_pip = os.path.join(ENV.PEX_ROOT, "get-pip", dst_rel_path)
-            with atomic_directory(os.path.dirname(get_pip), exclusive=True) as atomic_dir:
+            with atomic_directory(os.path.dirname(get_pip)) as atomic_dir:
                 if not atomic_dir.is_finalized():
                     with URLFetcher().get_body_stream(
                         "https://bootstrap.pypa.io/pip/" + url_rel_path
