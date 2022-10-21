@@ -83,10 +83,26 @@ class FileLockStyle(Enum["FileLockStyle.Value"]):
     POSIX = Value("posix")
 
 
+def _is_bsd_lock(lock_style=None):
+    # type: (Optional[FileLockStyle.Value]) -> bool
+
+    # The atomic_directory file locking has used POSIX locks since inception. These have maximum
+    # compatibility across OSes and stand a decent chance of working over modern NFS. With the
+    # introduction of `pex3 lock ...` a limited set of atomic_directory uses started asking for BSD
+    # locks since they operate in a thread pool. Only those uses actually pass an explicit value for
+    # `lock_style` to atomic_directory. In order to allow experimenting with / debugging possible
+    # file locking bugs, we allow a `_PEX_FILE_LOCK_STYLE` back door private ~API to upgrade all
+    # locks to BSD style locks. This back door can be removed at any time.
+    file_lock_style = lock_style or FileLockStyle.for_value(
+        os.environ.get("_PEX_FILE_LOCK_STYLE", FileLockStyle.POSIX.value)
+    )
+    return file_lock_style is FileLockStyle.BSD
+
+
 @contextmanager
 def atomic_directory(
     target_dir,  # type: str
-    lock_style=FileLockStyle.POSIX,  # type: FileLockStyle.Value
+    lock_style=None,  # type: Optional[FileLockStyle.Value]
     source=None,  # type: Optional[str]
 ):
     # type: (...) -> Iterator[AtomicDirectory]
@@ -125,7 +141,7 @@ def atomic_directory(
 
     lock_api = cast(
         "Callable[[int, int], None]",
-        fcntl.flock if lock_style is FileLockStyle.BSD else fcntl.lockf,
+        fcntl.flock if _is_bsd_lock(lock_style) else fcntl.lockf,
     )
 
     def unlock():
