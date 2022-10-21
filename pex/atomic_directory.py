@@ -6,8 +6,10 @@ from __future__ import absolute_import
 import errno
 import fcntl
 import os
+import threading
 from contextlib import contextmanager
 
+from pex import pex_warnings
 from pex.common import safe_mkdir, safe_rmtree
 from pex.enum import Enum
 from pex.typing import TYPE_CHECKING, cast
@@ -115,13 +117,11 @@ def atomic_directory(
     head, tail = os.path.split(atomic_dir.target_dir)
     if head:
         safe_mkdir(head)
+    lockfile = os.path.join(head, ".{}.atomic_directory.lck".format(tail or "here"))
 
     # N.B.: We don't actually write anything to the lock file but the fcntl file locking
     # operations only work on files opened for at least write.
-    lock_fd = os.open(
-        os.path.join(head, ".{}.atomic_directory.lck".format(tail or "here")),
-        os.O_CREAT | os.O_WRONLY,
-    )
+    lock_fd = os.open(lockfile, os.O_CREAT | os.O_WRONLY)
 
     lock_api = cast(
         "Callable[[int, int], None]",
@@ -148,10 +148,34 @@ def atomic_directory(
             unlock()
         return
 
-    # If there is an error making the work_dir that means file-locking guarantees have failed
-    # somehow and another process has the lock and has made the work_dir already. We let the error
-    # from os.mkdir propagate in that case.
-    os.mkdir(atomic_dir.work_dir)
+    # If there is an error making the work_dir that means that either file-locking guarantees have
+    # failed somehow and another process has the lock and has made the work_dir already or else a
+    # process holding the lock ended abnormally.
+    try:
+        os.mkdir(atomic_dir.work_dir)
+    except OSError as e:
+        ident = "[pid:{pid}, tid:{tid}, cwd:{cwd}]".format(
+            pid=os.getpid(), tid=threading.current_thread().ident, cwd=os.getcwd()
+        )
+        pex_warnings.warn(
+            "{ident}: After obtaining an exclusive lock on {lockfile}, failed to establish a work "
+            "directory at {workdir} due to: {err}".format(
+                ident=ident,
+                lockfile=lockfile,
+                workdir=atomic_dir.work_dir,
+                err=e,
+            ),
+        )
+        if e.errno != errno.EEXIST:
+            raise
+        pex_warnings.warn(
+            "{ident}: Continuing to forcibly re-create the work directory at {workdir}.".format(
+                ident=ident,
+                workdir=atomic_dir.work_dir,
+            )
+        )
+        safe_mkdir(atomic_dir.work_dir, clean=True)
+
     try:
         yield atomic_dir
     except Exception:
