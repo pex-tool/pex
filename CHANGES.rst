@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.112
+-------
+
+This release brings support for the latest Pip release and includes
+some internal changes to help debug intermittent issues some users are
+seeing that implicate what may be file locking related bugs.
+
+* Add support for ``--pip-version 22.3``. (#1953)
+  `PR #1953 <https://github.com/pantsbuild/pex/pull/1953>`_
+
 2.1.111
 -------
 
