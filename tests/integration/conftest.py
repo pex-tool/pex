@@ -10,7 +10,8 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import atomic_directory, safe_mkdtemp, temporary_dir
+from pex.atomic_directory import atomic_directory
+from pex.common import safe_mkdtemp, temporary_dir
 from pex.testing import PY310, ensure_python_venv, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -48,7 +49,7 @@ def pex_bdist(
     # type: (...) -> str
     pex_bdist_chroot = os.path.join(shared_integration_test_tmpdir, "pex_bdist_chroot")
     wheels_dir = os.path.join(pex_bdist_chroot, "wheels_dir")
-    with atomic_directory(pex_bdist_chroot, exclusive=True) as chroot:
+    with atomic_directory(pex_bdist_chroot) as chroot:
         if not chroot.is_finalized():
             pex_pex = os.path.join(chroot.work_dir, "pex.pex")
             run_pex_command(

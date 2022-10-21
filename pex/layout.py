@@ -8,7 +8,8 @@ import zipfile
 from abc import abstractmethod
 from contextlib import contextmanager
 
-from pex.common import atomic_directory, is_script, open_zip, safe_copy, safe_mkdir
+from pex.atomic_directory import atomic_directory
+from pex.common import is_script, open_zip, safe_copy, safe_mkdir
 from pex.enum import Enum
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -104,7 +105,7 @@ def _install(
     with TRACER.timed("Laying out {}".format(layout)):
         pex = layout.path
         install_to = unzip_dir(pex_root=pex_root, pex_hash=pex_hash)
-        with atomic_directory(install_to, exclusive=True) as chroot:
+        with atomic_directory(install_to) as chroot:
             if not chroot.is_finalized():
                 with TRACER.timed("Installing {} to {}".format(pex, install_to)):
                     from pex.pex_info import PexInfo
@@ -124,7 +125,7 @@ def _install(
                         )
 
                     with atomic_directory(
-                        bootstrap_cache, source=layout.bootstrap_strip_prefix(), exclusive=True
+                        bootstrap_cache, source=layout.bootstrap_strip_prefix()
                     ) as bootstrap_zip_chroot:
                         if not bootstrap_zip_chroot.is_finalized():
                             layout.extract_bootstrap(bootstrap_zip_chroot.work_dir)
@@ -139,7 +140,6 @@ def _install(
                         with atomic_directory(
                             spread_dest,
                             source=layout.dist_strip_prefix(location),
-                            exclusive=True,
                         ) as spread_chroot:
                             if not spread_chroot.is_finalized():
                                 layout.extract_dist(spread_chroot.work_dir, dist_relpath)
@@ -154,7 +154,7 @@ def _install(
                         )
 
                     code_dest = os.path.join(pex_info.zip_unsafe_cache, code_hash)
-                    with atomic_directory(code_dest, exclusive=True) as code_chroot:
+                    with atomic_directory(code_dest) as code_chroot:
                         if not code_chroot.is_finalized():
                             layout.extract_code(code_chroot.work_dir)
                     for path in os.listdir(code_dest):

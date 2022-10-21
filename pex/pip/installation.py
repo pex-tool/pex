@@ -7,7 +7,7 @@ import os
 from textwrap import dedent
 
 from pex import pex_warnings, third_party
-from pex.common import atomic_directory
+from pex.atomic_directory import atomic_directory
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
@@ -38,7 +38,7 @@ def _pip_venv(
     path = os.path.join(ENV.PEX_ROOT, "pip-{version}.pex".format(version=version))
     pip_interpreter = interpreter or PythonInterpreter.get()
     pip_pex_path = os.path.join(path, isolated().pex_hash)
-    with atomic_directory(pip_pex_path, exclusive=True) as chroot:
+    with atomic_directory(pip_pex_path) as chroot:
         if not chroot.is_finalized():
             from pex.pex_builder import PEXBuilder
 

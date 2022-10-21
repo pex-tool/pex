@@ -8,7 +8,8 @@ import os
 import sys
 
 from pex import pex_warnings
-from pex.common import atomic_directory, die, pluralize
+from pex.atomic_directory import atomic_directory
+from pex.common import die, pluralize
 from pex.environment import ResolveError
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
@@ -482,7 +483,7 @@ def ensure_venv(
             "The PEX_VENV environment variable was set, but this PEX was not built with venv "
             "support (Re-build the PEX file with `pex --venv ...`)"
         )
-    with atomic_directory(venv_dir, exclusive=True) as venv:
+    with atomic_directory(venv_dir) as venv:
         if not venv.is_finalized():
             from pex.venv.pex import populate_venv
             from pex.venv.virtualenv import Virtualenv
@@ -505,7 +506,7 @@ def ensure_venv(
             for chars in range(8, len(venv_hash) + 1):
                 entropy = venv_hash[:chars]
                 short_venv_dir = os.path.join(pex_info.pex_root, "venvs", "s", entropy)
-                with atomic_directory(short_venv_dir, exclusive=True) as short_venv:
+                with atomic_directory(short_venv_dir) as short_venv:
                     if short_venv.is_finalized():
                         collisions.append(short_venv_dir)
                         if entropy == venv_hash:

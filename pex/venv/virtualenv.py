@@ -12,7 +12,8 @@ import sys
 from contextlib import closing
 from fileinput import FileInput
 
-from pex.common import AtomicDirectory, atomic_directory, is_exe, safe_mkdir, safe_open
+from pex.atomic_directory import AtomicDirectory, atomic_directory
+from pex.common import is_exe, safe_mkdir, safe_open
 from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
 from pex.executor import Executor
@@ -366,7 +367,7 @@ class Virtualenv(object):
                 url_rel_path = get_pip_script
                 dst_rel_path = os.path.join("default", get_pip_script)
             get_pip = os.path.join(ENV.PEX_ROOT, "get-pip", dst_rel_path)
-            with atomic_directory(os.path.dirname(get_pip), exclusive=True) as atomic_dir:
+            with atomic_directory(os.path.dirname(get_pip)) as atomic_dir:
                 if not atomic_dir.is_finalized():
                     with URLFetcher().get_body_stream(
                         "https://bootstrap.pypa.io/pip/" + url_rel_path

@@ -10,27 +10,18 @@ import platform
 import random
 import subprocess
 import sys
-from collections import OrderedDict
 from contextlib import contextmanager
 from textwrap import dedent
 
 import pytest
 
-from pex.common import (
-    atomic_directory,
-    open_zip,
-    safe_mkdir,
-    safe_mkdtemp,
-    safe_rmtree,
-    safe_sleep,
-    temporary_dir,
-)
+from pex.atomic_directory import atomic_directory
+from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, safe_sleep, temporary_dir
 from pex.compatibility import to_unicode
 from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
-from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
@@ -493,13 +484,11 @@ def ensure_python_distribution(version):
 
     pip = os.path.join(interpreter_location, "bin", "pip")
 
-    with atomic_directory(target_dir=os.path.join(pyenv_root), exclusive=True) as target_dir:
+    with atomic_directory(target_dir=os.path.join(pyenv_root)) as target_dir:
         if not target_dir.is_finalized():
             bootstrap_python_installer(target_dir.work_dir)
 
-    with atomic_directory(
-        target_dir=interpreter_location, exclusive=True
-    ) as interpreter_target_dir:
+    with atomic_directory(target_dir=interpreter_location) as interpreter_target_dir:
         if not interpreter_target_dir.is_finalized():
             subprocess.check_call(
                 [
