@@ -452,6 +452,7 @@ class PexInfo(object):
     def pex_root(self):
         # type: () -> str
         paths = os.path.expanduser(self.raw_pex_root).split(",")
+        pex_root = None
         writable = False
         for path in paths:
             if can_write_dir(path):
