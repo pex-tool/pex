@@ -295,8 +295,8 @@ def configure_clp_pex_options(parser):
         "--runtime-pex-root",
         dest="runtime_pex_root",
         default=None,
-        help="Specify the pex root to be used in the generated .pex file (if unspecified, "
-        "uses ~/.pex).",
+        help="Specify the pex root to be used in the generated .pex file. It can be a comma-separated"  
+        "list of paths and the first writable path will be used. If unspecified, uses ~/.pex.",
     )
 
     group.add_argument(

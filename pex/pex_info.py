@@ -451,11 +451,17 @@ class PexInfo(object):
     @property
     def pex_root(self):
         # type: () -> str
-        pex_root = os.path.expanduser(self.raw_pex_root)
-        if not can_write_dir(pex_root):
+        paths = os.path.expanduser(self.raw_pex_root).split(",")
+        writable = False
+        for path in paths:
+            if can_write_dir(path):
+                pex_root = path
+                writable = True
+                break
+        if not writable:
             tmp_root = safe_mkdtemp()
             pex_warnings.warn(
-                "PEX_ROOT is configured as {pex_root} but that path is un-writeable, "
+                "PEX_ROOT is configured as {pex_root} but all paths are un-writeable, "
                 "falling back to a temporary PEX_ROOT of {tmp_root} which will hurt "
                 "performance.".format(pex_root=pex_root, tmp_root=tmp_root)
             )
