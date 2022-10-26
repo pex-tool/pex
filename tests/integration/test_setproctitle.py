@@ -100,13 +100,13 @@ def test_setproctitle(
             # several symlinks. The layout looks like so:
             #   /Library/Frameworks/
             #       Python.framework/  # sysconfig.get_config_var("PYTHONFRAMEWORKINSTALLDIR")
-            #           Versions/X.YZ/  # sys.prefix
+            #           Versions/X.Y/  # sys.prefix
             #               bin/
-            #                   python -> pythonX.YZ
-            #                   pythonX -> pythonX.YZ
-            #                   *pythonX.YZ
+            #                   python -> pythonX.Y
+            #                   pythonX -> pythonX.Y
+            #                   *pythonX.Y
             #           Resources/Python.app/
-            #               Contents/MacOS/ # sysconfig.get_config_var("projectbase")
+            #               Contents/MacOS/
             #                   *Python
             #
             # In some versions of Python, the bin Python, when executed, gets a sys.executable of
