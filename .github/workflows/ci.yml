@@ -58,20 +58,17 @@ jobs:
             python-version: [ 3, 5 ]
             pip-version: 20
           - os: macos-11
-            python-version: [ 3, 10 ]
+            python-version: [ 3, 11 ]
             pip-version: 20
           - os: ubuntu-20.04
-            python-version: [ 3, 10 ]
+            python-version: [ 3, 11 ]
             pip-version: 20
           - os: ubuntu-20.04
-            python-version: [ 3, 10 ]
+            python-version: [ 3, 11 ]
             pip-version: 22_2
           - os: ubuntu-20.04
-            python-version: [ 3, 10 ]
+            python-version: [ 3, 11 ]
             pip-version: 22_3
-          - os: ubuntu-20.04
-            python-version: [ 3, 11, "0-rc.2" ]
-            pip-version: 20
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -163,20 +160,17 @@ jobs:
             python-version: [ 3, 7 ]
             pip-version: 22_3
           - os: macos-11
-            python-version: [ 3, 10 ]
+            python-version: [ 3, 11 ]
             pip-version: 20
           - os: ubuntu-20.04
-            python-version: [ 3, 10 ]
+            python-version: [ 3, 11 ]
             pip-version: 20
           - os: ubuntu-20.04
-            python-version: [ 3, 10 ]
+            python-version: [ 3, 11 ]
             pip-version: 22_2
           - os: ubuntu-20.04
-            python-version: [ 3, 10 ]
+            python-version: [ 3, 11 ]
             pip-version: 22_3
-          - os: ubuntu-20.04
-            python-version: [ 3, 11, "0-rc.2" ]
-            pip-version: 20
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose

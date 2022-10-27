@@ -49,10 +49,10 @@ jobs:
         uses: actions/checkout@v3
         with:
           ref: ${{ needs.determine-tag.outputs.release-tag }}
-      - name: Setup Python 3.10
+      - name: Setup Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.11"
       - name: Publish Pex ${{ needs.determine-tag.outputs.release-tag }}
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         env:
@@ -72,10 +72,10 @@ jobs:
           ref: ${{ needs.determine-tag.outputs.release-tag }}
           # This ensures we get all branches and tags which is needed for `tox -e package`.
           fetch-depth: 0
-      - name: Setup Python 3.10
+      - name: Setup Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.11"
       - name: Package Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
