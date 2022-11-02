@@ -314,7 +314,7 @@ def test_pip_pex_interpreter_venv_hash_issue_1885(
     """
 
     binary = current_interpreter.binary
-    binary_link = os.path.join(tmpdir, "python")
+    binary_link = os.path.join(str(tmpdir), "python")
     os.symlink(binary, binary_link)
     pip_w_linked_ppp = create_pip(current_interpreter, PEX_PYTHON_PATH=binary_link)
     venv_contents_hash = hashlib.sha1(
