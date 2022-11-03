@@ -129,3 +129,9 @@ def test_atomic_directory_empty_workdir_finalized():
             assert (
                 work_dir.is_finalized()
             ), "When the target_dir exists no work_dir should be created."
+
+
+def test_atomic_directory_locked_mode():
+    # type: () -> None
+
+    assert AtomicDirectory("unlocked").work_dir != AtomicDirectory("unlocked").work_dir
