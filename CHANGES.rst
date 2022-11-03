@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.113
+-------
+
+This is a hotfix release that fixes errors installing wheels when there
+is high parallelism in execution of Pex processes. These issues were a
+regression introduced by #1961 included in the 2.1.112 release.
+
+* Restore AtomicDirectory non-locked good behavior. (#1974)
+  `PR #1974 <https://github.com/pantsbuild/pex/pull/1974>`_
+
 2.1.112
 -------
 
