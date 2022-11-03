@@ -16,7 +16,7 @@ from pex.enum import Enum
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional
+    from typing import Callable, Iterator, Optional
 
 
 class AtomicDirectory(object):
