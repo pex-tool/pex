@@ -426,6 +426,8 @@ def _populate_sources(
                     # These are used by Pex's Pip venv to implement universal locks.
                     "_PEX_PYTHON_VERSIONS_FILE",
                     "_PEX_TARGET_SYSTEMS_FILE",
+                    # This is used as an experiment knob for atomic_directory locking.
+                    "_PEX_FILE_LOCK_STYLE",
                 )
             ]
             if ignored_pex_env_vars:
