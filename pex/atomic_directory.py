@@ -8,6 +8,7 @@ import fcntl
 import os
 import threading
 from contextlib import contextmanager
+from uuid import uuid4
 
 from pex import pex_warnings
 from pex.common import safe_mkdir, safe_rmtree
@@ -15,14 +16,54 @@ from pex.enum import Enum
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Callable, Iterator, Optional
+    from typing import Iterator, Optional
 
 
 class AtomicDirectory(object):
-    def __init__(self, target_dir):
-        # type: (str) -> None
+    """A directory whose contents are populated atomically.
+
+    By default, an atomic directory allows racing processes to populate a directory atomically.
+    Each gets its own unique work directory to populate non-atomically, but the final target
+    directory is swapped to atomically from one of the racing work directories.
+
+    In order to lock the atomic directory so that only 1 process works to populate it, use the
+    `atomic_directory` context manager.
+
+    If the target directory will have immutable contents, either approach will do. If not, the
+    exclusively locked `atomic_directory` context manager should be used.
+
+    The common case for a non-obvious mutable directory in Python is any directory `.py` files are
+    populated to. Those files will later be bytecode compiled to adjacent `.pyc` files on the fly
+    by the Python interpreter and can go missing underneath a process looking at that directory if
+    AtomicDirectory is used directly. For the target directory `sys_path_entry` that failure mode
+    looks like:
+
+    Process A -> Starts work to create `sys_path_entry`.
+    Process B -> Starts work to create `sys_path_entry`.
+    Process A -> Atomically creates `sys_path_entry`.
+    Process C -> Sees `sys_path_entry` from Process A and starts running Python code in that dir.
+    Process D -> Sees `sys_path_entry` from Process A and starts running Python code in that dir.
+    Process D -> Succeeds importing `foo`.
+    Process C -> Starts to import `sys_path_entry/foo.py` and Python sees the corresponding .pyc
+                 file already exists (Process D created it).
+    Process B -> Atomically creates `sys_path_entry`, replacing the result from Process A and
+                 disappearing any `.pyc` files.
+    Process C -> Goes to import from the `.pyc` file it found and errors since it is gone.
+
+    The background facts in this case are that CPython reasonably does a check then act surrounding
+    .pyc files and uses no lock. It assumes Python source trees will not be disturbed during its
+    run. Without an exclusively locked `atomic_directory` Pex can allow the check-then-act window to
+    be observed by racing processes.
+    """
+
+    def __init__(
+        self,
+        target_dir,  # type: str
+        locked=False,  # type: bool
+    ):
+        # type: (...) -> None
         self._target_dir = target_dir
-        self._work_dir = "{}.workdir".format(target_dir)
+        self._work_dir = "{}.{}.work".format(target_dir, "lck" if locked else uuid4().hex)
 
     @property
     def work_dir(self):
@@ -124,7 +165,7 @@ def atomic_directory(
     # We use double-checked locking with the check being target_dir existence and the lock being an
     # exclusive blocking file lock.
 
-    atomic_dir = AtomicDirectory(target_dir=target_dir)
+    atomic_dir = AtomicDirectory(target_dir=target_dir, locked=True)
     if atomic_dir.is_finalized():
         # Our work is already done for us so exit early.
         yield atomic_dir

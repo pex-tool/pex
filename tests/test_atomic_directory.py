@@ -135,3 +135,7 @@ def test_atomic_directory_locked_mode():
     # type: () -> None
 
     assert AtomicDirectory("unlocked").work_dir != AtomicDirectory("unlocked").work_dir
+    assert (
+        AtomicDirectory("locked", locked=True).work_dir
+        == AtomicDirectory("locked", locked=True).work_dir
+    )
