@@ -15,7 +15,7 @@ from pex import targets
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
-from pex.pip.installation import _PIP, PipInstallation, get_pip
+from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
