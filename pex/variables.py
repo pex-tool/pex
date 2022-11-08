@@ -773,6 +773,7 @@ def venv_dir(
     if interpreter_path:
         venv_contents["interpreter"] = os.path.realpath(interpreter_path)
 
+    print("VENV CONTENTS with PEX_PYTHON_PATH={}: {}".format(ENV.PEX_PYTHON_PATH, json.dumps(venv_contents, sort_keys=True)))
     venv_contents_hash = hashlib.sha1(
         json.dumps(venv_contents, sort_keys=True).encode("utf-8")
     ).hexdigest()
