@@ -15,7 +15,7 @@ from pex import targets
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
-from pex.pip.installation import get_pip
+from pex.pip.installation import _PIP, PipInstallation, get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
@@ -312,7 +312,12 @@ def test_pip_pex_interpreter_venv_hash_issue_1885(
 
     This tests that that doesn't happen.
     """
-
+    # Remove any existing pip.pex which may exist as a result of other test suites.
+    installation = PipInstallation(
+        interpreter=current_interpreter,
+        version=PipVersion.VENDORED,
+    )
+    del _PIP[installation]
     binary = current_interpreter.binary
     binary_link = os.path.join(str(tmpdir), "python")
     os.symlink(binary, binary_link)
