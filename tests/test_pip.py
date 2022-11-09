@@ -4,6 +4,8 @@
 from __future__ import absolute_import
 
 import glob
+import hashlib
+import json
 import os
 import warnings
 
@@ -13,7 +15,7 @@ from pex import targets
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
-from pex.pip.installation import get_pip
+from pex.pip.installation import _PIP, PipInstallation, get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
@@ -294,3 +296,41 @@ def test_create_confounding_env_vars_issue_1668(
         requirements=["ansicolors==1.1.8"], download_dir=download_dir
     ).wait()
     assert ["ansicolors-1.1.8-py2.py3-none-any.whl"] == os.listdir(download_dir)
+
+
+def test_pip_pex_interpreter_venv_hash_issue_1885(
+    create_pip,  # type: CreatePip
+    current_interpreter,  # type: PythonInterpreter
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+    """This test is under the test_pip module because the resolver
+    doesn't allow the user to control the pip.pex interpreter constraints, so those intperpreter
+    constraints can't feed into the venv_dir hash. Therefore if
+    PEX_PYTHON_PATH is present and contains symlinks that aren't resolved the wrong pip pex venv
+    may end up being invoked by resolver.resolve because the pip.pex venv dir collisions.
+
+    This tests that that doesn't happen.
+    """
+    # Remove any existing pip.pex which may exist as a result of other test suites.
+    installation = PipInstallation(
+        interpreter=current_interpreter,
+        version=PipVersion.VENDORED,
+    )
+    del _PIP[installation]
+    binary = current_interpreter.binary
+    binary_link = os.path.join(str(tmpdir), "python")
+    os.symlink(binary, binary_link)
+    pip_w_linked_ppp = create_pip(current_interpreter, PEX_PYTHON_PATH=binary_link)
+    print("binary link real path resolves to: {}".format(os.path.realpath(binary_link)))
+    venv_contents_hash = hashlib.sha1(
+        json.dumps(
+            {
+                "pex_path": {},
+                "PEX_PYTHON_PATH": (binary_link,),
+                "interpreter": os.path.realpath(binary_link),
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    assert venv_contents_hash in pip_w_linked_ppp._pip_pex.venv_dir

@@ -765,7 +765,9 @@ def venv_dir(
         if (
             not ENV.PEX_PYTHON_PATH
             or interpreter_binary.startswith(ENV.PEX_PYTHON_PATH)
-            or os.path.realpath(interpreter_binary).startswith(ENV.PEX_PYTHON_PATH)
+            or os.path.realpath(interpreter_binary).startswith(
+                tuple(os.path.realpath(p) for p in ENV.PEX_PYTHON_PATH)
+            )
         ):
             interpreter_path = interpreter_binary
     if interpreter_path:
