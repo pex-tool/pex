@@ -229,13 +229,15 @@ def vendorize(root_dir, vendor_specs, prefix, update):
         # Setting --no-build-isolation means that versions of setuptools and wheel must be provided
         # in the environment in which we run the pip command, which is the environment in which we
         # run pex.vendor. Since we document that pex.vendor should be run via tox, that environment
-        # will contain pinned versions of setuptools and wheel. As a result, vendoring (at least via
-        # tox) is hermetic.
+        # will contain pinned versions of setuptools and wheel. We further set `--no-cache-dir` so
+        # that Pip finds no newer versions of wheel in its cache. As a result, vendoring (at least
+        # via tox) is hermetic.
         requirement = vendor_spec.prepare()
         cmd = [
             "pip",
             "install",
             "--no-build-isolation",
+            "--no-cache-dir",
             "--no-compile",
             "--prefix",
             prefix_dir_by_vendor_spec[vendor_spec],

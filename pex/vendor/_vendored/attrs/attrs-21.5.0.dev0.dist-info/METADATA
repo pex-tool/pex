@@ -16,6 +16,7 @@ Project-URL: Funding, https://github.com/sponsors/hynek
 Project-URL: Tidelift, https://tidelift.com/subscription/pkg/pypi-attrs?utm_source=pypi-attrs&utm_medium=pypi
 Project-URL: Ko-fi, https://ko-fi.com/the_hynek
 Keywords: class,attribute,boilerplate
+Platform: UNKNOWN
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
 Classifier: Natural Language :: English
@@ -36,8 +37,6 @@ Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
 Requires-Python: >=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*
 Description-Content-Type: text/x-rst
-License-File: LICENSE
-License-File: AUTHORS.rst
 Provides-Extra: dev
 Requires-Dist: coverage[toml] (>=5.0.2) ; extra == 'dev'
 Requires-Dist: hypothesis ; extra == 'dev'
@@ -227,3 +226,5 @@ A full list of contributors can be found in `GitHub's overview <https://github.c
 
 It’s the spiritual successor of `characteristic <https://characteristic.readthedocs.io/>`_ and aspires to fix some of it clunkiness and unfortunate decisions.
 Both were inspired by Twisted’s `FancyEqMixin <https://twistedmatrix.com/documents/current/api/twisted.python.util.FancyEqMixin.html>`_ but both are implemented using class decorators because `subclassing is bad for you <https://www.youtube.com/watch?v=3MNVP9-hglc>`_, m’kay?
+
+
