@@ -798,3 +798,45 @@ def test_remove(
     assert os.path.exists(venv_dir)
     assert not os.path.exists(venv_pex)
     assert not os.path.exists(pex_root)
+
+@pytest.mark.parametrize(
+    "system_site_package", [pytest.param(flag, id=str(flag)) for flag in [True, False]]
+)
+def test_system_site_package(
+    tmpdir,
+    system_site_package,  # type: Layout.Value
+):
+    # type: (...) -> None
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
+    def create_venv_pex():
+        # type: () -> str
+        venv_pex = os.path.join(str(tmpdir), "venv.pex")
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "-o",
+            venv_pex,
+            "--include-tools",
+        ]
+        if system_site_package.value:
+            args.append("--system-site-packages")
+        run_pex_command(args=args).assert_success()
+        return venv_pex
+
+    venv_dir = os.path.join(str(tmpdir), "venv_dir")
+    assert not os.path.exists(venv_dir)
+
+    venv_pex = create_venv_pex()
+    subprocess.check_call(args=[venv_pex, "venv", venv_dir], env=make_env(PEX_TOOLS=True))
+    assert os.path.exists(venv_dir)
+    assert os.path.exists(venv_pex)
+    assert os.path.exists(pex_root)
+
+    pyvenv_content = open(os.path.join(venv_dir, "pyvenv.cfg")).read()
+    print(pyvenv_content)
+
+    shutil.rmtree(venv_dir)
+    assert not os.path.exists(venv_dir)
