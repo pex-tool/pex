@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import errno
 import multiprocessing
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -800,43 +801,55 @@ def test_remove(
     assert not os.path.exists(pex_root)
 
 @pytest.mark.parametrize(
-    "system_site_package", [pytest.param(flag, id=str(flag)) for flag in [True, False]]
+    "enable_system_site_package", [pytest.param(flag, id=str(flag)) for flag in [True, False]]
 )
 def test_system_site_package(
     tmpdir,
-    system_site_package,  # type: Layout.Value
+    enable_system_site_package,  # type: bool
 ):
     # type: (...) -> None
     pex_root = os.path.join(str(tmpdir), "pex_root")
 
-    def create_venv_pex():
-        # type: () -> str
-        venv_pex = os.path.join(str(tmpdir), "venv.pex")
-        args=[
-            "--pex-root",
-            pex_root,
-            "--runtime-pex-root",
-            pex_root,
-            "-o",
-            venv_pex,
-            "--include-tools",
-        ]
-        if system_site_package.value:
-            args.append("--system-site-packages")
-        run_pex_command(args=args).assert_success()
-        return venv_pex
+    venv_pex = os.path.join(str(tmpdir), "venv.pex")
+    run_pex_command(args=[
+        "--pex-root",
+        pex_root,
+        "--runtime-pex-root",
+        pex_root,
+        "-o",
+        venv_pex,
+        "--include-tools",
+    ]).assert_success()
 
     venv_dir = os.path.join(str(tmpdir), "venv_dir")
     assert not os.path.exists(venv_dir)
+    create_venv_args = [venv_pex, "venv", venv_dir]
+    if enable_system_site_package:
+        create_venv_args.append("--system-site-packages")
+    subprocess.check_call(args=create_venv_args, env=make_env(PEX_TOOLS=True))
 
-    venv_pex = create_venv_pex()
-    subprocess.check_call(args=[venv_pex, "venv", venv_dir], env=make_env(PEX_TOOLS=True))
     assert os.path.exists(venv_dir)
     assert os.path.exists(venv_pex)
     assert os.path.exists(pex_root)
 
-    pyvenv_content = open(os.path.join(venv_dir, "pyvenv.cfg")).read()
-    print(pyvenv_content)
+    # Check pyvenv.cfg
+    pyvenv_cfg_lines = open(os.path.join(venv_dir, "pyvenv.cfg")).readlines()
+    include_system_site_packages = any([re.findall(r'^include-system-site-packages\s*=\s*(\S+)$',line) == ["true"] for line in pyvenv_cfg_lines])
+    assert include_system_site_packages == enable_system_site_package
 
-    shutil.rmtree(venv_dir)
-    assert not os.path.exists(venv_dir)
+    # Check site-packages
+    venv = Virtualenv.enclosing(os.path.join(venv_dir, "bin", "python"))
+    assert venv is not None
+    venv_interpreter = venv.interpreter
+    venv_base_interpreter = venv_interpreter.resolve_base_interpreter()
+    assert venv_interpreter != venv_base_interpreter, (
+        "The venv base interpreter should be the system interpreter; not the venv interpreter itself."
+    )
+
+    venv_interpreter_site_packages = venv_interpreter.site_packages
+    system_site_packages = venv_base_interpreter.site_packages
+
+    if enable_system_site_package:
+        assert all([p in venv_interpreter_site_packages for p in system_site_packages])
+    else:
+        assert not set(venv_interpreter_site_packages).intersection(system_site_packages)

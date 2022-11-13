@@ -166,7 +166,7 @@ class Venv(PEXCommand):
         )
         parser.add_argument(
             "--system-site-packages",
-            action="store_true"
+            action="store_true",
             default=False,
             help="Pass '--system-site-packages' to venv creation"
         )
@@ -186,7 +186,7 @@ class Venv(PEXCommand):
                 force=self.options.force,
                 copies=self.options.copies,
                 prompt=self.options.prompt,
-                system_site_packages=self.options.system_site_package
+                system_site_packages=self.options.system_site_packages
             )
 
         if self.options.prompt != venv.custom_prompt:
