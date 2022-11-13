@@ -800,6 +800,7 @@ def test_remove(
     assert not os.path.exists(venv_pex)
     assert not os.path.exists(pex_root)
 
+
 @pytest.mark.parametrize(
     "enable_system_site_package", [pytest.param(flag, id=str(flag)) for flag in [True, False]]
 )
@@ -811,15 +812,17 @@ def test_system_site_package(
     pex_root = os.path.join(str(tmpdir), "pex_root")
 
     venv_pex = os.path.join(str(tmpdir), "venv.pex")
-    run_pex_command(args=[
-        "--pex-root",
-        pex_root,
-        "--runtime-pex-root",
-        pex_root,
-        "-o",
-        venv_pex,
-        "--include-tools",
-    ]).assert_success()
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "-o",
+            venv_pex,
+            "--include-tools",
+        ]
+    ).assert_success()
 
     venv_dir = os.path.join(str(tmpdir), "venv_dir")
     assert not os.path.exists(venv_dir)
@@ -834,7 +837,12 @@ def test_system_site_package(
 
     # Check pyvenv.cfg
     pyvenv_cfg_lines = open(os.path.join(venv_dir, "pyvenv.cfg")).readlines()
-    include_system_site_packages = any([re.findall(r'^include-system-site-packages\s*=\s*(\S+)$',line) == ["true"] for line in pyvenv_cfg_lines])
+    include_system_site_packages = any(
+        [
+            re.findall(r"^include-system-site-packages\s*=\s*(\S+)$", line) == ["true"]
+            for line in pyvenv_cfg_lines
+        ]
+    )
     assert include_system_site_packages == enable_system_site_package
 
     # Check site-packages
@@ -842,9 +850,9 @@ def test_system_site_package(
     assert venv is not None
     venv_interpreter = venv.interpreter
     venv_base_interpreter = venv_interpreter.resolve_base_interpreter()
-    assert venv_interpreter != venv_base_interpreter, (
-        "The venv base interpreter should be the system interpreter; not the venv interpreter itself."
-    )
+    assert (
+        venv_interpreter != venv_base_interpreter
+    ), "The venv base interpreter should be the system interpreter; not the venv interpreter itself."
 
     venv_interpreter_site_packages = venv_interpreter.site_packages
     system_site_packages = venv_base_interpreter.site_packages
