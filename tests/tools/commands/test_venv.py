@@ -801,7 +801,6 @@ def test_remove(
     assert not os.path.exists(pex_root)
 
 
-@pytest.mark.skipif(sys.version_info < (3,5), reason="py2 doesn't support system-site-packages")
 @pytest.mark.parametrize(
     "enable_system_site_package", [pytest.param(flag, id=str(flag)) for flag in [True, False]]
 )
@@ -835,16 +834,6 @@ def test_system_site_package(
     assert os.path.exists(venv_dir)
     assert os.path.exists(venv_pex)
     assert os.path.exists(pex_root)
-
-    # Check pyvenv.cfg
-    pyvenv_cfg_lines = open(os.path.join(venv_dir, "pyvenv.cfg")).readlines()
-    include_system_site_packages = any(
-        [
-            re.findall(r"^include-system-site-packages\s*=\s*(\S+)$", line) == ["true"]
-            for line in pyvenv_cfg_lines
-        ]
-    )
-    assert include_system_site_packages == enable_system_site_package
 
     # Check site-packages
     venv = Virtualenv.enclosing(os.path.join(venv_dir, "bin", "python"))
