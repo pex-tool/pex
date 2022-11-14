@@ -801,6 +801,7 @@ def test_remove(
     assert not os.path.exists(pex_root)
 
 
+@pytest.mark.skipif(sys.version_info < (3,5), reason="py2 doesn't support system-site-packages")
 @pytest.mark.parametrize(
     "enable_system_site_package", [pytest.param(flag, id=str(flag)) for flag in [True, False]]
 )
