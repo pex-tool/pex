@@ -845,9 +845,10 @@ def test_system_site_package(
     ), "The venv base interpreter should be the system interpreter; not the venv interpreter itself."
 
     venv_interpreter_site_packages = venv_interpreter.site_packages
+    venv_interpreter_sys_path = venv_interpreter.sys_path
     system_site_packages = venv_base_interpreter.site_packages
 
     if enable_system_site_package:
-        assert all([p in venv_interpreter_site_packages for p in system_site_packages])
+        assert all([p in venv_interpreter_sys_path for p in system_site_packages])
     else:
         assert not set(venv_interpreter_site_packages).intersection(system_site_packages)
