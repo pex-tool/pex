@@ -440,9 +440,6 @@ def _populate_sources(
 
             os.environ["VIRTUAL_ENV"] = venv_dir
 
-            # A Python interpreter always inserts the CWD at the head of the sys.path.
-            sys.path.insert(0, "")
-
             bin_path = os.environ.get("PEX_VENV_BIN_PATH", {bin_path!r})
             if bin_path != "false":
                 PATH = os.environ.get("PATH", "").split(os.pathsep)
