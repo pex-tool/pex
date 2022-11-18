@@ -489,18 +489,18 @@ def _populate_sources(
                 os.execv(script_path, [script_path] + sys.argv[1:])
 
             pex_interpreter = pex_overrides.get("PEX_INTERPRETER", "").lower() in ("1", "true")
-
-            if pex_interpreter:
-                # A Python interpreter always inserts the CWD at the head of the sys.path.
-                # See https://docs.python.org/3/library/sys.html#sys.path
-                sys.path.insert(0, "")
-
             PEX_INTERPRETER_ENTRYPOINT = "code:interact"
             entry_point = (
                 PEX_INTERPRETER_ENTRYPOINT
                 if pex_interpreter
                 else pex_overrides.get("PEX_MODULE", {entry_point!r} or PEX_INTERPRETER_ENTRYPOINT)
             )
+
+            if entry_point == PEX_INTERPRETER_ENTRYPOINT:
+                # A Python interpreter always inserts the CWD at the head of the sys.path.
+                # See https://docs.python.org/3/library/sys.html#sys.path
+                sys.path.insert(0, "")
+
             if entry_point == PEX_INTERPRETER_ENTRYPOINT and len(sys.argv) > 1:
                 args = sys.argv[1:]
 
