@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.114
+-------
+
+This release brings two fixes for ``--venv`` mode PEXes.
+
+* Only insert "" to head of sys.path if a venv PEX runs in interpreter mode (#1984)
+  `PR #1984 <https://github.com/pantsbuild/pex/pull/1984>`_
+
+* Map pex python path interpreter to realpath when creating venv dir hash. (#1972)
+  `PR #1972 <https://github.com/pantsbuild/pex/pull/1972>`_
+
 2.1.113
 -------
 
