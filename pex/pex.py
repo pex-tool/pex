@@ -628,6 +628,7 @@ class PEX(object):  # noqa: T000
         # type: () -> Any
 
         # A Python interpreter always inserts the CWD at the head of the sys.path.
+        # See https://docs.python.org/3/library/sys.html#sys.path
         sys.path.insert(0, "")
 
         args = sys.argv[1:]

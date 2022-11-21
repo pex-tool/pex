@@ -440,9 +440,6 @@ def _populate_sources(
 
             os.environ["VIRTUAL_ENV"] = venv_dir
 
-            # A Python interpreter always inserts the CWD at the head of the sys.path.
-            sys.path.insert(0, "")
-
             bin_path = os.environ.get("PEX_VENV_BIN_PATH", {bin_path!r})
             if bin_path != "false":
                 PATH = os.environ.get("PATH", "").split(os.pathsep)
@@ -498,6 +495,12 @@ def _populate_sources(
                 if pex_interpreter
                 else pex_overrides.get("PEX_MODULE", {entry_point!r} or PEX_INTERPRETER_ENTRYPOINT)
             )
+
+            if entry_point == PEX_INTERPRETER_ENTRYPOINT:
+                # A Python interpreter always inserts the CWD at the head of the sys.path.
+                # See https://docs.python.org/3/library/sys.html#sys.path
+                sys.path.insert(0, "")
+
             if entry_point == PEX_INTERPRETER_ENTRYPOINT and len(sys.argv) > 1:
                 args = sys.argv[1:]
 
