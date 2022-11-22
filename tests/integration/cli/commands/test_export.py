@@ -117,6 +117,7 @@ def test_export_single_artifact(tmpdir):
         == export(tmpdir, attr.evolve(UNIVERSAL_ANSICOLORS, allow_wheels=False))
     )
 
+
 def test_export_normalizes_name_but_not_version(tmpdir):
     # type: (Any) -> None
 
@@ -139,16 +140,23 @@ def test_export_normalizes_name_but_not_version(tmpdir):
                             locked_requirements=SortedTuple(
                                 [
                                     LockedRequirement(
-                                        pin=Pin(ProjectName("twitter.common.decorators"), Version("1.3.0")),
+                                        pin=Pin(
+                                            ProjectName("twitter.common.decorators"),
+                                            Version("1.3.0"),
+                                        ),
                                         artifact=Artifact.from_url(
                                             url="http://localhost:9999/twitter.common.decorators-1.3.0-py2.py3-none-any.whl",
-                                            fingerprint=Fingerprint(algorithm="md5", hash="abcd1234"),
+                                            fingerprint=Fingerprint(
+                                                algorithm="md5", hash="abcd1234"
+                                            ),
                                         ),
                                         additional_artifacts=SortedTuple(
                                             [
                                                 Artifact.from_url(
                                                     url="http://localhost:9999/twitter.common.decorators-1.3.0.tar.gz",
-                                                    fingerprint=Fingerprint(algorithm="sha1", hash="ef567890"),
+                                                    fingerprint=Fingerprint(
+                                                        algorithm="sha1", hash="ef567890"
+                                                    ),
                                                 )
                                             ]
                                         ),
@@ -158,9 +166,10 @@ def test_export_normalizes_name_but_not_version(tmpdir):
                         )
                     ]
                 ),
-            )
+            ),
         )
     )
+
 
 def test_export_respects_target(tmpdir):
     # type: (Any) -> None
