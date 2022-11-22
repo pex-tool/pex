@@ -156,6 +156,25 @@ class TargetConfiguration(object):
                     )
                     if resolved_platforms:
                         for resolved_platform in resolved_platforms:
+                            # if there was an explicit complete platform specified, only use the
+                            # local interpreter if it exactly matches, or else incorrect wheels may
+                            # be chosen
+                            requested_complete = all_platforms[resolved_platform]
+                            candidate_complete = CompletePlatform.from_interpreter(
+                                candidate_interpreter
+                            )
+                            if (
+                                requested_complete is not None
+                                and requested_complete != candidate_complete
+                            ):
+                                TRACER.log(
+                                    "Rejected resolution of {} for platform {} due to different complete platforms".format(
+                                        candidate_interpreter, resolved_platform
+                                    ),
+                                    V=3,
+                                )
+                                continue
+
                             TRACER.log(
                                 "Resolved {} for platform {}".format(
                                     candidate_interpreter, resolved_platform
