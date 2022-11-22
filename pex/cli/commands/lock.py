@@ -545,7 +545,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     "{project_name}=={version} \\\n"
                     "  {hashes}\n".format(
                         project_name=pin.project_name,
-                        version=pin.version,
+                        version=pin.version.raw,
                         hashes=" \\\n  ".join(
                             "--hash={algorithm}:{hash}".format(
                                 algorithm=fingerprint.algorithm, hash=fingerprint.hash
