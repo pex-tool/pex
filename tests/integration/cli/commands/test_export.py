@@ -166,7 +166,7 @@ def test_export_normalizes_name_but_not_version(tmpdir):
     )
 
 
-def test_export_ordering(tmpdir):
+def test_export_sort_by(tmpdir):
     # type: (Any) -> None
     ansicolors_plus_attrs = attr.evolve(
         UNIVERSAL_ANSICOLORS,
