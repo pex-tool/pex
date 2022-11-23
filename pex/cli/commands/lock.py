@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 import sys
 from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _ActionsContainer
 from collections import OrderedDict
+from operator import attrgetter
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
@@ -43,7 +44,7 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, Dict, List, Optional, Tuple, Union
+    from typing import IO, Dict, Iterable, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -65,6 +66,14 @@ class ExportFormat(Enum["ExportFormat.Value"]):
 
     PIP = Value("pip")
     PEP_665 = Value("pep-665")
+
+
+class ExportSortBy(Enum["ExportSortBy.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    SPECIFICITY = Value("specificity")
+    PROJECT_NAME = Value("project-name")
 
 
 class DryRunStyle(Enum["DryRunStyle.Value"]):
@@ -231,6 +240,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "The format to export the lock to. Currently only the {pip!r} requirements file "
                 "format using `--hash` is supported.".format(pip=ExportFormat.PIP)
             ),
+        )
+        export_parser.add_argument(
+            "--sort-by",
+            default=ExportSortBy.SPECIFICITY,
+            choices=ExportSortBy.values(),
+            type=ExportSortBy.for_value,
+            help="How to sort the requirements in the export (if supported).",
         )
         cls._add_lockfile_option(export_parser, verb="export")
         cls._add_lock_options(export_parser)
@@ -540,7 +556,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         with self.output(self.options) as output:
-            for pin, fingerprints in fingerprints_by_pin.items():
+            pins = fingerprints_by_pin.keys()  # type: Iterable[Pin]
+            if self.options.sort_by == ExportSortBy.PROJECT_NAME:
+                pins = sorted(pins, key=attrgetter("project_name.normalized"))
+            for pin in pins:
+                fingerprints = fingerprints_by_pin[pin]
                 output.write(
                     "{project_name}=={version} \\\n"
                     "  {hashes}\n".format(

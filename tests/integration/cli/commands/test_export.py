@@ -166,6 +166,75 @@ def test_export_normalizes_name_but_not_version(tmpdir):
     )
 
 
+def test_export_sort_by(tmpdir):
+    # type: (Any) -> None
+    ansicolors_plus_attrs = attr.evolve(
+        UNIVERSAL_ANSICOLORS,
+        requirements=[
+            Requirement.parse("a-package"),
+            Requirement.parse("z-package"),
+        ],
+        locked_resolves=[
+            attr.evolve(
+                UNIVERSAL_ANSICOLORS.locked_resolves[0],
+                locked_requirements=(
+                    [
+                        LockedRequirement(
+                            pin=Pin(ProjectName("a-package"), Version("1.1.8")),
+                            artifact=Artifact.from_url(
+                                url="http://localhost:9999/a-package-1.1.8-py2.py3-none-any.whl",
+                                fingerprint=Fingerprint(algorithm="md5", hash="abcd1234"),
+                            ),
+                        ),
+                        LockedRequirement(
+                            pin=Pin(ProjectName("other-package"), Version("0.1.3")),
+                            artifact=Artifact.from_url(
+                                url="http://localhost:9999/other-package-0.1.3-py2.py3-none-any.whl",
+                                fingerprint=Fingerprint(algorithm="sha256", hash="spamspam"),
+                            ),
+                        ),
+                        LockedRequirement(
+                            pin=Pin(ProjectName("z-package"), Version("22.1.0")),
+                            requires_dists=SortedTuple([Requirement("other-package")]),
+                            artifact=Artifact.from_url(
+                                url="http://localhost:9999/z-package-22.1.0-py2.py3-none-any.whl",
+                                fingerprint=Fingerprint(algorithm="sha256", hash="spameggs"),
+                            ),
+                        ),
+                    ]
+                ),
+            )
+        ],
+    )
+    assert (
+        dedent(
+            """\
+            a-package==1.1.8 \\
+              --hash=md5:abcd1234
+            z-package==22.1.0 \\
+              --hash=sha256:spameggs
+            other-package==0.1.3 \\
+              --hash=sha256:spamspam
+            """
+        )
+        == export(tmpdir, ansicolors_plus_attrs, "--sort-by=specificity")
+    )
+
+    assert (
+        dedent(
+            """\
+            a-package==1.1.8 \\
+              --hash=md5:abcd1234
+            other-package==0.1.3 \\
+              --hash=sha256:spamspam
+            z-package==22.1.0 \\
+              --hash=sha256:spameggs
+            """
+        )
+        == export(tmpdir, ansicolors_plus_attrs, "--sort-by=project-name")
+    )
+
+
 def test_export_respects_target(tmpdir):
     # type: (Any) -> None
 
