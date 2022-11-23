@@ -541,7 +541,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         with self.output(self.options) as output:
-            for pin in sorted(fingerprints_by_pin.keys(), key=attrgetter("project_name")):
+            for pin in sorted(fingerprints_by_pin.keys(), key=attrgetter("project_name.normalized")):
                 fingerprints = fingerprints_by_pin[pin]
                 output.write(
                     "{project_name}=={version} \\\n"
