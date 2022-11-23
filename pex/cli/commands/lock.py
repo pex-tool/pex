@@ -44,7 +44,7 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import IO, Dict, List, Optional, Tuple, Union
+    from typing import IO, Dict, Iterable, List, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -556,7 +556,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         with self.output(self.options) as output:
-            pins = fingerprints_by_pin.keys()
+            pins = fingerprints_by_pin.keys()  # type: Iterable[Pin]
             if self.options.sort_by == ExportSortBy.PROJECT_NAME:
                 pins = sorted(pins, key=attrgetter("project_name.normalized"))
             for pin in pins:

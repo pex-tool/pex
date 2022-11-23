@@ -195,7 +195,7 @@ def test_export_sort_by(tmpdir):
                         ),
                         LockedRequirement(
                             pin=Pin(ProjectName("z-package"), Version("22.1.0")),
-                            requires_dists=[Requirement("other-package")],
+                            requires_dists=SortedTuple([Requirement("other-package")]),
                             artifact=Artifact.from_url(
                                 url="http://localhost:9999/z-package-22.1.0-py2.py3-none-any.whl",
                                 fingerprint=Fingerprint(algorithm="sha256", hash="spameggs"),
