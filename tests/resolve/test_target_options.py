@@ -384,3 +384,147 @@ def test_configure_resolve_local_platforms(
         expected_interpreter=py27,
         expected_interpreters=(py310, py27),
     )
+
+
+def test_configure_resolve_local_platforms_with_complete_platforms(
+    tmpdir,  # type: Any
+    parser,  # type: ArgumentParser
+    py27,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
+    py310,  # type: PythonInterpreter
+):
+    # type: (...) -> None
+    target_options.register(parser)
+
+    path_env_var = path_for(py27, py38, py310)
+
+    def dump_complete_platform(
+        name,  # type: str
+        marker_environment,  # type: dict[str, str]
+        compatible_tags,  # type: list[str]
+        **extra_fields  # type: Any
+    ):
+        # type: (...) -> str
+        path = os.path.join(str(tmpdir), name)
+        with open(path, "w") as fp:
+            json.dump(
+                dict(
+                    marker_environment=marker_environment,
+                    compatible_tags=compatible_tags,
+                    **extra_fields
+                ),
+                fp,
+            )
+        return path
+
+    def assert_local_platforms(
+        complete_platforms,  # type: Iterable[str]
+        expected_platforms,  # type: Iterable[str]
+        expected_interpreter,  # type: Optional[PythonInterpreter]
+        expected_interpreters=None,  # type: Optional[Tuple[PythonInterpreter, ...]]
+    ):
+        # type: (...) -> None
+        args = ["--python-path", path_env_var, "--resolve-local-platforms"]
+        args.extend(
+            itertools.chain.from_iterable(("--complete-platform", p) for p in complete_platforms)
+        )
+        targets = compute_target_configuration(parser, args)
+        # assert tuple(Platform.create(ep) for ep in expected_platforms) == targets.platforms
+        assert_interpreters_configured(targets, expected_interpreter, expected_interpreters)
+
+    py38_complete = dump_complete_platform(
+        "py38",
+        py38.identity.env_markers.as_dict(),
+        py38.identity.supported_tags.to_string_list(),
+    )
+    py38_extra_complete = dump_complete_platform(
+        "py38_extra",
+        py38.identity.env_markers.as_dict(),
+        py38.identity.supported_tags.to_string_list() + ["py3-none-manylinux_2_9999_x86_64"],
+    )
+
+    py38_subset_tags = py38.identity.supported_tags.to_string_list()[:-10]
+    # make the platform different
+    py38_subset_tags[0:2] = py38_subset_tags[0:2:-1]
+    py38_subset_complete = dump_complete_platform(
+        "py38_subset",
+        py38.identity.env_markers.as_dict(),
+        py38_subset_tags,
+    )
+    py310_complete = dump_complete_platform(
+        "py310",
+        py310.identity.env_markers.as_dict(),
+        py310.identity.supported_tags.to_string_list(),
+    )
+    py39999_complete = dump_complete_platform(
+        "other",
+        {
+            **py310.identity.env_markers.as_dict(),
+            "implementation_version": "3.9999.0",
+            "python_full_version": "3.9999.0",
+            "python_version": "3.9999",
+            "sys_platform": "linux",
+        },
+        [
+            "py39999-none-any",
+            "py3-none-any",
+            "py39998-none-any",
+            "py39997-none-any",
+            # you get the idea...
+            "py310-none-any",
+            "py39-none-any",
+            "py38-none-any",
+            "py37-none-any",
+            "py36-none-any",
+            "py35-none-any",
+            "py34-none-any",
+            "py33-none-any",
+            "py32-none-any",
+            "py31-none-any",
+            "py30-none-any",
+        ],
+    )
+
+    # exact match, yay
+    assert_local_platforms(
+        complete_platforms=[py38_complete],
+        expected_platforms=[str(py38.platform)],
+        expected_interpreter=py38,
+    )
+
+    # the interpreter doesn't support some tags, but that's fine
+    assert_local_platforms(
+        complete_platforms=[py38_extra_complete],
+        expected_platforms=[str(py38.platform)],
+        expected_interpreter=py38,
+    )
+
+    # # the interpreter has some tags it supports that this complete platform does not
+    assert_local_platforms(
+        complete_platforms=[py38_subset_complete],
+        expected_platforms=[],
+        expected_interpreter=None,
+    )
+
+    # as above, but now with multiple complete platforms that apply to one interpreter (two
+    # compatible, one not)
+    assert_local_platforms(
+        complete_platforms=[py38_subset_complete, py38_complete, py38_extra_complete],
+        expected_platforms=[],
+        expected_interpreter=None,
+    )
+
+    # wildly different
+    assert_local_platforms(
+        complete_platforms=[py39999_complete],
+        expected_platforms=[],
+        expected_interpreter=None,
+    )
+
+    # multiple
+    assert_local_platforms(
+        complete_platforms=[py38_complete, py310_complete],
+        expected_platforms=[str(py38.platform), str(py310.platform)],
+        expected_interpreter=py38,
+        expected_interpreters=(py38, py310),
+    )

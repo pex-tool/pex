@@ -100,6 +100,73 @@ class InterpreterConstraintsNotSatisfied(TargetConfigurationError):
     """Indicates no interpreter meeting the requested constraints could be found."""
 
 
+def _interpreter_compatible_platforms(
+    all_platforms,  # type: OrderedDict[Optional[Platform], Optional[CompletePlatform]]
+    candidate_interpreter,  # type: PythonInterpreter
+):
+    # type: (...) -> frozenset[Platform]
+    resolved_platforms = candidate_interpreter.supported_platforms.intersection(
+        all_platforms
+    )  # type: frozenset[Platform]
+    incompatible_platforms = set()  # type: set[Platform]
+
+    for resolved_platform in resolved_platforms:
+        requested_complete = all_platforms[resolved_platform]
+        if requested_complete is not None:
+            # if there was an explicit complete platform specified, only use the local interpreter
+            # when the interpreter's tags are a subset of the complete platform's: tags supported by
+            # the interpreter but not the complete platform may result in incompatible wheels being
+            # chosen, if the interpreter was used directly
+            candidate_complete = CompletePlatform.from_interpreter(candidate_interpreter)
+            requested_tags = set(requested_complete.supported_tags)
+            missing_tags = OrderedSet(
+                t for t in candidate_complete.supported_tags if t not in requested_tags
+            )
+            if missing_tags:
+                TRACER.log(
+                    "Rejected resolution of {} for platform {} due to supporting {} extra tags".format(
+                        candidate_interpreter,
+                        resolved_platform,
+                        len(missing_tags),
+                    ),
+                    V=3,
+                )
+                TRACER.log(
+                    "Extra tags supported by {} for platform {} but not supported by specified complete platform: {}".format(
+                        candidate_interpreter,
+                        resolved_platform,
+                        ", ".join(map(str, missing_tags)),
+                    ),
+                    V=9,
+                )
+                # keep iterating to give information about each of the relevant platforms
+                incompatible_platforms.add(resolved_platform)
+                continue
+
+        TRACER.log(
+            "Provisionally accepted resolution of {} for platform {} due to matching {}".format(
+                candidate_interpreter,
+                resolved_platform,
+                "tags"
+                if requested_complete is not None
+                else "platform (no complete platform and thus no tags to check)",
+            ),
+            V=3,
+        )
+
+    if incompatible_platforms:
+        TRACER.log(
+            "Rejected interpreter {} due to being incompatible with {}: {}".format(
+                candidate_interpreter,
+                "a platform" if len(incompatible_platforms) == 1 else "some platforms",
+                ", ".join(sorted(map(str, incompatible_platforms))),
+            )
+        )
+        return frozenset()
+
+    return resolved_platforms
+
+
 @attr.s(frozen=True)
 class TargetConfiguration(object):
     interpreter_configuration = attr.ib(
@@ -151,30 +218,11 @@ class TargetConfiguration(object):
                 )  # type: OrderedSet[PythonInterpreter]
                 candidate_interpreters.add(PythonInterpreter.get())
                 for candidate_interpreter in candidate_interpreters:
-                    resolved_platforms = candidate_interpreter.supported_platforms.intersection(
-                        all_platforms
+                    resolved_platforms = _interpreter_compatible_platforms(
+                        all_platforms, candidate_interpreter
                     )
                     if resolved_platforms:
                         for resolved_platform in resolved_platforms:
-                            # if there was an explicit complete platform specified, only use the
-                            # local interpreter if it exactly matches, or else incorrect wheels may
-                            # be chosen
-                            requested_complete = all_platforms[resolved_platform]
-                            candidate_complete = CompletePlatform.from_interpreter(
-                                candidate_interpreter
-                            )
-                            if (
-                                requested_complete is not None
-                                and requested_complete != candidate_complete
-                            ):
-                                TRACER.log(
-                                    "Rejected resolution of {} for platform {} due to different complete platforms".format(
-                                        candidate_interpreter, resolved_platform
-                                    ),
-                                    V=3,
-                                )
-                                continue
-
                             TRACER.log(
                                 "Resolved {} for platform {}".format(
                                     candidate_interpreter, resolved_platform
