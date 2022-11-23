@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 import sys
 from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _ActionsContainer
 from collections import OrderedDict
+from operator import attrgetter
 
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
@@ -540,7 +541,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             )
 
         with self.output(self.options) as output:
-            for pin, fingerprints in fingerprints_by_pin.items():
+            for pin in sorted(fingerprints_by_pin.keys(), key=attrgetter("project_name")):
+                fingerprints = fingerprints_by_pin[pin]
                 output.write(
                     "{project_name}=={version} \\\n"
                     "  {hashes}\n".format(
