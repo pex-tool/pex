@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.115
+-------
+
+This release brings some attention to the ``pex3 lock export``
+subcommand to make it more useful when inter-operating with
+``pip-tools``.
+
+* Sort requirements based on normalized project name when exporting (#1992)
+  `PR #1992 <https://github.com/pantsbuild/pex/pull/1992>`_
+
+* Use raw version when exporting (#1990)
+  `PR #1990 <https://github.com/pantsbuild/pex/pull/1990>`_
+
 2.1.114
 -------
 
