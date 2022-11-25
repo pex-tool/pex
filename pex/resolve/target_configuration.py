@@ -20,7 +20,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Tuple
+    from typing import FrozenSet, Iterator, Optional, Set, Tuple
 
     import attr  # vendor:skip
 else:
@@ -104,11 +104,11 @@ def _interpreter_compatible_platforms(
     all_platforms,  # type: OrderedDict[Optional[Platform], Optional[CompletePlatform]]
     candidate_interpreter,  # type: PythonInterpreter
 ):
-    # type: (...) -> frozenset[Platform]
+    # type: (...) -> FrozenSet[Platform]
     resolved_platforms = candidate_interpreter.supported_platforms.intersection(
         all_platforms
-    )  # type: frozenset[Platform]
-    incompatible_platforms = set()  # type: set[Platform]
+    )  # type: FrozenSet[Platform]
+    incompatible_platforms = set()  # type: Set[Platform]
 
     for resolved_platform in resolved_platforms:
         requested_complete = all_platforms[resolved_platform]

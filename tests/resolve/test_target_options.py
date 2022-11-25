@@ -22,7 +22,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, List, Optional, Tuple
+    from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
 def compute_target_configuration(
@@ -400,8 +400,8 @@ def test_configure_resolve_local_platforms_with_complete_platforms(
 
     def dump_complete_platform(
         name,  # type: str
-        marker_environment,  # type: dict[str, str]
-        compatible_tags,  # type: list[str]
+        marker_environment,  # type: Dict[str, str]
+        compatible_tags,  # type: List[str]
         **extra_fields  # type: Any
     ):
         # type: (...) -> str
@@ -456,15 +456,16 @@ def test_configure_resolve_local_platforms_with_complete_platforms(
         py310.identity.env_markers.as_dict(),
         py310.identity.supported_tags.to_string_list(),
     )
+    py39999_env_markers = py310.identity.env_markers.as_dict()
+    py39999_env_markers.update(
+        implementation_version="3.9999.0",
+        python_full_version="3.9999.0",
+        python_version="3.9999",
+        sys_platform="linux",
+    )
     py39999_complete = dump_complete_platform(
         "other",
-        {
-            **py310.identity.env_markers.as_dict(),
-            "implementation_version": "3.9999.0",
-            "python_full_version": "3.9999.0",
-            "python_version": "3.9999",
-            "sys_platform": "linux",
-        },
+        py39999_env_markers,
         [
             "py39999-none-any",
             "py3-none-any",
