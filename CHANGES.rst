@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.116
+-------
+
+This release fixes a bug in ``--resolve-local-platforms`` when
+``--complete-platform`` was used.
+
+* Check for --complete-platforms match when --resolve-local-platforms (#1991)
+  `PR #1991 <https://github.com/pantsbuild/pex/pull/1991>`_
+
 2.1.115
 -------
 
