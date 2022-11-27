@@ -31,20 +31,22 @@ class InterpreterConstraint(object):
     def parse(
         cls,
         constraint,  # type: str
-        default_interpreter="CPython",  # type: str
+        default_interpreter=None,  # type: Optional[str]
     ):
         # type: (...) -> InterpreterConstraint
         try:
-            return cls(Requirement.parse(constraint))
+            requirement = Requirement.parse(constraint)
+            return cls(specifier=requirement.specifier, name=requirement.name)
         except RequirementParseError:
-            try:
-                return cls(
-                    Requirement.parse(
-                        "{interpreter}{specifier}".format(
-                            interpreter=default_interpreter, specifier=constraint
-                        )
-                    )
+            if default_interpreter is not None:
+                return cls.parse(
+                    constraint="{interpreter}{specifier}".format(
+                        interpreter=default_interpreter, specifier=constraint
+                    ),
+                    default_interpreter=None,
                 )
+            try:
+                return cls(specifier=SpecifierSet(constraint))
             except RequirementParseError as e:
                 raise ValueError(
                     "Unparseable interpreter constraint {constraint}: {err}".format(
@@ -70,7 +72,8 @@ class InterpreterConstraint(object):
             )
         )
 
-    requirement = attr.ib()  # type: Requirement
+    specifier = attr.ib()  # type: SpecifierSet
+    name = attr.ib(default=None)  # type: Optional[str]
 
     def iter_matching(self, paths=None):
         # type: (Optional[Iterable[str]]) -> Iterator[PythonInterpreter]
@@ -81,21 +84,18 @@ class InterpreterConstraint(object):
     @property
     def requires_python(self):
         # type: () -> SpecifierSet
-        return self.requirement.specifier
+        return self.specifier
 
     def __str__(self):
         # type: () -> str
-        return str(self.requirement)
+        return "{name}{specifier}".format(name=self.name or "", specifier=self.specifier)
 
     def __contains__(self, interpreter):
         # type: (PythonInterpreter) -> bool
         python_identity = interpreter.identity
-        return (
-            ProjectNameAndVersion(
-                project_name=python_identity.interpreter, version=python_identity.version_str
-            )
-            in self.requirement
-        )
+        if self.name and self.name != python_identity.interpreter:
+            return False
+        return python_identity.version_str in self.specifier
 
 
 @attr.s(frozen=True)
@@ -119,7 +119,7 @@ class InterpreterConstraints(object):
 
     def __str__(self):
         # type: () -> str
-        return " or ".join(str(constraint.requirement) for constraint in self.constraints)
+        return " or ".join(str(constraint) for constraint in self.constraints)
 
     def __contains__(self, interpreter):
         if not self.constraints:
@@ -316,11 +316,12 @@ COMPATIBLE_PYTHON_VERSIONS = (
     # N.B.: Pex does not support the missing 3.x versions here.
     PythonVersion(Lifecycle.EOL, 3, 5, 10),
     PythonVersion(Lifecycle.EOL, 3, 6, 15),
-    PythonVersion(Lifecycle.STABLE, 3, 7, 14),
-    PythonVersion(Lifecycle.STABLE, 3, 8, 14),
-    PythonVersion(Lifecycle.STABLE, 3, 9, 14),
-    PythonVersion(Lifecycle.STABLE, 3, 10, 7),
-    PythonVersion(Lifecycle.DEV, 3, 11, 0),
+    PythonVersion(Lifecycle.STABLE, 3, 7, 15),
+    PythonVersion(Lifecycle.STABLE, 3, 8, 15),
+    PythonVersion(Lifecycle.STABLE, 3, 9, 15),
+    PythonVersion(Lifecycle.STABLE, 3, 10, 8),
+    PythonVersion(Lifecycle.STABLE, 3, 11, 0),
+    PythonVersion(Lifecycle.DEV, 3, 12, 0),
 )
 
 

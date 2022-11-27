@@ -136,11 +136,14 @@ def test_calculate_no_targets_ics():
     assert (
         expected(
             PythonBinaryName(name="python", version=(3, 7)),
-            PythonBinaryName(name="python", version=(3, 8)),
-            PythonBinaryName(name="python", version=(3, 9)),
             PythonBinaryName(name="pypy", version=(3, 7)),
+            PythonBinaryName(name="python", version=(3, 8)),
+            PythonBinaryName(name="pypy", version=(3, 8)),
+            PythonBinaryName(name="python", version=(3, 9)),
+            PythonBinaryName(name="pypy", version=(3, 9)),
+            PythonBinaryName(name="pypy", version=(3, 6)),
         )
-        == calculate_binary_names(interpreter_constraints=[">=3.7,<3.10", "PyPy==3.7.*"])
+        == calculate_binary_names(interpreter_constraints=[">=3.7,<3.10", "PyPy==3.6.*"])
     )
 
 
