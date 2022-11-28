@@ -53,11 +53,16 @@ def _calculate_applicable_binary_names(
     if interpreter_constraints:
         ic_majors_minors.update(
             PythonBinaryName(
-                name=calculate_binary_name(interpreter_constraint.requirement.name), version=version
+                name=calculate_binary_name(platform_python_implementation=name), version=version
             )
             for interpreter_constraint in interpreter_constraints
             for version in iter_compatible_versions(
                 requires_python=[str(interpreter_constraint.requires_python)]
+            )
+            for name in (
+                (interpreter_constraint.name,)
+                if interpreter_constraint.name
+                else ("CPython", "PyPy")
             )
         )
     # If we get targets from ICs, we only want explicitly specified local interpreter targets;

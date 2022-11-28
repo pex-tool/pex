@@ -5,11 +5,23 @@ import itertools
 import sys
 
 from pex import interpreter_constraints
-from pex.interpreter_constraints import COMPATIBLE_PYTHON_VERSIONS, Lifecycle
+from pex.interpreter import PythonInterpreter
+from pex.interpreter_constraints import COMPATIBLE_PYTHON_VERSIONS, InterpreterConstraint, Lifecycle
+from pex.testing import PY27, PY38, PY310, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import List, Tuple
+
+
+def test_parse():
+    py38 = PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
+
+    assert py38 in InterpreterConstraint.parse("==3.8.*")
+    assert py38 in InterpreterConstraint.parse("CPython==3.8.*")
+    assert py38 in InterpreterConstraint.parse("==3.8.*", default_interpreter="CPython")
+    assert py38 not in InterpreterConstraint.parse("==3.8.*", default_interpreter="PyPy")
+    assert py38 not in InterpreterConstraint.parse("PyPy==3.8.*")
 
 
 def iter_compatible_versions(*requires_python):
