@@ -5,7 +5,7 @@ import os.path
 import subprocess
 import sys
 
-from pex.testing import make_env, run_pex_command
+from pex.testing import PY38, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -28,9 +28,13 @@ def test_packaging(
             "-v",
             "--pex-output-file",
             pex,
-        ]
+        ],
+        # The package script requires Python 3.
+        python=sys.executable if sys.version_info[0] >= 3 else ensure_python_interpreter(PY38),
     ).assert_success()
     assert os.path.exists(pex), "Expected {pex} to be created by {package_script}.".format(
         pex=pex, package_script=package_script
     )
+    # The packaged Pex PEX should work with all Pythons we support, including the current test
+    # interpreter.
     subprocess.check_call(args=[sys.executable, pex, "-V"], env=make_env(PEX_PYTHON=sys.executable))
