@@ -26,6 +26,7 @@ def test_packaging(
             "-e",
             "package",
             "--",
+            "-v",
             "--pex-output-file",
             pex,
         ]
