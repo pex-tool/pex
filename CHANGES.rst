@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+2.1.117
+-------
+
+This release fixes a bug introduced in Pex 2.1.109 where the released
+Pex PEX could not be executed by PyPy interpreters. More generally, any
+PEX created with interpreter constraints that did not specify the Python
+implementation, e.g.: ``==3.8.*``, were interpreted as being CPython
+specific, i.e.: ``CPython==3.8.*``. This is now fixed, but if the
+intention of a constraint like ``==3.8.*`` was in fact to restrict to
+CPython only, interpreter constraints need to say so now and use
+``CPython==3.8.*`` explicitly.
+
+* Fix interpreter constraint parsing. (#1998)
+  `PR #1998 <https://github.com/pantsbuild/pex/pull/1998>`_
+
 2.1.116
 -------
 
