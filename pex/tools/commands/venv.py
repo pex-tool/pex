@@ -8,8 +8,10 @@ import logging
 import os
 from argparse import ArgumentParser
 
+from pex import pex_warnings
 from pex.common import safe_delete, safe_rmtree
 from pex.enum import Enum
+from pex.executor import Executor
 from pex.pex import PEX
 from pex.result import Error, Ok, Result
 from pex.tools.command import PEXCommand
@@ -206,7 +208,11 @@ class Venv(PEXCommand):
                     "installed:\n{}".format(e)
                 )
         if self.options.compile:
-            pex.interpreter.execute(["-m", "compileall", venv_dir])
+            try:
+                pex.interpreter.execute(["-m", "compileall", venv_dir])
+            except Executor.NonZeroExit as non_zero_exit:
+                pex_warnings.warn(non_zero_exit.stderr)
+
         if self.options.remove is not None:
             if os.path.isdir(pex.path()):
                 safe_rmtree(pex.path())
