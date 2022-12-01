@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import errno
 import multiprocessing
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -798,3 +799,56 @@ def test_remove(
     assert os.path.exists(venv_dir)
     assert not os.path.exists(venv_pex)
     assert not os.path.exists(pex_root)
+
+
+@pytest.mark.parametrize(
+    "enable_system_site_package", [pytest.param(flag, id=str(flag)) for flag in [True, False]]
+)
+def test_system_site_package(
+    tmpdir,
+    enable_system_site_package,  # type: bool
+):
+    # type: (...) -> None
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
+    venv_pex = os.path.join(str(tmpdir), "venv.pex")
+    run_pex_command(
+        args=[
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+            "-o",
+            venv_pex,
+            "--include-tools",
+        ]
+    ).assert_success()
+
+    venv_dir = os.path.join(str(tmpdir), "venv_dir")
+    assert not os.path.exists(venv_dir)
+    create_venv_args = [venv_pex, "venv", venv_dir]
+    if enable_system_site_package:
+        create_venv_args.append("--system-site-packages")
+    subprocess.check_call(args=create_venv_args, env=make_env(PEX_TOOLS=True))
+
+    assert os.path.exists(venv_dir)
+    assert os.path.exists(venv_pex)
+    assert os.path.exists(pex_root)
+
+    # Check site-packages
+    venv = Virtualenv.enclosing(os.path.join(venv_dir, "bin", "python"))
+    assert venv is not None
+    venv_interpreter = venv.interpreter
+    venv_base_interpreter = venv_interpreter.resolve_base_interpreter()
+    assert (
+        venv_interpreter != venv_base_interpreter
+    ), "The venv base interpreter should be the system interpreter; not the venv interpreter itself."
+
+    venv_interpreter_site_packages = venv_interpreter.site_packages
+    venv_interpreter_sys_path = venv_interpreter.sys_path
+    system_site_packages = venv_base_interpreter.site_packages
+
+    if enable_system_site_package:
+        assert all([p in venv_interpreter_sys_path for p in system_site_packages])
+    else:
+        assert not set(venv_interpreter_site_packages).intersection(system_site_packages)
