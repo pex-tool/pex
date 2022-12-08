@@ -1,21 +1,37 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import os.path
 import subprocess
+import sys
 
-from pex.testing import run_pex_command
+import pytest
+
+from pex.compatibility import PY3
+from pex.testing import PY38, ensure_python_interpreter, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, List
 
 
-def test_packaging(tmpdir):
-    # type: (Any) -> None
+@pytest.mark.parametrize(
+    ["boot_args"],
+    [
+        pytest.param([], id="__main__.py boot"),
+        pytest.param(["--sh-boot"], id="--sh-boot"),
+    ],
+)
+def test_symlink_preserved_in_argv0(
+    tmpdir,  # type: Any
+    boot_args,  # type: List[str]
+):
+    # type: (...) -> None
 
     pex = os.path.join(str(tmpdir), "speak.pex")
     run_pex_command(
         args=["conscript==0.1.5", "cowsay==5.0", "fortune==1.1.0", "-c", "conscript", "-o", pex]
+        + boot_args
     ).assert_success()
 
     assert (
@@ -31,7 +47,12 @@ def test_packaging(tmpdir):
         fp.write("Just the one")
     fortune = os.path.join(str(tmpdir), "fortune")
     os.symlink(pex, fortune)
+
+    # N.B.: This fortune implementation uses print(..., file=...) without
+    # `from __future__ import print_function`; so fails under Python 2.7 despite the fact its
+    # released as a py2.py3 wheel.
+    python = sys.executable if PY3 else ensure_python_interpreter(PY38)
     assert (
         "Just the one"
-        == subprocess.check_output(args=[fortune, fortune_file]).decode("utf-8").strip()
+        == subprocess.check_output(args=[python, fortune, fortune_file]).decode("utf-8").strip()
     )
