@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.118
+-------
+
+This is a very tardy hotfix release for a regression introduced in Pex
+2.1.91 by #1785 that replaced sys.argv[0] with its fully resolved path.
+This prevented introspecting the actual file path used to launch the PEX
+which broke BusyBox-alike use cases.
+
+* Remove un-needed realpathing of ``sys.argv[0]``. (#2007)
+  `PR #2007 <https://github.com/pantsbuild/pex/pull/2007>`_
+
 2.1.117
 -------
 
