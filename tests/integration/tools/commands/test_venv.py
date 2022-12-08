@@ -329,7 +329,7 @@ def test_non_hermetic_issue_2004(
     non_hermetic_venv = os.path.join(str(tmpdir), "non-hermetic")
 
     run_pex_tools(check_pex, "venv", hermetic_venv).assert_success()
-    run_pex_tools(check_pex, "venv", "--non-hermetic", non_hermetic_venv).assert_success()
+    run_pex_tools(check_pex, "venv", "--non-hermetic-scripts", non_hermetic_venv).assert_success()
 
     hermetic_check = subprocess.check_output(
         args=[os.path.join(hermetic_venv, "bin", "check-hermetic")],

@@ -165,8 +165,8 @@ class Venv(PEXCommand):
             ),
         )
         parser.add_argument(
-            "--non-hermetic",
-            dest="hermetic",
+            "--non-hermetic-scripts",
+            dest="hermetic_scripts",
             action="store_false",
             default=True,
             help=(
@@ -206,7 +206,7 @@ class Venv(PEXCommand):
             collisions_ok=self.options.collisions_ok,
             symlink=False,
             scope=self.options.scope,
-            hermetic=self.options.hermetic,
+            hermetic_scripts=self.options.hermetic_scripts,
         )
         if self.options.pip:
             try:
