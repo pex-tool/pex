@@ -265,3 +265,75 @@ def test_scope_issue_1631(tmpdir):
     assert canonical_venv_listing == recursive_listing(venv_directory)
     venv = assert_app(venv_directory)
     assert canonical_venv_hash == CacheHelper.dir_hash(venv.site_packages_dir)
+
+
+def test_non_hermetic_issue_2004(tmpdir):
+    # type: (Any) -> None
+
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pylint_pex = os.path.join(str(tmpdir), "pylint.pex")
+    run_pex_command(
+        args=[
+            "-m",
+            "pylint",
+            "pylint==2.15.8",
+            "--include-tools",
+            "-o",
+            pylint_pex,
+            "--pex-root",
+            pex_root,
+            "--runtime-pex-root",
+            pex_root,
+        ]
+    ).assert_success()
+
+    venv_directory = os.path.join(str(tmpdir), "venv")
+    subprocess.check_call(
+        args=[pylint_pex, "venv", "--non-hermetic", venv_directory], env=make_env(PEX_TOOLS=1)
+    )
+
+    plugin_dir = os.path.join(str(tmpdir), "plugins")
+    with safe_open(os.path.join(plugin_dir, "example.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                def register(linter):
+                    pass
+                """
+            )
+        )
+
+    pylintrc = os.path.join(tmpdir, ".pylintrc")
+    with safe_open(pylintrc, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [MASTER]
+                load-plugins=
+                    example,
+
+                [MESSAGES CONTROL]
+                disable=
+                    missing-module-docstring,
+                """
+            )
+        )
+
+    hello_py = os.path.join(str(tmpdir), "src")
+    with safe_open(hello_py, "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                "print('hello world!')"
+                """
+            )
+        )
+
+    pylint_path = os.path.join(venv_directory, "bin", "pylint")
+    subprocess.check_call(
+        # If the `pylint` script was created with a hermetic shebang, it will ignore `PYTHONPATH`
+        # and try (and fail) to load `example.py` from the default `sys.path`. If the script was
+        # created non-hermetically, `pylint` will successfully load `plugins/example.py`.
+        args=[pylint_path, "--rcfile", pylintrc, hello_py],
+        env=make_env(PYTHONPATH=plugin_dir),
+    )
