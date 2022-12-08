@@ -1,7 +1,7 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import os
 
@@ -24,11 +24,17 @@ def test_check_install_issue_1730(
     # type: (...) -> None
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
+    constraints = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints, "w") as fp:
+        print("packaging==21.3", file=fp)
+
     pex_args = [
         "--pex-root",
         pex_root,
         "--runtime-pex-root",
         pex_root,
+        "--constraints",
+        constraints,
         "pantsbuild.pants.testutil==2.12.0.dev3",
         "--",
         "-c",
