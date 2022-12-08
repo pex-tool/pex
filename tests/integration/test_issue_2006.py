@@ -28,6 +28,12 @@ def test_symlink_preserved_in_argv0(
 ):
     # type: (...) -> None
 
+    # N.B.: We use conscript (https://pypi.org/project/conscript/) here to test a very common real
+    # use case for knowing the original path used to launch an executable. In general this allows
+    # the executable to react differently based on its name. In the conscript case, it uses that
+    # name to select a matching console script in the PEX if one exists and run that. If no such
+    # match exists and there are no args, it launches a REPL session over the PEX contents.
+
     pex = os.path.join(str(tmpdir), "speak.pex")
     run_pex_command(
         args=["conscript==0.1.5", "cowsay==5.0", "fortune==1.1.0", "-c", "conscript", "-o", pex]
@@ -40,7 +46,13 @@ def test_symlink_preserved_in_argv0(
 
     cowsay = os.path.join(str(tmpdir), "cowsay")
     os.symlink(pex, cowsay)
-    assert "5.0" == subprocess.check_output(args=[cowsay, "--version"]).decode("utf-8").strip()
+    assert "5.0" == subprocess.check_output(args=[cowsay, "--version"]).decode("utf-8").strip(), (
+        "Expected the symlink used to launch this PEX to be preserved in sys.argv[0] such that "
+        "conscript could observe it and select the cowsay console script inside the PEX for"
+        "execution. Without symlink preservation, the real PEX name of speak.pex will match no "
+        "internal console scripts and the conscript entry point will drop into a REPL session over "
+        "the PEX causing this test to hang waiting for a REPL session exit signal / command."
+    )
 
     fortune_file = os.path.join(str(tmpdir), "fortunes.txt")
     with open(fortune_file, "w") as fp:
