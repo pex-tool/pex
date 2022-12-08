@@ -267,19 +267,57 @@ def test_scope_issue_1631(tmpdir):
     assert canonical_venv_hash == CacheHelper.dir_hash(venv.site_packages_dir)
 
 
-def test_non_hermetic_issue_2004(tmpdir):
-    # type: (Any) -> None
+def test_non_hermetic_issue_2004(
+    tmpdir,  # type: Any
+    pex_bdist,  # type: str
+):
+    # type: (...) -> None
+
+    src = os.path.join(str(tmpdir), "src")
+    with safe_open(os.path.join(src, "check_hermetic.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                import os
+                import sys
+
+                def check():
+                    if os.environ["PYTHONPATH"] in sys.path:
+                        print("Not hermetic")
+                    else:
+                        print("Hermetic")
+                """
+            )
+        )
+    with safe_open(os.path.join(src, "setup.cfg"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [metadata]
+                name = hermeticity-checker
+                version = 0.0.1
+
+                [options]
+                py_modules =
+                    check_hermetic
+
+                [options.entry_points]
+                console_scripts =
+                    check-hermetic = check_hermetic:check
+                """
+            )
+        )
+    with safe_open(os.path.join(src, "setup.py"), "w") as fp:
+        fp.write("from setuptools import setup; setup()")
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
-    pylint_pex = os.path.join(str(tmpdir), "pylint.pex")
+    check_pex = os.path.join(str(tmpdir), "check.pex")
     run_pex_command(
         args=[
-            "-m",
-            "pylint",
-            "pylint==2.15.8",
-            "--include-tools",
+            pex_bdist,
+            src,
             "-o",
-            pylint_pex,
+            check_pex,
             "--pex-root",
             pex_root,
             "--runtime-pex-root",
@@ -287,53 +325,20 @@ def test_non_hermetic_issue_2004(tmpdir):
         ]
     ).assert_success()
 
-    venv_directory = os.path.join(str(tmpdir), "venv")
-    subprocess.check_call(
-        args=[pylint_pex, "venv", "--non-hermetic", venv_directory], env=make_env(PEX_TOOLS=1)
+    hermetic_venv = os.path.join(str(tmpdir), "hermetic")
+    non_hermetic_venv = os.path.join(str(tmpdir), "non-hermetic")
+
+    run_pex_tools(check_pex, "venv", hermetic_venv).assert_success()
+    run_pex_tools(check_pex, "venv", "--non-hermetic", non_hermetic_venv).assert_success()
+
+    hermetic_check = subprocess.check_output(
+        args=[os.path.join(hermetic_venv, "bin", "check-hermetic")],
+        env=make_env(PYTHONPATH=src),
+    )
+    non_hermetic_check = subprocess.check_output(
+        args=[os.path.join(non_hermetic_venv, "bin", "check-hermetic")],
+        env=make_env(PYTHONPATH=src),
     )
 
-    plugin_dir = os.path.join(str(tmpdir), "plugins")
-    with safe_open(os.path.join(plugin_dir, "example.py"), "w") as fp:
-        fp.write(
-            dedent(
-                """\
-                def register(linter):
-                    pass
-                """
-            )
-        )
-
-    pylintrc = os.path.join(tmpdir, ".pylintrc")
-    with safe_open(pylintrc, "w") as fp:
-        fp.write(
-            dedent(
-                """\
-                [MASTER]
-                load-plugins=
-                    example,
-
-                [MESSAGES CONTROL]
-                disable=
-                    missing-module-docstring,
-                """
-            )
-        )
-
-    hello_py = os.path.join(str(tmpdir), "src")
-    with safe_open(hello_py, "w") as fp:
-        fp.write(
-            dedent(
-                """\
-                "print('hello world!')"
-                """
-            )
-        )
-
-    pylint_path = os.path.join(venv_directory, "bin", "pylint")
-    subprocess.check_call(
-        # If the `pylint` script was created with a hermetic shebang, it will ignore `PYTHONPATH`
-        # and try (and fail) to load `example.py` from the default `sys.path`. If the script was
-        # created non-hermetically, `pylint` will successfully load `plugins/example.py`.
-        args=[pylint_path, "--rcfile", pylintrc, hello_py],
-        env=make_env(PYTHONPATH=plugin_dir),
-    )
+    assert "Hermetic" in str(hermetic_check)
+    assert "Not hermetic" in str(non_hermetic_check)
