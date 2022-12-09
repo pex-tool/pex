@@ -103,6 +103,7 @@ def populate_venv(
     collisions_ok=True,  # type: bool
     symlink=False,  # type: bool
     scope=InstallScope.ALL,  # type: InstallScope.Value
+    hermetic_scripts=True,  # type: bool
 ):
     # type: (...) -> str
 
@@ -117,7 +118,7 @@ def populate_venv(
             provenance[dst].append(src)
 
     if scope in (InstallScope.ALL, InstallScope.DEPS_ONLY):
-        record_provenance(_populate_deps(venv, pex, venv_python, symlink))
+        record_provenance(_populate_deps(venv, pex, venv_python, symlink, hermetic_scripts))
 
     if scope in (InstallScope.ALL, InstallScope.SOURCE_ONLY):
         record_provenance(_populate_sources(venv, pex, shebang, venv_python, bin_path))
@@ -195,6 +196,7 @@ def _populate_deps(
     pex,  # type: PEX
     venv_python,  # type: str
     symlink=False,  # type: bool
+    hermetic_scripts=True,  # type: bool
 ):
     # type: (...) -> Iterator[Tuple[str, str]]
 
@@ -274,7 +276,8 @@ def _populate_deps(
                     print(rel_extra_path, file=fp)
 
     # 3. Re-write any (console) scripts to use the venv Python.
-    for script in venv.rewrite_scripts(python=venv_python, python_args="-sE"):
+    script_python_args = "-sE" if hermetic_scripts else None
+    for script in venv.rewrite_scripts(python=venv_python, python_args=script_python_args):
         TRACER.log("Re-writing {}".format(script))
 
 
