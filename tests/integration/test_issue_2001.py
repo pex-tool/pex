@@ -1,4 +1,5 @@
 import os.path
+import pytest
 import subprocess
 import sys
 
@@ -27,13 +28,11 @@ def test_compile_error_as_warning(
     # The packaged Pex PEX should work with all Pythons we support, including the current test
     # interpreter.
     compiled_deps_dir = str(tmpdir)
-    output = subprocess.run(
+    process = subprocess.Popen(
         args=[sys.executable, pex, "venv", "--scope", "deps", "--compile", compiled_deps_dir],
         env=make_env(PEX_PYTHON=sys.executable, PEX_TOOLS=1),
-        stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
     )
-    assert (
-        "PEXWarning: ignoring compile error NonZeroExit" in output.stderr
-    ), "PEXWarning should be generated."
+    _, stderr_bytes = process.communicate()
+    stderr_str = stderr_bytes.decode("utf-8")
+    assert "PEXWarning: ignoring compile error" in stderr_str, "PEXWarning should be generated."
