@@ -166,6 +166,16 @@ class Venv(PEXCommand):
                 )
             ),
         )
+        parser.add_argument(
+            "--non-hermetic-scripts",
+            dest="hermetic_scripts",
+            action="store_false",
+            default=True,
+            help=(
+                "Don't rewrite console script shebangs in the venv to pass `-sE` to the interpreter; "
+                "for example, to enable running venv scripts with a custom `PYTHONPATH`."
+            ),
+        )
         cls.register_global_arguments(parser, include_verbosity=False)
 
     def run(self, pex):
@@ -198,6 +208,7 @@ class Venv(PEXCommand):
             collisions_ok=self.options.collisions_ok,
             symlink=False,
             scope=self.options.scope,
+            hermetic_scripts=self.options.hermetic_scripts,
         )
         if self.options.pip:
             try:

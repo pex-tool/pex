@@ -1,6 +1,24 @@
 Release Notes
 =============
 
+2.1.118
+-------
+
+This is a very tardy hotfix release for a regression introduced in Pex
+2.1.91 by #1785 that replaced sys.argv[0] with its fully resolved path.
+This prevented introspecting the actual file path used to launch the PEX
+which broke BusyBox-alike use cases.
+
+There is also a new ``--non-hermetic-scripts`` option accepted by the
+``venv`` tool to allow running console scripts with ``PYTHONPATH``
+adjustments to the ``sys.path``.
+
+* Remove un-needed realpathing of ``sys.argv[0]``. (#2007)
+  `PR #2007 <https://github.com/pantsbuild/pex/pull/2007>`_
+
+* Add ``--non-hermetic-scripts`` option to ``venv`` tool. (#2010)
+  `PR #2010 <https://github.com/pantsbuild/pex/pull/2010>`_
+
 2.1.117
 -------
 
