@@ -1,9 +1,8 @@
 import os.path
-import pytest
 import subprocess
 import sys
 
-from pex.testing import PY38, ensure_python_interpreter, make_env, run_pex_command
+from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -22,8 +21,7 @@ def test_compile_error_as_warning(
             "-o",
             pex,
         ],
-        # The package script requires Python 3.
-        python=sys.executable if sys.version_info[0] >= 3 else ensure_python_interpreter(PY38),
+        python=sys.executable,
     ).assert_success()
     # The packaged Pex PEX should work with all Pythons we support, including the current test
     # interpreter.
