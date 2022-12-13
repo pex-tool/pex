@@ -17,7 +17,7 @@ def test_compile_error_as_warning(
     run_pex_command(
         args=[
             "--include-tools",
-            "aenum",
+            "aenum==3.1.11",
             "-o",
             pex,
         ],
@@ -34,4 +34,6 @@ def test_compile_error_as_warning(
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert "PEXWarning" in output.stderr, "PEXWarning should be generated."
+    assert (
+        "PEXWarning: ignoring compile error NonZeroExit" in output.stderr
+    ), "PEXWarning should be generated."

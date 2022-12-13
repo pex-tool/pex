@@ -222,7 +222,7 @@ class Venv(PEXCommand):
             try:
                 pex.interpreter.execute(["-m", "compileall", venv_dir])
             except Executor.NonZeroExit as non_zero_exit:
-                pex_warnings.warn(non_zero_exit.stderr)
+                pex_warnings.warn("ignoring compile error {}".format(repr(non_zero_exit)))
 
         if self.options.remove is not None:
             if os.path.isdir(pex.path()):
