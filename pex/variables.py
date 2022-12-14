@@ -213,7 +213,7 @@ class Variables(object):
     @staticmethod
     def _maybe_get_bool_var(
         name,  # type: str
-        env,  # type: Mapping[str, str]
+        env,  # type: Mapping[str, Optional[str]]
     ):
         # type: (...) -> Optional[bool]
         value = env.get(name, None)
