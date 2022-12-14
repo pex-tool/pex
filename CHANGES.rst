@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+2.1.119
+-------
+
+This release brings two new features. The venv pex tool now just warns when
+using ``--compile`` and there is a ``*.pyc`` compile error instead of failing
+to create the venv. Also, a new ``PEX_DISABLE_VARIABLES`` env var knob is added
+to turn off reading all ``PEX_*`` env vars from the environment.
+
+* Ignore compile error for PEX_TOOLS=1 (#2002)
+  `PR #2002 <https://github.com/pantsbuild/pex/pull/2002>`_
+
+* Add PEX_DISABLE_VARIABLES to lock down a PEX run. (#2014)
+  `PR #2014 <https://github.com/pantsbuild/pex/pull/2014>`_
+
 2.1.118
 -------
 
