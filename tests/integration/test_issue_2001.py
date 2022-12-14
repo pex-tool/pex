@@ -25,6 +25,7 @@ def test_compile_error_as_warning(
     ).assert_success()
     # The packaged Pex PEX should work with all Pythons we support, including the current test
     # interpreter.
+    python_version = sys.version_info[0]
     compiled_deps_dir = str(tmpdir)
     process = subprocess.Popen(
         args=[sys.executable, pex, "venv", "--scope", "deps", "--compile", compiled_deps_dir],
@@ -32,5 +33,12 @@ def test_compile_error_as_warning(
         stderr=subprocess.PIPE,
     )
     _, stderr_bytes = process.communicate()
+    assert 0 == process.returncode
+
     stderr_str = stderr_bytes.decode("utf-8")
-    assert "PEXWarning: ignoring compile error" in stderr_str, "PEXWarning should be generated."
+    if python_version == 2:
+        assert not stderr_str, "No PEXWarning should be generated for python2"
+    else:
+        assert (
+            "PEXWarning: ignoring compile error" in stderr_str
+        ), "PEXWarning should be generated for python3."
