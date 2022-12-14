@@ -236,7 +236,7 @@ class Variables(object):
             self._environ = {
                 key: value
                 for key, value in env.items()
-                if key == "PEX_DISABLE_VARIABLES" or not key.startswith("PEX")
+                if key == "PEX_DISABLE_VARIABLES" or not key.startswith("PEX_")
             }
         else:
             self._environ = dict(env)
@@ -356,12 +356,12 @@ class Variables(object):
         self._environ = self._environ.copy()
         if disable_env:
             for k in list(self._environ):
-                if k != "PEX_DISABLE_VARIABLES" and k.startswith("PEX"):
+                if k != "PEX_DISABLE_VARIABLES" and k.startswith("PEX_"):
                     self._environ.pop(k)
         for k, v in kw.items():
             if v is None:
                 self._environ.pop(k, None)
-            elif disable_env and k != "PEX_DISABLE_VARIABLES" and k.startswith("PEX"):
+            elif disable_env and k != "PEX_DISABLE_VARIABLES" and k.startswith("PEX_"):
                 self._environ.pop(k, None)
             else:
                 self._environ[k] = v
