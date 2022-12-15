@@ -22,7 +22,7 @@ from pex.typing import TYPE_CHECKING, Generic, overload
 from pex.venv.bin_path import BinPath
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Type, TypeVar, Union
+    from typing import Any, Callable, Dict, Iterator, Mapping, Optional, Tuple, Type, TypeVar, Union
 
     _O = TypeVar("_O")
     _P = TypeVar("_P")
@@ -210,15 +210,40 @@ class Variables(object):
         if len(list(filter(None, kv))) == 2:
             return kv
 
+    @staticmethod
+    def _maybe_get_bool_var(
+        name,  # type: str
+        env,  # type: Mapping[str, Optional[str]]
+    ):
+        # type: (...) -> Optional[bool]
+        value = env.get(name, None)
+        if value is None:
+            return None
+        if value.lower() in ("0", "false"):
+            return False
+        if value.lower() in ("1", "true"):
+            return True
+        raise ValueError(
+            "Invalid bool value for {name}, must be 0/1/false/true, got {value!r}".format(
+                name=name, value=value
+            )
+        )
+
     def __init__(self, environ=None, rc=None):
-        # type: (Optional[Dict[str, str]], Optional[str]) -> None
-        self._environ = (
-            environ.copy() if environ is not None else os.environ.copy()
-        )  # type: Dict[str, str]
-        if not self.PEX_IGNORE_RCFILES:
-            rc_values = self.from_rc(rc).copy()
-            rc_values.update(self._environ)
-            self._environ = rc_values
+        # type: (Optional[Mapping[str, str]], Optional[str]) -> None
+        env = environ if environ is not None else os.environ
+        if self._maybe_get_bool_var("PEX_DISABLE_VARIABLES", env) is True:
+            self._environ = {
+                key: value
+                for key, value in env.items()
+                if key == "PEX_DISABLE_VARIABLES" or not key.startswith("PEX_")
+            }
+        else:
+            self._environ = dict(env)
+            if not self.PEX_IGNORE_RCFILES:
+                rc_values = self.from_rc(rc).copy()
+                rc_values.update(self._environ)
+                self._environ = rc_values
 
         if "PEX_ALWAYS_CACHE" in self._environ:
             pex_warnings.warn(
@@ -260,14 +285,7 @@ class Variables(object):
 
     def _maybe_get_bool(self, variable):
         # type: (str) -> Optional[bool]
-        value = self._maybe_get_string(variable)
-        if value is None:
-            return None
-        if value.lower() in ("0", "false"):
-            return False
-        if value.lower() in ("1", "true"):
-            return True
-        die("Invalid value for %s, must be 0/1/false/true, got %r" % (variable, value))
+        return self._maybe_get_bool_var(variable, self._environ)
 
     def _get_bool(self, variable):
         # type: (str) -> bool
@@ -332,15 +350,36 @@ class Variables(object):
         present. The rest will be added to the environment or else updated if already present in
         the environment.
         """
+        disable_env = self._maybe_get_bool_var("PEX_DISABLE_VARIABLES", kw)
+
         old_environ = self._environ
         self._environ = self._environ.copy()
+        if disable_env:
+            for k in list(self._environ):
+                if k != "PEX_DISABLE_VARIABLES" and k.startswith("PEX_"):
+                    self._environ.pop(k)
         for k, v in kw.items():
             if v is None:
                 self._environ.pop(k, None)
+            elif disable_env and k != "PEX_DISABLE_VARIABLES" and k.startswith("PEX_"):
+                self._environ.pop(k, None)
             else:
                 self._environ[k] = v
+
         yield self._environ
         self._environ = old_environ
+
+    @defaulted_property(default=False)
+    def PEX_DISABLE_VARIABLES(self):
+        # type: () -> bool
+        """Boolean.
+
+        Disable reading of all PEX_* variables (except this one) from all sources. Both PEX_*
+        environment variables and PEX_* variables sources from pexrc files will be ignored.
+
+        This can be used to lock down the function of a PEX.
+        """
+        return self._get_bool("PEX_DISABLE_VARIABLES")
 
     @property
     def PEX(self):

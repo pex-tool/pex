@@ -56,7 +56,7 @@ def test_pex_bool_variables():
         assert Variables(environ={"HERE": value})._get_bool("HERE") is False
     for value in ("1", "TrUe", "true"):
         assert Variables(environ={"HERE": value})._get_bool("HERE") is True
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError):
         Variables(environ={"HERE": "garbage"})._get_bool("HERE")
 
     # end to end
@@ -81,6 +81,38 @@ def test_pex_get_int():
         assert Variables(environ={"HELLO": "welp"})._get_int("HELLO")
 
 
+def test_disable():
+    v = Variables(
+        environ=dict(
+            PEX_DISABLE_VARIABLES="1",
+            PEX_VERBOSE="42",
+            PEX_PATH="other.pex:more.pex",
+            PEX_SCRIPT="other",
+        )
+    )
+    assert v.PEX_DISABLE_VARIABLES is True
+    assert 0 == v.PEX_VERBOSE
+    assert () == v.PEX_PATH
+    assert v.PEX_SCRIPT is None
+    assert v.PEX_EMIT_WARNINGS is None
+
+
+def test_disable_patch():
+    v = Variables(environ=dict(PEX_VERBOSE="42", PEX_PATH="other.pex:more.pex", PEX_SCRIPT="other"))
+    assert v.PEX_DISABLE_VARIABLES is False
+    assert 42 == v.PEX_VERBOSE
+    assert ("other.pex", "more.pex") == v.PEX_PATH
+    assert "other" == v.PEX_SCRIPT
+    assert v.PEX_EMIT_WARNINGS is None
+
+    with v.patch(PEX_DISABLE_VARIABLES="1", PEX_EMIT_WARNINGS="1"):
+        assert v.PEX_DISABLE_VARIABLES is True
+        assert 0 == v.PEX_VERBOSE
+        assert () == v.PEX_PATH
+        assert v.PEX_SCRIPT is None
+        assert v.PEX_EMIT_WARNINGS is None
+
+
 def assert_pex_vars_hermetic():
     # type: () -> None
     v = Variables()
@@ -102,6 +134,12 @@ def test_pex_vars_hermetic_no_pexrc():
 def test_pex_vars_hermetic():
     # type: () -> None
     with environment_as(PEX_IGNORE_RCFILES="True"):
+        assert_pex_vars_hermetic()
+
+
+def test_pex_vars_disabled_hermetic():
+    # type: () -> None
+    with environment_as(PEX_DISABLE_VARIABLES="True"):
         assert_pex_vars_hermetic()
 
 
