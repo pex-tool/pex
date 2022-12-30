@@ -681,7 +681,7 @@ class PEX(object):  # noqa: T000
                 try:
                     readline.read_history_file(histfile)
                     readline.set_history_length(1000)
-                except FileNotFoundError:
+                except OSError:
                     pass
 
                 atexit.register(readline.write_history_file, histfile)
