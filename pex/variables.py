@@ -189,8 +189,8 @@ class Variables(object):
         """
         ret_vars = {}  # type: Dict[str, str]
         rc_locations = [
-            "/etc/pexrc",
-            "~/.pexrc",
+            os.path.join(os.sep, "etc", "pexrc"),
+            os.path.join("~", ".pexrc"),
             os.path.join(os.path.dirname(sys.argv[0]), ".pexrc"),
         ]
         if rc:
@@ -520,6 +520,30 @@ class Variables(object):
         """
         return self._get_bool("PEX_INTERPRETER")
 
+    @defaulted_property(default=False)
+    def PEX_INTERPRETER_HISTORY(self):
+        # type: () -> bool
+        """Boolean.
+
+        IF PEX_INTERPRETER is true, use a command history file for REPL user convenience.
+        The location of the history file is determined by PEX_INTERPRETER_HISTORY_FILE.
+
+        Default: false.
+        """
+        return self._get_bool("PEX_INTERPRETER_HISTORY")
+
+    @defaulted_property(default=os.path.join("~", ".python_history"))
+    def PEX_INTERPRETER_HISTORY_FILE(self):
+        # type: () -> str
+        """File.
+
+        IF PEX_INTERPRETER_HISTORY is true, use this history file.
+        The default is the standard Python interpreter history location.
+
+        Default: ~/.python_history.
+        """
+        return self._get_string("PEX_INTERPRETER_HISTORY_FILE")
+
     @property
     def PEX_MODULE(self):
         # type: () -> Optional[str]
@@ -607,7 +631,7 @@ class Variables(object):
         )
         return self._maybe_get_path_tuple("PEX_EXTRA_SYS_PATH") or ()
 
-    @defaulted_property(default="~/.pex")
+    @defaulted_property(default=os.path.join("~", ".pex"))
     def PEX_ROOT(self):
         # type: () -> str
         """Directory.

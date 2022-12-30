@@ -673,6 +673,19 @@ class PEX(object):  # noqa: T000
         else:
             self.demote_bootstrap()
 
+            if self._vars.PEX_INTERPRETER_HISTORY:
+                import atexit
+                import readline
+
+                histfile = os.path.expanduser(self._vars.PEX_INTERPRETER_HISTORY_FILE)
+                try:
+                    readline.read_history_file(histfile)
+                    readline.set_history_length(1000)
+                except FileNotFoundError:
+                    pass
+
+                atexit.register(readline.write_history_file, histfile)
+
             import code
 
             code.interact()

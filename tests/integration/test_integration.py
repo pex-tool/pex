@@ -227,6 +227,29 @@ def test_pex_repl_built():
         assert b">>>" in stdout
 
 
+def test_pex_repl_history():
+    # type: () -> None
+    """Tests enabling REPL command history."""
+    stdin_payload = b"import sys; import readline; print(readline.get_history_item(1)); sys.exit(3)"
+
+    with temporary_dir() as output_dir:
+        # Create a dummy temporary pex with no entrypoint.
+        pex_path = os.path.join(output_dir, "dummy.pex")
+        results = run_pex_command(["--disable-cache", "-o", pex_path])
+        results.assert_success()
+
+        history_file = os.path.join(output_dir, ".python_history")
+        with open(history_file, "w") as fp:
+            fp.write("2 + 2\n")
+
+        # Test that the REPL can see the history.
+        env = {"PEX_INTERPRETER_HISTORY": "1", "PEX_INTERPRETER_HISTORY_FILE": history_file}
+        stdout, rc = run_simple_pex(pex_path, stdin=stdin_payload, env=env)
+        assert rc == 3
+        assert b">>>" in stdout
+        assert b"2 + 2" in stdout
+
+
 @pytest.mark.skipif(WINDOWS, reason="No symlinks on windows")
 def test_pex_python_symlink():
     # type: () -> None
