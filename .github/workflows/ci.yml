@@ -92,7 +92,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v4
+          key: ${{ runner.os }}-pyenv-root-v9
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -135,7 +135,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v4
+          key: ${{ runner.os }}-pyenv-root-v9
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -197,7 +197,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v4
+          key: ${{ runner.os }}-pyenv-root-v9
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
@@ -254,7 +254,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v4
+          key: ${{ runner.os }}-pyenv-root-v9
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
