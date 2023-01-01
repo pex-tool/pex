@@ -671,8 +671,6 @@ class PEX(object):  # noqa: T000
                 sys.argv = args
                 return self.execute_content(arg, content)
         else:
-            self.demote_bootstrap()
-
             if self._vars.PEX_INTERPRETER_HISTORY:
                 import atexit
                 import readline
@@ -685,6 +683,8 @@ class PEX(object):  # noqa: T000
                     pass
 
                 atexit.register(readline.write_history_file, histfile)
+
+            self.demote_bootstrap()
 
             import code
 
