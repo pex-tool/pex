@@ -484,7 +484,7 @@ def ensure_python_distribution(version):
 
     pip = os.path.join(interpreter_location, "bin", "pip")
 
-    with atomic_directory(target_dir=os.path.join(pyenv_root)) as target_dir:
+    with atomic_directory(target_dir=pyenv_root) as target_dir:
         if not target_dir.is_finalized():
             bootstrap_python_installer(target_dir.work_dir)
 
@@ -495,9 +495,9 @@ def ensure_python_distribution(version):
                     "git",
                     "--git-dir={}".format(os.path.join(pyenv_root, ".git")),
                     "--work-tree={}".format(pyenv_root),
-                    "pull",
-                    "--ff-only",
-                    "https://github.com/pyenv/pyenv.git",
+                    "reset",
+                    "--hard",
+                    "v2.3.8",
                 ]
             )
             env = pyenv_env.copy()
