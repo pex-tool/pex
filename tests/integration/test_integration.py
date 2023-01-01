@@ -28,6 +28,7 @@ from pex.pex_info import PexInfo
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
 from pex.testing import (
     IS_MAC,
+    IS_PYPY,
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
     PY38,
@@ -227,6 +228,7 @@ def test_pex_repl_built():
         assert b">>>" in stdout
 
 
+@pytest.mark.skipif(IS_PYPY, reason="REPL history is only supported on CPython.")
 def test_pex_repl_history():
     # type: () -> None
     """Tests enabling REPL command history."""
@@ -245,7 +247,7 @@ def test_pex_repl_history():
         # Test that the REPL can see the history.
         env = {"PEX_INTERPRETER_HISTORY": "1", "PEX_INTERPRETER_HISTORY_FILE": history_file}
         stdout, rc = run_simple_pex(pex_path, stdin=stdin_payload, env=env)
-        assert rc == 3
+        assert rc == 3, "Failed with: {}".format(stdout)
         assert b">>>" in stdout
         assert b"2 + 2" in stdout
 

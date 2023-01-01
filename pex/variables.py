@@ -528,6 +528,8 @@ class Variables(object):
         IF PEX_INTERPRETER is true, use a command history file for REPL user convenience.
         The location of the history file is determined by PEX_INTERPRETER_HISTORY_FILE.
 
+        Note: Only supported on CPython interpreters.
+
         Default: false.
         """
         return self._get_bool("PEX_INTERPRETER_HISTORY")
@@ -538,7 +540,7 @@ class Variables(object):
         """File.
 
         IF PEX_INTERPRETER_HISTORY is true, use this history file.
-        The default is the standard Python interpreter history location.
+        The default is the standard CPython interpreter history location.
 
         Default: ~/.python_history.
         """
