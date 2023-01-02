@@ -250,7 +250,7 @@ def test_pex_repl_history(venv_pex):
         # Test that the REPL can see the history.
         env = {"PEX_INTERPRETER_HISTORY": "1", "PEX_INTERPRETER_HISTORY_FILE": history_file}
         stdout, rc = run_simple_pex(pex_path, stdin=stdin_payload, env=env)
-        assert rc == 3, "Failed with: {}".format(stdout)
+        assert rc == 3, "Failed with: {}".format(stdout.decode("utf-8"))
         assert b">>>" in stdout
         assert b"2 + 2" in stdout
 
