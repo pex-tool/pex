@@ -229,15 +229,18 @@ def test_pex_repl_built():
 
 
 @pytest.mark.skipif(IS_PYPY, reason="REPL history is only supported on CPython.")
-def test_pex_repl_history():
-    # type: () -> None
+@pytest.mark.parametrize("venv_pex", [False, True])
+def test_pex_repl_history(venv_pex):
+    # type: (...) -> None
     """Tests enabling REPL command history."""
     stdin_payload = b"import sys; import readline; print(readline.get_history_item(1)); sys.exit(3)"
 
     with temporary_dir() as output_dir:
         # Create a dummy temporary pex with no entrypoint.
         pex_path = os.path.join(output_dir, "dummy.pex")
-        results = run_pex_command(["--disable-cache", "-o", pex_path])
+        results = run_pex_command(
+            ["--disable-cache", "-o", pex_path] + (["--venv"] if venv_pex else [])
+        )
         results.assert_success()
 
         history_file = os.path.join(output_dir, ".python_history")
