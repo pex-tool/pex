@@ -679,8 +679,10 @@ class PEX(object):  # noqa: T000
                 try:
                     readline.read_history_file(histfile)
                     readline.set_history_length(1000)
-                except OSError:
-                    pass
+                except OSError as e:
+                    sys.stderr.write(
+                        "Failed to read history file at {} due to: {}".format(histfile, e)
+                    )
 
                 atexit.register(readline.write_history_file, histfile)
 

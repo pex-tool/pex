@@ -228,7 +228,13 @@ def test_pex_repl_built():
         assert b">>>" in stdout
 
 
-@pytest.mark.skipif(IS_PYPY, reason="REPL history is only supported on CPython.")
+@pytest.mark.skipif(
+    IS_PYPY or IS_MAC,
+    reason="REPL history is only supported on CPython. It works on macOS in an interactive "
+    "terminal, but this test fails in CI on macOS with `Inappropriate ioctl for device`, "
+    "because readline.read_history_file expects a tty on stdout. The linux tests will have "
+    "to suffice for now.",
+)
 @pytest.mark.parametrize("venv_pex", [False, True])
 def test_pex_repl_history(venv_pex):
     # type: (...) -> None
