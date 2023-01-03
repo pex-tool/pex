@@ -401,6 +401,8 @@ def _populate_sources(
                     "PEX_EXTRA_SYS_PATH",
                     "PEX_VENV_BIN_PATH",
                     "PEX_INTERPRETER",
+                    "PEX_INTERPRETER_HISTORY",
+                    "PEX_INTERPRETER_HISTORY_FILE",
                     "PEX_SCRIPT",
                     "PEX_MODULE",
                     # This is used when loading ENV (Variables()):
@@ -474,6 +476,13 @@ def _populate_sources(
                 sys.exit(1)
             is_exec_override = len(pex_overrides) == 1
 
+            pex_interpreter_history = os.environ.get(
+                "PEX_INTERPRETER_HISTORY", "false"
+            ).lower() in ("1", "true")
+            pex_interpreter_history_file = os.environ.get(
+                "PEX_INTERPRETER_HISTORY_FILE", os.path.join("~", ".python_history")
+            )
+
             if {strip_pex_env!r}:
                 for key in list(os.environ):
                     if key.startswith("PEX_"):
@@ -503,6 +512,19 @@ def _populate_sources(
                 # A Python interpreter always inserts the CWD at the head of the sys.path.
                 # See https://docs.python.org/3/library/sys.html#sys.path
                 sys.path.insert(0, "")
+
+                if pex_interpreter_history:
+                    import atexit
+                    import readline
+
+                    histfile = os.path.expanduser(pex_interpreter_history_file)
+                    try:
+                        readline.read_history_file(histfile)
+                        readline.set_history_length(1000)
+                    except OSError:
+                        pass
+
+                    atexit.register(readline.write_history_file, histfile)
 
             if entry_point == PEX_INTERPRETER_ENTRYPOINT and len(sys.argv) > 1:
                 args = sys.argv[1:]

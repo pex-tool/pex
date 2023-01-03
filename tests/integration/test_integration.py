@@ -28,6 +28,7 @@ from pex.pex_info import PexInfo
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
 from pex.testing import (
     IS_MAC,
+    IS_PYPY,
     NOT_CPYTHON27,
     NOT_CPYTHON27_OR_OSX,
     PY38,
@@ -225,6 +226,39 @@ def test_pex_repl_built():
         stdout, rc = run_simple_pex(pex_path, stdin=stdin_payload)
         assert rc == 3
         assert b">>>" in stdout
+
+
+@pytest.mark.skipif(
+    IS_PYPY or IS_MAC,
+    reason="REPL history is only supported on CPython. It works on macOS in an interactive "
+    "terminal, but this test fails in CI on macOS with `Inappropriate ioctl for device`, "
+    "because readline.read_history_file expects a tty on stdout. The linux tests will have "
+    "to suffice for now.",
+)
+@pytest.mark.parametrize("venv_pex", [False, True])
+def test_pex_repl_history(venv_pex):
+    # type: (...) -> None
+    """Tests enabling REPL command history."""
+    stdin_payload = b"import sys; import readline; print(readline.get_history_item(1)); sys.exit(3)"
+
+    with temporary_dir() as output_dir:
+        # Create a dummy temporary pex with no entrypoint.
+        pex_path = os.path.join(output_dir, "dummy.pex")
+        results = run_pex_command(
+            ["--disable-cache", "-o", pex_path] + (["--venv"] if venv_pex else [])
+        )
+        results.assert_success()
+
+        history_file = os.path.join(output_dir, ".python_history")
+        with open(history_file, "w") as fp:
+            fp.write("2 + 2\n")
+
+        # Test that the REPL can see the history.
+        env = {"PEX_INTERPRETER_HISTORY": "1", "PEX_INTERPRETER_HISTORY_FILE": history_file}
+        stdout, rc = run_simple_pex(pex_path, stdin=stdin_payload, env=env)
+        assert rc == 3, "Failed with: {}".format(stdout.decode("utf-8"))
+        assert b">>>" in stdout
+        assert b"2 + 2" in stdout
 
 
 @pytest.mark.skipif(WINDOWS, reason="No symlinks on windows")

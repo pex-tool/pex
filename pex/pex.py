@@ -671,6 +671,21 @@ class PEX(object):  # noqa: T000
                 sys.argv = args
                 return self.execute_content(arg, content)
         else:
+            if self._vars.PEX_INTERPRETER_HISTORY:
+                import atexit
+                import readline
+
+                histfile = os.path.expanduser(self._vars.PEX_INTERPRETER_HISTORY_FILE)
+                try:
+                    readline.read_history_file(histfile)
+                    readline.set_history_length(1000)
+                except OSError as e:
+                    sys.stderr.write(
+                        "Failed to read history file at {} due to: {}".format(histfile, e)
+                    )
+
+                atexit.register(readline.write_history_file, histfile)
+
             self.demote_bootstrap()
 
             import code
