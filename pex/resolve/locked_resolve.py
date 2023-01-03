@@ -345,6 +345,7 @@ class Resolved(object):
         target,  # type: Target
         direct_requirements,  # type: Iterable[Requirement]
         resolved_artifacts,  # type: Iterable[_ResolvedArtifact]
+        adjacency_list,  # type: Dict[Pin, Set[Pin]]
         source,  # type: LockedResolve
     ):
         # type: (...) -> Resolved
@@ -382,6 +383,7 @@ class Resolved(object):
         return cls(
             target_specificity=sum(target_specificities) / len(target_specificities),
             downloadable_artifacts=tuple(downloadable_artifacts),
+            adjacency_list=adjacency_list,
             source=source,
         )
 
@@ -396,6 +398,7 @@ class Resolved(object):
 
     target_specificity = attr.ib()  # type: float
     downloadable_artifacts = attr.ib()  # type: Tuple[DownloadableArtifact, ...]
+    adjacency_list = attr.ib()  # type: Dict[Pin, Set[Pin]]
     source = attr.ib(eq=False)  # type: LockedResolve
 
 
@@ -526,6 +529,7 @@ class LockedResolve(object):
         # 1. Gather all required projects and their requirers.
         required = OrderedDict()  # type: OrderedDict[ProjectName, List[_ResolveRequest]]
         to_be_resolved = deque()  # type: Deque[_ResolveRequest]
+        project_adjacency_list = defaultdict(set)  # type Dict[ProjectName, Set[ProjectName]]
 
         def request_resolve(requests):
             # type: (Iterable[_ResolveRequest]) -> None
@@ -541,6 +545,14 @@ class LockedResolve(object):
             resolve_request = to_be_resolved.popleft()
             project_name = resolve_request.project_name
             required.setdefault(project_name, []).append(resolve_request)
+            # Ensure that projects with no requirements appear in the list.
+            project_adjacency_list[project_name].update([])
+
+            if len(resolve_request.required_by) > 1:
+                #  NB: resolve_request.required_by[-1] is project_name itself.
+                project_adjacency_list[resolve_request.required_by[-2].project_name].add(
+                    project_name
+                )
 
             if not transitive:
                 continue
@@ -726,9 +738,26 @@ class LockedResolve(object):
                 uniqued_resolved_artifacts.append(resolved_artifact)
                 seen.add(resolved_artifact.ranked_artifact.artifact)
 
+        # TODO: I assume each project name is unique in uniqued_resolved_artifacts?
+        project_name_to_pin = {
+            resolved_artifact.locked_requirement.pin.project_name: resolved_artifact.locked_requirement.pin
+            for resolved_artifact in uniqued_resolved_artifacts
+        }
+
+        def _pin(proj_name):
+            return project_name_to_pin[proj_name]
+
+        pin_adjacency_list = {
+            _pin(src_project_name): {
+                _pin(dst_project_name) for dst_project_name in dst_project_names
+            }
+            for src_project_name, dst_project_names in project_adjacency_list.items()
+        }
+
         return Resolved.create(
             target=target,
             direct_requirements=requirements,
             resolved_artifacts=uniqued_resolved_artifacts,
+            adjacency_list=pin_adjacency_list,
             source=self,
         )

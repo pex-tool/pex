@@ -3,9 +3,10 @@
 
 from __future__ import absolute_import, print_function
 
+import json
 import sys
 from argparse import Action, ArgumentError, ArgumentParser, ArgumentTypeError, _ActionsContainer
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from operator import attrgetter
 
 from pex import pex_warnings
@@ -65,6 +66,7 @@ class ExportFormat(Enum["ExportFormat.Value"]):
         pass
 
     PIP = Value("pip")
+    GRAPH = Value("graph")
     PEP_665 = Value("pep-665")
 
 
@@ -237,8 +239,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             choices=ExportFormat.values(),
             type=ExportFormat.for_value,
             help=(
-                "The format to export the lock to. Currently only the {pip!r} requirements file "
-                "format using `--hash` is supported.".format(pip=ExportFormat.PIP)
+                "The format to export the lock to. Export results may be a subset of the full "
+                "lockfile, targeting a specific interpreter and platform. Currently only "
+                "`{pip!r}` - a Pip requirements file format using `--hash`, and `{graph!r} - "
+                "an ad-hoc adjacency graph format, are supported.".format(
+                    pip=ExportFormat.PIP, graph=ExportFormat.GRAPH
+                )
             ),
         )
         export_parser.add_argument(
@@ -492,9 +498,11 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     def _export(self):
         # type: () -> Result
-        if self.options.format != ExportFormat.PIP:
+        if self.options.format not in [ExportFormat.PIP, ExportFormat.GRAPH]:
             return Error(
-                "Only the {pip!r} lock format is supported currently.".format(pip=ExportFormat.PIP)
+                "Only the `{pip!r}` and `{graph!r}` formats are supported currently.".format(
+                    pip=ExportFormat.PIP, graph=ExportFormat.GRAPH
+                )
             )
 
         lockfile_path, lock_file = self._load_lockfile()
@@ -502,10 +510,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         resolved_targets = targets.unique_targets()
         if len(resolved_targets) > 1:
             return Error(
-                "A lock can only be exported for a single target in the {pip!r} format.\n"
+                "A lock can only be exported for a single target in the {export_fmt!r} format.\n"
                 "There were {count} targets selected:\n"
                 "{targets}".format(
-                    pip=ExportFormat.PIP,
+                    export_fmt=self.options.format,
                     count=len(resolved_targets),
                     targets="\n".join(
                         "{index}. {target}".format(index=index, target=target)
@@ -535,13 +543,13 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 resolved_subset.resolved for resolved_subset in subset_result.subsets
             )
             pex_warnings.warn(
-                "Only a single lock can be exported in the {pip!r} format.\n"
+                "Only a single lock can be exported in the {export_fmt!r} format.\n"
                 "There were {count} locks stored in {lockfile} that were applicable for the "
                 "selected target: {target}; so using the most specific lock with platform "
                 "{platform}.".format(
                     count=len(subset_result.subsets),
                     lockfile=lockfile_path,
-                    pip=ExportFormat.PIP,
+                    export_fmt=self.options.format,
                     target=target,
                     platform=resolved.source.platform_tag,
                 )
@@ -555,25 +563,41 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 downloaded_artifact.artifact.fingerprint
             )
 
-        with self.output(self.options) as output:
-            pins = fingerprints_by_pin.keys()  # type: Iterable[Pin]
-            if self.options.sort_by == ExportSortBy.PROJECT_NAME:
-                pins = sorted(pins, key=attrgetter("project_name.normalized"))
-            for pin in pins:
-                fingerprints = fingerprints_by_pin[pin]
-                output.write(
-                    "{project_name}=={version} \\\n"
-                    "  {hashes}\n".format(
-                        project_name=pin.project_name,
-                        version=pin.version.raw,
-                        hashes=" \\\n  ".join(
-                            "--hash={algorithm}:{hash}".format(
-                                algorithm=fingerprint.algorithm, hash=fingerprint.hash
-                            )
-                            for fingerprint in fingerprints
-                        ),
+        if self.options.format == ExportFormat.PIP:
+            with self.output(self.options) as output:
+                pins = fingerprints_by_pin.keys()  # type: Iterable[Pin]
+                if self.options.sort_by == ExportSortBy.PROJECT_NAME:
+                    pins = sorted(pins, key=attrgetter("project_name.normalized"))
+                for pin in pins:
+                    fingerprints = fingerprints_by_pin[pin]
+                    output.write(
+                        "{project_name}=={version} \\\n"
+                        "  {hashes}\n".format(
+                            project_name=pin.project_name,
+                            version=pin.version.raw,
+                            hashes=" \\\n  ".join(
+                                "--hash={algorithm}:{hash}".format(
+                                    algorithm=fingerprint.algorithm, hash=fingerprint.hash
+                                )
+                                for fingerprint in fingerprints
+                            ),
+                        )
                     )
-                )
+        else:
+            vertices = set()
+            edges = defaultdict(list)
+            for src_pin, dst_pins in resolved.adjacency_list.items():
+                dst_pin_strs = sorted(str(dst_pin) for dst_pin in dst_pins)
+                vertices.add(str(src_pin))
+                vertices.update(dst_pin_strs)
+                edges[str(src_pin)] = dst_pin_strs
+            graph = {
+                "vertices": sorted(vertices),
+                "edges": edges,
+            }
+            with self.output(self.options) as output:
+                json.dump(graph, output)
+
         return Ok()
 
     def _update(self):
