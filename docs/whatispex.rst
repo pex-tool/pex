@@ -43,5 +43,5 @@ file.  Adding ``#!/usr/bin/env python`` to the top of a .zip file containing
 a ``__main__.py`` and marking it executable will turn it into an
 executable Python program.  pex takes advantage of this feature in order to
 build executable .pex files.  This is described more thoroughly in
-`PEP 441 <https://www.python.org/dev/peps/pep-0441/>`_.
+`PEP 441 <https://peps.python.org/pep-0441/>`_.
 
