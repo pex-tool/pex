@@ -11,7 +11,7 @@ PEX files are self-contained executable Python virtual environments.  More
 specifically, they are carefully constructed zip files with a
 ``#!/usr/bin/env python`` and special ``__main__.py`` that allows you to interact
 with the PEX runtime.  For more information about zip applications,
-see `PEP 441 <https://www.python.org/dev/peps/pep-0441/>`_.
+see `PEP 441 <https://peps.python.org/pep-0441/>`_.
 
 To get started building your first pex files, go straight to :ref:`buildingpex`. 
 
@@ -43,5 +43,5 @@ file.  Adding ``#!/usr/bin/env python`` to the top of a .zip file containing
 a ``__main__.py`` and marking it executable will turn it into an
 executable Python program.  pex takes advantage of this feature in order to
 build executable .pex files.  This is described more thoroughly in
-`PEP 441 <https://www.python.org/dev/peps/pep-0441/>`_.
+`PEP 441 <https://peps.python.org/pep-0441/>`_.
 
