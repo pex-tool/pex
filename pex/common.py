@@ -100,7 +100,8 @@ def safe_copy(source, dest, overwrite=False):
         # type: () -> None
         temp_dest = dest + uuid4().hex
         shutil.copy(source, temp_dest)
-        os.rename(temp_dest, dest)
+        replace = getattr(os, 'replace', None) or os.rename
+        replace(temp_dest, dest)
 
     # If the platform supports hard-linking, use that and fall back to copying.
     # Windows does not support hard-linking.
