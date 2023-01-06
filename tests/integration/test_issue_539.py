@@ -9,15 +9,14 @@ import pytest
 
 from pex.common import temporary_dir
 from pex.pip.installation import get_pip
-from pex.testing import IS_PYPY, PY_VER, run_pex_command
+from pex.testing import IS_LINUX_ARM64, IS_PYPY, PY_VER, run_pex_command
 
 
 @pytest.mark.skipif(
-    IS_PYPY or PY_VER > (3, 10),
+    IS_LINUX_ARM64 or IS_PYPY or PY_VER > (3, 10),
     reason=(
-        "The cryptography 2.6.1 project only has pre-built wheels for CPython <= 3.10 "
-        "available on PyPI and this test relies upon a pre-built wheel being "
-        "available."
+        "The cryptography 2.6.1 project only has pre-built wheels for CPython <= 3.10 for some "
+        "platforms available on PyPI and this test relies upon a pre-built wheel being available."
     ),
 )
 def test_abi3_resolution():

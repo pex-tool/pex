@@ -58,8 +58,12 @@ IS_PYPY3 = IS_PYPY and sys.version_info[0] == 3
 NOT_CPYTHON27 = IS_PYPY or PY_VER != (2, 7)
 IS_LINUX = platform.system() == "Linux"
 IS_MAC = platform.system() == "Darwin"
-IS_NOT_LINUX = not IS_LINUX
-NOT_CPYTHON27_OR_OSX = NOT_CPYTHON27 or IS_NOT_LINUX
+machine = platform.machine()
+IS_LINUX_X86_64 = IS_LINUX and machine == "x86_64"
+IS_LINUX_ARM64 = IS_LINUX and machine == "aarch64"
+IS_MAC_X86_64 = IS_MAC and machine == "x86_64"
+IS_MAC_ARM64 = IS_MAC and machine == "arm64"
+NOT_CPYTHON27_OR_OSX = NOT_CPYTHON27 or not IS_LINUX
 
 
 @contextlib.contextmanager

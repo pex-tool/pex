@@ -7,7 +7,7 @@ import subprocess
 import pytest
 
 from pex.common import is_exe
-from pex.testing import run_pex_command
+from pex.testing import IS_LINUX_ARM64, IS_MAC_ARM64, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -15,11 +15,13 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.skipif(
-    not any(
+    IS_MAC_ARM64
+    or IS_LINUX_ARM64
+    or not any(
         is_exe(os.path.join(entry, "docker"))
         for entry in os.environ.get("PATH", os.path.defpath).split(os.pathsep)
     ),
-    reason="This test needs docker to run.",
+    reason="This test needs docker to run, and must run on an X86_64 platform.",
 )
 def test_musllinux_wheels_resolved(
     tmpdir,  # type: Any
