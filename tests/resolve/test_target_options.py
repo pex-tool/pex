@@ -443,6 +443,12 @@ def test_configure_resolve_local_platforms_with_complete_platforms(
         py38.identity.supported_tags.to_string_list() + ["py3-none-manylinux_2_9999_x86_64"],
     )
 
+    py38_extra_complete_prefixed = dump_complete_platform(
+        "py38_extra_prefixed",
+        py38.identity.env_markers.as_dict(),
+        ["py3-none-manylinux_2_9999_x86_64"] + py38.identity.supported_tags.to_string_list(),
+    )
+
     py38_subset_tags = py38.identity.supported_tags.to_string_list()[:-10]
     # make the platform different
     py38_subset_tags[0:2] = py38_subset_tags[0:2:-1]
@@ -496,6 +502,13 @@ def test_configure_resolve_local_platforms_with_complete_platforms(
     # the interpreter doesn't support some tags, but that's fine
     assert_local_platforms(
         complete_platforms=[py38_extra_complete],
+        expected_platforms=[str(py38.platform)],
+        expected_interpreter=py38,
+    )
+
+    # the interpreter doesn't support some more specific tags, that is also fine
+    assert_local_platforms(
+        complete_platforms=[py38_extra_complete_prefixed],
         expected_platforms=[str(py38.platform)],
         expected_interpreter=py38,
     )
