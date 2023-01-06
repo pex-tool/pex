@@ -92,23 +92,22 @@ class LogScrapeJob(Job):
         ]
         if activated_analyzers:
             collected = []
-            if not os.path.isfile(self._log):
-                return
-            with open(self._log, "r") as fp:
-                for line in fp:
-                    if not activated_analyzers:
-                        break
-                    for index, analyzer in enumerate(activated_analyzers):
-                        result = analyzer.analyze(line)
-                        if isinstance(result.data, ErrorMessage):
-                            collected.append(result.data)
-                        if isinstance(result, LogAnalyzer.Complete):
-                            activated_analyzers.pop(index).analysis_completed()
-                            if not activated_analyzers:
-                                break
-            for analyzer in activated_analyzers:
-                analyzer.analysis_completed()
-            if not self._preserve_log:
-                os.unlink(self._log)
-            stderr = (stderr or b"") + "".join(collected).encode("utf-8")
+            if os.path.isfile(self._log):
+                with open(self._log, "r") as fp:
+                    for line in fp:
+                        if not activated_analyzers:
+                            break
+                        for index, analyzer in enumerate(activated_analyzers):
+                            result = analyzer.analyze(line)
+                            if isinstance(result.data, ErrorMessage):
+                                collected.append(result.data)
+                            if isinstance(result, LogAnalyzer.Complete):
+                                activated_analyzers.pop(index).analysis_completed()
+                                if not activated_analyzers:
+                                    break
+                for analyzer in activated_analyzers:
+                    analyzer.analysis_completed()
+                if not self._preserve_log:
+                    os.unlink(self._log)
+                stderr = (stderr or b"") + "".join(collected).encode("utf-8")
         super(LogScrapeJob, self)._check_returncode(stderr=stderr)
