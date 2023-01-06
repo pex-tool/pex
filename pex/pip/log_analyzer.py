@@ -92,6 +92,8 @@ class LogScrapeJob(Job):
         ]
         if activated_analyzers:
             collected = []
+            if not os.path.isfile(self._log):
+                return
             with open(self._log, "r") as fp:
                 for line in fp:
                     if not activated_analyzers:
