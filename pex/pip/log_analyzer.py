@@ -92,21 +92,25 @@ class LogScrapeJob(Job):
         ]
         if activated_analyzers:
             collected = []
-            with open(self._log, "r") as fp:
-                for line in fp:
-                    if not activated_analyzers:
-                        break
-                    for index, analyzer in enumerate(activated_analyzers):
-                        result = analyzer.analyze(line)
-                        if isinstance(result.data, ErrorMessage):
-                            collected.append(result.data)
-                        if isinstance(result, LogAnalyzer.Complete):
-                            activated_analyzers.pop(index).analysis_completed()
-                            if not activated_analyzers:
-                                break
-            for analyzer in activated_analyzers:
-                analyzer.analysis_completed()
-            if not self._preserve_log:
-                os.unlink(self._log)
-            stderr = (stderr or b"") + "".join(collected).encode("utf-8")
+            # A process may fail so early that there is no log file to analyze.
+            # We assume that if this is the case, the superclass _check_returncode will
+            # express the underlying cause of that failure in a way useful to the user.
+            if os.path.isfile(self._log):
+                with open(self._log, "r") as fp:
+                    for line in fp:
+                        if not activated_analyzers:
+                            break
+                        for index, analyzer in enumerate(activated_analyzers):
+                            result = analyzer.analyze(line)
+                            if isinstance(result.data, ErrorMessage):
+                                collected.append(result.data)
+                            if isinstance(result, LogAnalyzer.Complete):
+                                activated_analyzers.pop(index).analysis_completed()
+                                if not activated_analyzers:
+                                    break
+                for analyzer in activated_analyzers:
+                    analyzer.analysis_completed()
+                if not self._preserve_log:
+                    os.unlink(self._log)
+                stderr = (stderr or b"") + "".join(collected).encode("utf-8")
         super(LogScrapeJob, self)._check_returncode(stderr=stderr)
