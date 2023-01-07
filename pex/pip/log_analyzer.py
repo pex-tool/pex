@@ -92,6 +92,9 @@ class LogScrapeJob(Job):
         ]
         if activated_analyzers:
             collected = []
+            # A process may fail so early that there is no log file to analyze.
+            # We assume that if this is the case, the superclass _check_returncode will
+            # express the underlying cause of that failure in a way useful to the user.
             if os.path.isfile(self._log):
                 with open(self._log, "r") as fp:
                     for line in fp:
