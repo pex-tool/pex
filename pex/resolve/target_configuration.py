@@ -20,7 +20,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import FrozenSet, Iterator, Optional, Set, Tuple, Union
+    from typing import FrozenSet, Iterator, Optional, Set, Tuple
 
     import attr  # vendor:skip
 else:
