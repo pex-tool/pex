@@ -1,6 +1,29 @@
 Release Notes
 =============
 
+2.1.120
+-------
+
+This release completes the ``--complete-platform`` fix started in
+Pex 2.1.116 by #1991. That fix did not work in all cases but now does.
+
+PEXes run in interpreter mode now support command history when the
+underlying interpreter being used to run the PEX does; use the
+``PEX_INTERPRETER_HISTORY`` bool env var to turn this on.
+
+Additionally, PEXes built with the combination
+``--layout loose --venv --no-venv-site-packages-copies`` are fixed to
+be robust to moves of the source loose PEX directory.
+
+* Fix loose --venv PEXes to be robust to moves. (#2033)
+  `PR #2033 <https://github.com/pantsbuild/pex/pull/2033>`_
+
+* Fix interpreter resolution when using --complete-platform with --resolve-local-platforms (#2031)
+  `PR #2031 <https://github.com/pantsbuild/pex/pull/2031>`_
+
+* Support REPL command history. (#2018)
+  `PR #2018 <https://github.com/pantsbuild/pex/pull/2018>`_
+
 2.1.119
 -------
 
