@@ -18,6 +18,7 @@ from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
+from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.targets import LocalInterpreter
@@ -162,8 +163,16 @@ class PEX(object):  # noqa: T000
         self._vars = env
         self._envs = None  # type: Optional[Iterable[PEXEnvironment]]
         self._activated_dists = None  # type: Optional[Iterable[Distribution]]
+        self._layout = None  # type: Optional[Layout.Value]
         if verify_entry_point:
             self._do_entry_point_verification()
+
+    @property
+    def layout(self):
+        # type: () -> Layout.Value
+        if self._layout is None:
+            self._layout = Layout.identify(self._pex)
+        return self._layout
 
     def pex_info(self, include_env_overrides=True):
         # type: (bool) -> PexInfo

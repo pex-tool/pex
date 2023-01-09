@@ -17,6 +17,7 @@ from pex.interpreter_constraints import (
     InterpreterConstraints,
     UnsatisfiableInterpreterConstraintsError,
 )
+from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
 from pex.targets import LocalInterpreter
@@ -528,6 +529,13 @@ def ensure_venv(
                         continue
 
                     os.symlink(venv_dir, os.path.join(short_venv.work_dir, "venv"))
+
+                    # Loose PEXes don't need to unpack themselves to the PEX_ROOT before running;
+                    # so we'll not have a stable base there to symlink from. As such, always copy
+                    # for loose PEXes to ensure the PEX_ROOT venv is stable in the face of
+                    # modification of the source loose PEX.
+                    symlink = pex.layout != Layout.LOOSE and not pex_info.venv_site_packages_copies
+
                     shebang = populate_venv(
                         virtualenv,
                         pex,
@@ -536,7 +544,7 @@ def ensure_venv(
                             short_venv_dir, "venv", "bin", os.path.basename(pex.interpreter.binary)
                         ),
                         collisions_ok=collisions_ok,
-                        symlink=not pex_info.venv_site_packages_copies,
+                        symlink=symlink,
                     )
 
                     # There are popular Linux distributions with shebang length limits
