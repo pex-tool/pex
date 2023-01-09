@@ -190,7 +190,7 @@ class TargetConfiguration(object):
                 map(str, requested_platforms)
             )
             with TRACER.timed(
-                "Searching for local interpreters matching ".format(", ".join(platform_strs))
+                "Searching for local interpreters matching {}".format(", ".join(platform_strs))
             ):
                 candidate_interpreters = OrderedSet(
                     iter_compatible_interpreters(path=self.interpreter_configuration.python_path)
