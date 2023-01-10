@@ -101,70 +101,48 @@ class InterpreterConstraintsNotSatisfied(TargetConfigurationError):
 
 
 def _interpreter_compatible_platforms(
-    all_platforms,  # type: OrderedDict[Optional[Platform], Optional[CompletePlatform]]
+    requested_complete_platforms,  # type: OrderedSet[CompletePlatform]
     candidate_interpreter,  # type: PythonInterpreter
 ):
-    # type: (...) -> FrozenSet[Platform]
-    resolved_platforms = candidate_interpreter.supported_platforms.intersection(
-        all_platforms
-    )  # type: FrozenSet[Platform]
-    incompatible_platforms = set()  # type: Set[Platform]
-
-    for resolved_platform in resolved_platforms:
-        requested_complete = all_platforms[resolved_platform]
-        if requested_complete is not None:
-            # if there was an explicit complete platform specified, only use the local interpreter
-            # when the interpreter's tags are a subset of the complete platform's: tags supported by
-            # the interpreter but not the complete platform may result in incompatible wheels being
-            # chosen, if the interpreter was used directly
-            candidate_complete = CompletePlatform.from_interpreter(candidate_interpreter)
-            requested_tags = set(requested_complete.supported_tags)
-            missing_tags = OrderedSet(
-                t for t in candidate_complete.supported_tags if t not in requested_tags
-            )
-            if missing_tags:
-                TRACER.log(
-                    "Rejected resolution of {} for platform {} due to supporting {} extra tags".format(
-                        candidate_interpreter,
-                        resolved_platform,
-                        len(missing_tags),
-                    ),
-                    V=3,
-                )
-                TRACER.log(
-                    "Extra tags supported by {} for platform {} but not supported by specified complete platform: {}".format(
-                        candidate_interpreter,
-                        resolved_platform,
-                        ", ".join(map(str, missing_tags)),
-                    ),
-                    V=9,
-                )
-                # keep iterating to give information about each of the relevant platforms
-                incompatible_platforms.add(resolved_platform)
-                continue
-
-        TRACER.log(
-            "Provisionally accepted resolution of {} for platform {} due to matching {}".format(
-                candidate_interpreter,
-                resolved_platform,
-                "tags"
-                if requested_complete is not None
-                else "platform (no complete platform and thus no tags to check)",
-            ),
-            V=3,
+    # type: (...) -> FrozenSet[CompletePlatform]
+    compatible_complete_platforms = []
+    for requested_complete in requested_complete_platforms:
+        # if there was an explicit complete platform specified, only use the local interpreter
+        # when the interpreter's tags are a subset of the complete platform's: tags supported by
+        # the interpreter but not the complete platform may result in incompatible wheels being
+        # chosen, if the interpreter was used directly
+        interpreter_platform = CompletePlatform.from_interpreter(candidate_interpreter)
+        missing_tags = set(interpreter_platform.supported_tags) - set(
+            requested_complete.supported_tags
         )
-
-    if incompatible_platforms:
-        TRACER.log(
-            "Rejected interpreter {} due to being incompatible with {}: {}".format(
-                candidate_interpreter,
-                "a platform" if len(incompatible_platforms) == 1 else "some platforms",
-                ", ".join(sorted(map(str, incompatible_platforms))),
+        if missing_tags:
+            TRACER.log(
+                "Rejected candidate interpreter {} for complete platform {} since interpreter supports {} extra tags".format(
+                    candidate_interpreter,
+                    requested_complete.platform,
+                    len(missing_tags),
+                ),
+                V=3,
             )
-        )
-        return frozenset()
+            TRACER.log(
+                "Extra tags supported by {} but not supported by requested complete platform {}: {}".format(
+                    candidate_interpreter,
+                    requested_complete.platform,
+                    ", ".join(map(str, missing_tags)),
+                ),
+                V=9,
+            )
+        else:
+            TRACER.log(
+                "Accepted resolution of {} for complete platform {}".format(
+                    candidate_interpreter,
+                    requested_complete,
+                ),
+                V=3,
+            )
+            compatible_complete_platforms.append(requested_complete)
 
-    return resolved_platforms
+    return frozenset(compatible_complete_platforms)
 
 
 @attr.s(frozen=True)
@@ -199,27 +177,28 @@ class TargetConfiguration(object):
         """
         interpreters = self.interpreter_configuration.resolve_interpreters()
 
-        all_platforms = (
-            OrderedDict()
-        )  # type: OrderedDict[Optional[Platform], Optional[CompletePlatform]]
-        all_platforms.update(
-            (complete_platform.platform, complete_platform)
-            for complete_platform in self.complete_platforms
-        )
-        all_platforms.update((platform, None) for platform in self.platforms)
-        if all_platforms and self.resolve_local_platforms:
+        requested_platforms = OrderedSet(self.platforms)  # type: OrderedSet[Optional[Platform]]
+        requested_complete_platforms = OrderedSet(
+            self.complete_platforms
+        )  # type: OrderedSet[CompletePlatform]
+        if (requested_platforms or requested_complete_platforms) and self.resolve_local_platforms:
+            # If any platform or complete_platform matches a local interpreter, we remove that
+            # platform or complete_platform from the requested_* set and instead use the
+            # interpreter.
+
+            platform_strs = list(map(str, requested_complete_platforms)) + list(
+                map(str, requested_platforms)
+            )
             with TRACER.timed(
-                "Searching for local interpreters matching {}".format(
-                    ", ".join(map(str, all_platforms))
-                )
+                "Searching for local interpreters matching {}".format(", ".join(platform_strs))
             ):
                 candidate_interpreters = OrderedSet(
                     iter_compatible_interpreters(path=self.interpreter_configuration.python_path)
                 )  # type: OrderedSet[PythonInterpreter]
                 candidate_interpreters.add(PythonInterpreter.get())
                 for candidate_interpreter in candidate_interpreters:
-                    resolved_platforms = _interpreter_compatible_platforms(
-                        all_platforms, candidate_interpreter
+                    resolved_platforms = candidate_interpreter.supported_platforms.intersection(
+                        requested_platforms
                     )
                     if resolved_platforms:
                         for resolved_platform in resolved_platforms:
@@ -228,28 +207,37 @@ class TargetConfiguration(object):
                                     candidate_interpreter, resolved_platform
                                 )
                             )
-                            all_platforms.pop(resolved_platform)
+                            requested_platforms.remove(resolved_platform)
                         interpreters.add(candidate_interpreter)
-            if all_platforms:
+
+                    resolved_complete_platforms = _interpreter_compatible_platforms(
+                        requested_complete_platforms, candidate_interpreter
+                    )
+                    if resolved_complete_platforms:
+                        for resolved_complete_platform in resolved_complete_platforms:
+                            TRACER.log(
+                                "Resolved {} for complete platform {}".format(
+                                    candidate_interpreter, resolved_complete_platform
+                                )
+                            )
+                            requested_complete_platforms.remove(resolved_complete_platform)
+                        interpreters.add(candidate_interpreter)
+
+            if requested_platforms or requested_complete_platforms:
+                platform_strs = list(map(str, requested_complete_platforms)) + list(
+                    map(str, requested_platforms)
+                )
                 TRACER.log(
                     "Could not resolve a local interpreter for {}, will resolve only binary "
                     "distributions for {}.".format(
-                        ", ".join(map(str, all_platforms)),
-                        "this platform" if len(all_platforms) == 1 else "these platforms",
+                        ", ".join(platform_strs),
+                        "this platform" if len(platform_strs) == 1 else "these platforms",
                     )
                 )
 
-        complete_platforms = []
-        platforms = []
-        for platform, complete_platform in all_platforms.items():
-            if complete_platform:
-                complete_platforms.append(complete_platform)
-            else:
-                platforms.append(platform)
-
         return Targets(
             interpreters=tuple(interpreters),
-            complete_platforms=tuple(complete_platforms),
-            platforms=tuple(platforms),
+            complete_platforms=tuple(requested_complete_platforms),
+            platforms=tuple(requested_platforms),
             assume_manylinux=self.assume_manylinux,
         )

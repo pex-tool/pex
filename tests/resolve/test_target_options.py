@@ -419,7 +419,7 @@ def test_configure_resolve_local_platforms_with_complete_platforms(
 
     def assert_local_platforms(
         complete_platforms,  # type: Iterable[str]
-        expected_platforms,  # type: Iterable[str]
+        expected_complete_platforms,  # type: Iterable[str]
         expected_interpreter,  # type: Optional[PythonInterpreter]
         expected_interpreters=None,  # type: Optional[Tuple[PythonInterpreter, ...]]
     ):
@@ -429,7 +429,10 @@ def test_configure_resolve_local_platforms_with_complete_platforms(
             itertools.chain.from_iterable(("--complete-platform", p) for p in complete_platforms)
         )
         targets = compute_target_configuration(parser, args)
-        # assert tuple(Platform.create(ep) for ep in expected_platforms) == targets.platforms
+        expected_complete_platform_objects = tuple(
+            target_options._create_complete_platform(cp) for cp in expected_complete_platforms
+        )
+        assert expected_complete_platform_objects == targets.complete_platforms
         assert_interpreters_configured(targets, expected_interpreter, expected_interpreters)
 
     py38_complete = dump_complete_platform(
@@ -441,6 +444,12 @@ def test_configure_resolve_local_platforms_with_complete_platforms(
         "py38_extra",
         py38.identity.env_markers.as_dict(),
         py38.identity.supported_tags.to_string_list() + ["py3-none-manylinux_2_9999_x86_64"],
+    )
+
+    py38_extra_complete_prefixed = dump_complete_platform(
+        "py38_extra_prefixed",
+        py38.identity.env_markers.as_dict(),
+        ["py3-none-manylinux_2_9999_x86_64"] + py38.identity.supported_tags.to_string_list(),
     )
 
     py38_subset_tags = py38.identity.supported_tags.to_string_list()[:-10]
@@ -489,21 +498,28 @@ def test_configure_resolve_local_platforms_with_complete_platforms(
     # exact match, yay
     assert_local_platforms(
         complete_platforms=[py38_complete],
-        expected_platforms=[str(py38.platform)],
+        expected_complete_platforms=[],
         expected_interpreter=py38,
     )
 
     # the interpreter doesn't support some tags, but that's fine
     assert_local_platforms(
         complete_platforms=[py38_extra_complete],
-        expected_platforms=[str(py38.platform)],
+        expected_complete_platforms=[],
+        expected_interpreter=py38,
+    )
+
+    # the interpreter doesn't support some more specific tags, that is also fine
+    assert_local_platforms(
+        complete_platforms=[py38_extra_complete_prefixed],
+        expected_complete_platforms=[],
         expected_interpreter=py38,
     )
 
     # # the interpreter has some tags it supports that this complete platform does not
     assert_local_platforms(
         complete_platforms=[py38_subset_complete],
-        expected_platforms=[],
+        expected_complete_platforms=[py38_subset_complete],
         expected_interpreter=None,
     )
 
@@ -511,21 +527,21 @@ def test_configure_resolve_local_platforms_with_complete_platforms(
     # compatible, one not)
     assert_local_platforms(
         complete_platforms=[py38_subset_complete, py38_complete, py38_extra_complete],
-        expected_platforms=[],
-        expected_interpreter=None,
+        expected_complete_platforms=[py38_subset_complete],
+        expected_interpreter=py38,  # compatible with py38_complete and py38_extra_complete
     )
 
     # wildly different
     assert_local_platforms(
         complete_platforms=[py39999_complete],
-        expected_platforms=[],
+        expected_complete_platforms=[py39999_complete],
         expected_interpreter=None,
     )
 
     # multiple
     assert_local_platforms(
         complete_platforms=[py38_complete, py310_complete],
-        expected_platforms=[str(py38.platform), str(py310.platform)],
+        expected_complete_platforms=[],
         expected_interpreter=py38,
         expected_interpreters=(py38, py310),
     )
