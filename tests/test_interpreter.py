@@ -192,7 +192,12 @@ class TestPythonInterpreter(object):
 
     def test_iter_interpreter_path_filter_symlink(self, test_interpreter1, test_interpreter2):
         # type: (str, str) -> None
-        with temporary_dir() as bin_dir:
+        with temporary_dir() as tmpdir:
+            # PythonInterpreter._find_pyvenv_cfg looks in the binary's parent dir for a
+            # pyvenv.cfg file. We use a subdir to ensure that a random such file in /tmp
+            # doesn't impact this test.
+            bin_dir = os.path.join(tmpdir, "bin_dir")
+            os.mkdir(bin_dir)
             os.symlink(test_interpreter2, os.path.join(bin_dir, "jake"))
 
             # Verify path filtering happens before interpreter resolution, which os.path.realpaths

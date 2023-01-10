@@ -29,6 +29,7 @@ from pex.resolve.testing import normalize_locked_resolve
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter
 from pex.testing import (
+    IS_LINUX_ARM64,
     IS_MAC,
     IS_PYPY,
     PY310,
@@ -144,13 +145,14 @@ def test_create_style(
     assert not create_lock("strict").additional_artifacts
 
     # We should have 2 total artifacts for a sources lock for most interpreters since we know
-    # psutil 5.9.0 provides an sdist and wheels for CPython 2.7 (but not for macOS) and CPython 3.6
-    # through 3.10.
+    # psutil 5.9.0 provides an sdist and wheels for CPython 2.7 (but not for macOS or aarch64)
+    # and CPython 3.6 through 3.10.
     expected_additional = (
         1
         if not IS_PYPY
         and (
-            (PY_VER == (2, 7) and not IS_MAC) or InterpreterConstraint.matches("CPython>=3.6,<3.11")
+            (PY_VER == (2, 7) and not IS_MAC and not IS_LINUX_ARM64)
+            or InterpreterConstraint.matches("CPython>=3.6,<3.11")
         )
         else 0
     )

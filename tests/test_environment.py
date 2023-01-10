@@ -24,7 +24,7 @@ from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.targets import LocalInterpreter, Targets
 from pex.testing import (
-    IS_LINUX,
+    IS_LINUX_X86_64,
     IS_PYPY3,
     PY38,
     WheelBuilder,
@@ -391,7 +391,7 @@ def cpython_38_environment(python_38_interpreter):
 
 
 @pytest.mark.parametrize(
-    ("wheel_distribution", "wheel_is_linux"),
+    ("wheel_distribution", "wheel_is_linux_x86_64"),
     [
         pytest.param(
             create_dist("llvmlite-0.29.0-cp38-cp38-linux_x86_64.whl", "llvmlite", "0.29.0"),
@@ -416,10 +416,10 @@ def cpython_38_environment(python_38_interpreter):
     ],
 )
 def test_can_add_handles_optional_build_tag_in_wheel(
-    cpython_38_environment, wheel_distribution, wheel_is_linux
+    cpython_38_environment, wheel_distribution, wheel_is_linux_x86_64
 ):
     # type: (PEXEnvironment, FingerprintedDistribution, bool) -> None
-    native_wheel = IS_LINUX and wheel_is_linux
+    native_wheel = IS_LINUX_X86_64 and wheel_is_linux_x86_64
     added = isinstance(cpython_38_environment._can_add(wheel_distribution), _RankedDistribution)
     assert added is native_wheel
 
@@ -442,10 +442,14 @@ def assert_cpython_38_environment_can_add(cpython_38_environment):
     return assert_can_add
 
 
+# So the following tests pass on all platforms.
+_wheel_tags = "macosx_10_9_x86_64.macosx_11_0_arm64.linux_x86_64.linux_aarch64"
+
+
 def test_can_add_ranking_platform_tag_more_specific(assert_cpython_38_environment_can_add):
     # type: (Callable[[FingerprintedDistribution], _RankedDistribution]) -> None
     ranked_specific = assert_cpython_38_environment_can_add(
-        create_dist("foo-1.0.0-cp38-cp38-macosx_10_9_x86_64.linux_x86_64.whl", "foo", "1.0.0")
+        create_dist("foo-1.0.0-cp38-cp38-{}.whl".format(_wheel_tags), "foo", "1.0.0")
     )
     ranked_universal = assert_cpython_38_environment_can_add(
         create_dist("foo-2.0.0-py2.py3-none-any.whl", "foo", "2.0.0")
@@ -464,9 +468,9 @@ def test_can_add_ranking_platform_tag_more_specific(assert_cpython_38_environmen
 def test_can_add_ranking_version_newer_tie_break(assert_cpython_38_environment_can_add):
     # type: (Callable[[FingerprintedDistribution], _RankedDistribution]) -> None
     ranked_v1 = assert_cpython_38_environment_can_add(
-        create_dist("foo-1.0.0-cp38-cp38-macosx_10_9_x86_64.linux_x86_64.whl", "foo", "1.0.0")
+        create_dist("foo-1.0.0-cp38-cp38-{}.whl".format(_wheel_tags), "foo", "1.0.0")
     )
     ranked_v2 = assert_cpython_38_environment_can_add(
-        create_dist("foo-2.0.0-cp38-cp38-macosx_10_9_x86_64.linux_x86_64.whl", "foo", "2.0.0")
+        create_dist("foo-2.0.0-cp38-cp38-{}.whl".format(_wheel_tags), "foo", "2.0.0")
     )
     assert ranked_v2 < ranked_v1

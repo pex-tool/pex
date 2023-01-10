@@ -4,7 +4,6 @@
 from __future__ import absolute_import, print_function
 
 import functools
-import itertools
 import json
 import os
 import re
@@ -27,10 +26,11 @@ from pex.network_configuration import NetworkConfiguration
 from pex.pex_info import PexInfo
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
 from pex.testing import (
+    IS_LINUX_ARM64,
     IS_MAC,
+    IS_MAC_ARM64,
     IS_PYPY,
     NOT_CPYTHON27,
-    NOT_CPYTHON27_OR_OSX,
     PY38,
     PY39,
     PY310,
@@ -44,7 +44,6 @@ from pex.testing import (
     run_simple_pex,
     run_simple_pex_test,
     skip_unless_python27,
-    skip_unless_python27_venv,
     temporary_content,
 )
 from pex.typing import TYPE_CHECKING, cast
@@ -617,7 +616,10 @@ def test_pex_manylinux_and_tag_selection_lxml_osx():
         )
 
 
-@pytest.mark.skipif(NOT_CPYTHON27_OR_OSX, reason="Relies on a pre-built wheel for linux 2.7")
+@pytest.mark.skipif(
+    NOT_CPYTHON27 or IS_MAC or IS_LINUX_ARM64,
+    reason="Relies on a pre-built wheel for CPython 2.7 on Linux X86_64",
+)
 def test_pex_manylinux_runtime():
     # type: () -> None
     """Tests resolver manylinux support and runtime resolution (and --platform=current)."""
@@ -809,6 +811,7 @@ def test_invalid_entry_point_verification_3rdparty(tmpdir):
     ).assert_failure()
 
 
+@pytest.mark.skipif(IS_LINUX_ARM64 or IS_MAC_ARM64, reason="No p537 wheel published for ARM yet.")
 def test_multiplatform_entrypoint():
     # type: () -> None
     with temporary_dir() as td:
