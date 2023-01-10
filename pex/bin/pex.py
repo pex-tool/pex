@@ -876,7 +876,11 @@ def do_main(
             compress=options.compress,
         )
         if options.seed != Seed.NONE:
-            seed_info = seed_cache(options, pex, verbose=options.seed == Seed.VERBOSE)
+            seed_info = seed_cache(
+                options,
+                PEX(pex_file, interpreter=interpreter),
+                verbose=options.seed == Seed.VERBOSE,
+            )
             print(seed_info)
     else:
         if not _compatible_with_current_platform(interpreter, targets.platforms):
