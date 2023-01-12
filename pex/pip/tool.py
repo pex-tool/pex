@@ -14,7 +14,7 @@ from tempfile import mkdtemp
 from pex import dist_metadata, targets
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
-from pex.compatibility import get_stderr_bytes_buffer, urlparse
+from pex.compatibility import get_stderr_bytes_buffer, quote, urlparse
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
@@ -361,6 +361,11 @@ class Pip(object):
             popen_kwargs.update(stderr=subprocess.PIPE)
 
             args = self._pip_pex.execute_args(*command)
+
+            rendered_env = " ".join("{}={}".format(key, quote(value)) for key, value in env.items())
+            rendered_args = " ".join(quote(s) for s in args)
+            TRACER.log("Executing: {} {}".format(rendered_env, rendered_args), V=3)
+
             return args, subprocess.Popen(args=args, env=env, **popen_kwargs)
 
     def _spawn_pip_isolated_job(

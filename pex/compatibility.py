@@ -259,3 +259,9 @@ else:
         if not prefix:
             return ""
         return os.path.join(*prefix)
+
+
+if PY3:
+    from shlex import quote as quote
+else:
+    from pipes import quote as quote
