@@ -708,6 +708,7 @@ class BuildAndInstallRequest(object):
                 build_requests=to_build, max_parallel_jobs=max_parallel_jobs
             )
             to_install.update(itertools.chain.from_iterable(build_results.values()))
+        if to_install:
             all_install_requests.update(
                 self._resolve_direct_file_deps(
                     to_install, max_parallel_jobs=max_parallel_jobs, analyzed=already_analyzed
