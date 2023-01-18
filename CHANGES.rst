@@ -1,6 +1,18 @@
 Release Notes
 =============
 
+2.1.121
+-------
+
+This release fixes two bugs brought to light trying to interoperate with
+Poetry projects.
+
+* Support space separated markers in URL reqs. (#2039)
+  `PR #2039 <https://github.com/pantsbuild/pex/pull/2039>`_
+
+* Handle file:// URL deps in distributions. (#2041)
+  `PR #2041 <https://github.com/pantsbuild/pex/pull/2041>`_
+
 2.1.120
 -------
 
