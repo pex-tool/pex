@@ -672,14 +672,14 @@ class BuildAndInstallRequest(object):
         self,
         install_requests,  # type: Iterable[InstallRequest]
         max_parallel_jobs=None,  # type: Optional[int]
-        analyzed=None,  # type: Optional[OrderedDict[ProjectName, InstallRequest]]
+        analyzed=None,  # type: Optional[Set[ProjectName]]
     ):
         # type: (...) -> Iterable[InstallRequest]
 
-        already_analyzed = (
-            analyzed or OrderedDict()
-        )  # type: OrderedDict[ProjectName, InstallRequest]
-        build_requests = OrderedSet()  # type: OrderedSet[BuildRequest]
+        already_analyzed = analyzed or set()  # type: Set[ProjectName]
+
+        to_install = OrderedSet()  # type: OrderedSet[InstallRequest]
+        to_build = OrderedSet()  # type: OrderedSet[BuildRequest]
         for install_request in install_requests:
             metadata = DistMetadata.load(install_request.wheel_path)
             for requirement in metadata.requires_dists:
@@ -697,22 +697,20 @@ class BuildAndInstallRequest(object):
                         "machine.".format(wheel=install_request.wheel_file, url=requirement.url)
                     )
                 if dist_path.endswith(".whl"):
-                    already_analyzed[requirement.project_name] = InstallRequest.create(
-                        install_request.target, dist_path
-                    )
+                    to_install.add(InstallRequest.create(install_request.target, dist_path))
                 else:
-                    build_requests.add(BuildRequest.create(install_request.target, dist_path))
-            already_analyzed[metadata.project_name] = install_request
+                    to_build.add(BuildRequest.create(install_request.target, dist_path))
+            already_analyzed.add(metadata.project_name)
 
-        all_install_requests = OrderedSet(already_analyzed.values())
-        if build_requests:
+        all_install_requests = OrderedSet(install_requests)
+        if to_build:
             build_results = self._wheel_builder.build_wheels(
-                build_requests=build_requests, max_parallel_jobs=max_parallel_jobs
+                build_requests=to_build, max_parallel_jobs=max_parallel_jobs
             )
-            to_resolve = itertools.chain.from_iterable(build_results.values())
+            to_install.update(itertools.chain.from_iterable(build_results.values()))
             all_install_requests.update(
                 self._resolve_direct_file_deps(
-                    to_resolve, max_parallel_jobs=max_parallel_jobs, analyzed=already_analyzed
+                    to_install, max_parallel_jobs=max_parallel_jobs, analyzed=already_analyzed
                 )
             )
         return all_install_requests
