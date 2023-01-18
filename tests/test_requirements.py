@@ -265,6 +265,7 @@ def test_parse_requirements_stress(chroot):
 
                 a/local/project[foo]; python_full_version == "2.7.8"
                 ./another/local/project;python_version == "2.7.*"
+                ./another/local/project ; python_version == "2.7.*"
                 ./another/local/project
                 ./
                 # Local projects with basenames that are invalid Python project names (trailing _):
@@ -274,11 +275,15 @@ def test_parse_requirements_stress(chroot):
 
                 hg+http://hg.example.com/MyProject@da39a3ee5e6b\\
                     #egg=AnotherProject[extra,more];python_version=="3.9.*"&subdirectory=foo/bar
+                hg+http://hg.example.com/MyProject@da39a3ee5e6b\\
+                    #egg=AnotherProject[extra,more] ; python_version=="3.9.*"&subdirectory=foo/bar
 
                 ftp://a/${PROJECT_NAME}-1.0.tar.gz
                 http://a/${PROJECT_NAME}-1.0.zip
                 https://a/numpy-1.9.2-cp34-none-win32.whl
                 https://a/numpy-1.9.2-cp34-none-win32.whl;\\
+                    python_version=="3.4.*" and sys_platform=='win32'
+                https://a/numpy-1.9.2-cp34-none-win32.whl ; \\
                     python_version=="3.4.*" and sys_platform=='win32'
 
                 Django@ git+https://github.com/django/django.git
@@ -286,6 +291,7 @@ def test_parse_requirements_stress(chroot):
                 Django@ git+https://github.com/django/django.git\\
                     @fd209f62f1d83233cc634443cfac5ee4328d98b8
                 Django @ file:projects/django-2.3.zip; python_version >= "3.10"
+                Django @ file:projects/django-2.3.zip ;python_version >= "3.10"
 
                 # Wheel with local version
                 http://download.pytorch.org/whl/cpu/torch-1.12.1%2Bcpu-cp310-cp310-linux_x86_64.whl
@@ -390,6 +396,10 @@ def test_parse_requirements_stress(chroot):
             path=os.path.realpath("extra/another/local/project"),
             marker="python_version == '2.7.*'",
         ),
+        local_req(
+            path=os.path.realpath("extra/another/local/project"),
+            marker="python_version == '2.7.*'",
+        ),
         local_req(path=os.path.realpath("extra/another/local/project")),
         local_req(path=os.path.realpath("extra")),
         local_req(path=os.path.realpath("extra/tmp/tmpW8tdb_")),
@@ -398,6 +408,13 @@ def test_parse_requirements_stress(chroot):
             path=os.path.realpath("extra/tmp/tmpW8tdb_"),
             extras=["foo"],
             marker="python_version == '3.9'",
+        ),
+        vcs_req(
+            vcs=VCS.Mercurial,
+            project_name="AnotherProject",
+            url="http://hg.example.com/MyProject@da39a3ee5e6b",
+            extras=["more", "extra"],
+            marker="python_version == '3.9.*'",
         ),
         vcs_req(
             vcs=VCS.Mercurial,
@@ -419,6 +436,12 @@ def test_parse_requirements_stress(chroot):
             specifier="==1.9.2",
             marker="python_version == '3.4.*' and sys_platform == 'win32'",
         ),
+        url_req(
+            project_name="numpy",
+            url="https://a/numpy-1.9.2-cp34-none-win32.whl",
+            specifier="==1.9.2",
+            marker="python_version == '3.4.*' and sys_platform == 'win32'",
+        ),
         vcs_req(vcs=VCS.Git, project_name="Django", url="https://github.com/django/django.git"),
         vcs_req(
             vcs=VCS.Git,
@@ -429,6 +452,12 @@ def test_parse_requirements_stress(chroot):
             vcs=VCS.Git,
             project_name="Django",
             url="https://github.com/django/django.git@fd209f62f1d83233cc634443cfac5ee4328d98b8",
+        ),
+        url_req(
+            project_name="Django",
+            url=os.path.realpath("extra/projects/django-2.3.zip"),
+            specifier="==2.3",
+            marker="python_version>='3.10'",
         ),
         url_req(
             project_name="Django",
