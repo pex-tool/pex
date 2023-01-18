@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import os
 import re
+import sys
 from contextlib import contextmanager
 
 from pex import attrs, dist_metadata, pex_warnings
@@ -396,6 +397,8 @@ def _try_parse_pip_local_formats(
         # + Environment markers denoted by `;...`
         #   See: https://www.python.org/dev/peps/pep-0508/#environment-markers
         r";",
+        # + A trailing whitespace character separating any of the above
+        r"\s",
     )
     # N.B.: The basename of the current directory (.) is '' and we allow this.
     match = re.match(
@@ -481,7 +484,9 @@ def _parse_requirement_line(
         specifier = None  # type: Optional[SpecifierSet]
         if not project_name:
             project_name_and_specifier = _try_parse_project_name_and_specifier_from_path(
-                unquote(parsed_url.path)
+                # There may be whitespace separated markers; so we strip the trailing whitespace
+                # used to support those.
+                unquote(parsed_url.path).rstrip()
             )
             if project_name_and_specifier is not None:
                 project_name = project_name_and_specifier.project_name
@@ -499,7 +504,9 @@ def _parse_requirement_line(
                     "#egg=<project name>."
                 ),
             )
-        url = parsed_url._replace(params="", fragment="").geturl()
+        # There may be whitespace separated markers; so we strip the trailing whitespace
+        # used to support those.
+        url = parsed_url._replace(params="", fragment="").geturl().rstrip()
         requirement = parse_requirement_from_project_name_and_specifier(
             project_name,
             extras=extras,
