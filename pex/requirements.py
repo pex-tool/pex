@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import os
 import re
-import sys
 from contextlib import contextmanager
 
 from pex import attrs, dist_metadata, pex_warnings

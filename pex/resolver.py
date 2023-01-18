@@ -16,7 +16,8 @@ from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
-from pex.dist_metadata import Distribution, Requirement
+from pex.compatibility import unquote, urlparse
+from pex.dist_metadata import DistMetadata, Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
@@ -45,7 +46,17 @@ from pex.util import CacheHelper
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
+    from typing import (
+        DefaultDict,
+        Iterable,
+        Iterator,
+        List,
+        Mapping,
+        Optional,
+        Sequence,
+        Set,
+        Tuple,
+    )
 
     import attr  # vendor:skip
 
@@ -657,6 +668,55 @@ class BuildAndInstallRequest(object):
         )
         return SpawnedJob.wait(job=install_job, result=install_result)
 
+    def _resolve_direct_file_deps(
+        self,
+        install_requests,  # type: Iterable[InstallRequest]
+        max_parallel_jobs=None,  # type: Optional[int]
+        analyzed=None,  # type: Optional[OrderedDict[ProjectName, InstallRequest]]
+    ):
+        # type: (...) -> Iterable[InstallRequest]
+
+        already_analyzed = (
+            analyzed or OrderedDict()
+        )  # type: OrderedDict[ProjectName, InstallRequest]
+        build_requests = OrderedSet()  # type: OrderedSet[BuildRequest]
+        for install_request in install_requests:
+            metadata = DistMetadata.load(install_request.wheel_path)
+            for requirement in metadata.requires_dists:
+                if requirement.project_name in already_analyzed:
+                    continue
+                if not requirement.url:
+                    continue
+                urlinfo = urlparse.urlparse(requirement.url)
+                if urlinfo.scheme != "file":
+                    continue
+                dist_path = unquote(urlinfo.path).rstrip()
+                if not os.path.exists(dist_path):
+                    raise Unsatisfiable(
+                        "The {wheel} wheel has a dependency on {url} which does not exist on this "
+                        "machine.".format(wheel=install_request.wheel_file, url=requirement.url)
+                    )
+                if dist_path.endswith(".whl"):
+                    already_analyzed[requirement.project_name] = InstallRequest.create(
+                        install_request.target, dist_path
+                    )
+                else:
+                    build_requests.add(BuildRequest.create(install_request.target, dist_path))
+            already_analyzed[metadata.project_name] = install_request
+
+        all_install_requests = OrderedSet(already_analyzed.values())
+        if build_requests:
+            build_results = self._wheel_builder.build_wheels(
+                build_requests=build_requests, max_parallel_jobs=max_parallel_jobs
+            )
+            to_resolve = itertools.chain.from_iterable(build_results.values())
+            all_install_requests.update(
+                self._resolve_direct_file_deps(
+                    to_resolve, max_parallel_jobs=max_parallel_jobs, analyzed=already_analyzed
+                )
+            )
+        return all_install_requests
+
     def install_distributions(
         self,
         ignore_errors=False,  # type: bool
@@ -680,7 +740,15 @@ class BuildAndInstallRequest(object):
         )
         to_install.extend(itertools.chain.from_iterable(build_results.values()))
 
-        # 2. All requirements are now in wheel form: calculate any missing direct requirement
+        # 2. (Recursively) post-process all wheels with file:// URL direct references. During the
+        #    download phase, Pip considers these dependencies satisfied and does not download them
+        #    or transfer them to the download directory (although it does download their
+        #    non file:// URL dependencies); it just leaves them where they lay on the file system.
+        all_install_requests = self._resolve_direct_file_deps(
+            to_install, max_parallel_jobs=max_parallel_jobs
+        )
+
+        # 3. All requirements are now in wheel form: calculate any missing direct requirement
         #    project names from the wheel names.
         with TRACER.timed(
             "Calculating project names for direct requirements:"
@@ -724,14 +792,14 @@ class BuildAndInstallRequest(object):
                     direct_requirement
                 )
 
-        # 3. Install wheels in individual chroots.
+        # 4. Install wheels in individual chroots.
 
         # Dedup by wheel name; e.g.: only install universal wheels once even though they'll get
         # downloaded / built for each interpreter or platform.
         install_requests_by_wheel_file = (
             OrderedDict()
         )  # type: OrderedDict[str, List[InstallRequest]]
-        for install_request in to_install:
+        for install_request in all_install_requests:
             install_requests_by_wheel_file.setdefault(install_request.wheel_file, []).append(
                 install_request
             )
