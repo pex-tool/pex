@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import errno
 import subprocess
 from abc import abstractmethod
+from contextlib import contextmanager
 from threading import BoundedSemaphore, Event, Thread
 
 from pex.compatibility import Queue, cpu_count
@@ -509,44 +510,69 @@ def execute_parallel(
                 spawn_queue.put(result)
         spawn_queue.put(done_sentinel)
 
-    spawner = Thread(name="PEX Parallel Job Spawner", target=spawn_jobs)
-    spawner.daemon = True
-    spawner.start()
-
-    error = None
-    while True:
-        spawn_result = spawn_queue.get()
-
-        if isinstance(spawn_result, DoneSentinel):
-            if error:
-                raise error
-            return
-
+    @contextmanager
+    def spawned_jobs():
+        spawner = Thread(name="PEX Parallel Job Spawner", target=spawn_jobs)
+        spawner.daemon = True
+        spawner.start()
         try:
-            if isinstance(spawn_result, SpawnError):
-                try:
-                    se_result = handler.handle_spawn_error(spawn_result.item, spawn_result.error)
-                    if se_result is not None:
-                        yield se_result
-                except Exception as e:
-                    # Fail fast and proceed to kill all outstanding spawned jobs.
-                    stop.set()
-                    error = e
-            elif (
-                error is not None
-            ):  # I.E.: `item` is not an exception, but there was a prior exception.
-                spawn_result.spawned_job.kill()
-            else:
-                try:
-                    yield spawn_result.spawned_job.await_result()
-                except Job.Error as e:
+            yield
+        finally:
+            stop.set()
+            # N.B.: We want to ensure, no matter what, the spawn_jobs loop above spins at least once
+            # so that it can see stop is set and exit in the case it is currently blocked on a put
+            # waiting for a job slot.
+            try:
+                job_slots.release()
+            except ValueError:
+                # From the BoundedSemaphore doc:
+                #
+                #   If the number of releases exceeds the number of acquires,
+                #   raise a ValueError.
+                #
+                # In the normal case there will be no job_slots to release; so we expect the
+                # BoundedSemaphore to raise here. We're guarding against the abnormal case where
+                # there is a bug in the state machine implied by the execute_parallel code.
+                pass
+            spawner.join()
+
+    with spawned_jobs():
+        error = None
+        while True:
+            spawn_result = spawn_queue.get()
+
+            if isinstance(spawn_result, DoneSentinel):
+                if error:
+                    raise error
+                return
+
+            try:
+                if isinstance(spawn_result, SpawnError):
                     try:
-                        je_result = handler.handle_job_error(spawn_result.item, e)
-                        if je_result is not None:
-                            yield je_result
+                        se_result = handler.handle_spawn_error(
+                            spawn_result.item, spawn_result.error
+                        )
+                        if se_result is not None:
+                            yield se_result
                     except Exception as e:
                         # Fail fast and proceed to kill all outstanding spawned jobs.
                         stop.set()
                         error = e
-        finally:
-            job_slots.release()
+                elif (
+                    error is not None
+                ):  # I.E.: `item` is not an exception, but there was a prior exception.
+                    spawn_result.spawned_job.kill()
+                else:
+                    try:
+                        yield spawn_result.spawned_job.await_result()
+                    except Job.Error as e:
+                        try:
+                            je_result = handler.handle_job_error(spawn_result.item, e)
+                            if je_result is not None:
+                                yield je_result
+                        except Exception as e:
+                            # Fail fast and proceed to kill all outstanding spawned jobs.
+                            stop.set()
+                            error = e
+            finally:
+                job_slots.release()
