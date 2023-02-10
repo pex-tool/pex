@@ -3,15 +3,20 @@
 
 from __future__ import absolute_import
 
+import functools
 import os
 import shutil
+import tarfile
 from collections import OrderedDict, defaultdict
+from multiprocessing.pool import ThreadPool
 
 from pex import hashing, resolver
 from pex.auth import PasswordDatabase
-from pex.common import pluralize, safe_mkdtemp
+from pex.build_system import pep_517
+from pex.common import open_zip, pluralize, safe_mkdtemp
 from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
 from pex.fetcher import URLFetcher
+from pex.jobs import Job, Retain, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
@@ -44,7 +49,7 @@ from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import DefaultDict, Dict, Iterable, Mapping, Optional, Tuple, Union
+    from typing import DefaultDict, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
     import attr  # vendor:skip
 
@@ -128,6 +133,38 @@ class _LockAnalysis(object):
     download_dir = attr.ib()  # type: str
 
 
+class LockError(Exception):
+    """Indicates an error creating a lock file."""
+
+
+def _prepare_project_directory(build_request):
+    # type: (BuildRequest) -> str
+
+    project = build_request.source_path
+    if os.path.isdir(project):
+        return project
+
+    extract_dir = os.path.join(safe_mkdtemp(), "project")
+    if project.endswith(".zip"):
+        with open_zip(project) as zf:
+            zf.extractall(extract_dir)
+    elif project.endswith(".tar.gz"):
+        with tarfile.open(project) as tf:
+            tf.extractall(extract_dir)
+    else:
+        raise LockError("Unexpected archive type for sdist {project}".format(project=project))
+
+    listing = os.listdir(extract_dir)
+    if len(listing) != 1:
+        raise LockError(
+            "Expected one top-level project directory to be extracted from {project}, "
+            "found {count}: {listing}".format(
+                project=project, count=len(listing), listing=", ".join(listing)
+            )
+        )
+    return os.path.join(extract_dir, listing[0])
+
+
 @attr.s(frozen=True)
 class LockObserver(ResolveObserver):
     root_requirements = attr.ib()  # type: Tuple[ParsedRequirement, ...]
@@ -199,15 +236,72 @@ class LockObserver(ResolveObserver):
                 count=len(build_requests), distributions=pluralize(build_requests, "distribution")
             )
         ):
-            build_results = self.wheel_builder.build_wheels(
-                build_requests=build_requests,
-                max_parallel_jobs=self.max_parallel_jobs,
-            )
-            for install_requests in build_results.values():
-                for install_request in install_requests:
-                    dist_metadatas_by_target[install_request.target].add(
-                        DistMetadata.load(install_request.wheel_path)
+            pool = ThreadPool(processes=self.max_parallel_jobs)
+            try:
+                project_directories = pool.map(_prepare_project_directory, build_requests)
+            finally:
+                pool.close()
+                pool.join()
+
+            build_wheel_requests = []  # type: List[BuildRequest]
+            prepare_metadata_errors = OrderedDict()  # type: OrderedDict[str, str]
+            for build_request, dist_metadata_result in zip(
+                build_requests,
+                execute_parallel(
+                    project_directories,
+                    # MyPy just can't figure out the next two args types; they're OK.
+                    functools.partial(  # type: ignore[arg-type]
+                        pep_517.spawn_prepare_metadata,
+                        pip_version=self.package_index_configuration.pip_version,
+                        resolver=self.resolver,
+                    ),
+                    error_handler=Retain[str](),  # type: ignore[arg-type]
+                    max_jobs=self.max_parallel_jobs,
+                ),
+            ):
+                if isinstance(dist_metadata_result, DistMetadata):
+                    dist_metadatas_by_target[build_request.target].add(dist_metadata_result)
+                else:
+                    _item, error = dist_metadata_result
+                    if isinstance(error, Job.Error) and pep_517.is_hook_unavailable_error(error):
+                        TRACER.log(
+                            "Failed to prepare metadata for {project}, trying to build a wheel "
+                            "instead: {err}".format(
+                                project=build_request.source_path, err=dist_metadata_result
+                            ),
+                            V=3,
+                        )
+                        build_wheel_requests.append(build_request)
+                    else:
+                        prepare_metadata_errors[build_request.source_path] = str(error)
+
+            if prepare_metadata_errors:
+                raise LockError(
+                    "Could not gather lock metadata for {count} {projects} with source artifacts:\n"
+                    "{errors}".format(
+                        count=len(prepare_metadata_errors),
+                        projects=pluralize(prepare_metadata_errors, "project"),
+                        errors="\n".join(
+                            "{index}. {project}: {error}".format(
+                                index=index, project=project, error=error
+                            )
+                            for index, (project, error) in enumerate(
+                                prepare_metadata_errors.items(), start=1
+                            )
+                        ),
                     )
+                )
+
+            if build_wheel_requests:
+                build_wheel_results = self.wheel_builder.build_wheels(
+                    build_requests=build_wheel_requests,
+                    max_parallel_jobs=self.max_parallel_jobs,
+                )
+                for install_requests in build_wheel_results.values():
+                    for install_request in install_requests:
+                        dist_metadatas_by_target[install_request.target].add(
+                            DistMetadata.load(install_request.wheel_path)
+                        )
 
         return tuple(
             LockedResolve.create(

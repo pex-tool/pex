@@ -518,7 +518,7 @@ class Requirement(object):
 class DistMetadata(object):
     @classmethod
     def load(cls, location):
-        # type: (Union[str, Message]) -> DistMetadata
+        # type: (Union[Text, Message]) -> DistMetadata
 
         project_name_and_ver = project_name_and_version(location)
         if not project_name_and_ver:

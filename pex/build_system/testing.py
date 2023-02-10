@@ -49,7 +49,7 @@ def assert_build_sdist(
     assert not isinstance(location, Error), location
     assert sdist_dir == os.path.dirname(location)
 
-    sdist = Distribution.load(location)
+    sdist = Distribution.load(str(location))
     assert_expected_dist(sdist)
 
     # Verify the sdist is valid such that we can build a wheel from it.

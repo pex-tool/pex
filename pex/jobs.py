@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     _I = TypeVar("_I")
     _O = TypeVar("_O")
     _T = TypeVar("_T")
+    _S = TypeVar("_S")
     _SE = TypeVar("_SE")
     _JE = TypeVar("_JE")
 else:
@@ -324,6 +325,24 @@ class SpawnedJob(Generic["_T"]):
         # type: () -> None
         """Terminates the spawned job if it's not already complete."""
         raise NotImplementedError()
+
+    def map(self, func):
+        # type: (Callable[[_T], _S]) -> SpawnedJob[_S]
+
+        class Map(SpawnedJob):
+            def await_result(me):
+                # type: () -> _S
+                return func(self.await_result())
+
+            def kill(me):
+                # type: () -> None
+                self.kill()
+
+            def __repr__(me):
+                # type: () -> str
+                return "{job}.map({func})".format(job=self, func=func)
+
+        return Map()
 
 
 # If `cpu_count` fails, we default to 2. This is relatively arbitrary, based on what seems to be
