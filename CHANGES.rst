@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.122
+-------
+
+This release fixes posix file locks used by Pex internally and enhances
+lock creation to support locking sdist-only C extension projects that
+do not build on the current platform.
+
+* Lock sdists with ``prepare-metadata-for-build-wheel``. (#2053)
+  `PR #2053 <https://github.com/pantsbuild/pex/pull/2053>`_
+
+* Fix ``execute_parallel`` "leaking" a thread. (#2052)
+  `PR #2052 <https://github.com/pantsbuild/pex/pull/2052>`_
+
 2.1.121
 -------
 
