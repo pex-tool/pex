@@ -74,11 +74,12 @@ class PipVersion(Enum["PipVersionValue"]):
         ),
     )
 
+    # TODO(John Sirois): Expose setuptools and wheel version flags - these don't affect
+    #  Pex; so we should allow folks to experiment with upgrade easily:
+    #  https://github.com/pantsbuild/pex/issues/1895
+
     v22_2_2 = PipVersionValue(
         version="22.2.2",
-        # TODO(John Sirois): Expose setuptools and wheel version flags - these don't affect
-        #  Pex; so we should allow folks to experiment with upgrade easily:
-        #  https://github.com/pantsbuild/pex/issues/1895
         setuptools_version="65.3.0",
         wheel_version="0.37.1",
         requires_python=">=3.7",
@@ -86,11 +87,22 @@ class PipVersion(Enum["PipVersionValue"]):
 
     v22_3 = PipVersionValue(
         version="22.3",
-        # TODO(John Sirois): Expose setuptools and wheel version flags - these don't affect
-        #  Pex; so we should allow folks to experiment with upgrade easily:
-        #  https://github.com/pantsbuild/pex/issues/1895
         setuptools_version="65.5.0",
         wheel_version="0.37.1",
+        requires_python=">=3.7",
+    )
+
+    v22_3_1 = PipVersionValue(
+        version="22.3.1",
+        setuptools_version="65.5.1",
+        wheel_version="0.38.2",
+        requires_python=">=3.7",
+    )
+
+    v23_0 = PipVersionValue(
+        version="23.0",
+        setuptools_version="67.2.0",
+        wheel_version="0.38.4",
         requires_python=">=3.7",
     )
 
