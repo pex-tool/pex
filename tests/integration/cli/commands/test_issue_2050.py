@@ -1,27 +1,40 @@
 # Copyright 2023 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
-
+import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
 from textwrap import dedent
-from typing import Callable
 
 import pytest
 
 from pex.build_system import pep_517
 from pex.cli.testing import run_pex3
-from pex.common import safe_open
+from pex.dist_metadata import Requirement
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.locked_resolve import LockedRequirement
+from pex.resolve.lockfile import json_codec
+from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.result import try_
-from pex.testing import IS_LINUX, PY39, PY310, PY_VER, ensure_python_interpreter, run_pex_command
+from pex.sorted_tuple import SortedTuple
+from pex.testing import (
+    IS_LINUX,
+    PY310,
+    PY_VER,
+    ensure_python_interpreter,
+    make_env,
+    run_pex_command,
+)
+from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Callable, Dict
 
     import attr  # vendor:skip
 else:
@@ -31,7 +44,19 @@ else:
 @attr.s(frozen=True)
 class Repo(object):
     find_links = attr.ib()  # type: str
-    path_mapping = attr.ib()  # type: str
+    path_mapping = attr.ib()  # type: PathMapping
+    path_mappings = attr.ib(init=False)  # type: PathMappings
+    path_mapping_arg = attr.ib(init=False)  # type: str
+
+    @path_mappings.default
+    def _mappings(self):
+        # type: () -> PathMappings
+        return PathMappings((self.path_mapping,))
+
+    @path_mapping_arg.default
+    def _mapping_arg(self):
+        # type: () -> str
+        return "{name}|{path}".format(name=self.path_mapping.name, path=self.path_mapping.path)
 
 
 @pytest.fixture
@@ -40,7 +65,6 @@ def build_sdist(tmpdir):
 
     def func(project_directory):
         find_links = os.path.join(str(tmpdir), "find-links")
-        path_mapping = "FL|{}".format(find_links)
         os.makedirs(find_links)
         try_(
             pep_517.build_sdist(
@@ -50,7 +74,7 @@ def build_sdist(tmpdir):
                 resolver=ConfiguredResolver.default(),
             )
         )
-        return Repo(find_links=find_links, path_mapping=path_mapping)
+        return Repo(find_links=find_links, path_mapping=PathMapping(path=find_links, name="FL"))
 
     return func
 
@@ -77,17 +101,22 @@ def test_lock_uncompilable_sdist(
         fp.write(
             dedent(
                 """\
+                import json
+                import os
+
                 from setuptools import setup, Extension
 
 
-                setup(
-                    name="bad",
-                    version="0.1.0",
+                setup_kwargs = dict(
+                    name="pex.tests.bad-c-extension",
+                    version="0.1.0+test",
                     author="John Sirois",
                     author_email="js@example.com",
                     url="http://example.com/bad",
                     ext_modules=[Extension("bad", sources=["bad.c"])],
                 )
+                setup_kwargs.update(json.loads(os.environ.get("SETUP_KWARGS_JSON", "{}")))
+                setup(**setup_kwargs)
                 """
             )
         )
@@ -100,19 +129,37 @@ def test_lock_uncompilable_sdist(
         "create",
         "-f",
         repo.find_links,
-        "bad",
-        "--no-pypi",
+        "pex.tests.bad-c-extension",
         "--path-mapping",
-        repo.path_mapping,
+        repo.path_mapping_arg,
         "--indent",
         "2",
         "-o",
         lock,
+        env=make_env(
+            SETUP_KWARGS_JSON=json.dumps(
+                dict(install_requires=["ansicolors==1.1.8"], python_requires=">=3.5,<3.12")
+            )
+        ),
     ).assert_success()
 
-    result = run_pex_command(args=["--lock", lock, "--path-mapping", repo.path_mapping])
+    lockfile = json_codec.load(lockfile_path=lock, path_mappings=repo.path_mappings)
+    assert len(lockfile.locked_resolves) == 1
+    locked_resolve = lockfile.locked_resolves[0]
+    locked_requirements = {
+        locked_requirement.pin.project_name: locked_requirement
+        for locked_requirement in locked_resolve.locked_requirements
+    }  # type: Dict[ProjectName, LockedRequirement]
+    bad = locked_requirements.pop(ProjectName("pex.tests.bad-c-extension"))
+    assert Version("0.1.0+test") == bad.pin.version
+    assert SpecifierSet(">=3.5,<3.12") == bad.requires_python
+    assert SortedTuple([Requirement.parse("ansicolors==1.1.8")]) == bad.requires_dists
+    assert locked_requirements.pop(ProjectName("ansicolors")) is not None
+    assert not locked_requirements
+
+    result = run_pex_command(args=["--lock", lock, "--path-mapping", repo.path_mapping_arg])
     result.assert_failure()
-    assert "bad-0.1.0.tar.gz" in result.error, result.error
+    assert "pex.tests.bad-c-extension-0.1.0+test.tar.gz" in result.error, result.error
     assert "ERROR: Failed to build one or more wheels" in result.error, result.error
 
 
@@ -215,7 +262,7 @@ def test_pep_517_prepare_metadata_for_build_wheel_fallback(
         repo.find_links,
         "evdev==1.6.1+test",
         "--path-mapping",
-        repo.path_mapping,
+        repo.path_mapping_arg,
         "--indent",
         "2",
         "-o",
