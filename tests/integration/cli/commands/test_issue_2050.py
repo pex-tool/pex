@@ -17,7 +17,7 @@ from pex.common import safe_open
 from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.result import try_
-from pex.testing import IS_LINUX, PY39, PY310, ensure_python_interpreter, run_pex_command
+from pex.testing import IS_LINUX, PY39, PY310, PY_VER, ensure_python_interpreter, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ def build_sdist(tmpdir):
     # type: (Any) -> Callable[[str], Repo]
 
     def func(project_directory):
-        find_links = os.path.join(tmpdir, "find-links")
+        find_links = os.path.join(str(tmpdir), "find-links")
         path_mapping = "FL|{}".format(find_links)
         os.makedirs(find_links)
         try_(
@@ -55,6 +55,10 @@ def build_sdist(tmpdir):
     return func
 
 
+@pytest.mark.skipif(
+    sys.version_info[0] < 3,
+    reason="Encoding of setup.py files for Python 2 is tricky and not worth the trouble."
+)
 def test_lock_uncompilable_sdist(
     tmpdir,  # type: Any
     build_sdist,  # type: Callable[[str], Repo]
@@ -82,7 +86,7 @@ def test_lock_uncompilable_sdist(
                     author="John Sirois",
                     author_email="js@example.com",
                     url="http://example.com/bad",
-                    ext_modules=[Extension('bad',  sources=['bad.c'])],
+                    ext_modules=[Extension("bad", sources=["bad.c"])],
                 )
                 """
             )
@@ -112,7 +116,13 @@ def test_lock_uncompilable_sdist(
     assert "ERROR: Failed to build one or more wheels" in result.error, result.error
 
 
-@pytest.mark.skipif(not IS_LINUX, reason="The evdev project requires Linux.")
+@pytest.mark.skipif(
+    not IS_LINUX or PY_VER < (3, 7),
+    reason=(
+        "The evdev project requires Linux and Python 3 and we use a setuptools in our in-tree "
+        "build backend that requires Python 3.7+."
+    )
+)
 def test_pep_517_prepare_metadata_for_build_wheel_fallback(
     tmpdir,  # type: Any
     build_sdist,  # type: Callable[[str], Repo]
