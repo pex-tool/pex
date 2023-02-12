@@ -6,7 +6,12 @@ Release Notes
 
 This release fixes posix file locks used by Pex internally and enhances
 lock creation to support locking sdist-only C extension projects that
-do not build on the current platform.
+do not build on the current platform. Pex is also updated to support
+`--pip-version 22.3.1` and `--pip-version 23.0`, bringing it up to date
+with the latest Pip's available.
+
+* Support the latest Pip releases: 22.3.1 & 23.0 (#2056)
+  `PR #2053 <https://github.com/pantsbuild/pex/pull/2056>`_
 
 * Lock sdists with ``prepare-metadata-for-build-wheel``. (#2053)
   `PR #2053 <https://github.com/pantsbuild/pex/pull/2053>`_
