@@ -4,6 +4,7 @@
 import itertools
 import os
 import shutil
+import subprocess
 
 import pytest
 
@@ -13,6 +14,8 @@ from pex.fetcher import URLFetcher
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
+from pex.resolve.resolver_configuration import PipConfiguration
+from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -68,6 +71,23 @@ def find_links(
         with url_fetcher.get_body_stream(artifact.url) as url_fp:
             with safe_open(os.path.join(find_links, artifact.filename), "wb") as fl_fp:
                 shutil.copyfileobj(url_fp, fl_fp)
+
+    # We need the current default --pip-version requirements for some tests that do PyPI offline
+    # resolves.
+    pip_version = PipConfiguration().version
+    repository_pex = os.path.join(str(tmpdir), "repository.pex")
+    run_pex_command(
+        args=[
+            pip_version.setuptools_requirement,
+            pip_version.wheel_requirement,
+            "--include-tools",
+            "-o",
+            repository_pex,
+        ]
+    ).assert_success()
+    subprocess.check_call(
+        args=[repository_pex, "repository", "extract", "-f", find_links], env=make_env(PEX_TOOLS=1)
+    )
     return find_links
 
 
