@@ -95,7 +95,7 @@ class PipVersion(Enum["PipVersionValue"]):
     v22_3_1 = PipVersionValue(
         version="22.3.1",
         setuptools_version="65.5.1",
-        wheel_version="0.38.2",
+        wheel_version="0.37.1",
         requires_python=">=3.7",
     )
 
