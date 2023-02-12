@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import os.path
+import sys
 
 from pex.dist_metadata import Distribution
 from pex.pex import PEX
@@ -29,6 +30,7 @@ else:
 class BuildSystemTable(object):
     requires = attr.ib()  # type: Tuple[str, ...]
     build_backend = attr.ib()  # type: str
+    backend_path = attr.ib(default=())  # type: Tuple[str, ...]
 
 
 def _read_build_system_table(
@@ -52,7 +54,15 @@ def _read_build_system_table(
     requires = build_system.get("requires")
     if not requires:
         return None
-    return BuildSystemTable(requires=tuple(requires), build_backend=build_system["build-backend"])
+
+    return BuildSystemTable(
+        requires=tuple(requires),
+        build_backend=build_system["build-backend"],
+        backend_path=tuple(
+            os.path.join(os.path.dirname(pyproject_toml), entry)
+            for entry in build_system.get("backend-path", ())
+        ),
+    )
 
 
 @attr.s(frozen=True)
@@ -63,6 +73,7 @@ class BuildSystem(object):
         requires,  # type: Iterable[str]
         resolved,  # type: Iterable[Distribution]
         build_backend,  # type: str
+        backend_path,  # type: Tuple[str, ...]
         **extra_env  # type: str
     ):
         # type: (...) -> BuildSystem
@@ -83,6 +94,8 @@ class BuildSystem(object):
         with ENV.strip().patch(PEX_ROOT=ENV.PEX_ROOT, PEX_VERBOSE=str(ENV.PEX_VERBOSE)) as env:
             if extra_env:
                 env.update(extra_env)
+            if backend_path:
+                env.update(PEX_EXTRA_SYS_PATH=os.pathsep.join(backend_path))
             return cls(
                 venv_pex=venv_pex, build_backend=build_backend, requires=tuple(requires), env=env
             )
@@ -122,4 +135,5 @@ def load_build_system(
                 for installed_distribution in result.installed_distributions
             ),
             build_backend=build_system_table.build_backend,
+            backend_path=build_system_table.backend_path,
         )
