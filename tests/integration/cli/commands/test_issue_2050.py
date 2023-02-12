@@ -57,7 +57,7 @@ def build_sdist(tmpdir):
 
 @pytest.mark.skipif(
     sys.version_info[0] < 3,
-    reason="Encoding of setup.py files for Python 2 is tricky and not worth the trouble."
+    reason="Encoding of setup.py files for Python 2 is tricky and not worth the trouble.",
 )
 def test_lock_uncompilable_sdist(
     tmpdir,  # type: Any
@@ -121,7 +121,7 @@ def test_lock_uncompilable_sdist(
     reason=(
         "The evdev project requires Linux and Python 3 and we use a setuptools in our in-tree "
         "build backend that requires Python 3.7+."
-    )
+    ),
 )
 def test_pep_517_prepare_metadata_for_build_wheel_fallback(
     tmpdir,  # type: Any
