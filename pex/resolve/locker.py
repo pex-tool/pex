@@ -8,17 +8,18 @@ import json
 import os
 import pkgutil
 import re
-import sys
 from collections import defaultdict
 
+from pex import hashing
 from pex.common import safe_mkdtemp
 from pex.compatibility import unquote, urlparse
-from pex.dist_metadata import ProjectNameAndVersion, Requirement
+from pex.dist_metadata import ProjectNameAndVersion, Requirement, UnrecognizedDistributionFormat
+from pex.hashing import Sha256
 from pex.interpreter_constraints import iter_compatible_versions
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
 from pex.pip.download_observer import DownloadObserver, Patch
-from pex.pip.local_project import fingerprint_local_project
+from pex.pip.local_project import digest_local_project, fingerprint_local_project
 from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.pip.version import PipVersionValue
@@ -56,6 +57,12 @@ else:
 class _VCSPartialInfo(object):
     vcs = attr.ib()  # type: VCS.Value
     via = attr.ib()  # type: Tuple[str, ...]
+
+
+@attr.s(frozen=True)
+class _SourceDistributionPartialInfo(object):
+    url = attr.ib()  # type: str
+    partial_artifact = attr.ib()  # type: PartialArtifact
 
 
 @attr.s(frozen=True)
@@ -204,6 +211,10 @@ class VCSURLManager(object):
         return str(credentialed_url)
 
 
+class AnalyzeError(Exception):
+    """Indicates an error analyzing lock data."""
+
+
 class Locker(LogAnalyzer):
     def __init__(
         self,
@@ -232,6 +243,7 @@ class Locker(LogAnalyzer):
         self._source_built_re = None  # type: Optional[Pattern]
         self._local_projects = OrderedSet()  # type: OrderedSet[str]
         self._vcs_partial_info = None  # type: Optional[_VCSPartialInfo]
+        self._source_distribution_partial_artifact = None  # type: Optional[PartialArtifact]
         self._lock_result = None  # type: Optional[LockResult]
 
     @property
@@ -249,8 +261,21 @@ class Locker(LogAnalyzer):
         return returncode == 0
 
     @staticmethod
-    def _extract_resolve_data(url):
-        # type: (str) -> Tuple[Pin, PartialArtifact]
+    def _try_extract_pin(filename):
+        # type: (str) -> Optional[Pin]
+        try:
+            return Pin.canonicalize(ProjectNameAndVersion.from_filename(filename))
+        except UnrecognizedDistributionFormat:
+            # A non-wheel path could be a proper sdist (.tar.gz or .zip), or it could just be an
+            # archive of a source project following no naming convention at all. In either case Pip
+            # will need to gather metadata by building or partially building the distribution, and
+            # we can scrape the logs for the results of that later to get the project name and
+            # version robustly and exactly as Pip sees it.
+            return None
+
+    @classmethod
+    def _extract_resolve_data(cls, url):
+        # type: (str) -> Tuple[Optional[Pin], PartialArtifact]
 
         fingerprint = None  # type: Optional[Fingerprint]
         fingerprint_match = re.search(r"(?P<url>[^#]+)#(?P<algorithm>[^=]+)=(?P<hash>.*)$", url)
@@ -260,9 +285,7 @@ class Locker(LogAnalyzer):
             hash_ = fingerprint_match.group("hash")
             fingerprint = Fingerprint(algorithm=algorithm, hash=hash_)
 
-        pin = Pin.canonicalize(
-            ProjectNameAndVersion.from_filename(unquote(urlparse.urlparse(url).path))
-        )
+        pin = cls._try_extract_pin(unquote(urlparse.urlparse(url).path))
         partial_artifact = PartialArtifact(url, fingerprint)
         return pin, partial_artifact
 
@@ -295,41 +318,88 @@ class Locker(LogAnalyzer):
         if self._done_building_re:
             if self._done_building_re.search(line):
                 self._done_building_re = None
-            elif self._vcs_partial_info is not None:
+            elif (
+                self._vcs_partial_info is not None
+                or self._source_distribution_partial_artifact is not None
+            ):
                 match = re.search(
                     r"Source in .+ has version (?P<version>[^\s]+), which satisfies requirement "
                     r"(?P<requirement>.+) from (?P<url>[^\s]+)(?: \(from .+)?$",
                     line,
                 )
                 if match:
-                    vcs_partial_info = self._vcs_partial_info
-                    self._vcs_partial_info = None
-
                     raw_requirement = match.group("requirement")
                     requirement = Requirement.parse(raw_requirement)
                     version = match.group("version")
+                    pin = Pin(project_name=requirement.project_name, version=Version(version))
+                    self._saved.add(pin)
 
-                    # VCS requirements are satisfied by a singular source; so we need not consult
-                    # links collected in this round.
-                    self._resolved_requirements.append(
-                        ResolvedRequirement(
-                            requirement=requirement,
-                            pin=Pin(
-                                project_name=requirement.project_name, version=Version(version)
-                            ),
-                            artifact=PartialArtifact(
-                                url=self._vcs_url_manager.normalize_url(match.group("url")),
-                                fingerprint=fingerprint_downloaded_vcs_archive(
-                                    download_dir=self._download_dir,
-                                    project_name=str(requirement.project_name),
-                                    version=version,
-                                    vcs=vcs_partial_info.vcs,
+                    if self._vcs_partial_info:
+                        vcs_partial_info = self._vcs_partial_info
+                        self._vcs_partial_info = None
+
+                        # VCS requirements are satisfied by a singular source; so we need not
+                        # consult links collected in this round.
+                        self._resolved_requirements.append(
+                            ResolvedRequirement(
+                                requirement=requirement,
+                                pin=pin,
+                                artifact=PartialArtifact(
+                                    url=self._vcs_url_manager.normalize_url(match.group("url")),
+                                    fingerprint=fingerprint_downloaded_vcs_archive(
+                                        download_dir=self._download_dir,
+                                        project_name=str(requirement.project_name),
+                                        version=version,
+                                        vcs=vcs_partial_info.vcs,
+                                    ),
+                                    verified=True,
                                 ),
-                                verified=True,
-                            ),
-                            via=vcs_partial_info.via,
+                                via=vcs_partial_info.via,
+                            )
                         )
-                    )
+                    elif self._source_distribution_partial_artifact:
+                        partial_artifact = self._source_distribution_partial_artifact
+                        self._source_distribution_partial_artifact = None
+
+                        url_info = urlparse.urlparse(partial_artifact.url)
+                        source_distribution_path = unquote(url_info.path)
+                        if "file" != url_info.scheme:
+                            source_distribution_path = os.path.join(
+                                self._download_dir,
+                                os.path.basename(source_distribution_path),
+                            )
+                        if not os.path.exists(source_distribution_path):
+                            raise AnalyzeError(
+                                "Failed to lock {artifact}. Could not obtain its content for "
+                                "analysis.".format(artifact=partial_artifact)
+                            )
+
+                        digest = Sha256()
+                        if os.path.isdir(source_distribution_path):
+                            digest_local_project(
+                                directory=source_distribution_path,
+                                digest=digest,
+                                pip_version=self._pip_version,
+                                resolver=self._resolver,
+                            )
+                        else:
+                            hashing.file_hash(source_distribution_path, digest)
+                        fingerprint = digest.hexdigest()  # type: hashing.Fingerprint
+
+                        self._resolved_requirements.append(
+                            ResolvedRequirement(
+                                requirement=requirement,
+                                pin=pin,
+                                artifact=attr.evolve(
+                                    partial_artifact,
+                                    fingerprint=Fingerprint(
+                                        algorithm=fingerprint.algorithm, hash=fingerprint
+                                    ),
+                                    verified=True,
+                                ),
+                            )
+                        )
+
             return self.Continue()
 
         if self._source_built_re:
@@ -350,7 +420,7 @@ class Locker(LogAnalyzer):
                 pin = Pin(project_name=requirement.project_name, version=Version(version))
 
                 local_project_path = urlparse.urlparse(file_url).path
-                digest = fingerprint_local_project(
+                fingerprint = fingerprint_local_project(
                     local_project_path, self._pip_version, self._resolver
                 )
                 self._local_projects.add(local_project_path)
@@ -360,7 +430,9 @@ class Locker(LogAnalyzer):
                         pin=pin,
                         artifact=PartialArtifact(
                             url=file_url,
-                            fingerprint=Fingerprint(algorithm=digest.algorithm, hash=digest),
+                            fingerprint=Fingerprint(
+                                algorithm=fingerprint.algorithm, hash=fingerprint
+                            ),
                             verified=True,
                         ),
                     )
@@ -409,15 +481,18 @@ class Locker(LogAnalyzer):
                 self._vcs_partial_info = _VCSPartialInfo(vcs=parsed_scheme.vcs, via=via)
             else:
                 requirement = Requirement.parse(raw_requirement)
-                project_name_and_version, partial_artifact = self._extract_resolve_data(url)
+                maybe_pin, partial_artifact = self._extract_resolve_data(url)
+                if maybe_pin is None:
+                    self._source_distribution_partial_artifact = partial_artifact
+                    return self.Continue()
 
-                additional_artifacts = self._links[project_name_and_version]
+                additional_artifacts = self._links[maybe_pin]
                 additional_artifacts.discard(partial_artifact)
 
                 self._resolved_requirements.append(
                     ResolvedRequirement(
                         requirement=requirement,
-                        pin=project_name_and_version,
+                        pin=maybe_pin,
                         artifact=partial_artifact,
                         additional_artifacts=tuple(additional_artifacts),
                         via=via,
@@ -438,20 +513,21 @@ class Locker(LogAnalyzer):
 
         match = re.search(r"Saved (?P<file_path>.+)$", line)
         if match:
-            self._saved.add(
-                Pin.canonicalize(
-                    ProjectNameAndVersion.from_filename(os.path.basename(match.group("file_path")))
-                )
-            )
+            maybe_pin = self._try_extract_pin(os.path.basename(match.group("file_path")))
+            if maybe_pin:
+                self._saved.add(maybe_pin)
             return self.Continue()
 
         if self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
             match = re.search(r"Found link (?P<url>[^\s]+)(?: \(from .*\))?, version: ", line)
             if match:
-                project_name_and_version, partial_artifact = self._extract_resolve_data(
-                    match.group("url")
-                )
-                self._links[project_name_and_version].add(partial_artifact)
+                url = match.group("url")
+                maybe_pin, partial_artifact = self._extract_resolve_data(url)
+                if not maybe_pin:
+                    self._source_distribution_partial_artifact = partial_artifact
+                    return self.Continue()
+
+                self._links[maybe_pin].add(partial_artifact)
                 return self.Continue()
 
         return self.Continue()

@@ -7,6 +7,7 @@ import functools
 import os
 import shutil
 import tarfile
+import tempfile
 from collections import OrderedDict, defaultdict
 from multiprocessing.pool import ThreadPool
 
@@ -14,7 +15,7 @@ from pex import hashing, resolver
 from pex.auth import PasswordDatabase
 from pex.build_system import pep_517
 from pex.common import open_zip, pluralize, safe_mkdtemp
-from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
+from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, UnrecognizedDistributionFormat
 from pex.fetcher import URLFetcher
 from pex.jobs import Job, Retain, execute_parallel
 from pex.orderedset import OrderedSet
@@ -55,6 +56,8 @@ if TYPE_CHECKING:
 
     from pex.hashing import HintedDigest
     from pex.requirements import ParsedRequirement
+
+    AnyArtifact = Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
 else:
     from pex.third_party import attr
 
@@ -69,27 +72,34 @@ class CreateLockDownloadManager(DownloadManager[Artifact]):
     ):
         # type: (...) -> CreateLockDownloadManager
 
-        file_artifacts_by_filename = {}  # type: Dict[str, FileArtifact]
-        source_artifacts_by_pin = {}  # type: Dict[Pin, Union[LocalProjectArtifact, VCSArtifact]]
+        file_artifacts_by_filename = {}  # type: Dict[str, Tuple[FileArtifact, ProjectName]]
+        source_artifacts_by_pin = (
+            {}
+        )  # type: Dict[Pin, Tuple[Union[LocalProjectArtifact, VCSArtifact], ProjectName]]
         for locked_resolve in locked_resolves:
             for locked_requirement in locked_resolve.locked_requirements:
+                pin = locked_requirement.pin
+                project_name = pin.project_name
                 for artifact in locked_requirement.iter_artifacts():
                     if isinstance(artifact, FileArtifact):
-                        file_artifacts_by_filename[artifact.filename] = artifact
+                        file_artifacts_by_filename[artifact.filename] = (artifact, project_name)
                     else:
                         # N.B.: We know there is only ever one local project artifact for a given
                         # locked local project requirement and likewise only one VCS artifact for a
                         # given locked VCS requirement.
-                        source_artifacts_by_pin[locked_requirement.pin] = artifact
+                        source_artifacts_by_pin[locked_requirement.pin] = (artifact, project_name)
 
         path_by_artifact_and_project_name = {}  # type: Dict[Tuple[Artifact, ProjectName], str]
         for root, _, files in os.walk(download_dir):
             for f in files:
-                pin = Pin.canonicalize(ProjectNameAndVersion.from_filename(f))
-                artifact = file_artifacts_by_filename.get(f) or source_artifacts_by_pin[pin]
-                path_by_artifact_and_project_name[(artifact, pin.project_name)] = os.path.join(
-                    root, f
-                )
+                artifact_and_project_name = file_artifacts_by_filename.get(
+                    f
+                )  # type: Optional[Tuple[AnyArtifact, ProjectName]]
+                if not artifact_and_project_name:
+                    project_name_and_version = ProjectNameAndVersion.from_filename(f)
+                    pin = Pin.canonicalize(project_name_and_version)
+                    artifact_and_project_name = source_artifacts_by_pin[pin]
+                path_by_artifact_and_project_name[artifact_and_project_name] = os.path.join(root, f)
 
         return cls(
             path_by_artifact_and_project_name=path_by_artifact_and_project_name, pex_root=pex_root
@@ -144,7 +154,7 @@ def _prepare_project_directory(build_request):
     if os.path.isdir(project):
         return project
 
-    extract_dir = os.path.join(safe_mkdtemp(), "project")
+    extract_dir = os.path.join(tempfile.mkdtemp(), "project")
     if project.endswith(".zip"):
         with open_zip(project) as zf:
             zf.extractall(extract_dir)

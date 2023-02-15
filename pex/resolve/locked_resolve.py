@@ -123,6 +123,19 @@ class Artifact(object):
     fingerprint = attr.ib()  # type: Fingerprint
     verified = attr.ib()  # type: bool
 
+    def as_unparsed_requirement(self, project_name):
+        # type: (ProjectName) -> str
+        url_info = urlparse.urlparse(self.url)
+        if url_info.fragment:
+            fragment_parameters = urlparse.parse_qs(url_info.fragment)
+            names = fragment_parameters.get("egg")
+            if names and ProjectName(names[-1]) == project_name:
+                # A Pip proprietary URL requirement.
+                return self.url
+        # A PEP-440 direct reference URL requirement with the project name stripped from earlier
+        # processing. See: https://peps.python.org/pep-0440/#direct-references
+        return "{project_name} @ {url}".format(project_name=project_name, url=self.url)
+
 
 @attr.s(frozen=True)
 class FileArtifact(Artifact):
@@ -157,19 +170,6 @@ class VCSArtifact(Artifact):
     @property
     def is_source(self):
         return True
-
-    def as_unparsed_requirement(self, project_name):
-        # type: (ProjectName) -> str
-        url_info = urlparse.urlparse(self.url)
-        if url_info.fragment:
-            fragment_parameters = urlparse.parse_qs(url_info.fragment)
-            names = fragment_parameters.get("egg")
-            if names and ProjectName(names[-1]) == project_name:
-                # A Pip proprietary VCS requirement.
-                return self.url
-        # A PEP-440 direct reference VCS requirement with the project name stripped from earlier
-        # processing. See: https://peps.python.org/pep-0440/#direct-references
-        return "{project_name} @ {url}".format(project_name=project_name, url=self.url)
 
 
 @attr.s(frozen=True)

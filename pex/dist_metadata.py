@@ -291,8 +291,10 @@ class ProjectNameAndVersion(object):
         # characters and dashes.
         fname = _strip_sdist_path(path)
         if fname is not None:
-            project_name, version = fname.rsplit("-", 1)
-            return cls(project_name=project_name, version=version)
+            components = fname.rsplit("-", 1)
+            if len(components) == 2:
+                project_name, version = components
+                return cls(project_name=project_name, version=version)
 
         raise UnrecognizedDistributionFormat(
             "The distribution at path {!r} does not have a file name matching known sdist or wheel "

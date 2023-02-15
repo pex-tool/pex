@@ -5,6 +5,7 @@ import os.path
 
 import pytest
 
+from pex.pep_503 import ProjectName
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import Artifact, FileArtifact
@@ -51,6 +52,8 @@ MAC_ARTIFACT = file_artifact(
     sha256="c7be9d7f5b0d206f0bbc3794b8e16fb7dbc53ec9e40bbe8787c6f2d38efcf6c9",
 )
 
+PROJECT_NAME = ProjectName("psutil")
+
 
 @pytest.fixture
 def downloader():
@@ -68,7 +71,7 @@ def test_issue_1849_download_foreign_artifact(
 
     dest_dir = os.path.join(str(tmpdir), "dest_dir")
     assert foreign_artifact.filename == downloader.download(
-        foreign_artifact, dest_dir=dest_dir, digest=hashlib.sha256()
+        foreign_artifact, project_name=PROJECT_NAME, dest_dir=dest_dir, digest=hashlib.sha256()
     )
 
 
