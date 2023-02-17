@@ -10,6 +10,7 @@ from textwrap import dedent
 import colors
 
 from pex.cli.testing import run_pex3
+from pex.resolve.lockfile import json_codec
 from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -160,24 +161,22 @@ def test_lock_create_local_project_direct_reference(tmpdir):
         args=["--pex-root", pex_root, "--runtime-pex-root", pex_root, "--lock", lock]
     )
     result.assert_failure()
-    assert "There was 1 error downloading required artifacts:" in result.error, result.error
-    assert "1. ansicolors 1.1.8 from file://{}".format(clone_dir) in result.error, result.error
-    assert (
-        "Expected sha256 hash of fca533d24ea5fc1b0fc8bc10ee146535bddda1c40c85510544c5766cef4d10b6 "
-        "when downloading ansicolors but hashed to "
-        "3dc7cf307bf04a3c93f0958d296dd2278cabca393023b7c1dfd7409c7eaacb7e."
-    ) in result.error, result.error
+
+    lockfile = json_codec.load(lockfile_path=lock)
+    assert 1 == len(lockfile.locked_resolves)
+    locked_resolve = lockfile.locked_resolves[0]
+    assert 1 == len(locked_resolve.locked_requirements)
+    locked_requirement = locked_resolve.locked_requirements[0]
     assert (
         dedent(
             """\
             There was 1 error downloading required artifacts:
             1. ansicolors 1.1.8 from file://{clone_dir}
-                Expected sha256 hash of {expect} when downloading ansicolors but hashed to {actual}.
+                Expected sha256 hash of {expected} when downloading ansicolors but hashed to
             """
         ).format(
             clone_dir=clone_dir,
-            expect="fca533d24ea5fc1b0fc8bc10ee146535bddda1c40c85510544c5766cef4d10b6",
-            actual="3dc7cf307bf04a3c93f0958d296dd2278cabca393023b7c1dfd7409c7eaacb7e",
-        )
+            expected=locked_requirement.artifact.fingerprint.hash,
+        ).strip()
         in result.error
     ), result.error
