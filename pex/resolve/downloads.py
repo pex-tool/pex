@@ -7,16 +7,13 @@ from pex import hashing
 from pex.atomic_directory import atomic_directory
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import unquote, urlparse
-from pex.fetcher import URLFetcher
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
-from pex.pep_503 import ProjectName
+from pex.pip.download_observer import DownloadObserver
 from pex.pip.installation import get_pip
 from pex.pip.tool import PackageIndexConfiguration, Pip
-from pex.requirements import parse_requirement_string
 from pex.resolve import locker
 from pex.resolve.locked_resolve import Artifact, FileArtifact, LockConfiguration, LockStyle
-from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact
 from pex.resolve.resolvers import Resolver
 from pex.result import Error
@@ -30,7 +27,6 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
 
     from pex.hashing import HintedDigest
-    from pex.requirements import ParsedRequirement
 else:
     from pex.third_party import attr
 
@@ -77,7 +73,7 @@ class ArtifactDownloader(object):
         with atomic_directory(target_dir) as atomic_dir:
             if not atomic_dir.is_finalized():
                 shutil.move(path, os.path.join(atomic_dir.work_dir, os.path.basename(path)))
-        return Fingerprint(algorithm=fingerprint.algorithm, hash=fingerprint)
+        return Fingerprint.from_hashing_fingerprint(fingerprint)
 
     @staticmethod
     def _create_file_artifact(
@@ -98,7 +94,6 @@ class ArtifactDownloader(object):
     def _download(
         self,
         url,  # type: str
-        requirement,  # type: ParsedRequirement
         download_dir,  # type: str
     ):
         # type: (...) -> Job
@@ -113,19 +108,9 @@ class ArtifactDownloader(object):
         # care about wheel tags, environment markers or Requires-Python. The locker's download
         # observer does just this for universal locks with no target system or requires python
         # restrictions.
-        download_observer = locker.patch(
-            root_requirements=[requirement],
-            pip_version=self.package_index_configuration.pip_version,
-            resolver=self.resolver,
-            lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL),
-            download_dir=download_dir,
-            fingerprint_service=FingerprintService.create(
-                url_fetcher=URLFetcher(
-                    network_configuration=self.package_index_configuration.network_configuration,
-                    password_entries=self.package_index_configuration.password_entries,
-                ),
-                max_parallel_jobs=self.max_parallel_jobs,
-            ),
+        download_observer = DownloadObserver(
+            analyzer=None,
+            patch=locker.patch(lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL)),
         )
         return self.pip.spawn_download_distributions(
             download_dir=download_dir,
@@ -153,9 +138,7 @@ class ArtifactDownloader(object):
             )
 
         return SpawnedJob.and_then(
-            self._download(
-                url=url, requirement=parse_requirement_string(url), download_dir=download_dir
-            ),
+            self._download(url=url, download_dir=download_dir),
             result_func=lambda: self._create_file_artifact(
                 url, fingerprint=self._fingerprint_and_move(temp_dest), verified=True
             ),
@@ -163,7 +146,7 @@ class ArtifactDownloader(object):
 
     def _to_file_artifact(self, artifact):
         # type: (PartialArtifact) -> SpawnedJob[FileArtifact]
-        url = artifact.url
+        url = artifact.url.normalized_url
         fingerprint = artifact.fingerprint
         if fingerprint:
             return SpawnedJob.completed(
@@ -182,7 +165,6 @@ class ArtifactDownloader(object):
     def download(
         self,
         artifact,  # type: FileArtifact
-        project_name,  # type: ProjectName
         dest_dir,  # type: str
         digest,  # type: HintedDigest
     ):
@@ -198,13 +180,7 @@ class ArtifactDownloader(object):
                 return Error(str(e))
         else:
             try:
-                self._download(
-                    url=artifact.url,
-                    requirement=parse_requirement_string(
-                        artifact.as_unparsed_requirement(project_name=project_name)
-                    ),
-                    download_dir=dest_dir,
-                ).wait()
+                self._download(url=artifact.url, download_dir=dest_dir).wait()
             except Job.Error as e:
                 return Error((e.stderr or str(e)).splitlines()[-1])
         hashing.file_hash(dest_file, digest)

@@ -3,12 +3,12 @@
 
 from __future__ import absolute_import
 
-import hashlib
 import os
 import re
 
 from pex import hashing
 from pex.common import filter_pyc_dirs, filter_pyc_files, open_zip, temporary_dir
+from pex.hashing import Sha256
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.requirements import VCS
@@ -18,7 +18,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Union
+    from typing import Tuple, Union
 
     from pex.hashing import HintedDigest
 
@@ -61,16 +61,16 @@ def fingerprint_downloaded_vcs_archive(
     version,  # type: str
     vcs,  # type: VCS.Value
 ):
-    # type: (...) -> Fingerprint
+    # type: (...) -> Tuple[Fingerprint, str]
 
     archive_path = try_(
         _find_built_source_dist(
             build_dir=download_dir, project_name=ProjectName(project_name), version=Version(version)
         )
     )
-    digest = hashlib.sha256()
+    digest = Sha256()
     digest_vcs_archive(archive_path=archive_path, vcs=vcs, digest=digest)
-    return Fingerprint(algorithm=digest.name, hash=digest.hexdigest())
+    return Fingerprint.from_digest(digest), archive_path
 
 
 def digest_vcs_archive(

@@ -66,9 +66,7 @@ class FileArtifactDownloadManager(DownloadManager[FileArtifact]):
         digest,  # type: HintedDigest
     ):
         # type: (...) -> Union[str, Error]
-        return self._downloader.download(
-            artifact=artifact, project_name=project_name, dest_dir=dest_dir, digest=digest
-        )
+        return self._downloader.download(artifact=artifact, dest_dir=dest_dir, digest=digest)
 
 
 class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):

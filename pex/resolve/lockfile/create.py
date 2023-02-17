@@ -7,7 +7,6 @@ import functools
 import os
 import shutil
 import tarfile
-import tempfile
 from collections import OrderedDict, defaultdict
 from multiprocessing.pool import ThreadPool
 
@@ -15,7 +14,7 @@ from pex import hashing, resolver
 from pex.auth import PasswordDatabase
 from pex.build_system import pep_517
 from pex.common import open_zip, pluralize, safe_mkdtemp
-from pex.dist_metadata import DistMetadata, ProjectNameAndVersion, UnrecognizedDistributionFormat
+from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
 from pex.fetcher import URLFetcher
 from pex.jobs import Job, Retain, execute_parallel
 from pex.orderedset import OrderedSet
@@ -154,7 +153,7 @@ def _prepare_project_directory(build_request):
     if os.path.isdir(project):
         return project
 
-    extract_dir = os.path.join(tempfile.mkdtemp(), "project")
+    extract_dir = os.path.join(safe_mkdtemp(), "project")
     if project.endswith(".zip"):
         with open_zip(project) as zf:
             zf.extractall(extract_dir)
@@ -191,7 +190,7 @@ class LockObserver(ResolveObserver):
         download_dir,  # type: str
     ):
         # type: (...) -> DownloadObserver
-        patch = locker.patch(
+        analyzer = Locker(
             root_requirements=self.root_requirements,
             pip_version=self.package_index_configuration.pip_version,
             resolver=self.resolver,
@@ -205,10 +204,12 @@ class LockObserver(ResolveObserver):
                 max_parallel_jobs=self.max_parallel_jobs,
             ),
         )
+        patch = locker.patch(lock_configuration=self.lock_configuration)
+        observer = DownloadObserver(analyzer=analyzer, patch=patch)
         self._analysis.add(
-            _LockAnalysis(target=target, analyzer=patch.analyzer, download_dir=download_dir)
+            _LockAnalysis(target=target, analyzer=analyzer, download_dir=download_dir)
         )
-        return patch
+        return observer
 
     def lock(self, downloaded):
         # type: (Downloaded) -> Tuple[LockedResolve, ...]

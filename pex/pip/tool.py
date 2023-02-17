@@ -475,7 +475,8 @@ class Pip(object):
         code = None  # type: Optional[Text]
         for obs in (foreign_platform_observer, observer):
             if obs:
-                log_analyzers.append(obs.analyzer)
+                if obs.analyzer:
+                    log_analyzers.append(obs.analyzer)
                 download_cmd.extend(obs.patch.args)
                 extra_env.update(obs.patch.env)
                 code = code or obs.patch.code
