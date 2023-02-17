@@ -34,6 +34,7 @@ def test_pypy_impl_tag_handling(tmpdir):
         "--indent",
         "2",
     ).assert_success()
+
     python = sys.executable if sys.version_info[:2] >= (3, 7) else ensure_python_interpreter(PY310)
     result = run_pex_command(
         args=[
