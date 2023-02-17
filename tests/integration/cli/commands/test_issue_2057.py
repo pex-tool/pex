@@ -174,9 +174,11 @@ def test_lock_create_local_project_direct_reference(tmpdir):
             1. ansicolors 1.1.8 from file://{clone_dir}
                 Expected sha256 hash of {expected} when downloading ansicolors but hashed to
             """
-        ).format(
+        )
+        .format(
             clone_dir=clone_dir,
             expected=locked_requirement.artifact.fingerprint.hash,
-        ).strip()
+        )
+        .strip()
         in result.error
     ), result.error
