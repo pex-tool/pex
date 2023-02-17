@@ -1,6 +1,26 @@
 Release Notes
 =============
 
+2.1.123
+-------
+
+This release fixes a few `pex3 lock create` bugs.
+
+There were two issues handling more exotic direct reference URL
+requirements. Source archives with names not following the standard
+Python sdist naming scheme of `<project name>-<version>.{zip,tar.gz}`
+would cause a lock error. An important class of these is provided by
+GitHub's magic source archive download URLs. Also, although local
+projects addressed with Pip proprietary support for pure local path
+requirements would lock, the same local projects addressed via
+`<project name> @ file://<local project path>` would also cause a lock
+error. Both of these cases are now fixed and can be locked successfully.
+
+When locking with an `--interpreter-constraint`, any resolve traversing
+wheels using the `pypyXY` or `cpythonXY` python tags would cause the
+lock to error. Wheels with this form of python tag are now handled
+correctly.
+
 2.1.122
 -------
 
