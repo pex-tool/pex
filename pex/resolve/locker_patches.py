@@ -112,21 +112,23 @@ def patch_wheel_model():
                 versions = set()
                 is_abi3 = ["abi3"] == list(self.abis)
                 for pyversion in self.pyversions:
-                    if pyversion[:2] in ("cp", "pp", "py"):
-                        version_str = pyversion[2:]
-                        # N.B.: This overblown seeming use of an re
-                        # is necessitated by distributions like
-                        # pydantic 0.18.* which incorrectly use
-                        # `py36+`.
-                        match = re.search(r"^(?P<major>\d)(?P<minor>\d+)?", version_str)
-                        major = int(match.group("major"))
-                        minor = match.group("minor")
-                        if is_abi3 and major == 3:
-                            versions.add(major)
-                        elif minor:
-                            versions.add((major, int(minor)))
-                        else:
-                            versions.add(major)
+                    # For the format, see: https://peps.python.org/pep-0425/#python-tag
+                    match = re.search(r"^(?P<impl>\D{2,})(?P<major>\d)(?P<minor>\d+)?", pyversion)
+                    if not match:
+                        continue
+
+                    impl = match.group("impl")
+                    if impl not in ("cp", "pp", "py", "cpython", "pypy"):
+                        continue
+
+                    major = int(match.group("major"))
+                    minor = match.group("minor")
+                    if is_abi3 and major == 3:
+                        versions.add(major)
+                    elif minor:
+                        versions.add((major, int(minor)))
+                    else:
+                        versions.add(major)
 
                 self._versions = versions
 
