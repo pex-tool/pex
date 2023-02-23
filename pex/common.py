@@ -213,8 +213,9 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
         # This magic works to extract perm bits from the 32 bit external file attributes field for
         # unix-created zip files, for the layout, see:
         #   https://www.forensicswiki.org/wiki/ZIP#External_file_attributes
-        attr = info.external_attr >> 16
-        os.chmod(path, attr)
+        if info.external_attr > 0xFFFF:
+            attr = info.external_attr >> 16
+            os.chmod(path, attr)
 
 
 @contextlib.contextmanager

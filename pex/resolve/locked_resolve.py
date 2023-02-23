@@ -16,7 +16,13 @@ from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
 from pex.rank import Rank
 from pex.requirements import VCS, VCSScheme, parse_scheme
-from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact, Pin, ResolvedRequirement
+from pex.resolve.resolved_requirement import (
+    ArtifactURL,
+    Fingerprint,
+    PartialArtifact,
+    Pin,
+    ResolvedRequirement,
+)
 from pex.result import Error
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter, Target
@@ -95,6 +101,38 @@ class LockConfiguration(object):
 @attr.s(frozen=True)
 class Artifact(object):
     @classmethod
+    def from_artifact_url(
+        cls,
+        artifact_url,  # type: ArtifactURL
+        fingerprint,  # type: Fingerprint
+        verified=False,  # type: bool
+    ):
+        # type: (...) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
+        if isinstance(artifact_url.scheme, VCSScheme):
+            return VCSArtifact.from_artifact_url(
+                artifact_url=artifact_url,
+                fingerprint=fingerprint,
+                verified=verified,
+            )
+
+        if "file" == artifact_url.scheme and os.path.isdir(artifact_url.path):
+            directory = os.path.normpath(artifact_url.path)
+            return LocalProjectArtifact(
+                url=artifact_url.normalized_url,
+                fingerprint=fingerprint,
+                verified=verified,
+                directory=directory,
+            )
+
+        filename = os.path.basename(artifact_url.path)
+        return FileArtifact(
+            url=artifact_url.normalized_url,
+            fingerprint=fingerprint,
+            verified=verified,
+            filename=filename,
+        )
+
+    @classmethod
     def from_url(
         cls,
         url,  # type: str
@@ -102,22 +140,9 @@ class Artifact(object):
         verified=False,  # type: bool
     ):
         # type: (...) -> Union[FileArtifact, LocalProjectArtifact, VCSArtifact]
-        url_info = urlparse.urlparse(url)
-        parsed_scheme = parse_scheme(url_info.scheme)
-        if isinstance(parsed_scheme, VCSScheme):
-            return VCSArtifact(
-                url=url, fingerprint=fingerprint, verified=verified, vcs=parsed_scheme.vcs
-            )
-
-        path = unquote(url_info.path)
-        if "file" == parsed_scheme and os.path.isdir(path):
-            directory = os.path.normpath(path)
-            return LocalProjectArtifact(
-                url=url, fingerprint=fingerprint, verified=verified, directory=directory
-            )
-
-        filename = os.path.basename(path)
-        return FileArtifact(url=url, fingerprint=fingerprint, verified=verified, filename=filename)
+        return cls.from_artifact_url(
+            artifact_url=ArtifactURL.parse(url), fingerprint=fingerprint, verified=verified
+        )
 
     url = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: Fingerprint
@@ -152,6 +177,29 @@ class LocalProjectArtifact(Artifact):
 
 @attr.s(frozen=True)
 class VCSArtifact(Artifact):
+    @classmethod
+    def from_artifact_url(
+        cls,
+        artifact_url,  # type: ArtifactURL
+        fingerprint,  # type: Fingerprint
+        verified=False,  # type: bool
+    ):
+        # type: (...) -> VCSArtifact
+        if not isinstance(artifact_url.scheme, VCSScheme):
+            raise ValueError(
+                "The given artifact URL is not that of a VCS artifact: {url}".format(
+                    url=artifact_url.raw_url
+                )
+            )
+        return cls(
+            # N.B.: We need the raw URL in order to have access to the fragment needed for
+            # `as_unparsed_requirement`.
+            url=artifact_url.raw_url,
+            fingerprint=fingerprint,
+            verified=verified,
+            vcs=artifact_url.scheme.vcs,
+        )
+
     vcs = attr.ib()  # type: VCS.Value
 
     @property
@@ -447,8 +495,8 @@ class LockedResolve(object):
                     to_map="\n".join(map(str, artifacts_to_fingerprint)),
                 )
             )
-            return Artifact.from_url(
-                url=partial_artifact.url,
+            return Artifact.from_artifact_url(
+                artifact_url=partial_artifact.url,
                 fingerprint=partial_artifact.fingerprint,
                 verified=partial_artifact.verified,
             )

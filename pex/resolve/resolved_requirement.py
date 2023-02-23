@@ -6,13 +6,16 @@ from __future__ import absolute_import
 import hashlib
 
 from pex import hashing
+from pex.compatibility import unquote, urlparse
 from pex.dist_metadata import ProjectNameAndVersion, Requirement
+from pex.hashing import HashlibHasher
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
+from pex.requirements import ArchiveScheme, VCSScheme, parse_scheme
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import BinaryIO, Iterator, Optional, Tuple
+    from typing import BinaryIO, Iterator, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -58,13 +61,56 @@ class Fingerprint(object):
         hashing.update_hash(filelike=stream, digest=digest)
         return cls(algorithm=algorithm, hash=digest.hexdigest())
 
+    @classmethod
+    def from_digest(cls, digest):
+        # type: (HashlibHasher) -> Fingerprint
+        return cls.from_hashing_fingerprint(digest.hexdigest())
+
+    @classmethod
+    def from_hashing_fingerprint(cls, fingerprint):
+        # type: (hashing.Fingerprint) -> Fingerprint
+        return cls(algorithm=fingerprint.algorithm, hash=fingerprint)
+
     algorithm = attr.ib()  # type: str
     hash = attr.ib()  # type: str
 
 
 @attr.s(frozen=True)
+class ArtifactURL(object):
+    @classmethod
+    def parse(cls, url):
+        # type: (str) -> ArtifactURL
+        url_info = urlparse.urlparse(url)
+        normalized_url = urlparse.urlunparse(
+            (url_info.scheme, url_info.netloc, url_info.path, "", "", "")
+        )
+        return cls(
+            raw_url=url,
+            normalized_url=normalized_url,
+            scheme=parse_scheme(url_info.scheme) if url_info.scheme else None,
+            path=unquote(url_info.path),
+        )
+
+    raw_url = attr.ib(eq=False)  # type: str
+    normalized_url = attr.ib()  # type: str
+    scheme = attr.ib()  # type: Optional[Union[str, ArchiveScheme.Value, VCSScheme]]
+    path = attr.ib(eq=False)  # type: str
+
+    @property
+    def is_wheel(self):
+        return self.path.endswith(".whl")
+
+
+def _convert_url(value):
+    # type: (Union[str, ArtifactURL]) -> ArtifactURL
+    if isinstance(value, ArtifactURL):
+        return value
+    return ArtifactURL.parse(value)
+
+
+@attr.s(frozen=True)
 class PartialArtifact(object):
-    url = attr.ib()  # type: str
+    url = attr.ib(converter=_convert_url)  # type: ArtifactURL
     fingerprint = attr.ib(default=None)  # type: Optional[Fingerprint]
     verified = attr.ib(default=False)  # type: bool
 

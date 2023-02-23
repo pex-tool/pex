@@ -5,6 +5,7 @@ import os.path
 
 import pytest
 
+from pex.pep_503 import ProjectName
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import Artifact, FileArtifact

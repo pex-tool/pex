@@ -150,7 +150,7 @@ class FingerprintService(object):
             if artifact.fingerprint:
                 yield artifact
             else:
-                artifacts_to_fingerprint[artifact.url] = artifact
+                artifacts_to_fingerprint[artifact.url.normalized_url] = artifact
 
         if not artifacts_to_fingerprint:
             return
