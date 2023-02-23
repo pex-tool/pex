@@ -4,8 +4,8 @@
 from __future__ import absolute_import
 
 import os.path
-import sys
 
+from pex.build_system import DEFAULT_BUILD_BACKEND
 from pex.dist_metadata import Distribution
 from pex.pex import PEX
 from pex.pex_bootstrapper import VenvPex, ensure_venv
@@ -29,7 +29,7 @@ else:
 @attr.s(frozen=True)
 class BuildSystemTable(object):
     requires = attr.ib()  # type: Tuple[str, ...]
-    build_backend = attr.ib()  # type: str
+    build_backend = attr.ib(default=DEFAULT_BUILD_BACKEND)  # type: str
     backend_path = attr.ib(default=())  # type: Tuple[str, ...]
 
 
@@ -57,7 +57,7 @@ def _read_build_system_table(
 
     return BuildSystemTable(
         requires=tuple(requires),
-        build_backend=build_system["build-backend"],
+        build_backend=build_system.get("build-backend", DEFAULT_BUILD_BACKEND),
         backend_path=tuple(
             os.path.join(os.path.dirname(pyproject_toml), entry)
             for entry in build_system.get("backend-path", ())

@@ -9,6 +9,7 @@ import sys
 from textwrap import dedent
 
 from pex import third_party
+from pex.build_system import DEFAULT_BUILD_BACKEND
 from pex.build_system.pep_518 import BuildSystem, load_build_system
 from pex.common import safe_mkdtemp
 from pex.dist_metadata import DistMetadata, Distribution
@@ -21,9 +22,8 @@ from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Mapping, Optional, Text, Tuple, Union
+    from typing import Any, Dict, Iterable, Mapping, Optional, Text, Union
 
-_DEFAULT_BUILD_BACKEND = "setuptools.build_meta"
 _DEFAULT_BUILD_SYSTEMS = {}  # type: Dict[PipVersionValue, BuildSystem]
 
 
@@ -36,9 +36,7 @@ def _default_build_system(
     build_system = _DEFAULT_BUILD_SYSTEMS.get(pip_version)
     if build_system is None:
         with TRACER.timed(
-            "Building {build_backend} build_backend PEX".format(
-                build_backend=_DEFAULT_BUILD_BACKEND
-            )
+            "Building {build_backend} build_backend PEX".format(build_backend=DEFAULT_BUILD_BACKEND)
         ):
             extra_env = {}  # type: Dict[str, str]
             if pip_version is PipVersion.VENDORED:
@@ -59,7 +57,7 @@ def _default_build_system(
             build_system = BuildSystem.create(
                 requires=requires,
                 resolved=resolved,
-                build_backend=_DEFAULT_BUILD_BACKEND,
+                build_backend=DEFAULT_BUILD_BACKEND,
                 backend_path=(),
                 **extra_env
             )
