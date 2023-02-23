@@ -4,22 +4,36 @@ Release Notes
 2.1.123
 -------
 
-This release fixes a few `pex3 lock create` bugs.
+This release fixes a few ``pex3 lock create`` bugs.
 
-There were two issues handling more exotic direct reference URL
-requirements. Source archives with names not following the standard
-Python sdist naming scheme of `<project name>-<version>.{zip,tar.gz}`
-would cause a lock error. An important class of these is provided by
-GitHub's magic source archive download URLs. Also, although local
-projects addressed with Pip proprietary support for pure local path
-requirements would lock, the same local projects addressed via
-`<project name> @ file://<local project path>` would also cause a lock
+There was a regression introduced in Pex 2.1.122 where projects that
+used a PEP-518 ``[build-system] requires`` but specified no
+corresponding ``build-backend`` would fail to lock.
+
+There were also two long standing issues handling more exotic direct
+reference URL requirements. Source archives with names not following the
+standard Python sdist naming scheme of
+``<project name>-<version>.{zip,tar.gz}`` would cause a lock error. An
+important class of these is provided by GitHub's magic source archive
+download URLs. Also, although local projects addressed with Pip
+proprietary support for pure local path requirements would lock, the
+same local projects addressed via
+``<project name> @ file://<local project path>`` would also cause a lock
 error. Both of these cases are now fixed and can be locked successfully.
 
-When locking with an `--interpreter-constraint`, any resolve traversing
-wheels using the `pypyXY` or `cpythonXY` python tags would cause the
-lock to error. Wheels with this form of python tag are now handled
-correctly.
+When locking with an ``--interpreter-constraint``, any resolve
+traversing wheels using the ``pypyXY`` or ``cpythonXY`` python tags
+would cause the lock to error. Wheels with this form of python tag are
+now handled correctly.
+
+* Handle ``[build-system]`` with no build-backend. (#2064)
+  `PR #2064 <https://github.com/pantsbuild/pex/pull/2064>`_
+
+* Handle locking all direct reference URL forms. (#2060)
+  `PR #2060 <https://github.com/pantsbuild/pex/pull/2060>`_
+
+* Fix python tag handling in IC locks. (#2061)
+  `PR #2061 <https://github.com/pantsbuild/pex/pull/2061>`_
 
 2.1.122
 -------
@@ -27,11 +41,11 @@ correctly.
 This release fixes posix file locks used by Pex internally and enhances
 lock creation to support locking sdist-only C extension projects that
 do not build on the current platform. Pex is also updated to support
-`--pip-version 22.3.1` and `--pip-version 23.0`, bringing it up to date
-with the latest Pip's available.
+``--pip-version 22.3.1`` and ``--pip-version 23.0``, bringing it up to
+date with the latest Pip's available.
 
 * Support the latest Pip releases: 22.3.1 & 23.0 (#2056)
-  `PR #2053 <https://github.com/pantsbuild/pex/pull/2056>`_
+  `PR #2056 <https://github.com/pantsbuild/pex/pull/2056>`_
 
 * Lock sdists with ``prepare-metadata-for-build-wheel``. (#2053)
   `PR #2053 <https://github.com/pantsbuild/pex/pull/2053>`_
