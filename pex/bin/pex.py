@@ -231,6 +231,17 @@ def configure_clp_pex_options(parser):
             "problems with tools or libraries that are confused by symlinked source files."
         ),
     )
+    group.add_argument(
+        "--non-hermetic-venv-scripts",
+        dest="venv_hermetic_scripts",
+        action="store_false",
+        default=True,
+        help=(
+            "If --venv is specified, don't rewrite Python script shebangs in the venv to pass "
+            "`-sE` to the interpreter; for example, to enable running the venv PEX itself or its "
+            "Python scripts with a custom `PYTHONPATH`."
+        ),
+    )
 
     group.add_argument(
         "--always-write-cache",
@@ -640,6 +651,7 @@ def build_pex(
     pex_info.venv_bin_path = options.venv or BinPath.FALSE
     pex_info.venv_copies = options.venv_copies
     pex_info.venv_site_packages_copies = options.venv_site_packages_copies
+    pex_info.venv_hermetic_scripts = options.venv_hermetic_scripts
     pex_info.includes_tools = options.include_tools or options.venv
     pex_info.pex_path = options.pex_path.split(os.pathsep) if options.pex_path else ()
     pex_info.ignore_errors = options.ignore_errors

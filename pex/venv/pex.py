@@ -95,6 +95,11 @@ class CollisionError(Exception):
     """Indicates multiple distributions provided the same file when merging a PEX into a venv."""
 
 
+def _script_python_args(hermetic):
+    # type: (bool) -> Optional[str]
+    return "-sE" if hermetic else None
+
+
 def populate_venv(
     venv,  # type: Virtualenv
     pex,  # type: PEX
@@ -108,7 +113,12 @@ def populate_venv(
     # type: (...) -> str
 
     venv_python = python or venv.interpreter.binary
-    shebang = "#!{} -sE".format(venv_python)
+
+    shebang_argv = [venv_python]
+    python_args = _script_python_args(hermetic=hermetic_scripts)
+    if python_args:
+        shebang_argv.append(python_args)
+    shebang = "#!{shebang}".format(shebang=" ".join(shebang_argv))
 
     provenance = defaultdict(list)
 
@@ -276,8 +286,9 @@ def _populate_deps(
                     print(rel_extra_path, file=fp)
 
     # 3. Re-write any (console) scripts to use the venv Python.
-    script_python_args = "-sE" if hermetic_scripts else None
-    for script in venv.rewrite_scripts(python=venv_python, python_args=script_python_args):
+    for script in venv.rewrite_scripts(
+        python=venv_python, python_args=_script_python_args(hermetic=hermetic_scripts)
+    ):
         TRACER.log("Re-writing {}".format(script))
 
 
@@ -375,7 +386,11 @@ def _populate_sources(
             ):
                 sys.stderr.write("Re-execing from {{}}\\n".format(sys.executable))
                 os.environ[current_interpreter_blessed_env_var] = "1"
-                os.execv(python, [python, "-sE"] + sys.argv)
+                argv = [python]
+                if {hermetic_re_exec!r}:
+                    argv.append("-sE")
+                argv.extend(sys.argv)
+                os.execv(python, argv)
 
             pex_file = os.environ.get("PEX", None)
             if pex_file:
@@ -624,6 +639,7 @@ def _populate_sources(
                 if venv.interpreter.version[0] == 2
                 else "exec(ast, globals_map, locals_map)"
             ),
+            hermetic_re_exec=pex_info.venv_hermetic_scripts,
         )
     )
     with open(venv.join_path("__main__.py"), "w") as fp:
