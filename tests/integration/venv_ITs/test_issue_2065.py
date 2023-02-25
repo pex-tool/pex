@@ -6,16 +6,28 @@ import os
 import subprocess
 from textwrap import dedent
 
+import pytest
+
 from pex.common import safe_open
 from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, List
 
 
-def test_venv_pex_script_non_hermetic(tmpdir):
-    # type: (Any) -> None
+@pytest.mark.parametrize(
+    ["boot_args"],
+    [
+        pytest.param([], id="__main__.py boot"),
+        pytest.param(["--sh-boot"], id="--sh-boot"),
+    ],
+)
+def test_venv_pex_script_non_hermetic(
+    tmpdir,  # type: Any
+    boot_args,  # type: List[str]
+):
+    # type: (...) -> None
 
     # A console script that injects an element in the PYTHONPATH.
     ot_simulator_src = os.path.join(str(tmpdir), "src")
@@ -97,7 +109,7 @@ def test_venv_pex_script_non_hermetic(tmpdir):
             "--venv",
             "-o",
             pex,
-        ]
+        ] + boot_args
         if not hermetic_scripts:
             argv.append("--non-hermetic-venv-scripts")
         run_pex_command(argv).assert_success()
