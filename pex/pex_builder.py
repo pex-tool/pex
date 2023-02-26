@@ -100,7 +100,10 @@ def __maybe_run_venv__(pex, pex_root, pex_path):
 
   TRACER.log('Executing venv PEX for {{}} at {{}}'.format(pex, venv_pex))
   venv_python = os.path.join(venv_dir, 'bin', 'python')
-  __re_exec__(venv_python, '-sE', venv_pex)
+  if {hermetic_venv_scripts!r}:
+    __re_exec__(venv_python, '-sE', venv_pex)
+  else:
+    __re_exec__(venv_python, venv_pex)
 
 
 def __entry_point_from_filename__(filename):
@@ -521,6 +524,7 @@ class PEXBuilder(object):
             pex_root=self._pex_info.raw_pex_root,
             pex_hash=self._pex_info.pex_hash,
             has_interpreter_constraints=bool(self._pex_info.interpreter_constraints),
+            hermetic_venv_scripts=self._pex_info.venv_hermetic_scripts,
             pex_path=self._pex_info.pex_path,
             is_venv=self._pex_info.venv,
         )

@@ -172,8 +172,9 @@ class Venv(PEXCommand):
             action="store_false",
             default=True,
             help=(
-                "Don't rewrite console script shebangs in the venv to pass `-sE` to the interpreter; "
-                "for example, to enable running venv scripts with a custom `PYTHONPATH`."
+                "Don't rewrite Python script shebangs in the venv to pass `-sE` to the "
+                "interpreter; for example, to enable running the venv PEX itself or its Python "
+                "scripts with a custom `PYTHONPATH`."
             ),
         )
         cls.register_global_arguments(parser, include_verbosity=False)

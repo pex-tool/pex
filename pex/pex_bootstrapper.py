@@ -447,6 +447,7 @@ def _bootstrap(entry_point):
 @attr.s(frozen=True)
 class VenvPex(object):
     venv_dir = attr.ib()  # type: str
+    hermetic_scripts = attr.ib(default=True)  # type: bool
     pex = attr.ib(init=False)  # type: str
     python = attr.ib(init=False)  # type: str
 
@@ -461,7 +462,12 @@ class VenvPex(object):
 
     def execute_args(self, *additional_args):
         # type: (*str) -> List[str]
-        return [self.python, "-sE", self.pex] + list(additional_args)
+        argv = [self.python]
+        if self.hermetic_scripts:
+            argv.append("-sE")
+        argv.append(self.pex)
+        argv.extend(additional_args)
+        return argv
 
     def execv(self, *additional_args):
         # type: (*str) -> NoReturn
@@ -545,6 +551,7 @@ def ensure_venv(
                         ),
                         collisions_ok=collisions_ok,
                         symlink=symlink,
+                        hermetic_scripts=pex_info.venv_hermetic_scripts,
                     )
 
                     # There are popular Linux distributions with shebang length limits
@@ -567,7 +574,7 @@ def ensure_venv(
 
                     break
 
-    return VenvPex(venv_dir)
+    return VenvPex(venv_dir, hermetic_scripts=pex_info.venv_hermetic_scripts)
 
 
 # NB: This helper is used by the PEX bootstrap __main__.py as well as the __pex__/__init__.py

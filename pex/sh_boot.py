@@ -175,6 +175,7 @@ def create_sh_boot_script(
         set -eu
 
         VENV="{venv}"
+        VENV_PYTHON_ARGS="{venv_python_args}"
 
         # N.B.: This ensures tilde-expansion of the DEFAULT_PEX_ROOT value.
         DEFAULT_PEX_ROOT="$(echo {pex_root})"
@@ -190,7 +191,12 @@ def create_sh_boot_script(
             # interpreter to use is embedded in the shebang of our venv pex script; so just
             # execute that script directly.
             export PEX="$0"
-            exec "${{INSTALLED_PEX}}/bin/python" -sE "${{INSTALLED_PEX}}" "$@"
+            if [ -n "${{VENV_PYTHON_ARGS}}" ]; then
+                exec "${{INSTALLED_PEX}}/bin/python" "${{VENV_PYTHON_ARGS}}" "${{INSTALLED_PEX}}" \\
+                    "$@"
+            else
+                exec "${{INSTALLED_PEX}}/bin/python" "${{INSTALLED_PEX}}" "$@"
+            fi
         fi
 
         find_python() {{
@@ -247,4 +253,5 @@ def create_sh_boot_script(
         pythons=" \\\n".join('"{python}"'.format(python=python) for python in python_names),
         pex_root=pex_info.raw_pex_root,
         pex_installed_relpath=os.path.relpath(pex_installed_path, pex_info.raw_pex_root),
+        venv_python_args="-sE" if pex_info.venv_hermetic_scripts else "",
     )

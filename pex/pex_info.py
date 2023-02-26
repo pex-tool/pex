@@ -231,6 +231,16 @@ class PexInfo(object):
         # type: (bool) -> None
         self._pex_info["venv_site_packages_copies"] = value
 
+    @property
+    def venv_hermetic_scripts(self):
+        # type: () -> bool
+        return self._pex_info.get("venv_hermetic_scripts", True)
+
+    @venv_hermetic_scripts.setter
+    def venv_hermetic_scripts(self, value):
+        # type: (bool) -> None
+        self._pex_info["venv_hermetic_scripts"] = value
+
     def _venv_dir(
         self,
         pex_root,  # type: str
