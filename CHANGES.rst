@@ -1,6 +1,22 @@
 Release Notes
 =============
 
+2.1.124
+-------
+
+This release adds support for specifying ``--non-hermetic-venv-scripts``
+when building a ``--venv`` PEX. This can be useful when integrating with
+frameworks that do setup via ``PYTHONPATH`` manipulation.
+
+Additionally, more work towards hardening Pex against rare concurrency
+issues in its atomic directory handling is included.
+
+* Introduce ``--non-hermetic-venv-scripts``. (#2068)
+  `PR #2068 <https://github.com/pantsbuild/pex/pull/2068>`_
+
+* Wrap inter-process locks in in-process locks. (#2070)
+  `PR #2070 <https://github.com/pantsbuild/pex/pull/2070>`_
+
 2.1.123
 -------
 
