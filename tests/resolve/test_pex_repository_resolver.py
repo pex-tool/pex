@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import sys
 from collections import defaultdict
 
 import pytest
@@ -120,13 +119,6 @@ def pex_repository(py27, py310, foreign_platform, manylinux):
     )
 
 
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 5),
-    reason=(
-        "pyOpenSSL 21 requires cryptography>=3.3 but cryptography 3.3 has a Requires-Python of "
-        "'>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*'; i.e.: No 3.5"
-    ),
-)
 def test_resolve_from_pex(
     pex_repository,  # type: str
     py27,  # type: PythonInterpreter
