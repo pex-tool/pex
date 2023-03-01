@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.125
+-------
+
+This release makes ``--platform`` and ``--complete-platform`` resolves
+and locks as permissable as possible. If such a resolve or lock only has
+an sdist available for a certain project, that sdist will now be used if
+it builds to a wheel compatible with the specified foreign platform(s).
+
+* Attempt "cross-builds" of sdists for foreign platforms. (#2075)
+  `PR #2075 <https://github.com/pantsbuild/pex/pull/2075>`_
+
 2.1.124
 -------
 
