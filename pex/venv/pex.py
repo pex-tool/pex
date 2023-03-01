@@ -438,7 +438,7 @@ def _populate_sources(
                     "_PEX_TEST_PYENV_ROOT",
                     "_PEX_PIP_VERSION",
                     # This is used by Pex's Pip to inject runtime patches dynamically.
-                    "_PEX_PIP_RUNTIME_PATCHES",
+                    "_PEX_PIP_RUNTIME_PATCHES_PACKAGE",
                     # These are used by Pex's Pip venv to provide foreign platform support and work
                     # around https://github.com/pypa/pip/issues/10050.
                     "_PEX_PATCHED_MARKERS_FILE",

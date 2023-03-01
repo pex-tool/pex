@@ -110,7 +110,7 @@ class ArtifactDownloader(object):
         # restrictions.
         download_observer = DownloadObserver(
             analyzer=None,
-            patch=locker.patch(lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL)),
+            patch_set=locker.patch(lock_configuration=LockConfiguration(style=LockStyle.UNIVERSAL)),
         )
         return self.pip.spawn_download_distributions(
             download_dir=download_dir,

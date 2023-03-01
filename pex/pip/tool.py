@@ -22,7 +22,7 @@ from pex.pep_376 import Record
 from pex.pep_425 import CompatibilityTags
 from pex.pex_bootstrapper import VenvPex
 from pex.pip import foreign_platform
-from pex.pip.download_observer import DownloadObserver
+from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
 from pex.pip.version import PipVersion, PipVersionValue
@@ -221,17 +221,8 @@ class _Issue9420Analyzer(ErrorAnalyzer):
 
 @attr.s(frozen=True)
 class Pip(object):
-    _PATCHES_MODULE_ENV_VAR_NAME = "_PEX_PIP_RUNTIME_PATCHES"
-
-    @classmethod
-    def _patch_code(cls, code):
-        # type: (Text) -> Mapping[str, str]
-        patches_dir = safe_mkdtemp()
-        patches_module = "_pex_pip_patches"
-        python_file = "{patches_module}.py".format(patches_module=patches_module)
-        with open(os.path.join(patches_dir, python_file), "wb") as code_fp:
-            code_fp.write(code.encode("utf-8"))
-        return {"PEX_EXTRA_SYS_PATH": patches_dir, cls._PATCHES_MODULE_ENV_VAR_NAME: patches_module}
+    _PATCHES_PACKAGE_ENV_VAR_NAME = "_PEX_PIP_RUNTIME_PATCHES_PACKAGE"
+    _PATCHES_PACKAGE_NAME = "_pex_pip_patches"
 
     _pip_pex = attr.ib()  # type: VenvPex
 
@@ -461,9 +452,9 @@ class Pip(object):
         foreign_platform_observer = foreign_platform.patch(target)
         if (
             foreign_platform_observer
-            and foreign_platform_observer.patch.code
+            and foreign_platform_observer.patch_set.patches
             and observer
-            and observer.patch.code
+            and observer.patch_set.patches
         ):
             raise ValueError(
                 "Can only have one patch for Pip code, but, in addition to patching for a foreign "
@@ -471,16 +462,19 @@ class Pip(object):
             )
 
         log_analyzers = []  # type: List[LogAnalyzer]
-        code = None  # type: Optional[Text]
+        pex_extra_sys_path = []  # type: List[str]
         for obs in (foreign_platform_observer, observer):
             if obs:
                 if obs.analyzer:
                     log_analyzers.append(obs.analyzer)
-                extra_env.update(obs.patch.env)
-                code = code or obs.patch.code
+                extra_env.update(obs.patch_set.env)
+                extra_sys_path = obs.patch_set.emit_patches(package=self._PATCHES_PACKAGE_NAME)
+                if extra_sys_path:
+                    pex_extra_sys_path.append(extra_sys_path)
 
-        if code:
-            extra_env.update(self._patch_code(code))
+        if pex_extra_sys_path:
+            extra_env["PEX_EXTRA_SYS_PATH"] = os.pathsep.join(pex_extra_sys_path)
+            extra_env[self._PATCHES_PACKAGE_ENV_VAR_NAME] = self._PATCHES_PACKAGE_NAME
 
         # The Pip 2020 resolver hides useful dependency conflict information in stdout interspersed
         # with other information we want to suppress. We jump though some hoops here to get at that
@@ -657,10 +651,12 @@ class Pip(object):
         compatible_tags = CompatibilityTags.from_wheel(wheel).extend(
             interpreter.identity.supported_tags
         )
-        patch = foreign_platform.patch_tags(compatible_tags)
-        extra_env = dict(patch.env)
-        if patch.code:
-            extra_env.update(self._patch_code(patch.code))
+        patch_set = PatchSet.create(foreign_platform.patch_tags(compatible_tags))
+        extra_env = dict(patch_set.env)
+        extra_sys_path = patch_set.emit_patches(package=self._PATCHES_PACKAGE_NAME)
+        if extra_sys_path:
+            extra_env["PEX_EXTRA_SYS_PATH"] = extra_sys_path
+            extra_env[self._PATCHES_PACKAGE_ENV_VAR_NAME] = self._PATCHES_PACKAGE_NAME
         install_cmd.append("--compile" if compile else "--no-compile")
         install_cmd.append(wheel)
 

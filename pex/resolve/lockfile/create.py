@@ -204,8 +204,8 @@ class LockObserver(ResolveObserver):
                 max_parallel_jobs=self.max_parallel_jobs,
             ),
         )
-        patch = locker.patch(lock_configuration=self.lock_configuration)
-        observer = DownloadObserver(analyzer=analyzer, patch=patch)
+        patch_set = locker.patch(lock_configuration=self.lock_configuration)
+        observer = DownloadObserver(analyzer=analyzer, patch_set=patch_set)
         self._analysis.add(
             _LockAnalysis(target=target, analyzer=analyzer, download_dir=download_dir)
         )

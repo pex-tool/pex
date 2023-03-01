@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import glob
 import hashlib
 import json
 import os
@@ -11,7 +10,6 @@ import warnings
 
 import pytest
 
-from pex import targets
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job

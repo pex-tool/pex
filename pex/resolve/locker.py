@@ -6,24 +6,23 @@ from __future__ import absolute_import
 import itertools
 import json
 import os
-import pkgutil
 import re
 from collections import OrderedDict, defaultdict
 
 from pex import hashing
 from pex.common import safe_mkdtemp
-from pex.compatibility import unquote, urlparse
+from pex.compatibility import urlparse
 from pex.dist_metadata import ProjectNameAndVersion, Requirement
 from pex.hashing import Sha256
-from pex.interpreter_constraints import iter_compatible_versions
 from pex.orderedset import OrderedSet
 from pex.pep_440 import Version
-from pex.pip.download_observer import Patch
+from pex.pip import foreign_platform
+from pex.pip.download_observer import Patch, PatchSet
 from pex.pip.local_project import digest_local_project
 from pex.pip.log_analyzer import LogAnalyzer
 from pex.pip.vcs import fingerprint_downloaded_vcs_archive
 from pex.pip.version import PipVersionValue
-from pex.requirements import ArchiveScheme, VCSRequirement, VCSScheme, parse_scheme
+from pex.requirements import ArchiveScheme, VCSRequirement, VCSScheme
 from pex.resolve.locked_resolve import LockConfiguration, LockStyle, TargetSystem
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.pep_691.model import Endpoint
@@ -35,7 +34,6 @@ from pex.resolve.resolved_requirement import (
     ResolvedRequirement,
 )
 from pex.resolve.resolvers import Resolver
-from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -556,58 +554,47 @@ _PLATFORM_TAG_REGEXP = {
 
 
 def patch(lock_configuration):
-    # type: (LockConfiguration) -> Patch
+    # type: (LockConfiguration) -> PatchSet
 
-    code = None  # type: Optional[Text]
-    env = {}  # type: Dict[str, str]
+    if lock_configuration.style != LockStyle.UNIVERSAL:
+        return PatchSet()
 
-    if lock_configuration.style == LockStyle.UNIVERSAL:
-        code_bytes = pkgutil.get_data(__name__, "locker_patches.py")
-        assert code_bytes is not None, (
-            "The sibling resource locker_patches.py of {} should always be present in a Pex "
-            "distribution or source tree.".format(__name__)
+    patches_dir = safe_mkdtemp()
+    patches = []
+    if lock_configuration.requires_python:
+        patches.append(
+            foreign_platform.patch_requires_python(
+                requires_python=lock_configuration.requires_python, patches_dir=patches_dir
+            )
         )
-        code = code_bytes.decode("utf-8")
 
-        if lock_configuration.requires_python:
-            version_info_dir = safe_mkdtemp()
-            with TRACER.timed(
-                "Calculating compatible python versions for {requires_python}".format(
-                    requires_python=lock_configuration.requires_python
-                )
-            ):
-                python_full_versions = list(
-                    iter_compatible_versions(lock_configuration.requires_python)
-                )
-                with open(os.path.join(version_info_dir, "python_full_versions.json"), "w") as fp:
-                    json.dump(python_full_versions, fp)
-                env.update(_PEX_PYTHON_VERSIONS_FILE=fp.name)
-
-        if lock_configuration.target_systems and set(lock_configuration.target_systems) != set(
-            TargetSystem.values()
-        ):
-            target_systems = {
-                "os_names": [
-                    _OS_NAME[target_system] for target_system in lock_configuration.target_systems
-                ],
-                "platform_systems": [
-                    _PLATFORM_SYSTEM[target_system]
+    env = {}  # type: Dict[str, str]
+    if lock_configuration.target_systems and set(lock_configuration.target_systems) != set(
+        TargetSystem.values()
+    ):
+        target_systems = {
+            "os_names": [
+                _OS_NAME[target_system] for target_system in lock_configuration.target_systems
+            ],
+            "platform_systems": [
+                _PLATFORM_SYSTEM[target_system]
+                for target_system in lock_configuration.target_systems
+            ],
+            "sys_platforms": list(
+                itertools.chain.from_iterable(
+                    _SYS_PLATFORMS[target_system]
                     for target_system in lock_configuration.target_systems
-                ],
-                "sys_platforms": list(
-                    itertools.chain.from_iterable(
-                        _SYS_PLATFORMS[target_system]
-                        for target_system in lock_configuration.target_systems
-                    )
-                ),
-                "platform_tag_regexps": [
-                    _PLATFORM_TAG_REGEXP[target_system]
-                    for target_system in lock_configuration.target_systems
-                ],
-            }
-            target_systems_info_dir = safe_mkdtemp()
-            with open(os.path.join(target_systems_info_dir, "target_systems.json"), "w") as fp:
-                json.dump(target_systems, fp)
-            env.update(_PEX_TARGET_SYSTEMS_FILE=fp.name)
+                )
+            ),
+            "platform_tag_regexps": [
+                _PLATFORM_TAG_REGEXP[target_system]
+                for target_system in lock_configuration.target_systems
+            ],
+        }
+        with open(os.path.join(patches_dir, "target_systems.json"), "w") as fp:
+            json.dump(target_systems, fp)
+        env.update(_PEX_TARGET_SYSTEMS_FILE=fp.name)
 
-    return Patch(code=code, env=env)
+    patches.append(Patch.from_code_resource(__name__, "locker_patches.py", **env))
+
+    return PatchSet(patches=tuple(patches))
