@@ -3,15 +3,14 @@
 
 from __future__ import absolute_import
 
-import glob
 import hashlib
 import json
 import os
+import sys
 import warnings
 
 import pytest
 
-from pex import targets
 from pex.common import safe_rmtree
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
@@ -236,6 +235,13 @@ def test_download_platform_markers_issue_1366_indeterminate(
     ) in str(exc_info.value)
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 5),
+    reason=(
+        "SQLAlchemy 1.4.25 has a Requires-Python of "
+        "'>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*'; i.e.: No 3.5"
+    ),
+)
 @applicable_pip_versions
 def test_download_platform_markers_issue_1488(
     create_pip,  # type: CreatePip
