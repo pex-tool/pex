@@ -5,7 +5,7 @@ Release Notes
 -------
 
 This release makes ``--platform`` and ``--complete-platform`` resolves
-and locks as permissable as possible. If such a resolve or lock only has
+and locks as permissive as possible. If such a resolve or lock only has
 an sdist available for a certain project, that sdist will now be used if
 it builds to a wheel compatible with the specified foreign platform(s).
 
