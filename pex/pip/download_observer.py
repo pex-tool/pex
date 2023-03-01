@@ -7,7 +7,7 @@ from pex.pip.log_analyzer import LogAnalyzer
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Mapping, Optional, Text
+    from typing import Mapping, Optional, Text
 
     import attr  # vendor:skip
 else:
@@ -17,7 +17,6 @@ else:
 @attr.s(frozen=True)
 class Patch(object):
     code = attr.ib(default=None)  # type: Optional[Text]
-    args = attr.ib(default=())  # type: Iterable[str]
     env = attr.ib(factory=dict)  # type: Mapping[str, str]
 
 

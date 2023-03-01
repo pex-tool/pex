@@ -18,7 +18,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterator, Optional, Text, Tuple
+    from typing import Iterator, Optional, Text
 
     import attr  # vendor:skip
 
@@ -113,7 +113,6 @@ def patch(target):
         return None
 
     analyzer = _Issue10050Analyzer(target.platform)
-    args = ()  # type: Tuple[str, ...]
 
     patches_dir = safe_mkdtemp()
     patched_environment = target.marker_environment.as_dict()
@@ -129,7 +128,7 @@ def patch(target):
         "Patching environment markers for {} with {}".format(target, patched_environment),
         V=3,
     )
-    return DownloadObserver(analyzer=analyzer, patch=Patch(code=_code(), args=args, env=env))
+    return DownloadObserver(analyzer=analyzer, patch=Patch(code=_code(), env=env))
 
 
 def patch_tags(compatible_tags):

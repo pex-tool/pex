@@ -1,5 +1,6 @@
 # Copyright 2023 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import os.path
 import re
 import subprocess
@@ -61,7 +62,7 @@ def test_standard_resolve_foreign_platform_yolo_cross_build(tmpdir):
         run_pex_command(args=["psutil==5.9.1", "--platform", FOREIGN_PLATFORM_311])
     )
 
-    # The cowsay 5.0 distribution is sdist-only. We should grabe this and attempt a build to see if
+    # The cowsay 5.0 distribution is sdist-only. We should grab this and attempt a build to see if
     # we succeed and if the resulting wheel is compatible, which it should be since cowsay 5.0 is
     # known to build to a py2.py3 universal wheel.
     assert_cowsay_cross_build_success(tmpdir)

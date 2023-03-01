@@ -476,7 +476,6 @@ class Pip(object):
             if obs:
                 if obs.analyzer:
                     log_analyzers.append(obs.analyzer)
-                download_cmd.extend(obs.patch.args)
                 extra_env.update(obs.patch.env)
                 code = code or obs.patch.code
 
@@ -662,7 +661,6 @@ class Pip(object):
         extra_env = dict(patch.env)
         if patch.code:
             extra_env.update(self._patch_code(patch.code))
-        install_cmd.extend(patch.args)
         install_cmd.append("--compile" if compile else "--no-compile")
         install_cmd.append(wheel)
 
