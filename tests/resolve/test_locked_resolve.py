@@ -279,13 +279,6 @@ def test_invalid_configuration(
         "(build=False).",
     )
 
-    platform_target = platform("linux-x86_64-cp-37-m")
-    assert_error(
-        ansicolors_exotic.resolve(platform_target, [req("ansicolors")], use_wheel=False),
-        "Cannot ignore wheels (use_wheel=False) when resolving for a platform: given "
-        "{target_description}".format(target_description=platform_target.render_description()),
-    )
-
 
 def test_platform_resolve(ansicolors_exotic):
     # type: (LockedResolve) -> None

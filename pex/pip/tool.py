@@ -425,8 +425,7 @@ class Pip(object):
         download_cmd = ["download", "--dest", download_dir]
         extra_env = {}  # type: Dict[str, str]
 
-        if not isinstance(target, LocalInterpreter) or not build:
-            # If we're not targeting a local interpreter, we can't build wheels from sdists.
+        if not build:
             download_cmd.extend(["--only-binary", ":all:"])
 
         if not use_wheel:

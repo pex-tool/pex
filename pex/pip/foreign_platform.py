@@ -121,9 +121,6 @@ def patch(target):
         json.dump(patched_environment, markers_fp)
     env = dict(_PEX_PATCHED_MARKERS_FILE=markers_fp.name)
 
-    if isinstance(target, AbbreviatedPlatform):
-        args = tuple(iter_platform_args(target.platform, target.manylinux))
-
     compatible_tags = target.supported_tags
     if compatible_tags:
         env.update(patch_tags(compatible_tags).env)

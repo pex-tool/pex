@@ -17,11 +17,12 @@ from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import unquote, urlparse
-from pex.dist_metadata import DistMetadata, Distribution, Requirement
+from pex.dist_metadata import DistMetadata, Distribution, ProjectNameAndVersion, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
+from pex.pep_425 import CompatibilityTags
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.pip.download_observer import DownloadObserver
@@ -323,7 +324,27 @@ class BuildResult(object):
                 )
             )
         wheel = wheels[0]
-        return InstallRequest.create(self.request.target, os.path.join(self.dist_dir, wheel))
+        wheel_path = os.path.join(self.dist_dir, wheel)
+        if self.request.target.is_foreign:
+            wheel_tags = CompatibilityTags.from_wheel(wheel_path)
+            if not self.request.target.supported_tags.compatible_tags(wheel_tags):
+                project_name_and_version = ProjectNameAndVersion.from_filename(wheel_path)
+                raise ValueError(
+                    "No pre-built wheel was available for {project_name} {version}.{eol}"
+                    "Successfully built the wheel {wheel} from the sdist {sdist} but it is not "
+                    "compatible with the requested foreign target {target}.{eol}"
+                    "You'll need to build a wheel from {sdist} on the foreign target platform and "
+                    "make it available to Pex via a `--find-links` repo or a custom "
+                    "`--index`.".format(
+                        project_name=project_name_and_version.project_name,
+                        version=project_name_and_version.version,
+                        eol=os.linesep,
+                        wheel=wheel,
+                        sdist=os.path.basename(self.request.source_path),
+                        target=self.request.target.render_description(),
+                    )
+                )
+        return InstallRequest.create(self.request.target, wheel_path)
 
 
 @attr.s(frozen=True)

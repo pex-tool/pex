@@ -21,7 +21,7 @@ from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
-from pex.testing import PY310, ensure_python_interpreter, environment_as
+from pex.testing import IS_LINUX, PY310, ensure_python_interpreter, environment_as
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -106,18 +106,28 @@ def test_no_duplicate_constraints_pex_warnings(
     )
 
 
+@pytest.mark.skipif(
+    not IS_LINUX
+    or not any(
+        (
+            "manylinux2014_x86_64" == platform.platform
+            for platform in PythonInterpreter.get().supported_platforms
+        )
+    ),
+    reason="Test requires a manylinux2014_x86_64 compatible interpreter.",
+)
 @applicable_pip_versions
 def test_download_platform_issues_1355(
     create_pip,  # type: CreatePip
     version,  # type: PipVersionValue
-    current_interpreter,  # type: PythonInterpreter
+    py38,  # type: PythonInterpreter
     tmpdir,  # type: Any
 ):
     # type: (...) -> None
-    pip = create_pip(current_interpreter, version=version)
+    pip = create_pip(py38, version=version)
     download_dir = os.path.join(str(tmpdir), "downloads")
 
-    def download_ansicolors(
+    def download_pyarrow(
         target=None,  # type: Optional[Target]
         package_index_configuration=None,  # type: Optional[PackageIndexConfiguration]
     ):
@@ -125,49 +135,29 @@ def test_download_platform_issues_1355(
         safe_rmtree(download_dir)
         return pip.spawn_download_distributions(
             download_dir=download_dir,
-            requirements=["ansicolors==1.0.2"],
+            requirements=["pyarrow==4.0.1"],
             transitive=False,
             target=target,
             package_index_configuration=package_index_configuration,
         )
 
-    def assert_ansicolors_downloaded(target=None):
-        # type: (Optional[Target]) -> None
-        download_ansicolors(target=target).wait()
-        assert ["ansicolors-1.0.2.tar.gz"] == os.listdir(download_dir)
+    def assert_pyarrow_downloaded(
+        expected_wheel,  # type: str
+        target=None,  # type: Optional[Target]
+    ):
+        # type: (...) -> None
+        download_pyarrow(target=target).wait()
+        assert [expected_wheel] == os.listdir(download_dir)
 
-    # The only ansicolors 1.0.2 dist on PyPI is an sdist and we should be able to download one of
-    # those with the current interpreter since we have an interpreter in hand to build a wheel from
-    # it with later.
-    assert_ansicolors_downloaded()
-    assert_ansicolors_downloaded(target=targets.current())
-    assert_ansicolors_downloaded(target=LocalInterpreter.create(current_interpreter))
-
-    wheel_dir = os.path.join(str(tmpdir), "wheels")
-    pip.spawn_build_wheels(
-        distributions=glob.glob(os.path.join(download_dir, "*.tar.gz")),
-        wheel_dir=wheel_dir,
-        interpreter=current_interpreter,
-    ).wait()
-    built_wheels = glob.glob(os.path.join(wheel_dir, "*.whl"))
-    assert len(built_wheels) == 1
-
-    ansicolors_wheel = built_wheels[0]
-    local_wheel_repo = PackageIndexConfiguration.create(find_links=[wheel_dir])
-    current_platform = AbbreviatedPlatform.create(current_interpreter.platform)
-
-    # We should fail to find a wheel for ansicolors 1.0.2 and thus fail to download for a target
-    # Platform, even if that target platform happens to match the current interpreter we're
-    # executing Pip with.
-    with pytest.raises(Job.Error):
-        download_ansicolors(target=current_platform).wait()
-
-    # If we point the target Platform to a find-links repo with the wheel just-built though, the
-    # download should proceed without error.
-    download_ansicolors(
-        target=current_platform, package_index_configuration=local_wheel_repo
-    ).wait()
-    assert [os.path.basename(ansicolors_wheel)] == os.listdir(download_dir)
+    assert_pyarrow_downloaded(
+        "pyarrow-4.0.1-cp38-cp38-manylinux2014_x86_64.whl", target=LocalInterpreter.create(py38)
+    )
+    assert_pyarrow_downloaded(
+        "pyarrow-4.0.1-cp38-cp38-manylinux2010_x86_64.whl",
+        target=AbbreviatedPlatform.create(
+            Platform.create("linux-x86_64-cp-38-cp38"), manylinux="manylinux2010"
+        ),
+    )
 
 
 def assert_download_platform_markers_issue_1366(

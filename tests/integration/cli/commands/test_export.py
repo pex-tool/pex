@@ -269,7 +269,8 @@ def test_export_respects_target(tmpdir):
     assert dedent(
         """\
             ansicolors==1.1.8 \\
-              --hash=md5:abcd1234
+              --hash=md5:abcd1234 \\
+              --hash=sha1:ef567890
             pywin32==227 \\
               --hash=sha256:spameggs
             """
@@ -284,8 +285,8 @@ def test_export_respects_target(tmpdir):
             }
         ),
     ), (
-        "A win32 foreign target should get all wheels but no sdists since we can't cross-build "
-        "sdists."
+        "A win32 foreign target should get both ansicolors cross-platform artifacts as well as "
+        "the platform-specific pywin32 wheel."
     )
 
     assert (
