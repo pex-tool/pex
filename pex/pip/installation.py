@@ -53,15 +53,15 @@ def _pip_venv(
                         import os
                         import runpy
 
-                        patches_module = os.environ.pop({patches_module_env_var_name!r}, None)
-                        if patches_module:
+                        patches_package = os.environ.pop({patches_package_env_var_name!r}, None)
+                        if patches_package:
                             # Apply runtime patches to Pip to work around issues or else bend
                             # Pip to Pex's needs.
-                            __import__(patches_module)
+                            __import__(patches_package)
 
                         runpy.run_module(mod_name="pip", run_name="__main__", alter_sys=True)
                         """
-                    ).format(patches_module_env_var_name=Pip._PATCHES_MODULE_ENV_VAR_NAME)
+                    ).format(patches_package_env_var_name=Pip._PATCHES_PACKAGE_ENV_VAR_NAME)
                 )
                 fp.close()
                 isolated_pip_builder.set_executable(fp.name, "__pex_patched_pip__.py")

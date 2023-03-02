@@ -551,21 +551,11 @@ class LockedResolve(object):
         # type: (...) -> Union[Resolved, Error]
 
         is_local_interpreter = isinstance(target, LocalInterpreter)
-        if not use_wheel:
-            if not build:
-                return Error(
-                    "Cannot both ignore wheels (use_wheel=False) and refrain from building "
-                    "distributions (build=False)."
-                )
-            elif not is_local_interpreter:
-                return Error(
-                    "Cannot ignore wheels (use_wheel=False) when resolving for a platform: given "
-                    "{platform_description}".format(
-                        platform_description=target.render_description()
-                    )
-                )
-        if not is_local_interpreter:
-            build = False
+        if not use_wheel and not build:
+            return Error(
+                "Cannot both ignore wheels (use_wheel=False) and refrain from building "
+                "distributions (build=False)."
+            )
 
         repository = defaultdict(list)  # type: DefaultDict[ProjectName, List[LockedRequirement]]
         for locked_requirement in self.locked_requirements:
