@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.126
+-------
+
+This release fixes a long standing (> 4 years old!) concurrency bug
+when building the same sdist for the 1st time and racing another Pex
+process doing the same sdist build.
+
+* Guard against racing sdist builds. (#2080)
+  `PR #2080 <https://github.com/pantsbuild/pex/pull/2080>`_
+
 2.1.125
 -------
 
