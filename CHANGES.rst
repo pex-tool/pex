@@ -5,7 +5,7 @@ Release Notes
 -------
 
 This release fixes a long standing (> 4 years old!) concurrency bug
-when building the same sdist for the 1st time and racing another Pexi
+when building the same sdist for the 1st time and racing another Pex
 process doing the same sdist build.
 
 * Guard against racing sdist builds. (#2080)
