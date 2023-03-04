@@ -5,6 +5,7 @@
 from __future__ import absolute_import
 
 import functools
+import glob
 import hashlib
 import itertools
 import os
@@ -311,7 +312,7 @@ class BuildResult(object):
     def finalize_build(self):
         # type: () -> InstallRequest
         self._atomic_dir.finalize()
-        wheels = os.listdir(self.dist_dir)
+        wheels = glob.glob(os.path.join(self.dist_dir, "*.whl"))
         if len(wheels) != 1:
             raise AssertionError(
                 "Build of {request} produced {count} artifacts; expected 1:\n{actual}".format(
@@ -323,8 +324,7 @@ class BuildResult(object):
                     ),
                 )
             )
-        wheel = wheels[0]
-        wheel_path = os.path.join(self.dist_dir, wheel)
+        wheel_path = wheels[0]
         if self.request.target.is_foreign:
             wheel_tags = CompatibilityTags.from_wheel(wheel_path)
             if not self.request.target.supported_tags.compatible_tags(wheel_tags):
@@ -339,7 +339,7 @@ class BuildResult(object):
                         project_name=project_name_and_version.project_name,
                         version=project_name_and_version.version,
                         eol=os.linesep,
-                        wheel=wheel,
+                        wheel=os.path.basename(wheel_path),
                         sdist=os.path.basename(self.request.source_path),
                         target=self.request.target.render_description(),
                     )
