@@ -4,10 +4,12 @@
 import os.path
 import shutil
 import subprocess
+import sys
 import tempfile
 from textwrap import dedent
 
 import colors
+import pytest
 
 from pex.cli.testing import run_pex3
 from pex.resolve.lockfile import json_codec
@@ -15,15 +17,31 @@ from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Callable, List
 
 
-def test_pex_archive_direct_reference(tmpdir):
-    # type: (Any) -> None
+@pytest.mark.parametrize(
+    ["archive_pex_requirement"],
+    [
+        pytest.param(
+            "https://github.com/VaasuDevanS/cowsay-python/archive/v5.0.zip#egg=cowsay",
+            id="Create Pex [Pip Proprietary]",
+        ),
+        pytest.param(
+            "cowsay @ https://github.com/VaasuDevanS/cowsay-python/archive/v5.0.zip",
+            id="Create Pex [PEP-508]",
+        ),
+    ],
+)
+def test_pex_archive_direct_reference(
+    tmpdir,  # type: Any
+    archive_pex_requirement,  # type: str
+):
+    # type: (...) -> None
 
     result = run_pex_command(
         args=[
-            "cowsay @ https://github.com/VaasuDevanS/cowsay-python/archive/v5.0.zip",
+            archive_pex_requirement,
             "-c",
             "cowsay",
             "--",
@@ -34,8 +52,39 @@ def test_pex_archive_direct_reference(tmpdir):
     assert "Moo!" in result.output
 
 
-def test_lock_create_archive_direct_reference(tmpdir):
-    # type: (Any) -> None
+@pytest.mark.parametrize(
+    ["archive_lock_requirement"],
+    [
+        pytest.param(
+            "https://github.com/VaasuDevanS/cowsay-python/archive/v5.0.zip#egg=cowsay",
+            id="Create Lock [Pip Proprietary]",
+        ),
+        pytest.param(
+            "cowsay @ https://github.com/VaasuDevanS/cowsay-python/archive/v5.0.zip",
+            id="Create Lock [PEP-508]",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    ["archive_pex_requirements"],
+    [
+        pytest.param(
+            ["https://github.com/VaasuDevanS/cowsay-python/archive/v5.0.zip#egg=cowsay"],
+            id="Subset [Pip Proprietary]",
+        ),
+        pytest.param(
+            ["cowsay @ https://github.com/VaasuDevanS/cowsay-python/archive/v5.0.zip"],
+            id="Subset [PEP-508]",
+        ),
+        pytest.param([], id="Full"),
+    ],
+)
+def test_lock_create_archive_direct_reference(
+    tmpdir,  # type: Any
+    archive_lock_requirement,  # type: str
+    archive_pex_requirements,  # type: List[str]
+):
+    # type: (...) -> None
 
     pex_root = os.path.join(str(tmpdir), "pex_root")
     lock = os.path.join(str(tmpdir), "lock.json")
@@ -44,7 +93,7 @@ def test_lock_create_archive_direct_reference(tmpdir):
         "create",
         "--pex-root",
         pex_root,
-        "cowsay @ https://github.com/VaasuDevanS/cowsay-python/archive/v5.0.zip",
+        archive_lock_requirement,
         "--indent",
         "2",
         "-o",
@@ -54,7 +103,8 @@ def test_lock_create_archive_direct_reference(tmpdir):
     def assert_create_and_run_pex_from_lock():
         # type: () -> None
         result = run_pex_command(
-            args=[
+            args=archive_pex_requirements
+            + [
                 "--pex-root",
                 pex_root,
                 "--runtime-pex-root",
@@ -75,8 +125,31 @@ def test_lock_create_archive_direct_reference(tmpdir):
     assert_create_and_run_pex_from_lock()
 
 
-def test_lock_create_local_project_direct_reference(tmpdir):
-    # type: (Any) -> None
+@pytest.mark.parametrize(
+    ["create_local_project_lock_requirement"],
+    [
+        pytest.param(lambda clone_dir: clone_dir, id="Create Lock [Pip Proprietary]"),
+        pytest.param(
+            lambda clone_dir: "ansicolors @ file://{}".format(clone_dir), id="Create Lock [PEP-508]"
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    ["create_local_project_pex_requirements"],
+    [
+        pytest.param(lambda clone_dir: [clone_dir], id="Subset [Pip Proprietary]"),
+        pytest.param(
+            lambda clone_dir: ["ansicolors @ file://{}".format(clone_dir)], id="Subset [PEP-508]"
+        ),
+        pytest.param(lambda clone_dir: [], id="Full"),
+    ],
+)
+def test_lock_create_local_project_direct_reference(
+    tmpdir,  # type: Any
+    create_local_project_lock_requirement,  # type: Callable[[str], str]
+    create_local_project_pex_requirements,  # type: Callable[[str], List[str]]
+):
+    # type: (...) -> None
 
     clone_dir = os.path.join(str(tmpdir), "ansicolors")
     subprocess.check_call(args=["git", "init", clone_dir])
@@ -95,6 +168,9 @@ def test_lock_create_local_project_direct_reference(tmpdir):
     )
     subprocess.check_call(args=["git", "reset", "--hard", ansicolors_1_1_8_sha], cwd=clone_dir)
 
+    lock_requirement = create_local_project_lock_requirement(clone_dir)
+    pex_requirements = create_local_project_pex_requirements(clone_dir)
+
     pex_root = os.path.join(str(tmpdir), "pex_root")
     lock = os.path.join(str(tmpdir), "lock.json")
     run_pex3(
@@ -102,7 +178,7 @@ def test_lock_create_local_project_direct_reference(tmpdir):
         "create",
         "--pex-root",
         pex_root,
-        "ansicolors @ file://{}".format(clone_dir),
+        lock_requirement,
         "--indent",
         "2",
         "-o",
@@ -112,7 +188,8 @@ def test_lock_create_local_project_direct_reference(tmpdir):
     def assert_create_and_run_pex_from_lock():
         # type: () -> None
         result = run_pex_command(
-            args=[
+            args=pex_requirements
+            + [
                 "--pex-root",
                 pex_root,
                 "--runtime-pex-root",
