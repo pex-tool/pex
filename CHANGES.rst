@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.127
+-------
+
+This release fixes `--lock` resolve sub-setting for local project
+requirements.
+
+* Fix lock subsetting for local projects. (#2085)
+  `PR #2085 <https://github.com/pantsbuild/pex/pull/2085>`_
+
 2.1.126
 -------
 
