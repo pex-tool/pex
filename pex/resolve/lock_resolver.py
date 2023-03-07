@@ -426,5 +426,10 @@ def resolve_from_lock(
             # `LockedResolve.resolve` above and need not waste time (~O(100ms)) doing this again.
             ignore_errors=True,
             max_parallel_jobs=max_parallel_jobs,
+            local_project_directory_to_sdist={
+                downloadable_artifact.artifact.directory: downloaded_artifact.path
+                for downloadable_artifact, downloaded_artifact in downloaded_artifacts.items()
+                if isinstance(downloadable_artifact.artifact, LocalProjectArtifact)
+            },
         )
     return Installed(installed_distributions=tuple(installed_distributions))

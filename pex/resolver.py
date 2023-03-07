@@ -741,6 +741,7 @@ class BuildAndInstallRequest(object):
         self,
         ignore_errors=False,  # type: bool
         max_parallel_jobs=None,  # type: Optional[int]
+        local_project_directory_to_sdist=None,  # type: Optional[Mapping[str, str]]
     ):
         # type: (...) -> Iterable[InstalledDistribution]
         if not any((self._build_requests, self._install_requests)):
@@ -783,6 +784,12 @@ class BuildAndInstallRequest(object):
                         continue
 
                     install_reqs = build_results.get(requirement.path)
+                    if not install_reqs and local_project_directory_to_sdist:
+                        local_project_directory = local_project_directory_to_sdist.get(
+                            requirement.path
+                        )
+                        if local_project_directory:
+                            install_reqs = build_results.get(local_project_directory)
                     if not install_reqs:
                         raise AssertionError(
                             "Failed to compute a project name for {requirement}. No corresponding "

@@ -10,6 +10,7 @@ from pex.orderedset import OrderedSet
 from pex.pip.version import PipVersionValue
 from pex.requirements import LocalProjectRequirement
 from pex.resolve.locked_resolve import LocalProjectArtifact, LockedResolve, LockStyle, TargetSystem
+from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
@@ -49,13 +50,17 @@ class Lockfile(object):
     ):
         # type: (...) -> Lockfile
 
-        pin_by_local_project_directory = {
-            locked_requirement.artifact.directory: locked_requirement.pin
-            for locked_resolve in locked_resolves
-            for locked_requirement in locked_resolve.locked_requirements
-            if isinstance(locked_requirement.artifact, LocalProjectArtifact)
-        }
+        pin_by_local_project_directory = {}  # type: Dict[str, Pin]
         requirement_by_local_project_directory = {}  # type: Dict[str, Requirement]
+        for locked_resolve in locked_resolves:
+            for locked_requirement in locked_resolve.locked_requirements:
+                if isinstance(locked_requirement.artifact, LocalProjectArtifact):
+                    local_directory = locked_requirement.artifact.directory
+                    local_pin = locked_requirement.pin
+                    pin_by_local_project_directory[local_directory] = local_pin
+                    requirement_by_local_project_directory[
+                        local_directory
+                    ] = local_pin.as_requirement()
 
         def extract_requirement(req):
             # type: (Union[Requirement, ParsedRequirement]) -> Requirement
@@ -74,6 +79,9 @@ class Lockfile(object):
                         marker="; {marker}".format(marker=req.marker) if req.marker else "",
                     )
                 )
+                # N.B.: We've already mapped all available local projects above, but the user may
+                # have supplied the local project requirement with more specific constraints (
+                # extras and / or marker restrictions) and we need to honor those; so we over-write.
                 requirement_by_local_project_directory[local_project_directory] = requirement
                 return requirement
             return req.requirement
