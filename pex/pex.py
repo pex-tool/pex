@@ -171,7 +171,7 @@ class PEX(object):  # noqa: T000
     def layout(self):
         # type: () -> Layout.Value
         if self._layout is None:
-            self._layout = Layout.identify(self._pex)
+            self._layout = Layout.identify_original(self._pex)
         return self._layout
 
     def pex_info(self, include_env_overrides=True):
