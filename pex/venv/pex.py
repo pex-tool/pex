@@ -10,7 +10,7 @@ import shutil
 from collections import Counter, defaultdict
 from textwrap import dedent
 
-from pex import pex_warnings
+from pex import layout, pex_warnings
 from pex.common import chmod_plus_x, pluralize, safe_mkdir
 from pex.compatibility import is_valid_python_identifier
 from pex.dist_metadata import Distribution
@@ -313,11 +313,12 @@ def _populate_sources(
         src=PEXEnvironment.mount(pex.path()).path,
         dst=venv.site_packages_dir,
         exclude=(
-            pex_info.internal_cache,
-            pex_info.bootstrap,
             "__main__.py",
             "__pycache__",
-            pex_info.PATH,
+            layout.BOOTSTRAP_DIR,
+            layout.DEPS_DIR,
+            layout.PEX_INFO_PATH,
+            layout.PEX_LAYOUT_PATH,
         ),
         symlink=False,
     ):

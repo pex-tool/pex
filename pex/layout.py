@@ -21,11 +21,24 @@ if TYPE_CHECKING:
 BOOTSTRAP_DIR = ".bootstrap"
 DEPS_DIR = ".deps"
 PEX_INFO_PATH = "PEX-INFO"
+PEX_LAYOUT_PATH = "PEX-LAYOUT"
 
 
 class Layout(Enum["Layout.Value"]):
     class Value(Enum.Value):
-        pass
+        @classmethod
+        def try_load(cls, pex_directory):
+            # type: (str) -> Optional[Layout.Value]
+            layout = os.path.join(pex_directory, PEX_LAYOUT_PATH)
+            if not os.path.isfile(layout):
+                return None
+            with open(layout) as fp:
+                return Layout.for_value(fp.read().strip())
+
+        def record(self, pex_directory):
+            # type: (str) -> None
+            with open(os.path.join(pex_directory, PEX_LAYOUT_PATH), "w") as fp:
+                fp.write(self.value)
 
     ZIPAPP = Value("zipapp")
     PACKED = Value("packed")
@@ -47,10 +60,23 @@ class Layout(Enum["Layout.Value"]):
 
         return cls.LOOSE
 
+    @classmethod
+    def identify_original(cls, pex):
+        # type: (str) -> Layout.Value
+        layout = cls.identify(pex)
+        if layout != Layout.LOOSE:
+            return layout
+        return cls.Value.try_load(pex) or Layout.LOOSE
+
 
 class _Layout(object):
-    def __init__(self, path):
-        # type: (str) -> None
+    def __init__(
+        self,
+        layout,  # type: Layout.Value
+        path,  # type: str
+    ):
+        # type: (...) -> None
+        self._layout = layout
         self._path = os.path.normpath(path)
 
     @property
@@ -94,6 +120,10 @@ class _Layout(object):
     def extract_main(self, dest_dir):
         # type: (str) -> None
         raise NotImplementedError()
+
+    def record(self, dest_dir):
+        # type: (str) -> None
+        self._layout.record(dest_dir)
 
 
 def _install(
@@ -165,7 +195,7 @@ def _install(
 
                     layout.extract_pex_info(chroot.work_dir)
                     layout.extract_main(chroot.work_dir)
-
+                    layout.record(chroot.work_dir)
         return install_to
 
 
@@ -176,7 +206,7 @@ class _ZipAppPEX(_Layout):
         zfp,  # type: zipfile.ZipFile
     ):
         # type: (...) -> None
-        super(_ZipAppPEX, self).__init__(path)
+        super(_ZipAppPEX, self).__init__(Layout.ZIPAPP, path)
         self._zfp = zfp
         self._names = tuple(zfp.namelist())
 
@@ -224,6 +254,10 @@ class _ZipAppPEX(_Layout):
 
 
 class _PackedPEX(_Layout):
+    def __init__(self, path):
+        # type: (str) -> None
+        super(_PackedPEX, self).__init__(Layout.PACKED, path)
+
     def extract_bootstrap(self, dest_dir):
         # type: (str) -> None
         with open_zip(os.path.join(self._path, BOOTSTRAP_DIR)) as zfp:
