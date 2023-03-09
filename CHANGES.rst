@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.128
+-------
+
+This release fixes a regression introduced in Pex 2.1.120 that caused
+``--no-venv-site-packages-copies`` (the default when using ``--venv``)
+to to be ignored for both zipapp PEXes (the default) and
+``--layout packed`` PEXes.
+
+* Fix regression in venv symlinking. (#2090)
+  `PR #2090 <https://github.com/pantsbuild/pex/pull/2090>`_
+
 2.1.127
 -------
 
