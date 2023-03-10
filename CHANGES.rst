@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.129
+-------
+
+This release fixes a bug downloading a VCS requirement from a lock when
+the ambient Python interpreter used to run Pex does not meet the
+``Requires-Python`` constraint of the VCS requirement.
+
+* Fix VCS lock downloads to respect target. (#2094)
+  `PR #2094 <https://github.com/pantsbuild/pex/pull/2094>`_
+
 2.1.128
 -------
 
