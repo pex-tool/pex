@@ -72,6 +72,7 @@ class FileArtifactDownloadManager(DownloadManager[FileArtifact]):
 class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
     def __init__(
         self,
+        target,  # type: Target
         file_lock_style,  # type: FileLockStyle.Value
         indexes=None,  # type: Optional[Sequence[str]]
         find_links=None,  # type: Optional[Sequence[str]]
@@ -88,6 +89,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         super(VCSArtifactDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style
         )
+        self._target = target
         self._indexes = indexes
         self._find_links = find_links
         self._resolver_version = resolver_version
@@ -110,6 +112,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
 
         requirement = artifact.as_unparsed_requirement(project_name)
         downloaded_vcs = resolver.download(
+            targets=Targets.from_target(self._target),
             requirements=[requirement],
             transitive=False,
             indexes=self._indexes,
@@ -189,14 +192,14 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
 def download_artifact(
     downloadable_artifact_and_target,  # type: Tuple[DownloadableArtifact, Target]
     file_download_managers_by_target,  # type: Mapping[Target, FileArtifactDownloadManager]
-    vcs_download_manager,  # type: VCSArtifactDownloadManager
+    vcs_download_managers_by_target,  # type: Mapping[Target, VCSArtifactDownloadManager]
     local_project_download_manager,  # type: LocalProjectDownloadManager
 ):
     # type: (...) -> Union[DownloadedArtifact, Error]
     downloadable_artifact, target = downloadable_artifact_and_target
     if isinstance(downloadable_artifact.artifact, VCSArtifact):
         return catch(
-            vcs_download_manager.store,
+            vcs_download_managers_by_target[target].store,
             downloadable_artifact.artifact,
             downloadable_artifact.pin.project_name,
         )
@@ -289,18 +292,22 @@ def resolve_from_lock(
         for resolved_subset in subset_result.subsets
     }
 
-    vcs_download_manager = VCSArtifactDownloadManager(
-        file_lock_style=file_lock_style,
-        indexes=indexes,
-        find_links=find_links,
-        resolver_version=resolver_version,
-        network_configuration=network_configuration,
-        password_entries=password_entries,
-        use_pep517=use_pep517,
-        build_isolation=build_isolation,
-        pip_version=pip_version,
-        resolver=resolver,
-    )
+    vcs_download_managers_by_target = {
+        resolved_subset.target: VCSArtifactDownloadManager(
+            target=resolved_subset.target,
+            file_lock_style=file_lock_style,
+            indexes=indexes,
+            find_links=find_links,
+            resolver_version=resolver_version,
+            network_configuration=network_configuration,
+            password_entries=password_entries,
+            use_pep517=use_pep517,
+            build_isolation=build_isolation,
+            pip_version=pip_version,
+            resolver=resolver,
+        )
+        for resolved_subset in subset_result.subsets
+    }
 
     local_project_download_manager = LocalProjectDownloadManager(
         file_lock_style=file_lock_style,
@@ -330,7 +337,7 @@ def resolve_from_lock(
                         functools.partial(
                             download_artifact,
                             file_download_managers_by_target=file_download_managers_by_target,
-                            vcs_download_manager=vcs_download_manager,
+                            vcs_download_managers_by_target=vcs_download_managers_by_target,
                             local_project_download_manager=local_project_download_manager,
                         ),
                         downloadable_artifacts_and_targets,

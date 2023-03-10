@@ -282,6 +282,16 @@ class CompletePlatform(Target):
 
 @attr.s(frozen=True)
 class Targets(object):
+    @classmethod
+    def from_target(cls, target):
+        # type: (Target) -> Targets
+        if isinstance(target, AbbreviatedPlatform):
+            return cls(platforms=(target.platform,), assume_manylinux=target.manylinux)
+        elif isinstance(target, CompletePlatform):
+            return cls(complete_platforms=(target,))
+        else:
+            return cls(interpreters=(target.get_interpreter(),))
+
     interpreters = attr.ib(default=())  # type: Tuple[PythonInterpreter, ...]
     complete_platforms = attr.ib(default=())  # type: Tuple[CompletePlatform, ...]
     platforms = attr.ib(default=())  # type: Tuple[Optional[Platform], ...]
