@@ -3,7 +3,6 @@
 
 from __future__ import absolute_import
 
-import functools
 import os
 import shutil
 import tarfile
@@ -16,7 +15,7 @@ from pex.build_system import pep_517
 from pex.common import open_zip, pluralize, safe_mkdtemp
 from pex.dist_metadata import DistMetadata, ProjectNameAndVersion
 from pex.fetcher import URLFetcher
-from pex.jobs import Job, Retain, execute_parallel
+from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pip.download_observer import DownloadObserver
@@ -147,11 +146,12 @@ class LockError(Exception):
 
 
 def _prepare_project_directory(build_request):
-    # type: (BuildRequest) -> str
+    # type: (BuildRequest) -> Tuple[Target, str]
 
     project = build_request.source_path
+    target = build_request.target
     if os.path.isdir(project):
-        return project
+        return target, project
 
     extract_dir = os.path.join(safe_mkdtemp(), "project")
     if project.endswith(".zip"):
@@ -171,7 +171,7 @@ def _prepare_project_directory(build_request):
                 project=project, count=len(listing), listing=", ".join(listing)
             )
         )
-    return os.path.join(extract_dir, listing[0])
+    return target, os.path.join(extract_dir, listing[0])
 
 
 @attr.s(frozen=True)
@@ -191,6 +191,7 @@ class LockObserver(ResolveObserver):
     ):
         # type: (...) -> DownloadObserver
         analyzer = Locker(
+            target=target,
             root_requirements=self.root_requirements,
             pip_version=self.package_index_configuration.pip_version,
             resolver=self.resolver,
@@ -210,6 +211,17 @@ class LockObserver(ResolveObserver):
             _LockAnalysis(target=target, analyzer=analyzer, download_dir=download_dir)
         )
         return observer
+
+    def _spawn_prepare_metadata(self, target_and_project_directory):
+        # type: (Tuple[Target, str]) -> SpawnedJob[DistMetadata]
+
+        target, project_directory = target_and_project_directory
+        return pep_517.spawn_prepare_metadata(
+            project_directory=project_directory,
+            pip_version=self.package_index_configuration.pip_version,
+            target=target,
+            resolver=self.resolver,
+        )
 
     def lock(self, downloaded):
         # type: (Downloaded) -> Tuple[LockedResolve, ...]
@@ -249,7 +261,9 @@ class LockObserver(ResolveObserver):
         ):
             pool = ThreadPool(processes=self.max_parallel_jobs)
             try:
-                project_directories = pool.map(_prepare_project_directory, build_requests)
+                targets_and_project_directories = list(
+                    pool.map(_prepare_project_directory, build_requests),
+                )
             finally:
                 pool.close()
                 pool.join()
@@ -258,14 +272,11 @@ class LockObserver(ResolveObserver):
             prepare_metadata_errors = OrderedDict()  # type: OrderedDict[str, str]
             for build_request, dist_metadata_result in zip(
                 build_requests,
-                execute_parallel(
-                    project_directories,
+                # MyPy can't infer the _I type argument of Tuple[Target, str] here.
+                execute_parallel(  # type: ignore[misc]
+                    targets_and_project_directories,
                     # MyPy just can't figure out the next two args types; they're OK.
-                    functools.partial(  # type: ignore[arg-type]
-                        pep_517.spawn_prepare_metadata,
-                        pip_version=self.package_index_configuration.pip_version,
-                        resolver=self.resolver,
-                    ),
+                    self._spawn_prepare_metadata,  # type: ignore[arg-type]
                     error_handler=Retain[str](),  # type: ignore[arg-type]
                     max_jobs=self.max_parallel_jobs,
                 ),

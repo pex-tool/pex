@@ -15,6 +15,7 @@ from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.result import Error
+from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ def assert_build_sdist(
         project_dir,
         sdist_dir,
         pip_version,
+        LocalInterpreter.create(),
         ConfiguredResolver(PipConfiguration(version=pip_version)),
     )
     assert not isinstance(location, Error), location

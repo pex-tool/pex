@@ -7,11 +7,13 @@ import os.path
 
 from pex.build_system import DEFAULT_BUILD_BACKEND
 from pex.dist_metadata import Distribution
+from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_bootstrapper import VenvPex, ensure_venv
 from pex.pex_builder import PEXBuilder
 from pex.resolve.resolvers import Resolver
 from pex.result import Error
+from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -70,6 +72,7 @@ class BuildSystem(object):
     @classmethod
     def create(
         cls,
+        interpreter,  # type: PythonInterpreter
         requires,  # type: Iterable[str]
         resolved,  # type: Iterable[Distribution]
         build_backend,  # type: str
@@ -86,7 +89,7 @@ class BuildSystem(object):
         for dist in resolved:
             pex_builder.add_distribution(dist)
         pex_builder.freeze(bytecode_compile=False)
-        venv_pex = ensure_venv(PEX(pex_builder.path()))
+        venv_pex = ensure_venv(PEX(pex_builder.path(), interpreter=interpreter))
 
         # Ensure all PEX* env vars are stripped except for PEX_ROOT and PEX_VERBOSE. We want folks
         # to be able to steer the location of the cache and the logging verbosity, but nothing else.
@@ -107,6 +110,7 @@ class BuildSystem(object):
 
 
 def load_build_system(
+    target,  # type: Target
     resolver,  # type: Resolver
     project_directory,  # type: str
 ):
@@ -127,8 +131,12 @@ def load_build_system(
             build_backend=build_system_table.build_backend
         )
     ):
-        result = resolver.resolve_requirements(requirements=build_system_table.requires)
+        result = resolver.resolve_requirements(
+            targets=Targets.from_target(target),
+            requirements=build_system_table.requires,
+        )
         return BuildSystem.create(
+            interpreter=target.get_interpreter(),
             requires=build_system_table.requires,
             resolved=tuple(
                 installed_distribution.distribution

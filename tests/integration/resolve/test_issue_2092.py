@@ -42,6 +42,8 @@ def test_vcs_respects_target(
         "linux",
         "--target-system",
         "mac",
+        "--python-path",
+        os.pathsep.join((py38.binary, py39.binary)),
         "--interpreter-constraint",
         "==3.9.*",
         vcs_requirement,

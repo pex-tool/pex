@@ -158,6 +158,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
 class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
     def __init__(
         self,
+        target,  # type: Target
         file_lock_style,  # type: FileLockStyle.Value
         pip_version,  # type: PipVersionValue
         resolver,  # type: Resolver
@@ -166,6 +167,7 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
         super(LocalProjectDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style
         )
+        self._target = target
         self._pip_version = pip_version
         self._resolver = resolver
 
@@ -181,6 +183,7 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
             directory=artifact.directory,
             digest=digest,
             pip_version=self._pip_version,
+            target=self._target,
             resolver=self._resolver,
             dest_dir=dest_dir,
         )
@@ -193,7 +196,7 @@ def download_artifact(
     downloadable_artifact_and_target,  # type: Tuple[DownloadableArtifact, Target]
     file_download_managers_by_target,  # type: Mapping[Target, FileArtifactDownloadManager]
     vcs_download_managers_by_target,  # type: Mapping[Target, VCSArtifactDownloadManager]
-    local_project_download_manager,  # type: LocalProjectDownloadManager
+    local_project_download_managers_by_target,  # type: Mapping[Target, LocalProjectDownloadManager]
 ):
     # type: (...) -> Union[DownloadedArtifact, Error]
     downloadable_artifact, target = downloadable_artifact_and_target
@@ -212,7 +215,7 @@ def download_artifact(
         )
 
     return catch(
-        local_project_download_manager.store,
+        local_project_download_managers_by_target[target].store,
         downloadable_artifact.artifact,
         downloadable_artifact.pin.project_name,
     )
@@ -309,11 +312,15 @@ def resolve_from_lock(
         for resolved_subset in subset_result.subsets
     }
 
-    local_project_download_manager = LocalProjectDownloadManager(
-        file_lock_style=file_lock_style,
-        pip_version=pip_version,
-        resolver=resolver,
-    )
+    local_project_download_managers_by_target = {
+        resolved_subset.target: LocalProjectDownloadManager(
+            file_lock_style=file_lock_style,
+            pip_version=pip_version,
+            target=resolved_subset.target,
+            resolver=resolver,
+        )
+        for resolved_subset in subset_result.subsets
+    }
 
     max_threads = min(
         len(downloadable_artifacts_and_targets) or 1,
@@ -338,7 +345,7 @@ def resolve_from_lock(
                             download_artifact,
                             file_download_managers_by_target=file_download_managers_by_target,
                             vcs_download_managers_by_target=vcs_download_managers_by_target,
-                            local_project_download_manager=local_project_download_manager,
+                            local_project_download_managers_by_target=local_project_download_managers_by_target,
                         ),
                         downloadable_artifacts_and_targets,
                     ),

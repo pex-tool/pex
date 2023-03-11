@@ -34,6 +34,7 @@ from pex.resolve.resolved_requirement import (
     ResolvedRequirement,
 )
 from pex.resolve.resolvers import Resolver
+from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -247,6 +248,7 @@ class ArtifactBuildObserver(object):
 class Locker(LogAnalyzer):
     def __init__(
         self,
+        target,  # type: Target
         root_requirements,  # type: Iterable[ParsedRequirement]
         pip_version,  # type: PipVersionValue
         resolver,  # type: Resolver
@@ -256,6 +258,7 @@ class Locker(LogAnalyzer):
     ):
         # type: (...) -> None
 
+        self._target = target
         self._vcs_url_manager = VCSURLManager.create(root_requirements)
         self._pip_version = pip_version
         self._resolver = resolver
@@ -377,6 +380,7 @@ class Locker(LogAnalyzer):
                             directory=artifact_url.path,
                             digest=digest,
                             pip_version=self._pip_version,
+                            target=self._target,
                             resolver=self._resolver,
                         )
                         self._local_projects.add(artifact_url.path)

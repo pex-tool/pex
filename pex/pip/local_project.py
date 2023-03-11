@@ -9,10 +9,10 @@ import tarfile
 from pex import hashing
 from pex.build_system import pep_517
 from pex.common import temporary_dir
-from pex.hashing import Fingerprint, Sha256
 from pex.pip.version import PipVersionValue
 from pex.resolve.resolvers import Resolver
-from pex.result import Error, try_
+from pex.result import Error
+from pex.targets import Target
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
@@ -22,21 +22,11 @@ if TYPE_CHECKING:
     from pex.hashing import HintedDigest
 
 
-def fingerprint_local_project(
-    directory,  # type: str
-    pip_version,  # type: PipVersionValue
-    resolver,  # type: Resolver
-):
-    # type: (...) -> Fingerprint
-    digest = Sha256()
-    try_(digest_local_project(directory, digest, pip_version, resolver))
-    return digest.hexdigest()
-
-
 def digest_local_project(
     directory,  # type: str
     digest,  # type: HintedDigest
     pip_version,  # type: PipVersionValue
+    target,  # type: Target
     resolver,  # type: Resolver
     dest_dir=None,  # type: Optional[str]
 ):
@@ -47,6 +37,7 @@ def digest_local_project(
                 project_directory=directory,
                 dist_dir=os.path.join(td, "dists"),
                 pip_version=pip_version,
+                target=target,
                 resolver=resolver,
             )
             if isinstance(sdist_or_error, Error):

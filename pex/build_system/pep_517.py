@@ -17,6 +17,7 @@ from pex.jobs import Job, SpawnedJob
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.resolvers import Resolver
 from pex.result import Error, try_
+from pex.targets import Target, Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
@@ -29,6 +30,7 @@ _DEFAULT_BUILD_SYSTEMS = {}  # type: Dict[PipVersionValue, BuildSystem]
 
 def _default_build_system(
     pip_version,  # type: PipVersionValue
+    target,  # type: Target
     resolver,  # type: Resolver
 ):
     # type: (...) -> BuildSystem
@@ -51,10 +53,12 @@ def _default_build_system(
                 resolved = tuple(
                     installed_distribution.fingerprinted_distribution.distribution
                     for installed_distribution in resolver.resolve_requirements(
-                        requires
+                        requirements=requires,
+                        targets=Targets.from_target(target),
                     ).installed_distributions
                 )
             build_system = BuildSystem.create(
+                interpreter=target.get_interpreter(),
                 requires=requires,
                 resolved=resolved,
                 build_backend=DEFAULT_BUILD_BACKEND,
@@ -67,14 +71,15 @@ def _default_build_system(
 
 def _get_build_system(
     pip_version,  # type: PipVersionValue
+    target,  # type: Target
     resolver,  # type: Resolver
     project_directory,  # type: str
 ):
     # type: (...) -> Union[BuildSystem, Error]
-    custom_build_system_or_error = load_build_system(resolver, project_directory)
+    custom_build_system_or_error = load_build_system(target, resolver, project_directory)
     if custom_build_system_or_error:
         return custom_build_system_or_error
-    return _default_build_system(pip_version=pip_version, resolver=resolver)
+    return _default_build_system(pip_version, target, resolver)
 
 
 # Exit code 75 is EX_TEMPFAIL defined in /usr/include/sysexits.h
@@ -90,6 +95,7 @@ def is_hook_unavailable_error(error):
 def _invoke_build_hook(
     project_directory,  # type: str
     pip_version,  # type: PipVersionValue
+    target,  # type: Target
     resolver,  # type: Resolver
     hook_method,  # type: str
     hook_args,  # type: Iterable[Any]
@@ -112,7 +118,7 @@ def _invoke_build_hook(
             )
         )
 
-    build_system_or_error = _get_build_system(pip_version, resolver, project_directory)
+    build_system_or_error = _get_build_system(pip_version, target, resolver, project_directory)
     if isinstance(build_system_or_error, Error):
         return build_system_or_error
     build_system = build_system_or_error
@@ -165,12 +171,18 @@ def build_sdist(
     project_directory,  # type: str
     dist_dir,  # type: str
     pip_version,  # type: PipVersionValue
+    target,  # type: Target
     resolver,  # type: Resolver
 ):
     # type: (...) -> Union[Text, Error]
 
     spawned_job_or_error = _invoke_build_hook(
-        project_directory, pip_version, resolver, hook_method="build_sdist", hook_args=[dist_dir]
+        project_directory,
+        pip_version,
+        target,
+        resolver,
+        hook_method="build_sdist",
+        hook_args=[dist_dir],
     )
     if isinstance(spawned_job_or_error, Error):
         return spawned_job_or_error
@@ -187,6 +199,7 @@ def build_sdist(
 def spawn_prepare_metadata(
     project_directory,  # type: str
     pip_version,  # type: PipVersionValue
+    target,  # type: Target
     resolver,  # type: Resolver
 ):
     # type: (...) -> SpawnedJob[DistMetadata]
@@ -196,6 +209,7 @@ def spawn_prepare_metadata(
         _invoke_build_hook(
             project_directory,
             pip_version,
+            target,
             resolver,
             hook_method="prepare_metadata_for_build_wheel",
             hook_args=[build_dir],

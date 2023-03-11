@@ -22,6 +22,7 @@ from pex.resolve.lockfile import json_codec
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.result import try_
 from pex.sorted_tuple import SortedTuple
+from pex.targets import LocalInterpreter
 from pex.testing import (
     IS_LINUX,
     PY310,
@@ -71,6 +72,7 @@ def build_sdist(tmpdir):
                 project_directory=project_directory,
                 dist_dir=find_links,
                 pip_version=PipVersion.VENDORED,
+                target=LocalInterpreter.create(),
                 resolver=ConfiguredResolver.default(),
             )
         )
