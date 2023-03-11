@@ -14,6 +14,7 @@ from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.result import Error
+from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
@@ -24,7 +25,9 @@ if TYPE_CHECKING:
 def load_build_system(project_directory):
     # type: (...) -> Union[Optional[BuildSystem], Error]
     return pep_518.load_build_system(
-        ConfiguredResolver(PipConfiguration(version=PipVersion.VENDORED)), project_directory
+        LocalInterpreter.create(),
+        ConfiguredResolver(PipConfiguration(version=PipVersion.VENDORED)),
+        project_directory,
     )
 
 

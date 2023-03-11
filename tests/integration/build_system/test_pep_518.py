@@ -22,12 +22,14 @@ def test_load_build_system_pyproject_custom_repos(
 ):
     # type: (...) -> None
 
+    current_target = LocalInterpreter.create()
     pip_version = (
         PipVersion.v22_2_2
-        if PipVersion.v22_2_2.requires_python_applies(LocalInterpreter.create())
+        if PipVersion.v22_2_2.requires_python_applies(current_target)
         else PipVersion.VENDORED
     )
     build_system = load_build_system(
+        current_target,
         ConfiguredResolver(PipConfiguration(version=pip_version)),
         pex_project_dir,
     )
@@ -50,7 +52,7 @@ def test_load_build_system_pyproject_custom_repos(
     custom_resolver = ConfiguredResolver(
         PipConfiguration(repos_configuration=repos_configuration, version=pip_version)
     )
-    build_system = load_build_system(custom_resolver, pex_project_dir)
+    build_system = load_build_system(current_target, custom_resolver, pex_project_dir)
     assert isinstance(build_system, BuildSystem)
     subprocess.check_call(
         args=[build_system.venv_pex.pex, "-c", "import {}".format(build_system.build_backend)]

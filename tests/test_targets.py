@@ -29,12 +29,6 @@ if TYPE_CHECKING:
     from typing import Optional
 
 
-@pytest.fixture
-def current_interpreter():
-    # type: () -> PythonInterpreter
-    return PythonInterpreter.get()
-
-
 def test_current(current_interpreter):
     # type: (PythonInterpreter) -> None
     assert LocalInterpreter.create() == targets.current()
@@ -235,3 +229,35 @@ def test_requires_python_invalid_target():
         ),
     ):
         invalid_target.requires_python_applies(requires_python=requires_python, source=source)
+
+
+def test_from_target_local_interpreter():
+    # type: () -> None
+
+    local_interpreter = LocalInterpreter.create()
+    tgts = Targets.from_target(local_interpreter)
+    assert local_interpreter.interpreter == tgts.interpreter
+    assert OrderedSet([local_interpreter]) == tgts.unique_targets(only_explicit=False)
+    assert OrderedSet([local_interpreter]) == tgts.unique_targets(only_explicit=True)
+
+
+def test_from_target_abbreviated_platform(current_platform):
+    # type: (Platform) -> None
+
+    abbreviated_platform = AbbreviatedPlatform.create(
+        platform=current_platform, manylinux="manylinux1"
+    )
+    tgts = Targets.from_target(abbreviated_platform)
+    assert tgts.interpreter is None
+    assert OrderedSet([abbreviated_platform]) == tgts.unique_targets(only_explicit=False)
+    assert OrderedSet([abbreviated_platform]) == tgts.unique_targets(only_explicit=True)
+
+
+def test_from_target_complete_platform(current_interpreter):
+    # type: (PythonInterpreter) -> None
+
+    complete_platform = CompletePlatform.from_interpreter(current_interpreter)
+    tgts = Targets.from_target(complete_platform)
+    assert tgts.interpreter is None
+    assert OrderedSet([complete_platform]) == tgts.unique_targets(only_explicit=False)
+    assert OrderedSet([complete_platform]) == tgts.unique_targets(only_explicit=True)
