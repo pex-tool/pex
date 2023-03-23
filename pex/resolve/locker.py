@@ -344,6 +344,8 @@ class Locker(LogAnalyzer):
             build_result = self._artifact_build_observer.build_result(line)
             if build_result:
                 artifact_url = build_result.url
+                source_fingerprint = None  # type: Optional[Fingerprint]
+                verified = False
                 if isinstance(artifact_url.scheme, VCSScheme):
                     source_fingerprint, archive_path = fingerprint_downloaded_vcs_archive(
                         download_dir=self._download_dir,
@@ -351,6 +353,7 @@ class Locker(LogAnalyzer):
                         version=str(build_result.pin.version),
                         vcs=artifact_url.scheme.vcs,
                     )
+                    verified = True
                     selected_path = os.path.basename(archive_path)
                     artifact_url = ArtifactURL.parse(
                         self._vcs_url_manager.normalize_url(artifact_url.raw_url)
@@ -359,14 +362,15 @@ class Locker(LogAnalyzer):
                 elif isinstance(artifact_url.scheme, ArchiveScheme.Value):
                     selected_path = os.path.basename(artifact_url.path)
                     source_archive_path = os.path.join(self._download_dir, selected_path)
-                    if not os.path.isfile(source_archive_path):
-                        raise AnalyzeError(
-                            "Failed to lock {artifact}. Could not obtain its content for "
-                            "analysis.".format(artifact=artifact_url)
-                        )
-                    digest = Sha256()
-                    hashing.file_hash(source_archive_path, digest)
-                    source_fingerprint = Fingerprint.from_digest(digest)
+                    # If Pip resolves the artifact from its own cache, we will not find it in the
+                    # download dir for this run; so guard against that. In this case the existing
+                    # machinery that finalizes a locks missing fingerprints will download the
+                    # artifact and hash it.
+                    if os.path.isfile(source_archive_path):
+                        digest = Sha256()
+                        hashing.file_hash(source_archive_path, digest)
+                        source_fingerprint = Fingerprint.from_digest(digest)
+                        verified = True
                     self._selected_path_to_pin[selected_path] = build_result.pin
                 elif "file" == artifact_url.scheme:
                     digest = Sha256()
@@ -386,6 +390,7 @@ class Locker(LogAnalyzer):
                         self._local_projects.add(artifact_url.path)
                         self._saved.add(build_result.pin)
                     source_fingerprint = Fingerprint.from_digest(digest)
+                    verified = True
                 else:
                     raise AnalyzeError(
                         "Unexpected scheme {scheme!r} for artifact at {url}".format(
@@ -401,7 +406,7 @@ class Locker(LogAnalyzer):
                         requirement=build_result.requirement,
                         pin=build_result.pin,
                         artifact=PartialArtifact(
-                            url=artifact_url, fingerprint=source_fingerprint, verified=True
+                            url=artifact_url, fingerprint=source_fingerprint, verified=verified
                         ),
                         additional_artifacts=tuple(additional_artifacts.values()),
                     )
