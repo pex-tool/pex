@@ -56,6 +56,8 @@ def test_missing_download_lock_analysis_handling(
         "create",
         "--pex-root",
         pex_root,
+        "--python-path",
+        py310.binary,
         "--interpreter-constraint",
         "==3.10.*",
         "--style",
