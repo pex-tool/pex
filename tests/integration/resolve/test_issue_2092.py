@@ -75,8 +75,21 @@ def test_vcs_respects_target(
         python=py38.binary,
     ).assert_success()
 
-    assert {
-        "emote_rl-23.0.0-py3-none-any.whl": (
-            "e136042e61a0a4f6875cbfa06e4e3fada1f23f095364daf84c18d124fc4e462a"
-        )
-    } == PexInfo.from_pex(pex).distributions
+    # N.B.: It would be nice to assert the hash of the distribution here as well, but it uses:
+    #
+    #   [build-system]
+    #   requires = ["pdm-pep517>=1.0.0"]
+    #
+    # This results in any new release of PDM breaking the expected hash since the WHEEL metadata
+    # includes the PDM version:
+    #
+    #   $ unzip -qc emote_rl-23.0.0-py3-none-any.whl emote_rl-23.0.0.dist-info/WHEEL
+    #   Wheel-Version: 1.0
+    #   Generator: pdm-pep517 1.1.3
+    #   Root-Is-Purelib: True
+    #   Tag: py3-none-any
+    #
+    # Ideally, Pex could include lock information for each sdist in a lock that utilized PEP-518
+    # and then use that information when building wheels from those locked sdists to form a PEX.
+    # See: https://github.com/pantsbuild/pex/issues/2100
+    assert ["emote_rl-23.0.0-py3-none-any.whl"] == list(PexInfo.from_pex(pex).distributions)
