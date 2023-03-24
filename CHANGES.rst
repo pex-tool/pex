@@ -1,6 +1,15 @@
 Release Notes
 =============
 
+2.1.130
+-------
+
+This release fixes a regression locking certain complex cases of direct
+and transitive requirement interactions as exemplified in #2098.
+
+* Guard lock analysis against Pip-cached artifacts. (#2103)
+  `PR #2103 <https://github.com/pantsbuild/pex/pull/2103>`_
+
 2.1.129
 -------
 
