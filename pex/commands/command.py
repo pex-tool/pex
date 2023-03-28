@@ -177,6 +177,11 @@ class JsonMixin(object):
         out,  # type: IO
         **json_dump_kwargs  # type: Any
     ):
+        if options.indent is not None and options.indent > 0:
+            # Python 2.7 uses ', ' for the list item separator regardless of indent which is
+            # different from Python 3 and leads to trailing whitespace in the output; so, we
+            # normalize here to the Python 3 style for consistent, more generally useful output.
+            json_dump_kwargs.update(separators=(",", ": "))
         json.dump(data, out, indent=options.indent, **json_dump_kwargs)
 
 

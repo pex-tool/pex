@@ -1,14 +1,19 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import io
+from argparse import Namespace
+from textwrap import dedent
+
 import pytest
 
-from pex.commands.command import Command, Main
+from pex.commands.command import Command, JsonMixin, Main
+from pex.compatibility import PY2
 from pex.result import Error, ResultError, catch, try_
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Optional, Union
+    from typing import IO, Any, Optional, Text, Union
 
 
 def test_try_catch():
@@ -73,3 +78,44 @@ def test_main(capsys):
         cm.__enter__()
     assert 2 == exc_info.value.code
     assert_output(expected_stderr="test_main [-h] [-V]")
+
+
+def dump_json(
+    obj,  # type: Any
+    indent=None,  # type: Optional[int]
+):
+    # type: (...) -> Text
+    def dump(out):
+        # type: (IO) -> None
+        JsonMixin.dump_json(options=Namespace(indent=indent), data=obj, out=out)
+
+    if PY2:
+        output = io.BytesIO()
+        dump(output)
+        return output.getvalue().decode("utf-8")
+    else:
+        output = io.StringIO()
+        dump(output)
+        return output.getvalue()
+
+
+def test_json_mixin_no_indent():
+    # type: () -> None
+    assert '{"list": [1, 2]}' == dump_json({"list": [1, 2]})
+
+
+def test_json_mixin_indent():
+    # type: () -> None
+    assert (
+        dedent(
+            """\
+            {
+              "list": [
+                1,
+                2
+              ]
+            }
+            """
+        ).strip()
+        == dump_json({"list": [1, 2]}, indent=2)
+    )
