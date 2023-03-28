@@ -109,13 +109,13 @@ def test_json_mixin_indent():
     assert (
         dedent(
             """\
-        {
-          "list": [
-            1,
-            2
-          ]
-        }
-        """
+            {
+              "list": [
+                1,
+                2
+              ]
+            }
+            """
         ).strip()
         == dump_json({"list": [1, 2]}, indent=2)
     )
