@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.131
+-------
+
+This release fixes some inconsistencies in Pex JSON output across
+the Python 2/3 boundary and in handling of venv collisions when using
+the venv Pex tool.
+
+* Stabilize JSON output format across Python 2/3. (#2106)
+  `PR #2106 <https://github.com/pantsbuild/pex/pull/2106>`_
+
+* Support ``--pip`` overrides via PEX deps. (#2107)
+  `PR #2107 <https://github.com/pantsbuild/pex/pull/2107>`_
+
 2.1.130
 -------
 
