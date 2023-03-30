@@ -165,10 +165,10 @@ def assert_venv_dists_conflicts(
     expected_message_prefix = (
         dedent(
             """\
-        You asked for --pip to be installed in the venv at {venv_dir},
-        but the PEX at {pex} already contains:
-        {conflicts}
-        """
+            You asked for --pip to be installed in the venv at {venv_dir},
+            but the PEX at {pex} already contains:
+            {conflicts}
+            """
         )
         .format(venv_dir=venv_dir, pex=pex, conflicts=os.linesep.join(expected_conflicts))
         .strip()
