@@ -6,15 +6,22 @@ from __future__ import absolute_import
 import errno
 import logging
 import os
+import subprocess
 from argparse import ArgumentParser
+from collections import OrderedDict
+from subprocess import CalledProcessError
 
 from pex import pex_warnings
 from pex.common import safe_delete, safe_rmtree
+from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executor import Executor
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pex import PEX
-from pex.result import Error, Ok, Result
+from pex.result import Error, Ok, Result, try_
 from pex.tools.command import PEXCommand
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.venv.bin_path import BinPath
 from pex.venv.install_scope import InstallScope
@@ -22,7 +29,7 @@ from pex.venv.pex import populate_venv
 from pex.venv.virtualenv import PipUnavailableError, Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Iterable, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -71,6 +78,104 @@ class InstallScopeState(object):
             install_scope = InstallScope.ALL
         with open(self._state_file, "w") as fp:
             fp.write(str(install_scope))
+
+
+def find_dist(
+    project_name,  # type: ProjectName
+    dists,  # type: Iterable[Distribution]
+):
+    # type: (...) -> Optional[Version]
+    for dist in dists:
+        if project_name == dist.metadata.project_name:
+            return dist.metadata.version
+    return None
+
+
+_PIP = ProjectName("pip")
+_SETUPTOOLS = ProjectName("setuptools")
+
+
+def ensure_pip_installed(
+    venv,  # type: Virtualenv
+    pex,  # type: PEX
+    scope,  # type: InstallScope.Value
+    collisions_ok,  # type: bool
+):
+    # type: (...) -> Union[Version, Error]
+
+    venv_pip_version = find_dist(_PIP, venv.iter_distributions())
+    if venv_pip_version:
+        TRACER.log(
+            "The venv at {venv_dir} already has Pip {version} installed.".format(
+                venv_dir=venv.venv_dir, version=venv_pip_version
+            )
+        )
+    else:
+        try:
+            venv.install_pip()
+        except PipUnavailableError as e:
+            return Error(
+                "The virtual environment was successfully created, but Pip was not "
+                "installed:\n{}".format(e)
+            )
+        venv_pip_version = find_dist(_PIP, venv.iter_distributions())
+        if not venv_pip_version:
+            return Error(
+                "Failed to install pip into venv at {venv_dir}".format(venv_dir=venv.venv_dir)
+            )
+
+    if InstallScope.SOURCE_ONLY == scope:
+        return venv_pip_version
+
+    uninstall = OrderedDict()
+    pex_pip_version = find_dist(_PIP, pex.resolve())
+    if pex_pip_version and pex_pip_version != venv_pip_version:
+        uninstall[_PIP] = pex_pip_version
+
+    venv_setuptools_version = find_dist(_SETUPTOOLS, venv.iter_distributions())
+    if venv_setuptools_version:
+        pex_setuptools_version = find_dist(_SETUPTOOLS, pex.resolve())
+        if pex_setuptools_version and venv_setuptools_version != pex_setuptools_version:
+            uninstall[_SETUPTOOLS] = pex_setuptools_version
+
+    if not uninstall:
+        return venv_pip_version
+
+    message = (
+        "You asked for --pip to be installed in the venv at {venv_dir},\n"
+        "but the PEX at {pex} already contains:\n{distributions}"
+    ).format(
+        venv_dir=venv.venv_dir,
+        pex=pex.path(),
+        distributions="\n".join(
+            "{project_name} {version}".format(project_name=project_name, version=version)
+            for project_name, version in uninstall.items()
+        ),
+    )
+    if not collisions_ok:
+        return Error(
+            "{message}\nConsider re-running either without --pip or with --collisions-ok.".format(
+                message=message
+            )
+        )
+
+    pex_warnings.warn(
+        "{message}\nUninstalling venv versions and using versions from the PEX.".format(
+            message=message
+        )
+    )
+    projects_to_uninstall = sorted(str(project_name) for project_name in uninstall)
+    try:
+        subprocess.check_call(
+            args=[venv.interpreter.binary, "-m", "pip", "uninstall", "-y"] + projects_to_uninstall
+        )
+    except CalledProcessError as e:
+        return Error(
+            "Failed to uninstall venv versions of {projects}: {err}".format(
+                projects=" and ".join(projects_to_uninstall), err=e
+            )
+        )
+    return pex_pip_version or venv_pip_version
 
 
 class Venv(PEXCommand):
@@ -133,7 +238,12 @@ class Venv(PEXCommand):
             "--pip",
             action="store_true",
             default=False,
-            help="Add pip to the venv.",
+            help=(
+                "Add pip (and setuptools) to the venv. If the PEX already contains its own "
+                "conflicting versions pip (or setuptools), the command will error and you must "
+                "pass --collisions-ok to have the PEX versions over-ride the natural venv versions "
+                "installed by --pip."
+            ),
         )
         parser.add_argument(
             "--copies",
@@ -195,6 +305,13 @@ class Venv(PEXCommand):
                 prompt=self.options.prompt,
             )
 
+        if self.options.pip:
+            try_(
+                ensure_pip_installed(
+                    venv, pex, scope=self.options.scope, collisions_ok=self.options.collisions_ok
+                )
+            )
+
         if self.options.prompt != venv.custom_prompt:
             logger.warning(
                 "Unable to apply custom --prompt {prompt!r} in {python} venv; continuing with the "
@@ -211,14 +328,7 @@ class Venv(PEXCommand):
             scope=self.options.scope,
             hermetic_scripts=self.options.hermetic_scripts,
         )
-        if self.options.pip:
-            try:
-                venv.install_pip()
-            except PipUnavailableError as e:
-                return Error(
-                    "The virtual environment was successfully created, but Pip was not "
-                    "installed:\n{}".format(e)
-                )
+
         if self.options.compile:
             try:
                 pex.interpreter.execute(["-m", "compileall", venv_dir])

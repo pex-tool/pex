@@ -375,5 +375,5 @@ class Virtualenv(object):
                         os.path.join(atomic_dir.work_dir, os.path.basename(get_pip)), "wb"
                     ) as dst_fp:
                         shutil.copyfileobj(src_fp, dst_fp)
-            self._interpreter.execute(args=[get_pip])
+            self._interpreter.execute(args=[get_pip, "--no-wheel"])
         return self.bin_path("pip")
