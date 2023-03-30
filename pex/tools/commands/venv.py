@@ -10,7 +10,6 @@ import subprocess
 from argparse import ArgumentParser
 from collections import OrderedDict
 from subprocess import CalledProcessError
-from typing import Iterable, Union
 
 from pex import pex_warnings
 from pex.common import safe_delete, safe_rmtree
@@ -30,7 +29,7 @@ from pex.venv.pex import populate_venv
 from pex.venv.virtualenv import PipUnavailableError, Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Optional
+    from typing import Iterable, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -154,10 +153,14 @@ def ensure_pip_installed(
         ),
     )
     if not collisions_ok:
-        return Error("{message}.\nConsider re-running without --pip.".format(message=message))
+        return Error(
+            "{message}\nConsider re-running either without --pip or with --collisions-ok.".format(
+                message=message
+            )
+        )
 
     pex_warnings.warn(
-        "{message}.\nUninstalling venv versions and using versions from the PEX.".format(
+        "{message}\nUninstalling venv versions and using versions from the PEX.".format(
             message=message
         )
     )
