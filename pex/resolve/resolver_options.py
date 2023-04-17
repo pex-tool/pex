@@ -100,6 +100,26 @@ def register(
             "fast indicating the problematic selected interpreters."
         ),
     )
+    parser.add_argument(
+        "--setuptools-version",
+        dest="setuptools_version",
+        default=None,
+        type=str,
+        help=(
+            "The version of setuptools to use for resolving dependencies. If not specified, "
+            "an appropriate default will be selected based on the value of --pip-version."
+        ),
+    )
+    parser.add_argument(
+        "--wheel-version",
+        dest="wheel_version",
+        default=None,
+        type=str,
+        help=(
+            "The version of wheel to use for resolving dependencies. If not specified, "
+            "an appropriate default will be selected based on the value of --pip-version."
+        ),
+    )
 
     register_repos_options(parser)
     register_network_options(parser)
@@ -437,6 +457,11 @@ def create_pip_configuration(options):
         if options.pip_version == "vendored"
         else PipVersion.for_value(options.pip_version)
     )
+
+    if options.setuptools_version:
+        pip_version.override_setuptools_version(options.setuptools_version)
+    if options.wheel_version:
+        pip_version.override_wheel_version(options.wheel_version)
 
     return PipConfiguration(
         resolver_version=options.resolver_version,

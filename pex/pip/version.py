@@ -13,6 +13,20 @@ if TYPE_CHECKING:
     from typing import Iterable, Optional, Tuple
 
 
+def _to_requirement(
+    project_name,  # type: str
+    project_version=None,  # type: Optional[str]
+):
+    # type: (...) -> str
+    return (
+        "{project_name}=={project_version}".format(
+            project_name=project_name, project_version=project_version
+        )
+        if project_version
+        else project_name
+    )
+
+
 class PipVersionValue(Enum.Value):
     def __init__(
         self,
@@ -25,28 +39,23 @@ class PipVersionValue(Enum.Value):
         # type: (...) -> None
         super(PipVersionValue, self).__init__(version)
 
-        def to_requirement(
-            project_name,  # type: str
-            project_version=None,  # type: Optional[str]
-        ):
-            # type: (...) -> str
-            return (
-                "{project_name}=={project_version}".format(
-                    project_name=project_name, project_version=project_version
-                )
-                if project_version
-                else project_name
-            )
-
-        self.requirement = requirement or to_requirement("pip", version)
-        self.setuptools_requirement = to_requirement("setuptools", setuptools_version)
-        self.wheel_requirement = to_requirement("wheel", wheel_version)
+        self.requirement = requirement or _to_requirement("pip", version)
+        self.setuptools_requirement = _to_requirement("setuptools", setuptools_version)
+        self.wheel_requirement = _to_requirement("wheel", wheel_version)
         self.requires_python = SpecifierSet(requires_python) if requires_python else None
 
     @property
     def requirements(self):
         # type: () -> Iterable[str]
         return self.requirement, self.setuptools_requirement, self.wheel_requirement
+
+    def override_setuptools_version(self, version):
+        # type: (str) -> None
+        self.setuptools_requirement = _to_requirement("setuptools", version)
+
+    def override_wheel_version(self, version):
+        # type: (str) -> None
+        self.wheel_requirement = _to_requirement("wheel", version)
 
     def requires_python_applies(self, target):
         # type: (Target) -> bool
@@ -73,10 +82,6 @@ class PipVersion(Enum["PipVersionValue"]):
             "pip @ git+https://github.com/pantsbuild/pip@386a54f097ece66775d0c7f34fd29bb596c6b0be"
         ),
     )
-
-    # TODO(John Sirois): Expose setuptools and wheel version flags - these don't affect
-    #  Pex; so we should allow folks to experiment with upgrade easily:
-    #  https://github.com/pantsbuild/pex/issues/1895
 
     v22_2_2 = PipVersionValue(
         version="22.2.2",

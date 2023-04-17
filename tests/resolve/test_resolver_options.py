@@ -149,3 +149,17 @@ def test_invalid_configuration(parser):
         compute_resolver_configuration(
             parser, args=["--pex-repository", "a.pex", "-f", "https://a.find/links/repo"]
         )
+
+
+def test_setuptools_version_override(parser):
+    resolver_options.register(parser)
+
+    pip_configuration = compute_pip_configuration(parser, args=["--setuptools-version", "1.2.3"])
+    assert "setuptools==1.2.3" in pip_configuration.version.requirements
+
+
+def test_wheel_version_override(parser):
+    resolver_options.register(parser)
+
+    pip_configuration = compute_pip_configuration(parser, args=["--wheel-version", "1.2.3"])
+    assert "wheel==1.2.3" in pip_configuration.version.requirements
