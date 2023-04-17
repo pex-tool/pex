@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 
 import pytest
 
+from pex.pip.version import PipVersion
 from pex.resolve import resolver_options
 from pex.resolve.resolver_configuration import (
     PexRepositoryConfiguration,
@@ -149,3 +150,25 @@ def test_invalid_configuration(parser):
         compute_resolver_configuration(
             parser, args=["--pex-repository", "a.pex", "-f", "https://a.find/links/repo"]
         )
+
+
+def test_vendored_pip_version(parser):
+    # type: (ArgumentParser) -> None
+    resolver_options.register(parser)
+
+    pip_configuration = compute_pip_configuration(parser, args=[])
+    assert pip_configuration.version is PipVersion.VENDORED, "Expected the default Pip version to be the vendored one"
+
+    pip_configuration = compute_pip_configuration(parser, args=["--pip-version", "vendored"])
+    assert pip_configuration.version is PipVersion.VENDORED
+
+    pip_configuration = compute_pip_configuration(parser, args=["--pip-version", "20.3.4-patched"])
+    assert pip_configuration.version is PipVersion.VENDORED
+
+
+def test_latest_pip_version(parser):
+    # type: (ArgumentParser) -> None
+    resolver_options.register(parser)
+
+    pip_configuration = compute_pip_configuration(parser, args=["--pip-version", "latest"])
+    assert pip_configuration.version is PipVersion.LATEST
