@@ -1,6 +1,19 @@
 Release Notes
 =============
 
+2.1.132
+-------
+
+This release brings support for the latest Pip release with
+`--pip-version 23.1` or by using new support for pinning to the latest
+version of Pip supported by Pex with `--pip-version latest`.
+
+* Add support for Pip 23.1 (#2114)
+  `PR #2114 <https://github.com/pantsbuild/pex/pull/2114>`_
+
+* Add support for ``--pip-version latest``. (#2116)
+  `PR #2116 <https://github.com/pantsbuild/pex/pull/2116>`_
+
 2.1.131
 -------
 
