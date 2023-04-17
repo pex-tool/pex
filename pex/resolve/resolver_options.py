@@ -84,8 +84,12 @@ def register(
         "--pip-version",
         dest="pip_version",
         default=str(default_resolver_configuration.version),
-        choices=["vendored"] + [str(value) for value in PipVersion.values()],
-        help="The version of Pip to use for resolving dependencies.",
+        choices=["latest", "vendored"] + [str(value) for value in PipVersion.values()],
+        help=(
+            "The version of Pip to use for resolving dependencies. The `latest` version refers to "
+            "the latest version in this list ({latest}) which is not necessarily the latest Pip "
+            "version released on PyPI.".format(latest=PipVersion.LATEST)
+        ),
     )
     parser.add_argument(
         "--allow-pip-version-fallback",
@@ -432,11 +436,12 @@ def create_pip_configuration(options):
 
     repos_configuration = create_repos_configuration(options)
 
-    pip_version = (
-        PipVersion.VENDORED
-        if options.pip_version == "vendored"
-        else PipVersion.for_value(options.pip_version)
-    )
+    if options.pip_version == "latest":
+        pip_version = PipVersion.LATEST
+    elif options.pip_version == "vendored":
+        pip_version = PipVersion.VENDORED
+    else:
+        pip_version = PipVersion.for_value(options.pip_version)
 
     return PipConfiguration(
         resolver_version=options.resolver_version,

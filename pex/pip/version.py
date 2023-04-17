@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 from pex.dist_metadata import Requirement
 from pex.enum import Enum
+from pex.pep_440 import Version
 from pex.targets import LocalInterpreter, Target
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
@@ -17,13 +18,14 @@ class PipVersionValue(Enum.Value):
     def __init__(
         self,
         version,  # type: str
+        name=None,  # type: Optional[str]
         requirement=None,  # type: Optional[str]
         setuptools_version=None,  # type: Optional[str]
         wheel_version=None,  # type: Optional[str]
         requires_python=None,  # type: Optional[str]
     ):
         # type: (...) -> None
-        super(PipVersionValue, self).__init__(version)
+        super(PipVersionValue, self).__init__(name or version)
 
         def to_requirement(
             project_name,  # type: str
@@ -38,6 +40,7 @@ class PipVersionValue(Enum.Value):
                 else project_name
             )
 
+        self.version = Version(version)
         self.requirement = requirement or to_requirement("pip", version)
         self.setuptools_requirement = to_requirement("setuptools", setuptools_version)
         self.wheel_requirement = to_requirement("wheel", wheel_version)
@@ -59,6 +62,13 @@ class PipVersionValue(Enum.Value):
         )
 
 
+class LatestPipVersion(object):
+    def __get__(self, obj, objtype=None):
+        if not hasattr(self, "_latest"):
+            self._latest = max(PipVersionValue._iter_values(), key=lambda pv: pv.version)
+        return self._latest
+
+
 class PipVersion(Enum["PipVersionValue"]):
     @classmethod
     def values(cls):
@@ -68,7 +78,8 @@ class PipVersion(Enum["PipVersionValue"]):
         return cls._values
 
     v20_3_4_patched = PipVersionValue(
-        version="20.3.4-patched",
+        name="20.3.4-patched",
+        version="20.3.4+patched",
         requirement=(
             "pip @ git+https://github.com/pantsbuild/pip@386a54f097ece66775d0c7f34fd29bb596c6b0be"
         ),
@@ -121,3 +132,4 @@ class PipVersion(Enum["PipVersionValue"]):
     )
 
     VENDORED = v20_3_4_patched
+    LATEST = LatestPipVersion()

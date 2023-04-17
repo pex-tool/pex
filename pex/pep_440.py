@@ -27,7 +27,7 @@ def _ensure_ascii_str(text):
     return str(text)
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, order=True)
 class Version(object):
     """A PEP-440 normalized version: https://www.python.org/dev/peps/pep-0440/#normalization"""
 
