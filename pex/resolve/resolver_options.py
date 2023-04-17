@@ -85,7 +85,11 @@ def register(
         dest="pip_version",
         default=str(default_resolver_configuration.version),
         choices=["latest", "vendored"] + [str(value) for value in PipVersion.values()],
-        help="The version of Pip to use for resolving dependencies.",
+        help=(
+            "The version of Pip to use for resolving dependencies. The `latest` version refers to "
+            "the latest version in this list ({latest}) which is not necessarily the latest Pip "
+            "version released on PyPI.".format(latest=PipVersion.LATEST)
+        ),
     )
     parser.add_argument(
         "--allow-pip-version-fallback",
