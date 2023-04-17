@@ -157,7 +157,9 @@ def test_vendored_pip_version(parser):
     resolver_options.register(parser)
 
     pip_configuration = compute_pip_configuration(parser, args=[])
-    assert pip_configuration.version is PipVersion.VENDORED, "Expected the default Pip version to be the vendored one"
+    assert (
+        pip_configuration.version is PipVersion.VENDORED
+    ), "Expected the default Pip version to be the vendored one."
 
     pip_configuration = compute_pip_configuration(parser, args=["--pip-version", "vendored"])
     assert pip_configuration.version is PipVersion.VENDORED
