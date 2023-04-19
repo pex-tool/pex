@@ -1,12 +1,21 @@
 Release Notes
 =============
 
+2.1.133
+-------
+
+This release fixes ``--venv`` mode PEX venv script shebangs for some
+scenarios using Python ``<=3.7`` interpreters.
+
+* Fix venv script shebangs. #2122
+  `PR #2122 <https://github.com/pantsbuild/pex/pull/2122>`_
+
 2.1.132
 -------
 
 This release brings support for the latest Pip release with
-`--pip-version 23.1` or by using new support for pinning to the latest
-version of Pip supported by Pex with `--pip-version latest`.
+``--pip-version 23.1`` or by using new support for pinning to the latest
+version of Pip supported by Pex with ``--pip-version latest``.
 
 * Add support for Pip 23.1 (#2114)
   `PR #2114 <https://github.com/pantsbuild/pex/pull/2114>`_
