@@ -5,10 +5,10 @@ Release Notes
 -------
 
 This release fixes ``--venv`` mode PEX venv script shebangs for some
-scenarios using ``<=3.7`` Python interpreters.
+scenarios using Python ``<=3.7`` interpreters.
 
 * Fix venv script shebangs. #2122
-  `PR #2122 <https://github.com/pantsbuild/pex/pull/2114>`_
+  `PR #2122 <https://github.com/pantsbuild/pex/pull/2122>`_
 
 2.1.132
 -------
