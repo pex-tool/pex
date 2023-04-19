@@ -535,7 +535,6 @@ class PythonInterpreter(object):
     @classmethod
     def _resolve_pyvenv_canonical_python_binary(
         cls,
-        real_binary,  # type: str
         maybe_venv_python_binary,  # type: str
     ):
         # type: (...) -> Optional[str]
@@ -581,16 +580,11 @@ class PythonInterpreter(object):
         N.B.: If the path is a venv symlink it will not be fully de-referenced in order to maintain
         fidelity with the requested venv Python binary choice.
         """
-        real_binary = os.path.realpath(path)
-
-        # If the path is a PEP-405 venv interpreter symlink we do not want to resolve outside of the
+        # If the path is a PEP-405 venv interpreter symlink we do not want to resolve outside the
         # venv in order to stay faithful to the binary path choice.
-        return (
-            cls._resolve_pyvenv_canonical_python_binary(
-                real_binary=real_binary, maybe_venv_python_binary=path
-            )
-            or real_binary
-        )
+        return cls._resolve_pyvenv_canonical_python_binary(
+            maybe_venv_python_binary=path
+        ) or os.path.realpath(path)
 
     class Error(Exception):
         pass

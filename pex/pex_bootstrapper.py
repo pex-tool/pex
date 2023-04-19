@@ -547,7 +547,10 @@ def ensure_venv(
                         pex,
                         bin_path=pex_info.venv_bin_path,
                         python=os.path.join(
-                            short_venv_dir, "venv", "bin", os.path.basename(pex.interpreter.binary)
+                            short_venv_dir,
+                            "venv",
+                            "bin",
+                            os.path.basename(virtualenv.interpreter.binary),
                         ),
                         collisions_ok=collisions_ok,
                         symlink=symlink,
