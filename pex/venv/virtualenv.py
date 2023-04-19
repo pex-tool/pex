@@ -127,7 +127,9 @@ class Virtualenv(object):
         )
         if not interpreter.is_venv:
             return None
-        return cls(venv_dir=interpreter.prefix)
+        return cls(
+            venv_dir=interpreter.prefix, python_exe_name=os.path.basename(interpreter.binary)
+        )
 
     @classmethod
     def create(
@@ -222,14 +224,16 @@ class Virtualenv(object):
     def __init__(
         self,
         venv_dir,  # type: str
+        python_exe_name="python",  # type: str
         custom_prompt=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         self._venv_dir = venv_dir
         self._custom_prompt = custom_prompt
         self._bin_dir = os.path.join(venv_dir, "bin")
+        python_exe_path = os.path.join(self._bin_dir, python_exe_name)
         try:
-            self._interpreter = next(PythonInterpreter.iter(paths=[self._bin_dir]))
+            self._interpreter = PythonInterpreter.from_binary(python_exe_path)
         except StopIteration:
             raise InvalidVirtualenvError(
                 "The virtualenv at {venv_dir} is not valid. Failed to load an interpreter from "
