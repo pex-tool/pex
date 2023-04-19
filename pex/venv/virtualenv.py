@@ -234,10 +234,12 @@ class Virtualenv(object):
         python_exe_path = os.path.join(self._bin_dir, python_exe_name)
         try:
             self._interpreter = PythonInterpreter.from_binary(python_exe_path)
-        except StopIteration:
+        except PythonInterpreter.InterpreterNotFound as e:
             raise InvalidVirtualenvError(
-                "The virtualenv at {venv_dir} is not valid. Failed to load an interpreter from "
-                "{bin_dir}.".format(venv_dir=self._venv_dir, bin_dir=self._bin_dir)
+                "The virtualenv at {venv_dir} is not valid. Failed to load an interpreter at "
+                "{python_exe_path}: {err}".format(
+                    venv_dir=self._venv_dir, python_exe_path=python_exe_path, err=e
+                )
             )
         self._site_packages_dir = find_site_packages_dir(venv_dir, self._interpreter)
         self._base_bin = frozenset(_iter_files(self._bin_dir))
