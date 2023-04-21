@@ -12,14 +12,14 @@ jobs:
   org-check:
     name: Check GitHub Organization
     if: ${{ github.repository_owner == 'pantsbuild' }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Noop
         run: "true"
   determine-tag:
     name: Determine the release tag to operate against.
     needs: org-check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       release-tag: ${{ steps.determine-tag.outputs.release-tag }}
       release-version: ${{ steps.determine-tag.outputs.release-version }}
@@ -42,8 +42,10 @@ jobs:
   pypi:
     name: Publish sdist and wheel to PyPI
     needs: determine-tag
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     environment: Release
+    permissions:
+      id-token: write
     steps:
       - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
         uses: actions/checkout@v3
@@ -53,17 +55,19 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-      - name: Publish Pex ${{ needs.determine-tag.outputs.release-tag }}
+      - name: Build sdist and wheel
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        env:
-          FLIT_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          FLIT_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         with:
-          tox-env: publish
+          tox-env: package -- --no-pex --additional-format sdist --additional-format wheel
+      - name: Publish Pex ${{ needs.determine-tag.outputs.release-tag }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          print-hash: true
+          verbose: true
   github-release:
     name: Create Github Release
     needs: determine-tag
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     environment: Release
     steps:
       - name: Checkout Pex ${{ needs.determine-tag.outputs.release-tag }}
