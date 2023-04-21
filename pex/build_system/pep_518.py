@@ -113,6 +113,7 @@ def load_build_system(
     target,  # type: Target
     resolver,  # type: Resolver
     project_directory,  # type: str
+    extra_requirements=(),  # type: Tuple[str, ...]
 ):
     # type: (...) -> Union[Optional[BuildSystem], Error]
 
@@ -131,13 +132,14 @@ def load_build_system(
             build_backend=build_system_table.build_backend
         )
     ):
+        requirements = build_system_table.requires + extra_requirements
         result = resolver.resolve_requirements(
             targets=Targets.from_target(target),
-            requirements=build_system_table.requires,
+            requirements=requirements,
         )
         return BuildSystem.create(
             interpreter=target.get_interpreter(),
-            requires=build_system_table.requires,
+            requires=requirements,
             resolved=tuple(
                 installed_distribution.distribution
                 for installed_distribution in result.installed_distributions
