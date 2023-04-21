@@ -161,7 +161,7 @@ if __name__ == "__main__":
         "--no-pex",
         default=False,
         action="store_true",
-        help="Build Pex PEX with just a single local interpreter.",
+        help="Do not build the Pex PEX.",
     )
     parser.add_argument(
         "--pex-output-file",
