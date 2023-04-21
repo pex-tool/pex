@@ -9,7 +9,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from enum import Enum, unique
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path, PurePath
-from typing import Tuple, cast
+from typing import Optional, Tuple, cast
 
 PROJECT_METADATA = Path("pyproject.toml")
 DIST_DIR = Path("dist")
@@ -99,18 +99,19 @@ def build_pex_dists(dist_fmt: Format, *additional_dist_fmts: Format, verbose: bo
 def main(
     *additional_dist_formats: Format,
     verbosity: int = 0,
-    pex_output_file: Path = DIST_DIR / "pex",
+    pex_output_file: Optional[Path] = DIST_DIR / "pex",
     local: bool = False,
     serve: bool = False
 ) -> None:
-    print(f"Building Pex PEX to `{pex_output_file}` ...")
-    build_pex_pex(pex_output_file, local, verbosity)
+    if pex_output_file:
+        print(f"Building Pex PEX to `{pex_output_file}` ...")
+        build_pex_pex(pex_output_file, local, verbosity)
 
-    git_rev = describe_git_rev()
-    sha256, size = describe_file(pex_output_file)
-    print(f"Built Pex PEX @ {git_rev}:")
-    print(f"sha256: {sha256}")
-    print(f"  size: {size}")
+        git_rev = describe_git_rev()
+        sha256, size = describe_file(pex_output_file)
+        print(f"Built Pex PEX @ {git_rev}:")
+        print(f"sha256: {sha256}")
+        print(f"  size: {size}")
 
     if additional_dist_formats:
         print(
@@ -157,6 +158,12 @@ if __name__ == "__main__":
         help="Package Pex in additional formats.",
     )
     parser.add_argument(
+        "--no-pex",
+        default=False,
+        action="store_true",
+        help="Build Pex PEX with just a single local interpreter.",
+    )
+    parser.add_argument(
         "--pex-output-file",
         default=DIST_DIR / "pex",
         type=Path,
@@ -179,7 +186,7 @@ if __name__ == "__main__":
     main(
         *(args.additional_formats or ()),
         verbosity=args.verbosity,
-        pex_output_file=args.pex_output_file,
+        pex_output_file=None if args.no_pex else args.pex_output_file,
         local=args.local,
         serve=args.serve
     )
