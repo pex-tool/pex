@@ -28,7 +28,7 @@ def test_wheel_file_url_dep(tmpdir):
 
     constraints = os.path.join(str(tmpdir), "constraints.txt")
     with open(constraints, "w") as fp:
-        # The 20.22 release introduces a change that breaks resolution od poetry 1.3.2; so we pin
+        # The 20.22 release introduces a change that breaks resolution of poetry 1.3.2; so we pin
         # low.
         fp.write("virtualenv<20.22")
 
