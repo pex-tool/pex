@@ -26,8 +26,16 @@ if TYPE_CHECKING:
 def test_wheel_file_url_dep(tmpdir):
     # type: (Any) -> None
 
+    constraints = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints, "w") as fp:
+        # The 20.22 release introduces a change that breaks resolution od poetry 1.3.2; so we pin
+        # low.
+        fp.write("virtualenv<20.22")
+
     poetry = os.path.join(str(tmpdir), "poetry.pex")
-    run_pex_command(args=["poetry==1.3.2", "-c", "poetry", "-o", poetry]).assert_success()
+    run_pex_command(
+        args=["poetry==1.3.2", "--constraints", constraints, "-c", "poetry", "-o", poetry]
+    ).assert_success()
 
     corelibrary = os.path.join(str(tmpdir), "corelibrary")
     touch(os.path.join(corelibrary, "README.md"))
