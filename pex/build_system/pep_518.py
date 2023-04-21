@@ -111,28 +111,30 @@ class BuildSystem(object):
             # the Python they come paired with.
             upgrade_pip = virtualenv.interpreter.version[:2] == (3, 5)
             virtualenv.install_pip(upgrade=upgrade_pip)
-            _, process = virtualenv.interpreter.open_process(
-                args=[
-                    "-m",
-                    "pip",
-                    "install",
-                    "--ignore-installed",
-                    "--no-user",
-                    "--no-warn-script-location",
-                ]
-                + list(extra_requirements),
-                stderr=subprocess.PIPE,
-            )
-            _, stderr = process.communicate()
-            if process.returncode != 0:
-                return Error(
-                    "Failed to install extra requirement in venv at {venv_dir}: "
-                    "{extra_requirements}\nSTDERR:\n{stderr}".format(
-                        venv_dir=venv_pex.venv_dir,
-                        extra_requirements=", ".join(extra_requirements),
-                        stderr=stderr.decode("utf-8"),
-                    )
+            with open(os.devnull, "wb") as dev_null:
+                _, process = virtualenv.interpreter.open_process(
+                    args=[
+                        "-m",
+                        "pip",
+                        "install",
+                        "--ignore-installed",
+                        "--no-user",
+                        "--no-warn-script-location",
+                    ]
+                    + list(extra_requirements),
+                    stdout=dev_null,
+                    stderr=subprocess.PIPE,
                 )
+                _, stderr = process.communicate()
+                if process.returncode != 0:
+                    return Error(
+                        "Failed to install extra requirement in venv at {venv_dir}: "
+                        "{extra_requirements}\nSTDERR:\n{stderr}".format(
+                            venv_dir=venv_pex.venv_dir,
+                            extra_requirements=", ".join(extra_requirements),
+                            stderr=stderr.decode("utf-8"),
+                        )
+                    )
 
         # Ensure all PEX* env vars are stripped except for PEX_ROOT and PEX_VERBOSE. We want folks
         # to be able to steer the location of the cache and the logging verbosity, but nothing else.
