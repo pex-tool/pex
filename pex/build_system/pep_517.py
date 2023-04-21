@@ -200,7 +200,11 @@ def build_sdist(
         extra_requirements.extend(spawned_job_or_error.await_result())
     except Job.Error as e:
         if e.exitcode != _HOOK_UNAVAILABLE_EXIT_CODE:
-            raise e
+            return Error(
+                "Failed to prepare build backend for building an sdist for local project "
+                "{project_directory}: {err}\n"
+                "{stderr}".format(project_directory=project_directory, err=e, stderr=e.stderr)
+            )
 
     spawned_job_or_error = _invoke_build_hook(
         project_directory,
