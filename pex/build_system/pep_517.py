@@ -187,17 +187,17 @@ def build_sdist(
     # type: (...) -> Union[Text, Error]
 
     extra_requirements = []
-    spawned_job = try_(
-        _invoke_build_hook(
-            project_directory,
-            pip_version,
-            target,
-            resolver,
-            hook_method="get_requires_for_build_sdist",
-        )
+    spawned_job_or_error = _invoke_build_hook(
+        project_directory,
+        pip_version,
+        target,
+        resolver,
+        hook_method="get_requires_for_build_sdist",
     )
+    if isinstance(spawned_job_or_error, Error):
+        return spawned_job_or_error
     try:
-        extra_requirements.extend(spawned_job.await_result())
+        extra_requirements.extend(spawned_job_or_error.await_result())
     except Job.Error as e:
         if e.exitcode != _HOOK_UNAVAILABLE_EXIT_CODE:
             raise e
