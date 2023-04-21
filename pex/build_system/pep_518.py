@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import os.path
+import subprocess
 
 from pex.build_system import DEFAULT_BUILD_BACKEND
 from pex.dist_metadata import Distribution
@@ -101,7 +102,15 @@ class BuildSystem(object):
             # resolve and install in two phases. This obviously has problems! That said, it is, in
             # fact, how Pip's internal PEP-517 build frontend works; so we emulate that.
             virtualenv = Virtualenv(venv_pex.venv_dir)
-            virtualenv.install_pip()
+            # Python 3.5 comes with Pip 9.0.1 which is pretty broken: it doesn't work with our test
+            # cases; so we upgrade.
+            # For Python 2.7 we use virtualenv (there is no -m venv built into Python) and that
+            # comes with Pip 22.0.2, Python 3.6 comes with Pip 18.1 and Python 3.7 comes with
+            # Pip 22.04 and the default Pips only get newer with newer version of Pythons. These all
+            # work well enough for our test cases and, in general, they should work well enough with
+            # the Python they come paired with.
+            upgrade_pip = virtualenv.interpreter.version[:2] == (3, 5)
+            virtualenv.install_pip(upgrade=upgrade_pip)
             _, process = virtualenv.interpreter.open_process(
                 args=[
                     "-m",
@@ -111,11 +120,19 @@ class BuildSystem(object):
                     "--no-user",
                     "--no-warn-script-location",
                 ]
-                + list(extra_requirements)
+                + list(extra_requirements),
+                stderr=subprocess.PIPE,
             )
-            result = process.wait()
-            if result != 0:
-                return Error()
+            _, stderr = process.communicate()
+            if process.returncode != 0:
+                return Error(
+                    "Failed to install extra requirement in venv at {venv_dir}: "
+                    "{extra_requirements}\nSTDERR:\n{stderr}".format(
+                        venv_dir=venv_pex.venv_dir,
+                        extra_requirements=", ".join(extra_requirements),
+                        stderr=stderr.decode("utf-8"),
+                    )
+                )
 
         # Ensure all PEX* env vars are stripped except for PEX_ROOT and PEX_VERBOSE. We want folks
         # to be able to steer the location of the cache and the logging verbosity, but nothing else.

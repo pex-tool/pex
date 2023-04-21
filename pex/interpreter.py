@@ -1195,6 +1195,7 @@ class PythonInterpreter(object):
 
     @property
     def version(self):
+        # type: () -> Tuple[int, int, int]
         return self._identity.version
 
     @property
