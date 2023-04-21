@@ -58,13 +58,15 @@ def _default_build_system(
                         targets=Targets.from_target(target),
                     ).installed_distributions
                 )
-            build_system = BuildSystem.create(
-                interpreter=target.get_interpreter(),
-                requires=requires,
-                resolved=resolved,
-                build_backend=DEFAULT_BUILD_BACKEND,
-                backend_path=(),
-                **extra_env
+            build_system = try_(
+                BuildSystem.create(
+                    interpreter=target.get_interpreter(),
+                    requires=requires,
+                    resolved=resolved,
+                    build_backend=DEFAULT_BUILD_BACKEND,
+                    backend_path=(),
+                    **extra_env
+                )
             )
             _DEFAULT_BUILD_SYSTEMS[pip_version] = build_system
     return build_system
@@ -75,7 +77,7 @@ def _get_build_system(
     target,  # type: Target
     resolver,  # type: Resolver
     project_directory,  # type: str
-    extra_requirements=(),  # type: Tuple[str, ...]
+    extra_requirements=None,  # type: Optional[Iterable[str]]
 ):
     # type: (...) -> Union[BuildSystem, Error]
     custom_build_system_or_error = load_build_system(
@@ -103,7 +105,7 @@ def _invoke_build_hook(
     resolver,  # type: Resolver
     hook_method,  # type: str
     hook_args=(),  # type: Iterable[Any]
-    hook_extra_requirements=(),  # type: Tuple[str, ...]
+    hook_extra_requirements=None,  # type: Optional[Iterable[str]]
     hook_kwargs=None,  # type: Optional[Mapping[str, Any]]
     stdout=None,  # type: Optional[int]
     stderr=None,  # type: Optional[int]
@@ -184,6 +186,22 @@ def build_sdist(
 ):
     # type: (...) -> Union[Text, Error]
 
+    extra_requirements = []
+    spawned_job = try_(
+        _invoke_build_hook(
+            project_directory,
+            pip_version,
+            target,
+            resolver,
+            hook_method="get_requires_for_build_sdist",
+        )
+    )
+    try:
+        extra_requirements.extend(spawned_job.await_result())
+    except Job.Error as e:
+        if e.exitcode != _HOOK_UNAVAILABLE_EXIT_CODE:
+            raise e
+
     spawned_job_or_error = _invoke_build_hook(
         project_directory,
         pip_version,
@@ -191,6 +209,7 @@ def build_sdist(
         resolver,
         hook_method="build_sdist",
         hook_args=[dist_dir],
+        hook_extra_requirements=extra_requirements,
     )
     if isinstance(spawned_job_or_error, Error):
         return spawned_job_or_error
@@ -212,6 +231,7 @@ def spawn_prepare_metadata(
 ):
     # type: (...) -> SpawnedJob[DistMetadata]
 
+    extra_requirements = []
     spawned_job = try_(
         _invoke_build_hook(
             project_directory,
@@ -222,11 +242,10 @@ def spawn_prepare_metadata(
         )
     )
     try:
-        extra_requirements = tuple(spawned_job.await_result())
+        extra_requirements.extend(spawned_job.await_result())
     except Job.Error as e:
         if e.exitcode != _HOOK_UNAVAILABLE_EXIT_CODE:
             raise e
-        extra_requirements = ()
 
     build_dir = os.path.join(safe_mkdtemp(), "build")
     os.mkdir(build_dir)
