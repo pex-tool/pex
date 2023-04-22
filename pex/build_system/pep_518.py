@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import os.path
+import subprocess
 
 from pex.build_system import DEFAULT_BUILD_BACKEND
 from pex.dist_metadata import Distribution
@@ -18,6 +19,7 @@ from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 from pex.venv.bin_path import BinPath
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     from typing import Iterable, Mapping, Optional, Tuple, Union
@@ -77,9 +79,10 @@ class BuildSystem(object):
         resolved,  # type: Iterable[Distribution]
         build_backend,  # type: str
         backend_path,  # type: Tuple[str, ...]
+        extra_requirements=None,  # type: Optional[Iterable[str]]
         **extra_env  # type: str
     ):
-        # type: (...) -> BuildSystem
+        # type: (...) -> Union[BuildSystem, Error]
         pex_builder = PEXBuilder()
         pex_builder.info.venv = True
         pex_builder.info.venv_site_packages_copies = True
@@ -90,6 +93,48 @@ class BuildSystem(object):
             pex_builder.add_distribution(dist)
         pex_builder.freeze(bytecode_compile=False)
         venv_pex = ensure_venv(PEX(pex_builder.path(), interpreter=interpreter))
+        if extra_requirements:
+            # N.B.: We install extra requirements separately instead of having them resolved and
+            # handed in with the `resolved` above because there are cases in the wild where the
+            # build system requires (PEP-518) and the results of PEP-517 `get_requires_for_*` can
+            # return overlapping requirements. Pip will error for overlaps complaining of duplicate
+            # requirements if we attempt to resolve all the requirements at once; so we instead
+            # resolve and install in two phases. This obviously has problems! That said, it is, in
+            # fact, how Pip's internal PEP-517 build frontend works; so we emulate that.
+            virtualenv = Virtualenv(venv_pex.venv_dir)
+            # Python 3.5 comes with Pip 9.0.1 which is pretty broken: it doesn't work with our test
+            # cases; so we upgrade.
+            # For Python 2.7 we use virtualenv (there is no -m venv built into Python) and that
+            # comes with Pip 22.0.2, Python 3.6 comes with Pip 18.1 and Python 3.7 comes with
+            # Pip 22.04 and the default Pips only get newer with newer version of Pythons. These all
+            # work well enough for our test cases and, in general, they should work well enough with
+            # the Python they come paired with.
+            upgrade_pip = virtualenv.interpreter.version[:2] == (3, 5)
+            virtualenv.install_pip(upgrade=upgrade_pip)
+            with open(os.devnull, "wb") as dev_null:
+                _, process = virtualenv.interpreter.open_process(
+                    args=[
+                        "-m",
+                        "pip",
+                        "install",
+                        "--ignore-installed",
+                        "--no-user",
+                        "--no-warn-script-location",
+                    ]
+                    + list(extra_requirements),
+                    stdout=dev_null,
+                    stderr=subprocess.PIPE,
+                )
+                _, stderr = process.communicate()
+                if process.returncode != 0:
+                    return Error(
+                        "Failed to install extra requirement in venv at {venv_dir}: "
+                        "{extra_requirements}\nSTDERR:\n{stderr}".format(
+                            venv_dir=venv_pex.venv_dir,
+                            extra_requirements=", ".join(extra_requirements),
+                            stderr=stderr.decode("utf-8"),
+                        )
+                    )
 
         # Ensure all PEX* env vars are stripped except for PEX_ROOT and PEX_VERBOSE. We want folks
         # to be able to steer the location of the cache and the logging verbosity, but nothing else.
@@ -113,6 +158,7 @@ def load_build_system(
     target,  # type: Target
     resolver,  # type: Resolver
     project_directory,  # type: str
+    extra_requirements=None,  # type: Optional[Iterable[str]]
 ):
     # type: (...) -> Union[Optional[BuildSystem], Error]
 
@@ -144,4 +190,5 @@ def load_build_system(
             ),
             build_backend=build_system_table.build_backend,
             backend_path=build_system_table.backend_path,
+            extra_requirements=extra_requirements,
         )

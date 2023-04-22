@@ -347,8 +347,8 @@ class Virtualenv(object):
                         # N.B.: These lines include the newline already.
                         buffer.write(cast(bytes, line))
 
-    def install_pip(self):
-        # type: () -> str
+    def install_pip(self, upgrade=False):
+        # type: (bool) -> str
         try:
             self._interpreter.execute(args=["-m", "ensurepip", "-U", "--default-pip"])
         except Executor.NonZeroExit:
@@ -376,4 +376,6 @@ class Virtualenv(object):
                     ) as dst_fp:
                         shutil.copyfileobj(src_fp, dst_fp)
             self._interpreter.execute(args=[get_pip, "--no-wheel"])
+        if upgrade:
+            self._interpreter.execute(args=["-m", "pip", "install", "-U", "pip"])
         return self.bin_path("pip")
