@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.134
+-------
+
+This release fixes ``pex3 lock create`` gathering of sdist metadata for
+PEP-517 build backends with non-trivial ``get-requires-for-build-wheel``
+requirements.
+
+* Use get_requires_for_build_wheel for metadata prep. (#2129)
+  `PR #2129 <https://github.com/pantsbuild/pex/pull/2129>`_
+
 2.1.133
 -------
 
