@@ -67,8 +67,6 @@ def pex():
                 constraints,
                 "-e",
                 "main:do",
-                "--interpreter-constraint",
-                "CPython>=2.7,<4",
                 "-o",
                 pex_path,
                 "--include-tools",
