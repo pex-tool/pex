@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict, defaultdict, deque
 
 from pex.common import pluralize
-from pex.compatibility import unquote, urlparse
+from pex.compatibility import url_unquote, urlparse
 from pex.dist_metadata import DistMetadata, Requirement
 from pex.enum import Enum
 from pex.orderedset import OrderedSet

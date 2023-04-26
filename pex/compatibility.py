@@ -121,7 +121,8 @@ else:
 if PY3:
     from urllib import parse as urlparse
     from urllib.error import HTTPError as HTTPError
-    from urllib.parse import unquote as unquote
+    from urllib.parse import quote as _url_quote
+    from urllib.parse import unquote as _url_unquote
     from urllib.request import FileHandler as FileHandler
     from urllib.request import HTTPBasicAuthHandler as HTTPBasicAuthHandler
     from urllib.request import HTTPDigestAuthHandler as HTTPDigestAuthHandler
@@ -131,7 +132,8 @@ if PY3:
     from urllib.request import Request as Request
     from urllib.request import build_opener as build_opener
 else:
-    from urllib import unquote as unquote
+    from urllib import quote as _url_quote
+    from urllib import unquote as _url_unquote
 
     import urlparse as urlparse
     from urllib2 import FileHandler as FileHandler
@@ -143,6 +145,9 @@ else:
     from urllib2 import ProxyHandler as ProxyHandler
     from urllib2 import Request as Request
     from urllib2 import build_opener as build_opener
+
+url_unquote = _url_unquote
+url_quote = _url_quote
 
 if PY3:
     from queue import Queue as Queue
@@ -262,6 +267,8 @@ else:
 
 
 if PY3:
-    from shlex import quote as quote
+    from shlex import quote as _shlex_quote
 else:
-    from pipes import quote as quote
+    from pipes import quote as _shlex_quote
+
+shlex_quote = _shlex_quote

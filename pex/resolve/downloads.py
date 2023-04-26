@@ -1,3 +1,6 @@
+# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 from __future__ import absolute_import
 
 import os.path
@@ -6,7 +9,7 @@ import shutil
 from pex import hashing
 from pex.atomic_directory import atomic_directory
 from pex.common import safe_mkdir, safe_mkdtemp
-from pex.compatibility import unquote, urlparse
+from pex.compatibility import url_unquote, urlparse
 from pex.hashing import Sha256
 from pex.jobs import Job, Raise, SpawnedJob, execute_parallel
 from pex.pip.download_observer import DownloadObserver
@@ -126,7 +129,7 @@ class ArtifactDownloader(object):
         download_dir = safe_mkdtemp(prefix="fingerprint_artifact.", dir=downloads)
 
         url_info = urlparse.urlparse(url)
-        src_file = urlparse.unquote(url_info.path)
+        src_file = url_unquote(url_info.path)
         temp_dest = os.path.join(download_dir, os.path.basename(src_file))
 
         if url_info.scheme == "file":
@@ -173,7 +176,7 @@ class ArtifactDownloader(object):
 
         url_info = urlparse.urlparse(artifact.url)
         if url_info.scheme == "file":
-            src_file = unquote(url_info.path)
+            src_file = url_unquote(url_info.path)
             try:
                 shutil.copy(src_file, dest_file)
             except (IOError, OSError) as e:
