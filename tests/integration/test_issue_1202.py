@@ -9,7 +9,7 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
-from pex.testing import run_pex_command, skip_unless_python27
+from pex.testing import PY27, ensure_python_interpreter, run_pex_command
 from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 def supported_py27():
     # type: (...) -> str
 
-    python = skip_unless_python27()
+    python = ensure_python_interpreter(PY27)
 
     # JPype1 version 0.7.0 has CPython 2.7 published wheels with tags:
     # + cp27-cp27m-manylinux2010_x86_64

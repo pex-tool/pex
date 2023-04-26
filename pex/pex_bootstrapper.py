@@ -78,7 +78,7 @@ class InterpreterTest(object):
 #  and this file use this function. The Pex CLI should not depend on this file which hosts code
 #  used at PEX runtime.
 def iter_compatible_interpreters(
-    path=None,  # type: Optional[Tuple[str, ...]]
+    path=None,  # type: Optional[Iterable[str]]
     valid_basenames=None,  # type: Optional[Iterable[str]]
     interpreter_constraints=None,  # type: Optional[InterpreterConstraints]
     preferred_interpreter=None,  # type: Optional[PythonInterpreter]

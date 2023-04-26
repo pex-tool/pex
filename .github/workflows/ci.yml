@@ -17,14 +17,14 @@ jobs:
   org-check:
     name: Check GitHub Organization
     if: github.repository_owner == 'pantsbuild'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Noop
         run: "true"
   checks:
     name:  TOXENV=format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
     needs: org-check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v3
@@ -48,7 +48,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-11
+          # N.B.: We need 20.04 for Python 2.7 & 3.5 tool cache support.
+          - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
           - os: ubuntu-20.04
@@ -57,16 +58,16 @@ jobs:
           - os: ubuntu-20.04
             python-version: [ 3, 5 ]
             pip-version: 20
-          - os: macos-11
+          - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 22_3_1
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 23_1_1
     steps:
@@ -92,7 +93,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v9
+          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -100,17 +101,22 @@ jobs:
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
-    runs-on: ubuntu-20.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - pypy-version: [ 2, 7 ]
+          # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
+          - os: ubuntu-20.04
+            pypy-version: [ 2, 7 ]
             pip-version: 20
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 20
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 22_3_1
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 23_1_1
     steps:
       - name: Calculate Pythons to Expose
@@ -135,7 +141,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v9
+          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -147,28 +153,29 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-11
+          # N.B.: We need 20.04 for Python 2.7 tool cache support.
+          - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
           - os: ubuntu-20.04
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 7 ]
             pip-version: 22_3_1
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 7 ]
             pip-version: 23_1_1
-          - os: macos-11
+          - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 22_3_1
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 23_1_1
     steps:
@@ -197,7 +204,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v9
+          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
@@ -212,17 +219,22 @@ jobs:
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
-    runs-on: ubuntu-20.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - pypy-version: [ 2, 7 ]
+          # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
+          - os: ubuntu-20.04
+            pypy-version: [ 2, 7 ]
             pip-version: 20
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 20
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 22_3_1
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 23_1_1
     steps:
       - name: Calculate Pythons to Expose
@@ -254,7 +266,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ runner.os }}-pyenv-root-v9
+          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
@@ -274,7 +286,7 @@ jobs:
       - pypy-unit-tests
       - cpython-integration-tests
       - pypy-integration-tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Check Non-Success
         if: |

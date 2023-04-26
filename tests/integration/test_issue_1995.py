@@ -5,13 +5,16 @@ import os.path
 import subprocess
 import sys
 
-from pex.testing import PY38, ensure_python_interpreter, make_env, run_pex_command
+import pytest
+
+from pex.testing import IS_LINUX, PY38, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any
 
 
+@pytest.mark.skipif(not IS_LINUX, reason="We only release from Linux in CI.")
 def test_packaging(
     tmpdir,  # type: Any
     pex_project_dir,  # type: str
