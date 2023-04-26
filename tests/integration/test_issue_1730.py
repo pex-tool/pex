@@ -7,6 +7,7 @@ import os
 
 import pytest
 
+from pex.compatibility import url_quote
 from pex.testing import IS_PYPY, PY_VER, run_pex_command
 from pex.typing import TYPE_CHECKING
 
@@ -28,6 +29,16 @@ def test_check_install_issue_1730(
     with open(constraints, "w") as fp:
         print("packaging==21.3", file=fp)
 
+    # The PyPI-hosted version of Pants 2.13.0.dev3 was deleted to make space available; so we use
+    # the Pants S3 bucket instead.
+    pants_hosted_version = "2.12.0.dev3+git552439fc"
+    find_links = (
+        "https://binaries.pantsbuild.org/wheels/pantsbuild.pants/"
+        "552439fc4500284f97d09461d8f9a89df1ac1676/"
+        "{pants_hosted_version}/"
+        "index.html"
+    ).format(pants_hosted_version=url_quote(pants_hosted_version))
+
     pex_args = [
         "--pex-root",
         pex_root,
@@ -35,6 +46,8 @@ def test_check_install_issue_1730(
         pex_root,
         "--constraints",
         constraints,
+        "-f",
+        find_links,
         "pantsbuild.pants.testutil==2.12.0.dev3",
         "--",
         "-c",
@@ -45,9 +58,9 @@ def test_check_install_issue_1730(
     old_result.assert_failure()
     assert (
         "Failed to resolve compatible distributions:\n"
-        "1: pantsbuild.pants.testutil==2.12.0.dev3 requires pantsbuild.pants==2.12.0.dev3 but "
-        "pantsbuild.pants 2.12.0.dev3 was resolved" in old_result.error
-    ), old_result.error
+        "1: pantsbuild.pants.testutil=={version} requires pantsbuild.pants=={version} but "
+        "pantsbuild.pants {version} was resolved"
+    ).format(version=pants_hosted_version) in old_result.error, old_result.error
 
     new_result = run_pex_command(args=pex_args, quiet=True)
     new_result.assert_success()

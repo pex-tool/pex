@@ -8,7 +8,7 @@ import re
 from contextlib import contextmanager
 
 from pex import attrs, dist_metadata, pex_warnings
-from pex.compatibility import unquote, urlparse
+from pex.compatibility import url_unquote, urlparse
 from pex.dist_metadata import (
     MetadataError,
     ProjectNameAndVersion,
@@ -485,7 +485,7 @@ def _parse_requirement_line(
             project_name_and_specifier = _try_parse_project_name_and_specifier_from_path(
                 # There may be whitespace separated markers; so we strip the trailing whitespace
                 # used to support those.
-                unquote(parsed_url.path).rstrip()
+                url_unquote(parsed_url.path).rstrip()
             )
             if project_name_and_specifier is not None:
                 project_name = project_name_and_specifier.project_name
