@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import hashlib
 
 from pex import hashing
-from pex.compatibility import unquote, urlparse
+from pex.compatibility import url_unquote, urlparse
 from pex.dist_metadata import ProjectNameAndVersion, Requirement
 from pex.hashing import HashlibHasher
 from pex.pep_440 import Version
@@ -88,7 +88,7 @@ class ArtifactURL(object):
             raw_url=url,
             normalized_url=normalized_url,
             scheme=parse_scheme(url_info.scheme) if url_info.scheme else None,
-            path=unquote(url_info.path),
+            path=url_unquote(url_info.path),
         )
 
     raw_url = attr.ib(eq=False)  # type: str
