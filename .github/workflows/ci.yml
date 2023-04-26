@@ -17,14 +17,14 @@ jobs:
   org-check:
     name: Check GitHub Organization
     if: github.repository_owner == 'pantsbuild'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Noop
         run: "true"
   checks:
     name:  TOXENV=format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
     needs: org-check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout Pex
         uses: actions/checkout@v3
@@ -48,25 +48,25 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-11
+          - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 5 ]
             pip-version: 20
-          - os: macos-11
+          - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 22_3_1
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 23_1
     steps:
@@ -100,7 +100,7 @@ jobs:
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         include:
@@ -147,28 +147,28 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-11
+          - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 7 ]
             pip-version: 22_3_1
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 7 ]
             pip-version: 23_1
-          - os: macos-11
+          - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 22_3_1
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 23_1
     steps:
@@ -212,7 +212,7 @@ jobs:
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         include:
@@ -274,7 +274,7 @@ jobs:
       - pypy-unit-tests
       - cpython-integration-tests
       - pypy-integration-tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Check Non-Success
         if: |
