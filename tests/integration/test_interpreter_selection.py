@@ -101,7 +101,7 @@ def test_interpreter_resolution_with_multiple_constraint_options(
                 "--interpreter-constraint",
                 satisfiable_interpreter_constraint,
                 # Add a constraint that's impossible to satisfy. Because multiple
-                # constraints OR, the interpreter should still resolve to Python 2.7.
+                # constraints OR, the interpreter should still resolve the 1st IC.
                 "--interpreter-constraint",
                 ">=500",
                 "-o",
