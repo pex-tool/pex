@@ -17,7 +17,7 @@ from pex import targets
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
-from pex.compatibility import unquote, urlparse
+from pex.compatibility import url_unquote, urlparse
 from pex.dist_metadata import DistMetadata, Distribution, ProjectNameAndVersion, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.jobs import Raise, SpawnedJob, execute_parallel
@@ -711,7 +711,7 @@ class BuildAndInstallRequest(object):
                 urlinfo = urlparse.urlparse(requirement.url)
                 if urlinfo.scheme != "file":
                     continue
-                dist_path = unquote(urlinfo.path).rstrip()
+                dist_path = url_unquote(urlinfo.path).rstrip()
                 if not os.path.exists(dist_path):
                     raise Unsatisfiable(
                         "The {wheel} wheel has a dependency on {url} which does not exist on this "
