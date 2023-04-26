@@ -48,13 +48,14 @@ jobs:
     strategy:
       matrix:
         include:
+          # N.B.: We need 20.04 for Python 2.7 & 3.5 tool cache support.
           - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-22.04
+          - os: ubuntu-20.04
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04  # N.B.: We need 20.04 for Python 3.5 tool cache support.
+          - os: ubuntu-20.04
             python-version: [ 3, 5 ]
             pip-version: 20
           - os: macos-12
@@ -100,17 +101,22 @@ jobs:
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - pypy-version: [ 2, 7 ]
+          # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
+          - os: ubuntu-20.04
+            pypy-version: [ 2, 7 ]
             pip-version: 20
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 20
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 22_3_1
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 23_1
     steps:
       - name: Calculate Pythons to Expose
@@ -147,10 +153,11 @@ jobs:
     strategy:
       matrix:
         include:
+          - # N.B.: We need 20.04 for Python 2.7 tool cache support.
           - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-22.04
+          - os: ubuntu-20.04
             python-version: [ 2, 7 ]
             pip-version: 20
           - os: ubuntu-22.04
@@ -212,17 +219,22 @@ jobs:
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - pypy-version: [ 2, 7 ]
+          # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
+          - os: ubuntu-20.04
+            pypy-version: [ 2, 7 ]
             pip-version: 20
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 20
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 22_3_1
-          - pypy-version: [ 3, 9 ]
+          - os: ubuntu-22.04
+            pypy-version: [ 3, 9 ]
             pip-version: 23_1
     steps:
       - name: Calculate Pythons to Expose
