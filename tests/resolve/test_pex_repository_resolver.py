@@ -16,7 +16,7 @@ from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
 from pex.targets import Targets
-from pex.testing import IS_LINUX, PY310, ensure_python_interpreter, skip_unless_python27
+from pex.testing import IS_LINUX, PY27, PY310, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -62,7 +62,7 @@ def create_constraints_file(*requirements):
 @pytest.fixture(scope="module")
 def py27():
     # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(skip_unless_python27())
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY27))
 
 
 @pytest.fixture(scope="module")

@@ -15,6 +15,7 @@ from pex.testing import (
     IS_LINUX_ARM64,
     IS_MAC_ARM64,
     IS_PYPY,
+    PY27,
     PY38,
     PY310,
     PY_VER,
@@ -22,7 +23,6 @@ from pex.testing import (
     ensure_python_interpreter,
     run_command_with_jitter,
     run_commands_with_jitter,
-    skip_unless_python27,
     temporary_content,
 )
 from pex.typing import TYPE_CHECKING
@@ -85,7 +85,7 @@ def assert_reproducible_build(
 def major_compatible_pythons():
     # type: () -> Tuple[str, ...]
     return (
-        (sys.executable, skip_unless_python27())
+        (sys.executable, ensure_python_interpreter(PY27))
         if PY2
         else (sys.executable, ensure_python_interpreter(PY38), ensure_python_interpreter(PY310))
     )
@@ -96,7 +96,7 @@ def mixed_major_pythons():
     # type: () -> Tuple[str, ...]
     return (
         sys.executable,
-        skip_unless_python27(),
+        ensure_python_interpreter(PY27),
         ensure_python_interpreter(PY38),
         ensure_python_interpreter(PY310),
     )

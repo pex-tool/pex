@@ -7,13 +7,7 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
-from pex.testing import (
-    PY310,
-    ensure_python_venv,
-    make_env,
-    run_pex_command,
-    skip_unless_python27_venv,
-)
+from pex.testing import PY27, PY310, ensure_python_venv, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -24,8 +18,8 @@ if TYPE_CHECKING:
     "create_venv",
     [
         pytest.param(
-            lambda system_site_packages: skip_unless_python27_venv(
-                system_site_packages=system_site_packages
+            lambda system_site_packages: ensure_python_venv(
+                PY27, system_site_packages=system_site_packages
             )[0],
             id="virtualenv-16.7.10",
         ),

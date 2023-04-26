@@ -8,14 +8,7 @@ import pytest
 from pex import testing
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
-from pex.testing import (
-    PY38,
-    PY39,
-    PY310,
-    ensure_python_interpreter,
-    skip_unless_python27,
-    skip_unless_python27_venv,
-)
+from pex.testing import PY27, PY38, PY39, PY310, ensure_python_interpreter
 
 
 @pytest.fixture(scope="session")
@@ -39,7 +32,7 @@ def current_platform(current_interpreter):
 @pytest.fixture
 def py27():
     # type: () -> PythonInterpreter
-    return PythonInterpreter.from_binary(skip_unless_python27())
+    return PythonInterpreter.from_binary(ensure_python_interpreter(PY27))
 
 
 @pytest.fixture

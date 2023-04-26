@@ -10,13 +10,7 @@ import pytest
 from pex.interpreter import PythonInterpreter
 from pex.resolve.lockfile import json_codec
 from pex.targets import LocalInterpreter, Target
-from pex.testing import (
-    PY38,
-    IntegResults,
-    ensure_python_interpreter,
-    run_pex_command,
-    skip_unless_python27,
-)
+from pex.testing import PY27, PY38, IntegResults, ensure_python_interpreter, run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -30,7 +24,7 @@ def create_target(python):
 
 @pytest.fixture
 def py27():
-    return create_target(skip_unless_python27())
+    return create_target(ensure_python_interpreter(PY27))
 
 
 @pytest.fixture

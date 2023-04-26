@@ -24,6 +24,7 @@ from pex.targets import Targets
 from pex.testing import (
     IS_LINUX,
     IS_PYPY,
+    PY27,
     PY38,
     PY310,
     PY_VER,
@@ -31,7 +32,6 @@ from pex.testing import (
     ensure_python_interpreter,
     make_project,
     make_source_dir,
-    skip_unless_python27,
 )
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -414,7 +414,7 @@ def test_issues_851():
     assert "contextlib2" not in resolved_project_to_version
 
     resolved_project_to_version = resolve_pytest(
-        python=skip_unless_python27(), pytest_version="4.6.9"
+        python=ensure_python_interpreter(PY27), pytest_version="4.6.9"
     )
     assert "importlib-metadata" in resolved_project_to_version
     assert "configparser" in resolved_project_to_version
@@ -424,7 +424,7 @@ def test_issues_851():
 
 def test_issues_892():
     # type: () -> None
-    python27 = skip_unless_python27()
+    python27 = ensure_python_interpreter(PY27)
     program = dedent(
         """\
         from __future__ import print_function

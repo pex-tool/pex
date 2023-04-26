@@ -13,8 +13,6 @@ import sys
 from contextlib import contextmanager
 from textwrap import dedent
 
-import pytest
-
 from pex.atomic_directory import atomic_directory
 from pex.common import open_zip, safe_mkdir, safe_mkdtemp, safe_rmtree, safe_sleep, temporary_dir
 from pex.compatibility import to_unicode
@@ -27,7 +25,7 @@ from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip.installation import get_pip
 from pex.targets import LocalInterpreter
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import Virtualenv
 
@@ -588,17 +586,6 @@ def find_python_interpreter(
     return None
 
 
-def skip_unless_python27(
-    implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
-):
-    # type: (...) -> str
-    python = find_python_interpreter(version=(2, 7), implementation=implementation)
-    if python is not None:
-        return python
-    pytest.skip("Test requires a Python 2.7 on the PATH")
-    raise AssertionError("Unreachable.")
-
-
 def python_venv(
     python,  # type: str
     system_site_packages=False,  # type: bool
@@ -612,19 +599,6 @@ def python_venv(
     )
     venv.install_pip()
     return venv.interpreter.binary, venv.bin_path("pip")
-
-
-def skip_unless_python27_venv(
-    implementation=InterpreterImplementation.CPython,  # type: InterpreterImplementation.Value
-    system_site_packages=False,  # type: bool
-    venv_dir=None,  # type: Optional[str]
-):
-    # type: (...) -> Tuple[str, str]
-    return python_venv(
-        skip_unless_python27(implementation=implementation),
-        system_site_packages=system_site_packages,
-        venv_dir=venv_dir,
-    )
 
 
 def all_pythons():
