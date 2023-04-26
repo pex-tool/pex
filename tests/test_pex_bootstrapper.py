@@ -82,7 +82,9 @@ def test_find_compatible_interpreters():
     all_known_interpreters.add(PythonInterpreter.get())
 
     interpreters = set(
-        iter_compatible_interpreters(path, interpreter_constraints=InterpreterConstraints.parse("<3.9"))
+        iter_compatible_interpreters(
+            path, interpreter_constraints=InterpreterConstraints.parse("<3.9")
+        )
     )
     i_rendered = "\n      ".join(sorted(map(repr, interpreters)))
     aki_rendered = "\n      ".join(sorted(map(repr, all_known_interpreters)))

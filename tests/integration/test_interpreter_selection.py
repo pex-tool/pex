@@ -5,6 +5,8 @@ import os
 import sys
 from textwrap import dedent
 
+import pytest
+
 from pex.common import temporary_dir
 from pex.dist_metadata import find_distribution
 from pex.interpreter import PythonInterpreter
@@ -60,36 +62,58 @@ def test_interpreter_constraints_to_pex_info_py3():
         assert InterpreterConstraints.parse(">3") == pex_info.interpreter_constraints
 
 
-def test_interpreter_resolution_with_constraint_option():
-    # type: () -> None
-    with temporary_dir() as output_dir:
-        pex_out_path = os.path.join(output_dir, "pex1.pex")
-        res = run_pex_command(
-            ["--disable-cache", "--interpreter-constraint=>=2.7,<3", "-o", pex_out_path]
-        )
-        res.assert_success()
-        pex_info = PexInfo.from_pex(pex_out_path)
-        assert InterpreterConstraints.parse(">=2.7,<3") == pex_info.interpreter_constraints
+@pytest.fixture
+def satisfiable_interpreter_constraint():
+    # type: () -> str
+    return "=={major}.{minor}.*".format(major=sys.version_info[0], minor=sys.version_info[1])
 
 
-def test_interpreter_resolution_with_multiple_constraint_options():
-    # type: () -> None
+def test_interpreter_resolution_with_constraint_option(satisfiable_interpreter_constraint):
+    # type: (str) -> None
     with temporary_dir() as output_dir:
         pex_out_path = os.path.join(output_dir, "pex1.pex")
         res = run_pex_command(
             [
                 "--disable-cache",
-                "--interpreter-constraint=>=2.7,<3",
-                # Add a constraint that's impossible to satisfy. Because multiple
-                # constraints OR, the interpreter should still resolve to Python 2.7.
-                "--interpreter-constraint=>=500",
+                "--interpreter-constraint",
+                satisfiable_interpreter_constraint,
                 "-o",
                 pex_out_path,
             ]
         )
         res.assert_success()
         pex_info = PexInfo.from_pex(pex_out_path)
-        assert InterpreterConstraints.parse(">=2.7,<3", ">=500") == pex_info.interpreter_constraints
+        assert (
+            InterpreterConstraints.parse(satisfiable_interpreter_constraint)
+            == pex_info.interpreter_constraints
+        )
+
+
+def test_interpreter_resolution_with_multiple_constraint_options(
+    satisfiable_interpreter_constraint,
+):
+    # type: (str) -> None
+    with temporary_dir() as output_dir:
+        pex_out_path = os.path.join(output_dir, "pex1.pex")
+        res = run_pex_command(
+            [
+                "--disable-cache",
+                "--interpreter-constraint",
+                satisfiable_interpreter_constraint,
+                # Add a constraint that's impossible to satisfy. Because multiple
+                # constraints OR, the interpreter should still resolve to Python 2.7.
+                "--interpreter-constraint",
+                ">=500",
+                "-o",
+                pex_out_path,
+            ]
+        )
+        res.assert_success()
+        pex_info = PexInfo.from_pex(pex_out_path)
+        assert (
+            InterpreterConstraints.parse(satisfiable_interpreter_constraint, ">=500")
+            == pex_info.interpreter_constraints
+        )
 
 
 def test_interpreter_resolution_with_pex_python_path():
