@@ -78,11 +78,11 @@ def test_find_compatible_interpreters():
         find_interpreters(path, constraints=[">{}, <{}".format(PY38, PY39)])
 
     # All interpreters on PATH including whatever interpreter is currently running.
-    all_known_interpreters = set(PythonInterpreter.all())
+    all_known_interpreters = set(PythonInterpreter.from_binary(python) for python in path)
     all_known_interpreters.add(PythonInterpreter.get())
 
     interpreters = set(
-        iter_compatible_interpreters(interpreter_constraints=InterpreterConstraints.parse("<3"))
+        iter_compatible_interpreters(path, interpreter_constraints=InterpreterConstraints.parse("<3.9"))
     )
     i_rendered = "\n      ".join(sorted(map(repr, interpreters)))
     aki_rendered = "\n      ".join(sorted(map(repr, all_known_interpreters)))
