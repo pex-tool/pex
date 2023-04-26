@@ -188,7 +188,10 @@ def test_reproducible_build_c_flag_from_dependency(major_compatible_pythons):
 
 def test_reproducible_build_python_flag(mixed_major_pythons):
     # type: (Tuple[str, ...]) -> None
-    assert_reproducible_build(["--python=python2.7"], pythons=mixed_major_pythons)
+    assert_reproducible_build(
+        ["--python", "python2.7", "--python-path", os.pathsep.join(mixed_major_pythons)],
+        pythons=mixed_major_pythons,
+    )
 
 
 def test_reproducible_build_python_shebang_flag():
