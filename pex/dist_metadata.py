@@ -780,6 +780,7 @@ def find_distribution(
 def find_distributions(search_path=None):
     # type: (Optional[Iterable[str]]) -> Iterator[Distribution]
 
+    seen = set()
     for location in search_path or sys.path:
         if not os.path.isdir(location):
             continue
@@ -790,7 +791,10 @@ def find_distributions(search_path=None):
                 for path in glob.glob(os.path.join(location, "*.dist-info/METADATA"))
             ],
         ):
-            metadata_path = os.path.join(location, metadata_file.path)
+            metadata_path = os.path.realpath(os.path.join(location, metadata_file.path))
+            if metadata_path in seen:
+                continue
+            seen.add(metadata_path)
             with open(metadata_path, "rb") as fp:
                 pkg_info = _parse_message(fp.read())
                 yield Distribution(location=location, metadata=DistMetadata.load(pkg_info))

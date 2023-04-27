@@ -11,6 +11,7 @@ import shutil
 import sys
 from contextlib import closing
 from fileinput import FileInput
+from textwrap import dedent
 
 from pex.atomic_directory import AtomicDirectory, atomic_directory
 from pex.common import is_exe, safe_mkdir, safe_open
@@ -18,12 +19,13 @@ from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
-from pex.interpreter import PythonInterpreter
+from pex.interpreter import PythonInterpreter, PyVenvCfg
 from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.variables import ENV
+from pex.version import __version__
 
 if TYPE_CHECKING:
     from typing import Iterator, Optional, Tuple, Union
@@ -116,6 +118,8 @@ def find_site_packages_dir(
 
 
 class Virtualenv(object):
+    VIRTUALENV_VERSION = "16.7.12"
+
     @classmethod
     def enclosing(cls, python):
         # type: (Union[str, PythonInterpreter]) -> Optional[Virtualenv]
@@ -174,7 +178,9 @@ class Virtualenv(object):
         ):
             # N.B.: PyPy3.6 and PyPy3.7 come equipped with a venv module but it does not seem to
             # work.
-            virtualenv_py = pkgutil.get_data(__name__, "virtualenv_16.7.12_py")
+            virtualenv_py = pkgutil.get_data(
+                __name__, "virtualenv_{version}_py".format(version=cls.VIRTUALENV_VERSION)
+            )
             with named_temporary_file(mode="wb") as fp:
                 fp.write(virtualenv_py)
                 fp.close()
@@ -187,6 +193,28 @@ class Virtualenv(object):
                     args.extend(["--prompt", prompt])
                     custom_prompt = prompt
                 interpreter.execute(args=args, env=env)
+                # Modern virtualenv provides a pyvenv.cfg; so we provide one on 16.7.12's behalf
+                # since users might expect one.
+                with open(os.path.join(venv_dir, "pyvenv.cfg"), "w") as fp:
+                    fp.write(
+                        dedent(
+                            """\
+                            home = {home}
+                            include-system-site-packages = {include_system_site_packages}
+                            virtualenv = {virtualenv_version}
+                            version = {python_version}
+                            created_by = pex {pex_version}
+                            """
+                        ).format(
+                            home=os.path.dirname(interpreter.binary),
+                            include_system_site_packages=(
+                                "true" if system_site_packages else "false"
+                            ),
+                            virtualenv_version=cls.VIRTUALENV_VERSION,
+                            python_version=".".join(map(str, interpreter.version)),
+                            pex_version=__version__,
+                        )
+                    )
         else:
             args = ["-m", "venv", "--without-pip", venv_dir]
             if copies:
@@ -249,6 +277,26 @@ class Virtualenv(object):
     def venv_dir(self):
         # type: () -> str
         return self._venv_dir
+
+    @property
+    def _pyvenv_cfg(self):
+        # type: () -> Optional[PyVenvCfg]
+        if not hasattr(self, "__pyvenv_cfg"):
+            self.__pyvenv_cfg = PyVenvCfg.find(self._interpreter.binary)
+        return self.__pyvenv_cfg
+
+    @property
+    def created_by(self):
+        # type: () -> str
+        if self._pyvenv_cfg:
+            version = self._pyvenv_cfg.config("virtualenv", None)
+            return "virtualenv {version}".format(version=version) if version else "venv"
+        return "unknown"
+
+    @property
+    def include_system_site_packages(self):
+        # type: () -> Optional[bool]
+        return self._pyvenv_cfg.include_system_site_packages if self._pyvenv_cfg else None
 
     @property
     def custom_prompt(self):

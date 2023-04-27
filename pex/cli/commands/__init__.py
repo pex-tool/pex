@@ -4,6 +4,7 @@
 from pex.cli.command import BuildTimeCommand
 from pex.cli.commands.interpreter import Interpreter
 from pex.cli.commands.lock import Lock
+from pex.cli.commands.venv import Venv
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,4 +13,4 @@ if TYPE_CHECKING:
 
 def all_commands():
     # type: () -> Iterable[Type[BuildTimeCommand]]
-    return Interpreter, Lock
+    return Interpreter, Lock, Venv
