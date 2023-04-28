@@ -449,6 +449,129 @@ class PythonIdentity(object):
         return hash(self._tup())
 
 
+class PyVenvCfg(object):
+    """Represents a pyvenv.cfg file.
+
+    See: https://www.python.org/dev/peps/pep-0405/#specification
+    """
+
+    class Error(ValueError):
+        """Indicates a malformed pyvenv.cfg file."""
+
+    @classmethod
+    def parse(cls, path):
+        # type: (str) -> PyVenvCfg
+        """Attempt to parse `path` as a pyvenv.cfg file.
+
+        :param path: The path of putative pyvenv.cfg file.
+        :raises: :class:`PyVenvCfg.Error` if the given `path` doesn't contain a pyvenv.cfg home key.
+        """
+        # See: https://www.python.org/dev/peps/pep-0405/#specification
+        config = {}
+        with open(path) as fp:
+            for line in fp:
+                raw_name, delimiter, raw_value = line.partition("=")
+                if delimiter != "=":
+                    continue
+                config[raw_name.strip()] = raw_value.strip()
+        if "home" not in config:
+            raise cls.Error("No home config key in {pyvenv_cfg}.".format(pyvenv_cfg=path))
+        return cls(path, **config)
+
+    @classmethod
+    def _get_pyvenv_cfg(cls, path):
+        # type: (str) -> Optional[PyVenvCfg]
+        # See: https://www.python.org/dev/peps/pep-0405/#specification
+        pyvenv_cfg_path = os.path.join(path, "pyvenv.cfg")
+        if os.path.isfile(pyvenv_cfg_path):
+            try:
+                return cls.parse(pyvenv_cfg_path)
+            except cls.Error:
+                pass
+        return None
+
+    @classmethod
+    def find(cls, python_binary):
+        # type: (str) -> Optional[PyVenvCfg]
+        """Attempt to find a pyvenv.cfg file identifying a virtualenv enclosing a Python binary.
+
+        :param python_binary: The path of a Python binary (can be a symlink).
+        """
+        # A pyvenv is identified by a pyvenv.cfg file with a home key in one of the two following
+        # directory layouts:
+        #
+        # 1. <venv dir>/
+        #      bin/
+        #        pyvenv.cfg
+        #        python*
+        #
+        # 2. <venv dir>/
+        #      pyvenv.cfg
+        #      bin/
+        #        python*
+        #
+        # In practice, we see layout 2 in the wild, but layout 1 is also allowed by the spec.
+        #
+        # See: # See: https://www.python.org/dev/peps/pep-0405/#specification
+        maybe_venv_bin_dir = os.path.dirname(python_binary)
+        pyvenv_cfg = cls._get_pyvenv_cfg(maybe_venv_bin_dir)
+        if not pyvenv_cfg:
+            maybe_venv_dir = os.path.dirname(maybe_venv_bin_dir)
+            pyvenv_cfg = cls._get_pyvenv_cfg(maybe_venv_dir)
+        return pyvenv_cfg
+
+    def __init__(
+        self,
+        path,  # type: str
+        **config  # type: str
+    ):
+        # type: (...) -> None
+        self._path = path
+        self._config = config
+
+    @property
+    def path(self):
+        # type: () -> str
+        return self._path
+
+    @property
+    def home(self):
+        # type: () -> str
+        return self._config["home"]
+
+    @overload
+    def config(
+        self,
+        key,  # type: str
+        default=None,  # type: None
+    ):
+        # type: (...) -> Optional[str]
+        pass
+
+    @overload
+    def config(
+        self,
+        key,  # type: str
+        default,  # type: str
+    ):
+        # type: (...) -> str
+        pass
+
+    def config(
+        self,
+        key,  # type: str
+        default=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Optional[str]
+        return self._config.get(key, default)
+
+    @property
+    def include_system_site_packages(self):
+        # type: () -> Optional[bool]
+        value = self.config("include-system-site-packages")
+        return value.lower() == "true" if value else None
+
+
 class PythonInterpreter(object):
     _REGEXEN = (
         # NB: OSX ships python binaries named Python with a capital-P; so we allow for this.
@@ -493,45 +616,6 @@ class PythonInterpreter(object):
         finally:
             cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH = _cache
 
-    @staticmethod
-    def _get_pyvenv_cfg(path):
-        # type: (str) -> Optional[str]
-        # See: https://www.python.org/dev/peps/pep-0405/#specification
-        pyvenv_cfg_path = os.path.join(path, "pyvenv.cfg")
-        if os.path.isfile(pyvenv_cfg_path):
-            with open(pyvenv_cfg_path) as fp:
-                for line in fp:
-                    name, _, value = line.partition("=")
-                    if name.strip() == "home":
-                        return pyvenv_cfg_path
-        return None
-
-    @classmethod
-    def _find_pyvenv_cfg(cls, maybe_venv_python_binary):
-        # type: (str) -> Optional[str]
-        # A pyvenv is identified by a pyvenv.cfg file with a home key in one of the two following
-        # directory layouts:
-        #
-        # 1. <venv dir>/
-        #      bin/
-        #        pyvenv.cfg
-        #        python*
-        #
-        # 2. <venv dir>/
-        #      pyvenv.cfg
-        #      bin/
-        #        python*
-        #
-        # In practice, we see layout 2 in the wild, but layout 1 is also allowed by the spec.
-        #
-        # See: # See: https://www.python.org/dev/peps/pep-0405/#specification
-        maybe_venv_bin_dir = os.path.dirname(maybe_venv_python_binary)
-        pyvenv_cfg = cls._get_pyvenv_cfg(maybe_venv_bin_dir)
-        if not pyvenv_cfg:
-            maybe_venv_dir = os.path.dirname(maybe_venv_bin_dir)
-            pyvenv_cfg = cls._get_pyvenv_cfg(maybe_venv_dir)
-        return pyvenv_cfg
-
     @classmethod
     def _resolve_pyvenv_canonical_python_binary(
         cls,
@@ -542,7 +626,7 @@ class PythonInterpreter(object):
         if not os.path.islink(maybe_venv_python_binary):
             return None
 
-        pyvenv_cfg = cls._find_pyvenv_cfg(maybe_venv_python_binary)
+        pyvenv_cfg = PyVenvCfg.find(maybe_venv_python_binary)
         if pyvenv_cfg is None:
             return None
 
