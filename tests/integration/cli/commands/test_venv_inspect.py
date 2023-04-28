@@ -71,7 +71,7 @@ def assert_inspect(
     result.assert_success()
 
     data = json.loads(result.output)
-    assert expected_venv_dir == data["venv_dir"]
+    assert os.path.realpath(expected_venv_dir) == os.path.realpath(data["venv_dir"])
     assert expected_system_site_packages == data["include_system_site_packages"]
 
     interpreter = data["interpreter"]
