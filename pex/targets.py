@@ -11,11 +11,12 @@ from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
+from pex.result import Error
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, Optional, Tuple
+    from typing import Iterable, Iterator, Optional, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -337,3 +338,21 @@ class Targets(object):
                 yield complete_platform
 
         return OrderedSet(iter_targets())
+
+    def require_unique_target(self, purpose):
+        # type: (str) -> Union[Target, Error]
+        resolved_targets = self.unique_targets()
+        if len(resolved_targets) != 1:
+            return Error(
+                "A single target is required for {purpose}.\n"
+                "There were {count} targets selected:\n"
+                "{targets}".format(
+                    purpose=purpose,
+                    count=len(resolved_targets),
+                    targets="\n".join(
+                        "{index}. {target}".format(index=index, target=target)
+                        for index, target in enumerate(resolved_targets, start=1)
+                    ),
+                )
+            )
+        return cast(Target, next(iter(resolved_targets)))

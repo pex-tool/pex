@@ -194,7 +194,12 @@ class Virtualenv(object):
                     custom_prompt = prompt
                 interpreter.execute(args=args, env=env)
                 # Modern virtualenv provides a pyvenv.cfg; so we provide one on 16.7.12's behalf
-                # since users might expect one.
+                # since users might expect one. To ward off any confusion for readers of the emitted
+                # pyvenv.cfg file, we add a bespoke created-by field to help make it clear that Pex
+                # created the pyvenv.cfg file on virtualenv 16.7.12's behalf.
+                # N.B.: This bespoke created-by "note" field is not related to the
+                # Virtualenv.created_by property which reflects the underlying venv technology.
+                # In this case it will report "virtualenv 16.7.12".
                 with open(os.path.join(venv_dir, "pyvenv.cfg"), "w") as fp:
                     fp.write(
                         dedent(
@@ -203,7 +208,7 @@ class Virtualenv(object):
                             include-system-site-packages = {include_system_site_packages}
                             virtualenv = {virtualenv_version}
                             version = {python_version}
-                            created_by = pex {pex_version}
+                            created-by = pex {pex_version}
                             """
                         ).format(
                             home=os.path.dirname(interpreter.binary),

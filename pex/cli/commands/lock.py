@@ -499,21 +499,9 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
         lockfile_path, lock_file = self._load_lockfile()
         targets = target_options.configure(self.options).resolve_targets()
-        resolved_targets = targets.unique_targets()
-        if len(resolved_targets) > 1:
-            return Error(
-                "A lock can only be exported for a single target in the {pip!r} format.\n"
-                "There were {count} targets selected:\n"
-                "{targets}".format(
-                    pip=ExportFormat.PIP,
-                    count=len(resolved_targets),
-                    targets="\n".join(
-                        "{index}. {target}".format(index=index, target=target)
-                        for index, target in enumerate(resolved_targets, start=1)
-                    ),
-                )
-            )
-        target = next(iter(resolved_targets))
+        target = targets.require_unique_target(
+            purpose="exporting a lock in the {pip!r} format".format(pip=ExportFormat.PIP)
+        )
 
         network_configuration = resolver_options.create_network_configuration(self.options)
         with TRACER.timed("Selecting locks for {target}".format(target=target)):
