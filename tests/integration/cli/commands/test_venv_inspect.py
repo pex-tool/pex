@@ -5,12 +5,13 @@ import json
 import os.path
 import subprocess
 import sys
-from typing import Optional
 
 import pytest
 
 from pex.cli.testing import run_pex3
 from pex.interpreter import PythonInterpreter
+from pex.pep_503 import ProjectName
+from pex.pex import PEX
 from pex.testing import (
     PY27,
     PY310,
@@ -24,7 +25,7 @@ from pex.venv.virtualenv import Virtualenv
 from pex.version import __version__
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Optional
 
 
 def test_no_python(tmpdir):
@@ -129,7 +130,7 @@ def test_inspect_pex_venv(tmpdir):
     "system_site_packages",
     [pytest.param(value, id="system_site_packages={}".format(value)) for value in (True, False)],
 )
-def test_inspect_venv_virtualenv(
+def test_inspect_venv_non_pex(
     python_version,  # type: str
     system_site_packages,  # type: bool
 ):
@@ -146,3 +147,37 @@ def test_inspect_venv_virtualenv(
         ),
         expected_pex_provenance=False,
     )
+
+
+@pytest.mark.parametrize(
+    "system_site_packages",
+    [pytest.param(value, id="system_site_packages={}".format(value)) for value in (True, False)],
+)
+def test_inspect_venv_virtualenv(
+    tmpdir,  # type: Any
+    system_site_packages,  # type: bool
+):
+    # type: (...) -> None
+
+    pex = os.path.join(str(tmpdir), "virtualenv.pex")
+    run_pex_command(args=["virtualenv", "-c", "virtualenv", "-o", pex]).assert_success()
+    dists = {dist.metadata.project_name: dist.metadata.version for dist in PEX(pex).resolve()}
+    virtualenv_version = dists[ProjectName("virtualenv")]
+
+    venv_dir = os.path.join(str(tmpdir), "venv")
+    args = [sys.executable, pex, venv_dir]
+    if system_site_packages:
+        args.append("--system-site-packages")
+    subprocess.check_call(args=args)
+
+    data = assert_inspect(
+        target=venv_dir,
+        expected_venv_dir=venv_dir,
+        expected_system_site_packages=system_site_packages,
+        expected_base_interpreter=PythonInterpreter.get().resolve_base_interpreter(),
+        expected_pex_provenance=False,
+    )
+    assert "pip" in data["scripts"]
+
+    provenance = data["provenance"]
+    assert "virtualenv {version}".format(version=virtualenv_version.raw) == provenance["created_by"]
