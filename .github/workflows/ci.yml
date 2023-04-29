@@ -5,10 +5,7 @@ defaults:
     shell: bash
 env:
   _PEX_TEST_PYENV_ROOT: .pyenv_test
-  # We use this to skip exposing same-versioned Pythons present on Linux hosts. These otherwise can
-  # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
-  # importing builtins like `fcntl` as outlined in https://github.com/pantsbuild/pex/issues/1391.
-  _PEX_TEST_PYENV_VERSIONS: "2.7 3.7 3.10"
+  _PEX_PYENV_PYPY_RELEASE: 7.3.11
 concurrency:
   group: CI-${{ github.ref }}
   # Queue on all branches and tags, but only cancel overlapping PR burns.
@@ -48,14 +45,13 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for Python 2.7 & 3.5 tool cache support.
           - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 5 ]
             pip-version: 20
           - os: macos-12
@@ -71,24 +67,14 @@ jobs:
             python-version: [ 3, 11 ]
             pip-version: 23_1_1
     steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v3
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v4
+        uses: gabrielfalcao/pyenv-action@v13
         with:
-          python-version: "${{ join(matrix.python-version, '.') }}"
+          default: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v3
         with:
@@ -101,42 +87,27 @@ jobs:
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
-          - os: ubuntu-20.04
-            pypy-version: [ 2, 7 ]
+          - pypy-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
+          - pypy-version: [ 3, 9 ]
             pip-version: 20
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
+          - pypy-version: [ 3, 9 ]
             pip-version: 22_3_1
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
+          - pypy-version: [ 3, 9 ]
             pip-version: 23_1_1
     steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v3
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v4
+        uses: gabrielfalcao/pyenv-action@v13
         with:
-          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
+          default: "pypy${{ join(matrix.python-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v3
         with:
@@ -153,11 +124,10 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for Python 2.7 tool cache support.
           - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 2, 7 ]
             pip-version: 20
           - os: ubuntu-22.04
@@ -179,27 +149,17 @@ jobs:
             python-version: [ 3, 11 ]
             pip-version: 23_1_1
     steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v3
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v4
+        uses: gabrielfalcao/pyenv-action@v13
         with:
-          python-version: "${{ join(matrix.python-version, '.') }}"
+          default: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v3
         with:
@@ -219,45 +179,31 @@ jobs:
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         include:
           # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
-          - os: ubuntu-20.04
-            pypy-version: [ 2, 7 ]
+          - pypy-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
+          - pypy-version: [ 3, 9 ]
             pip-version: 20
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
+          - pypy-version: [ 3, 9 ]
             pip-version: 22_3_1
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
+          - pypy-version: [ 3, 9 ]
             pip-version: 23_1_1
     steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v3
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v4
+        uses: gabrielfalcao/pyenv-action@v13
         with:
-          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
+          default: "pypy${{ join(matrix.python-version, '.') }}--${{ env._PEX_PYENV_PYPY_RELEASE }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
       - name: Install Packages
         run: |
           # This is needed for `test_requirement_file_from_url` for building `lxml`.
