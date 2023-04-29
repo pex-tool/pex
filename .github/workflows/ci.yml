@@ -107,8 +107,8 @@ jobs:
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: gabrielfalcao/pyenv-action@v13
         with:
-          versions: pypy${{ join(matrix.python-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}
-          default: pypy${{ join(matrix.python-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}
+          versions: pypy${{ join(matrix.pypy-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}
+          default: pypy${{ join(matrix.pypy-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
       - name: Cache Pyenv Interpreters
@@ -205,8 +205,8 @@ jobs:
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: gabrielfalcao/pyenv-action@v13
         with:
-          versions: pypy${{ join(matrix.python-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}
-          default: pypy${{ join(matrix.python-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}
+          versions: pypy${{ join(matrix.pypy-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}
+          default: pypy${{ join(matrix.pypy-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
       - name: Install Packages
