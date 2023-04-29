@@ -33,8 +33,8 @@ jobs:
         uses: gabrielfalcao/pyenv-action@v13
         with:
           # We need to keep Python 3.8 for consistent vendoring with tox.
-          versions: 3.8
-          default: 3.8
+          versions: 3.8.16
+          default: 3.8.16
       - name: Check Formatting, Types, Vendoring and Packaging
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -47,25 +47,25 @@ jobs:
       matrix:
         include:
           - os: macos-12
-            python-version: [ 2, 7 ]
+            python-version: [ 2, 7, 18 ]
             pip-version: 20
           - os: ubuntu-22.04
-            python-version: [ 2, 7 ]
+            python-version: [ 2, 7, 18 ]
             pip-version: 20
           - os: ubuntu-22.04
-            python-version: [ 3, 5 ]
+            python-version: [ 3, 5, 10 ]
             pip-version: 20
           - os: macos-12
-            python-version: [ 3, 11 ]
+            python-version: [ 3, 11, 1 ]
             pip-version: 20
           - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
+            python-version: [ 3, 11, 1 ]
             pip-version: 20
           - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
+            python-version: [ 3, 11, 1 ]
             pip-version: 22_3_1
           - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
+            python-version: [ 3, 11, 1 ]
             pip-version: 23_1_1
     steps:
       - name: Checkout Pex
@@ -128,28 +128,28 @@ jobs:
       matrix:
         include:
           - os: macos-12
-            python-version: [ 2, 7 ]
+            python-version: [ 2, 7, 18 ]
             pip-version: 20
           - os: ubuntu-22.04
-            python-version: [ 2, 7 ]
+            python-version: [ 2, 7, 18 ]
             pip-version: 20
           - os: ubuntu-22.04
-            python-version: [ 3, 7 ]
+            python-version: [ 3, 7, 16 ]
             pip-version: 22_3_1
           - os: ubuntu-22.04
-            python-version: [ 3, 7 ]
+            python-version: [ 3, 7, 16 ]
             pip-version: 23_1_1
           - os: macos-12
-            python-version: [ 3, 11 ]
+            python-version: [ 3, 11, 1 ]
             pip-version: 20
           - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
+            python-version: [ 3, 11, 1 ]
             pip-version: 20
           - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
+            python-version: [ 3, 11, 1 ]
             pip-version: 22_3_1
           - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
+            python-version: [ 3, 11, 1 ]
             pip-version: 23_1_1
     steps:
       - name: Checkout Pex
