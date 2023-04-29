@@ -30,10 +30,11 @@ jobs:
           # complete history.
           fetch-depth: 0
       - name: Setup Python 3.8
-        uses: actions/setup-python@v4
+        uses: gabrielfalcao/pyenv-action@v13
         with:
           # We need to keep Python 3.8 for consistent vendoring with tox.
-          python-version: "3.8"
+          versions: "3.8"
+          default: "3.8"
       - name: Check Formatting, Types, Vendoring and Packaging
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -72,6 +73,7 @@ jobs:
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: gabrielfalcao/pyenv-action@v13
         with:
+          versions: "${{ join(matrix.python-version, '.') }}"
           default: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
@@ -105,6 +107,7 @@ jobs:
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: gabrielfalcao/pyenv-action@v13
         with:
+          versions: "pypy${{ join(matrix.python-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}"
           default: "pypy${{ join(matrix.python-version, '.') }}-${{ env._PEX_PYENV_PYPY_RELEASE }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
@@ -157,6 +160,7 @@ jobs:
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: gabrielfalcao/pyenv-action@v13
         with:
+          versions: "${{ join(matrix.python-version, '.') }}"
           default: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
@@ -201,6 +205,7 @@ jobs:
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: gabrielfalcao/pyenv-action@v13
         with:
+          versions: "pypy${{ join(matrix.python-version, '.') }}--${{ env._PEX_PYENV_PYPY_RELEASE }}"
           default: "pypy${{ join(matrix.python-version, '.') }}--${{ env._PEX_PYENV_PYPY_RELEASE }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
