@@ -48,14 +48,13 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for Python 2.7 & 3.5 tool cache support.
           - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 3, 5 ]
             pip-version: 20
           - os: macos-12
@@ -105,8 +104,7 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             pypy-version: [ 2, 7 ]
             pip-version: 20
           - os: ubuntu-22.04
@@ -153,11 +151,10 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for Python 2.7 tool cache support.
           - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 2, 7 ]
             pip-version: 20
           - os: ubuntu-22.04
@@ -223,8 +220,7 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             pypy-version: [ 2, 7 ]
             pip-version: 20
           - os: ubuntu-22.04
