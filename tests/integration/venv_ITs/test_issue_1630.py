@@ -48,7 +48,7 @@ def test_data_files(tmpdir):
     pex_venv = Virtualenv.create(
         os.path.join(str(tmpdir), "pex.venv"), interpreter=PythonInterpreter.from_binary(py38)
     )
-    installed = list(InstalledWheel.load(nbconvert_dist.location).reinstall(pex_venv))
+    installed = list(InstalledWheel.load(nbconvert_dist.location).reinstall_venv(pex_venv))
     assert installed
 
     # Single out one known data file to check

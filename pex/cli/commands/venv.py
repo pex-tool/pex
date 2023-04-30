@@ -1,19 +1,50 @@
 # Copyright 2023 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import itertools
+import logging
 import os.path
 from argparse import ArgumentParser, _ActionsContainer
 
+from pex import pex_warnings
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
-from pex.common import is_script
+from pex.common import DETERMINISTIC_DATETIME, is_script, open_zip, pluralize
+from pex.dist_metadata import Distribution
+from pex.enum import Enum
+from pex.executor import Executor
+from pex.interpreter import PythonInterpreter
+from pex.pex import PEX
 from pex.pex_info import PexInfo
-from pex.result import Error, Ok, Result
+from pex.resolve import configured_resolve, requirement_options, resolver_options, target_options
+from pex.resolve.resolver_configuration import (
+    LockRepositoryConfiguration,
+    PexRepositoryConfiguration,
+)
+from pex.result import Error, Ok, Result, try_
+from pex.targets import LocalInterpreter, Target, Targets
+from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
+from pex.venv import installer, installer_options
+from pex.venv.install_scope import InstallScope
+from pex.venv.installer import Provenance
+from pex.venv.installer_configuration import InstallerConfiguration
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Any, Dict
+    from typing import Any, Dict, Iterable, Optional
+
+
+logger = logging.getLogger(__name__)
+
+
+class InstallLayout(Enum["InstallLayout.Value"]):
+    class Value(Enum.Value):
+        pass
+
+    VENV = Value("venv")
+    FLAT = Value("flat")
+    FLAT_ZIPPED = Value("flat-zipped")
 
 
 class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
@@ -26,6 +57,60 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
         )
         cls.add_output_option(parser, entity="venv information")
         cls.add_json_options(parser, entity="venv information")
+
+    @classmethod
+    def _add_create_arguments(cls, parser):
+        # type: (_ActionsContainer) -> None
+        parser.add_argument(
+            "-d",
+            "--dir",
+            "--dest-dir",
+            dest="dest_dir",
+            metavar="VENV_DIR",
+            required=True,
+            help=(
+                "The directory to install the venv or flat layout in. If the layout is "
+                "{flat_zipped}, then the directory will be installed to and then the zip created "
+                "at the same path with a '.zip' extension.".format(
+                    flat_zipped=InstallLayout.FLAT_ZIPPED
+                )
+            ),
+        )
+        parser.add_argument(
+            "--prefix",
+            dest="prefix",
+            help=(
+                "A prefix directory to nest the installation in under the dest dir. This is mainly "
+                "useful in the {flat_zipped} layout to inject a fixed prefix to all zip "
+                "entries".format(flat_zipped=InstallLayout.FLAT_ZIPPED)
+            ),
+        )
+        parser.add_argument(
+            "--layout",
+            default=InstallLayout.VENV,
+            choices=InstallLayout.values(),
+            type=InstallLayout.for_value,
+            help=(
+                "The layout to create. By default, this is a standard {venv} layout including "
+                "activation scripts and a hermetic `sys.path`. The {flat} and {flat_zipped} "
+                "layouts can be selected when just the `sys.path` entries are desired. This"
+                "effectively exports what would otherwise be the venv `site-packages` directory as "
+                "a flat directory that can be joined to the `sys.path` of a compatible"
+                "interpreter. These layouts are useful for runtimes that supply an isolated Python "
+                "runtime already like AWS Lambda. As a technical detail, these flat layouts "
+                "emulate the result of `pip install --target` and include non `site-packages` "
+                "installation artifacts at the top level. The common example being a top-level "
+                "`bin/` dir containing console scripts.".format(
+                    venv=InstallLayout.VENV,
+                    flat=InstallLayout.FLAT,
+                    flat_zipped=InstallLayout.FLAT_ZIPPED,
+                )
+            ),
+        )
+        installer_options.register(parser)
+        target_options.register(parser, include_platforms=True)
+        resolver_options.register(parser, include_pex_repository=True, include_lock=True)
+        requirement_options.register(parser)
 
     @classmethod
     def add_extra_arguments(
@@ -44,6 +129,13 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
             include_verbosity=False,
         ) as inspect_parser:
             cls._add_inspect_arguments(inspect_parser)
+        with subcommands.parser(
+            name="create",
+            help="Create a venv.",
+            func=cls._create,
+            include_verbosity=True,
+        ) as create_parser:
+            cls._add_create_arguments(create_parser)
 
     def _inspect(self):
         # type: () -> Result
@@ -101,3 +193,194 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
             out.write("\n")
 
         return Ok()
+
+    def _create(self):
+        # type: () -> Result
+
+        installer_configuration = installer_options.configure(self.options)
+
+        dest_dir = (
+            os.path.join(self.options.dest_dir, self.options.prefix)
+            if self.options.prefix
+            else self.options.dest_dir
+        )
+        update = os.path.exists(dest_dir) and not installer_configuration.force
+        layout = self.options.layout
+
+        subject = "venv" if layout is InstallLayout.VENV else "flat sys.path directory entry"
+
+        venv = None  # type: Optional[Virtualenv]
+        if update and layout is InstallLayout.VENV:
+            venv = Virtualenv(venv_dir=dest_dir)
+            target = LocalInterpreter.create(venv.interpreter)  # type: Target
+            targets = Targets.from_target(target)
+        else:
+            targets = target_options.configure(self.options).resolve_targets()
+            target = try_(
+                targets.require_unique_target(
+                    purpose="creating a {subject}".format(subject=subject)
+                )
+            )
+            if layout is InstallLayout.VENV:
+                if target.is_foreign:
+                    return Error(
+                        "Cannot create a local venv for foreign platform {platform}.".format(
+                            platform=target.platform
+                        )
+                    )
+
+                venv = Virtualenv.create(
+                    venv_dir=dest_dir,
+                    interpreter=target.get_interpreter(),
+                    force=installer_configuration.force,
+                    copies=installer_configuration.copies,
+                    prompt=installer_configuration.prompt,
+                )
+
+        requirement_configuration = requirement_options.configure(self.options)
+        resolver_configuration = resolver_options.configure(self.options)
+        with TRACER.timed("Resolving distributions"):
+            installed = configured_resolve.resolve(
+                targets=targets,
+                requirement_configuration=requirement_configuration,
+                resolver_configuration=resolver_configuration,
+            )
+
+        pex = None  # type: Optional[PEX]
+        lock = None  # type: Optional[str]
+        if isinstance(resolver_configuration, PexRepositoryConfiguration):
+            pex = PEX(resolver_configuration.pex_repository, interpreter=target.get_interpreter())
+        elif isinstance(resolver_configuration, LockRepositoryConfiguration):
+            lock = resolver_configuration.lock_file_path
+
+        with TRACER.timed(
+            "Installing {count} {wheels} in {subject} at {dest_dir}".format(
+                count=len(installed.installed_distributions),
+                wheels=pluralize(installed.installed_distributions, "wheel"),
+                subject=subject,
+                dest_dir=dest_dir,
+            )
+        ):
+            hermetic_scripts = not update and installer_configuration.hermetic_scripts
+            distributions = tuple(
+                installed_distribution.distribution
+                for installed_distribution in installed.installed_distributions
+            )
+            provenance = (
+                Provenance.create(venv=venv)
+                if venv
+                else Provenance(target_dir=dest_dir, target_python=target.get_interpreter().binary)
+            )
+            if pex:
+                _install_from_pex(
+                    pex=pex,
+                    installer_configuration=installer_configuration,
+                    provenance=provenance,
+                    distributions=distributions,
+                    dest_dir=dest_dir,
+                    hermetic_scripts=hermetic_scripts,
+                    venv=venv,
+                )
+            elif venv:
+                installer.populate_venv_distributions(
+                    venv=venv,
+                    distributions=distributions,
+                    provenance=provenance,
+                    symlink=False,
+                    hermetic_scripts=hermetic_scripts,
+                )
+            else:
+                installer.populate_flat_distributions(
+                    dest_dir=dest_dir,
+                    distributions=distributions,
+                    provenance=provenance,
+                    symlink=False,
+                )
+            source = (
+                "PEX at {pex}".format(pex=pex.path())
+                if pex
+                else "lock at {lock}".format(lock=lock)
+                if lock
+                else "resolved requirements"
+            )
+            provenance.check_collisions(
+                collisions_ok=installer_configuration.collisions_ok, source=source
+            )
+
+        if venv and installer_configuration.pip:
+            with TRACER.timed("Installing Pip"):
+                try_(
+                    installer.ensure_pip_installed(
+                        venv,
+                        distributions=distributions,
+                        scope=installer_configuration.scope,
+                        collisions_ok=installer_configuration.collisions_ok,
+                        source=source,
+                    )
+                )
+
+        if installer_configuration.compile:
+            with TRACER.timed("Compiling venv sources"):
+                try:
+                    target.get_interpreter().execute(["-m", "compileall", dest_dir])
+                except Executor.NonZeroExit as non_zero_exit:
+                    pex_warnings.warn("ignoring compile error {}".format(repr(non_zero_exit)))
+
+        if layout is InstallLayout.FLAT_ZIPPED:
+            paths = sorted(
+                os.path.join(root, path)
+                for root, dirs, files in os.walk(dest_dir)
+                for path in itertools.chain(dirs, files)
+            )
+            unprefixed_dest_dir = self.options.dest_dir
+            with open_zip("{dest_dir}.zip".format(dest_dir=unprefixed_dest_dir), "w") as zf:
+                for path in paths:
+                    zip_entry = zf.zip_entry_from_file(
+                        filename=path,
+                        arcname=os.path.relpath(path, unprefixed_dest_dir),
+                        date_time=DETERMINISTIC_DATETIME.timetuple(),
+                    )
+                    zf.writestr(zip_entry.info, zip_entry.data)
+
+        return Ok()
+
+
+def _install_from_pex(
+    pex,  # type: PEX
+    installer_configuration,  # type: InstallerConfiguration
+    provenance,  # type: Provenance
+    distributions,  # type: Iterable[Distribution]
+    dest_dir,  # type: str
+    hermetic_scripts,  # type: bool
+    venv=None,  # type: Optional[Virtualenv]
+):
+    # type: (...) -> None
+
+    if installer_configuration.scope in (InstallScope.ALL, InstallScope.DEPS_ONLY):
+        if venv:
+            installer.populate_venv_distributions(
+                venv=venv,
+                distributions=distributions,
+                provenance=provenance,
+                symlink=False,
+                hermetic_scripts=hermetic_scripts,
+            )
+        else:
+            installer.populate_flat_distributions(
+                dest_dir=dest_dir,
+                distributions=distributions,
+                provenance=provenance,
+                symlink=False,
+            )
+
+    if installer_configuration.scope in (InstallScope.ALL, InstallScope.SOURCE_ONLY):
+        if venv:
+            installer.populate_venv_sources(
+                venv=venv,
+                pex=pex,
+                provenance=provenance,
+                bin_path=installer_configuration.bin_path,
+                hermetic_scripts=hermetic_scripts,
+            )
+        else:
+            installer.populate_flat_sources(dst=dest_dir, pex=pex, provenance=provenance)

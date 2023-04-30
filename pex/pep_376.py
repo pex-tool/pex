@@ -229,7 +229,65 @@ class InstalledWheel(object):
         # type: (*str) -> str
         return os.path.join(self.prefix_dir, self.stash_dir, *components)
 
-    def reinstall(
+    @staticmethod
+    def _create_installed_file(
+        path,  # type: str
+        dest_dir,  # type: str
+    ):
+        # type: (...) -> InstalledFile
+        hasher = hashlib.sha256()
+        hashing.file_hash(path, digest=hasher)
+        return InstalledFile(
+            path=os.path.relpath(path, dest_dir),
+            hash=Hash.create(hasher),
+            size=os.stat(path).st_size,
+        )
+
+    def create_record(
+        self,
+        dst,  # type: str
+        installed_files,  # type: Iterable[InstalledFile]
+    ):
+        # type: (...) -> None
+
+        # The RECORD is a csv file with the path to each installed file in the 1st column.
+        # See: https://www.python.org/dev/peps/pep-0376/#record
+        with safe_open(os.path.join(dst, self.record_relpath), "w") as fp:
+            csv_writer = cast(
+                "CSVWriter",
+                csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n"),
+            )
+            for installed_file in sorted(installed_files, key=lambda installed: installed.path):
+                csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+
+    def reinstall_flat(
+        self,
+        target_dir,  # type: str
+        symlink=False,  # type: bool
+    ):
+        # type: (...) -> Iterator[Tuple[str, str]]
+        """Re-installs the installed wheel in a flat target directory.
+
+        N.B.: A record of reinstalled files is returned in the form of an iterator that must be
+        consumed to drive the installation to completion.
+
+        If there is an error re-installing a file due to it already existing in the target
+        directory, the error is suppressed, and it's expected that the caller detects this by
+        comparing the record of installed files against those installed previously.
+
+        :return: An iterator over src -> dst pairs.
+        """
+        installed_files = [InstalledFile(self.record_relpath)]
+        for src, dst in itertools.chain(
+            self._reinstall_stash(dest_dir=target_dir),
+            self._reinstall_site_packages(target_dir, symlink=symlink),
+        ):
+            installed_files.append(self._create_installed_file(path=dst, dest_dir=target_dir))
+            yield src, dst
+
+        self.create_record(target_dir, installed_files)
+
+    def reinstall_venv(
         self,
         venv,  # type: Virtualenv
         symlink=False,  # type: bool
@@ -255,50 +313,36 @@ class InstalledWheel(object):
 
         installed_files = [InstalledFile(self.record_relpath)]
         for src, dst in itertools.chain(
-            self._reinstall_stash(venv),
+            self._reinstall_stash(dest_dir=venv.venv_dir, interpreter=venv.interpreter),
             self._reinstall_site_packages(site_packages_dir, symlink=symlink),
         ):
-            hasher = hashlib.sha256()
-            hashing.file_hash(dst, digest=hasher)
             installed_files.append(
-                InstalledFile(
-                    path=os.path.relpath(dst, site_packages_dir),
-                    hash=Hash.create(hasher),
-                    size=os.stat(dst).st_size,
-                )
+                self._create_installed_file(path=dst, dest_dir=site_packages_dir)
             )
-
             yield src, dst
 
-        # The RECORD is a csv file with the path to each installed file in the 1st column.
-        # See: https://www.python.org/dev/peps/pep-0376/#record
-        with safe_open(os.path.join(site_packages_dir, self.record_relpath), "w") as fp:
-            csv_writer = cast(
-                "CSVWriter",
-                csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n"),
-            )
-            for installed_file in sorted(installed_files, key=lambda installed: installed.path):
-                csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+        self.create_record(site_packages_dir, installed_files)
 
-    def _reinstall_stash(self, venv):
-        # type: (Virtualenv) -> Iterator[Tuple[str, str]]
+    def _reinstall_stash(
+        self,
+        dest_dir,  # type: str
+        interpreter=None,  # type: Optional[PythonInterpreter]
+    ):
+        # type: (...) -> Iterator[Tuple[str, str]]
 
         link = True
         stash_abs_path = os.path.join(self.prefix_dir, self.stash_dir)
         for root, dirs, files in os.walk(stash_abs_path, topdown=True, followlinks=True):
-            for d in dirs:
-                src_relpath = os.path.relpath(os.path.join(root, d), stash_abs_path)
-                dst = InstalledFile.denormalized_path(
-                    path=os.path.join(venv.venv_dir, src_relpath), interpreter=venv.interpreter
-                )
-                safe_mkdir(dst)
-
+            dir_created = False
             for f in files:
                 src = os.path.join(root, f)
                 src_relpath = os.path.relpath(src, stash_abs_path)
                 dst = InstalledFile.denormalized_path(
-                    path=os.path.join(venv.venv_dir, src_relpath), interpreter=venv.interpreter
+                    path=os.path.join(dest_dir, src_relpath), interpreter=interpreter
                 )
+                if not dir_created:
+                    safe_mkdir(os.path.dirname(dst))
+                    dir_created = True
                 try:
                     # We only try to link regular files since linking a symlink on Linux can produce
                     # another symlink, which leaves open the possibility the src target could later

@@ -24,6 +24,7 @@ from pex.targets import LocalInterpreter
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
 from pex.variables import ENV
+from pex.venv import installer
 
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, List, NoReturn, Optional, Set, Tuple, Union
@@ -492,7 +493,6 @@ def ensure_venv(
         )
     with atomic_directory(venv_dir) as venv:
         if not venv.is_finalized():
-            from pex.venv.pex import populate_venv
             from pex.venv.virtualenv import Virtualenv
 
             virtualenv = Virtualenv.create_atomic(
@@ -542,7 +542,7 @@ def ensure_venv(
                     # modification of the source loose PEX.
                     symlink = pex.layout != Layout.LOOSE and not pex_info.venv_site_packages_copies
 
-                    shebang = populate_venv(
+                    shebang = installer.populate_venv_from_pex(
                         virtualenv,
                         pex,
                         bin_path=pex_info.venv_bin_path,

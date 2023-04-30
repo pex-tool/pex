@@ -95,4 +95,5 @@ class PexRepositoryConfiguration(object):
 @attr.s(frozen=True)
 class LockRepositoryConfiguration(object):
     parse_lock = attr.ib()  # type: Callable[[], Union[Lockfile, Error]]
+    lock_file_path = attr.ib()  # type: str
     pip_configuration = attr.ib()  # type: PipConfiguration
