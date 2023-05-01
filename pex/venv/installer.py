@@ -549,6 +549,7 @@ def _populate_sources(
         dst=dst,
         exclude=(
             "__main__.py",
+            "__pex__",
             "__pycache__",
             layout.BOOTSTRAP_DIR,
             layout.DEPS_DIR,

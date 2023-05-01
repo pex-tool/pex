@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import os.path
+import shutil
 import subprocess
 import sys
 from textwrap import dedent
@@ -323,6 +324,19 @@ def assert_deps_only(
     )
 
 
+def assert_srcs_only(
+    sys_path_entry,  # type: str
+    *extra_srcs  # type: str
+):
+    # type: (...) -> None
+
+    assert sorted(list(extra_srcs) + ["exe.py"]) == sorted(
+        os.path.relpath(os.path.join(root, f), sys_path_entry)
+        for root, _, files in os.walk(sys_path_entry)
+        for f in files
+    )
+
+
 def test_pex_scope_venv(
     tmpdir,  # type: Any
     colors_pex,  # type: str
@@ -340,13 +354,25 @@ def test_pex_scope_venv(
     venv = Virtualenv(dest)
     assert_deps_only(interpreter=venv.interpreter, expected_prefix=venv.site_packages_dir)
 
-    run_pex3(
-        "venv", "create", "-d", dest, "--pex-repository", colors_pex, "--scope", "srcs"
-    ).assert_success()
+    def install_srcs():
+        # type: () -> None
+        run_pex3(
+            "venv", "create", "-d", dest, "--pex-repository", colors_pex, "--scope", "srcs"
+        ).assert_success()
 
+    install_srcs()
     assert (
         colors.magenta("Red Dwarf")
         == subprocess.check_output(args=[venv_pex_script]).decode("utf-8").strip()
+    )
+
+    shutil.rmtree(dest)
+    install_srcs()
+    assert_srcs_only(
+        venv.site_packages_dir,
+        # Any venv created from a PEX supports the PEX_EXTRA_SYS_PATH runtime env var via this
+        # `.pth` file.
+        "PEX_EXTRA_SYS_PATH.pth",
     )
 
 
@@ -374,19 +400,22 @@ def test_pex_scope_flat(
     assert not os.path.exists(venv_pex_script)
     assert_deps_only(interpreter=PythonInterpreter.get(), expected_prefix=dest, PYTHONPATH=dest)
 
-    run_pex3(
-        "venv",
-        "create",
-        "-d",
-        dest,
-        "--pex-repository",
-        colors_pex,
-        "--scope",
-        "srcs",
-        "--layout",
-        "flat",
-    ).assert_success()
+    def install_srcs():
+        # type: () -> None
+        run_pex3(
+            "venv",
+            "create",
+            "-d",
+            dest,
+            "--pex-repository",
+            colors_pex,
+            "--scope",
+            "srcs",
+            "--layout",
+            "flat",
+        ).assert_success()
 
+    install_srcs()
     assert not os.path.exists(venv_pex_script)
     assert (
         colors.magenta("Red Dwarf")
@@ -396,6 +425,10 @@ def test_pex_scope_flat(
         .decode("utf-8")
         .strip()
     )
+
+    shutil.rmtree(dest)
+    install_srcs()
+    assert_srcs_only(sys_path_entry=dest)
 
 
 @pytest.fixture
