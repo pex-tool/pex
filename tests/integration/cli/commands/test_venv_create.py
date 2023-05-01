@@ -1,6 +1,8 @@
 # Copyright 2023 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import os.path
 import subprocess
 import sys
@@ -19,7 +21,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.platforms import Platform
-from pex.testing import IS_MAC, make_env, run_pex_command
+from pex.testing import IS_MAC, PY39, PY310, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 
@@ -326,6 +328,7 @@ def test_pex_scope_venv(
     colors_pex,  # type: str
 ):
     # type: (...) -> None
+
     dest = os.path.join(str(tmpdir), "dest")
     run_pex3(
         "venv", "create", "-d", dest, "--pex-repository", colors_pex, "--scope", "deps"
@@ -352,6 +355,7 @@ def test_pex_scope_flat(
     colors_pex,  # type: str
 ):
     # type: (...) -> None
+
     dest = os.path.join(str(tmpdir), "dest")
     run_pex3(
         "venv",
@@ -394,10 +398,18 @@ def test_pex_scope_flat(
     )
 
 
-def test_foreign_target(tmpdir):
-    # type: (Any) -> None
+@pytest.fixture
+def foreign_platform():
+    # type: () -> str
+    return "linux_x86_64-cp-310-cp310" if IS_MAC else "macosx_10.9_x86_64-cp-310-cp310"
 
-    foreign_platform = "linux_x86_64-cp-310-cp310" if IS_MAC else "macosx_10.9_x86_64-cp-310-cp310"
+
+def test_foreign_target(
+    tmpdir,  # type: Any
+    foreign_platform,  # type: str
+):
+    # type: (...) -> None
+
     dest = os.path.join(str(tmpdir), "dest")
     result = run_pex3(
         "venv",
@@ -434,3 +446,43 @@ def test_foreign_target(tmpdir):
     dist = distributions[0]
     assert ProjectName("psutil") == dist.metadata.project_name
     assert Version("5.9.5") == dist.metadata.version
+
+
+def test_venv_update_target_mismatch(
+    tmpdir,  # type: Any
+    foreign_platform,  # type: str
+):
+    # type: (...) -> None
+
+    dest = os.path.join(str(tmpdir), "dest")
+    run_pex3("venv", "create", "-d", dest).assert_success()
+
+    result = run_pex3(
+        "venv", "create", "ansicolors==1.1.8", "-d", dest, "--platform", foreign_platform
+    )
+    result.assert_failure()
+    assert (
+        "Cannot update a local venv using a foreign platform. Given: {foreign_platform}.".format(
+            foreign_platform=Platform.create(foreign_platform)
+        )
+        == result.error.strip()
+    ), result.error
+
+    python = ensure_python_interpreter(PY310 if sys.version_info[:2] != (3, 10) else PY39)
+    result = run_pex3("venv", "create", "ansicolors==1.1.8", "-d", dest, "--python", python)
+    result.assert_failure()
+    assert (
+        "Cannot update venv at {dest} created with {created_with} using {using}".format(
+            dest=dest,
+            created_with=PythonInterpreter.get().resolve_base_interpreter().binary,
+            using=PythonInterpreter.from_binary(python).resolve_base_interpreter().binary,
+        )
+        in result.error.strip()
+    ), result.error
+
+    assert [] == list(Virtualenv(dest).iter_distributions())
+    run_pex3("venv", "create", "ansicolors==1.1.8", "-d", dest).assert_success()
+    assert [(ProjectName("ansicolors"), Version("1.1.8"))] == [
+        (dist.metadata.project_name, dist.metadata.version)
+        for dist in Virtualenv(dest).iter_distributions()
+    ]

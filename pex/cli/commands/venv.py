@@ -1,6 +1,8 @@
 # Copyright 2023 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from __future__ import absolute_import
+
 import itertools
 import logging
 import os.path
@@ -13,7 +15,6 @@ from pex.common import DETERMINISTIC_DATETIME, is_script, open_zip, pluralize
 from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executor import Executor
-from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
 from pex.pex_info import PexInfo
 from pex.resolve import configured_resolve, requirement_options, resolver_options, target_options
@@ -197,6 +198,7 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
     def _create(self):
         # type: () -> Result
 
+        targets = target_options.configure(self.options).resolve_targets()
         installer_configuration = installer_options.configure(self.options)
 
         dest_dir = (
@@ -213,9 +215,32 @@ class Venv(OutputMixin, JsonMixin, BuildTimeCommand):
         if update and layout is InstallLayout.VENV:
             venv = Virtualenv(venv_dir=dest_dir)
             target = LocalInterpreter.create(venv.interpreter)  # type: Target
+            specified_target = try_(
+                targets.require_at_most_one_target(
+                    purpose="updating venv at {dest_dir}".format(dest_dir=dest_dir)
+                )
+            )
+            if specified_target:
+                if specified_target.is_foreign:
+                    return Error(
+                        "Cannot update a local venv using a foreign platform. Given: "
+                        "{platform}.".format(platform=specified_target.platform)
+                    )
+                original_interpreter = venv.interpreter.resolve_base_interpreter()
+                specified_interpreter = (
+                    specified_target.get_interpreter().resolve_base_interpreter()
+                )
+                if specified_interpreter != original_interpreter:
+                    return Error(
+                        "Cannot update venv at {dest_dir} created with {original_python} using "
+                        "{specified_python}".format(
+                            dest_dir=dest_dir,
+                            original_python=original_interpreter.binary,
+                            specified_python=specified_interpreter.binary,
+                        )
+                    )
             targets = Targets.from_target(target)
         else:
-            targets = target_options.configure(self.options).resolve_targets()
             target = try_(
                 targets.require_unique_target(
                     purpose="creating a {subject}".format(subject=subject)

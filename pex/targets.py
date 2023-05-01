@@ -356,3 +356,24 @@ class Targets(object):
                 )
             )
         return cast(Target, next(iter(resolved_targets)))
+
+    def require_at_most_one_target(self, purpose):
+        # type: (str) -> Union[Optional[Target], Error]
+        resolved_targets = self.unique_targets(only_explicit=False)
+        if len(resolved_targets) > 1:
+            return Error(
+                "At most a single target is required for {purpose}.\n"
+                "There were {count} targets selected:\n"
+                "{targets}".format(
+                    purpose=purpose,
+                    count=len(resolved_targets),
+                    targets="\n".join(
+                        "{index}. {target}".format(index=index, target=target)
+                        for index, target in enumerate(resolved_targets, start=1)
+                    ),
+                )
+            )
+        try:
+            return cast(Target, next(iter(resolved_targets)))
+        except StopIteration:
+            return None
