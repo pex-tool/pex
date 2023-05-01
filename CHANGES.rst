@@ -1,6 +1,42 @@
 Release Notes
 =============
 
+2.1.135
+-------
+
+This release brings support for ``pex3 venv {inspect,create}`` for
+working with venvs directly using Pex. Previously, a PEX built with
+``--include-tools`` (or ``--venv``) had the capability of turning itself
+into a venv but the new ``pex3 venv create`` command can do this for any
+PEX file with the addition of a few new features:
+
+#. The venv can now be created directly from requirements producing no
+   intermediate PEX file.
+#. The venv can be created either from a PEX file or a lock file. A
+   subset of either of those can be chosen by also supplying
+   requirements.
+#. Instead of creating a full-fledged venv, just the site-packages can
+   be exported (without creating an intermediate venv). This "flat"
+   layout is used by several prominent runtimes - notably AWS Lambda -
+   and emulates ``pip install --target``. This style layout can also be
+   zipped and prefixed. Additionally it supports ``--platform`` and
+   ``--complete-platform`` allowing creation of, for example, an AWS
+   Lambda (or Lambda Layer) deployment zip on a non-Linux host.
+
+Additionally this release adds support for Pip 23.1.1 and 23.1.2.
+
+* Add Support for Pip 23.1.1. (#2133)
+  `PR #2133 <https://github.com/pantsbuild/pex/pull/2133>`_
+
+* Introduce pex3 venv inspect. (#2135)
+  `PR #2135 <https://github.com/pantsbuild/pex/pull/2135>`_
+
+* Introduce pex3 venv create. (#2140)
+  `PR #2140 <https://github.com/pantsbuild/pex/pull/2140>`_
+
+* Add support for Pip 23.1.2. (#2142)
+  `PR #2142 <https://github.com/pantsbuild/pex/pull/2142>`_
+
 2.1.134
 -------
 
