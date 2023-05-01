@@ -12,9 +12,9 @@ PEX file with the addition of a few new features:
 
 #. The venv can now be created directly from requirements producing no
    intermediate PEX file.
-#. The venv can be created either from a PEX file or a lock file and
-   if requirements are supplied, the resulting venv can be a subset of
-   those.
+#. The venv can be created either from a PEX file or a lock file. A
+   subset of either of those can be chosen by also supplying
+   requirements.
 #. Instead of creating a full-fledged venv, just the site-packages can
    be exported (without creating an intermediate venv). This "flat"
    layout is used by several prominent runtimes - notably AWS Lambda -
