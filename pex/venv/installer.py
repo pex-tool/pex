@@ -1,4 +1,4 @@
-# Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2023 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from __future__ import absolute_import, print_function
@@ -7,7 +7,8 @@ import errno
 import itertools
 import os
 import shutil
-from collections import Counter, defaultdict
+import subprocess
+from collections import Counter, OrderedDict, defaultdict
 from textwrap import dedent
 
 from pex import layout, pex_warnings
@@ -17,17 +18,119 @@ from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
 from pex.orderedset import OrderedSet
 from pex.pep_376 import InstalledWheel, LoadError
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.pex import PEX
+from pex.result import Error
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.venv.bin_path import BinPath
 from pex.venv.install_scope import InstallScope
-from pex.venv.virtualenv import Virtualenv
+from pex.venv.virtualenv import PipUnavailableError, Virtualenv
 
 if TYPE_CHECKING:
     import typing
-    from typing import Iterable, Iterator, Optional, Tuple
+    from typing import DefaultDict, Iterable, Iterator, List, Optional, Tuple, Union
+
+
+def find_dist(
+    project_name,  # type: ProjectName
+    dists,  # type: Iterable[Distribution]
+):
+    # type: (...) -> Optional[Version]
+    for dist in dists:
+        if project_name == dist.metadata.project_name:
+            return dist.metadata.version
+    return None
+
+
+_PIP = ProjectName("pip")
+_SETUPTOOLS = ProjectName("setuptools")
+
+
+def ensure_pip_installed(
+    venv,  # type: Virtualenv
+    distributions,  # type: Iterable[Distribution]
+    scope,  # type: InstallScope.Value
+    collisions_ok,  # type: bool
+    source,  # type: str
+):
+    # type: (...) -> Union[Version, Error]
+
+    venv_pip_version = find_dist(_PIP, venv.iter_distributions())
+    if venv_pip_version:
+        TRACER.log(
+            "The venv at {venv_dir} already has Pip {version} installed.".format(
+                venv_dir=venv.venv_dir, version=venv_pip_version
+            )
+        )
+    else:
+        try:
+            venv.install_pip()
+        except PipUnavailableError as e:
+            return Error(
+                "The virtual environment was successfully created, but Pip was not "
+                "installed:\n{}".format(e)
+            )
+        venv_pip_version = find_dist(_PIP, venv.iter_distributions())
+        if not venv_pip_version:
+            return Error(
+                "Failed to install pip into venv at {venv_dir}".format(venv_dir=venv.venv_dir)
+            )
+
+    if InstallScope.SOURCE_ONLY == scope:
+        return venv_pip_version
+
+    uninstall = OrderedDict()
+    pex_pip_version = find_dist(_PIP, distributions)
+    if pex_pip_version and pex_pip_version != venv_pip_version:
+        uninstall[_PIP] = pex_pip_version
+
+    venv_setuptools_version = find_dist(_SETUPTOOLS, venv.iter_distributions())
+    if venv_setuptools_version:
+        pex_setuptools_version = find_dist(_SETUPTOOLS, distributions)
+        if pex_setuptools_version and venv_setuptools_version != pex_setuptools_version:
+            uninstall[_SETUPTOOLS] = pex_setuptools_version
+
+    if not uninstall:
+        return venv_pip_version
+
+    message = (
+        "You asked for --pip to be installed in the venv at {venv_dir},\n"
+        "but the {source} already contains:\n{distributions}"
+    ).format(
+        venv_dir=venv.venv_dir,
+        source=source,
+        distributions="\n".join(
+            "{project_name} {version}".format(project_name=project_name, version=version)
+            for project_name, version in uninstall.items()
+        ),
+    )
+    if not collisions_ok:
+        return Error(
+            "{message}\nConsider re-running either without --pip or with --collisions-ok.".format(
+                message=message
+            )
+        )
+
+    pex_warnings.warn(
+        "{message}\nUninstalling venv versions and using versions from the PEX.".format(
+            message=message
+        )
+    )
+    projects_to_uninstall = sorted(str(project_name) for project_name in uninstall)
+    try:
+        subprocess.check_call(
+            args=[venv.interpreter.binary, "-m", "pip", "uninstall", "-y"] + projects_to_uninstall
+        )
+    except subprocess.CalledProcessError as e:
+        return Error(
+            "Failed to uninstall venv versions of {projects}: {err}".format(
+                projects=" and ".join(projects_to_uninstall), err=e
+            )
+        )
+    return pex_pip_version or venv_pip_version
 
 
 def _relative_symlink(
@@ -42,7 +145,7 @@ def _relative_symlink(
 
 # N.B.: We can't use shutil.copytree since we copy from multiple source locations to the same site
 # packages directory destination. Since we're forced to stray from the stdlib here, support for
-# hardlinks is added to provide a measurable speed up and disk space savings when possible.
+# hardlinks is added to provide a measurable speed-up and disk space savings when possible.
 def _copytree(
     src,  # type: str
     dst,  # type: str
@@ -95,12 +198,187 @@ class CollisionError(Exception):
     """Indicates multiple distributions provided the same file when merging a PEX into a venv."""
 
 
+class Provenance(object):
+    @classmethod
+    def create(
+        cls,
+        venv,  # type: Virtualenv
+        python=None,  # type: Optional[str]
+    ):
+        # type: (...) -> Provenance
+        venv_bin_dir = os.path.dirname(python) if python else venv.bin_dir
+        venv_dir = os.path.dirname(venv_bin_dir) if python else venv.venv_dir
+
+        venv_python = python or venv.interpreter.binary
+        return cls(target_dir=venv_dir, target_python=venv_python)
+
+    def __init__(
+        self,
+        target_dir,  # type: str
+        target_python,  # type: str
+    ):
+        # type: (...) -> None
+        self._target_dir = target_dir
+        self._target_python = target_python
+        self._provenance = defaultdict(list)  # type: DefaultDict[str, List[str]]
+
+    @property
+    def target_python(self):
+        # type: () -> str
+        return self._target_python
+
+    def calculate_shebang(self, hermetic_scripts=True):
+        # type: (bool) -> str
+
+        shebang_argv = [self.target_python]
+        python_args = _script_python_args(hermetic=hermetic_scripts)
+        if python_args:
+            shebang_argv.append(python_args)
+        return "#!{shebang}".format(shebang=" ".join(shebang_argv))
+
+    def record(self, src_to_dst):
+        # type: (Iterable[Tuple[str, str]]) -> None
+        for src, dst in src_to_dst:
+            self._provenance[dst].append(src)
+
+    def check_collisions(
+        self,
+        collisions_ok=False,  # type: bool
+        source=None,  # type: Optional[str]
+    ):
+        # type: (...) -> None
+
+        potential_collisions = {
+            dst: srcs for dst, srcs in self._provenance.items() if len(srcs) > 1
+        }
+        if not potential_collisions:
+            return
+
+        collisions = {}
+        for dst, srcs in potential_collisions.items():
+            contents = defaultdict(list)
+            for src in srcs:
+                contents[CacheHelper.hash(src)].append(src)
+            if len(contents) > 1:
+                collisions[dst] = contents
+
+        if not collisions:
+            return
+
+        message_lines = [
+            "Encountered {collision} populating {target_dir}{source}:".format(
+                collision=pluralize(collisions, "collision"),
+                target_dir=self._target_dir,
+                source=" from {source}".format(source=source) if source else "",
+            )
+        ]
+        for index, (dst, contents) in enumerate(collisions.items(), start=1):
+            message_lines.append(
+                "{index}. {dst} was provided by:\n\t{srcs}".format(
+                    index=index,
+                    dst=dst,
+                    srcs="\n\t".join(
+                        "sha1:{fingerprint} -> {srcs}".format(
+                            fingerprint=fingerprint, srcs=", ".join(srcs)
+                        )
+                        for fingerprint, srcs in contents.items()
+                    ),
+                )
+            )
+        message = "\n".join(message_lines)
+        if not collisions_ok:
+            raise CollisionError(message)
+        pex_warnings.warn(message)
+
+
 def _script_python_args(hermetic):
     # type: (bool) -> Optional[str]
     return "-sE" if hermetic else None
 
 
-def populate_venv(
+def _populate_flat_deps(
+    dest_dir,  # type: str
+    distributions,  # type: Iterable[Distribution]
+    symlink=False,  # type: bool
+):
+    # type: (...) -> Iterator[Tuple[str, str]]
+    for dist in distributions:
+        try:
+            installed_wheel = InstalledWheel.load(dist.location)
+            for src, dst in installed_wheel.reinstall_flat(target_dir=dest_dir, symlink=symlink):
+                yield src, dst
+        except LoadError:
+            for src, dst in _populate_legacy_dist(
+                dest_dir=dest_dir, bin_dir=dest_dir, dist=dist, symlink=symlink
+            ):
+                yield src, dst
+
+
+def populate_flat_distributions(
+    dest_dir,  # type: str
+    distributions,  # type: Iterable[Distribution]
+    provenance,  # type: Provenance
+    symlink=False,  # type: bool
+):
+    # type: (...) -> None
+
+    provenance.record(
+        _populate_flat_deps(dest_dir=dest_dir, distributions=distributions, symlink=symlink)
+    )
+
+
+def populate_venv_distributions(
+    venv,  # type: Virtualenv
+    distributions,  # type: Iterable[Distribution]
+    provenance,  # type: Provenance
+    symlink=False,  # type: bool
+    hermetic_scripts=True,  # type: bool
+):
+    # type: (...) -> None
+
+    provenance.record(
+        _populate_venv_deps(
+            venv=venv,
+            distributions=distributions,
+            venv_python=provenance.target_python,
+            symlink=symlink,
+            hermetic_scripts=hermetic_scripts,
+        )
+    )
+
+
+def populate_flat_sources(
+    dst,  # type: str
+    pex,  # type: PEX
+    provenance,  # type: Provenance
+):
+    provenance.record(_populate_sources(pex=pex, dst=dst))
+
+
+def populate_venv_sources(
+    venv,  # type: Virtualenv
+    pex,  # type: PEX
+    provenance,  # type: Provenance
+    bin_path=BinPath.FALSE,  # type: BinPath.Value
+    hermetic_scripts=True,  # type: bool
+    shebang=None,  # type: Optional[str]
+):
+    # type: (...) -> str
+
+    shebang = shebang or provenance.calculate_shebang(hermetic_scripts=hermetic_scripts)
+    provenance.record(
+        _populate_first_party(
+            venv=venv,
+            pex=pex,
+            shebang=shebang,
+            venv_python=provenance.target_python,
+            bin_path=bin_path,
+        )
+    )
+    return shebang
+
+
+def populate_venv_from_pex(
     venv,  # type: Virtualenv
     pex,  # type: PEX
     bin_path=BinPath.FALSE,  # type: BinPath.Value
@@ -112,78 +390,39 @@ def populate_venv(
 ):
     # type: (...) -> str
 
-    venv_python = python or venv.interpreter.binary
-
-    shebang_argv = [venv_python]
-    python_args = _script_python_args(hermetic=hermetic_scripts)
-    if python_args:
-        shebang_argv.append(python_args)
-    shebang = "#!{shebang}".format(shebang=" ".join(shebang_argv))
-
-    provenance = defaultdict(list)
-
-    def record_provenance(src_to_dst):
-        # type: (Iterable[Tuple[str, str]]) -> None
-        for src, dst in src_to_dst:
-            provenance[dst].append(src)
+    provenance = Provenance.create(venv, python=python)
+    shebang = provenance.calculate_shebang(hermetic_scripts=hermetic_scripts)
 
     if scope in (InstallScope.ALL, InstallScope.DEPS_ONLY):
-        record_provenance(_populate_deps(venv, pex, venv_python, symlink, hermetic_scripts))
+        populate_venv_distributions(
+            venv=venv,
+            distributions=pex.resolve(),
+            symlink=symlink,
+            hermetic_scripts=hermetic_scripts,
+            provenance=provenance,
+        )
 
     if scope in (InstallScope.ALL, InstallScope.SOURCE_ONLY):
-        record_provenance(_populate_sources(venv, pex, shebang, venv_python, bin_path))
+        populate_venv_sources(
+            venv=venv,
+            pex=pex,
+            bin_path=bin_path,
+            hermetic_scripts=hermetic_scripts,
+            provenance=provenance,
+            shebang=shebang,
+        )
 
-    potential_collisions = {dst: srcs for dst, srcs in provenance.items() if len(srcs) > 1}
-    if potential_collisions:
-        collisions = {}
-        for dst, srcs in potential_collisions.items():
-            contents = defaultdict(list)
-            for src in srcs:
-                contents[CacheHelper.hash(src)].append(src)
-            if len(contents) > 1:
-                collisions[dst] = contents
-
-        if collisions:
-            venv_bin_dir = os.path.dirname(python) if python else venv.bin_dir
-            venv_dir = os.path.dirname(venv_bin_dir) if python else venv.venv_dir
-            message_lines = [
-                "Encountered {collision} building venv at {venv_dir} from {pex}:".format(
-                    collision=pluralize(collisions, "collision"), venv_dir=venv_dir, pex=pex.path()
-                )
-            ]
-            for index, (dst, contents) in enumerate(collisions.items(), start=1):
-                message_lines.append(
-                    "{index}. {dst} was provided by:\n\t{srcs}".format(
-                        index=index,
-                        dst=dst,
-                        srcs="\n\t".join(
-                            "sha1:{fingerprint} -> {srcs}".format(
-                                fingerprint=fingerprint, srcs=", ".join(srcs)
-                            )
-                            for fingerprint, srcs in contents.items()
-                        ),
-                    )
-                )
-            message = "\n".join(message_lines)
-            if not collisions_ok:
-                raise CollisionError(message)
-            pex_warnings.warn(message)
+    provenance.check_collisions(collisions_ok, source="PEX at {pex}".format(pex=pex.path()))
 
     return shebang
 
 
 def _populate_legacy_dist(
-    venv,  # type: Virtualenv
+    dest_dir,  # type: str
+    bin_dir,  # type: str
     dist,  # type: Distribution
     symlink=False,  # type: bool
-    rel_extra_path=None,  # type: Optional[str]
 ):
-    dst = (
-        os.path.join(venv.site_packages_dir, rel_extra_path)
-        if rel_extra_path
-        else venv.site_packages_dir
-    )
-
     # N.B.: We do not include the top_level __pycache__ for a dist since there may be
     # multiple dists with top-level modules. In that case, one dists top-level __pycache__
     # would be symlinked and all dists with top-level modules would have the .pyc files for
@@ -191,19 +430,19 @@ def _populate_legacy_dist(
     # just 1 top-level module, we keep .pyc anchored to their associated dists when shared
     # and accept the cost of re-compiling top-level modules in each venv that uses them.
     for src, dst in _copytree(
-        src=dist.location, dst=dst, exclude=("bin", "__pycache__"), symlink=symlink
+        src=dist.location, dst=dest_dir, exclude=("bin", "__pycache__"), symlink=symlink
     ):
         yield src, dst
 
     dist_bin_dir = os.path.join(dist.location, "bin")
     if os.path.isdir(dist_bin_dir):
-        for src, dst in _copytree(src=dist_bin_dir, dst=venv.bin_dir, symlink=symlink):
+        for src, dst in _copytree(src=dist_bin_dir, dst=bin_dir, symlink=symlink):
             yield src, dst
 
 
-def _populate_deps(
+def _populate_venv_deps(
     venv,  # type: Virtualenv
-    pex,  # type: PEX
+    distributions,  # type: Iterable[Distribution]
     venv_python,  # type: str
     symlink=False,  # type: bool
     hermetic_scripts=True,  # type: bool
@@ -215,7 +454,7 @@ def _populate_deps(
     # created in ~/.pex/venvs.
     top_level_packages = Counter()  # type: typing.Counter[str]
     rel_extra_paths = OrderedSet()  # type: OrderedSet[str]
-    for dist in pex.resolve():
+    for dist in distributions:
         rel_extra_path = None
         if symlink:
             # In the symlink case, in order to share all generated *.pyc files for a given
@@ -257,13 +496,18 @@ def _populate_deps(
 
         try:
             installed_wheel = InstalledWheel.load(dist.location)
-            for src, dst in installed_wheel.reinstall(
+            for src, dst in installed_wheel.reinstall_venv(
                 venv, symlink=symlink, rel_extra_path=rel_extra_path
             ):
                 yield src, dst
         except LoadError:
+            dst = (
+                os.path.join(venv.site_packages_dir, rel_extra_path)
+                if rel_extra_path
+                else venv.site_packages_dir
+            )
             for src, dst in _populate_legacy_dist(
-                venv, dist, symlink=symlink, rel_extra_path=rel_extra_path
+                dest_dir=dst, bin_dir=venv.bin_dir, dist=dist, symlink=symlink
             ):
                 yield src, dst
 
@@ -293,6 +537,31 @@ def _populate_deps(
 
 
 def _populate_sources(
+    pex,  # type: PEX
+    dst,  # type: str
+):
+    # type: (...) -> Iterator[Tuple[str, str]]
+
+    # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
+    # sources into the venv.
+    for src, dst in _copytree(
+        src=PEXEnvironment.mount(pex.path()).path,
+        dst=dst,
+        exclude=(
+            "__main__.py",
+            "__pex__",
+            "__pycache__",
+            layout.BOOTSTRAP_DIR,
+            layout.DEPS_DIR,
+            layout.PEX_INFO_PATH,
+            layout.PEX_LAYOUT_PATH,
+        ),
+        symlink=False,
+    ):
+        yield src, dst
+
+
+def _populate_first_party(
     venv,  # type: Virtualenv
     pex,  # type: PEX
     shebang,  # type: str
@@ -307,21 +576,7 @@ def _populate_sources(
     # PEX_MODULE, etc.).
     pex_info = pex.pex_info(include_env_overrides=False)
 
-    # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
-    # sources into the venv.
-    for src, dst in _copytree(
-        src=PEXEnvironment.mount(pex.path()).path,
-        dst=venv.site_packages_dir,
-        exclude=(
-            "__main__.py",
-            "__pycache__",
-            layout.BOOTSTRAP_DIR,
-            layout.DEPS_DIR,
-            layout.PEX_INFO_PATH,
-            layout.PEX_LAYOUT_PATH,
-        ),
-        symlink=False,
-    ):
+    for src, dst in _populate_sources(pex=pex, dst=venv.site_packages_dir):
         yield src, dst
 
     with open(os.path.join(venv.site_packages_dir, "PEX_EXTRA_SYS_PATH.pth"), "w") as fp:

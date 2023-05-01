@@ -18,7 +18,7 @@ from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
 from pex.testing import PY38, PY39, PY_VER, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
-from pex.venv.pex import CollisionError
+from pex.venv.installer import CollisionError
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:

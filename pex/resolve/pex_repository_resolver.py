@@ -12,7 +12,13 @@ from pex.environment import PEXEnvironment
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
-from pex.requirements import Constraint, LocalProjectRequirement
+from pex.pex_info import PexInfo
+from pex.requirements import (
+    Constraint,
+    LocalProjectRequirement,
+    parse_requirement_string,
+    parse_requirement_strings,
+)
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable, Untranslatable
 from pex.targets import Targets
@@ -39,12 +45,14 @@ def resolve_from_pex(
         requirement_files=requirement_files,
         constraint_files=constraint_files,
     )
+    root_reqs = requirement_configuration.parse_requirements(
+        network_configuration=network_configuration
+    ) or parse_requirement_strings(PexInfo.from_pex(pex).requirements)
+
     direct_requirements_by_project_name = (
         OrderedDict()
     )  # type: OrderedDict[ProjectName, List[Requirement]]
-    for direct_requirement in requirement_configuration.parse_requirements(
-        network_configuration=network_configuration
-    ):
+    for direct_requirement in root_reqs:
         if isinstance(direct_requirement, LocalProjectRequirement):
             raise Untranslatable(
                 "Cannot resolve local projects from PEX repositories. Asked to resolve {path} "

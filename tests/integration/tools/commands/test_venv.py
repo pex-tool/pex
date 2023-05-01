@@ -91,16 +91,16 @@ def test_collisions(
     result = run_pex_tools(collisions_pex, "venv", venv_dir)
     result.assert_failure()
     assert (
-        "Encountered collision building venv at {venv_dir} from {pex}:\n"
+        "Encountered collision populating {venv_dir} from PEX at {pex}:\n"
         "1. {venv_dir}/bin/pex was provided by:".format(venv_dir=venv_dir, pex=collisions_pex)
-    ) in result.error
+    ) in result.error, result.error
 
     result = run_pex_tools(collisions_pex, "venv", "--collisions-ok", "--force", venv_dir)
     result.assert_success()
     assert (
-        "PEXWarning: Encountered collision building venv at {venv_dir} from {pex}:\n"
+        "PEXWarning: Encountered collision populating {venv_dir} from PEX at {pex}:\n"
         "1. {venv_dir}/bin/pex was provided by:".format(venv_dir=venv_dir, pex=collisions_pex)
-    ) in result.error
+    ) in result.error, result.error
     assert 42 == subprocess.call(args=[Virtualenv(venv_dir=venv_dir).bin_path("pex")])
 
 

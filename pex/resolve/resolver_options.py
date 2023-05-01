@@ -416,7 +416,8 @@ def configure(options):
     pip_configuration = create_pip_configuration(options)
     if lock:
         return LockRepositoryConfiguration(
-            parse_lock=lambda: parse_lockfile(options),
+            parse_lock=lambda: parse_lockfile(options, lock_file_path=lock),
+            lock_file_path=lock,
             pip_configuration=pip_configuration,
         )
     return pip_configuration
