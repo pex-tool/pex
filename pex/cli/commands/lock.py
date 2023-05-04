@@ -33,6 +33,7 @@ from pex.resolve.lockfile.updater import (
     VersionUpdate,
 )
 from pex.resolve.path_mappings import PathMappings
+from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_options import parse_lockfile
 from pex.resolve.target_configuration import InterpreterConstraintsNotSatisfied, TargetConfiguration
@@ -157,13 +158,25 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         )
 
     @classmethod
-    def _add_lockfile_option(cls, parser, verb):
-        # type: (_ActionsContainer, str) -> None
-        parser.add_argument(
-            "lockfile",
-            nargs=1,
-            help="The Pex lock file to {verb}".format(verb=verb),
-        )
+    def _add_lockfile_option(
+        cls,
+        parser,  # type: _ActionsContainer
+        verb,  # type: str
+        positional=True,  # type: bool
+    ):
+        # type: (...) -> None
+        if positional:
+            parser.add_argument(
+                "lockfile",
+                nargs=1,
+                help="The Pex lock file to {verb}".format(verb=verb),
+            )
+        else:
+            parser.add_argument(
+                "--lock",
+                required=True,
+                help="The Pex lock file to {verb}".format(verb=verb),
+            )
 
     @classmethod
     def _add_lock_options(cls, parser):
@@ -229,8 +242,12 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         cls._add_resolve_options(create_parser)
 
     @classmethod
-    def _add_export_arguments(cls, export_parser):
-        # type: (_ActionsContainer) -> None
+    def _add_export_arguments(
+        cls,
+        export_parser,  # type: _ActionsContainer
+        lockfile_option_positional=True,  # type: bool
+    ):
+        # type: (...) -> None
         export_parser.add_argument(
             "--format",
             default=ExportFormat.PIP,
@@ -248,12 +265,20 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             type=ExportSortBy.for_value,
             help="How to sort the requirements in the export (if supported).",
         )
-        cls._add_lockfile_option(export_parser, verb="export")
+        cls._add_lockfile_option(
+            export_parser, verb="export", positional=lockfile_option_positional
+        )
         cls._add_lock_options(export_parser)
         cls.add_output_option(export_parser, entity="lock")
         cls._add_target_options(export_parser)
         resolver_options_parser = cls._create_resolver_options_group(export_parser)
         resolver_options.register_network_options(resolver_options_parser)
+
+    @classmethod
+    def _add_export_subset_arguments(cls, export_subset_parser):
+        # type: (_ActionsContainer) -> None
+        cls._add_export_arguments(export_subset_parser, lockfile_option_positional=False)
+        requirement_options.register(export_subset_parser)
 
     @classmethod
     def _add_update_arguments(cls, update_parser):
@@ -357,6 +382,15 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
         ) as export_parser:
             cls._add_export_arguments(export_parser)
         with subcommands.parser(
+            name="export-subset",
+            help=(
+                "Export a subset of a Pex lock file for a single targeted environment in a "
+                "different format."
+            ),
+            func=cls._export_subset,
+        ) as export_subset_parser:
+            cls._add_export_subset_arguments(export_subset_parser)
+        with subcommands.parser(
             name="update", help="Update a Pex lock file.", func=cls._update
         ) as update_parser:
             cls._add_update_arguments(update_parser)
@@ -457,7 +491,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
 
     def _load_lockfile(self):
         # type: () -> Tuple[str, Lockfile]
-        lock_file_path = self.options.lockfile[0]
+        lock_file_path = self.options.lock if "lock" in self.options else self.options.lockfile[0]
         return lock_file_path, try_(parse_lockfile(self.options, lock_file_path=lock_file_path))
 
     def _get_path_mappings(self):
@@ -490,8 +524,8 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
             with self.output(self.options) as output:
                 dump_with_terminating_newline(out=output)
 
-    def _export(self):
-        # type: () -> Result
+    def _export(self, requirement_configuration=RequirementConfiguration()):
+        # type: (RequirementConfiguration) -> Result
         if self.options.format != ExportFormat.PIP:
             return Error(
                 "Only the {pip!r} lock format is supported currently.".format(pip=ExportFormat.PIP)
@@ -509,6 +543,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 subset(
                     targets=targets,
                     lock=lock_file,
+                    requirement_configuration=requirement_configuration,
                     network_configuration=network_configuration,
                     build=lock_file.allow_builds,
                     use_wheel=lock_file.allow_wheels,
@@ -528,7 +563,7 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                 "selected target: {target}; so using the most specific lock with platform "
                 "{platform}.".format(
                     count=len(subset_result.subsets),
-                    lockfile=lockfile_path,
+                    lockfile=lock_file.source,
                     pip=ExportFormat.PIP,
                     target=target,
                     platform=resolved.source.platform_tag,
@@ -563,6 +598,10 @@ class Lock(OutputMixin, JsonMixin, BuildTimeCommand):
                     )
                 )
         return Ok()
+
+    def _export_subset(self):
+        requirement_configuration = requirement_options.configure(self.options)
+        return self._export(requirement_configuration=requirement_configuration)
 
     def _update(self):
         # type: () -> Result
