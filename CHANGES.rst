@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+2.1.136
+-------
+
+This release adds the ``pex3 lock export-subset`` command. This is a
+version of ``pex3 lock export`` that also accepts requirements agruments
+allowing just a subset of the lock satisfying the given requirements to
+be exported.
+
+* Add ``pex3 lock export-subset``. (#2145)
+  `PR #2145 <https://github.com/pantsbuild/pex/pull/2145>`_
+
 2.1.135
 -------
 
