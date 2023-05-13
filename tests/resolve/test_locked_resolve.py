@@ -897,3 +897,81 @@ def test_vcs_artifact():
         "hg+https://github.com/pantsbuild/pex#egg=pex&subdirectory=."
         == artifact.as_unparsed_requirement(ProjectName("pex"))
     )
+
+
+def test_locked_requirement_mixed_artifacts_issue_2150():
+    # type: () -> None
+
+    file_artifact = FileArtifact(
+        url="https://host/project.whl",
+        fingerprint=Fingerprint(algorithm="md5", hash="foo"),
+        verified=False,
+        filename="a.whl",
+    )
+    vcs_artifact = VCSArtifact(
+        url="git+https://host/a/project",
+        fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
+        verified=False,
+        vcs=VCS.Git,
+    )
+    local_project_artifact = LocalProjectArtifact(
+        url="file:///tmp/project",
+        fingerprint=Fingerprint(algorithm="sha256", hash="baz"),
+        verified=False,
+        directory="/tmp/project",
+    )
+    locked_requirement = LockedRequirement.create(
+        pin=Pin(ProjectName("project"), Version("0.1.0")),
+        artifact=local_project_artifact,
+        additional_artifacts=(file_artifact, vcs_artifact),
+    )
+    assert [local_project_artifact, vcs_artifact, file_artifact] == list(
+        locked_requirement.iter_artifacts()
+    ), (
+        "Expected the primary artifact to be 1st, and then the additional artifacts sorted by URL "
+        "(git+https:// comes before https://)."
+    )
+
+
+def test_locked_resolve_same_pins_mixed_primary_artifacts_issue_2150():
+    # type: () -> None
+
+    pin = Pin(ProjectName("project"), Version("0.1.0"))
+    file_artifact_requirement = LockedRequirement.create(
+        pin,
+        FileArtifact(
+            url="https://host/project.whl",
+            fingerprint=Fingerprint(algorithm="md5", hash="foo"),
+            verified=False,
+            filename="a.whl",
+        ),
+    )
+    vcs_artifact_requirement = LockedRequirement.create(
+        pin,
+        VCSArtifact(
+            url="git+https://host/a/project",
+            fingerprint=Fingerprint(algorithm="sha1", hash="bar"),
+            verified=False,
+            vcs=VCS.Git,
+        ),
+    )
+    local_project_artifact_requirement = LockedRequirement.create(
+        pin,
+        LocalProjectArtifact(
+            url="file:///tmp/project",
+            fingerprint=Fingerprint(algorithm="sha256", hash="baz"),
+            verified=False,
+            directory="/tmp/project",
+        ),
+    )
+    locked_requirements = [
+        file_artifact_requirement,
+        vcs_artifact_requirement,
+        local_project_artifact_requirement,
+    ]
+    locked_resolve = LockedResolve(locked_requirements=SortedTuple(locked_requirements))
+    assert [
+        local_project_artifact_requirement,
+        vcs_artifact_requirement,
+        file_artifact_requirement,
+    ] == list(locked_resolve.locked_requirements)
