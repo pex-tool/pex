@@ -6,6 +6,7 @@ from __future__ import absolute_import, division
 import itertools
 import os
 from collections import OrderedDict, defaultdict, deque
+from functools import total_ordering
 
 from pex.common import pluralize
 from pex.compatibility import url_unquote, urlparse
@@ -98,7 +99,8 @@ class LockConfiguration(object):
             )
 
 
-@attr.s(frozen=True)
+@total_ordering
+@attr.s(frozen=True, order=False)
 class Artifact(object):
     @classmethod
     def from_artifact_url(
@@ -148,8 +150,14 @@ class Artifact(object):
     fingerprint = attr.ib()  # type: Fingerprint
     verified = attr.ib()  # type: bool
 
+    def __lt__(self, other):
+        # type: (Any) -> bool
+        if not isinstance(other, Artifact):
+            return NotImplemented
+        return self.url < other.url
 
-@attr.s(frozen=True)
+
+@attr.s(frozen=True, order=False)
 class FileArtifact(Artifact):
     filename = attr.ib()  # type: str
 
@@ -165,7 +173,7 @@ class FileArtifact(Artifact):
                 yield tag
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, order=False)
 class LocalProjectArtifact(Artifact):
     directory = attr.ib()  # type: str
 
@@ -175,7 +183,7 @@ class LocalProjectArtifact(Artifact):
         return True
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, order=False)
 class VCSArtifact(Artifact):
     @classmethod
     def from_artifact_url(
