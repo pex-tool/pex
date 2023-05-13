@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+2.1.137
+-------
+
+This release fixes a long standing bug in lock file creation for exotic
+locking scenarios pulling the same project from multiple artifact
+sources (any mix of URLs, VCS and local project directories).
+
+* Fix inter-artifact comparisons. (#2152)
+  `PR #2152 <https://github.com/pantsbuild/pex/pull/2152>`_
+
 2.1.136
 -------
 
