@@ -10,6 +10,7 @@ import platform
 import random
 import subprocess
 import sys
+from collections import defaultdict
 from contextlib import contextmanager
 from textwrap import dedent
 
@@ -30,6 +31,11 @@ from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import Virtualenv
+
+try:
+    from unittest import mock
+except ImportError:
+    import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
     from typing import (
@@ -759,3 +765,37 @@ def pex_project_dir():
         return os.environ["_PEX_TEST_PROJECT_DIR"]
     except KeyError:
         sys.exit("Pex tests must be run via tox.")
+
+
+class NonDeterministicWalk:
+    """A wrapper around `os.walk` that makes it non-deterministic.
+
+    Makes sure that directories and files are always returned in a different
+    order each time it is called.
+
+    Typically used like: `unittest.mock.patch("os.walk", new=NonDeterministicWalk())`
+    """
+
+    def __init__(self):
+        self._counters = defaultdict(int)
+        self._original_walk = os.walk
+
+    def __call__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> Iterator[Tuple[str, List[str], List[str]]]
+        for root, dirs, files in self._original_walk(*args, **kwargs):
+            self._increment_counter(root)
+            dirs[:] = self._rotate(root, dirs)
+            files[:] = self._rotate(root, files)
+            yield root, dirs, files
+
+    def _increment_counter(self, counter_key):
+        # type: (str) -> int
+        self._counters[counter_key] += 1
+        return self._counters[counter_key]
+
+    def _rotate(self, counter_key, x):
+        # type: (str, List[str]) -> List[str]
+        if not x:
+            return x
+        rotate_by = self._counters[counter_key] % len(x)
+        return x[-rotate_by:] + x[:-rotate_by]

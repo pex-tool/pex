@@ -20,6 +20,7 @@ from pex.common import (
     touch,
 )
 from pex.typing import TYPE_CHECKING
+from testing import NonDeterministicWalk
 
 try:
     from unittest import mock
@@ -138,6 +139,39 @@ def test_chroot_zip():
             assert b"" == zip.read("directory/")
             assert b"" == zip.read("directory/subdirectory/")
             assert b"data" == zip.read("directory/subdirectory/file")
+
+
+def test_chroot_zip_is_deterministic():
+    # type: () -> None
+    with temporary_dir() as tmp:
+        root_dir = os.path.join(tmp, "root")
+        os.mkdir(root_dir)
+        dir_a = os.path.join(root_dir, "a")
+        os.mkdir(dir_a)
+        src_path_a = os.path.join(dir_a, "file_a")
+        touch(src_path_a)
+        dir_b = os.path.join(root_dir, "b")
+        os.mkdir(dir_b)
+        src_path_b = os.path.join(dir_b, "file_b")
+        touch(src_path_b)
+
+        chroot = Chroot(os.path.join(tmp, "chroot"))
+        chroot.symlink(root_dir, "root")
+
+        zip_one_dst = os.path.join(tmp, "chroot_one.zip")
+        zip_two_dst = os.path.join(tmp, "chroot_two.zip")
+
+        with mock.patch("os.walk", new=NonDeterministicWalk()):
+            chroot.zip(zip_one_dst)
+            chroot.zip(zip_two_dst)
+
+        with open_zip(zip_one_dst) as zip_file:
+            namelist_one = zip_file.namelist()
+
+        with open_zip(zip_two_dst) as zip_file:
+            namelist_two = zip_file.namelist()
+
+        assert namelist_one == namelist_two
 
 
 def test_chroot_zip_symlink():
