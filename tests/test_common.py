@@ -12,6 +12,7 @@ from pex.common import (
     PermPreservingZipFile,
     can_write_dir,
     chmod_plus_x,
+    deterministic_walk,
     is_exe,
     is_script,
     open_zip,
@@ -221,6 +222,39 @@ def test_chroot_zip_symlink():
             assert b"data" == zip.read("symlinked/subdirectory/file")
             assert b"data" == zip.read("symlinked/subdirectory/rel-symlinked")
             assert b"data" == zip.read("symlinked/subdirectory/symlinked")
+
+
+def test_deterministic_walk():
+    # type: () -> None
+    with temporary_dir() as tmp:
+        root_dir = os.path.join(tmp, "root")
+        os.mkdir(root_dir)
+        dir_a = os.path.join(root_dir, "a")
+        os.mkdir(dir_a)
+        file_a = os.path.join(dir_a, "file_a")
+        touch(file_a)
+        dir_b = os.path.join(root_dir, "b")
+        os.mkdir(dir_b)
+        file_b = os.path.join(dir_b, "file_b")
+        touch(file_b)
+
+        with mock.patch("os.walk", new=NonDeterministicWalk()):
+            result_a = []
+            for root, dirs, files in deterministic_walk(root_dir):
+                result_a.append((root, dirs, files))
+                if dirs:
+                    dirs[:] = ["b", "a"]
+
+            result_b = []
+            for root, dirs, files in deterministic_walk(root_dir):
+                result_b.append((root, dirs, files))
+
+        assert result_a == [
+            (root_dir, ["a", "b"], []),
+            (dir_a, [], ["file_a"]),
+            (dir_b, [], ["file_b"]),
+        ], "Modifying dirs should not affect the order of the walk"
+        assert result_a == result_b, "Should be resilient to os.walk yielding in arbitrary order"
 
 
 def test_can_write_dir_writeable_perms():
