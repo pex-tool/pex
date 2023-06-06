@@ -13,6 +13,7 @@ from pex.atomic_directory import atomic_directory
 from pex.common import (
     Chroot,
     chmod_plus_x,
+    deterministic_walk,
     filter_pyc_files,
     is_pyc_temporary_file,
     safe_copy,
@@ -586,7 +587,7 @@ class PEXBuilder(object):
         bootstrap_packages = ["third_party", "venv"]
         if self._pex_info.includes_tools:
             bootstrap_packages.extend(["commands", "tools"])
-        for root, dirs, files in os.walk(_ABS_PEX_PACKAGE_DIR):
+        for root, dirs, files in deterministic_walk(_ABS_PEX_PACKAGE_DIR):
             if root == _ABS_PEX_PACKAGE_DIR:
                 dirs[:] = bootstrap_packages
 
