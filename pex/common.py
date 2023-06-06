@@ -694,8 +694,8 @@ class Chroot(object):
                         yield full_path, path
                         continue
 
-                    for root, _, files in os.walk(full_path):
-                        for f in sorted(files):
+                    for root, _, files in deterministic_walk(full_path):
+                        for f in files:
                             if exclude_file(f):
                                 continue
                             abs_path = os.path.join(root, f)
