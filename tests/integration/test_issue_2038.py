@@ -30,7 +30,10 @@ def test_wheel_file_url_dep(tmpdir):
     with open(constraints, "w") as fp:
         # The 20.22 release introduces a change that breaks resolution of poetry 1.3.2; so we pin
         # low.
-        fp.write("virtualenv<20.22")
+        print("virtualenv<20.22", file=fp)
+        # The poetry-plugin-export 1.4.0 release requires poetry>1.5 but poetry 1.3.2 floats the
+        # poetry-plugin-export dep; so we pin low.
+        print("poetry-plugin-export<1.4", file=fp)
 
     poetry = os.path.join(str(tmpdir), "poetry.pex")
     run_pex_command(
