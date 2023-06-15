@@ -4,7 +4,10 @@
 from __future__ import print_function
 
 import os
+import sys
 from textwrap import dedent
+
+import pytest
 
 from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
@@ -13,6 +16,14 @@ if TYPE_CHECKING:
     from typing import Any
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "The setuptools dependency embeds pkg_resources which uses a vendor meta path importer "
+        "that only implements the PEP-302 finder spec and not the modern spec. Only the modern "
+        "finder spec is supported by Python 3.12+."
+    ),
+)
 def test_undeclared_setuptools_import_on_pex_path(tmpdir):
     # type: (Any) -> None
     """Test that packages which access pkg_resources at import time can be found with pkg_resources.

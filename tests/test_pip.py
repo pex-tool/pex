@@ -30,7 +30,7 @@ if TYPE_CHECKING:
         def __call__(
             self,
             interpreter,  # type: Optional[PythonInterpreter]
-            version=PipVersion.VENDORED,  # type: PipVersionValue
+            version=PipVersion.DEFAULT,  # type: PipVersionValue
             **extra_env  # type: str
         ):
             # type: (...) -> Pip
@@ -59,7 +59,7 @@ def create_pip(
 
     def create_pip(
         interpreter,  # type: Optional[PythonInterpreter]
-        version=PipVersion.VENDORED,  # type: PipVersionValue
+        version=PipVersion.DEFAULT,  # type: PipVersionValue
         **extra_env  # type: str
     ):
         # type: (...) -> Pip
@@ -303,9 +303,9 @@ def test_pip_pex_interpreter_venv_hash_issue_1885(
     # Remove any existing pip.pex which may exist as a result of other test suites.
     installation = PipInstallation(
         interpreter=current_interpreter,
-        version=PipVersion.VENDORED,
+        version=PipVersion.DEFAULT,
     )
-    del _PIP[installation]
+    _PIP.pop(installation, None)
     binary = current_interpreter.binary
     binary_link = os.path.join(str(tmpdir), "python")
     os.symlink(binary, binary_link)
@@ -321,4 +321,4 @@ def test_pip_pex_interpreter_venv_hash_issue_1885(
             sort_keys=True,
         ).encode("utf-8")
     ).hexdigest()
-    assert venv_contents_hash in pip_w_linked_ppp._pip_pex.venv_dir
+    assert venv_contents_hash in pip_w_linked_ppp._pip.venv_dir

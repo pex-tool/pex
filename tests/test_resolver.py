@@ -267,7 +267,7 @@ def resolve_p537_wheel_names(
 ):
     # type: (...) -> List[str]
     with cache(cache_dir):
-        return resolve_wheel_names(requirements=["p537==1.0.5"], transitive=False, **kwargs)
+        return resolve_wheel_names(requirements=["p537==1.0.6"], transitive=False, **kwargs)
 
 
 @pytest.fixture(scope="module")
@@ -508,6 +508,13 @@ def test_download():
     assert_dist("setuptools", pkginfo.Wheel, "44.1.0")
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "The versions of setuptools that work with Python 3.12+ do not allow building projects "
+        "with invalid versions which are the subject of this test."
+    ),
+)
 def test_resolve_arbitrary_equality_issues_940():
     # type: () -> None
     dist = create_sdist(

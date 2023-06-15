@@ -16,7 +16,7 @@ from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Mapping
+    from typing import Any, Iterable, Mapping, Optional
 
 
 @pytest.fixture(scope="module")
@@ -40,7 +40,7 @@ def baseline_venv_with_pip(td):
     baseline_venv = Virtualenv.create(venv_dir=str(td.join("baseline.venv")))
     baseline_venv.install_pip()
     baseline_venv_distributions = index_distributions(baseline_venv.iter_distributions())
-    assert {PIP_PROJECT_NAME, SETUPTOOLS_PROJECT_NAME} == set(baseline_venv_distributions)
+    assert PIP_PROJECT_NAME in baseline_venv_distributions
     return baseline_venv_distributions
 
 
@@ -52,19 +52,19 @@ def baseline_venv_pip_version(baseline_venv_with_pip):
 
 @pytest.fixture(scope="module")
 def baseline_venv_setuptools_version(baseline_venv_with_pip):
-    # type: (Mapping[ProjectName, Version]) -> Version
-    return baseline_venv_with_pip[SETUPTOOLS_PROJECT_NAME]
+    # type: (Mapping[ProjectName, Version]) -> Optional[Version]
+    return baseline_venv_with_pip.get(SETUPTOOLS_PROJECT_NAME)
 
 
 def assert_venv_dists(
     venv_dir,  # type: str
     expected_pip_version,  # type: Version
-    expected_setuptools_version,  # type: Version
+    expected_setuptools_version,  # type: Optional[Version]
 ):
     virtualenv = Virtualenv(venv_dir)
     dists = index_distributions(virtualenv.iter_distributions())
     assert expected_pip_version == dists[PIP_PROJECT_NAME]
-    assert expected_setuptools_version == dists[SETUPTOOLS_PROJECT_NAME]
+    assert expected_setuptools_version == dists.get(SETUPTOOLS_PROJECT_NAME)
 
     def reported_version(module):
         # type: (str) -> Version
@@ -79,14 +79,15 @@ def assert_venv_dists(
         )
 
     assert expected_pip_version == reported_version("pip")
-    assert expected_setuptools_version == reported_version("setuptools")
+    if expected_setuptools_version:
+        assert expected_setuptools_version == reported_version("setuptools")
 
 
 def assert_venv_dists_no_conflicts(
     tmpdir,  # type: Any
     pex,  # type: str
     expected_pip_version,  # type: Version
-    expected_setuptools_version,  # type: Version
+    expected_setuptools_version,  # type: Optional[Version]
 ):
     # type: (...) -> None
     venv_dir = os.path.join(str(tmpdir), "venv_dir")
@@ -97,7 +98,7 @@ def assert_venv_dists_no_conflicts(
 def test_pip_empty_pex(
     tmpdir,  # type: Any
     baseline_venv_pip_version,  # type: Version
-    baseline_venv_setuptools_version,  # type: Version
+    baseline_venv_setuptools_version,  # type: Optional[Version]
 ):
     # type: (...) -> None
 
@@ -115,20 +116,16 @@ def test_pip_empty_pex(
 def test_pip_pex_no_conflicts(
     tmpdir,  # type: Any
     baseline_venv_pip_version,  # type: Version
-    baseline_venv_setuptools_version,  # type: Version
+    baseline_venv_setuptools_version,  # type: Optional[Version]
 ):
     # type: (...) -> None
 
     pex = os.path.join(str(tmpdir), "pex")
-    run_pex_command(
-        args=[
-            "-o",
-            pex,
-            "pip=={version}".format(version=baseline_venv_pip_version),
-            "setuptools=={version}".format(version=baseline_venv_setuptools_version),
-            "--include-tools",
-        ]
-    ).assert_success()
+    args = ["-o", pex, "pip=={version}".format(version=baseline_venv_pip_version)]
+    if baseline_venv_setuptools_version:
+        args.append("setuptools=={version}".format(version=baseline_venv_setuptools_version))
+    args.append("--include-tools")
+    run_pex_command(args).assert_success()
 
     assert_venv_dists_no_conflicts(
         tmpdir,
@@ -142,9 +139,9 @@ def assert_venv_dists_conflicts(
     tmpdir,  # type: Any
     pex,  # type: str
     baseline_venv_pip_version,  # type: Version
-    baseline_venv_setuptools_version,  # type: Version
+    baseline_venv_setuptools_version,  # type: Optional[Version]
     expected_pip_version,  # type: Version
-    expected_setuptools_version,  # type: Version
+    expected_setuptools_version,  # type: Optional[Version]
 ):
     # type: (...) -> None
 
@@ -211,7 +208,7 @@ def assert_venv_dists_conflicts(
 def test_pip_pex_pip_conflict(
     tmpdir,  # type: Any
     baseline_venv_pip_version,  # type: Version
-    baseline_venv_setuptools_version,  # type: Version
+    baseline_venv_setuptools_version,  # type: Optional[Version]
 ):
     # type: (...) -> None
 
@@ -239,9 +236,12 @@ def test_pip_pex_pip_conflict(
 def test_pip_pex_setuptools_conflict(
     tmpdir,  # type: Any
     baseline_venv_pip_version,  # type: Version
-    baseline_venv_setuptools_version,  # type: Version
+    baseline_venv_setuptools_version,  # type: Optional[Version]
 ):
     # type: (...) -> None
+
+    if not baseline_venv_setuptools_version:
+        return
 
     pex = os.path.join(str(tmpdir), "pex")
     run_pex_command(
@@ -252,7 +252,7 @@ def test_pip_pex_setuptools_conflict(
             "--include-tools",
         ]
     ).assert_success()
-    pex_setuptools_version = index_distributions(PEX(pex).resolve())[SETUPTOOLS_PROJECT_NAME]
+    pex_setuptools_version = index_distributions(PEX(pex).resolve()).get(SETUPTOOLS_PROJECT_NAME)
 
     assert_venv_dists_conflicts(
         tmpdir,
@@ -267,22 +267,18 @@ def test_pip_pex_setuptools_conflict(
 def test_pip_pex_both_conflict(
     tmpdir,  # type: Any
     baseline_venv_pip_version,  # type: Version
-    baseline_venv_setuptools_version,  # type: Version
+    baseline_venv_setuptools_version,  # type: Optional[Version]
 ):
     # type: (...) -> None
 
     pex = os.path.join(str(tmpdir), "pex")
-    run_pex_command(
-        args=[
-            "-o",
-            pex,
-            "pip!={version}".format(version=baseline_venv_pip_version),
-            "setuptools!={version}".format(version=baseline_venv_setuptools_version),
-            "--include-tools",
-        ]
-    ).assert_success()
+    args = ["-o", pex, "pip!={version}".format(version=baseline_venv_pip_version)]
+    if baseline_venv_setuptools_version:
+        args.append("setuptools!={version}".format(version=baseline_venv_setuptools_version))
+    args.append("--include-tools")
+    run_pex_command(args).assert_success()
     pex_pip_version = index_distributions(PEX(pex).resolve())[PIP_PROJECT_NAME]
-    pex_setuptools_version = index_distributions(PEX(pex).resolve())[SETUPTOOLS_PROJECT_NAME]
+    pex_setuptools_version = index_distributions(PEX(pex).resolve()).get(SETUPTOOLS_PROJECT_NAME)
 
     assert_venv_dists_conflicts(
         tmpdir,

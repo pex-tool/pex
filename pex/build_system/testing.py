@@ -37,16 +37,16 @@ def assert_build_sdist(
 
     sdist_dir = os.path.join(str(tmpdir), "sdist_dir")
 
-    # This test utility is used by all versions of Python Pex supports; so we need to use the
-    # vendored Pip which is guaranteed to work with all those Python versions.
-    pip_version = PipVersion.VENDORED
+    # This test utility is used by all versions of Python Pex supports; so we need to use a Pip
+    # which is guaranteed to work with the current Python version.
+    pip_version = PipVersion.DEFAULT
 
     location = build_sdist(
         project_dir,
         sdist_dir,
-        pip_version,
         LocalInterpreter.create(),
         ConfiguredResolver(PipConfiguration(version=pip_version)),
+        pip_version=pip_version,
     )
     assert not isinstance(location, Error), location
     assert sdist_dir == os.path.dirname(location)

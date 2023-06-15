@@ -26,7 +26,6 @@ def test_build_sdist_project_directory_dne(tmpdir):
     result = build_sdist(
         project_dir,
         dist_dir,
-        PipVersion.VENDORED,
         LocalInterpreter.create(),
         ConfiguredResolver.default(),
     )
@@ -45,7 +44,6 @@ def test_build_sdist_project_directory_is_file(tmpdir):
     result = build_sdist(
         project_dir,
         dist_dir,
-        PipVersion.VENDORED,
         LocalInterpreter.create(),
         ConfiguredResolver.default(),
     )

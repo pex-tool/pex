@@ -43,7 +43,7 @@ def main() -> None:
     source_and_tests = sorted(
         find_files_to_check(include=["pex", "tests"], exclude=["pex/vendor/_vendored"])
     )
-    for python_version in ("3.11", "3.10", "3.5", "2.7"):
+    for python_version in ("3.12", "3.11", "3.5", "2.7"):
         run_mypy(python_version, files=source_and_tests)
 
 

@@ -28,6 +28,7 @@ from pex.enum import Enum
 from pex.environment import PEXEnvironment
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
+from pex.jobs import DEFAULT_MAX_JOBS
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
@@ -119,11 +120,17 @@ __entry_point__ = None
 if '__file__' in locals() and __file__ is not None and os.path.exists(__file__):
   __entry_point__ = __entry_point_from_filename__(__file__)
 elif '__loader__' in locals():
-  from pkgutil import ImpLoader
   if hasattr(__loader__, 'archive'):
     __entry_point__ = __loader__.archive
-  elif isinstance(__loader__, ImpLoader):
-    __entry_point__ = __entry_point_from_filename__(__loader__.get_filename())
+  else:
+    try:
+      from pkgutil import ImpLoader
+      if isinstance(__loader__, ImpLoader):
+        __entry_point__ = __entry_point_from_filename__(__loader__.get_filename())
+    except ImportError:
+      from importlib.abc import Loader
+      if isinstance(__loader__, Loader):
+        __entry_point__ = __entry_point_from_filename__(__loader__.get_filename())
 
 if __entry_point__ is None:
   sys.stderr.write('Could not launch python executable!\\n')
@@ -748,7 +755,9 @@ class PEXBuilder(object):
         if pex_info.distributions:
             internal_cache = os.path.join(dirname, pex_info.internal_cache)
             os.mkdir(internal_cache)
-            for location, fingerprint in pex_info.distributions.items():
+
+            def pack_zip(item):
+                location, fingerprint = item
                 cached_installed_wheel_zip_dir = zip_cache_dir(
                     os.path.join(pex_info.pex_root, "installed_wheel_zips", fingerprint)
                 )
@@ -762,10 +771,20 @@ class PEXBuilder(object):
                             labels=(location,),
                             compress=compress,
                         )
-                safe_copy(
-                    os.path.join(cached_installed_wheel_zip_dir, location),
-                    os.path.join(internal_cache, location),
-                )
+                src_zip = os.path.join(cached_installed_wheel_zip_dir, location)
+                dst_zip = os.path.join(internal_cache, location)
+                safe_copy(src_zip, dst_zip)
+                return src_zip, dst_zip
+
+            from multiprocessing.pool import ThreadPool
+
+            pool = ThreadPool(processes=DEFAULT_MAX_JOBS)
+            try:
+                for src, dst in pool.map(pack_zip, pex_info.distributions.items()):
+                    TRACER.log("{} -> {}".format(src, dst))
+                pool.join()
+            finally:
+                pool.close()
 
     def _build_zipapp(
         self,

@@ -2,11 +2,21 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import sys
+
+import pytest
 
 from pex.common import temporary_dir
 from pex.testing import built_wheel, run_pex_command, run_simple_pex
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "The versions of setuptools that work with Python 3.12+ do not allow building projects "
+        "with invalid versions which are the subject of this test."
+    ),
+)
 def test_resolve_arbitrary_equality():
     # type: () -> None
     with temporary_dir() as tmpdir, built_wheel(

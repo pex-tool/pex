@@ -26,7 +26,7 @@ def test_load_build_system_pyproject_custom_repos(
     pip_version = (
         PipVersion.v22_2_2
         if PipVersion.v22_2_2.requires_python_applies(current_target)
-        else PipVersion.VENDORED
+        else PipVersion.DEFAULT
     )
     build_system = load_build_system(
         current_target,

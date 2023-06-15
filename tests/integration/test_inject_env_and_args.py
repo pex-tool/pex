@@ -145,7 +145,12 @@ def test_inject_args(
     )
 
 
-@pytest.mark.skipif(PY_VER < (3, 7), reason="Uvicorn only support Python 3.7+.")
+@pytest.mark.skipif(
+    PY_VER < (3, 7) or PY_VER >= (3, 12),
+    reason=(
+        "Uvicorn only supports Python 3.7+ and pre-built wheels are only available through 3.11."
+    ),
+)
 @parametrize_execution_mode_args
 def test_complex(
     tmpdir,  # type: Any

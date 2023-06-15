@@ -52,9 +52,12 @@ def _import_pkg_resources():
         from pex import third_party
 
         third_party.install(expose=["setuptools"])
-        import pkg_resources  # vendor:skip
+        try:
+            import pkg_resources  # vendor:skip
 
-        return pkg_resources, True
+            return pkg_resources, True
+        except ImportError:
+            return None, False
 
 
 @attr.s(frozen=True)
@@ -642,6 +645,11 @@ class PEXEnvironment(object):
         # since we'll only introduce our shaded version when no other standard version is present and
         # even then tear it all down when we hand off from the bootstrap to user code.
         pkg_resources, vendored = _import_pkg_resources()
+        if not pkg_resources:
+            # TODO(John Sirois): XXX Better error message.
+            pex_warnings.warn("XXX")
+            return
+
         if vendored:
             dists = "\n".join(
                 "\n{index}. {dist} namespace packages:\n  {ns_packages}".format(

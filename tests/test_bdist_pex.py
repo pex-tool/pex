@@ -3,8 +3,11 @@
 
 import os
 import subprocess
+import sys
 from contextlib import contextmanager
 from textwrap import dedent
+
+import pytest
 
 from pex.common import open_zip, safe_mkdtemp, temporary_dir
 from pex.testing import WheelBuilder, make_project, pex_project_dir, temporary_content
@@ -13,6 +16,15 @@ from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Iterator, List, Optional, Union
+
+
+skip_if_no_disutils = pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "Since distutils is gone in Python 3.12+, we don't want to test these commands in those "
+        "versions."
+    ),
+)
 
 
 BDIST_PEX_VENV = None  # type: Optional[Virtualenv]
@@ -84,11 +96,13 @@ def assert_pex_args_shebang(shebang):
                 assert fp.readline().decode().rstrip() == shebang
 
 
+@skip_if_no_disutils
 def test_entry_points_dict():
     # type: () -> None
     (_,) = assert_entry_points({"console_scripts": ["my_app = my_app.my_module:do_something"]})
 
 
+@skip_if_no_disutils
 def test_entry_points_ini_string():
     # type: () -> None
     (_,) = assert_entry_points(
@@ -101,6 +115,7 @@ def test_entry_points_ini_string():
     )
 
 
+@skip_if_no_disutils
 def test_bdist_all_single_entry_point_dict():
     # type: () -> None
     assert {"first_app"} == set(
@@ -110,6 +125,7 @@ def test_bdist_all_single_entry_point_dict():
     )
 
 
+@skip_if_no_disutils
 def test_bdist_all_two_entry_points_dict():
     # type: () -> None
     assert {"first_app", "second_app"} == set(
@@ -125,6 +141,7 @@ def test_bdist_all_two_entry_points_dict():
     )
 
 
+@skip_if_no_disutils
 def test_bdist_all_single_entry_point_ini_string():
     # type: () -> None
     (my_app,) = assert_entry_points(
@@ -139,6 +156,7 @@ def test_bdist_all_single_entry_point_ini_string():
     assert "my_app" == my_app
 
 
+@skip_if_no_disutils
 def test_bdist_all_two_entry_points_ini_string():
     # type: () -> None
     assert {"first_app", "second_app"} == set(
@@ -155,16 +173,19 @@ def test_bdist_all_two_entry_points_ini_string():
     )
 
 
+@skip_if_no_disutils
 def test_pex_args_shebang_with_spaces():
     # type: () -> None
     assert_pex_args_shebang("#!/usr/bin/env python")
 
 
+@skip_if_no_disutils
 def test_pex_args_shebang_without_spaces():
     # type: () -> None
     assert_pex_args_shebang("#!/usr/bin/python")
 
 
+@skip_if_no_disutils
 def test_unwriteable_contents():
     # type: () -> None
     my_app_setup_py = dedent(
