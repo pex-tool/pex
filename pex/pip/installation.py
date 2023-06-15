@@ -257,8 +257,10 @@ def get_pip(
     elif PipVersion.DEFAULT is PipVersion.VENDORED:
         calculated_version = PipVersion.VENDORED
     else:
+        # If no explicit Pip version was requested, and we're using Python 3.12+, the new semantic
+        # is to allow selecting the appropriate Pip for the interpreter at hand without warning.
+        # This is required since Python 3.12+ do not work with the vendored Pip.
         target = LocalInterpreter.create(interpreter)
-        # TODO(John Sirois): XXX: Justify this.
         calculated_version = try_(
             compatible_version(
                 targets=Targets.from_target(target),
