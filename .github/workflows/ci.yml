@@ -48,6 +48,10 @@ jobs:
     strategy:
       matrix:
         include:
+          # N.B.: We need 20.04 for Python 3.5 tool cache support.
+          - os: ubuntu-20.04
+            python-version: [ 3, 5 ]
+            pip-version: 20
           - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
@@ -100,9 +104,6 @@ jobs:
             pip-version: 20
           - os: ubuntu-22.04
             python-version: [ 2, 7, 18 ]
-            pip-version: 20
-          - os: ubuntu-22.04
-            python-version: [ 3, 5, 10 ]
             pip-version: 20
     steps:
       - name: Calculate Pythons to Expose
