@@ -250,10 +250,10 @@ jobs:
       matrix:
         include:
           - os: macos-12
-            python-version: [ 2, 7 ]
+            python-version: [ 2, 7, 18 ]
             pip-version: 20
           - os: ubuntu-22.04
-            python-version: [ 2, 7 ]
+            python-version: [ 2, 7, 18 ]
             pip-version: 20
     steps:
       - name: Calculate Pythons to Expose
