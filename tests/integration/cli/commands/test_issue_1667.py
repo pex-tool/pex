@@ -77,14 +77,19 @@ def test_interpreter_constraints_range_coverage(
 
     def assert_pex_works(python):
         # type: (str) -> None
-        assert (
-            subprocess.check_output(
-                args=[python, ipython_pex, "-c", "import IPython; print(IPython.__file__)"]
-            )
-            .decode("utf-8")
-            .strip()
-            .startswith(pex_root)
+        comm_channel = os.path.join(str(tmpdir), "comm")
+        subprocess.check_call(
+            args=[
+                python,
+                ipython_pex,
+                "-c",
+                "import IPython; print(IPython.__file__, file=open({comm!r}, 'w'))".format(
+                    comm=comm_channel
+                ),
+            ]
         )
+        with open(comm_channel) as fp:
+            assert fp.read().startswith(pex_root)
 
     assert_pex_works(py38.binary)
     if (3, 7) <= sys.version_info[:2] < (3, 11):
