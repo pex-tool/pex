@@ -48,16 +48,6 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for Python 2.7 & 3.5 tool cache support.
-          - os: macos-12
-            python-version: [ 2, 7 ]
-            pip-version: 20
-          - os: ubuntu-20.04
-            python-version: [ 2, 7 ]
-            pip-version: 20
-          - os: ubuntu-20.04
-            python-version: [ 3, 5 ]
-            pip-version: 20
           - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
@@ -98,6 +88,49 @@ jobs:
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
+  cpython-unit-tests-legacy:
+    name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
+    needs: org-check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-12
+            python-version: [ 2, 7, 18 ]
+            pip-version: 20
+          - os: ubuntu-22.04
+            python-version: [ 2, 7, 18 ]
+            pip-version: 20
+          - os: ubuntu-22.04
+            python-version: [ 3, 5, 10 ]
+            pip-version: 20
+    steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
+      - name: Checkout Pex
+        uses: actions/checkout@v3
+      - name: Setup Python ${{ join(matrix.python-version, '.') }}
+        uses: gabrielfalcao/pyenv-action@v14
+        with:
+          default: "${{ join(matrix.python-version, '.') }}"
+          command: pip install -U tox
+      - name: Expose Pythons
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+        with:
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v3
+        with:
+          path: ${{ env._PEX_TEST_PYENV_ROOT }}
+          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+      - name: Run Unit Tests
+        run: tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
@@ -216,6 +249,56 @@ jobs:
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
+  cpython-integration-tests-legacy:
+    name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
+    needs: org-check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-12
+            python-version: [ 2, 7 ]
+            pip-version: 20
+          - os: ubuntu-20.04
+            python-version: [ 2, 7 ]
+            pip-version: 20
+    steps:
+      - name: Calculate Pythons to Expose
+        id: calculate-pythons-to-expose
+        run: |
+          skip=""
+          if [[ "$(uname -s)" == "Linux" ]]; then
+            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
+          fi
+          echo "skip=${skip}" >> $GITHUB_OUTPUT
+      - name: Checkout Pex
+        uses: actions/checkout@v3
+        with:
+          # We need branches and tags for some ITs.
+          fetch-depth: 0
+      - name: Setup Python ${{ join(matrix.python-version, '.') }}
+        uses: gabrielfalcao/pyenv-action@v14
+        with:
+          default: "${{ join(matrix.python-version, '.') }}"
+          command: pip install -U tox
+      - name: Expose Pythons
+        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+        with:
+          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache@v3
+        with:
+          path: ${{ env._PEX_TEST_PYENV_ROOT }}
+          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.5.4
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        if: env.SSH_PRIVATE_KEY != ''
+        with:
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
+      - name: Run Integration Tests
+        run: tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
