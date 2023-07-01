@@ -186,13 +186,6 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for Python 2.7 tool cache support.
-          - os: macos-12
-            python-version: [ 2, 7 ]
-            pip-version: 20
-          - os: ubuntu-20.04
-            python-version: [ 2, 7 ]
-            pip-version: 20
           - os: ubuntu-22.04
             python-version: [ 3, 7 ]
             pip-version: 22_3_1
@@ -259,7 +252,7 @@ jobs:
           - os: macos-12
             python-version: [ 2, 7 ]
             pip-version: 20
-          - os: ubuntu-20.04
+          - os: ubuntu-22.04
             python-version: [ 2, 7 ]
             pip-version: 20
     steps:
@@ -366,8 +359,10 @@ jobs:
     needs:
       - checks
       - cpython-unit-tests
+      - cpython-unit-tests-legacy
       - pypy-unit-tests
       - cpython-integration-tests
+      - cpython-integration-tests-legacy
       - pypy-integration-tests
     runs-on: ubuntu-22.04
     steps:
