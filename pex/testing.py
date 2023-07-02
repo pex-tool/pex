@@ -24,6 +24,8 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip.installation import get_pip
+from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
@@ -195,7 +197,10 @@ class WheelBuilder(object):
 
     def bdist(self):
         # type: () -> str
-        get_pip(interpreter=self._interpreter).spawn_build_wheels(
+        get_pip(
+            interpreter=self._interpreter,
+            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        ).spawn_build_wheels(
             distributions=[self._source_dir],
             wheel_dir=self._wheel_dir,
             interpreter=self._interpreter,
@@ -272,7 +277,9 @@ def install_wheel(
 ):
     # type: (...) -> Distribution
     install_dir = os.path.join(safe_mkdtemp(), os.path.basename(wheel))
-    get_pip(interpreter=interpreter).spawn_install_wheel(
+    get_pip(
+        interpreter=interpreter, resolver=ConfiguredResolver(pip_configuration=PipConfiguration())
+    ).spawn_install_wheel(
         wheel=wheel,
         install_dir=install_dir,
         target=LocalInterpreter.create(interpreter),

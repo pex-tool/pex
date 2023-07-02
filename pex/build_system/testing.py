@@ -56,7 +56,9 @@ def assert_build_sdist(
 
     # Verify the sdist is valid such that we can build a wheel from it.
     wheel_dir = os.path.join(str(tmpdir), "wheel_dir")
-    get_pip().spawn_build_wheels(distributions=[sdist.location], wheel_dir=wheel_dir).wait()
+    get_pip(resolver=ConfiguredResolver(pip_configuration=PipConfiguration())).spawn_build_wheels(
+        distributions=[sdist.location], wheel_dir=wheel_dir
+    ).wait()
     wheels = glob.glob(os.path.join(wheel_dir, "*.whl"))
     assert 1 == len(wheels)
     assert_expected_dist(Distribution.load(wheels[0]))
