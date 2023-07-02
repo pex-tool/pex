@@ -1,6 +1,28 @@
 Release Notes
 =============
 
+2.1.138
+-------
+
+This release brings fixes for for two obscure corner cases.
+
+Previously, if you used ``--venv`` PEXes in the default symlinked
+site-packages mode that contained first party code in a namespace
+package shared with 3rd-party dependencies the first party code would
+contaminate the Pex installed wheel cache for one of the 3rd-party
+dependencies in PEX.
+
+Even more obscure (the only known issue was in Pex's own CI), if you
+ran the Pex CLI concurrently using two different ``--pip-version``
+arguments, you may have seen spurious Pip HTTP errors that found an
+invalid ``Content-Type: Unknown`` header.
+
+* Isolate the Pip cache per Pip version. (#2164)
+  `PR #2164 <https://github.com/pantsbuild/pex/pull/2164>`_
+
+* Fix symlinked venv ns-package calcs. (#2165)
+  `PR #2165 <https://github.com/pantsbuild/pex/pull/2165>`_
+
 2.1.137
 -------
 
