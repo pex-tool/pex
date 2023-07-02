@@ -25,11 +25,25 @@ if TYPE_CHECKING:
 def top_level_wheel(tmpdir):
     # type: (Any) -> str
     top_level_project = os.path.join(str(tmpdir), "project")
-
-    top_level_library = os.path.join(top_level_project, "top_level", "lib.py")
-    with safe_open(top_level_library, "w") as fp:
+    with safe_open(os.path.join(top_level_project, "top_level", "__init__.py"), "w") as fp:
+        fp.write("__path__ = __import__('pkgutil').extend_path(__path__, __name__)")
+    with safe_open(os.path.join(top_level_project, "top_level", "lib.py"), "w") as fp:
         fp.write("OG = 'Henry Barber'")
 
+    with safe_open(os.path.join(top_level_project, "setup.cfg"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                [metadata]
+                name = top_level
+                version = 0.1.0
+
+                [options]
+                packages =
+                    top_level
+                """
+            )
+        )
     with safe_open(os.path.join(top_level_project, "pyproject.toml"), "w") as fp:
         fp.write(
             dedent(
@@ -37,10 +51,6 @@ def top_level_wheel(tmpdir):
                 [build-system]
                 requires = ["setuptools"]
                 build-backend = "setuptools.build_meta"
-
-                [project]
-                name = "top_level"
-                version = "0.1.0"
                 """
             )
         )
@@ -69,6 +79,8 @@ def test_ns_package_split_across_sources_and_deps(
     # type: (...) -> None
 
     sources = os.path.join(str(tmpdir), "sources")
+    with safe_open(os.path.join(sources, "top_level", "__init__.py"), "w") as fp:
+        fp.write("__path__ = __import__('pkgutil').extend_path(__path__, __name__)")
     with safe_open(os.path.join(sources, "top_level", "mymain.py"), "w") as fp:
         fp.write(
             dedent(
@@ -115,12 +127,15 @@ def test_ns_package_split_across_sources_and_deps(
     assert ProjectName("top_level") == top_level.metadata.project_name
     assert Version("0.1.0") == top_level.metadata.version
 
-    assert [os.path.join(top_level.location, "top_level", "lib.py")] == [
+    assert sorted(
+        os.path.join(top_level.location, "top_level", expected)
+        for expected in ("__init__.py", "lib.py")
+    ) == sorted(
         os.path.join(root, f)
         for root, dirs, files in os.walk(top_level.location)
         for f in files
         if f.endswith(".py")
-    ], (
+    ), (
         "Even in venv symlink mode, we expect the PEX 3rd-party wheel sources to remain isolated "
         "from the PEX user sources"
     )
