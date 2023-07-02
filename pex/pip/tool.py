@@ -224,6 +224,7 @@ class Pip(object):
     _PATCHES_PACKAGE_NAME = "_pex_pip_patches"
 
     _pip_pex = attr.ib()  # type: VenvPex
+    _pip_cache = attr.ib()  # type: str
 
     @staticmethod
     def _calculate_resolver_version(package_index_configuration=None):
@@ -301,8 +302,7 @@ class Pip(object):
         else:
             pip_args.append("-q")
 
-        pip_cache = os.path.join(ENV.PEX_ROOT, "pip_cache")
-        pip_args.extend(["--cache-dir", pip_cache])
+        pip_args.extend(["--cache-dir", self._pip_cache])
 
         command = pip_args + list(args)
 
@@ -321,7 +321,7 @@ class Pip(object):
         # since Pip relies upon `shutil.move` which is only atomic when `os.rename` can be used.
         # See https://github.com/pantsbuild/pex/issues/1776 for an example of the issues non-atomic
         # moves lead to in the `pip wheel` case.
-        pip_tmpdir = os.path.join(pip_cache, ".tmp")
+        pip_tmpdir = os.path.join(self._pip_cache, ".tmp")
         safe_mkdir(pip_tmpdir)
         extra_env.update(TMPDIR=pip_tmpdir)
 
