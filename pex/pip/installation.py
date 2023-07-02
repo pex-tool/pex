@@ -11,7 +11,7 @@ from pex.atomic_directory import atomic_directory
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
-from pex.pex_bootstrapper import VenvPex, ensure_venv
+from pex.pex_bootstrapper import ensure_venv
 from pex.pip.tool import Pip
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.resolvers import Resolver
@@ -29,13 +29,14 @@ else:
     from pex.third_party import attr
 
 
-def _pip_venv(
+def _pip_installation(
     version,  # type: PipVersionValue
     iter_distribution_locations,  # type: Callable[[], Iterator[str]]
     interpreter=None,  # type: Optional[PythonInterpreter]
 ):
-    # type: (...) -> VenvPex
-    path = os.path.join(ENV.PEX_ROOT, "pip-{version}.pex".format(version=version))
+    # type: (...) -> Pip
+    pip_root = os.path.join(ENV.PEX_ROOT, "pip", str(version))
+    path = os.path.join(pip_root, "pip.pex")
     pip_interpreter = interpreter or PythonInterpreter.get()
     pip_pex_path = os.path.join(path, isolated().pex_hash)
     with atomic_directory(pip_pex_path) as chroot:
@@ -66,13 +67,15 @@ def _pip_venv(
                 fp.close()
                 isolated_pip_builder.set_executable(fp.name, "__pex_patched_pip__.py")
             isolated_pip_builder.freeze()
-    return ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter))
+    pip_cache = os.path.join(pip_root, "pip_cache")
+    pip_pex = ensure_venv(PEX(pip_pex_path, interpreter=pip_interpreter))
+    return Pip(pip_pex=pip_pex, pip_cache=pip_cache)
 
 
 def _vendored_installation(interpreter=None):
-    # type: (Optional[PythonInterpreter]) -> VenvPex
+    # type: (Optional[PythonInterpreter]) -> Pip
 
-    return _pip_venv(
+    return _pip_installation(
         version=PipVersion.VENDORED,
         iter_distribution_locations=lambda: third_party.expose(("pip", "setuptools", "wheel")),
         interpreter=interpreter,
@@ -84,7 +87,7 @@ def _resolved_installation(
     resolver,  # type: Resolver
     interpreter=None,  # type: Optional[PythonInterpreter]
 ):
-    # type: (...) -> VenvPex
+    # type: (...) -> Pip
     if version is PipVersion.VENDORED:
         return _vendored_installation(interpreter=interpreter)
 
@@ -96,7 +99,7 @@ def _resolved_installation(
         ).installed_distributions:
             yield installed_distribution.distribution.location
 
-    return _pip_venv(
+    return _pip_installation(
         version=version,
         iter_distribution_locations=resolve_distribution_locations,
         interpreter=interpreter,
@@ -204,7 +207,7 @@ def get_pip(
     if pip is None:
         installation.check_python_applies()
         if version is PipVersion.VENDORED:
-            pip = Pip(pip_pex=_vendored_installation(interpreter=interpreter))
+            pip = _vendored_installation(interpreter=interpreter)
         else:
             if resolver is None:
                 raise ValueError(
@@ -212,12 +215,8 @@ def get_pip(
                         requirement=version.requirement
                     )
                 )
-            pip = Pip(
-                pip_pex=_resolved_installation(
-                    version=version,
-                    resolver=resolver,
-                    interpreter=interpreter,
-                )
+            pip = _resolved_installation(
+                version=version, resolver=resolver, interpreter=interpreter
             )
         _PIP[installation] = pip
     return pip
