@@ -46,6 +46,13 @@ def test_check_install_issue_1726(
             )
         )
 
+    # Via: jaraco-collections==3.5.1 -> jaraco-text -> inflect -> pydantic>=1.9.1
+    # Pydantic 2.0 can get pulled in which defeats the Pip legacy resolver and leads to a resolve
+    # conflict for PyPy; so we bound pydantic low.
+    constraints = os.path.join(str(tmpdir), "constraints.txt")
+    with open(constraints, "w") as fp:
+        fp.write("pydantic<2")
+
     pex_root = os.path.join(str(tmpdir), "pex_root")
     pex_args = [
         "--pex-root",
@@ -53,6 +60,8 @@ def test_check_install_issue_1726(
         "--runtime-pex-root",
         pex_root,
         src,
+        "--constraints",
+        constraints,
         "--",
         "-c",
         "from jaraco import collections; print(collections.__file__)",

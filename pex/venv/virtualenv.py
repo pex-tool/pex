@@ -349,8 +349,7 @@ class Virtualenv(object):
 
     def iter_distributions(self):
         # type: () -> Iterator[Distribution]
-        """"""
-        for dist in find_distributions(search_path=self.sys_path):
+        for dist in find_distributions(search_path=self._interpreter.site_packages):
             yield dist
 
     def _rewrite_base_scripts(self, real_venv_dir):
