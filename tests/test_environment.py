@@ -355,15 +355,20 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
     _, stderr = process.communicate()
     stderr_text = stderr.decode("utf8")
 
-    partial_warning_preamble = "PEXWarning: The `pkg_resources` package was loaded"
+    if sys.version_info[:2] >= (3, 12):
+        partial_warning_preamble = (
+            "PEXWarning: The legacy `pkg_resources` package cannot be imported by"
+        )
+    else:
+        partial_warning_preamble = "PEXWarning: The `pkg_resources` package was loaded"
     partial_warning_detail = "{} namespace packages:".format(requirement)
 
     if expected_warning:
-        assert partial_warning_preamble in stderr_text
-        assert partial_warning_detail in stderr_text
+        assert partial_warning_preamble in stderr_text, stderr_text
+        assert partial_warning_detail in stderr_text, stderr_text
     else:
-        assert partial_warning_preamble not in stderr_text
-        assert partial_warning_detail not in stderr_text
+        assert partial_warning_preamble not in stderr_text, stderr_text
+        assert partial_warning_detail not in stderr_text, stderr_text
 
 
 def test_present_non_empty_namespace_packages_metadata_does_warn():
