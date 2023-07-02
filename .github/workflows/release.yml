@@ -84,6 +84,12 @@ jobs:
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           tox-env: package
+      - name: Prepare Changelog
+        id: prepare-changelog
+        uses: a-scie/actions/changelog@v1.5
+        with:
+          changelog-file: ${{ github.workspace }}/CHANGES.md
+          version: ${{ needs.determine-tag.outputs.release-version }}
       - name: Create ${{ needs.determine-tag.outputs.release-tag }} Release
         uses: softprops/action-gh-release@v1
         env:
@@ -91,12 +97,38 @@ jobs:
         with:
           tag_name: ${{ needs.determine-tag.outputs.release-tag }}
           name: pex ${{ needs.determine-tag.outputs.release-version }}
-          body: |
-            ---
-
-            ## ${{ needs.determine-tag.outputs.release-version }}
-
-            TODO: Add CHANGES.rst entries.
+          body_path: ${{ steps.prepare-changelog.outputs.changelog-file }}
           draft: false
           prerelease: false
           files: dist/pex
+          fail_on_unmatched_files: true
+          discussion_category_name: Announcements
+  announce-release:
+    name: Announce Release
+    needs:
+      - determine-tag
+      - pypi
+      - github-release
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Post Release Announcement to Pants Slack `#announce`
+        id: slack
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: "C18RRR4JK"
+          # N.B.: You can muck with the JSON blob and see the results rendered here:
+          #  https://app.slack.com/block-kit-builder
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Pex ${{ needs.determine-tag.outputs.release-version }} is released:\n* https://pypi.org/project/pex/${{ needs.determine-tag.outputs.release-version }}/\n* https://github.com/pantsbuild/pex/releases/tag/${{ needs.determine-tag.outputs.release-tag }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

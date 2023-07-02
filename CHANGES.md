@@ -1,0 +1,2573 @@
+# Release Notes
+
+## 2.1.138
+
+This release brings fixes for two obscure corner cases.
+
+Previously, if you used `--venv` PEXes in the default symlinked
+site-packages mode that contained first party code in a namespace
+package shared with 3rd-party dependencies the first party code would
+contaminate the Pex installed wheel cache for one of the 3rd-party
+dependencies in PEX.
+
+Even more obscure (the only known issue was in Pex's own CI), if you
+ran the Pex CLI concurrently using two different `--pip-version`
+arguments, you may have seen spurious Pip HTTP errors that found an
+invalid `Content-Type: Unknown` header.
+
+* Isolate the Pip cache per Pip version. (#2164)
+* Fix symlinked venv ns-package calcs. (#2165)
+
+## 2.1.137
+
+This release fixes a long-standing bug in lock file creation for exotic
+locking scenarios pulling the same project from multiple artifact
+sources (any mix of URLs, VCS and local project directories).
+
+* Fix inter-artifact comparisons. (#2152)
+
+## 2.1.136
+
+This release adds the `pex3 lock export-subset` command. This is a
+version of `pex3 lock export` that also accepts requirements arguments
+allowing just a subset of the lock satisfying the given requirements to
+be exported.
+
+* Add `pex3 lock export-subset`. (#2145)
+
+## 2.1.135
+
+This release brings support for `pex3 venv {inspect,create}` for working
+with venvs directly using Pex. Previously, a PEX built with
+`--include-tools` (or `--venv`) had the capability of turning itself
+into a venv but the new `pex3 venv create` command can do this for any
+PEX file with the addition of a few new features:
+
+1.  The venv can now be created directly from requirements producing no
+    intermediate PEX file.
+2.  The venv can be created either from a PEX file or a lock file. A
+    subset of either of those can be chosen by also supplying
+    requirements.
+3.  Instead of creating a full-fledged venv, just the site-packages can
+    be exported (without creating an intermediate venv). This "flat"
+    layout is used by several prominent runtimes - notably AWS Lambda
+    -and emulates `pip install --target`. This style layout can also be
+    zipped and prefixed. Additionally, it supports `--platform` and
+    `--complete-platform` allowing creation of, for example, an AWS
+    Lambda (or Lambda Layer) deployment zip on a non-Linux host.
+
+Additionally, this release adds support for Pip 23.1.1 and 23.1.2.
+
+* Add Support for Pip 23.1.1. (#2133)
+* Introduce pex3 venv inspect. (#2135)
+* Introduce pex3 venv create. (#2140)
+* Add support for Pip 23.1.2. (#2142)
+
+## 2.1.134
+
+This release fixes `pex3 lock create` gathering of sdist metadata for
+PEP-517 build backends with non-trivial `get-requires-for-build-wheel`
+requirements.
+
+* Use get_requires_for_build_wheel for metadata prep. (#2129)
+
+## 2.1.133
+
+This release fixes `--venv` mode PEX venv script shebangs for some
+scenarios using Python `<=3.7` interpreters.
+
+* Fix venv script shebangs. (#2122)
+
+## 2.1.132
+
+This release brings support for the latest Pip release with
+`--pip-version 23.1` or by using new support for pinning to the latest
+version of Pip supported by Pex with `--pip-version latest`.
+
+* Add support for Pip 23.1 (#2114)
+* Add support for `--pip-version latest`. (#2116)
+
+## 2.1.131
+
+This release fixes some inconsistencies in Pex JSON output across the
+Python 2/3 boundary and in handling of venv collisions when using the
+venv Pex tool.
+
+* Stabilize JSON output format across Python 2/3. (#2106)
+* Support `--pip` overrides via PEX deps. (#2107)
+
+## 2.1.130
+
+This release fixes a regression locking certain complex cases of direct
+and transitive requirement interactions as exemplified in #2098.
+
+* Guard lock analysis against Pip-cached artifacts. (#2103)
+
+## 2.1.129
+
+This release fixes a bug downloading a VCS requirement from a lock when
+the ambient Python interpreter used to run Pex does not meet the
+`Requires-Python` constraint of the VCS requirement.
+
+* Fix VCS lock downloads to respect target. (#2094)
+
+## 2.1.128
+
+This release fixes a regression introduced in Pex 2.1.120 that caused
+`--no-venv-site-packages-copies` (the default when using `--venv`) to
+be ignored for both zipapp PEXes (the default) and `--layout packed`
+PEXes.
+
+* Fix regression in venv symlinking. (#2090)
+
+## 2.1.127
+
+This release fixes `--lock` resolve sub-setting for local project
+requirements.
+
+* Fix lock subsetting for local projects. (#2085)
+
+## 2.1.126
+
+This release fixes a long-standing (> 4 years old!) concurrency bug
+when building the same sdist for the 1st time and racing another Pex
+process doing the same sdist build.
+
+* Guard against racing sdist builds. (#2080)
+
+## 2.1.125
+
+This release makes `--platform` and `--complete-platform` resolves and
+locks as permissive as possible. If such a resolve or lock only has an
+sdist available for a certain project, that sdist will now be used if it
+builds to a wheel compatible with the specified foreign platform(s).
+
+* Attempt "cross-builds" of sdists for foreign platforms. (#2075)
+
+## 2.1.124
+
+This release adds support for specifying `--non-hermetic-venv-scripts`
+when building a `--venv` PEX. This can be useful when integrating with
+frameworks that do setup via `PYTHONPATH` manipulation.
+
+Support for Pip 23.0.1 and setuptools 67.4.0 is added via
+`--pip-version 23.0.1`.
+
+Additionally, more work towards hardening Pex against rare concurrency
+issues in its atomic directory handling is included.
+
+* Introduce `--non-hermetic-venv-scripts`. (#2068)
+* Wrap inter-process locks in in-process locks. (#2070)
+* Add support for Pip 23.0.1. (#2072)
+
+## 2.1.123
+
+This release fixes a few `pex3 lock create` bugs.
+
+There was a regression introduced in Pex 2.1.122 where projects that
+used a PEP-518 `[build-system] requires` but specified no corresponding
+`build-backend` would fail to lock.
+
+There were also two long-standing issues handling more exotic direct
+reference URL requirements. Source archives with names not following the
+standard Python sdist naming scheme of
+`<project name>-<version>.{zip,tar.gz}` would cause a lock error. An
+important class of these is provided by GitHub's magic source archive
+download URLs. Also, although local projects addressed with Pip
+proprietary support for pure local path requirements would lock, the
+same local projects addressed via
+`<project name> @ file://<local project path>` would also cause a lock
+error. Both of these cases are now fixed and can be locked successfully.
+
+When locking with an `--interpreter-constraint`, any resolve traversing
+wheels using the `pypyXY` or `cpythonXY` python tags would cause the
+lock to error. Wheels with this form of python tag are now handled
+correctly.
+
+* Handle `[build-system]` with no build-backend. (#2064)
+* Handle locking all direct reference URL forms. (#2060)
+* Fix python tag handling in IC locks. (#2061)
+
+## 2.1.122
+
+This release fixes posix file locks used by Pex internally and enhances
+lock creation to support locking sdist-only C extension projects that do
+not build on the current platform. Pex is also updated to support
+`--pip-version 22.3.1` and `--pip-version 23.0`, bringing it up to date
+with the latest Pip's available.
+
+* Support the latest Pip releases: 22.3.1 & 23.0 (#2056)
+* Lock sdists with `prepare-metadata-for-build-wheel`. (#2053)
+* Fix `execute_parallel` "leaking" a thread. (#2052)
+
+## 2.1.121
+
+This release fixes two bugs brought to light trying to interoperate with
+Poetry projects.
+
+* Support space separated markers in URL reqs. (#2039)
+* Handle `file://` URL deps in distributions. (#2041)
+
+## 2.1.120
+
+This release completes the `--complete-platform` fix started in Pex
+2.1.116 by #1991. That fix did not work in all cases but now does.
+
+PEXes run in interpreter mode now support command history when the
+underlying interpreter being used to run the PEX does; use the
+`PEX_INTERPRETER_HISTORY` bool env var to turn this on.
+
+Additionally, PEXes built with the combination
+`--layout loose --venv --no-venv-site-packages-copies` are fixed to be
+robust to moves of the source loose PEX directory.
+
+* Fix loose `--venv` PEXes to be robust to moves. (#2033)
+* Fix interpreter resolution when using `--complete-platform` with
+    `--resolve-local-platforms` (#2031)
+* Support REPL command history. (#2018)
+
+## 2.1.119
+
+This release brings two new features. The venv pex tool now just warns
+when using `--compile` and there is a `*.pyc` compile error instead of
+failing to create the venv. Also, a new `PEX_DISABLE_VARIABLES` env var
+knob is added to turn off reading all `PEX_*` env vars from the
+environment.
+
+* Ignore compile error for `PEX_TOOLS=1` (#2002)
+* Add `PEX_DISABLE_VARIABLES` to lock down a PEX run. (#2014)
+
+## 2.1.118
+
+This is a very tardy hotfix release for a regression introduced in Pex
+2.1.91 by #1785 that replaced `sys.argv[0]` with its fully resolved
+path. This prevented introspecting the actual file path used to launch
+the PEX which broke BusyBox-alike use cases.
+
+There is also a new `--non-hermetic-scripts` option accepted by the
+`venv` tool to allow running console scripts with `PYTHONPATH`
+adjustments to the `sys.path`.
+
+* Remove un-needed realpathing of `sys.argv[0]`. (#2007)
+* Add `--non-hermetic-scripts` option to `venv` tool. (#2010)
+
+## 2.1.117
+
+This release fixes a bug introduced in Pex 2.1.109 where the released
+Pex PEX could not be executed by PyPy interpreters. More generally, any
+PEX created with interpreter constraints that did not specify the Python
+implementation, e.g.: `==3.8.*`, were interpreted as being CPython
+specific, i.e.: `CPython==3.8.*`. This is now fixed, but if the
+intention of a constraint like `==3.8.*` was in fact to restrict to
+CPython only, interpreter constraints need to say so now and use
+`CPython==3.8.*` explicitly.
+
+* Fix interpreter constraint parsing. (#1998)
+
+## 2.1.116
+
+This release fixes a bug in `--resolve-local-platforms` when
+`--complete-platform` was used.
+
+* Check for `--complete-platforms` match when
+    `--resolve-local-platforms` (#1991)
+
+## 2.1.115
+
+This release brings some attention to the `pex3 lock export` subcommand
+to make it more useful when interoperating with `pip-tools`.
+
+* Sort requirements based on normalized project name when exporting
+    (#1992)
+* Use raw version when exporting (#1990)
+
+## 2.1.114
+
+This release brings two fixes for `--venv` mode PEXes.
+
+* Only insert `""` to head of `sys.path` if a venv PEX runs in
+    interpreter mode (#1984)
+* Map pex python path interpreter to realpath when creating venv dir
+    hash. (#1972)
+
+## 2.1.113
+
+This is a hotfix release that fixes errors installing wheels when there
+is high parallelism in execution of Pex processes. These issues were a
+regression introduced by #1961 included in the 2.1.112 release.
+
+* Restore AtomicDirectory non-locked good behavior. (#1974)
+
+## 2.1.112
+
+This release brings support for the latest Pip release and includes some
+internal changes to help debug intermittent issues some users are seeing
+that implicate what may be file locking related bugs.
+
+* Add support for `--pip-version 22.3`. (#1953)
+
+## 2.1.111
+
+This release fixes resolving requirements from a lock using arbitrary
+equality (`===`).
+
+In addition, you can now "inject" runtime environment variables and
+arguments into PEX files such that, when run, the PEX runtime ensures
+those environment variables and command line arguments are passed to the
+PEXed application. See [PEX Recipes](
+https://pex.readthedocs.io/en/latest/recipes.html#uvicorn-and-other-customizable-application-servers
+)
+for more information.
+
+* Fix lock resolution to handle arbitrary equality. (#1951)
+* Support injecting args and env vars in a PEX. (#1948)
+
+## 2.1.110
+
+This release fixes Pex runtime `sys.path` scrubbing for cases where Pex
+is not the main entry point. An important example of this is in Lambdex
+where the AWS Lambda Python runtime packages (`boto3` and `botocore`)
+are leaked into the PEX runtime `sys.path`.
+
+* Fix `sys.path` scrubbing. (#1946)
+
+## 2.1.109
+
+This release brings musllinux wheel support and a fix for a regression
+introduced in Pex 2.1.105 by #1902 that caused `PEX_PATH=` (an exported
+`PEX_PATH` with an empty string value) to raise an error in almost all
+use cases.
+
+* Vendor latest packaging; support musllinux wheels. (#1937)
+* Don't treat `PEX_PATH=` as `.` like other PATHS. (#1938)
+
+## 2.1.108
+
+This release fixes a latent PEX boot performance bug triggered by
+requirements with large extras sets.
+
+* Fix slow PEX boot time when there are many extras. (#1929)
+
+## 2.1.107
+
+This release fixes an issue handling credentials in git+ssh VCS urls
+when creating locks.
+
+* Fix locks for git+ssh with credentials. (#1923)
+
+## 2.1.106
+
+This release fixes a long-standing bug in handling direct reference
+requirements with a local version component.
+
+* Unquote path component of parsed url requirements (#1920)
+
+## 2.1.105
+
+This is a fix release which addresses issues related to build time
+work_dir creation, virtualenv, and sh_boot support.
+
+In the unlikely event of a UUID collision in atomic workdir creation,
+pex could overwrite an existing directory and cause a corrupt state.
+When building a shell bootable `--sh-boot` pex the `--runtime-pex-root`
+was not always respected based on the condition of the build
+environment, and the value of the PEX_ROOT.
+
+* Fail on atomic_directory work_dir collision. (#1905)
+* Use raw_pex_root when constructing sh_boot pexes. (#1906)
+* Add support for offline downloads (#1898)
+
+## 2.1.104
+
+This release brings a long-awaited upgrade of the Pip Pex uses, but
+behind a `--pip-version 22.2.2` flag you must opt in to. Pex will then
+use that version of Pip if it can (your Pex operations target Python
+`>=3.7`) and warn and fall back to the older vendored Pip (20.3.4) if it
+can't. To turn the need to fall back to older Pip from a warning into a
+hard error you can also specify `--no-allow-pip-version-fallback`.
+
+The `pex3 lock update` command now gains the ability to update just the
+index and find links repos the lock's artifacts originate from by using
+a combination of `--no-pypi`, `--index` & `--find-links` along with
+`--pin` to ensure the project versions stay pinned as they are in the
+lockfile and just the repos they are downloaded from is altered. Consult
+the CLI `--help` for `--fingerprint-mismatch {ignore,warn,error}` to
+gain more control over repo migration behavior.
+
+There are several bug fixes as well dealing with somewhat esoteric
+corner cases involving changing a PEX `--layout` from one form to
+another and building artifacts using certain interpreters on macOS 11.0
+(aka: 10.16).
+
+* Add support for Pip 22.2.2. (#1893)
+* Make lock update sensitive to artifacts. (#1887)
+* Ensure locally built wheel is consumable locally. (#1886)
+* Ensure `--output` always overwrites destination. (#1883)
+
+## 2.1.103
+
+This release fixes things such that pex lockfiles can be created and
+updated using the Pex PEX when local projects are involved.
+
+* Fix `pex3 lock ...` when run from the Pex PEX. (#1874)
+
+## 2.1.102
+
+This is a hotfix release that fixes a further corner missed by #1863 in
+the Pex 2.1.101 release whereby Pex would fail to install
+platform-specific packages on Red Hat based OSes.
+
+In addition, an old but only newly discovered bug in
+`--inherit-path={prefer,fallback}` handling is fixed. Previously only
+using `PEX_INHERIT_PATH={prefer,fallback}` at runtime worked properly.
+
+In the process of fixing the old `--inherit-path={prefer,fallback}` bug,
+also fix another old bug handling modern virtualenv venvs under Python
+2.7 during zipapp execution mode PEX boots.
+
+* Fix wheel installs: account for purelib & platlib. (#1867)
+* Fix `--inhert-path` handling. (#1871)
+* Error using pex + `virtualenv>=20.0.0` + python 2.7 (#992)
+
+## 2.1.101
+
+This release fixes a corner-case revealed by python-certifi-win32 1.6.1
+that was not previously handled when installing certain distributions.
+
+* Make wheel install `site-packages` detection robust. (#1863)
+
+## 2.1.100
+
+This release fixes a hole in the lock creation `--target-system` feature
+added in #1823 in Pex 2.1.95.
+
+* Fix lock creation `--target-system` handling. (#1858)
+
+## 2.1.99
+
+This release fixes a concurrency bug in the `pex --lock ...` artifact
+downloading.
+
+* Fix `pex --lock ...` concurrent download errors. (#1854)
+
+## 2.1.98
+
+This releases fixes regressions in foreign `--platform` handling and
+artifact downloading introduced by #1787 in Pex 2.1.91 and #1811 in
+2.1.93.
+
+In addition, PEXes can now be used as `sys.path` entries. Once on the
+`sys.path`, via `PYTHONPATH` or other means, the code in the PEX can be
+made importable by first importing `__pex__` either as its own
+stand-alone import statement; e.g.: `import __pex__; import psutil` or
+as a prefix of the code to import from the PEX; e.g.:
+`from __pex__ import psutil`.
+
+* Tags should be patched for `--platform`. (#1846)
+* Add support for importing from PEXes. (#1845)
+* Fix artifact downloads for foreign platforms. #1851
+
+## 2.1.97
+
+This release patches a hole left by #1828 in the Pex 2.1.95 release
+whereby, although you could run a PEX under a too-long PEX_ROOT you
+could not build a PEX under a tool-long PEX_ROOT.
+
+* Avoid ENOEXEC for Pex internal `--venv`s. (#1843)
+
+## 2.1.96
+
+This is a hotfix release that fixes `--venv` mode `PEX_EXTRA_SYS_PATH`
+propagation introduced in Pex 2.1.95 to only apply to `sys.executable`
+and not other Pythons.
+
+* Fix `--venv` `PEX PEX_EXTRA_SYS_PATH` propagation. (#1837)
+
+## 2.1.95
+
+This release brings two new `pex3 lock` features for `--style universal`
+locks.
+
+By default, universal locks are created to target all operating systems.
+This can cause problems when you only target a subset of operating
+systems and a lock transitive dependency that is conditional on an OS
+you do not target is not lockable. The new
+`--target-system {linux,mac,windows}` option allows you to restrict the
+set of targeted OSes to work around this sort of issue. Since PEX files
+currently only support running on Linux and Mac, specifying
+`--target-system linux --target-system mac` is a safe way to
+pre-emptively avoid these sorts of locking issues when creating a
+universal lock.
+
+Previously you could not specify the `--platform`s or
+`--complete-platform`s you would be using later to build PEXes with when
+creating a universal lock. You now can, and Pex will verify the
+universal lock can support all the specified platforms.
+
+As is usual there are also several bug fixes including properly
+propagating `PEX_EXTRA_SYS_PATH` additions to forked Python processes,
+fixing `pex3 lock export` to only attempt to export for the selected
+target and avoiding too long shebang errors for `--venv` mode PEXes in a
+robust way.
+
+* Fix `PEX_EXTRA_SYS_PATH` propagation. (#1832)
+* Fix `pex3 lock export`: re-use `--lock` resolver. (#1831)
+* Avoid ENOEXEC for `--venv` shebangs. (#1828)
+* Check lock can resolve platforms at creation time. (#1824)
+* Support restricting universal lock target os. (#1823)
+
+## 2.1.94
+
+This is a hotfix release that fixes a regression introduced in Pex
+2.1.93 downloading certain sdists when using `pex --lock ...`.
+
+* Fix `pex --lock ...` handling of sdists. (#1818)
+
+## 2.1.93
+
+This release brings several new features in addition to bug fixes.
+
+When creating a PEX the entry point can now be any local python script
+by passing `--exe path/to/python-script`.
+
+The `pex3 lock update` command now supports a `-dry-dun check` mode that
+exits non-zero to indicate that a lock needs updating and the
+`-p / --project` targeted update arguments can now be new projects to
+attempt to add to the lock.
+
+On the bug fix front, traditional zipapp mode PEX files now properly
+scrub `sys.displayhook` and `sys.excepthook` and their teardown sequence
+has now been simplified fixing logging to stderr late in teardown.
+
+Finally, `pex3 lock create` now logs when requirement resolution is
+taking a long time to provide some sense of progress and suggest generic
+remedies and `pex --lock` now properly handles authentication.
+
+* Support adding new requirements in a lock update. (#1797)
+* Add `pex3 lock update --dry-run check` mode. (#1799)
+* Universal locks no longer record a `platform_tag`. (#1800)
+* Support python script file executable. (#1807)
+* Fix PEX scrubbing to account for sys.excepthook. (#1810)
+* Simplify `PEX` teardown / leave stderr in tact. (#1813)
+* Surface pip download logging. (#1808)
+* Use pip download instead or URLFetcher. (#1811)
+
+## 2.1.92
+
+This release adds support for locking local projects.
+
+* Add support for local project locking. #1792
+
+## 2.1.91
+
+This release fixes `--sh-boot` mode PEXes to have an argv0 and exported
+`PEX` environment variable consistent with standard Python boot PEXes;
+namely the absolute path of the originally invoked PEX.
+
+* Fix `--sh-boot` argv0. (#1785)
+
+## 2.1.90
+
+This release fixes Pex handling of sdists to be atomic and also fixes
+lock files to be emitted ending with a newline. In addition, many typos
+in Pex documentation were fixed in a contribution by Kian-Meng Ang.
+
+* Ensure Pip cache operations are atomic. (#1778)
+* Ensure that lockfiles end in newlines. (#1774)
+* Fix typos (#1773)
+
+## 2.1.89
+
+This release brings official support for CPython 3.11 and PyPy 3.9 as
+well as long needed robust runtime interpreter selection.
+
+* Select PEX runtime interpreter robustly. (#1770)
+* Upgrade PyPy checking to latest. (#1767)
+* Add 3.11 support. (#1766)
+
+## 2.1.88
+
+This release is a hotfix for 2.1.86 that handles unparseable `~/.netrc`
+files gracefully.
+
+* Just warn when `~/.netrc` can't be loaded. (#1763)
+
+## 2.1.87
+
+This release fixes `pex3 lock create` to handle relative `--tmpdir`.
+
+* Fix lock save detection to be more robust. (#1760)
+
+## 2.1.86
+
+This release fixes an oversight in lock file use against secured custom
+indexes and find links repos. Previously credentials were passed during
+the lock creation process via either `~/.netrc` or via embedded
+credentials in the custom indexes and find links URLs Pex was configured
+with. But, at lock use time, these credentials were not used. Now
+`~/.netrc` entries are always used and embedded credentials passed via
+custom URLS at lock creation time can be passed in the same manner at
+lock use time.
+
+* Support credentials in URLFetcher. (#1754)
+
+## 2.1.85
+
+This PyCon US 2022 release brings full support for Python interpreter
+emulation when a PEX is run in interpreter mode (without an entry point
+or else when forced via `PEX_INTERPRETER=1`).
+
+A special thank you to Loren Arthur for contributing the fix in the
+Pantsbuild sprint at PyCon.
+
+* PEX interpreters should support all underlying Python interpreter
+    options. (#1745)
+
+## 2.1.84
+
+This release fixes a bug creating a PEX from a `--lock` when pre-release
+versions are involved.
+
+* Fix `--lock` handling of pre-release versions. (#1742)
+
+## 2.1.83
+
+This releases fixes a bug creating `--style universal` locks with
+`--interpreter-constraint` configured when the ambient interpreter does
+not match the constraints and the resolved lock includes sdist primary
+artifacts.
+
+* Fix universal lock creation for ICs. (#1738)
+
+## 2.1.82
+
+This is a hotfix release for a regression in prerelease version handling
+introduced in the 2.1.81 release by #1727.
+
+* Fix prerelease handling when checking resolves. (#1732)
+
+## 2.1.81
+
+This release brings a fix to Pex resolve checking for distributions
+built by setuptools whose `Requires-Dist` metadata does not match a
+distibutions project name exactly (i.e.: no PEP-503 `[._-]`
+normalization was performed).
+
+* Fix Pex resolve checking. (#1727)
+
+## 2.1.80
+
+This release brings another fix for pathologically slow cases of lock
+creation as well as a new `--sh-boot` feature for creating PEXes that
+boot via `/bin/sh` for more resilience across systems with differing
+Python installations as well as offering lower boot latency.
+
+* Support booting via `/bin/sh` with `--sh-boot`. (#1721)
+* Fix more pathologic lock creation slowness. (#1723)
+
+## 2.1.79
+
+This release fixes `--lock` resolving for certain cases where extras are
+involved as well as introducing support for generating and consuming
+portable `--find-links` locks using `-path-mapping`.
+
+* Fix `--lock` resolver extras handling. (#1719)
+* Support canonicalizing absolute paths in locks. (#1716)
+
+## 2.1.78
+
+This release fixes missing artifacts in non-`strict` locks.
+
+* Don't clear lock link database during analysis. (#1712)
+
+## 2.1.77
+
+This release fixes pathologically slow cases of lock creation as well as
+introducing support for `--no-compression` to allow picking the
+time-space tradeoff you want for your PEX zips.
+
+* Fix pathologic lock creation slowness. (#1707)
+* Support uncompressed PEXes. (#1705)
+
+## 2.1.76
+
+This release finalizes spurious deadlock handling in `--lock` resolves
+worked around in #1694 in Pex 2.1.75.
+
+* Fix lock_resolver to use BSD file locks. (#1702)
+
+## 2.1.75
+
+This release fixes a deadlock when building PEXes in parallel via the
+new `--lock` flag.
+
+* Avoid deadlock error when run in parallel. (#1694)
+
+## 2.1.74
+
+This release fixes multiplatform `--lock` resolves for sdists that are
+built to multiple platform specific wheels, and it also introduces
+support for VCS requirements in locks.
+
+* Add support for locking VCS requirements. (#1687)
+* Fix `--lock` for multiplatform via sdists. (#1689)
+
+## 2.1.73
+
+This is a hotfix for various PEX issues:
+
+1.  `--requirements-pex` handling was broken by #1661 in the 2.1.71
+    release and is now fixed.
+2.  Creating `universal` locks now works using any interpreter when the
+    resolver version is the `pip-2020-resolver`.
+3.  Building PEXes with `--lock` resolves that contain wheels with build
+    tags in their names now works.
+
+* Fix `--requirements-pex`. (#1684)
+* Fix universal locks for the `pip-2020-resolver`. (#1682)
+* Fix `--lock` resolve wheel tag parsing. (#1678)
+
+## 2.1.72
+
+This release fixes an old bug with `--venv` PEXes initially executed
+with either `PEX_MODULE` or `PEX_SCRIPT` active in the environment.
+
+* Fix venv creation to ignore ambient PEX env vars. (#1669)
+
+## 2.1.71
+
+This release fixes the instability introduced in 2.1.68 by switching to
+a more robust means of determining venv layouts. Along the way it
+upgrades Pex internals to cache all artifacts with strong hashes (
+previously sha1 was used). It's strongly recommended to upgrade or use
+the exclude `!=2.1.68,!=2.1.69,!=2.1.70` when depending on an open-ended
+Pex version range.
+
+* Switch Pex installed wheels to `--prefix` scheme. (#1661)
+
+## 2.1.70
+
+This is another hotfix release for 2.1.68 that fixes a bug in `*.data/*`
+file handling for installed wheels which is outlined in [PEP
+427](https://www.python.org/dev/peps/pep-0427/#installing-a-wheel-distribution-1-0-py32-none-any-whl)
+
+* Handle `*.data/*` RECORD entries not existing. (#1644)
+
+## 2.1.69
+
+This is a hotfix release for a regression introduced in 2.1.68 for a
+narrow class of `--venv` `--no-venv-site-packages-copies` mode PEXes
+with special contents on the `PEX_PATH`.
+
+* Fix venv creation for duplicate symlinked dists. (#1639)
+
+## 2.1.68
+
+This release brings a fix for installation of additional data files in
+PEX venvs (More on additional data files
+[here](https://setuptools.pypa.io/en/latest/deprecated/distutils/setupscript.html?highlight=data_files#installing-additional-files))
+as well as a new venv install `--scope` that can be used to create fully
+optimized container images with PEXed applications (See how to use this
+feature
+[here](https://pex.readthedocs.io/en/latest/recipes.html#pex-app-in-a-container)).
+
+* Support splitting venv creation into deps & srcs. (#1634)
+* Fix handling of data files when creating venvs. (#1632)
+
+## 2.1.67
+
+This release brings support for `--platform` arguments with a
+3-component PYVER portion. This supports working around
+`python_full_version` environment marker evaluation failures for
+`--platform` resolves by changing, for example, a platform of
+`linux_x86_64-cp-38-cp38` to `linux_x86_64-cp-3.8.10-cp38`. This is
+likely a simpler way to work around these issues than using the
+`--complete-platform` facility introduced in 2.1.66 by #1609.
+
+* Expand `--platform` syntax: support full versions. (#1614)
+
+## 2.1.66
+
+This release brings a new `--complete-platform` Pex CLI option that can
+be used instead of `--platform` when more detailed foreign platform
+specification is needed to satisfy a resolve (most commonly, when
+`python_full_version` environment markers are in-play). This, paired
+with the new `pex3 interpreter inspect` command that can be used to
+generate complete platform data on the foreign platform machine being
+targeted, should allow all foreign platform PEX builds to succeed
+exactly as they would if run on that foreign platform as long as
+pre-built wheels are available for that foreign platform.
+
+Additionally, PEXes now know how to set a usable process name when the
+PEX contains the `setproctitle` distribution. See
+[here](https://pex.readthedocs.io/en/v2.1.66/recipes.html#long-running-pex-applications-and-daemons)
+for more information.
+
+* Add support for `--complete-platform`. (#1609)
+* Introduce `pex3 interpreter inspect`. (#1607)
+* Use setproctitle to sanitize `ps` info. (#1605)
+* Respect `PEX_ROOT` in `PEXEnvironment.mount`. (#1599)
+
+## 2.1.65
+
+This release really brings support for mac universal2 wheels. The fix
+provided by 2.1.64 was partial; universal2 wheels could be resolved at
+build time, but not at runtime.
+
+* Upgrade vendored packaging to 20.9. (#1591)
+
+## 2.1.64
+
+This release brings support for mac universal2 wheels.
+
+* Update vendored Pip to 386a54f0. (#1589)
+
+## 2.1.63
+
+This release fixes spurious collision warnings & errors when building
+venvs from PEXes that contain multiple distributions contributing to the
+same namespace package.
+
+* Allow for duplicate files in venv population. (#1572)
+
+## 2.1.62
+
+This release exposes three Pip options as Pex options to allow building
+PEXes for more of the Python distribution ecosystem:
+
+1.  `--prefer-binary`: To prefer older wheels to newer sdists in a
+    resolve which can help avoid problematic builds.
+2.  `--[no]-use-pep517`: To control how sdists are built: always using
+    PEP-517, always using setup.py or the default, always using
+    whichever is appropriate.
+3.  `--no-build-isolation`: To allow distributions installed in the
+    environment to be seen during builds of sdists. This allows working
+    around distributions with undeclared build dependencies by
+    pre-installing them in the environment before running Pex.
+
+* Expose more Pip options. (#1561)
+
+## 2.1.61
+
+This release fixes a regression in Pex `--venv` mode compatibility with
+distributions that are members of a namespace package that was
+introduced by #1532 in the 2.1.57 release.
+
+* Merge packages for `--venv-site-packages-copies`. (#1557)
+
+## 2.1.60
+
+This release fixes a bug that prevented creating PEXes when duplicate
+compatible requirements were specified using the pip-2020-resolver.
+
+* Fix Pex to be duplicate requirement agnostic. (#1551)
+
+## 2.1.59
+
+This release adds the boolean option `--venv-site-packages-copies` to
+control whether `--venv` execution mode PEXes create their venv with
+copies (hardlinks when possible) or symlinks. It also fixes a bug that
+prevented Python 3.10 interpreters from being discovered when
+`--interpreter-constraint` was used.
+
+* Add knob for `--venv` site-packages symlinking. (#1543)
+* Fix Pex to identify Python 3.10 interpreters. (#1545)
+
+## 2.1.58
+
+This release fixes a bug handling relative `--cert` paths.
+
+* Always pass absolute cert path to Pip. (#1538)
+
+## 2.1.57
+
+This release brings a few performance improvements and a new
+`venv` pex-tools `--remove` feature that is useful for
+creating optimized container images from PEX files.
+
+* Do not re-hash installed wheels. (#1534)
+* Improve space efficiency of `--venv` mode. (#1532)
+* Add venv `--remove {pex,all}` option. (#1525)
+
+## 2.1.56
+
+* Fix wheel install hermeticity. (#1521)
+
+## 2.1.55
+
+This release brings official support for Python 3.10 as well as fixing
+<https://pex.readthedocs.io> doc generation and fixing help for
+`pex-tools` / `PEX_TOOLS=1 ./my.pex` pex tools invocations that have too
+few arguments.
+
+* Add official support for Python 3.10 (#1512)
+* Always register global options. (#1511)
+* Fix RTD generation by pinning docutils low. (#1509)
+
+## 2.1.54
+
+This release fixes a bug in `--venv` creation that could mask deeper
+errors populating PEX venvs.
+
+* Fix `--venv` mode short link creation. (#1505)
+
+## 2.1.53
+
+This release fixes a bug identifying certain interpreters on macOS
+Monterey.
+
+Additionally, Pex has two new features:
+
+1.  It now exposes the `PEX` environment variable inside running PEXes
+    to allow application code to both detect it's running from a PEX
+    and determine where that PEX is located.
+2.  It now supports a `--prompt` option in the `venv` tool to allow for
+    customization of the venv activation prompt.
+
+* Guard against fake interpreters. (#1500)
+* Add support for setting custom venv prompts. (#1499)
+* Introduce the `PEX` env var. (#1495)
+
+## 2.1.52
+
+This release makes a wider array of distributions resolvable for
+`--platform` resolves by inferring the `platform_machine` environment
+marker corresponding to the requested `--platform`.
+
+* Populate `platform_machine` in `--platform` resolve. (#1489)
+
+## 2.1.51
+
+This release fixes both PEX creation and `--venv` creation to handle
+distributions that contain scripts with non-ascii characters in them
+when running in environments with a default encoding that does not
+contain those characters under PyPy3, Python 3.5 and Python 3.6.
+
+* Fix non-ascii script shebang re-writing. (#1480)
+
+## 2.1.50
+
+This is another hotfix of the 2.1.48 release's `--layout` feature that
+fixes identification of `--layout zipapp` PEXes that have had their
+execute mode bit turned off. A notable example is the Pex PEX when
+downloaded from <https://github.com/pantsbuild/pex/releases>.
+
+* Fix zipapp layout identification. (#1448)
+
+## 2.1.49
+
+This is a hotfix release that fixes the new `--layout {zipapp,packed}`
+modes for PEX files with no user code & just third party dependencies
+when executed against a `$PEX_ROOT` where similar PEXes built with the
+old `--not-zip-safe` option were run in the past.
+
+* Avoid re-using old ~/.pex/code/ caches. (#1444)
+
+## 2.1.48
+
+This releases introduces the `--layout` flag for selecting amongst the
+traditional zipapp layout as a single PEX zip file and two new directory
+tree based formats that may be useful for more sophisticated deployment
+scenarios.
+
+The `--unzip` / `PEX_UNZIP` toggles for PEX runtime execution are now
+the default and deprecated as explicit options as a result. You can
+still select the venv runtime execution mode via the `--venv` /
+`PEX_VENV` toggles though.
+
+* Remove zipapp execution mode & introduce `--layout`. (#1438)
+
+## 2.1.47
+
+This is a hotfix release that fixes a regression for `--venv` mode PEXes
+introduced in #1410. These PEXes were not creating new venvs when the
+PEX was unconstrained and executed with any other interpreter than the
+interpreter the venv was first created with.
+
+* Fix `--venv` mode venv dir hash. (#1428)
+* Clarify PEX_PYTHON & PEX_PYTHON_PATH interaction. (#1427)
+
+## 2.1.46
+
+This release improves PEX file build reproducibility and requirement
+parsing of environment markers in Pip's proprietary URL format.
+
+Also, the `-c` / `--script` / `--console-script` argument now supports
+non-Python distribution scripts.
+
+Finally, new contributor @blag improved the README.
+
+* Fix Pip proprietary URL env marker handling. (#1417)
+* Un-reify installed wheel script shebangs. (#1410)
+* Support deterministic repository extract tool. (#1411)
+* Improve examples and add example subsection titles (#1409)
+* support any scripts specified in `setup(scripts=...)`
+    from setup.py. (#1381)
+
+## 2.1.45
+
+This is a hotfix release that fixes the `--bdist-all` handling in the
+`bdist_pex` distutils command that regressed in 2.1.43 to only create a
+bdist for the first discovered entry point.
+
+* Fix `--bdist-all` handling multiple console_scripts (#1396)
+
+## 2.1.44
+
+This is a hotfix release that fixes env var collisions (introduced in
+the Pex 2.1.43 release by #1367) that could occur when invoking Pex with
+environment variables like `PEX_ROOT` defined.
+
+* Fix Pip handling of internal env vars. (#1388)
+
+## 2.1.43
+
+* Fix dist-info metadata discovery. (#1376)
+* Fix `--platform` resolve handling of env markers. (#1367)
+* Fix `--no-manylinux`. (#1365)
+* Allow `--platform` resolves for current interpreter. (#1364)
+* Do not suppress pex output in bdist_pex (#1358)
+* Warn for PEX env vars unsupported by venv. (#1354)
+* Fix execution modes. (#1353)
+* Fix Pex emitting warnings about its Pip PEX venv. (#1351)
+* Support more verbose output for interpreter info. (#1347)
+* Fix typo in recipes.rst (#1342)
+
+## 2.1.42
+
+This release brings a bugfix for macOS interpreters when the
+MACOSX_DEPLOYMENT_TARGET sysconfig variable is numeric as well as a
+fix that improves Pip execution environment isolation.
+
+* Fix MACOSX_DEPLOYMENT_TARGET handling. (#1338)
+* Better isolate Pip. (#1339)
+
+## 2.1.41
+
+This release brings a hotfix from @kaos for interpreter identification
+on macOS 11.
+
+* Update interpreter.py (#1332)
+
+## 2.1.40
+
+This release brings proper support for pyenv shim interpreter
+identification as well as a bug fix for venv mode.
+
+* Fix Pex venv mode to respect `--strip-pex-env`. (#1329)
+* Fix pyenv shim identification. (#1325)
+
+## 2.1.39
+
+A hotfix that fixes a bug present since 2.1.25 that results in infinite
+recursion in PEX runtime resolves when handling dependency cycles.
+
+* Guard against cyclic dependency graphs. (#1317)
+
+## 2.1.38
+
+A hotfix that finishes work started in 2.1.37 by #1304 to align Pip
+based resolve results with `--pex-repository` based resolve results for
+requirements with '.' in their names as allowed by PEP-503.
+
+* Fix PEX direct requirements metadata. (#1312)
+
+## 2.1.37
+
+* Fix Pex isolation to avoid temporary pyc files. (#1308)
+* Fix `--pex-repository` requirement canonicalization. (#1304)
+* Spruce up `pex` and `pex-tools` CLIs with uniform `-V` / `--version`
+    support and default value display in help. (#1301)
+
+## 2.1.36
+
+This release brings a fix for building sdists with certain macOS
+interpreters when creating a PEX file that would then fail to resolve on
+PEX startup.
+
+* Add support for `--seed verbose`. (#1299)
+* Fix bytecode compilation race in PEXBuilder.build. (#1298)
+* Fix wheel building for certain macOS system interpreters. (#1296)
+
+## 2.1.35
+
+This release hardens a few aspects of `--venv` mode PEXes.
+An infinite re-exec loop in venv `pex` scripts is fixed and
+the `activate` family of scripts in the venv is fixed.
+
+* Improve resolve error information. (#1287)
+* Ensure venv pex does not enter a re-exec loop. (#1286)
+* Expose Pex tools via a pex-tools console script. (#1279)
+* Fix auto-created `--venv` core scripts. (#1278)
+
+## 2.1.34
+
+Beyond bugfixes for a few important edge cases, this release includes
+new support for @argfiles on the command line from @jjhelmus. These
+can be useful to overcome command line length limitations. See:
+<https://docs.python.org/3/library/argparse.html#fromfile-prefix-chars>.
+
+* Allow cli arguments to be specified in a file (#1273)
+* Fix module entrypoints. (#1274)
+* Guard against concurrent re-imports. (#1270)
+* Ensure Pip logs to stderr. (#1268)
+
+## 2.1.33
+
+* Support console scripts found in the PEX_PATH. (#1265)
+* Fix Requires metadata handling. (#1262)
+* Fix PEX file reproducibility. (#1259)
+* Fix venv script shebang rewriting. (#1260)
+* Introduce the repository PEX_TOOL. (#1256)
+
+## 2.1.32
+
+This is a hotfix release that fixes `--venv` mode shebangs being too
+long for some Linux environments.
+
+* Guard against too long `--venv` mode shebangs. (#1254)
+
+## 2.1.31
+
+This release primarily hardens Pex venvs fixing several bugs.
+
+* Fix Pex isolation. (#1250)
+* Support pre-compiling a venv. (#1246)
+* Support venv relocation. (#1247)
+* Fix `--runtime-pex-root` leak in pex bootstrap. (#1244)
+* Support venvs that can outlive their base python. (#1245)
+* Harden Pex interpreter identification. (#1248)
+* The `pex` venv script handles entrypoints like PEX.
+    (#1242)
+* Ensure PEX files aren't symlinked in venv. (#1240)
+* Fix venv pex script for use with multiprocessing. (#1238)
+
+## 2.1.30
+
+This release fixes another bug in `--venv` mode when PEX_PATH is
+exported in the environment.
+
+* Fix `--venv` mode to respect PEX_PATH. (#1227)
+
+## 2.1.29
+
+This release fixes bugs in `--unzip` and `--venv` mode PEX file
+execution and upgrades to the last release of Pip to support Python 2.7.
+
+* Fix PyPy3 `--venv` mode. (#1221)
+* Make `PexInfo.pex_hash` calculation more robust. (#1219)
+* Upgrade to Pip 20.3.4 patched. (#1205)
+
+## 2.1.28
+
+This is another hotfix release to fix incorrect resolve post-processing
+failing otherwise correct resolves.
+
+* Pex resolver fails to evaluate markers when post-processing resolves
+    to identify which dists satisfy direct requirements. (#1196)
+
+## 2.1.27
+
+This is another hotfix release to fix a regression in Pex
+`--sources-directory` handling of relative paths.
+
+* Support relative paths in `Chroot.symlink`. (#1194)
+
+## 2.1.26
+
+This is a hotfix release that fixes requirement parsing when there is a
+local file in the CWD with the same name as the project name of a remote
+requirement to be resolved.
+
+* Requirement parsing handles local non-dist files. (#1190)
+
+## 2.1.25
+
+This release brings support for a `--venv` execution mode to complement
+`--unzip` and standard unadorned PEX zip file execution modes. The
+`--venv` execution mode will first install the PEX file into a virtual
+environment under `${PEX_ROOT}/venvs` and then re-execute itself from
+there. This mode of execution allows you to ship your PEXed application
+as a single zipfile that automatically installs itself in a venv and
+runs from there to eliminate all PEX startup overhead on subsequent runs
+and work like a "normal" application.
+
+There is also support for a new resolution mode when building PEX files
+that allows you to use the results of a previous resolve by specifying
+it as a `-pex-repository` to resolve from. If you have many applications
+sharing a requirements.txt / constraints.txt, this can drastically speed
+up resolves.
+
+* Improve PEX repository error for local projects. (#1184)
+* Use symlinks to add dists in the Pex CLI. (#1185)
+* Suppress `pip debug` warning. (#1183)
+* Support resolving from a PEX file repository. (#1182)
+* PEXEnvironment for a DistributionTarget. (#1178)
+* Fix plumbing of 2020-resolver to Pip. (#1180)
+* Platform can report supported_tags. (#1177)
+* Record original requirements in PEX-INFO. (#1171)
+* Tighten requirements parsing. (#1170)
+* Type BuildAndInstallRequest. (#1169)
+* Type AtomicDirectory. (#1168)
+* Type SpawnedJob. (#1167)
+* Refresh and type OrderedSet. (#1166)
+* PEXEnvironment recursive runtime resolve. (#1165)
+* Add support for `-r` / `--constraints` URL to the CLI. (#1163)
+* Surface Pip dependency conflict information. (#1162)
+* Add support for parsing extras and specifiers. (#1161)
+* Support project_name_and_version metadata. (#1160)
+* docs: fix simple typo, original -> original (#1156)
+* Support a `--venv` mode similar to `--unzip` mode. (#1153)
+* Remove redundant dep edge label info. (#1152)
+* Remove our reliance on packaging's LegacyVersion. (#1151)
+* Implement PEX_INTERPRETER special mode support. (#1149)
+* Fix PexInfo.copy. (#1148)
+
+## 2.1.24
+
+This release upgrades Pip to 20.3.3 + a patch to fix Pex resolves using
+the `pip-legacy-resolver` and `--constraints`. The Pex package is also
+fixed to install for Python 3.9.1+.
+
+* Upgrade to a patched Pip 20.3.3. (#1143)
+* Fix python requirement to include full 3.9 series. (#1142)
+
+## 2.1.23
+
+This release upgrades Pex to the latest Pip which includes support for
+the new 2020-resolver (see:
+<https://pip.pypa.io/en/stable/user_guide/#resolver-changes-2020>) as
+well as support for macOS BigSur. Although this release defaults to the
+legacy resolver behavior, the next release will deprecate the legacy
+resolver and support for the legacy resolver will later be removed to
+allow continuing Pip upgrades going forward. To switch to the new
+resolver, use: `--resolver-version pip-2020-resolver`.
+
+* Upgrade Pex to Pip 20.3.1. (#1133)
+
+## 2.1.22
+
+This release fixes a deadlock that could be experienced when building
+PEX files in highly concurrent environments in addition to fixing
+`pex --help-variables` output.
+
+A new suite of PEX tools is now available in Pex itself and any PEXes
+built with the new `--include-tools` option. Use
+`PEX_TOOLS=1 pex --help` to find out more about the available tools and
+their usage.
+
+Finally, the long deprecated exposure of the Pex APIs through `_pex` has
+been removed. To use the Pex APIs you must include pex as a dependency
+in your PEX file.
+
+* Add a dependency graph tool. (#1132)
+* Add a venv tool. (#1128)
+* Remove long deprecated support for _pex module. (#1135)
+* Add an interpreter tool. (#1131)
+* Escape venvs unless PEX_INHERIT_PATH is requested. (#1130)
+* Improve `PythonInterpreter` venv support. (#1129)
+* Add support for PEX runtime tools & an info tool. (#1127)
+* Exclusive atomic_directory always unlocks. (#1126)
+* Fix `PythonInterpreter` binary normalization. (#1125)
+* Add a `requires_dists` function. (#1122)
+* Add an `is_exe` helper. (#1123)
+* Fix req parsing for local archives & projects. (#1121)
+* Improve PEXEnvironment constructor ergonomics. (#1120)
+* Fix `safe_open` for single element relative paths.
+    (#1118)
+* Add URLFetcher IT. (#1116)
+* Implement full featured requirement parsing. (#1114)
+* Fix `--help-variables` docs. (#1113)
+* Switch from optparse to argparse. (#1083)
+
+## 2.1.21
+
+* Fix `iter_compatible_interpreters` with `path`. (#1110)
+* Fix `Requires-Python` environment marker mapping. (#1105)
+* Fix spurious `InstalledDistribution` env markers. (#1104)
+* Deprecate `-R`/`--resources-directory`. (#1103)
+* Fix ResourceWarning for unclosed `/dev/null`. (#1102)
+* Fix runtime vendoring bytecode compilation races. (#1099)
+
+## 2.1.20
+
+This release improves interpreter discovery to prefer more recent patch
+versions, e.g. preferring Python 3.6.10 over 3.6.8.
+
+We recently regained access to the docsite, and
+<https://pex.readthedocs.io/en/latest/> is now up-to-date.
+
+* Prefer more recent patch versions in interpreter discovery. (#1088)
+* Fix `--pex-python` when it's the same as the current interpreter.
+    (#1087)
+* Fix `dir_hash` vs. bytecode compilation races. (#1080)
+* Fix readthedocs doc generation. (#1081)
+
+## 2.1.19
+
+This release adds the `--python-path` option, which allows controlling
+the interpreter search paths when building a PEX.
+
+The release also removes `--use-first-matching-interpreter`, which was a
+misfeature. If you want to use fewer interpreters when building a PEX,
+use more precise values for `--interpreter-constraint` and/or
+`--python-path`, or use `--python` or `--platform`.
+
+* Add `--python-path` to change interpreter search paths when building
+    a PEX. (#1077)
+* Remove `--use-first-matching-interpreter` misfeature. (#1076)
+* Encapsulate `--inherit-path` handling. (#1072)
+
+## 2.1.18
+
+This release brings official support for Python 3.9 and adds a new
+`--tmpdir` option to explicitly control the TMPDIR used by Pex and its
+subprocesses. The latter is useful when building PEXes in
+space-constrained environments in the face of large distributions.
+
+The release also fixes `--cert` and `--client-cert` so that they work
+with PEP-518 builds in addition to fixing bytecode compilation races in
+highly parallel environments.
+
+* Add a `--tmpdir` option to the Pex CLI. (#1068)
+* Honor `sys.executable` unless macOS Framework. (#1065)
+* Add Python 3.9 support. (#1064)
+* Fix handling of `--cert` and `--client-cert`. (#1063)
+* Add atomic_directory exclusive mode. (#1062)
+* Fix `--cert` for PEP-518 builds. (#1060)
+
+## 2.1.17
+
+This release fixes a bug in `--resolve-local-platforms` handling that
+made it unusable in 2.1.16 (#1043) as well as fixing a long-standing
+file handle leak (#1050) and a bug when running under macOS framework
+builds of Python (#1009).
+
+* Fix `--unzip` performance regression. (#1056)
+* Fix resource leak in Pex self-isolation. (#1052)
+* Fix use of `iter_compatible_interpreters`. (#1048)
+* Do not rely on `sys.executable` being accurate. (#1049)
+* slightly demystify the relationship between platforms and
+    interpreters in the library API and CLI (#1047)
+* Path filter for PythonInterpreter.iter_candidates. (#1046)
+* Add type hints to `util.py` and `tracer.py`
+* Add type hints to variables.py and platforms.py (#1042)
+* Add type hints to the remaining tests (#1040)
+* Add type hints to most tests (#1036)
+* Use MyPy via type comments (#1032)
+
+## 2.1.16
+
+This release fixes a bug in `sys.path` scrubbing / hermeticity (#1025)
+and a bug in the `-D / --sources-directory` and
+`-R / --resources-directory` options whereby PEP-420 implicit
+(namespace) packages were not respected (#1021).
+
+* Improve UnsatisfiableInterpreterConstraintsError. (#1028)
+* Scrub direct `sys.path` manipulations by .pth files. (#1026)
+* PEX zips now contain directory entries. (#1022)
+* Fix UnsatisfiableInterpreterConstraintsError. (#1024)
+
+## 2.1.15
+
+A patch release to fix an issue with the
+`--use-first-matching-interpreter` flag.
+
+* Fix `--use-first-matching-interpreter` at runtime. (#1014)
+
+## 2.1.14
+
+This release adds the `--use-first-matching-interpreter` flag, which can
+speed up performance when building a Pex at the expense of being
+compatible with fewer interpreters at runtime.
+
+* Add `--use-first-matching-interpreter`. (#1008)
+* Autoformat with Black. (#1006)
+
+## 2.1.13
+
+The focus of this release is better support of the `--platform` CLI arg.
+Platforms are now better documented and can optionally be resolved to
+local interpreters when possible via `--resolve-local-platforms` to
+better support creation of multiplatform PEXes.
+
+* Add support for resolving `--platform` locally. (#1000)
+* Improve `--platform` help. (#1002)
+* Improve and fix `--platform` help. (#1001)
+* Ensure pip download dir is uncontended. (#998)
+
+## 2.1.12
+
+A patch release to deploy the PEX_EXTRA_SYS_PATH feature.
+
+* A PEX_EXTRA_SYS_PATH runtime variable. (#989)
+* Fix typos (#986)
+* Update link to avoid a redirect (#982)
+
+## 2.1.11
+
+A patch release to fix a symlink issue in remote execution environments.
+
+* use relative paths within wheel cache (#979)
+* Fix Tox not finding Python 3.8 on OSX. (#976)
+
+## 2.1.10
+
+This release focuses on the resolver API and resolution performance. Pex
+2 resolving using Pip is now at least at performance parity with Pex 1
+in all studied cases and most often is 5% to 10% faster.
+
+As part of the resolution performance work, Pip networking configuration
+is now exposed via Pex CLI options and the `NetworkConfiguration` API
+type / new `resolver.resolve` API parameter.
+
+With network configuration now wired up, the `PEX_HTTP_RETRIES` and
+`PEX_HTTP_TIMEOUT` env var support in Pex 1 that was never wired into
+Pex 2 is now dropped in favor of passing `--retries` and `--timeout` via
+the CLI (See: #94)
+
+* Expose Pip network configuration. (#974)
+* Restore handling for bad wheel filenames to `.can_add()` (#973)
+* Fix wheel filename parsing in PEXEnvironment.can_add (#965)
+* Split Pex resolve API. (#970)
+* Add a `--local` mode for packaging the Pex PEX. (#971)
+* Constrain the virtualenv version used by tox. (#968)
+* Improve Pex packaging. (#961)
+* Make the interpreter cache deterministic. (#960)
+* Fix deprecation warning for `rU` mode (#956)
+* Fix runtime resolve error message generation. (#955)
+* Kill dead code. (#954)
+
+## 2.1.9
+
+This release introduces the ability to copy requirements from an
+existing PEX into a new one.
+
+This can greatly speed up repeatedly creating a PEX when no requirements
+have changed. A build tool (such as Pants) can create a "requirements
+PEX" that contains just a static set of requirements, and build a final
+PEX on top of that, without having to re-run pip to resolve
+requirements.
+
+* Support for copying requirements from an existing pex. (#948)
+
+## 2.1.8
+
+This release brings enhanced performance when using the Pex CLI or API
+to resolve requirements and improved performance for many PEXed
+applications when specifying the `--unzip` option. PEXes built with
+`--unzip` will first unzip themselves into the Pex cache if not unzipped
+there already and then re-execute themselves from there. This can
+improve startup latency. Pex itself now uses this mode in our [PEX
+release](
+https://github.com/pantsbuild/pex/releases/download/v2.1.8/pex).
+
+* Better support unzip mode PEXes. (#941)
+* Support an unzip toggle for PEXes. (#939)
+* Ensure the interpreter path is a file (#938)
+* Cache pip.pex. (#937)
+
+## 2.1.7
+
+This release brings more robust control of the Pex cache (PEX_ROOT).
+
+The `--cache-dir` setting is deprecated in favor of build
+time control of the cache location with `--pex-root` and
+new support for control of the cache's runtime location with
+`--runtime-pex-root` is added. As in the past, the
+`PEX_ROOT` environment variable can still be used to
+control the cache's runtime location.
+
+Unlike in the past, the [Pex PEX](
+https://github.com/pantsbuild/pex/releases/download/v2.1.7/pex) we
+release can now also be controlled via the `PEX_ROOT` environment
+variable. Consult the CLI help for `--no-strip-pex-env`cto find out
+more.
+
+* Sanitize PEX_ROOT handling. (#929)
+* Fix `PEX_*` env stripping and allow turning off. (#932)
+* Remove second urllib import from compatibility (#931)
+* Adding `--runtime-pex-root` option. (#780)
+* Improve interpreter not found error messages. (#928)
+* Add detail in interpreter selection error message. (#927)
+* Respect `Requires-Python` in
+    `PEXEnvironment`. (#923)
+* Pin our tox version in CI for stability. (#924)
+
+## 2.1.6
+
+* Don't delete the root __init__.py when devendoring. (#915)
+* Remove unused Interpreter.clear_cache. (#911)
+
+## 2.1.5
+
+* Silence pip warnings about Python 2.7. (#908)
+* Kill `Pip.spawn_install_wheel` `overwrite` arg. (#907)
+* Show pex-root from env as default in help output (#901)
+
+## 2.1.4
+
+This release fixes the hermeticity of pip resolver executions when the
+resolver is called via the Pex API in an environment with PYTHONPATH
+set.
+
+* readme: adding a TOC (#900)
+* Fix Pex resolver API PYTHONPATH hermeticity. (#895)
+* Fixup resolve debug rendering. (#894)
+* Convert `bdist_pex` tests to explicit cmdclass. (#897)
+
+## 2.1.3
+
+This release fixes a performance regression in which pip would
+re-tokenize `--find-links` pages unnecessarily. The parsed pages are now
+cached in a pip patch that has also been submitted upstream.
+
+* Re-vendor pip (#890)
+* Add a clear_cache() method to PythonInterpreter. (#885)
+* Error eagerly if an interpreter binary doesn't exist. (#886)
+
+## 2.1.2
+
+This release fixes a bug in which interpreter discovery failed when
+running from a zipped pex.
+
+* Use pkg_resources when isolating a pex code chroot. (#881)
+
+## 2.1.1
+
+This release significantly improves performance and correctness of
+interpreter discovery, particularly when pyenv is involved. It also
+provides a workaround for EPERM issues when hard linking across devices,
+by falling back to copying. Resolve error checking also now accounts for
+environment markers.
+
+* Revert "Fix the resolve check in the presence of platform
+    constraints. (#877)" (#879)
+* [resolver] Fix issue with wheel when using `--index-url` option
+    (#865)
+* Fix the resolve check in the presence of platform constraints.
+    (#877)
+* Check expected pex invocation failure reason in tests. (#874)
+* Improve hermeticity of vendoring. (#873)
+* Temporarily skip a couple of tests, to get CI green. (#876)
+* Respect env markers when checking resolves. (#861)
+* Ensure Pex PEX constraints match pex wheel / sdist. (#863)
+* Delete unused pex/package.py. (#862)
+* Introduce an interpreter cache. (#856)
+* Re-enable pyenv interpreter tests under pypy. (#859)
+* Harden PythonInterpreter against pyenv shims. (#860)
+* Parallelize interpreter discovery. (#842)
+* Explain hard link EPERM copy fallback. (#855)
+* Handle EPERM when Linking (#852)
+* Pin transitive dependencies of vendored code. (#854)
+* Kill empty setup.py. (#849)
+* Fix `tox -epackage` to create pex supporting 3.8. (#843)
+* Fix Pex to handle empty ns package metadata. (#841)
+
+## 2.1.0
+
+This release restores and improves support for building and running
+multiplatform pexes. Foreign `linux*` platform builds now
+include `manylinux2014` compatible wheels by default and
+foreign CPython pexes now resolve `abi3` wheels correctly.
+In addition, error messages at both build-time and runtime related to
+resolution of dependencies are more informative.
+
+Pex 2.1.0 should be considered the first Pex 2-series release that fully
+replaces and improves upon Pex 1-series functionality.
+
+* Fix pex resolving for foreign platforms. (#835)
+* Use pypa/packaging. (#831)
+* Upgrade vendored setuptools to 42.0.2. (#832)
+* De-vendor pex just once per version. (#833)
+* Support VCS urls for vendoring. (#834)
+* Support python 3.8 in CI. (#829)
+* Fix pex resolution to respect `--ignore-errors`. (#828)
+* Kill `pkg_resources` finders monkey-patching. (#827)
+* Use flit to distribute pex. (#826)
+* Cleanup extras_require. (#825)
+
+## 2.0.3
+
+This release fixes a regression in handling explicitly requested
+`--index` or `--find-links` http (insecure) repos. In addition,
+performance of the pex 2.x resolver is brought in line with the 1.x
+resolver in all cases and improved in most cases.
+
+* Unify PEX build-time and runtime wheel caches. (#821)
+* Parallelize resolve. (#819)
+* Use the resolve cache to skip installs. (#815)
+* Implicitly trust explicitly requested repos. (#813)
+
+## 2.0.2
+
+This is a hotfix release that fixes a bug exposed when Pex was asked to
+use an interpreter with a non-canonical path as well as fixes for
+'current' platform handling in the resolver API.
+
+* Fix current platform handling. (#801)
+* Add a test of pypi index rendering. (#799)
+* Fix `iter_compatible_interpreters` path biasing. (#798)
+
+## 2.0.1
+
+This is a hotfix release that fixes a bug when specifying a custom index
+(`-i`/`--index`/`--index-url`) via the CLI.
+
+* Fix #794 issue by add missing return statement in `__str__` (#795)
+
+## 2.0.0
+
+Pex 2.0.0 is cut on the advent of a large, mostly internal change for
+typical use cases: it now uses vendored pip to perform resolves and
+wheel builds. This fixes a large number of compatibility and correctness
+bugs as well as gaining feature support from pip including handling
+manylinux2010 and manylinux2014 as well as VCS requirements and support
+for PEP-517 & PEP-518 builds.
+
+API changes to be wary of:
+
+* The egg distribution format is no longer supported.
+* The deprecated `--interpreter-cache-dir` CLI option was removed.
+* The `--cache-ttl` CLI option and `cache_ttl` resolver API argument
+    were removed.
+* The resolver API replaced `fetchers` with a list of `indexes` and a
+    list of `find_links` repos.
+* The resolver API removed (http) `context` which is now automatically
+    handled.
+* The resolver API removed `precedence` which is now pip default
+    precedence: wheels when available and not ruled out via the
+    `--no-wheel` CLI option or `use_wheel=False` API argument.
+* The `--platform` CLI option and `platform` resolver API argument now
+    must be full platform strings that include platform, implementation,
+    version and abi; e.g.: `--platform=macosx-10.13-x86_64-cp-36-m`.
+* The `--manylinux` CLI option and `use_manylinux` resolver API
+    argument were removed. Instead, to resolve manylinux wheels for a
+    foreign platform, specify the manylinux platform to target with an
+    explicit `--platform` CLI flag or `platform` resolver API argument;
+    e.g.: `--platform=manylinux2010-x86_64-cp-36-m`.
+
+In addition, Pex 2.0.0 now builds reproducible pexes by default; ie:
+
+* Python modules embedded in the pex are not pre-compiled (pass
+    `--compile` if you want this).
+* The timestamps for Pex file zip entries default to midnight on
+    January 1, 1980 (pass `--use-system-time` to change this).
+
+This finishes off the effort tracked by issue #716.
+
+Changes in this release:
+
+* Pex defaults to reproducible builds. (#791)
+* Use pip for resolving and building distributions. (#788)
+* Bias selecting the current interpreter. (#783)
+
+## 1.6.12
+
+This release adds the `--intransitive` option to support pre-resolved
+requirements lists and allows for python binaries built under Gentoo
+naming conventions.
+
+* Add an `--intransitive` option. (#775)
+* PythonInterpreter: support python binary names with single letter
+    suffixes (#769)
+
+## 1.6.11
+
+This release brings a consistency fix to requirement resolution and an
+isolation fix that scrubs all non-stdlib PYTHONPATH entries by default,
+only pre-pending or appending them to the `sys.path` if the
+corresponding `--inherit-path=(prefer|fallback)` is used.
+
+* Avoid reordering of equivalent packages from multiple fetchers
+    (#762)
+* Include `PYTHONPATH` in `--inherit-path`
+    logic. (#765)
+
+## 1.6.10
+
+This is a hotfix release for the bug detailed in #756 that was
+introduced by #752 in python 3.7 interpreters.
+
+* Guard against modules with a `__file__` of
+    `None`. (#757)
+
+## 1.6.9
+
+* Fix `sys.path` scrubbing of pex extras modules. (#752)
+* Fix pkg resource early import (#750)
+
+## 1.6.8
+
+* Fixup pex re-exec during bootstrap. (#741)
+* Fix resolution of `setup.py` project extras. (#739)
+* Tighten up namespace declaration logic. (#732)
+* Fixup import sorting. (#731)
+
+## 1.6.7
+
+We now support reproducible builds when creating a pex via `pex -o
+foo.pex`, meaning that if you were to run the command again
+with the same inputs, the two generated pexes would be byte-for-byte
+identical. To enable reproducible builds when building a pex, use the
+flags `--no-use-system-time --no-compile`, which will use
+a deterministic timestamp and not include `.pyc` files in
+the Pex.
+
+In Pex 1.7.0, we will default to reproducible builds.
+
+* add delayed pkg_resources import fix from #713, with an
+    integration test (#730)
+* Fix reproducible builds sdist test by properly requiring building
+    the wheel (#727)
+* Fix reproducible build test improperly using the -c flag and add a
+    new test for -c flag (#725)
+* Fix PexInfo requirements using a non-deterministic data structure
+    (#723)
+* Add new `--no-use-system-time` flag to use a
+    deterministic timestamp in built PEX (#722)
+* Add timeout when using requests. (#726)
+* Refactor reproducible build tests to assert that the original pex
+    command succeeded (#724)
+* Introduce new `--no-compile` flag to not include .pyc
+    in built pex due to its non-determinism (#718)
+* Document how Pex developers can run specific tests and run Pex from
+    source (#720)
+* Remove unused bdist_pex.py helper function (#719)
+* Add failing acceptance tests for reproducible Pex builds (#717)
+* Make a copy of globals() before updating it. (#715)
+* Make sure `PexInfo` is isolated from
+    `os.environ`. (#711)
+* Fix import sorting. (#712)
+* When iterating over Zipfiles, always use the Unix file separator to
+    fix a Windows issue (#638)
+* Fix pex file looses the executable permissions of binary files
+    (#703)
+
+## 1.6.6
+
+This is the first release including only a single PEX pex, which
+supports execution under all interpreters pex supports.
+
+* Fix pex bootstrap interpreter selection. (#701)
+* Switch releases to a single multi-pex. (#698)
+
+## 1.6.5
+
+This release fixes long-broken resolution of abi3 wheels.
+
+* Use all compatible versions when calculating tags. (#692)
+
+## 1.6.4
+
+This release un-breaks [lambdex](https://github.com/wickman/lambdex).
+
+* Restore `pex.pex_bootstrapper.is_compressed` API. (#685)
+* Add the version of pex used to build a pex to build_properties.
+    (#687)
+* Honor interpreter constraints even when PEX_PYTHON and
+    PEX_PYTHON_PATH not set (#668)
+
+## 1.6.3
+
+This release changes the behavior of the `--interpreter-constraint`
+option. Previously, interpreter constraints were ANDed, which made it
+impossible to express constraints like '>=2.7,<3' OR '>=3.6,<4';
+ie: either python 2.7 or else any python 3 release at or above 3.6. Now
+interpreter constraints are ORed, which is likely a breaking change if
+you have scripts that pass multiple interpreter constraints. To
+transition, use the native `,` AND operator in your constraint
+expression, as used in the example above.
+
+* Provide control over pex warning behavior. (#680)
+* OR interpreter constraints when multiple given (#678)
+* Pin isort version in CI (#679)
+* Honor PEX_IGNORE_RCFILES in to_python_interpreter() (#673)
+* Make `run_pex_command` more robust. (#670)
+
+## 1.6.2
+
+* Support de-vendoring for installs. (#666)
+* Add User-Agent header when resolving via urllib (#663)
+* Fix interpreter finding (#662)
+* Add recipe to use PEX with requests module and proxies. (#659)
+* Allow pex to be invoked using runpy (python -m pex). (#637)
+
+## 1.6.1
+
+* Make `tox -evendor` idempotent. (#651)
+* Fix invalid regex and escape sequences causing DeprecationWarning
+    (#646)
+* Follow PEP 425 suggestions on distribution preference. (#640)
+* Setup interpreter extras in InstallerBase. (#635)
+* Ensure bootstrap demotion is complete. (#634)
+
+## 1.6.0
+
+* Fix pex force local to handle PEP 420. (#613)
+* Vendor `setuptools` and `wheel`. (#624)
+
+## 1.5.3
+
+* Fixup PEXEnvironment extras resolution. (#617)
+* Repair unhandled AttributeError during pex bootstrapping. (#599)
+
+## 1.5.2
+
+This release brings an exit code fix for pexes run via entrypoint as
+well as a fix for finding scripts when building pexes from wheels with
+dashes in their distribution name.
+
+* Update PyPI default URL to pypi.org (#610)
+* Pex exits with correct code when using entrypoint (#605)
+* Fix *_custom_setuptools_usable ITs. (#606)
+* Update pyenv if neccesary (#586)
+* Fix script search in wheels. (#600)
+* Small Docstring Fix (#595)
+
+## 1.5.1
+
+This release brings a fix to handle top-level requirements with
+environment markers, fully completing environment marker support.
+
+* Filter top-level requirements against env markers. (#592)
+
+## 1.5.0
+
+This release fixes pexes such that they fully support environment
+markers, the canonical use case being a python 2/3 pex that needs to
+conditionally load one or more python 2 backport libs when running under
+a python 2 interpreter only.
+
+* Revert "Revert "Support environment markers during pex activation.
+    (#582)""
+
+## 1.4.9
+
+This is a hotfix release for 1.4.8 that fixes a regression in
+interpreter setup that could lead to resolved distributions failing to
+build or install.
+
+* Cleanup `PexInfo` and `PythonInterpreter`.
+    (#581)
+* Fix resolve regressions introduced by the 1.4.8. (#580)
+* Narrow the env marker test. (#578)
+* Documentation for #569 (#574)
+
+## 1.4.8
+
+This release adds support for `-c` and `-m`
+PEX file runtime options that emulate the behavior of the same arguments
+to `python` as well a fix for handling the non-standard
+platform reported by setuptools for Apple system interpreters in
+addition to several other bug fixes.
+
+* Fix PEXBuilder.clone. (#575)
+* Fix PEXEnvironment platform determination. (#568)
+* Apply more pinning to jupyter in IT. (#573)
+* Minimize interpreter bootstrapping in tests. (#571)
+* Introduce 3.7 to CI and release. (#567)
+* Add OSX shards. (#565)
+* Add support for `-m` and `-c` in interpreter
+    mode. (#563)
+* Ignore concurrent-rename failures. (#558)
+* Fixup test_jupyter_appnope_env_markers. (#562)
+
+## 1.4.7
+
+This is a hotfix release for a regression in setuptools compatibility
+introduced by #542.
+
+* Fixup `PEX.demote_bootstrap`: fully unimport. (#554)
+
+## 1.4.6
+
+This release opens up setuptools support for more modern versions that
+support breaking changes in `setup` used in the wild.
+
+* Fix for super() usage on "old style class" ZipFile (#546)
+* Cleanup bootstrap dependencies before handoff. (#542)
+* Support -c for plat spec dists in multiplat pexes. (#545)
+* Support `-` when running as an interpreter. (#543)
+* Expand the range of supported setuptools. (#541)
+* Preserve perms of files copied to pex chroots. (#540)
+* Add more badges to README. (#535)
+* Fixup CHANGES PR links for 1.4.5.
+
+## 1.4.5
+
+This release adds support for validating pex entrypoints at build time
+in addition to several bugfixes.
+
+* Fix PEX environment setup. (#531)
+* Fix installers to be insensitive to extras iteration order. (#532)
+* Validate entry point at build time (#521)
+* Fix pex extraction perms. (#528)
+* Simplify `.travis.yml`. (#524)
+* Fix `PythonInterpreter` caching and ergonomics. (#518)
+* Add missing git dep. (#519)
+* Introduce a controlled env for pex testing. (#517)
+* Bump wheel version to latest. (#515)
+* Invoke test runner at a more granular level for pypy shard. (#513)
+
+## 1.4.4
+
+This release adds support for including sources and resources directly
+in a produced pex - without the need to use pants.
+
+* Add resource / source bundling to pex cli (#507)
+
+## 1.4.3
+
+Another bugfix release for the 1.4.x series.
+
+* Repair environmental marker platform setting. (#500)
+* Broaden abi selection for non-specified abi types. (#503)
+
+## 1.4.2
+
+This release repairs a tag matching regression for .egg dists that
+inadvertently went out in 1.4.1.
+
+* Improve tag generation for EggPackage. (#493)
+
+## 1.4.1
+
+A bugfix release for 1.4.x.
+
+* Repair abi prefixing for PyPy. (#483)
+* Repair .egg resolution for platform specific eggs. (#486)
+* Eliminate the python3.3 shard. (#488)
+
+## 1.4.0
+
+This release includes full Manylinux support, improvements to wheel
+resolution (including first class platform/abi tag targeting) and a
+handful of other improvements and bugfixes. Enjoy!
+
+Special thanks to Dan Blanchard (@dan-blanchard) for seeding the
+initial PR for Manylinux support and wheel resolution improvements.
+
+* Complete manylinux support in pex. (#480)
+* Add manylinux wheel support and fix a few bugs along the way (#316)
+* Skip failing tests on pypy shard. (#478)
+* Bump travis image to Trusty. (#476)
+* Mock PATH for problematic interpreter selection test in CI (#474)
+* Skip two failing integration tests. (#472)
+* Better error handling for missing setuptools. (#471)
+* Add tracebacks to IntegResults. (#469)
+* Fix failing tests in master (#466)
+* Repair isort-check failure in master. (#465)
+* Repair style issues in master. (#464)
+* Fixup PATH handling in travis.yml. (#462)
+
+## 1.3.2
+
+* Add blacklist handling for skipping requirements in pex resolver
+    (#457)
+
+## 1.3.1
+
+This is a bugfix release for a regression that inadvertently went out in
+1.3.0.
+
+* scrub path when not inheriting (#449)
+* Fix up inherits_path tests to use new values (#450)
+
+## 1.3.0
+
+* inherit_path allows 'prefer', 'fallback', 'false' (#444)
+
+## 1.2.16
+
+* Change PEX re-exec variable from ENV to os.environ (#441)
+
+## 1.2.15
+
+* Bugfix for entry point targeting + integration test (#435)
+
+## 1.2.14
+
+* Add interpreter constraints option and use constraints to search for
+    compatible interpreters at exec time (#427)
+
+## 1.2.13
+
+* Fix handling of pre-release option. (#424)
+* Patch sys module using pex_path from PEX-INFO metadata (#421)
+
+## 1.2.12
+
+* Create `--pex-path` argument for pex cli and load pex path into
+    pex-info metadata (#417)
+
+## 1.2.11
+
+* Leverage `subprocess32` when available. (#411)
+* Kill support for python 2.6. (#408)
+
+## 1.2.10
+
+* Allow passing a preamble file to the CLI (#400)
+
+## 1.2.9
+
+* Add first-class support for multi-interpreter and multi-platform pex
+    construction. (#394)
+
+## 1.2.8
+
+* Minimum setuptools version should be 20.3 (#391)
+* Improve wheel support in pex. (#388)
+
+## 1.2.7
+
+* Sort keys in PEX-INFO file so the output is deterministic. (#384)
+* Pass platform for SourceTranslator (#386)
+
+## 1.2.6
+
+* Fix for Ambiguous Resolvable bug in transitive dependency resolution
+    (#367)
+
+## 1.2.5
+
+This release follows-up on 1.2.0 fixing bugs in the pre-release
+resolving code paths.
+
+* Resolving pre-release when explicitly requested (#372)
+* Pass allow_prerelease to other iterators (Static, Caching) (#373)
+
+## 1.2.4
+
+* Fix bug in cached dependency resolution with exact resolvable.
+    (#365)
+* Treat .pth injected paths as extras. (#370)
+
+## 1.2.3
+
+* Follow redirects on HTTP requests (#361)
+* Fix corner case in cached dependency resolution (#362)
+
+## 1.2.2
+
+* Fix CacheControl import. (#357)
+
+## 1.2.1
+
+This release is a quick fix for a bootstrapping bug that inadvertently
+went out in 1.2.0 (Issue #354).
+
+* Ensure `packaging` dependency is self-contained. (#355)
+
+## 1.2.0
+
+This release changes pex requirement resolution behavior. Only stable
+requirements are resolved by default now. The previous behavior that
+included pre-releases can be retained by passing `--pre` on the pex
+command line or passing `allow_prereleases=True` via the API.
+
+* Upgrade dependencies to modern version ranges. (#352)
+* Add support for controlling prerelease resolution. (#350)
+
+## 1.1.20
+
+* Add dummy flush method for clean interpreter exit with python3.6
+    (#343)
+
+## 1.1.19
+
+* Implement `--constraints` in pex (#335)
+* Make sure namespace packages (e.g. virtualenvwrapper) don't break
+    pex (#338)
+
+## 1.1.18
+
+* Expose a PEX instance's path. (#332)
+* Check for scripts directory in get_script_from_egg (#328)
+
+## 1.1.17
+
+* Make PEX_PATH unify pex sources, as well as requirements. (#329)
+
+## 1.1.16
+
+* Adjust FileFinder import to work with Python 3.6. (#318)
+* Kill zipmanifest monkeypatching. (#322)
+* Bump setuptools range to latest. (#323)
+
+## 1.1.15
+
+* Fix #309 by de-duplicating output of the distribution finder. (#310)
+* Update wheel dependency to `>0.26.0`. (#304)
+
+## 1.1.14
+
+* Repair Executor error handling for other classes of IOError/OSError.
+    (#292)
+* Fix bdist_pex `--pex-args`. (#285)
+* Inherit user site with `--inherit-path`. (#284)
+
+## 1.1.13
+
+* Repair passing of stdio kwargs to `PEX.run()`. (#288)
+
+## 1.1.12
+
+* Fix bdist_pex interpreter cache directory. (#286)
+* Normalize and edify subprocess execution. (#255)
+* Don't ignore exit codes when using setuptools entry points. (#280)
+
+## 1.1.11
+
+* Update cache dir when `bdist_pex.run` is called directly.
+
+## 1.1.10
+
+* Improve failure modes for os.rename() as used in distribution
+    caching.
+
+## 1.1.9
+
+* Bugfix: Open setup.py in binary mode.
+
+## 1.1.8
+
+* Bugfix: Repair a regression in `--disable-cache`.
+
+## 1.1.7
+
+* Add README and supported python versions to PyPI description.
+* Use `open` with utf-8 support.
+* Add `--pex-root` option.
+
+## 1.1.6
+
+This release is a quick fix for a regression that inadvertently went out
+in 1.1.5 (Issue #243).
+
+* Fix the `bdist_pex` `setuptools` command to work for python2.
+* Upgrade pex dependencies on `setuptools` and `wheel`.
+
+## 1.1.5
+
+* Fix `PEXBuilder.clone` and thus `bdist_pex --pex-args` for
+    `--python` and `--python-shebang`.
+* Fix old `pkg_resources` egg version normalization.
+* Fix the `inherit_path` handling.
+* Fix handling of bad distribution script names when used as the pex
+    entrypoint.
+
+## 1.1.4
+
+This release is a quick fix for a regression that inadvertently went out
+in 1.1.3 (Issue #216).
+
+* Add a test for the regression in `FixedEggMetadata._zipinfo_name`
+    and revert the breaking commit.
+
+## 1.1.3
+
+This release includes an initial body of work towards Windows support,
+ABI tag support for CPython 2.x and a fix for version number
+normalization.
+
+* Add python 2.x abi tag support.
+* Add .idea to .gitignore.
+* Don't normalize version numbers as names.
+* More fixes for windows.
+* Fixes to get pex to work on windows.
+
+## 1.1.2
+
+* Bump setuptools & wheel version pinning.
+* Unescape html in PageParser.href_match_to_url.
+* Memoize calls to Crawler.crawl() for performance win in find-links
+    based resolution.
+
+## 1.1.1
+
+* Fix infinite recursion when `PEX_PYTHON` points at a symlink.
+* Add `/etc/pexrc` to the list of pexrc locations to check.
+* Improve error messaging for platform constrained Untranslateable
+    errors.
+
+## 1.1.0
+
+* Add support for `.pexrc` files for influencing the pex environment.
+    See the notes [here](
+    https://github.com/pantsbuild/pex/blob/master/docs/buildingpex.rst#tailoring-pex-execution-at-build-time
+    ).
+* Bug fix: PEX_PROFILE_FILENAME and PEX_PROFILE_SORT were not
+    respected.
+* Adds the `bdist_pex` command to setuptools.
+* Bug fix: We did not normalize package names in `ResolvableSet`, so
+    it was possible to depend on `sphinx` and `Sphinx-1.4a0.tar.gz` and
+    get two versions build and included into the pex.
+* Adds a pex-identifying User-Agent.
+
+## 1.0.3
+
+* Bug fix: Accommodate OSX `Python` python binaries. Previously the
+    OSX python distributions shipped with OSX, XCode and available via
+    https://www.python.org/downloads/ could fail to be detected using
+    the `PythonInterpreter` class. Fixes
+* Bug fix: PEX_SCRIPT failed when the script was from a not-zip-safe
+    egg.
+* Bug fix: `sys.exit` called without arguments would cause
+    `None` to be printed on stderr since pex 1.0.1.
+
+## 1.0.2
+
+* Bug fix: PEX-INFO values were overridden by environment `Variables`
+    with default values that were not explicitly set in the environment.
+    Fixes #135.
+* Bug fix: Since
+    [69649c1](https://github.com/pantsbuild/pex/commit/69649c1) we have
+    been un-patching the side effects of `sys.modules` after
+    `PEX.execute`. This takes all modules imported during the PEX
+    lifecycle and sets all their attributes to `None`. Unfortunately,
+    `sys.excepthook`, `atexit` and `__del__` may still try to operate
+    using these tainted modules, causing exceptions on interpreter
+    teardown. This reverts just the `sys` un-patching so that the
+    above-mentioned teardown hooks behave more predictably.
+
+## 1.0.1
+
+* Allow PEXBuilder to optionally copy files into the PEX environment
+    instead of hard-linking them.
+* Allow PEXBuilder to optionally skip pre-compilation of .py files into
+    .pyc files.
+* Bug fix: PEXBuilder did not respect the target interpreter when
+    compiling source to bytecode.
+* Bug fix: Fix complex resolutions when using a cache.
+
+## 1.0.0
+
+The 1.0.0 release of pex introduces a few breaking changes: `pex -r` now
+takes requirements.txt files instead of requirement specs, `pex -s` has
+now been removed since source specs are accepted as arguments, and
+`pex -p` has been removed in favor of its alias `pex -o`.
+
+The pex *command line interface* now adheres to semver insofar as
+backwards incompatible CLI changes will invoke a major version change.
+Any backwards incompatible changes to the PEX environment variable
+semantics will also result in a major version change. The pex *API*
+adheres to semver insofar as backwards incompatible API changes will
+invoke minor version changes.
+
+For users of the PEX API, it is recommended to add minor version ranges,
+e.g. `pex>=1.0,<1.1`. For users of the PEX CLI, major version ranges
+such as `pex>=1,<2` should be sufficient.
+
+* BREAKING CHANGE: Removes the `-s` option in favor of specifying
+    directories directly as arguments to the pex command line.
+* BREAKING CHANGE: `pex -r` now takes requirements.txt filenames and
+    *not* requirement specs. Requirement specs are now passed as
+    arguments to the pex tool. Use `--` to escape command line arguments
+    passed to interpreters spawned by pex.
+* Adds a number of flag aliases to be more compatible with pip command
+    lines: `--no-index`, `-f`, `--find-links`, `--index-url`,
+    `--no-use-wheel`. Removes `-p` in favor of `-o` exclusively.
+* Adds `--python-shebang` option to the pex tool in order to set the
+    `#!` shebang to an exact path.
+* Adds support for `PEX_PYTHON` environment variable which will cause
+    the pex file to re-invoke itself using the interpreter specified,
+    e.g. `PEX_PYTHON=python3.4` or
+    `PEX_PYTHON=/exact/path/to/interpreter`.
+* Adds support for `PEX_PATH` environment variable which allows
+    merging of PEX environments at runtime. This can be used to inject
+    plugins or entry_points or modules from one PEX into another
+    without explicitly building them together.
+* Consolidates documentation of `PEX_` environment variables and adds
+    the `--help-variables` option to the pex client.
+* Adds helper method to dump a package subdirectory onto disk from
+    within a zipped PEX file. This can be useful for applications that
+    know they're running within a PEX and would prefer some static
+    assets dumped to disk instead of running as an unzipped PEX file.
+* Now supports extras for static URLs and installable directories.
+* Adds `-m` and `--entry-point` alias to the existing `-e` option for
+    entry points in the pex tool to evoke the similarity to `python -m`.
+* Adds console script support via `-c/--script/--console-script` and
+    `PEX_SCRIPT`. This allows you to reference the named entry point
+    instead of the exact `module:name` pair. Also supports scripts
+    defined in the `scripts` section of setup.py.
+* Adds more debugging information when encountering unresolvable
+    requirements.
+* Bug fix: `PEX_COVERAGE` and `PEX_PROFILE` did not function correctly
+    when SystemExit was raised.
+* Bug fix: Fixes caching in the PEX tool since we don't cache the
+    source distributions of installable directories.
+
+## 0.9.0
+
+This is the last release before the 1.0.0 development branch is started.
+
+* Change the setuptools range to `>=2.2,<16` by handling EntryPoint
+    changes as well as being flexible on whether `pkg_resources` is a
+    package or a module.
+* Adds option groups to the pex tool to make the help output slightly
+    more readable.
+* Bug fix: Make `pip install pex` work better by removing
+    `extras_requires` on the `console_script` entry point.
+* New feature: Adds an interpreter cache to the `pex` tool. If the
+    user does not explicitly disable the wheel feature and attempts to
+    build a pex with wheels but does not have the wheel package
+    installed, pex will download it in order to make the feature work.
+
+## 0.8.6
+
+* Bug fix: Honor installed sys.excepthook in pex teardown.
+* Bug fix: `UrllibContext` used `replace` as a keyword argument for
+    `bytes.decode` but this only works on Python 3.
+
+## 0.8.5
+
+* Bug fix: Fixup string formatting in pex/bin/pex.py to support Python
+    2.6
+
+## 0.8.4
+
+* Performance improvement: Speed up the best-case scenario of
+    dependency resolution.
+* Bug fix: Change from `uuid4().get_hex()` to `uuid4().hex` to
+    maintain Python3 compatibility of pex.common.
+* Bug fix: Actually cache the results of translation. Previously bdist
+    translations would be created in a temporary directory even if a
+    cache location was specified.
+* Bug fix: Support all potential abi tag permutations when determining
+    platform compatibility.
+
+## 0.8.3
+
+* Performance improvement: Don't always write packages to disk if
+    they've already been cached. This can significantly speed up
+    launching PEX files with a large number of non-zip-safe
+    dependencies.
+
+## 0.8.2
+
+* Bug fix: Allow pex 0.8.x to parse pex files produced by earlier
+    versions of pex and twitter.common.python.
+* Pin pex to setuptools prior to 9.x until we have a chance to make
+    changes related to PEP440 and the change of pkg_resources.py to a
+    package.
+
+## 0.8.1
+
+* Bug fix: Fix issue where it'd be possible to `os.path.getmtime` on
+    a remote `Link` object
+
+## 0.8.0
+
+* *API change*: Decouple translation from package iteration. This
+    removes the Obtainer construct entirely, which likely means if
+    you're using PEX as a library, you will need to change your code if
+    you were doing anything nontrivial. This adds a couple new options
+    to `resolve` but simplifies the story around how to cache packages.
+* Refactor http handling in pex to allow for alternate http
+    implementations. Adds support for
+    [requests](https://github.com/kennethreitz/requests), improving both
+    performance and security. For more information, read the commit
+    notes at [91c7f32](
+    https://github.com/pantsbuild/pex/commit/91c7f324085c18af714d35947b603a5f60aeb682
+    ).
+* Improvements to API documentation throughout.
+* Renamed `Tracer` to `TraceLogger` to prevent nondeterministic isort
+    ordering.
+* Refactor tox.ini to increase the number of environment combinations
+    and improve coverage.
+* Adds HTTP retry support for the RequestsContext.
+* Make pex `--version` correct.
+* Bug fix: Fix over-aggressive `sys.modules` scrubbing for namespace
+    packages. Under certain circumstances, namespace packages in
+    site-packages could conflict with packages within a PEX, causing
+    them to fail importing.
+* Bug fix: Replace uses of `os.unsetenv(...)` with
+    `del os.environ[...]`
+* Bug fix: Scrub `sys.path` and `sys.modules` based upon both supplied
+    path and realpath of files and directories. Newer versions of
+    virtualenv on Linux symlink site-packages which caused those
+    packages to not be removed from `sys.path` correctly.
+* Bug fix: The pex -s option was not correctly pulling in transitive
+    dependencies.
+* Bug fix: Adds `content` method to HTTP contexts that does HTML
+    content decoding, fixing an encoding issue only experienced when
+    using Python 3.
+
+## 0.7.0
+
+* Rename `twitter.common.python` to `pex` and split out from the
+    [twitter/commons](http://github.com/twitter/commons) repo.
+
+## 0.6.0
+
+* Change the interpretation of `-i` (and of PyPIFetcher's pypi_base)
+    to match pip's `-i`. This is useful for compatibility with devpi.
+
+## 0.5.10
+
+* Ensures that .egg/.whl distributions on disk have their mtime
+    updated even though we no longer overwrite them. This gives them a
+    new time lease against their ttl.
+
+    Without this change, once a distribution aged past the ttl it would
+    never be used again, and builds would re-create the same
+    distributions in tmpdirs over and over again.
+
+## 0.5.9
+
+* Fixes an issue where SourceTranslator would overwrite .egg/.whl
+    distributions already on disk. Instead, it should always check to see
+    if a copy already exists and reuse if there.
+
+    This ordinarily should not be a problem but the zipimporter caches
+    metadata by filename instead of stat/sha, so if the underlying
+    contents changed a runtime error would be thrown due to seemingly
+    corrupt zip file offsets.
+
+## 0.5.8
+
+* Adds `-i/--index` option to the pex tool.
+
+## 0.5.7
+
+* Adds `twitter.common.python.pex_bootstrap` `bootstrap_pex_env`
+    function in order to initialize a PEX environment from within a
+    python interpreter. (Patch contributed by @kwlzn)
+* Adds stdin=,stdout=,stderr= keyword parameters to the `PEX.run`
+    function. (Patch from @benjy)
+
+## 0.5.6
+
+* The crawler now defaults to not follow links for security reasons.
+    (Before the default behavior was to implicitly `--follow-links` for
+    all requirements.)
+
+## 0.5.5
+
+* Improves scrubbing of site-packages from PEX environments.
+
+0.5.1 - 0.5.4
+=============
+
+* Silences exceptions reported during interpreter teardown (the
+    exceptions resulting from incorrect atexit handler behavior)
+    introduced by 0.4.3
+* Adds `__hash__` to `Link` so that Packages are hashed correctly in
+    `twitter.common.python.resolver` `resolve`
+
+## 0.5.0
+
+* Adds wheel support to `twitter.common.python`
+
+## 0.4.3
+
+* Adds `twitter.common.python.finders` which are additional finders
+    for setuptools including:
+
+    - find eggs within a .zip
+    - find wheels within a directory
+    - find wheels within a .zip
+
+* Adds a new Package abstraction by refactoring Link into Link and
+    Package.
+
+* Adds support for PEP425 tagging necessary for wheel support.
+
+* Improves python environment isolation by correctly scrubbing
+    namespace packages injected into module `__path__` attributes by
+    nspkg pth files.
+
+* Adds `twitter.common.python.resolver` `resolve` method that handles
+    transitive dependency resolution better. This means that if the
+    requirement `futures==2.1.2` and an unqualified `futures>=2` is
+    pulled in transitively, our resolver will correctly resolve futures
+    2.1.2 instead of reporting a VersionConflict if any version newer
+    than 2.1.2 is available.
+
+* Factors all `twitter.common.python` test helpers into
+    `twitter.common.python.testing`
+
+* Bug fix: Fix `OrderedSet` atexit exceptions
+
+* Bug fix: Fix cross-device symlinking (patch from @benjy)
+
+* Bug fix: Raise a `RuntimeError` if we fail to write `pkg_resources`
+    into a .pex
+
+## 0.4.2
+
+* Upgrade to `setuptools>=1`
+
+## 0.4.1
+
+* `twitter.common.python` is no longer a namespace package
+
+## 0.4.0
+
+* Kill the egg distiller. We now delegate .egg generation to
+    bdist_egg.
+
+## 0.3.1
+
+* Short-circuit resolving a distribution if a local exact match is
+    found.
+* Correctly patch the global `pkg_resources` `WorkingSet` for the
+    lifetime of the Python interpreter.
+* Fixes a performance regression in setuptools `build_zipmanifest`
+    [Setuptools Issue #154](
+    https://bitbucket.org/pypa/setuptools/issue/154/build_zipmanifest-results-should-be)
+
+## 0.3.0
+
+* Plumb through the `--zip-safe`, `--always-write-cache`,
+    `--ignore-errors` and `--inherit-path` flags to the pex tool.
+* Delete the unused `PythonDirWrapper` code.
+* Split `PEXEnvironment` resolution into
+    `twitter.common.python.environment` and de-conflate
+    `WorkingSet`/`Environment` state.
+* Removes the monkeypatched zipimporter in favor of keeping all eggs
+    unzipped within PEX files. Refactors the PEX dependency cache in
+    `util.py`
+* Adds interpreter detection for Jython and PyPy.
+* Dependency translation errors should be made uniform. (Patch
+    from @johnsirois)
+* Adds `PEX_PROFILE_ENTRIES` to limit the number of entries reported
+    when `PEX_PROFILE` is enabled. (Patch from @rgs_)
+* Bug fix: Several fixes to error handling in
+    `twitter.common.python.http` (From Marc Abramowitz)
+* Bug fix: PEX should not always assume that `$PATH` was available.
+    (Patch from @jamesbroadhead)
+* Bug fix: Filename should be part of the .pex cache key or else
+    multiple identical versions will incorrectly resolve (Patch
+    from @tc)
+* Bug fix: Executed entry points shouldn't be forced to run in an
+    environment with `__future__` imports enabled. (Patch
+    from @lawson_patrick)
+* Bug fix: Detect versionless egg links and fail fast. (Patch from
+    @johnsirois.)
+* Bug fix: Handle setuptools>=2.1 correctly in the zipimport
+    monkeypatch (Patch from @johnsirois.)
+
+## 0.2.3
+
+* Bug fix: Fix handling of Fetchers with `file://` urls.
+
+## 0.2.2
+
+* Adds the pex tool as a standalone tool.
+
+## 0.2.1
+
+* Bug fix: Bootstrapped `twitter.common.python` should declare
+    `twitter.common` as a namespace package.
+
+## 0.2.0
+
+* Make `twitter.common.python` fully standalone by consolidating
+    external dependencies within `twitter.common.python.common`.
+
+## 0.1.0
+
+* Initial published version of `twitter.common.python`.
