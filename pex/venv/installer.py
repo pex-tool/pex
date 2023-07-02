@@ -31,7 +31,11 @@ from pex.venv.virtualenv import PipUnavailableError, Virtualenv
 
 if TYPE_CHECKING:
     import typing
-    from typing import DefaultDict, Iterable, Iterator, List, Optional, Tuple, Union
+    from typing import Container, DefaultDict, Iterable, Iterator, List, Optional, Tuple, Union
+
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
 
 
 def find_dist(
@@ -149,7 +153,7 @@ def _relative_symlink(
 def _copytree(
     src,  # type: str
     dst,  # type: str
-    exclude=(),  # type: Tuple[str, ...]
+    exclude=(),  # type: Container[str]
     symlink=False,  # type: bool
 ):
     # type: (...) -> Iterator[Tuple[str, str]]
@@ -333,6 +337,7 @@ def populate_venv_distributions(
     provenance,  # type: Provenance
     symlink=False,  # type: bool
     hermetic_scripts=True,  # type: bool
+    top_level_source_packages=(),  # type: Iterable[str]
 ):
     # type: (...) -> None
 
@@ -343,6 +348,7 @@ def populate_venv_distributions(
             venv_python=provenance.target_python,
             symlink=symlink,
             hermetic_scripts=hermetic_scripts,
+            top_level_source_packages=top_level_source_packages,
         )
     )
 
@@ -378,6 +384,27 @@ def populate_venv_sources(
     return shebang
 
 
+def _iter_top_level_packages(
+    path,  # type: str
+    excludes=("bin", "__pycache__"),  # type: Container[str]
+):
+    # type: (...) -> Iterator[str]
+    for name in os.listdir(path):
+        if (
+            name not in excludes
+            and is_valid_python_identifier(name)
+            and os.path.isdir(os.path.join(path, name))
+        ):
+            yield name
+
+
+def iter_top_level_source_packages(pex):
+    # type: (PEX) -> Iterator[str]
+    pex_sources = PEXSources.mount(pex)
+    for path in _iter_top_level_packages(pex_sources.path, excludes=pex_sources.excludes):
+        yield path
+
+
 def populate_venv_from_pex(
     venv,  # type: Virtualenv
     pex,  # type: PEX
@@ -392,6 +419,7 @@ def populate_venv_from_pex(
 
     provenance = Provenance.create(venv, python=python)
     shebang = provenance.calculate_shebang(hermetic_scripts=hermetic_scripts)
+    top_level_source_packages = tuple(iter_top_level_source_packages(pex))
 
     if scope in (InstallScope.ALL, InstallScope.DEPS_ONLY):
         populate_venv_distributions(
@@ -400,6 +428,7 @@ def populate_venv_from_pex(
             symlink=symlink,
             hermetic_scripts=hermetic_scripts,
             provenance=provenance,
+            top_level_source_packages=top_level_source_packages,
         )
 
     if scope in (InstallScope.ALL, InstallScope.SOURCE_ONLY):
@@ -446,13 +475,14 @@ def _populate_venv_deps(
     venv_python,  # type: str
     symlink=False,  # type: bool
     hermetic_scripts=True,  # type: bool
+    top_level_source_packages=(),  # type: Iterable[str]
 ):
     # type: (...) -> Iterator[Tuple[str, str]]
 
     # Since the pex distributions are all materialized to ~/.pex/installed_wheels, which we control,
     # we can optionally symlink to take advantage of sharing generated *.pyc files for auto-venvs
     # created in ~/.pex/venvs.
-    top_level_packages = Counter()  # type: typing.Counter[str]
+    top_level_packages = Counter(top_level_source_packages)  # type: typing.Counter[str]
     rel_extra_paths = OrderedSet()  # type: OrderedSet[str]
     for dist in distributions:
         rel_extra_path = None
@@ -481,13 +511,7 @@ def _populate_venv_deps(
             # Here site-packages/pex-ns-pkgs.pth contains:
             #   pex-ns-pkgs/1
             #   pex-ns-pkgs/2
-            packages = [
-                name
-                for name in os.listdir(dist.location)
-                if name not in ("bin", "__pycache__")
-                and is_valid_python_identifier(name)
-                and os.path.isdir(os.path.join(dist.location, name))
-            ]
+            packages = list(_iter_top_level_packages(dist.location))
             count = max(top_level_packages[package] for package in packages) if packages else 0
             if count > 0:
                 rel_extra_path = os.path.join("pex-ns-pkgs", str(count))
@@ -536,6 +560,28 @@ def _populate_venv_deps(
         TRACER.log("Re-writing {}".format(script))
 
 
+@attr.s(frozen=True)
+class PEXSources(object):
+    @classmethod
+    def mount(cls, pex):
+        # type: (PEX) -> PEXSources
+        return cls(
+            path=PEXEnvironment.mount(pex.path()).path,
+            excludes=(
+                "__main__.py",
+                "__pex__",
+                "__pycache__",
+                layout.BOOTSTRAP_DIR,
+                layout.DEPS_DIR,
+                layout.PEX_INFO_PATH,
+                layout.PEX_LAYOUT_PATH,
+            ),
+        )
+
+    path = attr.ib()  # type: str
+    excludes = attr.ib()  # type: Container[str]
+
+
 def _populate_sources(
     pex,  # type: PEX
     dst,  # type: str
@@ -544,18 +590,11 @@ def _populate_sources(
 
     # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
     # sources into the venv.
+    pex_sources = PEXSources.mount(pex)
     for src, dst in _copytree(
-        src=PEXEnvironment.mount(pex.path()).path,
+        src=pex_sources.path,
         dst=dst,
-        exclude=(
-            "__main__.py",
-            "__pex__",
-            "__pycache__",
-            layout.BOOTSTRAP_DIR,
-            layout.DEPS_DIR,
-            layout.PEX_INFO_PATH,
-            layout.PEX_LAYOUT_PATH,
-        ),
+        exclude=pex_sources.excludes,
         symlink=False,
     ):
         yield src, dst
