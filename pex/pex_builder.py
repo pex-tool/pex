@@ -782,9 +782,9 @@ class PEXBuilder(object):
             try:
                 for src, dst in pool.map(pack_zip, pex_info.distributions.items()):
                     TRACER.log("{} -> {}".format(src, dst))
-                pool.join()
             finally:
                 pool.close()
+                pool.join()
 
     def _build_zipapp(
         self,
