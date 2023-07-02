@@ -383,12 +383,14 @@ def _install_from_pex(
 
     if installer_configuration.scope in (InstallScope.ALL, InstallScope.DEPS_ONLY):
         if venv:
+            top_level_source_packages = tuple(installer.iter_top_level_source_packages(pex))
             installer.populate_venv_distributions(
                 venv=venv,
                 distributions=distributions,
                 provenance=provenance,
                 symlink=False,
                 hermetic_scripts=hermetic_scripts,
+                top_level_source_packages=top_level_source_packages,
             )
         else:
             installer.populate_flat_distributions(
