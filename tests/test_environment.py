@@ -189,6 +189,18 @@ def get_setuptools_requirement(interpreter=None):
     )
 
 
+skip_if_no_pkg_resources = pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "These tests requires pex.third_party.pkg_resources from vendored setuptools and that "
+        "version of pkg_resources uses a vendor meta path importer that only implements the "
+        "PEP-302 finder spec and not the modern spec. Only the modern finder spec is supported by "
+        "Python 3.12+."
+    ),
+)
+
+
+@skip_if_no_pkg_resources
 @pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
 def test_issues_598_explicit_any_interpreter():
     # type: () -> None
@@ -197,6 +209,7 @@ def test_issues_598_explicit_any_interpreter():
     )
 
 
+@skip_if_no_pkg_resources
 def test_issues_598_explicit_missing_requirement():
     # type: () -> None
     assert_force_local_implicit_ns_packages_issues_598(create_ns_packages=True)
@@ -209,6 +222,7 @@ def python_38_interpreter():
     return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
 
 
+@skip_if_no_pkg_resources
 def test_issues_598_implicit(python_38_interpreter):
     # type: (PythonInterpreter) -> None
     assert_force_local_implicit_ns_packages_issues_598(
@@ -216,6 +230,7 @@ def test_issues_598_implicit(python_38_interpreter):
     )
 
 
+@skip_if_no_pkg_resources
 def test_issues_598_implicit_explicit_mixed(python_38_interpreter):
     # type: (PythonInterpreter) -> None
     assert_force_local_implicit_ns_packages_issues_598(
