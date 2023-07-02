@@ -4,6 +4,7 @@
 import os
 import platform
 import subprocess
+import sys
 from contextlib import contextmanager
 from textwrap import dedent
 
@@ -307,6 +308,15 @@ def test_osx_platform_intel_issue_523():
         assert "macosx-{}-{}".format(major_minor, machine) == stdout.strip()
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "Pex 1.6.3 attempts an import of pex.third_party.pkg_resources from vendored setuptools "
+        "and that version of pkg_resources uses a vendor meta path importer that only implements "
+        "the PEP-302 finder spec and not the modern spec. Only the modern finder spec is supported "
+        "by Python 3.12+."
+    ),
+)
 def test_activate_extras_issue_615():
     # type: () -> None
     with yield_pex_builder() as pb:
@@ -328,7 +338,7 @@ def test_activate_extras_issue_615():
         )
         stdout, stderr = process.communicate()
         assert 0 == process.returncode, "Process failed with exit code {} and output:\n{}".format(
-            process.returncode, stderr
+            process.returncode, stderr.decode("utf-8")
         )
         assert to_bytes("{} 1.6.3".format(os.path.basename(pb.path()))) == stdout.strip()
 
