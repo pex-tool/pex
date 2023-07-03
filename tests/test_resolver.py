@@ -525,7 +525,7 @@ def setuptools_version():
 
         dist = distribution("setuptools")
     else:
-        import pkg_resources
+        import pkg_resources  # vendor:skip
 
         dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse("setuptools"))
     return Version(dist.version)
