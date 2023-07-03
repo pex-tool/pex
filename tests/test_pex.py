@@ -22,6 +22,8 @@ from pex.interpreter import PythonInterpreter
 from pex.pex import PEX, IsolatedSysPath
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
+from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.testing import (
     PY39,
     PY310,
@@ -835,7 +837,10 @@ def test_pex_run_custom_setuptools_useable(
     setuptools_version,  # type: str
 ):
     # type: (...) -> None
-    result = resolver.resolve(requirements=[setuptools_requirement])
+    result = resolver.resolve(
+        requirements=[setuptools_requirement],
+        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+    )
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
@@ -857,7 +862,10 @@ def test_pex_run_conflicting_custom_setuptools_useable(
     # Here we use our vendored, newer setuptools to build the pex which has an older setuptools
     # requirement.
 
-    result = resolver.resolve(requirements=[setuptools_requirement])
+    result = resolver.resolve(
+        requirements=[setuptools_requirement],
+        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+    )
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
@@ -882,7 +890,8 @@ def test_pex_run_custom_pex_useable():
     # type: () -> None
     old_pex_version = "0.7.0"
     result = resolver.resolve(
-        requirements=["pex=={}".format(old_pex_version), "setuptools==40.6.3"]
+        requirements=["pex=={}".format(old_pex_version), "setuptools==40.6.3"],
+        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
     )
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:

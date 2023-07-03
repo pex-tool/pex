@@ -502,6 +502,7 @@ def test_download():
     result = download(
         requirements=["{}[foo]".format(project1_sdist)],
         find_links=[os.path.dirname(project2_wheel)],
+        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
     )
     for local_distribution in result.local_distributions:
         distribution = pkginfo.get_metadata(local_distribution.path)
