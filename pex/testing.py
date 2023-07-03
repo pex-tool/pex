@@ -20,6 +20,7 @@ from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
+from pex.pep_440 import Version
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
@@ -752,3 +753,16 @@ def pex_project_dir():
     return str(
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("ascii").strip()
     )
+
+
+def setuptools_version():
+    # type: () -> Version
+    if sys.version_info[:2] >= (3, 12):
+        from importlib.metadata import distribution
+
+        dist = distribution("setuptools")
+    else:
+        import pkg_resources  # vendor:skip
+
+        dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse("setuptools"))
+    return Version(dist.version)

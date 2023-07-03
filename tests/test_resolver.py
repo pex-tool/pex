@@ -35,6 +35,7 @@ from pex.testing import (
     ensure_python_interpreter,
     make_project,
     make_source_dir,
+    setuptools_version,
 )
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -516,19 +517,6 @@ def test_download():
     assert_dist("project1", pkginfo.SDist, "1.0.0")
     assert_dist("project2", pkginfo.Wheel, "2.0.0")
     assert_dist("setuptools", pkginfo.Wheel, "44.1.0")
-
-
-def setuptools_version():
-    # type: () -> Version
-    if sys.version_info[:2] >= (3, 12):
-        from importlib.metadata import distribution
-
-        dist = distribution("setuptools")
-    else:
-        import pkg_resources  # vendor:skip
-
-        dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse("setuptools"))
-    return Version(dist.version)
 
 
 @pytest.mark.skipif(

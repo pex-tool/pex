@@ -2,26 +2,12 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import sys
 
 import pytest
 
 from pex.common import temporary_dir
 from pex.pep_440 import Version
-from pex.testing import built_wheel, run_pex_command, run_simple_pex
-
-
-def setuptools_version():
-    # type: () -> Version
-    if sys.version_info[:2] >= (3, 12):
-        from importlib.metadata import distribution
-
-        dist = distribution("setuptools")
-    else:
-        import pkg_resources  # vendor:skip
-
-        dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse("setuptools"))
-    return Version(dist.version)
+from pex.testing import built_wheel, run_pex_command, run_simple_pex, setuptools_version
 
 
 @pytest.mark.skipif(
