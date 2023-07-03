@@ -59,8 +59,8 @@ def spawn_python_job_with_setuptools_and_wheel(
     with atomic_directory(venv_dir) as atomic_dir:
         if not atomic_dir.is_finalized():
             venv = Virtualenv.create_atomic(venv_dir=atomic_dir, interpreter=interpreter)
-            venv.install_pip()
-            venv.interpreter.execute(args=["-m", "pip", "install", "setuptools", "wheel"])
+            venv.install_pip(upgrade=True)
+            venv.interpreter.execute(args=["-m", "pip", "install", "-U", "setuptools", "wheel"])
 
     execute_python_args = [Virtualenv(venv_dir=venv_dir).interpreter.binary]
     execute_python_args.extend(args)

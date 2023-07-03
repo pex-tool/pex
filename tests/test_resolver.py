@@ -267,7 +267,15 @@ def resolve_p537_wheel_names(
 ):
     # type: (...) -> List[str]
     with cache(cache_dir):
-        return resolve_wheel_names(requirements=["p537==1.0.6"], transitive=False, **kwargs)
+        return resolve_wheel_names(
+            requirements=[
+                "p537=={version}".format(
+                    version="1.0.6" if sys.version_info[:2] >= (3, 6) else "1.0.5"
+                )
+            ],
+            transitive=False,
+            **kwargs
+        )
 
 
 @pytest.fixture(scope="module")
