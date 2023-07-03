@@ -16,7 +16,8 @@ from pex import targets
 from pex.build_system.pep_517 import build_sdist
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Requirement
-from pex.interpreter import PythonInterpreter, spawn_python_job
+from pex.interpreter import PythonInterpreter
+from pex.pep_440 import Version
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
@@ -405,6 +406,7 @@ def test_issues_851():
         result = resolve(
             targets=Targets(interpreters=(interpreter,)),
             requirements=["pytest=={}".format(pytest_version)],
+            resolver=ConfiguredResolver(pip_configuration=PipConfiguration())
         )
         project_to_version = {
             installed_dist.distribution.project_name: installed_dist.distribution.version
@@ -516,11 +518,21 @@ def test_download():
     assert_dist("setuptools", pkginfo.Wheel, "44.1.0")
 
 
+def setuptools_version():
+    # type: () -> Version
+    if sys.version_info[:2] >= (3, 12):
+        from importlib.metadata import distribution
+        dist = distribution("setuptools")
+    else:
+        from pex.third_party import pkg_resources
+        dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse("setuptools"))
+    return Version(dist.version)
+
 @pytest.mark.skipif(
-    sys.version_info[:2] >= (3, 12),
+    setuptools_version() >= Version("67.8.0"),
     reason=(
-        "The versions of setuptools that work with Python 3.12+ do not allow building projects "
-        "with invalid versions which are the subject of this test."
+        "Newer versions os setuptools do not allow building projects with invalid versions which "
+        "are the subject of this test."
     ),
 )
 def test_resolve_arbitrary_equality_issues_940():
