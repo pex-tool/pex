@@ -7,14 +7,28 @@ import sys
 import pytest
 
 from pex.common import temporary_dir
+from pex.pep_440 import Version
 from pex.testing import built_wheel, run_pex_command, run_simple_pex
 
 
+def setuptools_version():
+    # type: () -> Version
+    if sys.version_info[:2] >= (3, 12):
+        from importlib.metadata import distribution
+
+        dist = distribution("setuptools")
+    else:
+        import pkg_resources
+
+        dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse("setuptools"))
+    return Version(dist.version)
+
+
 @pytest.mark.skipif(
-    sys.version_info[:2] >= (3, 12),
+    setuptools_version() >= Version("67.8.0"),
     reason=(
-        "The versions of setuptools that work with Python 3.12+ do not allow building projects "
-        "with invalid versions which are the subject of this test."
+        "Newer versions os setuptools do not allow building projects with invalid versions which "
+        "are the subject of this test."
     ),
 )
 def test_resolve_arbitrary_equality():
