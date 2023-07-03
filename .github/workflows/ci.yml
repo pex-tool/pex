@@ -95,7 +95,7 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Run Unit Tests
-        uses: jsirois/actions/run-tox@fe4bba8eb8ace7f0ff0981aaa01eebdd0be4a67c
+        uses: jsirois/actions/run-tox@20368a8cfcc1db6192df9a3ea6822085a3b2dd8d
         with:
           python: python3.11
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
@@ -253,7 +253,7 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        uses: jsirois/actions/run-tox@fe4bba8eb8ace7f0ff0981aaa01eebdd0be4a67c
+        uses: jsirois/actions/run-tox@20368a8cfcc1db6192df9a3ea6822085a3b2dd8d
         with:
           python: python3.11
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
