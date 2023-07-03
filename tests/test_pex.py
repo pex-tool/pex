@@ -17,7 +17,7 @@ import pytest
 from pex import resolver
 from pex.common import safe_mkdir, safe_open, temporary_dir
 from pex.compatibility import PY2, WINDOWS, to_bytes
-from pex.dist_metadata import Distribution
+from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX, IsolatedSysPath
 from pex.pex_builder import PEXBuilder
@@ -818,26 +818,46 @@ def test_pex_run_strip_env():
             }, "Expected the parent environment to be left un-stripped."
 
 
-def test_pex_run_custom_setuptools_useable():
-    # type: () -> None
-    result = resolver.resolve(requirements=["setuptools==43.0.0"])
+@pytest.fixture
+def setuptools_version():
+    # type: () -> str
+    return "67.8.0" if sys.version_info[:2] >= (3, 12) else "43.0.0"
+
+
+@pytest.fixture
+def setuptools_requirement(setuptools_version):
+    # type: (str) -> str
+    return "setuptools=={version}".format(version=setuptools_version)
+
+
+def test_pex_run_custom_setuptools_useable(
+    setuptools_requirement,  # type: str
+    setuptools_version,  # type: str
+):
+    # type: (...) -> None
+    result = resolver.resolve(requirements=[setuptools_requirement])
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
             temp_dir,
-            "import setuptools, sys; sys.exit(0 if '43.0.0' == setuptools.__version__ else 1)",
+            "import setuptools, sys; sys.exit(0 if '{version}' == setuptools.__version__ else 1)".format(
+                version=setuptools_version
+            ),
             dists=dists,
         )
         rc = PEX(pex.path()).run()
         assert rc == 0
 
 
-def test_pex_run_conflicting_custom_setuptools_useable():
-    # type: () -> None
+def test_pex_run_conflicting_custom_setuptools_useable(
+    setuptools_requirement,  # type: str
+    setuptools_version,  # type: str
+):
+    # type: (...) -> None
     # Here we use our vendored, newer setuptools to build the pex which has an older setuptools
     # requirement.
 
-    result = resolver.resolve(requirements=["setuptools==43.0.0"])
+    result = resolver.resolve(requirements=[setuptools_requirement])
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
         pex = write_simple_pex(
@@ -847,8 +867,10 @@ def test_pex_run_conflicting_custom_setuptools_useable():
                 import sys
                 import setuptools
 
-                sys.exit(0 if '43.0.0' == setuptools.__version__ else 1)
-                """
+                sys.exit(0 if '{version}' == setuptools.__version__ else 1)
+                """.format(
+                    version=setuptools_version
+                )
             ),
             dists=dists,
         )
@@ -878,8 +900,13 @@ def test_pex_run_custom_pex_useable():
                   from pex.version import __version__
                   sys.exit(1)
                 except ImportError:
-                  import pkg_resources
-                  dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse('pex'))
+                  # N.B.: pkg_resources is not supported by Python >= 3.12.
+                  if sys.version_info[:2] >= (3, 12):
+                      from importlib.metadata import distribution
+                      dist = distribution('pex')
+                  else:
+                      import pkg_resources
+                      dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse('pex'))
                   print(dist.version)
                 """
             ),
