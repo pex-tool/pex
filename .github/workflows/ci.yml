@@ -95,10 +95,8 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Run Unit Tests
-        uses: jsirois/actions/run-tox@31888d80da9b81cf1897e4a85c7b63de0de93e4f
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
-          python: python3.11
-          tox-version: 4.6.3
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   cpython-unit-tests-legacy:
     name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
@@ -254,10 +252,8 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        uses: jsirois/actions/run-tox@31888d80da9b81cf1897e4a85c7b63de0de93e4f
+        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
-          python: python3.11
-          tox-version: 4.6.3
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   cpython-integration-tests-legacy:
     name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
