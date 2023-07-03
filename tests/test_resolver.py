@@ -21,8 +21,9 @@ from pex.pep_440 import Version
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
-from pex.resolve.resolvers import InstalledDistribution, Unsatisfiable
-from pex.resolver import download, resolve
+from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable
+from pex.resolver import download
+from pex.resolver import resolve as resolve_under_test
 from pex.targets import Targets
 from pex.testing import (
     IS_LINUX,
@@ -65,6 +66,12 @@ def build_wheel(**kwargs):
     # type: (**Any) -> str
     with built_wheel(**kwargs) as whl:
         return whl
+
+
+def resolve(**kwargs):
+    # type: (**Any) -> Installed
+    kwargs.setdefault("resolver", ConfiguredResolver(pip_configuration=PipConfiguration()))
+    return resolve_under_test(**kwargs)
 
 
 def local_resolve(*args, **kwargs):
@@ -407,7 +414,6 @@ def test_issues_851():
         result = resolve(
             targets=Targets(interpreters=(interpreter,)),
             requirements=["pytest=={}".format(pytest_version)],
-            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
         )
         project_to_version = {
             installed_dist.distribution.project_name: installed_dist.distribution.version
