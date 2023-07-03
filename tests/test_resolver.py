@@ -13,11 +13,13 @@ import pkginfo
 import pytest
 
 from pex import targets
+from pex.build_system.pep_517 import build_sdist
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.platforms import Platform
-from pex.resolve.resolver_configuration import ResolverVersion
+from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
 from pex.resolve.resolvers import InstalledDistribution, Unsatisfiable
 from pex.resolver import download, resolve
 from pex.targets import Targets
@@ -45,14 +47,12 @@ def create_sdist(**kwargs):
     dist_dir = safe_mkdtemp()
 
     with make_project(**kwargs) as project_dir:
-        cmd = ["setup.py", "sdist", "--dist-dir={}".format(dist_dir)]
-        spawn_python_job(
-            args=cmd,
-            cwd=project_dir,
-            expose=["setuptools"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        ).communicate()
+        build_sdist(
+            project_directory=project_dir,
+            dist_dir=dist_dir,
+            target=targets.current(),
+            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        )
 
     dists = os.listdir(dist_dir)
     assert len(dists) == 1
