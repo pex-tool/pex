@@ -19,14 +19,14 @@ runs:
       uses: actions/cache@v3
       with:
         path: ${{ inputs.pyenv-root }}
-        key: ${{ matrix.os }}-${{ runner.arch }}-install-pyenv-${{ inputs.pyenv-version }}-${{ inputs.python-version }}-v1
+        key: ${{ matrix.os }}-${{ runner.arch }}-install-pyenv-${{ inputs.pyenv-version }}-v1
     - name: Install Pyenv
       shell: bash
       env:
         PYENV_ROOT: ${{ inputs.pyenv-root }}
       run: |
         if [[ -d "${PYENV_ROOT}" ]]; then
-          echo "::notice::Using cached ${PYENV_ROOT}"
+          echo "Using cached ${PYENV_ROOT}"
         else
           # We use a git fetch trick to avoid cloning - this relies on knowing the exact full sha we
           # are interested in; so we use another trick to get that.
@@ -49,32 +49,38 @@ runs:
       run: |
         version_dir="${PYENV_ROOT}/versions/${{ inputs.python-version }}"
         bin_dir="${version_dir}/bin"
-        if [[ -x "${bin_dir}/python" ]]; then
-          echo "::notice::Using cached ${bin_dir}/python"
+        virtualenv_pyz="${version_dir}/virtualenv.pyz"
+
+        if [[ -x "${bin_dir}/python" && -f "${virtualenv_pyz}" ]]; then
+          echo "Using cached ${bin_dir}/python"
         else
           rm -rf "${version_dir}"
           pyenv install ${{ inputs.python-version }}
+
+          virtualenv_url="$(python -c '
+          import sys
+
+          if "final" == sys.version_info.releaselevel:
+              print(
+                  "https://bootstrap.pypa.io/virtualenv/{major}.{minor}/virtualenv.pyz".format(
+                      major=sys.version_info.major, minor=sys.version_info.minor
+                  )
+              )
+          else:
+              # Assume a beta or alpha version of the latest Python and use the latest virtualenv
+              print("https://bootstrap.pypa.io/virtualenv.pyz")
+          ')"
+
+          curl -fL "${virtualenv_url}" > "${version_dir}/virtualenv.pyz"
+          echo "Using ${virtualenv_url} to create virtualenvs"
         fi
+
         echo "${bin_dir}" >> $GITHUB_PATH
+        echo "__VIRTUALENV_PYZ__=${virtualenv_pyz}" >> "$GITHUB_ENV"
     - name: Create Venv
       shell: bash
       run: |
         venv="$(mktemp -d)"
-        echo "::notice::Setting up venv for $(python -V) using $(which python) at ${venv}"
-
-        virtualenv_url="$(python -c '
-        import sys
-
-        if "final" == sys.version_info.releaselevel:
-            print(
-                "https://bootstrap.pypa.io/virtualenv/{major}.{minor}/virtualenv.pyz".format(
-                    major=sys.version_info.major, minor=sys.version_info.minor
-                )
-            )
-        else:
-            # Assume a beta or alpha version of the latest Python and use the latest virtualenv
-            print("https://bootstrap.pypa.io/virtualenv.pyz")
-        ')"
-
-        curl -fLO "${virtualenv_url}" && python virtualenv.pyz "${venv}" && rm virtualenv.pyz
+        echo "Setting up venv for $(python -V 2>&1) using $(which python) at ${venv}"
+        python "${__VIRTUALENV_PYZ__}" "${venv}"
         echo "${venv}/bin" >> $GITHUB_PATH
