@@ -1,13 +1,13 @@
 name: Install Pyenv Python
 description: Install and activate an interpreter via Pyenv.
 inputs:
+  python-version:
+    description: The version of Python to install.
+    required: true
   pyenv-version:
     description: The version of Pyenv to use. Should be a tag or branch name.
     required: false
     default: master
-  python-version:
-    description: The version of Python to install.
-    required: true
   pyenv-root:
     description: Location for the PYENV_ROOT directory.
     required: false
@@ -56,3 +56,25 @@ runs:
           pyenv install ${{ inputs.python-version }}
         fi
         echo "${bin_dir}" >> $GITHUB_PATH
+    - name: Create Venv
+      shell: bash
+      run: |
+        venv="$(mktemp -d)"
+        echo "::notice::Setting up venv for $(python -V) using $(which python) at ${venv}"
+
+        virtualenv_url="$(python -c '
+        import sys
+
+        if "final" == sys.version_info.releaselevel:
+            print(
+                "https://bootstrap.pypa.io/virtualenv/{major}.{minor}/virtualenv.pyz".format(
+                    major=sys.version_info.major, minor=sys.version_info.minor
+                )
+            )
+        else:
+            # Assume a beta or alpha version of the latest Python and use the latest virtualenv
+            print("https://bootstrap.pypa.io/virtualenv.pyz")
+        ')"
+
+        curl -fLO "${virtualenv_url}" && python virtualenv.pyz "${venv}" && rm virtualenv.pyz
+        echo "${venv}/bin" >> $GITHUB_PATH
