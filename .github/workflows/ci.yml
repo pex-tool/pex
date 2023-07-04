@@ -145,8 +145,9 @@ jobs:
           key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Run Unit Tests
         run: |
-          venv="${mktemp -d}"
+          venv="$(mktemp -d)"
           python -mvenv "${venv}"
+          "${venv}/bin/python" -V
           "${venv}/bin/pip" install -U tox
           "${venv}/bin/tox" -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   pypy-unit-tests:
@@ -324,8 +325,9 @@ jobs:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
         run: |
-          venv="${mktemp -d}"
+          venv="$(mktemp -d)"
           python -mvenv "${venv}"
+          "${venv}/bin/python" -V
           "${venv}/bin/pip" install -U tox
           "${venv}/bin/tox" -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   pypy-integration-tests:
