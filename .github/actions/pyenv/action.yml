@@ -1,0 +1,58 @@
+name: Install Pyenv Python
+description: Install and activate an interpreter via Pyenv.
+inputs:
+  pyenv-version:
+    description: The version of Pyenv to use. Should be a tag or branch name.
+    required: false
+    default: master
+  python-version:
+    description: The version of Python to install.
+    required: true
+  pyenv-root:
+    description: Location for the PYENV_ROOT directory.
+    required: false
+    default: ${{ runner.tool_cache }}/pyenv_root
+runs:
+  using: composite
+  steps:
+    - name: Cache Pyenv
+      uses: actions/cache@v3
+      with:
+        path: ${{ inputs.pyenv-root }}
+        key: ${{ matrix.os }}-${{ runner.arch }}-install-pyenv-${{ inputs.pyenv-version }}-${{ inputs.python-version }}-v1
+    - name: Install Pyenv
+      shell: bash
+      env:
+        PYENV_ROOT: ${{ inputs.pyenv-root }}
+      run: |
+        if [[ -d "${PYENV_ROOT}" ]]; then
+          echo "::notice::Using cached ${PYENV_ROOT}"
+        else
+          # We use a git fetch trick to avoid cloning - this relies on knowing the exact full sha we
+          # are interested in; so we use another trick to get that.
+          sha="$(git ls-remote https://github.com/pyenv/pyenv ${{ inputs.pyenv-version }} | cut -f1)"
+          if [[ -z "${sha}" ]]; then
+            echo "::error title=Bad Pyenv Version::The requested Pyenv version of ${{ inputs.pyenv-version }} does not exist."
+            exit 1
+          fi
+
+          git init "${PYENV_ROOT}"
+          cd "${PYENV_ROOT}"
+          git fetch --depth 1 https://github.com/pyenv/pyenv "${sha}"
+          git reset --hard "${sha}"
+        fi
+
+        echo "PYENV_ROOT=${PYENV_ROOT}" >> "$GITHUB_ENV"
+        echo "${PYENV_ROOT}/bin" >> $GITHUB_PATH
+    - name: Install Python
+      shell: bash
+      run: |
+        version_dir="${PYENV_ROOT}/versions/${{ inputs.python-version }}"
+        bin_dir="${version_dir}/bin"
+        if [[ -x "${bin_dir}/python" ]]; then
+          echo "::notice::Using cached ${bin_dir}/python"
+        else
+          rm -rf "${version_dir}"
+          pyenv install ${{ inputs.python-version }}
+        fi
+        echo "${bin_dir}" >> $GITHUB_PATH

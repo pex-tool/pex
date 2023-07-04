@@ -131,10 +131,9 @@ jobs:
       - name: Checkout Pex
         uses: actions/checkout@v3
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: gabrielfalcao/pyenv-action@v14
+        uses: ./.github/actions/pyenv
         with:
-          default: "${{ join(matrix.python-version, '.') }}"
-          command: pip install -U tox
+          python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -145,7 +144,11 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Run Unit Tests
-        run: tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
+        run: |
+          venv="${mktemp -d}"
+          python -mvenv "${venv}"
+          "${venv}/bin/pip" install -U tox
+          "${venv}/bin/tox" -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
@@ -300,10 +303,9 @@ jobs:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: gabrielfalcao/pyenv-action@v14
+        uses: ./.github/actions/pyenv
         with:
-          default: "${{ join(matrix.python-version, '.') }}"
-          command: pip install -U tox
+          python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -321,7 +323,11 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        run: tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
+        run: |
+          venv="${mktemp -d}"
+          python -mvenv "${venv}"
+          "${venv}/bin/pip" install -U tox
+          "${venv}/bin/tox" -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
