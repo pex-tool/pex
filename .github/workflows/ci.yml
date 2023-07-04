@@ -83,11 +83,11 @@ jobs:
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
+      - name: Cache Test Support Pyenv Interpreters
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          key: ${{ matrix.os }}-${{ runner.arch }}-test-support-pyenv-root-v1
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -116,6 +116,11 @@ jobs:
           echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v3
+      - name: Cache Pyenv Interpreter
+        uses: actions/cache@v3
+        with:
+          path: ${{ runner.tool_cache }}/pyenv_root
+          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: gabrielfalcao/pyenv-action@v14
         with:
@@ -125,11 +130,11 @@ jobs:
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
+      - name: Cache Test Support Pyenv Interpreters
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          key: ${{ matrix.os }}-${{ runner.arch }}-test-support-pyenv-root-v1
       - name: Run Unit Tests
         run: tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   pypy-unit-tests:
@@ -171,11 +176,11 @@ jobs:
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
+      - name: Cache Test Support Pyenv Interpreters
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          key: ${{ matrix.os }}-${{ runner.arch }}-test-support-pyenv-root-v1
       - name: Run Unit Tests
         uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -227,11 +232,11 @@ jobs:
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
+      - name: Cache Test Support Pyenv Interpreters
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          key: ${{ matrix.os }}-${{ runner.arch }}-test-support-pyenv-root-v1
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
@@ -270,6 +275,11 @@ jobs:
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
+      - name: Cache Pyenv Interpreter
+        uses: actions/cache@v3
+        with:
+          path: ${{ runner.tool_cache }}/pyenv_root
+          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: gabrielfalcao/pyenv-action@v14
         with:
@@ -279,11 +289,11 @@ jobs:
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
+      - name: Cache Test Support Pyenv Interpreters
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          key: ${{ matrix.os }}-${{ runner.arch }}-test-support-pyenv-root-v1
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
@@ -339,11 +349,11 @@ jobs:
         run: |
           # This is needed for `test_requirement_file_from_url` for building `lxml`.
           sudo apt install --yes libxslt-dev
-      - name: Cache Pyenv Interpreters
+      - name: Cache Test Support Pyenv Interpreters
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          key: ${{ matrix.os }}-${{ runner.arch }}-test-support-pyenv-root-v1
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
