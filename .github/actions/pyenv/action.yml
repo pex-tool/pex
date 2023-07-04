@@ -12,6 +12,10 @@ inputs:
     description: Location for the PYENV_ROOT directory.
     required: false
     default: ${{ runner.tool_cache }}/pyenv_root
+outputs:
+  venv-dir:
+    description: The absolute path of the virtual environment directory created by this action.
+    value: ${{ steps.create-venv.outputs.venv-dir }}
 runs:
   using: composite
   steps:
@@ -78,9 +82,11 @@ runs:
         echo "${bin_dir}" >> $GITHUB_PATH
         echo "__VIRTUALENV_PYZ__=${virtualenv_pyz}" >> "$GITHUB_ENV"
     - name: Create Venv
+      id: create-venv
       shell: bash
       run: |
         venv="$(mktemp -d)"
         echo "Setting up venv for $(python -V 2>&1) using $(which python) at ${venv}"
         python "${__VIRTUALENV_PYZ__}" "${venv}"
         echo "${venv}/bin" >> $GITHUB_PATH
+        echo "venv-dir=${venv}" >> $GITHUB_OUTPUT
