@@ -11,7 +11,7 @@ from pex.testing import built_wheel, run_pex_command, run_simple_pex, setuptools
 
 
 @pytest.mark.skipif(
-    setuptools_version() >= Version("67.8.0"),
+    setuptools_version() >= Version("67.0.0"),
     reason=(
         "Newer versions os setuptools do not allow building projects with invalid versions which "
         "are the subject of this test."
