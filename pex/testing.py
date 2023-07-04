@@ -20,7 +20,6 @@ from pex.dist_metadata import Distribution
 from pex.enum import Enum
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
-from pex.pep_440 import Version
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
@@ -128,6 +127,7 @@ def make_project(
     entry_points=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
     python_requires=None,  # type: Optional[str]
     universal=False,  # type: bool
+    prepare_project=None,  # type: Optional[Callable[[str], None]]
 ):
     # type: (...) -> Iterator[str]
     project_content = {
@@ -173,6 +173,8 @@ def make_project(
     }
 
     with temporary_content(project_content, interp=interp) as td:
+        if prepare_project:
+            prepare_project(td)
         yield td
 
 
@@ -226,6 +228,7 @@ def built_wheel(
     interpreter=None,  # type: Optional[PythonInterpreter]
     python_requires=None,  # type: Optional[str]
     universal=False,  # type: bool
+    prepare_project=None,  # type: Optional[Callable[[str], None]]
     **kwargs  # type: Any
 ):
     # type: (...) -> Iterator[str]
@@ -238,6 +241,7 @@ def built_wheel(
         entry_points=entry_points,
         python_requires=python_requires,
         universal=universal,
+        prepare_project=prepare_project,
     ) as td:
         builder = WheelBuilder(td, interpreter=interpreter, **kwargs)
         yield builder.bdist()
@@ -753,16 +757,3 @@ def pex_project_dir():
     return str(
         subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("ascii").strip()
     )
-
-
-def setuptools_version():
-    # type: () -> Version
-    if sys.version_info[:2] >= (3, 12):
-        from importlib.metadata import distribution
-
-        dist = distribution("setuptools")
-    else:
-        import pkg_resources  # vendor:skip
-
-        dist = pkg_resources.working_set.find(pkg_resources.Requirement.parse("setuptools"))
-    return Version(dist.version)

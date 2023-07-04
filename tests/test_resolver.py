@@ -17,7 +17,6 @@ from pex.build_system.pep_517 import build_sdist
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
-from pex.pep_440 import Version
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
@@ -36,7 +35,6 @@ from pex.testing import (
     ensure_python_interpreter,
     make_project,
     make_source_dir,
-    setuptools_version,
 )
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
@@ -527,25 +525,38 @@ def test_download():
 
 
 @pytest.mark.skipif(
-    setuptools_version() >= Version("67.0.0"),
-    reason=(
-        "Newer versions os setuptools do not allow building projects with invalid versions which "
-        "are the subject of this test."
-    ),
+    sys.version_info[:2] >= (3, 12),
+    reason="We need to use setuptools<66 ut Python 3.12+ require greater.",
 )
 def test_resolve_arbitrary_equality_issues_940():
-    # type: () -> None
+    # type: (...) -> None
+
+    def prepare_project(project_dir):
+        # type: (str) -> None
+        with open(os.path.join(project_dir, "pyproject.toml"), "w") as fp:
+            fp.write(
+                dedent(
+                    """\
+                    [build-system]
+                    # Setuptools 66 removed support for PEP-440 non-compliant versions.
+                    # See: https://setuptools.pypa.io/en/stable/history.html#v66-0-0
+                    requires = ["setuptools<66"]
+                    """
+                )
+            )
+
     dist = create_sdist(
+        prepare_project=prepare_project,
         name="foo",
         version="1.0.2-fba4511",
         python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
     )
-    installed_distributions = local_resolve(
+    installed_distributions = resolve(
         requirements=[dist],
         # We need this to allow the invalid version above to sneak by pip wheel metadata
         # verification.
         verify_wheels=False,
-    )
+    ).installed_distributions
 
     assert len(installed_distributions) == 1
     requirements = installed_distributions[0].direct_requirements
