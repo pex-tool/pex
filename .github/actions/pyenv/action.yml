@@ -7,7 +7,7 @@ inputs:
   pyenv-version:
     description: The version of Pyenv to use. Should be a tag or branch name.
     required: false
-    default: master
+    default: v2.3.21
   pyenv-root:
     description: Location for the PYENV_ROOT directory.
     required: false
