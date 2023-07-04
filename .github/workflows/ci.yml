@@ -145,11 +145,16 @@ jobs:
           key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Run Unit Tests
         run: |
+          python -V
+
           venv="$(mktemp -d)"
-          python -mvenv "${venv}"
-          "${venv}/bin/python" -V
-          "${venv}/bin/pip" install -U tox
-          "${venv}/bin/tox" -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
+          curl -fLO https://bootstrap.pypa.io/virtualenv/2.7/virtualenv.pyz && \
+            python virtualenv.pyz "${venv}" && \
+            rm virtualenv.pyz
+          source "${venv}/bin.activate"
+
+          pip install -U tox
+          tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
@@ -325,11 +330,16 @@ jobs:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
         run: |
+          python -V
+
           venv="$(mktemp -d)"
-          python -mvenv "${venv}"
-          "${venv}/bin/python" -V
-          "${venv}/bin/pip" install -U tox
-          "${venv}/bin/tox" -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
+          curl -fLO https://bootstrap.pypa.io/virtualenv/2.7/virtualenv.pyz && \
+            python virtualenv.pyz "${venv}" && \
+            rm virtualenv.pyz
+          source "${venv}/bin.activate"
+
+          pip install -U tox
+          tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
