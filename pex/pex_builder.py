@@ -28,7 +28,6 @@ from pex.enum import Enum
 from pex.environment import PEXEnvironment
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
-from pex.jobs import DEFAULT_MAX_JOBS
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
@@ -755,9 +754,7 @@ class PEXBuilder(object):
         if pex_info.distributions:
             internal_cache = os.path.join(dirname, pex_info.internal_cache)
             os.mkdir(internal_cache)
-
-            def pack_zip(item):
-                location, fingerprint = item
+            for location, fingerprint in pex_info.distributions.items():
                 cached_installed_wheel_zip_dir = zip_cache_dir(
                     os.path.join(pex_info.pex_root, "installed_wheel_zips", fingerprint)
                 )
@@ -771,20 +768,10 @@ class PEXBuilder(object):
                             labels=(location,),
                             compress=compress,
                         )
-                src_zip = os.path.join(cached_installed_wheel_zip_dir, location)
-                dst_zip = os.path.join(internal_cache, location)
-                safe_copy(src_zip, dst_zip)
-                return src_zip, dst_zip
-
-            from multiprocessing.pool import ThreadPool
-
-            pool = ThreadPool(processes=DEFAULT_MAX_JOBS)
-            try:
-                for src, dst in pool.map(pack_zip, pex_info.distributions.items()):
-                    TRACER.log("{} -> {}".format(src, dst))
-            finally:
-                pool.close()
-                pool.join()
+                safe_copy(
+                    os.path.join(cached_installed_wheel_zip_dir, location),
+                    os.path.join(internal_cache, location),
+                )
 
     def _build_zipapp(
         self,
