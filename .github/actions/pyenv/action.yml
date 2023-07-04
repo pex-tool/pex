@@ -53,15 +53,16 @@ runs:
       run: |
         version_dir="${PYENV_ROOT}/versions/${{ inputs.python-version }}"
         bin_dir="${version_dir}/bin"
+        python="${bin_dir}/python"
         virtualenv_pyz="${version_dir}/virtualenv.pyz"
 
-        if [[ -x "${bin_dir}/python" && -f "${virtualenv_pyz}" ]]; then
-          echo "Using cached ${bin_dir}/python"
+        if [[ -x "${python}" && -f "${virtualenv_pyz}" ]]; then
+          echo "Using cached ${python}"
         else
           rm -rf "${version_dir}"
           pyenv install ${{ inputs.python-version }}
 
-          virtualenv_url="$(python -c '
+          virtualenv_url="$("${python}" -c '
           import sys
 
           if "final" == sys.version_info.releaselevel:
