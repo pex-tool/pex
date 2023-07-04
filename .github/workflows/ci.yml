@@ -114,7 +114,7 @@ jobs:
           - os: ubuntu-22.04
             python-version: [ 2, 7, 18 ]
             pip-version: 20
-          - os: ubuntu-22.04
+          - os: ubuntu-20.04
             python-version: [ 3, 5, 10 ]
             pip-version: 20
     steps:
