@@ -131,7 +131,7 @@ jobs:
       - name: Checkout Pex
         uses: actions/checkout@v3
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: jsirois/actions/pyenv@a7fe670d0619cb3549dc6fbcc671fc5338e4f65b
+        uses: jsirois/actions/pyenv@34d7782903eec88731b222db0d447c5a86f6b303
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
@@ -299,7 +299,7 @@ jobs:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: jsirois/actions/pyenv@a7fe670d0619cb3549dc6fbcc671fc5338e4f65b
+        uses: jsirois/actions/pyenv@34d7782903eec88731b222db0d447c5a86f6b303
         with:
           python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
