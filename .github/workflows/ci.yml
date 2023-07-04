@@ -48,11 +48,6 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for Python 3.5 tool cache support.
-          - os: ubuntu-20.04
-            python-version: [ 3, 5 ]
-            pip-version: 20
-            tox-env-python: python
           - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
@@ -118,6 +113,9 @@ jobs:
             pip-version: 20
           - os: ubuntu-22.04
             python-version: [ 2, 7, 18 ]
+            pip-version: 20
+          - os: ubuntu-22.04
+            python-version: [ 3, 5, 10 ]
             pip-version: 20
     steps:
       - name: Calculate Pythons to Expose
@@ -202,14 +200,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-22.04
-            python-version: [ 3, 7 ]
-            pip-version: 22_3_1
-            tox-env-python: python
-          - os: ubuntu-22.04
-            python-version: [ 3, 7 ]
-            pip-version: 23_1_2
-            tox-env-python: python
           - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
@@ -286,6 +276,12 @@ jobs:
           - os: ubuntu-22.04
             python-version: [ 2, 7, 18 ]
             pip-version: 20
+          - os: ubuntu-22.04
+            python-version: [ 3, 7, 17 ]
+            pip-version: 22_3_1
+          - os: ubuntu-22.04
+            python-version: [ 3, 7, 17 ]
+            pip-version: 23_1_2
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
