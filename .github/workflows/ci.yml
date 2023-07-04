@@ -151,7 +151,7 @@ jobs:
           curl -fLO https://bootstrap.pypa.io/virtualenv/2.7/virtualenv.pyz && \
             python virtualenv.pyz "${venv}" && \
             rm virtualenv.pyz
-          source "${venv}/bin.activate"
+          source "${venv}/bin/activate"
 
           pip install -U tox
           tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
@@ -336,7 +336,7 @@ jobs:
           curl -fLO https://bootstrap.pypa.io/virtualenv/2.7/virtualenv.pyz && \
             python virtualenv.pyz "${venv}" && \
             rm virtualenv.pyz
-          source "${venv}/bin.activate"
+          source "${venv}/bin/activate"
 
           pip install -U tox
           tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
