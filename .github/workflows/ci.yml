@@ -114,6 +114,8 @@ jobs:
           - os: ubuntu-22.04
             python-version: [ 2, 7, 18 ]
             pip-version: 20
+          # Ubuntu 20.04 is required to avoid inscrutable errors with Python 3.5 trying to use
+          # python3.10 libpython.so.
           - os: ubuntu-20.04
             python-version: [ 3, 5, 10 ]
             pip-version: 20
