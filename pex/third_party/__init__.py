@@ -364,7 +364,16 @@ class VendorImporter(object):
                 loader.unload()
             _tracer().log("Uninstalled {}".format(self), V=3)
 
-    # The PEP-302 finder API.
+    def find_spec(self, fullname, path, target=None):
+        # Python 2.7 does not know about this API and does not use it.
+        from importlib.util import spec_from_loader  # type: ignore[import]
+
+        loader = self.find_module(fullname, path)
+        if loader:
+            return spec_from_loader(fullname, loader)
+        return None
+
+    # The Legacy PEP-302 finder API.
     # See: https://www.python.org/dev/peps/pep-0302/#specification-part-1-the-importer-protocol
     def find_module(self, fullname, path=None):
         for importable in self._importables:
