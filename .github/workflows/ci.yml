@@ -48,10 +48,6 @@ jobs:
     strategy:
       matrix:
         include:
-          # N.B.: We need 20.04 for Python 3.5 tool cache support.
-          - os: ubuntu-20.04
-            python-version: [ 3, 5 ]
-            pip-version: 20
           - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
@@ -105,6 +101,11 @@ jobs:
           - os: ubuntu-22.04
             python-version: [ 2, 7, 18 ]
             pip-version: 20
+          # Ubuntu 20.04 is required to avoid inscrutable errors with Python 3.5 trying to use
+          # python3.10 libpython.so.
+          - os: ubuntu-20.04
+            python-version: [ 3, 5, 10 ]
+            pip-version: 20
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -117,10 +118,9 @@ jobs:
       - name: Checkout Pex
         uses: actions/checkout@v3
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: gabrielfalcao/pyenv-action@v14
+        uses: jsirois/actions/pyenv@6b4b66ba805bdd553071b95d946467a64df55029
         with:
-          default: "${{ join(matrix.python-version, '.') }}"
-          command: pip install -U tox
+          python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -131,7 +131,9 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Run Unit Tests
-        run: tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
+        run: |
+          pip install -U tox
+          tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
@@ -187,12 +189,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-22.04
-            python-version: [ 3, 7 ]
-            pip-version: 22_3_1
-          - os: ubuntu-22.04
-            python-version: [ 3, 7 ]
-            pip-version: 23_1_2
           - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
@@ -256,6 +252,12 @@ jobs:
           - os: ubuntu-22.04
             python-version: [ 2, 7, 18 ]
             pip-version: 20
+          - os: ubuntu-22.04
+            python-version: [ 3, 7, 17 ]
+            pip-version: 22_3_1
+          - os: ubuntu-22.04
+            python-version: [ 3, 7, 17 ]
+            pip-version: 23_1_2
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -271,10 +273,9 @@ jobs:
           # We need branches and tags for some ITs.
           fetch-depth: 0
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: gabrielfalcao/pyenv-action@v14
+        uses: jsirois/actions/pyenv@6b4b66ba805bdd553071b95d946467a64df55029
         with:
-          default: "${{ join(matrix.python-version, '.') }}"
-          command: pip install -U tox
+          python-version: "${{ join(matrix.python-version, '.') }}"
       - name: Expose Pythons
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
@@ -292,7 +293,9 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        run: tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
+        run: |
+          pip install -U tox
+          tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
