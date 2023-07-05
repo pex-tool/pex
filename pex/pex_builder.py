@@ -119,10 +119,12 @@ __entry_point__ = None
 if '__file__' in locals() and __file__ is not None and os.path.exists(__file__):
   __entry_point__ = __entry_point_from_filename__(__file__)
 elif '__loader__' in locals():
-  from pkgutil import ImpLoader
   if hasattr(__loader__, 'archive'):
     __entry_point__ = __loader__.archive
-  elif isinstance(__loader__, ImpLoader):
+  elif hasattr(__loader__, 'get_filename'):
+    # The source of the loader interface has changed over the course of Python history from
+    # `pkgutil.ImpLoader` to `importlib.abc.Loader`, but the existence and semantics of
+    # `get_filename` has remained constant; so we just check for the method.
     __entry_point__ = __entry_point_from_filename__(__loader__.get_filename())
 
 if __entry_point__ is None:
