@@ -123,12 +123,12 @@ elif '__loader__' in locals():
     __entry_point__ = __loader__.archive
   else:
     try:
-      from pkgutil import ImpLoader
-      if isinstance(__loader__, ImpLoader):
-        __entry_point__ = __entry_point_from_filename__(__loader__.get_filename())
-    except ImportError:
       from importlib.abc import Loader
       if isinstance(__loader__, Loader):
+        __entry_point__ = __entry_point_from_filename__(__loader__.get_filename())
+    except ImportError:
+      from pkgutil import ImpLoader
+      if isinstance(__loader__, ImpLoader):
         __entry_point__ = __entry_point_from_filename__(__loader__.get_filename())
 
 if __entry_point__ is None:
