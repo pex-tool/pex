@@ -5,13 +5,18 @@ from __future__ import absolute_import
 
 import io
 import os
+import re
 import shutil
 import struct
+import subprocess
+import zipfile
 
+from pex.common import DETERMINISTIC_DATETIME, copy_file_range, safe_io_open
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import BinaryIO, Optional
+    from io import BufferedIOBase
+    from typing import BinaryIO, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -242,3 +247,93 @@ class Zip(object):
             if self.has_header:
                 in_fp.seek(self.header_size, os.SEEK_SET)
             shutil.copyfileobj(in_fp, out_fp)
+
+
+def buffered_zip_archive(filename):
+    # type: (str) -> zipfile.ZipFile
+    """Return a ``zipfile.ZipFile`` instance backed by a buffered file handle.
+
+    This is required by ``MergeableZipFile#merge_archive()`` to copy over exactly the right amount
+    of bytes (via ``pex.common.copy_file_range()``)."""
+    buffered_handle = safe_io_open(filename, mode="rb")
+    return zipfile.ZipFile(buffered_handle, mode="r")  # type: ignore[arg-type]
+
+
+# TODO: merge this with PermPreservingZipFile in pex.common?
+class MergeableZipFile(zipfile.ZipFile):
+    """A zip file that can copy over the contents of other zips without decompression.
+
+    This is used to synthesize --layout zipapp PEX files from other zip files in the pex cache."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("allowZip64", True)
+        super(MergeableZipFile, self).__init__(*args, **kwargs)
+
+    def mkdir(self, name, mode=511):
+        # type: (str, int) -> None
+        """Polyfill for ZipFile#mkdir() in < 3.11.
+
+        Extracted from https://github.com/python/cpython/pull/32160."""
+        # End in a single slash.
+        arcname = re.sub(r"/*$", "/", name)
+        # Unlike PermPreservingZipFile#zip_entry_from_file(), this should never correspond to a file
+        # on disk, as this class is used to synthesize zip files from cache and the created
+        # directories are also virtual. Giving it a non-zero timestamp would be misleading.
+        zinfo = zipfile.ZipInfo(filename=arcname, date_time=DETERMINISTIC_DATETIME.timetuple()[:6])
+        zinfo.file_size = 0
+        zinfo.external_attr = ((0o40000 | mode) & 0xFFFF) << 16
+        zinfo.external_attr |= 0x10
+        zinfo.compress_type = zipfile.ZIP_STORED
+        self.writestr(zinfo, b"")
+
+    # This exists to placate mypy.
+    def __enter__(self):
+        # type: () -> MergeableZipFile
+        return self
+
+    def merge_archive(self, source_zf, name_prefix=None):
+        # type: (zipfile.ZipFile, Optional[str]) -> None
+        """Copy entries from `source_path` to `destination` without decompressing.
+
+        If provided, `name_prefix` will be applied to the names of file and directory entries.
+
+        NB: This method is not aware of data descriptors, and will not copy over their contents!"""
+        assert self.fp is not None
+        assert isinstance(self.fp, io.BufferedIOBase)  # type: ignore[unreachable]
+        assert source_zf.fp is not None  # type: ignore[unreachable]
+        assert isinstance(source_zf.fp, io.BufferedIOBase)
+
+        for zinfo in source_zf.infolist():
+            # We will be mutating the ZipInfo and writing to the destination stream, so save this
+            # info upfront.
+            source_header_len = len(zinfo.FileHeader())
+            source_offset = zinfo.header_offset
+            start_of_destination_entry = self.fp.tell()
+
+            # (1) Modify the values which will affect the contents of the local file header for
+            #     this entry.
+            if name_prefix:
+                zinfo.filename = os.path.join(name_prefix, zinfo.filename)
+
+            # (2) Modify the values which will affect this entry's central directory header.
+            # The new entry will begin at the very end of the existing file.
+            zinfo.header_offset = start_of_destination_entry
+
+            # (3) Generate the modified header, then copy over the header and contents.
+            # > (3.1) Copy over the header bytes verbatim into the output zip's underlying
+            #       file handle.
+            self.fp.write(zinfo.FileHeader())
+
+            # > (3.2) Seek to the start of the source entry's file contents.
+            source_zf.fp.seek(source_offset + source_header_len, io.SEEK_SET)
+            # > (3.3) Copy over the file data verbatim from the source zip's underlying
+            #       file handle.
+            copy_file_range(source_zf.fp, self.fp, zinfo.compress_size)
+
+            # (4) Hack the synthesized ZipInfo onto the destination zip's infos.
+            self.filelist.append(zinfo)
+            self.NameToInfo[zinfo.filename] = zinfo
+
+        # Update the central directory start position so the zipfile.ZipFile writes after all the
+        # data we just added.
+        self.start_dir = self.fp.tell()
