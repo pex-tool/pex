@@ -41,7 +41,7 @@ def test_git_prep_command(tmpdir):
 
     touch(os.path.join(repo, "README"))
     subprocess.check_call(["git", "add", "README"], cwd=repo)
-    subprocess.check_call(["git", "commit", "-m", "Initial Commit."], cwd=repo)
+    subprocess.check_call(["git", "commit", "--no-gpg-sign", "-m", "Initial Commit."], cwd=repo)
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo).decode("utf-8").strip()
 
     prep_file = os.path.join(repo, "prep")

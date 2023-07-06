@@ -30,7 +30,7 @@ def test_pep_518_venv_pex_env_scrubbing(
 
     package_script = os.path.join(pex_project_dir, "scripts", "package.py")
     pex_pex = os.path.join(str(tmpdir), "pex")
-    subprocess.check_call(args=[python, package_script, "--local", "--pex-output-file", pex_pex])
+    subprocess.check_call(args=[python, package_script, "--pex-output-file", pex_pex])
 
     lock = os.path.join(str(tmpdir), "lock.json")
     subprocess.check_call(

@@ -43,7 +43,6 @@ class ConfiguredResolver(Resolver):
         pip_version=None,  # type: Optional[PipVersionValue]
     ):
         # type: (...) -> Installed
-        # TODO(John Sirois): Use pip_version.
         return try_(
             lock_resolver.resolve_from_lock(
                 targets=targets,

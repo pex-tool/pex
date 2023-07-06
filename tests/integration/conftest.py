@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import glob
 import os
 import subprocess
 from contextlib import contextmanager
@@ -60,9 +61,9 @@ def pex_bdist(
                 args=[pex_pex, "repository", "extract", "-f", extract_dir],
                 env=make_env(PEX_TOOLS=True),
             )
-    wheels = os.listdir(wheels_dir)
+    wheels = glob.glob(os.path.join(wheels_dir, "pex-*.whl"))
     assert 1 == len(wheels)
-    return os.path.join(wheels_dir, wheels[0])
+    return wheels[0]
 
 
 @pytest.fixture

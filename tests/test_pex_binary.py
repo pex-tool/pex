@@ -117,9 +117,6 @@ def test_clp_prereleases_resolver():
 
         options = parser.parse_args(
             args=[
-                # This test is run against all Pythons; so ensure we have a Pip that works with all
-                # the pythons we support.
-                "--pip-version=vendored",
                 "--no-index",
                 "--find-links",
                 dist_dir,
@@ -144,9 +141,6 @@ def test_clp_prereleases_resolver():
         # When we specify `--pre`, allow_prereleases is True
         options = parser.parse_args(
             args=[
-                # This test is run against all Pythons; so ensure we have a Pip that works with all
-                # the pythons we support.
-                "--pip-version=vendored",
                 "--no-index",
                 "--find-links",
                 dist_dir,

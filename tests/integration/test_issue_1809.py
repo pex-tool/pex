@@ -4,7 +4,10 @@
 import os.path
 import shutil
 import subprocess
+import sys
 from textwrap import dedent
+
+import pytest
 
 from pex.common import safe_open
 from pex.testing import PY310, ensure_python_distribution, make_project, run_pex_command
@@ -14,6 +17,10 @@ if TYPE_CHECKING:
     from typing import Any
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    reason="The test requires using pex 2.1.92 which only supports up to Python 3.11",
+)
 def test_excepthook_scrubbing(tmpdir):
     # type: (Any) -> None
 

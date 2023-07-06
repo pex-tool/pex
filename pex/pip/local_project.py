@@ -25,10 +25,10 @@ if TYPE_CHECKING:
 def digest_local_project(
     directory,  # type: str
     digest,  # type: HintedDigest
-    pip_version,  # type: PipVersionValue
     target,  # type: Target
     resolver,  # type: Resolver
     dest_dir=None,  # type: Optional[str]
+    pip_version=None,  # type: Optional[PipVersionValue]
 ):
     # type: (...) -> Union[str, Error]
     with TRACER.timed("Fingerprinting local project at {directory}".format(directory=directory)):

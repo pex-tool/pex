@@ -15,6 +15,7 @@ from textwrap import dedent
 from threading import Thread
 
 from pex import dist_metadata
+from pex.atomic_directory import atomic_directory
 from pex.commands.command import JsonMixin, OutputMixin
 from pex.common import (
     DETERMINISTIC_DATETIME_TIMESTAMP,
@@ -26,16 +27,17 @@ from pex.common import (
 from pex.compatibility import Queue
 from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
-from pex.interpreter import PythonInterpreter, spawn_python_job
-from pex.interpreter_constraints import InterpreterConstraint
-from pex.jobs import Retain, SpawnedJob, execute_parallel
+from pex.interpreter import PythonInterpreter
+from pex.jobs import Job, Retain, SpawnedJob, execute_parallel
 from pex.pex import PEX
 from pex.result import Error, Ok, Result
 from pex.tools.command import PEXCommand
 from pex.typing import TYPE_CHECKING, cast
+from pex.variables import ENV
+from pex.venv.virtualenv import Virtualenv
 
 if TYPE_CHECKING:
-    from typing import IO, Callable, Iterable, Iterator, List, Text, Tuple
+    from typing import IO, Any, Callable, Iterable, Iterator, List, Text, Tuple
 
     import attr  # vendor:skip
 
@@ -45,6 +47,25 @@ else:
 
 
 logger = logging.getLogger(__name__)
+
+
+def spawn_python_job_with_setuptools_and_wheel(
+    interpreter,  # type: PythonInterpreter
+    args,  # type: Iterable[str]
+    **subprocess_kwargs  # type: Any
+):
+    # type: (...) -> Job
+    venv_dir = os.path.join(ENV.PEX_ROOT, "tools", "repository", str(interpreter.platform))
+    with atomic_directory(venv_dir) as atomic_dir:
+        if not atomic_dir.is_finalized():
+            venv = Virtualenv.create_atomic(venv_dir=atomic_dir, interpreter=interpreter)
+            venv.install_pip(upgrade=True)
+            venv.interpreter.execute(args=["-m", "pip", "install", "-U", "setuptools", "wheel"])
+
+    execute_python_args = [Virtualenv(venv_dir=venv_dir).interpreter.binary]
+    execute_python_args.extend(args)
+    process = subprocess.Popen(args=execute_python_args, **subprocess_kwargs)
+    return Job(command=execute_python_args, process=process)
 
 
 @attr.s(frozen=True)
@@ -261,10 +282,9 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
                 # + https://reproducible-builds.org/docs/source-date-epoch/
                 # + https://github.com/pypa/wheel/blob/1b879e53fed1f179897ed47e55a68bc51df188db/wheel/archive.py#L36-L39
                 env.update(SOURCE_DATE_EPOCH=str(int(DETERMINISTIC_DATETIME_TIMESTAMP)))
-            job = spawn_python_job(
+            job = spawn_python_job_with_setuptools_and_wheel(
                 args=["-m", "wheel", "pack", "--dest-dir", dest_dir, distribution.location],
                 interpreter=pex.interpreter,
-                expose=["wheel"],
                 stdout=subprocess.PIPE,
                 env=env,
             )
@@ -422,9 +442,8 @@ class Repository(JsonMixin, OutputMixin, PEXCommand):
         with open(os.path.join(chroot, "setup.py"), "w") as fp:
             fp.write("import setuptools; setuptools.setup()")
 
-        spawn_python_job(
+        spawn_python_job_with_setuptools_and_wheel(
             args=["setup.py", "sdist", "--dist-dir", dest_dir],
             interpreter=pex.interpreter,
-            expose=["setuptools"],
             cwd=chroot,
         ).wait()

@@ -34,8 +34,10 @@ def _finalize_pip_configuration(
 ):
     # type: (...) -> Union[PipConfiguration, Error]
     version = pip_version or pip_configuration.version
-    if pip_configuration.allow_version_fallback:
-        return attr.evolve(pip_configuration, version=compatible_version(targets, version, context))
+    if version and pip_configuration.allow_version_fallback:
+        return attr.evolve(
+            pip_configuration, version=try_(compatible_version(targets, version, context))
+        )
 
     result = catch(validate_targets, targets, version, context)
     if isinstance(result, Error):

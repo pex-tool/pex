@@ -37,14 +37,17 @@ def test_interpreter_constraints_to_pex_info_py2():
             [
                 "--disable-cache",
                 "--interpreter-constraint=>=2.7,<3",
-                "--interpreter-constraint=>=3.5",
+                "--interpreter-constraint=>=3.5,<3.12",
                 "-o",
                 pex_out_path,
             ]
         )
         res.assert_success()
         pex_info = PexInfo.from_pex(pex_out_path)
-        assert InterpreterConstraints.parse(">=2.7,<3", ">=3.5") == pex_info.interpreter_constraints
+        assert (
+            InterpreterConstraints.parse(">=2.7,<3", ">=3.5,<3.12")
+            == pex_info.interpreter_constraints
+        )
 
 
 def test_interpreter_constraints_to_pex_info_py3():

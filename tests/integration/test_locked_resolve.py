@@ -69,7 +69,11 @@ def create_lock(
 ):
     # type: (...) -> Tuple[Downloaded, Tuple[LockedResolve, ...]]
     lock_observer = create_lock_observer(lock_configuration)
-    downloaded = resolver.download(observer=lock_observer, **kwargs)
+    downloaded = resolver.download(
+        observer=lock_observer,
+        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        **kwargs
+    )
     return downloaded, lock_observer.lock(downloaded)
 
 

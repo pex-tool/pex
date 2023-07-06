@@ -630,6 +630,8 @@ class Chroot(object):
 
             def maybe_write_parent_dirs(path):
                 # type: (str) -> None
+                if path == strip_prefix:
+                    return
                 parent_dir = get_parent_dir(path)
                 if parent_dir is None or parent_dir in written_dirs:
                     return

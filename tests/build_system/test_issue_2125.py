@@ -81,7 +81,7 @@ def test_missing_get_requires_for_build_wheel(tmpdir):
             )
         )
 
-    pip_version = PipVersion.VENDORED
+    pip_version = PipVersion.DEFAULT
     dist_metadata = pep_517.spawn_prepare_metadata(
         project_directory=project_directory,
         pip_version=pip_version,

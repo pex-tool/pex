@@ -4,6 +4,7 @@
 import os
 import platform
 import subprocess
+import sys
 from contextlib import contextmanager
 from textwrap import dedent
 
@@ -22,6 +23,8 @@ from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
+from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter, Targets
 from pex.testing import (
     IS_LINUX_X86_64,
@@ -133,11 +136,12 @@ def assert_force_local_implicit_ns_packages_issues_598(
         }
     )
 
-    def add_requirements(builder, cache):
-        # type: (PEXBuilder, str) -> None
+    def add_requirements(builder):
+        # type: (PEXBuilder) -> None
         for installed_dist in resolver.resolve(
             targets=Targets(interpreters=(builder.interpreter,)),
             requirements=requirements,
+            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
         ).installed_distributions:
             builder.add_distribution(installed_dist.distribution)
             for direct_req in installed_dist.direct_requirements:
@@ -155,11 +159,11 @@ def assert_force_local_implicit_ns_packages_issues_598(
             for path in content.keys():
                 builder.add_source(os.path.join(project, path), path)
 
-    with temporary_dir() as root, temporary_dir() as cache:
+    with temporary_dir() as root:
         pex_info1 = PexInfo.default()
         pex1 = os.path.join(root, "pex1.pex")
         builder1 = PEXBuilder(interpreter=interpreter, pex_info=pex_info1)
-        add_requirements(builder1, cache)
+        add_requirements(builder1)
         add_wheel(builder1, content1)
         add_sources(builder1, content2)
         builder1.build(pex1)
@@ -168,7 +172,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
         pex_info2.pex_path = [pex1]
         pex2 = os.path.join(root, "pex2")
         builder2 = PEXBuilder(path=pex2, interpreter=interpreter, pex_info=pex_info2)
-        add_requirements(builder2, cache)
+        add_requirements(builder2)
         add_wheel(builder2, content3)
         builder2.set_script("foobaz")
         builder2.freeze()
@@ -188,6 +192,18 @@ def get_setuptools_requirement(interpreter=None):
     )
 
 
+skip_if_no_pkg_resources = pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "These tests requires pex.third_party.pkg_resources from vendored setuptools and that "
+        "version of pkg_resources uses a vendor meta path importer that only implements the "
+        "PEP-302 finder spec and not the modern spec. Only the modern finder spec is supported by "
+        "Python 3.12+."
+    ),
+)
+
+
+@skip_if_no_pkg_resources
 @pytest.mark.xfail(IS_PYPY3, reason="https://github.com/pantsbuild/pex/issues/1210")
 def test_issues_598_explicit_any_interpreter():
     # type: () -> None
@@ -196,6 +212,7 @@ def test_issues_598_explicit_any_interpreter():
     )
 
 
+@skip_if_no_pkg_resources
 def test_issues_598_explicit_missing_requirement():
     # type: () -> None
     assert_force_local_implicit_ns_packages_issues_598(create_ns_packages=True)
@@ -208,6 +225,7 @@ def python_38_interpreter():
     return PythonInterpreter.from_binary(ensure_python_interpreter(PY38))
 
 
+@skip_if_no_pkg_resources
 def test_issues_598_implicit(python_38_interpreter):
     # type: (PythonInterpreter) -> None
     assert_force_local_implicit_ns_packages_issues_598(
@@ -215,6 +233,7 @@ def test_issues_598_implicit(python_38_interpreter):
     )
 
 
+@skip_if_no_pkg_resources
 def test_issues_598_implicit_explicit_mixed(python_38_interpreter):
     # type: (PythonInterpreter) -> None
     assert_force_local_implicit_ns_packages_issues_598(
@@ -255,6 +274,7 @@ def test_osx_platform_intel_issue_523():
         for installed_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
             requirements=["psutil==5.4.3"],
+            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
         ).installed_distributions:
             pb.add_dist_location(installed_dist.distribution.location)
         pb.build(pex_file)
@@ -307,12 +327,22 @@ def test_osx_platform_intel_issue_523():
         assert "macosx-{}-{}".format(major_minor, machine) == stdout.strip()
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "Pex 1.6.3 attempts an import of pex.third_party.pkg_resources from vendored setuptools "
+        "and that version of pkg_resources uses a vendor meta path importer that only implements "
+        "the PEP-302 finder spec and not the modern spec. Only the modern finder spec is supported "
+        "by Python 3.12+."
+    ),
+)
 def test_activate_extras_issue_615():
     # type: () -> None
     with yield_pex_builder() as pb:
         for installed_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
             requirements=["pex[requests]==1.6.3"],
+            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
         ).installed_distributions:
             for direct_req in installed_dist.direct_requirements:
                 pb.add_requirement(direct_req)
@@ -328,7 +358,7 @@ def test_activate_extras_issue_615():
         )
         stdout, stderr = process.communicate()
         assert 0 == process.returncode, "Process failed with exit code {} and output:\n{}".format(
-            process.returncode, stderr
+            process.returncode, stderr.decode("utf-8")
         )
         assert to_bytes("{} 1.6.3".format(os.path.basename(pb.path()))) == stdout.strip()
 
@@ -337,7 +367,10 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
     # type: (str, str, bool) -> None
     requirement = "{}=={}".format(distribution, version)
     pb = PEXBuilder()
-    for installed_dist in resolver.resolve(requirements=[requirement]).installed_distributions:
+    for installed_dist in resolver.resolve(
+        requirements=[requirement],
+        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+    ).installed_distributions:
         pb.add_dist_location(installed_dist.distribution.location)
     pb.freeze()
 
@@ -345,15 +378,20 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
     _, stderr = process.communicate()
     stderr_text = stderr.decode("utf8")
 
-    partial_warning_preamble = "PEXWarning: The `pkg_resources` package was loaded"
+    if sys.version_info[:2] >= (3, 12):
+        partial_warning_preamble = (
+            "PEXWarning: The legacy `pkg_resources` package cannot be imported by"
+        )
+    else:
+        partial_warning_preamble = "PEXWarning: The `pkg_resources` package was loaded"
     partial_warning_detail = "{} namespace packages:".format(requirement)
 
     if expected_warning:
-        assert partial_warning_preamble in stderr_text
-        assert partial_warning_detail in stderr_text
+        assert partial_warning_preamble in stderr_text, stderr_text
+        assert partial_warning_detail in stderr_text, stderr_text
     else:
-        assert partial_warning_preamble not in stderr_text
-        assert partial_warning_detail not in stderr_text
+        assert partial_warning_preamble not in stderr_text, stderr_text
+        assert partial_warning_detail not in stderr_text, stderr_text
 
 
 def test_present_non_empty_namespace_packages_metadata_does_warn():

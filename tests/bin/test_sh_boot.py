@@ -45,6 +45,7 @@ def expected(*names):
         all_names.add(current_interpreter_identity.binary_name(version_components=2))
     all_names.update(
         [
+            "python3.12",
             "python3.11",
             "python3.10",
             "python3.9",
@@ -53,6 +54,7 @@ def expected(*names):
             "python3.6",
             "python3.5",
             "python2.7",
+            "pypy3.12",
             "pypy3.11",
             "pypy3.10",
             "pypy3.9",

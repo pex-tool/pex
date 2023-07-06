@@ -250,11 +250,11 @@ class Locker(LogAnalyzer):
         self,
         target,  # type: Target
         root_requirements,  # type: Iterable[ParsedRequirement]
-        pip_version,  # type: PipVersionValue
         resolver,  # type: Resolver
         lock_configuration,  # type: LockConfiguration
         download_dir,  # type: str
         fingerprint_service=None,  # type: Optional[FingerprintService]
+        pip_version=None,  # type: Optional[PipVersionValue]
     ):
         # type: (...) -> None
 

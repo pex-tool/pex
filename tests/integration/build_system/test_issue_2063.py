@@ -13,8 +13,11 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 5),
-    reason="The tested distribution is only compatible with Python >= 3.5",
+    sys.version_info[:2] < (3, 5) or sys.version_info[:2] >= (3, 12),
+    reason=(
+        "The tested distribution is only compatible with Python >= 3.5 and it requires lxml (4.9.2)"
+        " which only has pre-built wheels available through 3.11."
+    ),
 )
 def test_build_system_no_build_backend(tmpdir):
     # type: (Any) -> None
