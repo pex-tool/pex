@@ -627,24 +627,24 @@ class PEXEnvironment(object):
         # will be active in the pex environment at runtime and, as such, care must be taken.
         #
         # Properly behaved distributions will declare a dependency on `setuptools`, in which case we
-        # use that (non-vendored) distribution. A side-effect of importing `pkg_resources` from that
+        # use that (non-vendored) distribution. A side effect of importing `pkg_resources` from that
         # distribution is that a global `pkg_resources.working_set` will be populated. For various
         # `pkg_resources` distribution discovery functions to work, that global
-        # `pkg_resources.working_set` must be built with the `sys.path` fully settled. Since all dists
-        # in the dependency set (`resolved_dists`) have already been resolved and added to the
+        # `pkg_resources.working_set` must be built with the `sys.path` fully settled. Since all
+        # dists in the dependency set (`resolved_dists`) have already been resolved and added to the
         # `sys.path` we're safe to proceed here.
         #
         # Other distributions (notably `twitter.common.*`) in the wild declare `setuptools`-specific
-        # `namespace_packages` but do not properly declare a dependency on `setuptools` which they must
-        # use to:
+        # `namespace_packages` but do not properly declare a dependency on `setuptools` which they
+        # must use to:
         # 1. Declare `namespace_packages` metadata which we just verified they have with the check
         #    above.
         # 2. Declare namespace packages at runtime via the canonical:
         #    `__import__('pkg_resources').declare_namespace(__name__)`
         #
         # For such distributions we fall back to our vendored version of `setuptools`. This is safe,
-        # since we'll only introduce our shaded version when no other standard version is present and
-        # even then tear it all down when we hand off from the bootstrap to user code.
+        # since we'll only introduce our shaded version when no other standard version is present
+        # and even then tear it all down when we hand off from the bootstrap to user code.
         pkg_resources, vendored = _import_pkg_resources()
         if not pkg_resources or vendored:
             dists = "\n".join(
@@ -660,7 +660,8 @@ class PEXEnvironment(object):
                 pex_warnings.warn(
                     "The legacy `pkg_resources` package cannot be imported by the "
                     "{interpreter} {version} interpreter at {path}.\n"
-                    "These distributions will fail to work properly:\n{dists}".format(
+                    "The following distributions need `pkg_resources` to load some legacy "
+                    "namespace packages and may fail to work properly:\n{dists}".format(
                         interpreter=current_interpreter.identity.interpreter,
                         version=current_interpreter.python,
                         path=current_interpreter.binary,

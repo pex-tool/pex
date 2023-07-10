@@ -13,7 +13,7 @@ from pex.testing import built_wheel, run_pex_command, run_simple_pex
 
 @pytest.mark.skipif(
     sys.version_info[:2] >= (3, 12),
-    reason="We need to use setuptools<66 ut Python 3.12+ require greater.",
+    reason="We need to use setuptools<66 but Python 3.12+ require greater.",
 )
 def test_resolve_arbitrary_equality():
     # type: () -> None
