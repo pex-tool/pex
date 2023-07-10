@@ -752,7 +752,7 @@ class PEXBuilder(object):
             os.mkdir(internal_cache)
             for location, fingerprint in pex_info.distributions.items():
                 cached_installed_wheel_zip_dir = zip_cache_dir(
-                    os.path.join(pex_info.pex_root, "installed_wheel_zips", fingerprint)
+                    os.path.join(pex_info.pex_root, "packed_wheels", fingerprint)
                 )
                 with atomic_directory(cached_installed_wheel_zip_dir) as atomic_zip_dir:
                     if not atomic_zip_dir.is_finalized():

@@ -322,7 +322,7 @@ def test_pex_builder_packed(tmpdir):
     spread_dist_zip = os.path.join(pex_app, pb.info.internal_cache, location)
     assert zipfile.is_zipfile(spread_dist_zip)
 
-    cached_dist_zip = os.path.join(pex_root, "installed_wheel_zips", sha, location)
+    cached_dist_zip = os.path.join(pex_root, "packed_wheels", sha, location)
     assert zipfile.is_zipfile(cached_dist_zip)
 
     assert filecmp.cmp(spread_dist_zip, cached_dist_zip, shallow=False)
