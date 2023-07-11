@@ -4,12 +4,12 @@
 from __future__ import absolute_import
 
 import itertools
-import os
 
 from pex.auth import PasswordEntry
 from pex.enum import Enum
 from pex.jobs import DEFAULT_MAX_JOBS
 from pex.network_configuration import NetworkConfiguration
+from pex.pep_440 import Version
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.typing import TYPE_CHECKING
 
@@ -30,6 +30,26 @@ PYPI = "https://pypi.org/simple"
 class ResolverVersion(Enum["ResolverVersion.Value"]):
     class Value(Enum.Value):
         pass
+
+    @staticmethod
+    def _supports_legacy_resolver(pip_version=None):
+        # type: (Optional[PipVersionValue]) -> bool
+        pip_ver = pip_version or PipVersion.DEFAULT
+        return pip_ver.version < Version("23.2")
+
+    @classmethod
+    def applies(
+        cls,
+        resolver_version,  # type: ResolverVersion.Value
+        pip_version=None,
+    ):
+        # type: (...) -> bool
+        return resolver_version is cls.PIP_2020 or cls._supports_legacy_resolver(pip_version)
+
+    @classmethod
+    def default(cls, pip_version=None):
+        # type: (Optional[PipVersionValue]) -> ResolverVersion.Value
+        return cls.PIP_LEGACY if cls._supports_legacy_resolver(pip_version) else cls.PIP_2020
 
     PIP_LEGACY = Value("pip-legacy-resolver")
     PIP_2020 = Value("pip-2020-resolver")
@@ -63,7 +83,6 @@ class ReposConfiguration(object):
 
 @attr.s(frozen=True)
 class PipConfiguration(object):
-    resolver_version = attr.ib(default=ResolverVersion.PIP_LEGACY)  # type: ResolverVersion.Value
     repos_configuration = attr.ib(default=ReposConfiguration())  # type: ReposConfiguration
     network_configuration = attr.ib(default=NetworkConfiguration())  # type: NetworkConfiguration
     allow_prereleases = attr.ib(default=False)  # type: bool
@@ -76,6 +95,7 @@ class PipConfiguration(object):
     max_jobs = attr.ib(default=DEFAULT_MAX_JOBS)  # type: int
     preserve_log = attr.ib(default=False)  # type: bool
     version = attr.ib(default=None)  # type: Optional[PipVersionValue]
+    resolver_version = attr.ib(default=None)  # type: Optional[ResolverVersion.Value]
     allow_version_fallback = attr.ib(default=True)  # type: bool
 
 

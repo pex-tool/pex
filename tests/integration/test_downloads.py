@@ -56,7 +56,7 @@ MAC_ARTIFACT = file_artifact(
 @pytest.fixture
 def downloader():
     # type: () -> ArtifactDownloader
-    return ArtifactDownloader(ConfiguredResolver(PipConfiguration()))
+    return ArtifactDownloader(ConfiguredResolver.default())
 
 
 def test_issue_1849_download_foreign_artifact(

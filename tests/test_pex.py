@@ -839,7 +839,7 @@ def test_pex_run_custom_setuptools_useable(
     # type: (...) -> None
     result = resolver.resolve(
         requirements=[setuptools_requirement],
-        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        resolver=ConfiguredResolver.default(),
     )
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
@@ -864,7 +864,7 @@ def test_pex_run_conflicting_custom_setuptools_useable(
 
     result = resolver.resolve(
         requirements=[setuptools_requirement],
-        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        resolver=ConfiguredResolver.default(),
     )
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:
@@ -891,7 +891,7 @@ def test_pex_run_custom_pex_useable():
     old_pex_version = "0.7.0"
     result = resolver.resolve(
         requirements=["pex=={}".format(old_pex_version), "setuptools==40.6.3"],
-        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        resolver=ConfiguredResolver.default(),
     )
     dists = [installed_dist.distribution for installed_dist in result.installed_distributions]
     with temporary_dir() as temp_dir:

@@ -71,6 +71,7 @@ def has_ssh_access():
     [
         pytest.param(resolver_version, id=resolver_version.value)
         for resolver_version in ResolverVersion.values()
+        if ResolverVersion.applies(resolver_version)
     ],
 )
 def test_redacted_requirement_handling(

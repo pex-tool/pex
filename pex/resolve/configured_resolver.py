@@ -4,10 +4,10 @@
 from __future__ import absolute_import
 
 from pex import resolver
-from pex.pip.version import PipVersionValue
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve import lock_resolver
 from pex.resolve.lockfile.model import Lockfile
-from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
+from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration, ResolverVersion
 from pex.resolve.resolvers import Installed, Resolver
 from pex.result import try_
 from pex.targets import Targets
@@ -29,7 +29,12 @@ class ConfiguredResolver(Resolver):
     @classmethod
     def default(cls):
         # type: () -> ConfiguredResolver
-        return cls(PipConfiguration())
+        pip_version = PipVersion.DEFAULT
+        return cls(
+            PipConfiguration(
+                version=pip_version, resolver_version=ResolverVersion.default(pip_version)
+            )
+        )
 
     pip_configuration = attr.ib()  # type: PipConfiguration
 

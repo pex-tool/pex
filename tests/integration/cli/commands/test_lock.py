@@ -1821,6 +1821,7 @@ EXPECTED_LOCKFILES = {
             resolver_version, EXPECTED_LOCKFILES.get(resolver_version), id=resolver_version.value
         )
         for resolver_version in ResolverVersion.values()
+        if ResolverVersion.applies(resolver_version)
     ],
 )
 def test_universal_lock(

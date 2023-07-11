@@ -202,9 +202,9 @@ class PipVersion(Enum["PipVersionValue"]):
     )
 
     v23_2 = PipVersionValue(
-        version="23.2.dev0+8a1eea4a",
-        requirement="pip @ git+https://github.com/pypa/pip@8a1eea4aaedb1fb1c6b4c652cd0c43502f05ff37",
-        setuptools_version="67.8.0",
+        version="23.2.dev0+ea727e4d",
+        requirement="pip @ git+https://github.com/pypa/pip@ea727e4d6ab598f34f97c50a22350febc1214a97",
+        setuptools_version="68.0.0",
         wheel_version="0.40.0",
         requires_python=">=3.7",
         hidden=True,

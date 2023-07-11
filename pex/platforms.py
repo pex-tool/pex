@@ -240,9 +240,9 @@ class Platform(object):
         job = SpawnedJob.stdout(
             # TODO(John Sirois): Plumb pip_version and the user-configured resolver:
             #  https://github.com/pantsbuild/pex/issues/1894
-            job=get_pip(
-                resolver=ConfiguredResolver(pip_configuration=PipConfiguration())
-            ).spawn_debug(platform=self, manylinux=manylinux),
+            job=get_pip(resolver=ConfiguredResolver.default()).spawn_debug(
+                platform=self, manylinux=manylinux
+            ),
             result_func=parse_tags,
         )
         return job.await_result()

@@ -72,7 +72,7 @@ def register(
     parser.add_argument(
         "--resolver-version",
         dest="resolver_version",
-        default=default_resolver_configuration.resolver_version,
+        default=ResolverVersion.default(),
         choices=ResolverVersion.values(),
         type=ResolverVersion.for_value,
         help=(
@@ -446,7 +446,6 @@ def create_pip_configuration(options):
         pip_version = PipVersion.for_value(options.pip_version)
 
     return PipConfiguration(
-        resolver_version=options.resolver_version,
         repos_configuration=repos_configuration,
         network_configuration=create_network_configuration(options),
         allow_prereleases=options.allow_prereleases,
@@ -459,6 +458,7 @@ def create_pip_configuration(options):
         max_jobs=get_max_jobs_value(options),
         preserve_log=options.preserve_pip_download_log,
         version=pip_version,
+        resolver_version=options.resolver_version,
         allow_version_fallback=options.allow_pip_version_fallback,
     )
 
