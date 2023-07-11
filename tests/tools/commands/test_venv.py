@@ -152,6 +152,14 @@ def parse_fabric_version_output(output):
     return dict(cast("Tuple[Text, Text]", line.split(" ", 1)) for line in output.splitlines())
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "Fabric depends on invoke which embeds six which uses a meta path importer that only "
+        "implements the PEP-302 finder spec and not the modern spec. Only the modern finder spec "
+        "is supported by Python 3.12+."
+    ),
+)
 def test_venv_pex(create_pex_venv):
     # type: (CreatePexVenv) -> None
     venv = create_pex_venv()
@@ -259,6 +267,14 @@ def test_binary_path(create_pex_venv):
     assert 0 == returncode
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "Fabric depends on invoke which embeds six which uses a meta path importer that only "
+        "implements the PEP-302 finder spec and not the modern spec. Only the modern finder spec "
+        "is supported by Python 3.12+."
+    ),
+)
 def test_venv_pex_interpreter_special_modes(create_pex_venv):
     # type: (CreatePexVenv) -> None
     venv = create_pex_venv()

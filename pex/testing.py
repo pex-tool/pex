@@ -24,6 +24,8 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.pip.installation import get_pip
+from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
@@ -125,6 +127,7 @@ def make_project(
     entry_points=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
     python_requires=None,  # type: Optional[str]
     universal=False,  # type: bool
+    prepare_project=None,  # type: Optional[Callable[[str], None]]
 ):
     # type: (...) -> Iterator[str]
     project_content = {
@@ -170,6 +173,8 @@ def make_project(
     }
 
     with temporary_content(project_content, interp=interp) as td:
+        if prepare_project:
+            prepare_project(td)
         yield td
 
 
@@ -195,7 +200,10 @@ class WheelBuilder(object):
 
     def bdist(self):
         # type: () -> str
-        get_pip(interpreter=self._interpreter).spawn_build_wheels(
+        get_pip(
+            interpreter=self._interpreter,
+            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        ).spawn_build_wheels(
             distributions=[self._source_dir],
             wheel_dir=self._wheel_dir,
             interpreter=self._interpreter,
@@ -220,6 +228,7 @@ def built_wheel(
     interpreter=None,  # type: Optional[PythonInterpreter]
     python_requires=None,  # type: Optional[str]
     universal=False,  # type: bool
+    prepare_project=None,  # type: Optional[Callable[[str], None]]
     **kwargs  # type: Any
 ):
     # type: (...) -> Iterator[str]
@@ -232,6 +241,7 @@ def built_wheel(
         entry_points=entry_points,
         python_requires=python_requires,
         universal=universal,
+        prepare_project=prepare_project,
     ) as td:
         builder = WheelBuilder(td, interpreter=interpreter, **kwargs)
         yield builder.bdist()
@@ -272,7 +282,9 @@ def install_wheel(
 ):
     # type: (...) -> Distribution
     install_dir = os.path.join(safe_mkdtemp(), os.path.basename(wheel))
-    get_pip(interpreter=interpreter).spawn_install_wheel(
+    get_pip(
+        interpreter=interpreter, resolver=ConfiguredResolver(pip_configuration=PipConfiguration())
+    ).spawn_install_wheel(
         wheel=wheel,
         install_dir=install_dir,
         target=LocalInterpreter.create(interpreter),

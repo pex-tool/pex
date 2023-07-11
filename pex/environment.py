@@ -14,12 +14,13 @@ from pex.common import pluralize
 from pex.dist_metadata import Distribution, Requirement
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
+from pex.interpreter import PythonInterpreter
 from pex.layout import maybe_install
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
-from pex.targets import Target
+from pex.targets import LocalInterpreter, Target
 from pex.third_party.packaging import specifiers
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -52,9 +53,12 @@ def _import_pkg_resources():
         from pex import third_party
 
         third_party.install(expose=["setuptools"])
-        import pkg_resources  # vendor:skip
+        try:
+            import pkg_resources  # vendor:skip
 
-        return pkg_resources, True
+            return pkg_resources, True
+        except ImportError:
+            return None, False
 
 
 @attr.s(frozen=True)
@@ -623,26 +627,26 @@ class PEXEnvironment(object):
         # will be active in the pex environment at runtime and, as such, care must be taken.
         #
         # Properly behaved distributions will declare a dependency on `setuptools`, in which case we
-        # use that (non-vendored) distribution. A side-effect of importing `pkg_resources` from that
+        # use that (non-vendored) distribution. A side effect of importing `pkg_resources` from that
         # distribution is that a global `pkg_resources.working_set` will be populated. For various
         # `pkg_resources` distribution discovery functions to work, that global
-        # `pkg_resources.working_set` must be built with the `sys.path` fully settled. Since all dists
-        # in the dependency set (`resolved_dists`) have already been resolved and added to the
+        # `pkg_resources.working_set` must be built with the `sys.path` fully settled. Since all
+        # dists in the dependency set (`resolved_dists`) have already been resolved and added to the
         # `sys.path` we're safe to proceed here.
         #
         # Other distributions (notably `twitter.common.*`) in the wild declare `setuptools`-specific
-        # `namespace_packages` but do not properly declare a dependency on `setuptools` which they must
-        # use to:
+        # `namespace_packages` but do not properly declare a dependency on `setuptools` which they
+        # must use to:
         # 1. Declare `namespace_packages` metadata which we just verified they have with the check
         #    above.
         # 2. Declare namespace packages at runtime via the canonical:
         #    `__import__('pkg_resources').declare_namespace(__name__)`
         #
         # For such distributions we fall back to our vendored version of `setuptools`. This is safe,
-        # since we'll only introduce our shaded version when no other standard version is present and
-        # even then tear it all down when we hand off from the bootstrap to user code.
+        # since we'll only introduce our shaded version when no other standard version is present
+        # and even then tear it all down when we hand off from the bootstrap to user code.
         pkg_resources, vendored = _import_pkg_resources()
-        if vendored:
+        if not pkg_resources or vendored:
             dists = "\n".join(
                 "\n{index}. {dist} namespace packages:\n  {ns_packages}".format(
                     index=index + 1,
@@ -651,6 +655,21 @@ class PEXEnvironment(object):
                 )
                 for index, (dist, ns_packages) in enumerate(namespace_packages_by_dist.items())
             )
+            if not pkg_resources:
+                current_interpreter = PythonInterpreter.get()
+                pex_warnings.warn(
+                    "The legacy `pkg_resources` package cannot be imported by the "
+                    "{interpreter} {version} interpreter at {path}.\n"
+                    "The following distributions need `pkg_resources` to load some legacy "
+                    "namespace packages and may fail to work properly:\n{dists}".format(
+                        interpreter=current_interpreter.identity.interpreter,
+                        version=current_interpreter.python,
+                        path=current_interpreter.binary,
+                        dists=dists,
+                    )
+                )
+                return
+
             pex_warnings.warn(
                 "The `pkg_resources` package was loaded from a pex vendored version when "
                 "declaring namespace packages defined by:\n{dists}\n\nThese distributions "

@@ -25,7 +25,7 @@ def python_requires() -> str:
     return cast(str, project_metadata["tool"]["flit"]["metadata"]["requires-python"].strip())
 
 
-def build_pex_pex(output_file: PurePath, local: bool = False, verbosity: int = 0) -> None:
+def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
     # NB: We do not include the subprocess extra (which would be spelled: `.[subprocess]`) since we
     # would then produce a pex that would not be consumable by all python interpreters otherwise
     # meeting `python_requires`; ie: we'd need to then come up with a deploy environment / deploy
@@ -54,8 +54,6 @@ def build_pex_pex(output_file: PurePath, local: bool = False, verbosity: int = 0
         "pex",
         pex_requirement,
     ]
-    if not local:
-        args.extend(["--interpreter-constraint", python_requires()])
     subprocess.run(args, check=True)
 
 
@@ -100,12 +98,11 @@ def main(
     *additional_dist_formats: Format,
     verbosity: int = 0,
     pex_output_file: Optional[Path] = DIST_DIR / "pex",
-    local: bool = False,
     serve: bool = False
 ) -> None:
     if pex_output_file:
         print(f"Building Pex PEX to `{pex_output_file}` ...")
-        build_pex_pex(pex_output_file, local, verbosity)
+        build_pex_pex(pex_output_file, verbosity)
 
         git_rev = describe_git_rev()
         sha256, size = describe_file(pex_output_file)
@@ -170,12 +167,6 @@ if __name__ == "__main__":
         help="Build the Pex PEX at this path.",
     )
     parser.add_argument(
-        "--local",
-        default=False,
-        action="store_true",
-        help="Build Pex PEX with just a single local interpreter.",
-    )
-    parser.add_argument(
         "--serve",
         default=False,
         action="store_true",
@@ -187,6 +178,5 @@ if __name__ == "__main__":
         *(args.additional_formats or ()),
         verbosity=args.verbosity,
         pex_output_file=None if args.no_pex else args.pex_output_file,
-        local=args.local,
         serve=args.serve
     )

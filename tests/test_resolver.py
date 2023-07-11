@@ -13,13 +13,16 @@ import pkginfo
 import pytest
 
 from pex import targets
+from pex.build_system.pep_517 import build_sdist
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
 from pex.dist_metadata import Requirement
-from pex.interpreter import PythonInterpreter, spawn_python_job
+from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
-from pex.resolve.resolver_configuration import ResolverVersion
-from pex.resolve.resolvers import InstalledDistribution, Unsatisfiable
-from pex.resolver import download, resolve
+from pex.resolve.configured_resolver import ConfiguredResolver
+from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
+from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable
+from pex.resolver import download
+from pex.resolver import resolve as resolve_under_test
 from pex.targets import Targets
 from pex.testing import (
     IS_LINUX,
@@ -45,14 +48,12 @@ def create_sdist(**kwargs):
     dist_dir = safe_mkdtemp()
 
     with make_project(**kwargs) as project_dir:
-        cmd = ["setup.py", "sdist", "--dist-dir={}".format(dist_dir)]
-        spawn_python_job(
-            args=cmd,
-            cwd=project_dir,
-            expose=["setuptools"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        ).communicate()
+        build_sdist(
+            project_directory=project_dir,
+            dist_dir=dist_dir,
+            target=targets.current(),
+            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        )
 
     dists = os.listdir(dist_dir)
     assert len(dists) == 1
@@ -63,6 +64,12 @@ def build_wheel(**kwargs):
     # type: (**Any) -> str
     with built_wheel(**kwargs) as whl:
         return whl
+
+
+def resolve(**kwargs):
+    # type: (**Any) -> Installed
+    kwargs.setdefault("resolver", ConfiguredResolver(pip_configuration=PipConfiguration()))
+    return resolve_under_test(**kwargs)
 
 
 def local_resolve(*args, **kwargs):
@@ -267,7 +274,15 @@ def resolve_p537_wheel_names(
 ):
     # type: (...) -> List[str]
     with cache(cache_dir):
-        return resolve_wheel_names(requirements=["p537==1.0.5"], transitive=False, **kwargs)
+        return resolve_wheel_names(
+            requirements=[
+                "p537=={version}".format(
+                    version="1.0.6" if sys.version_info[:2] >= (3, 6) else "1.0.5"
+                )
+            ],
+            transitive=False,
+            **kwargs
+        )
 
 
 @pytest.fixture(scope="module")
@@ -485,6 +500,7 @@ def test_download():
     result = download(
         requirements=["{}[foo]".format(project1_sdist)],
         find_links=[os.path.dirname(project2_wheel)],
+        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
     )
     for local_distribution in result.local_distributions:
         distribution = pkginfo.get_metadata(local_distribution.path)
@@ -508,19 +524,39 @@ def test_download():
     assert_dist("setuptools", pkginfo.Wheel, "44.1.0")
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason="We need to use setuptools<66 ut Python 3.12+ require greater.",
+)
 def test_resolve_arbitrary_equality_issues_940():
-    # type: () -> None
+    # type: (...) -> None
+
+    def prepare_project(project_dir):
+        # type: (str) -> None
+        with open(os.path.join(project_dir, "pyproject.toml"), "w") as fp:
+            fp.write(
+                dedent(
+                    """\
+                    [build-system]
+                    # Setuptools 66 removed support for PEP-440 non-compliant versions.
+                    # See: https://setuptools.pypa.io/en/stable/history.html#v66-0-0
+                    requires = ["setuptools<66"]
+                    """
+                )
+            )
+
     dist = create_sdist(
+        prepare_project=prepare_project,
         name="foo",
         version="1.0.2-fba4511",
         python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
     )
-    installed_distributions = local_resolve(
+    installed_distributions = resolve(
         requirements=[dist],
         # We need this to allow the invalid version above to sneak by pip wheel metadata
         # verification.
         verify_wheels=False,
-    )
+    ).installed_distributions
 
     assert len(installed_distributions) == 1
     requirements = installed_distributions[0].direct_requirements

@@ -9,7 +9,7 @@ from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
-from pex.pip.version import PipVersion
+from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
@@ -83,7 +83,7 @@ def register(
     parser.add_argument(
         "--pip-version",
         dest="pip_version",
-        default=str(default_resolver_configuration.version),
+        default=str(PipVersion.DEFAULT),
         choices=["latest", "vendored"] + [str(value) for value in PipVersion.values()],
         help=(
             "The version of Pip to use for resolving dependencies. The `latest` version refers to "
@@ -437,11 +437,12 @@ def create_pip_configuration(options):
 
     repos_configuration = create_repos_configuration(options)
 
+    pip_version = None  # type: Optional[PipVersionValue]
     if options.pip_version == "latest":
         pip_version = PipVersion.LATEST
     elif options.pip_version == "vendored":
         pip_version = PipVersion.VENDORED
-    else:
+    elif options.pip_version:
         pip_version = PipVersion.for_value(options.pip_version)
 
     return PipConfiguration(

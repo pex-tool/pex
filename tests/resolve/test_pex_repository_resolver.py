@@ -12,7 +12,9 @@ from pex.interpreter import PythonInterpreter
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.platforms import Platform
+from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.pex_repository_resolver import resolve_from_pex
+from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
 from pex.targets import Targets
@@ -42,6 +44,7 @@ def create_pex_repository(
         requirements=requirements,
         requirement_files=requirement_files,
         constraint_files=constraint_files,
+        resolver=ConfiguredResolver(PipConfiguration()),
     ).installed_distributions:
         pex_builder.add_distribution(installed_dist.distribution)
         for direct_req in installed_dist.direct_requirements:

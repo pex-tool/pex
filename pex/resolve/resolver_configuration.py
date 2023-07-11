@@ -61,12 +61,6 @@ class ReposConfiguration(object):
     password_entries = attr.ib(default=())  # type: Tuple[PasswordEntry, ...]
 
 
-# We make an affordance for CI with a purposefully undocumented PEX env var.
-_DEFAULT_PIP_VERSION = PipVersion.for_value(
-    os.environ.get("_PEX_PIP_VERSION", PipVersion.VENDORED.value)
-)
-
-
 @attr.s(frozen=True)
 class PipConfiguration(object):
     resolver_version = attr.ib(default=ResolverVersion.PIP_LEGACY)  # type: ResolverVersion.Value
@@ -81,7 +75,7 @@ class PipConfiguration(object):
     transitive = attr.ib(default=True)  # type: bool
     max_jobs = attr.ib(default=DEFAULT_MAX_JOBS)  # type: int
     preserve_log = attr.ib(default=False)  # type: bool
-    version = attr.ib(default=_DEFAULT_PIP_VERSION)  # type: PipVersionValue
+    version = attr.ib(default=None)  # type: Optional[PipVersionValue]
     allow_version_fallback = attr.ib(default=True)  # type: bool
 
 

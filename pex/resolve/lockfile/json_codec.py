@@ -302,7 +302,9 @@ def loads(
         requires_python=get("requires_python", list),
         target_systems=target_systems,
         pip_version=get_enum_value(
-            PipVersion, "pip_version", default=_DEFAULT_PIP_CONFIGURATION.version
+            PipVersion,
+            "pip_version",
+            default=_DEFAULT_PIP_CONFIGURATION.version or PipVersion.DEFAULT,
         ),
         resolver_version=get_enum_value(ResolverVersion, "resolver_version"),
         requirements=requirements,

@@ -51,15 +51,27 @@ jobs:
           - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
+            tox-env-python: python
           - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 20
+            tox-env-python: python
           - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 22_3_1
+            tox-env-python: python
           - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 23_1_2
+            tox-env-python: python
+          - os: macos-12
+            python-version: [ 3, 12, "0-beta.3" ]
+            pip-version: 23_2
+            tox-env-python: python3.11
+          - os: ubuntu-22.04
+            python-version: [ 3, 12, "0-beta.3" ]
+            pip-version: 23_2
+            tox-env-python: python3.11
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -85,8 +97,9 @@ jobs:
           path: ${{ env._PEX_TEST_PYENV_ROOT }}
           key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
       - name: Run Unit Tests
-        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+        uses: pantsbuild/actions/run-tox@addae8ed8cce2b0a359f447d1bb2ec69ff18f9ca
         with:
+          python: ${{ matrix.tox-env-python }}
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
   cpython-unit-tests-legacy:
     name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
@@ -192,15 +205,27 @@ jobs:
           - os: macos-12
             python-version: [ 3, 11 ]
             pip-version: 20
+            tox-env-python: python
           - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 20
+            tox-env-python: python
           - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 22_3_1
+            tox-env-python: python
           - os: ubuntu-22.04
             python-version: [ 3, 11 ]
             pip-version: 23_1_2
+            tox-env-python: python
+          - os: macos-12
+            python-version: [ 3, 12, "0-beta.3" ]
+            pip-version: 23_2
+            tox-env-python: python3.11
+          - os: ubuntu-22.04
+            python-version: [ 3, 12, "0-beta.3" ]
+            pip-version: 23_2
+            tox-env-python: python3.11
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -236,8 +261,9 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+        uses: pantsbuild/actions/run-tox@addae8ed8cce2b0a359f447d1bb2ec69ff18f9ca
         with:
+          python: ${{ matrix.tox-env-python }}
           tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
   cpython-integration-tests-legacy:
     name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration

@@ -16,7 +16,7 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
+from pex.common import is_exe, safe_mkdir, safe_open, safe_rmtree, temporary_dir, touch
 from pex.compatibility import WINDOWS, commonpath
 from pex.dist_metadata import Distribution, Requirement
 from pex.fetcher import URLFetcher
@@ -819,7 +819,7 @@ def test_multiplatform_entrypoint():
         interpreter = ensure_python_interpreter(PY38)
         res = run_pex_command(
             [
-                "p537==1.0.5",
+                "p537==1.0.6",
                 "--no-build",
                 "--python={}".format(interpreter),
                 "--python-shebang=#!{}".format(interpreter),
@@ -840,6 +840,7 @@ def test_multiplatform_entrypoint():
 
 def test_pex_console_script_custom_setuptools_useable():
     # type: () -> None
+    setuptools_version = "67.7.2" if sys.version_info[:2] >= (3, 12) else "43.0.0"
     setup_py = dedent(
         """
         from setuptools import setup
@@ -849,19 +850,19 @@ def test_pex_console_script_custom_setuptools_useable():
             version='0.0.0',
             zip_safe=True,
             packages=[''],
-            install_requires=['setuptools==43.0.0'],
-            entry_points={'console_scripts': ['my_app_function = my_app:do_something']},
+            install_requires=['setuptools=={version}'],
+            entry_points={{'console_scripts': ['my_app_function = my_app:do_something']}},
         )
-  """
-    )
+        """
+    ).format(version=setuptools_version)
 
     my_app = dedent(
         """
         def do_something():
             import setuptools
-            assert '43.0.0' == setuptools.__version__
-  """
-    )
+            assert '{version}' == setuptools.__version__
+        """
+    ).format(version=setuptools_version)
 
     with temporary_content({"setup.py": setup_py, "my_app.py": my_app}) as project_dir:
         with temporary_dir() as out:
@@ -884,17 +885,22 @@ def test_pex_console_script_custom_setuptools_useable():
 @contextmanager
 def pex_with_no_entrypoints():
     # type: () -> Iterator[Tuple[str, bytes, str]]
+    setuptools_version = "67.7.2" if sys.version_info[:2] >= (3, 12) else "43.0.0"
     with temporary_dir() as out:
         pex = os.path.join(out, "pex.pex")
-        run_pex_command(["setuptools==43.0.0", "-o", pex])
-        test_script = dedent(
-            """\
-            import sys
-            import setuptools
+        run_pex_command(["setuptools=={version}".format(version=setuptools_version), "-o", pex])
+        test_script = (
+            dedent(
+                """\
+                import sys
+                import setuptools
 
-            sys.exit(0 if '43.0.0' == setuptools.__version__ else 1)
-            """
-        ).encode("utf-8")
+                sys.exit(0 if '{version}' == setuptools.__version__ else 1)
+                """
+            )
+            .format(version=setuptools_version)
+            .encode("utf-8")
+        )
         yield pex, test_script, out
 
 
@@ -927,14 +933,35 @@ def test_setup_python():
         subprocess.check_call([pex, "-c", "import jsonschema"])
 
 
-def test_setup_interpreter_constraint():
-    # type: () -> None
+@pytest.fixture
+def path_with_git(tmpdir):
+    # type: (Any) -> Iterator[Callable[[str], str]]
+
+    # N.B.: This ensures git is available for handling any git VCS requirements needed.
+
+    git_path = None  # type: Optional[str]
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if is_exe(os.path.join(entry, "git")):
+            git_path = entry
+            break
+
+    def _path_with_git(path):
+        # type: (str) -> str
+        if git_path:
+            return os.pathsep.join((path, git_path))
+        return path
+
+    yield _path_with_git
+
+
+def test_setup_interpreter_constraint(path_with_git):
+    # type: (Callable[[str], str]) -> None
     interpreter = ensure_python_interpreter(PY39)
     with temporary_dir() as out:
         pex = os.path.join(out, "pex.pex")
         env = make_env(
             PEX_IGNORE_RCFILES="1",
-            PATH=os.path.dirname(interpreter),
+            PATH=path_with_git(os.path.dirname(interpreter)),
         )
         results = run_pex_command(
             [
@@ -952,8 +979,8 @@ def test_setup_interpreter_constraint():
         assert rc == 0
 
 
-def test_setup_python_path():
-    # type: () -> None
+def test_setup_python_path(path_with_git):
+    # type: (Callable[[str], str]) -> None
     """Check that `--python-path` is used rather than the default $PATH."""
     py38_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY38))
     py39_interpreter_dir = os.path.dirname(ensure_python_interpreter(PY39))
@@ -972,7 +999,7 @@ def test_setup_python_path():
                 "-o",
                 pex,
             ],
-            env=make_env(PEX_IGNORE_RCFILES="1", PATH=""),
+            env=make_env(PEX_IGNORE_RCFILES="1", PATH=path_with_git("")),
         )
         results.assert_success()
 
@@ -1120,10 +1147,10 @@ def test_emit_warnings_default():
     assert stderr
 
 
-def test_no_emit_warnings():
+def test_no_emit_warnings_2():
     # type: () -> None
     stderr = build_and_execute_pex_with_warnings("--no-emit-warnings")
-    assert not stderr
+    assert not stderr, stderr
 
 
 def test_no_emit_warnings_emit_env_override():
@@ -1234,7 +1261,7 @@ def test_pex_cache_dir_and_pex_root():
         pex_file = os.path.join(td, "pex_file")
         run_pex_command(
             python=python,
-            args=["--cache-dir", cache_dir, "--pex-root", cache_dir, "p537==1.0.5", "-o", pex_file],
+            args=["--cache-dir", cache_dir, "--pex-root", cache_dir, "p537==1.0.6", "-o", pex_file],
         ).assert_success()
 
         dists = list(iter_distributions(pex_root=cache_dir, project_name="p537"))
@@ -1246,7 +1273,7 @@ def test_pex_cache_dir_and_pex_root():
         # When the options have conflicting values they should be rejected.
         run_pex_command(
             python=python,
-            args=["--cache-dir", cache_dir, "--pex-root", pex_root, "p537==1.0.5", "-o", pex_file],
+            args=["--cache-dir", cache_dir, "--pex-root", pex_root, "p537==1.0.6", "-o", pex_file],
         ).assert_failure()
 
         assert not os.path.exists(cache_dir)
@@ -1261,7 +1288,7 @@ def test_disable_cache():
         pex_file = os.path.join(td, "pex_file")
         run_pex_command(
             python=python,
-            args=["--disable-cache", "p537==1.0.5", "-o", pex_file],
+            args=["--disable-cache", "p537==1.0.6", "-o", pex_file],
             env=make_env(PEX_ROOT=pex_root),
         ).assert_success()
 
@@ -1597,8 +1624,12 @@ def test_pip_issues_9420_workaround():
 
 
 @pytest.mark.skipif(
-    PY_VER <= (3, 5),
-    reason="The example python requirements URL has requirements that only work with Python 3.6+.",
+    PY_VER <= (3, 5) or PY_VER >= (3, 12),
+    reason=(
+        "The example python requirements URL has requirements that only work with Python 3.6-3.11. "
+        "Python 3.12 in particular is cut off by an old setuptools version that assumes the stdlib "
+        "distutils packages which is gone as of Python 3.12."
+    ),
 )
 def test_requirement_file_from_url(tmpdir):
     # type: (Any) -> None
@@ -1699,6 +1730,14 @@ def test_invalid_macosx_platform_tag(tmpdir):
     subprocess.check_call(args=[setproctitle_pex, "-c", "import setproctitle"])
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "The urllib3 dependency embeds six which uses a meta path importer that only implements "
+        "the PEP-302 finder spec and not the modern spec. Only the modern finder spec is supported "
+        "by Python 3.12+."
+    ),
+)
 def test_require_hashes(tmpdir):
     # type: (Any) -> None
     requirements = os.path.join(str(tmpdir), "requirements.txt")

@@ -20,7 +20,6 @@ from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
 from pex.pep_376 import Record
 from pex.pep_425 import CompatibilityTags
-from pex.pex_bootstrapper import VenvPex
 from pex.pip import foreign_platform
 from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
@@ -134,7 +133,7 @@ class PackageIndexConfiguration(object):
     @classmethod
     def create(
         cls,
-        pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+        pip_version=None,  # type: Optional[PipVersionValue]
         resolver_version=None,  # type: Optional[ResolverVersion.Value]
         indexes=None,  # type: Optional[Sequence[str]]
         find_links=None,  # type: Optional[Iterable[str]]
@@ -164,22 +163,22 @@ class PackageIndexConfiguration(object):
 
     def __init__(
         self,
-        pip_version,  # type: PipVersionValue
         resolver_version,  # type: ResolverVersion.Value
         network_configuration,  # type: NetworkConfiguration
         args,  # type: Iterable[str]
         env,  # type: Iterable[Tuple[str, str]]
         isolated,  # type: bool
         password_entries=(),  # type: Iterable[PasswordEntry]
+        pip_version=None,  # type: Optional[PipVersionValue]
     ):
         # type: (...) -> None
-        self.pip_version = pip_version  # type: PipVersionValue
         self.resolver_version = resolver_version  # type: ResolverVersion.Value
         self.network_configuration = network_configuration  # type: NetworkConfiguration
         self.args = tuple(args)  # type: Iterable[str]
         self.env = dict(env)  # type: Mapping[str, str]
         self.isolated = isolated  # type: bool
         self.password_entries = password_entries  # type: Iterable[PasswordEntry]
+        self.pip_version = pip_version  # type: Optional[PipVersionValue]
 
 
 if TYPE_CHECKING:
@@ -219,11 +218,21 @@ class _Issue9420Analyzer(ErrorAnalyzer):
 
 
 @attr.s(frozen=True)
+class PipVenv(object):
+    venv_dir = attr.ib()  # type: str
+    _execute_args = attr.ib()  # type: Tuple[str, ...]
+
+    def execute_args(self, *args):
+        # type: (*str) -> List[str]
+        return list(self._execute_args + args)
+
+
+@attr.s(frozen=True)
 class Pip(object):
     _PATCHES_PACKAGE_ENV_VAR_NAME = "_PEX_PIP_RUNTIME_PATCHES_PACKAGE"
     _PATCHES_PACKAGE_NAME = "_pex_pip_patches"
 
-    _pip_pex = attr.ib()  # type: VenvPex
+    _pip = attr.ib()  # type: PipVenv
     _pip_cache = attr.ib()  # type: str
 
     @staticmethod
@@ -350,7 +359,7 @@ class Pip(object):
                 popen_kwargs["stdout"] = sys.stderr.fileno()
             popen_kwargs.update(stderr=subprocess.PIPE)
 
-            args = self._pip_pex.execute_args(*command)
+            args = self._pip.execute_args(*command)
 
             rendered_env = " ".join(
                 "{}={}".format(key, shlex_quote(value)) for key, value in env.items()

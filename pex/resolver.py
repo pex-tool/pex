@@ -89,7 +89,7 @@ class DownloadRequest(object):
     build_isolation = attr.ib(default=True)  # type: bool
     observer = attr.ib(default=None)  # type: Optional[ResolveObserver]
     preserve_log = attr.ib(default=False)  # type: bool
-    pip_version = attr.ib(default=PipVersion.VENDORED)  # type: PipVersionValue
+    pip_version = attr.ib(default=None)  # type: Optional[PipVersionValue]
     resolver = attr.ib(default=None)  # type: Optional[Resolver]
 
     def iter_local_projects(self):
@@ -517,7 +517,7 @@ class WheelBuilder(object):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         verify_wheels=True,  # type: bool
-        pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+        pip_version=None,  # type: Optional[PipVersionValue]
         resolver=None,  # type: Optional[Resolver]
     ):
         # type: (...) -> None
@@ -622,7 +622,7 @@ class BuildAndInstallRequest(object):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         verify_wheels=True,  # type: bool
-        pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+        pip_version=None,  # type: Optional[PipVersionValue]
         resolver=None,  # type: Optional[Resolver]
     ):
         # type: (...) -> None
@@ -955,7 +955,7 @@ def resolve(
     ignore_errors=False,  # type: bool
     verify_wheels=True,  # type: bool
     preserve_log=False,  # type: bool
-    pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+    pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
 ):
     # type: (...) -> Installed
@@ -1115,7 +1115,7 @@ def _download_internal(
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
     preserve_log=False,  # type: bool
-    pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+    pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
 ):
     # type: (...) -> Tuple[List[BuildRequest], List[DownloadResult]]
@@ -1200,7 +1200,7 @@ def download(
     max_parallel_jobs=None,  # type: Optional[int]
     observer=None,  # type: Optional[ResolveObserver]
     preserve_log=False,  # type: bool
-    pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+    pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
 ):
     # type: (...) -> Downloaded

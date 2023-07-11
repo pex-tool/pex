@@ -83,7 +83,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         use_pep517=None,  # type: Optional[bool]
         build_isolation=True,  # type: bool
         pex_root=None,  # type: Optional[str]
-        pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+        pip_version=None,  # type: Optional[PipVersionValue]
         resolver=None,  # type: Optional[Resolver]
     ):
         super(VCSArtifactDownloadManager, self).__init__(
@@ -160,8 +160,8 @@ class LocalProjectDownloadManager(DownloadManager[LocalProjectArtifact]):
         self,
         target,  # type: Target
         file_lock_style,  # type: FileLockStyle.Value
-        pip_version,  # type: PipVersionValue
         resolver,  # type: Resolver
+        pip_version=None,  # type: Optional[PipVersionValue]
         pex_root=None,  # type: Optional[str]
     ):
         super(LocalProjectDownloadManager, self).__init__(
@@ -242,7 +242,7 @@ def resolve_from_lock(
     transitive=True,  # type: bool
     verify_wheels=True,  # type: bool
     max_parallel_jobs=None,  # type: Optional[int]
-    pip_version=PipVersion.VENDORED,  # type: PipVersionValue
+    pip_version=None,  # type: Optional[PipVersionValue]
 ):
     # type: (...) -> Union[Installed, Error]
 

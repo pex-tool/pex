@@ -235,7 +235,7 @@ def test_vcs_transitive(
     subprocess.check_call(args=["git", "config", "user.name", "Douglas Adams"], cwd=src)
     subprocess.check_call(args=["git", "checkout", "-b", "Golgafrincham"], cwd=src)
     subprocess.check_call(args=["git", "add", "."], cwd=src)
-    subprocess.check_call(args=["git", "commit", "-m", "Only commit."], cwd=src)
+    subprocess.check_call(args=["git", "commit", "--no-gpg-sign", "-m", "Only commit."], cwd=src)
 
     lock = test_tool.create_lock("git+file://{src}#egg=poetry".format(src=src))
     pex = test_tool.create_pex(lock, "-c", "recite")

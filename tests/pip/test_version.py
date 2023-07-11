@@ -9,4 +9,10 @@ def test_latest():
 
     assert PipVersion.LATEST != PipVersion.VENDORED
     assert PipVersion.LATEST >= PipVersion.v23_1
-    assert max(PipVersion.values(), key=lambda pv: pv.version) is PipVersion.LATEST
+    assert (
+        max(
+            (version for version in PipVersion.values() if not version.hidden),
+            key=lambda pv: pv.version,
+        )
+        is PipVersion.LATEST
+    )

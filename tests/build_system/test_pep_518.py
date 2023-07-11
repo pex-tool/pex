@@ -26,7 +26,7 @@ def load_build_system(project_directory):
     # type: (...) -> Union[Optional[BuildSystem], Error]
     return pep_518.load_build_system(
         LocalInterpreter.create(),
-        ConfiguredResolver(PipConfiguration(version=PipVersion.VENDORED)),
+        ConfiguredResolver(PipConfiguration(version=PipVersion.DEFAULT)),
         project_directory,
     )
 

@@ -1,9 +1,21 @@
 # Copyright 2021 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import sys
+
+import pytest
+
 from pex.testing import run_pex_command
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "There is an indirect urllib3 dependency which embeds six which uses a meta path importer "
+        "that only implements the PEP-302 finder spec and not the modern spec. Only the modern "
+        "finder spec is supported by Python 3.12+."
+    ),
+)
 def test_pip_2020_resolver_engaged():
     # type: () -> None
 

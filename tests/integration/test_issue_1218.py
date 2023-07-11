@@ -2,6 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
+import sys
+
+import pytest
 
 from pex.pex_info import PexInfo
 from pex.testing import run_pex_command, run_simple_pex
@@ -11,13 +14,21 @@ if TYPE_CHECKING:
     from typing import Any, Dict, Tuple
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] >= (3, 12),
+    reason=(
+        "The invoke dependency embeds six which uses a meta path importer that only implements the "
+        "PEP-302 finder spec and not the modern spec. Only the modern finder spec is supported by "
+        "Python 3.12+."
+    ),
+)
 def test_venv_mode_dir_hash_includes_all_pex_info_metadata(tmpdir):
     # type: (Any) -> None
 
     def get_fabric_versions(pex):
         # type: (str) -> Dict[str, str]
         output, returncode = run_simple_pex(pex, args=["--version"])
-        assert 0 == returncode
+        assert 0 == returncode, output.decode("utf-8")
         return dict(
             cast("Tuple[str, str]", line.split(" ", 1))
             for line in output.decode("utf-8").splitlines()
