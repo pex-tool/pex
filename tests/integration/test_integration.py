@@ -1666,6 +1666,7 @@ def test_constraint_file_from_url(tmpdir):
             # requirements URL contains `requests[security]>=2.20.1` which uses an extra; so we use
             # older Pip here.
             "--pip-version=20.3.4-patched",
+            "--resolver-version=pip-legacy-resolver",
             "-o",
             pex_file,
         ],

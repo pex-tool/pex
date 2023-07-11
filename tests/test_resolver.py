@@ -52,7 +52,7 @@ def create_sdist(**kwargs):
             project_directory=project_dir,
             dist_dir=dist_dir,
             target=targets.current(),
-            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+            resolver=ConfiguredResolver.default(),
         )
 
     dists = os.listdir(dist_dir)
@@ -68,7 +68,7 @@ def build_wheel(**kwargs):
 
 def resolve(**kwargs):
     # type: (**Any) -> Installed
-    kwargs.setdefault("resolver", ConfiguredResolver(pip_configuration=PipConfiguration()))
+    kwargs.setdefault("resolver", ConfiguredResolver.default())
     return resolve_under_test(**kwargs)
 
 
@@ -500,7 +500,7 @@ def test_download():
     result = download(
         requirements=["{}[foo]".format(project1_sdist)],
         find_links=[os.path.dirname(project2_wheel)],
-        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        resolver=ConfiguredResolver.default(),
     )
     for local_distribution in result.local_distributions:
         distribution = pkginfo.get_metadata(local_distribution.path)

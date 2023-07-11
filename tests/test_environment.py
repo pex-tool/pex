@@ -141,7 +141,7 @@ def assert_force_local_implicit_ns_packages_issues_598(
         for installed_dist in resolver.resolve(
             targets=Targets(interpreters=(builder.interpreter,)),
             requirements=requirements,
-            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+            resolver=ConfiguredResolver.default(),
         ).installed_distributions:
             builder.add_distribution(installed_dist.distribution)
             for direct_req in installed_dist.direct_requirements:
@@ -274,7 +274,7 @@ def test_osx_platform_intel_issue_523():
         for installed_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
             requirements=["psutil==5.4.3"],
-            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+            resolver=ConfiguredResolver.default(),
         ).installed_distributions:
             pb.add_dist_location(installed_dist.distribution.location)
         pb.build(pex_file)
@@ -342,7 +342,7 @@ def test_activate_extras_issue_615():
         for installed_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
             requirements=["pex[requests]==1.6.3"],
-            resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+            resolver=ConfiguredResolver.default(),
         ).installed_distributions:
             for direct_req in installed_dist.direct_requirements:
                 pb.add_requirement(direct_req)
@@ -369,7 +369,7 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
     pb = PEXBuilder()
     for installed_dist in resolver.resolve(
         requirements=[requirement],
-        resolver=ConfiguredResolver(pip_configuration=PipConfiguration()),
+        resolver=ConfiguredResolver.default(),
     ).installed_distributions:
         pb.add_dist_location(installed_dist.distribution.location)
     pb.freeze()

@@ -4,10 +4,12 @@
 import os.path
 import re
 
+import pytest
 from colors import green
 
 from pex.cli.testing import run_pex3
 from pex.resolve.lockfile import json_codec
+from pex.resolve.resolver_configuration import ResolverVersion
 from pex.testing import run_pex_command
 
 
@@ -58,6 +60,13 @@ def test_preserve_pip_download_log():
     assert expected_hash == artifact.fingerprint.hash
 
 
+@pytest.mark.skipif(
+    ResolverVersion.default() is ResolverVersion.PIP_2020,
+    reason=(
+        "The PIP_2020 resolver triggers download analysis in normal resolves but this test is "
+        "concerned with the case when there is no analysis to be performed."
+    ),
+)
 def test_preserve_pip_download_log_none():
     # type: () -> None
 
@@ -76,4 +85,4 @@ def test_preserve_pip_download_log_none():
     assert (
         "pex: The `pip download` log is not being utilized, to see more `pip download` details, "
         "re-run with more Pex verbosity (more `-v`s).\n"
-    ) in result.error
+    ) in result.error, result.error

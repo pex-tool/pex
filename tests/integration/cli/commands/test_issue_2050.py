@@ -15,7 +15,6 @@ from pex.cli.testing import run_pex3
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec

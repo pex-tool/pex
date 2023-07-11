@@ -141,7 +141,7 @@ class PackageIndexConfiguration(object):
         password_entries=(),  # type: Iterable[PasswordEntry]
     ):
         # type: (...) -> PackageIndexConfiguration
-        resolver_version = resolver_version or ResolverVersion.PIP_LEGACY
+        resolver_version = resolver_version or ResolverVersion.default(pip_version)
         network_configuration = network_configuration or NetworkConfiguration()
 
         # We must pass `--client-cert` via PIP_CLIENT_CERT to work around
@@ -241,7 +241,7 @@ class Pip(object):
         return (
             package_index_configuration.resolver_version
             if package_index_configuration
-            else ResolverVersion.PIP_LEGACY
+            else ResolverVersion.default()
         )
 
     @classmethod
