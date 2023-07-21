@@ -16,8 +16,6 @@ import sys
 from argparse import Action, ArgumentDefaultsHelpFormatter, ArgumentError, ArgumentParser
 from textwrap import TextWrapper
 
-import attr
-
 from pex import pex_warnings
 from pex.argparse import HandleBoolAction
 from pex.commands.command import (
@@ -52,7 +50,12 @@ if TYPE_CHECKING:
     from argparse import Namespace
     from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
+    import attr  # vendor:skip
+
     from pex.resolve.resolver_options import ResolverConfiguration
+else:
+    from pex.third_party import attr
+
 
 CANNOT_SETUP_INTERPRETER = 102
 INVALID_OPTIONS = 103
