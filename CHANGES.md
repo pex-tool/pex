@@ -1,5 +1,24 @@
 # Release Notes
 
+## 2.1.139
+
+This release brings support for Python 3.12 and Pip 23.2 which is the
+minimum required Pip version for Python 3.12. N.B.: Since Pip 23.2
+requires Python 3.7 or newer, multiplatform PEX files and locks that
+support Python 3.12 will not also be able to support Python 2.7, 3.5
+or 3.6 even though Pex continues to support those versions generally.
+
+In addition, two new options for adding local project source files to
+a pex are added: `-P/--package` and `-M/--module`. Importantly, you can
+use the options instead of the existing `-D/--sources-directory` when
+you have a project with code at the top level (i.e.: not in a `src/`
+subdirectory for example) intermixed with other files you prefer not to
+include in the PEX. See `pex --help` for more details on using these new
+options.
+
+* Add official support for Python 3.12 / Pip 23.2. (#2176)
+* Add support for selecting packages and modules. (#2181)
+
 ## 2.1.138
 
 This release brings fixes for two obscure corner cases.
