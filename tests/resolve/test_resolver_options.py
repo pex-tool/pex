@@ -169,3 +169,13 @@ def test_latest_pip_version(parser):
 
     pip_configuration = compute_pip_configuration(parser, args=["--pip-version", "latest"])
     assert pip_configuration.version is PipVersion.LATEST
+
+
+def test_resolver_version_invalid(parser):
+    # type: (ArgumentParser) -> None
+    resolver_options.register(parser)
+
+    with pytest.raises(resolver_options.InvalidConfigurationError):
+        compute_pip_configuration(
+            parser, args=["--pip-version", "23.2", "--resolver-version", "pip-legacy-resolver"]
+        )

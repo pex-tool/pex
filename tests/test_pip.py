@@ -81,7 +81,7 @@ applicable_pip_versions = pytest.mark.parametrize(
     [
         pytest.param(version, id=str(version))
         for version in PipVersion.values()
-        if version.requires_python_applies(LocalInterpreter.create())
+        if version.requires_python_applies()
     ],
 )
 

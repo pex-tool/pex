@@ -71,12 +71,14 @@ class PipVersionValue(Enum.Value):
         # type: () -> Iterable[str]
         return self.requirement, self.setuptools_requirement, self.wheel_requirement
 
-    def requires_python_applies(self, target):
-        # type: (Target) -> bool
+    def requires_python_applies(self, target=None):
+        # type: (Optional[Target]) -> bool
         if not self.requires_python:
             return True
 
-        return LocalInterpreter.create(target.get_interpreter()).requires_python_applies(
+        return LocalInterpreter.create(
+            interpreter=target.get_interpreter() if target else None
+        ).requires_python_applies(
             requires_python=self.requires_python,
             source=Requirement.parse(self.requirement),
         )
