@@ -72,12 +72,16 @@ def register(
     parser.add_argument(
         "--resolver-version",
         dest="resolver_version",
-        default=ResolverVersion.default(),
+        default=None,
         choices=ResolverVersion.values(),
         type=ResolverVersion.for_value,
         help=(
-            "The dependency resolver version to use. Read more at "
-            "https://pip.pypa.io/en/stable/user_guide/#resolver-changes-2020"
+            "The dependency resolver version to use. For any `--pip-version` older than 23.2 this "
+            "defaults to {pip_legacy}. For `--pip-version` 23.2 and newer this defaults to "
+            "{pip_2020} which is the only valid version. Read more at "
+            "https://pip.pypa.io/en/stable/user_guide/#resolver-changes-2020".format(
+                pip_legacy=ResolverVersion.PIP_LEGACY, pip_2020=ResolverVersion.PIP_2020
+            )
         ),
     )
     parser.add_argument(
@@ -445,6 +449,14 @@ def create_pip_configuration(options):
     elif options.pip_version:
         pip_version = PipVersion.for_value(options.pip_version)
 
+    resolver_version = options.resolver_version or ResolverVersion.default(pip_version=pip_version)
+    if not ResolverVersion.applies(resolver_version, pip_version=pip_version):
+        raise InvalidConfigurationError(
+            "Pip {pip_version} does not support {resolver_version}.".format(
+                pip_version=pip_version, resolver_version=resolver_version
+            )
+        )
+
     return PipConfiguration(
         repos_configuration=repos_configuration,
         network_configuration=create_network_configuration(options),
@@ -458,7 +470,7 @@ def create_pip_configuration(options):
         max_jobs=get_max_jobs_value(options),
         preserve_log=options.preserve_pip_download_log,
         version=pip_version,
-        resolver_version=options.resolver_version,
+        resolver_version=resolver_version,
         allow_version_fallback=options.allow_pip_version_fallback,
     )
 

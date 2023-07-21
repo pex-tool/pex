@@ -20,7 +20,12 @@ from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Iterator
+
+    import attr  # vendor:skip
+
+else:
+    from pex.third_party import attr
 
 
 VCS_URL = (
@@ -47,6 +52,21 @@ def has_ssh_access():
     return "You've successfully authenticated" in output.decode()
 
 
+@attr.s(frozen=True)
+class PipParameters(object):
+    @classmethod
+    def iter(cls):
+        # type: () -> Iterator[PipParameters]
+        for pip_version in PipVersion.values():
+            if pip_version.requires_python_applies():
+                for resolver_version in ResolverVersion.values():
+                    if ResolverVersion.applies(resolver_version, pip_version=pip_version):
+                        yield cls(pip_version=pip_version, resolver_version=resolver_version)
+
+    pip_version = attr.ib()  # type: PipVersionValue
+    resolver_version = attr.ib()  # type: ResolverVersion.Value
+
+
 @pytest.mark.skipif(
     not has_ssh_access(), reason="Password-less ssh to git@github.com is required for this test."
 )
@@ -63,23 +83,23 @@ def has_ssh_access():
     ],
 )
 @pytest.mark.parametrize(
-    "pip_version",
-    [pytest.param(pip_version, id=pip_version.value) for pip_version in PipVersion.values()],
-)
-@pytest.mark.parametrize(
-    "resolver_version",
+    "pip_parameters",
     [
-        pytest.param(resolver_version, id=resolver_version.value)
-        for resolver_version in ResolverVersion.values()
-        if ResolverVersion.applies(resolver_version)
+        pytest.param(
+            pip_parameters,
+            id="{pip_version}-{resolver_version}".format(
+                pip_version=pip_parameters.pip_version,
+                resolver_version=pip_parameters.resolver_version,
+            ),
+        )
+        for pip_parameters in PipParameters.iter()
     ],
 )
 def test_redacted_requirement_handling(
     tmpdir,  # type: Any
     requirement,  # type: str
     expected_url,  # type: str
-    pip_version,  # type: PipVersionValue
-    resolver_version,  # type: ResolverVersion.Value
+    pip_parameters,  # type: PipParameters
 ):
     # type: (...) -> None
 
@@ -88,9 +108,9 @@ def test_redacted_requirement_handling(
         "lock",
         "create",
         "--pip-version",
-        str(pip_version),
+        str(pip_parameters.pip_version),
         "--resolver-version",
-        str(resolver_version),
+        str(pip_parameters.resolver_version),
         requirement,
         "-o",
         lock,
