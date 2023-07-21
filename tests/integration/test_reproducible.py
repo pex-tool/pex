@@ -11,6 +11,9 @@ import pytest
 
 from pex.common import temporary_dir
 from pex.compatibility import PY2
+from pex.interpreter import PythonInterpreter
+from pex.pip.version import PipVersion, PipVersionValue
+from pex.targets import LocalInterpreter
 from pex.testing import (
     IS_LINUX_ARM64,
     IS_MAC_ARM64,
@@ -29,6 +32,23 @@ from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Iterable, List, Optional, Tuple
+
+
+def compatible_pip_version(pythons):
+    # type: (Iterable[str]) -> PipVersionValue
+    for pip_version in PipVersion.values():
+        if all(
+            pip_version.requires_python_applies(
+                LocalInterpreter.create(PythonInterpreter.from_binary(python))
+            )
+            for python in pythons
+        ):
+            return pip_version
+    raise AssertionError(
+        "Expected there to be a --pip-version compatible with all pythons: {pythons}".format(
+            pythons=", ".join(pythons)
+        )
+    )
 
 
 def assert_reproducible_build(
@@ -134,7 +154,14 @@ def test_reproducible_build_sdist_requirements(major_compatible_pythons):
     # type: (Tuple[str, ...]) -> None
     # The python-crontab sdist will be built as py2-none-any or py3-none-any depending on the
     # Python major version since it is not marked as universal in the sdist.
-    assert_reproducible_build(["python-crontab==2.3.6"], pythons=major_compatible_pythons)
+    assert_reproducible_build(
+        [
+            "python-crontab==2.3.6",
+            "--pip-version",
+            str(compatible_pip_version(major_compatible_pythons)),
+        ],
+        pythons=major_compatible_pythons,
+    )
 
 
 def test_reproducible_build_m_flag(mixed_major_pythons):
@@ -170,7 +197,13 @@ def test_reproducible_build_c_flag_from_source(major_compatible_pythons):
         {"setup.cfg": setup_cfg, "setup.py": setup_py, "my_app.py": my_app}
     ) as project_dir:
         assert_reproducible_build(
-            [project_dir, "-c", "my_app_function"],
+            [
+                project_dir,
+                "-c",
+                "my_app_function",
+                "--pip-version",
+                str(compatible_pip_version(major_compatible_pythons)),
+            ],
             # Modern Pip / Setuptools produce different metadata for sdists than legacy Pip /
             # Setuptools; so we don't mix them.
             pythons=major_compatible_pythons,
@@ -182,7 +215,14 @@ def test_reproducible_build_c_flag_from_dependency(major_compatible_pythons):
     # The futurize script installed depends on the version of python being used; so we don't try
     # to mix Python 2 with Python 3 as in many other reproducibility tests.
     assert_reproducible_build(
-        ["future==0.17.1", "-c", "futurize"], pythons=major_compatible_pythons
+        [
+            "future==0.17.1",
+            "-c",
+            "futurize",
+            "--pip-version",
+            str(compatible_pip_version(major_compatible_pythons)),
+        ],
+        pythons=major_compatible_pythons,
     )
 
 
