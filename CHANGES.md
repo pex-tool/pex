@@ -16,8 +16,12 @@ subdirectory for example) intermixed with other files you prefer not to
 include in the PEX. See `pex --help` for more details on using these new
 options.
 
+Finally, an internal API is fixed that allows for Lambdex files to
+include versions of `attrs` incompatible with Pex's own vendored version.
+
 * Add official support for Python 3.12 / Pip 23.2. (#2176)
 * Add support for selecting packages and modules. (#2181)
+* Fix `pex.pex_bootstrapper.bootstrap_pex_env` leak. (#2184)
 
 ## 2.1.138
 
