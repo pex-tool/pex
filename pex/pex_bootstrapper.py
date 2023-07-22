@@ -700,3 +700,7 @@ def bootstrap_pex_env(entry_point):
     from .environment import PEXEnvironment
 
     PEXEnvironment.mount(entry_point, pex_info).activate()
+
+    from . import bootstrap
+
+    bootstrap.demote()
