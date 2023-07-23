@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
     from packaging import utils as packaging_utils  # vendor:skip
     from packaging import version as packaging_version  # vendor:skip
-    from packaging.version import InvalidVersion
+    from packaging.version import InvalidVersion  # vendor:skip
 
     ParsedVersion = Union[packaging_version.LegacyVersion, packaging_version.Version]
 else:
