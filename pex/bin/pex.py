@@ -23,7 +23,7 @@ from pex.commands.command import (
     global_environment,
     register_global_arguments,
 )
-from pex.common import die, safe_mkdtemp
+from pex.common import die, filter_pyc_dirs, filter_pyc_files, safe_mkdtemp
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
@@ -48,9 +48,14 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from argparse import Namespace
-    from typing import Dict, List, Optional
+    from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
+
+    import attr  # vendor:skip
 
     from pex.resolve.resolver_options import ResolverConfiguration
+else:
+    from pex.third_party import attr
+
 
 CANNOT_SETUP_INTERPRETER = 102
 INVALID_OPTIONS = 103
@@ -461,6 +466,149 @@ class HandleSeedAction(Action):
         setattr(namespace, self.dest, seed)
 
 
+@attr.s(frozen=True)
+class PythonSource(object):
+    @classmethod
+    def parse(cls, name):
+        # type: (str) -> PythonSource
+        subdir = None
+        parts = name.split("@", 1)
+        if len(parts) == 2:
+            name, subdir = parts
+        return cls(name=name, subdir=subdir)
+
+    name = attr.ib()  # type: str
+    subdir = attr.ib(default=None)  # type: Optional[str]
+
+    def iter_files(self):
+        # type: () -> Iterator[Tuple[str, str]]
+        components = self.name.split(".")
+        parent_package_dirs = components[:-1]
+        source = components[-1]
+
+        package_path = [self.subdir] if self.subdir else []  # type: List[str]
+        for package_dir in parent_package_dirs:
+            package_path.append(package_dir)
+            package_file_src = os.path.join(*(package_path + ["__init__.py"]))
+            if os.path.exists(package_file_src):
+                package_file_dst = (
+                    os.path.relpath(package_file_src, self.subdir)
+                    if self.subdir
+                    else package_file_src
+                )
+                yield package_file_src, package_file_dst
+
+        for src, dst in self._iter_source_files(package_path, source):
+            yield src, dst
+
+    def _iter_source_files(
+        self,
+        parent_package_path,  # type: List[str]
+        source,  # type: str
+    ):
+        # type: (...) -> Iterator[Tuple[str, str]]
+        raise NotImplementedError()
+
+
+class Package(PythonSource):
+    def _iter_source_files(
+        self,
+        parent_package_path,  # type: List[str]
+        source,  # type: str
+    ):
+        # type: (...) -> Iterator[Tuple[str, str]]
+        package_dir = os.path.join(*(parent_package_path + [source]))
+        for root, dirs, files in os.walk(package_dir):
+            dirs[:] = list(filter_pyc_dirs(dirs))
+            for f in filter_pyc_files(files):
+                src = os.path.join(root, f)
+                dst = os.path.relpath(src, self.subdir) if self.subdir else src
+                yield src, dst
+
+
+class Module(PythonSource):
+    def _iter_source_files(
+        self,
+        parent_package_path,  # type: List[str]
+        source,  # type: str
+    ):
+        # type: (...) -> Iterator[Tuple[str, str]]
+        module_src = os.path.join(*(parent_package_path + ["{module}.py".format(module=source)]))
+        module_dest = os.path.relpath(module_src, self.subdir) if self.subdir else module_src
+        yield module_src, module_dest
+
+
+def configure_clp_sources(parser):
+    # type: (ArgumentParser) -> None
+
+    parser.add_argument(
+        "-D",
+        "--sources-directory",
+        dest="sources_directory",
+        metavar="DIR",
+        default=[],
+        type=str,
+        action="append",
+        help=(
+            "Add a directory containing sources and/or resources to be packaged into the generated "
+            ".pex file. This option can be used multiple times."
+        ),
+    )
+
+    parser.add_argument(
+        "-R",
+        "--resources-directory",
+        dest="resources_directory",
+        metavar="DIR",
+        default=[],
+        type=str,
+        action="append",
+        help=(
+            "Add resources directory to be packaged into the generated .pex file."
+            " This option can be used multiple times. DEPRECATED: Use -D/--sources-directory "
+            "instead."
+        ),
+    )
+
+    parser.add_argument(
+        "-P",
+        "--package",
+        dest="packages",
+        metavar="PACKAGE_SPEC",
+        default=[],
+        type=Package.parse,
+        action="append",
+        help=(
+            "Add a package and all its sub-packages to the generated .pex file. The package is "
+            "expected to be found relative to the the current directory. If the package is housed "
+            "in a subdirectory, indicate that by appending `@<subdirectory>`. For example, to add "
+            "the top-level package `foo` housed in the current directory, use `-P foo`. If the "
+            "top-level `foo` package is in the `src` subdirectory use `-P foo@src`. If you wish to "
+            "just use the `foo.bar` package in the `src` subdirectory, use `-P foo.bar@src`. This "
+            "option can be used multiple times."
+        ),
+    )
+
+    parser.add_argument(
+        "-M",
+        "--module",
+        dest="modules",
+        metavar="MODULE_SPEC",
+        default=[],
+        type=Module.parse,
+        action="append",
+        help=(
+            "Add an individual module to the generated .pex file. The module is expected to be "
+            "found relative to the the current directory. If the module is housed in a "
+            "subdirectory, indicate that by appending `@<subdirectory>`. For example, to add the "
+            "top-level module `foo` housed in the current directory, use `-M foo`. If the "
+            "top-level `foo` module is in the `src` subdirectory use `-M foo@src`. If you wish to "
+            "just use the `foo.bar` module in the `src` subdirectory, use `-M foo.bar@src`. This "
+            "option can be used multiple times."
+        ),
+    )
+
+
 def configure_clp():
     # type: () -> ArgumentParser
     usage = (
@@ -504,35 +652,7 @@ def configure_clp():
         help="The name of a file to be included as the preamble for the generated .pex file",
     )
 
-    parser.add_argument(
-        "-D",
-        "--sources-directory",
-        dest="sources_directory",
-        metavar="DIR",
-        default=[],
-        type=str,
-        action="append",
-        help=(
-            "Add a directory containing sources and/or resources to be packaged into the generated "
-            ".pex file. This option can be used multiple times."
-        ),
-    )
-
-    parser.add_argument(
-        "-R",
-        "--resources-directory",
-        dest="resources_directory",
-        metavar="DIR",
-        default=[],
-        type=str,
-        action="append",
-        help=(
-            "Add resources directory to be packaged into the generated .pex file."
-            " This option can be used multiple times. DEPRECATED: Use -D/--sources-directory "
-            "instead."
-        ),
-    )
-
+    configure_clp_sources(parser)
     requirement_options.register(parser)
 
     parser.add_argument(
@@ -578,6 +698,24 @@ def configure_clp():
     )
 
     return parser
+
+
+def _iter_directory_sources(directories):
+    # type: (Iterable[str]) -> Iterator[Tuple[str, str]]
+    for directory in directories:
+        src_dir = os.path.normpath(directory)
+        for root, _, files in os.walk(src_dir):
+            for f in files:
+                src_file_path = os.path.join(root, f)
+                dst_path = os.path.relpath(src_file_path, src_dir)
+                yield src_file_path, dst_path
+
+
+def _iter_python_sources(python_sources):
+    # type: (Iterable[PythonSource]) -> Iterator[Tuple[str, str]]
+    for python_source in python_sources:
+        for src, dst in python_source.iter_files():
+            yield src, dst
 
 
 def build_pex(
@@ -626,16 +764,16 @@ def build_pex(
             "dependency cache."
         )
 
-    directories = OrderedSet(
-        options.sources_directory + options.resources_directory
-    )  # type: OrderedSet[str]
-    for directory in directories:
-        src_dir = os.path.normpath(directory)
-        for root, _, files in os.walk(src_dir):
-            for f in files:
-                src_file_path = os.path.join(root, f)
-                dst_path = os.path.relpath(src_file_path, src_dir)
-                pex_builder.add_source(src_file_path, dst_path)
+    seen = set()  # type: Set[Tuple[str, str]]
+    for src, dst in itertools.chain(
+        _iter_directory_sources(
+            OrderedSet(options.sources_directory + options.resources_directory)
+        ),
+        _iter_python_sources(OrderedSet(options.packages + options.modules)),
+    ):
+        if (src, dst) not in seen:
+            pex_builder.add_source(src, dst)
+            seen.add((src, dst))
 
     pex_info = pex_builder.info
     pex_info.inject_env = dict(options.inject_env)

@@ -394,6 +394,7 @@ def run_pex_command(
     env=None,  # type: Optional[Dict[str, str]]
     python=None,  # type: Optional[str]
     quiet=False,  # type: bool
+    cwd=None,  # type: Optional[str]
 ):
     # type: (...) -> IntegResults
     """Simulate running pex command for integration testing.
@@ -404,7 +405,7 @@ def run_pex_command(
     """
     cmd = create_pex_command(args, python=python, quiet=quiet)
     process = Executor.open_process(
-        cmd=cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        cmd=cmd, env=env, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
     output, error = process.communicate()
     return IntegResults(output.decode("utf-8"), error.decode("utf-8"), process.returncode)
