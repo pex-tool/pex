@@ -19,12 +19,15 @@ def pex_execute_cowsay(*extra_pex_args):
     )
 
 
+WARNING_PREFIX = "PEXWarning: "
+
+
 def test_default_resolve_no_warning():
     # type: () -> None
 
     result = pex_execute_cowsay()
     result.assert_success()
-    assert not result.error
+    assert WARNING_PREFIX not in result.error
     assert "Moo!" in result.output
 
 
@@ -43,13 +46,24 @@ def incompatible_pip_version():
     raise AssertionError("Unreachable: satisfy type checker.")
 
 
-def expected_incompatible_pip_message(incompatible_pip_version):
-    # type: (PipVersionValue) -> str
+def expected_incompatible_pip_message(
+    incompatible_pip_version,  # type: PipVersionValue
+    warning,  # type: bool
+):
+    # type: (...) -> str
+    header = (
+        "The Pip requested for PEX building was {pip_requirement} but it does not work with any "
+        "of the targets selected.".format(pip_requirement=incompatible_pip_version.requirement)
+    )
     return dedent(
         """\
+        {prefix}{header}
+
         Pip {pip_version} requires Python {python_req} and the following target does not apply:
         1. {target}
         """.format(
+            prefix=WARNING_PREFIX if warning else "",
+            header=header,
             pip_version=incompatible_pip_version,
             python_req=incompatible_pip_version.requires_python,
             target=targets.current(),
@@ -62,7 +76,9 @@ def test_incompatible_resolve_warning(incompatible_pip_version):
 
     result = pex_execute_cowsay("--pip-version", str(incompatible_pip_version))
     result.assert_success()
-    assert expected_incompatible_pip_message(incompatible_pip_version) in result.error, result.error
+    assert (
+        expected_incompatible_pip_message(incompatible_pip_version, warning=True) in result.error
+    ), result.error
     assert "Moo!" in result.output, result.output
 
 
@@ -74,5 +90,5 @@ def test_incompatible_resolve_error(incompatible_pip_version):
     )
     result.assert_failure()
     assert result.error.endswith(
-        expected_incompatible_pip_message(incompatible_pip_version)
+        expected_incompatible_pip_message(incompatible_pip_version, warning=False)
     ), result.error
