@@ -123,6 +123,7 @@ def _resolved_installation(
             targets,
             PipVersion.VENDORED,
             context="Bootstrapping Pip {version}".format(version=version),
+            warn=False,
         )
     )
     if bootstrap_pip_version is not PipVersion.VENDORED:
@@ -217,6 +218,7 @@ def compatible_version(
     targets,  # type: Targets
     requested_version,  # type: PipVersionValue
     context,  # type: str
+    warn=True,  # type: bool
 ):
     # type: (...) -> Union[PipVersionValue, Error]
     try:
@@ -228,9 +230,10 @@ def compatible_version(
         for version in remaining_versions:
             try:
                 validate_targets(targets, version, context)
-                pex_warnings.warn(
-                    "{err}\n" "\n" "Using Pip {version} instead.".format(err=e, version=version)
-                )
+                if warn:
+                    pex_warnings.warn(
+                        "{err}\n" "\n" "Using Pip {version} instead.".format(err=e, version=version)
+                    )
                 return version
             except RequiresPythonError:
                 continue

@@ -59,7 +59,7 @@ def build_pex_pex(output_file: PurePath, verbosity: int = 0) -> None:
 
 def describe_git_rev() -> str:
     git_describe = subprocess.run(
-        ["git", "describe"], check=True, capture_output=True, encoding="utf-8"
+        ["git", "describe"], check=True, stdout=subprocess.PIPE, encoding="utf-8"
     )
     return git_describe.stdout.strip()
 

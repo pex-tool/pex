@@ -38,7 +38,7 @@ from pex.resolve.config import finalize as finalize_resolve_config
 from pex.resolve.configured_resolve import resolve
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolvers import Unsatisfiable
-from pex.result import catch
+from pex.result import ResultError, catch, try_
 from pex.targets import Targets
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -886,8 +886,8 @@ def main(args=None):
             except target_configuration.InterpreterConstraintsNotSatisfied as e:
                 die(str(e), exit_code=CANNOT_SETUP_INTERPRETER)
 
-            resolver_configuration = finalize_resolve_config(
-                resolver_configuration, targets, context="PEX building"
+            resolver_configuration = try_(
+                finalize_resolve_config(resolver_configuration, targets, context="PEX building")
             )
 
             sys.exit(
@@ -902,7 +902,7 @@ def main(args=None):
                     env=env,
                 )
             )
-    except GlobalConfigurationError as e:
+    except (GlobalConfigurationError, ResultError) as e:
         die(str(e))
 
 
