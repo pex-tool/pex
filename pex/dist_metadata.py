@@ -455,6 +455,7 @@ class Requirement(object):
 
     project_name = attr.ib(init=False, repr=False)  # type: ProjectName
     _str = attr.ib(init=False, eq=False, repr=False)  # type: str
+    _legacy_version = attr.ib(init=False, repr=False)  # type: Optional[str]
 
     def __attrs_post_init__(self):
         object.__setattr__(self, "project_name", ProjectName(self.name))
@@ -471,6 +472,20 @@ class Requirement(object):
         if self.marker:
             parts.append("; {marker}".format(marker=self.marker))
         object.__setattr__(self, "_str", "".join(parts))
+
+        # We handle arbitrary equality separately since its semantics are simple - exact matches
+        # only - and newer versions of packaging will fail to parse non PEP-440 compliant version
+        # strings prior to performing the comparison. This needlessly negates the ~only useful
+        # case for arbitrary equality - requiring exact legacy versions.
+        specifiers = list(self.specifier)
+
+        object.__setattr__(
+            self,
+            "_legacy_version",
+            specifiers[0].version
+            if len(specifiers) == 1 and "===" == specifiers[0].operator
+            else None,
+        )
 
     @property
     def key(self):
@@ -493,15 +508,31 @@ class Requirement(object):
         if isinstance(item, ProjectNameAndVersion):
             if item.canonicalized_project_name != self.project_name:
                 return False
-            version = item.canonicalized_version.parsed_version  # type: Union[ParsedVersion, str]
+            version = (
+                item.canonicalized_version.raw
+                if self._legacy_version
+                else item.canonicalized_version.parsed_version
+            )  # type: Union[ParsedVersion, Text]
         elif isinstance(item, Distribution):
             if item.key != self.key:
                 return False
-            version = item.metadata.version.parsed_version
+            version = (
+                item.metadata.version.raw
+                if self._legacy_version
+                else item.metadata.version.parsed_version
+            )
         elif isinstance(item, Version):
-            version = item.parsed_version
+            version = item.raw if self._legacy_version else item.parsed_version
         else:
             version = item
+
+        # N.B.: We handle the case of `===<legacy version>` specially since it easy to do
+        # (arbitrary equality indicates an exact match) and packaging>=22.0 does not parse legacy
+        # versions (even though it does handle `===`). Since the ~only useful case for `===` is
+        # comparing legacy versions, this keeps that ability viable in a backwards compatible way
+        # while still upgrading packaging past 22.0.
+        if self._legacy_version:
+            return version == self._legacy_version
 
         # We know SpecifierSet.contains returns bool on inspection of its code. The fact we import
         # via the pex.third_party mechanism makes the type opaque to MyPy. We also know it accepts
@@ -614,7 +645,12 @@ class Distribution(object):
         # type: () -> Requirement
         return Requirement(
             name=self.project_name,
-            specifier=SpecifierSet("=={version}".format(version=self.version)),
+            specifier=SpecifierSet(
+                "{operator}{version}".format(
+                    operator="===" if self.metadata.version.is_legacy else "==",
+                    version=self.version,
+                )
+            ),
         )
 
     def requires(self):

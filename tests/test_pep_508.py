@@ -1,5 +1,6 @@
 # Copyright 2022 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+from typing import Mapping
 
 import pytest
 
@@ -21,6 +22,18 @@ def evaluate_marker(
     return cast(bool, markers.Marker(expression).evaluate())
 
 
+def assert_unknown_marker(
+    env,  # type: Dict[str, str]
+    expression,  # type: str
+):
+    # type: (...) -> None
+
+    # N.B: packaging 23.1 raises `KeyError` and the other vendored versions raise
+    # `markers.UndefinedEnvironmentName`.
+    with pytest.raises((markers.UndefinedEnvironmentName, KeyError)):
+        evaluate_marker(expression, env)
+
+
 def test_platform_marker_environment():
     # type: () -> None
     platform = Platform.create("linux-x86_64-cp-37-cp37m")
@@ -36,14 +49,11 @@ def test_platform_marker_environment():
     assert_known_marker("platform_system == 'Linux'")
     assert_known_marker("platform_machine == 'x86_64'")
 
-    def assert_unknown_marker(expression):
-        # type: (str) -> None
-        with pytest.raises(markers.UndefinedEnvironmentName):
-            evaluate_marker(expression, env)
-
-    assert_unknown_marker("python_full_version == '3.7.10'")
-    assert_unknown_marker("platform_release == '5.12.12-arch1-1'")
-    assert_unknown_marker("platform_version == '#1 SMP PREEMPT Fri, 18 Jun 2021 21:59:22 +0000'")
+    assert_unknown_marker(env, "python_full_version == '3.7.10'")
+    assert_unknown_marker(env, "platform_release == '5.12.12-arch1-1'")
+    assert_unknown_marker(
+        env, "platform_version == '#1 SMP PREEMPT Fri, 18 Jun 2021 21:59:22 +0000'"
+    )
 
 
 def test_extended_platform_marker_environment():
@@ -62,13 +72,10 @@ def test_extended_platform_marker_environment():
     assert_known_marker("platform_system == 'Linux'")
     assert_known_marker("platform_machine == 'x86_64'")
 
-    def assert_unknown_marker(expression):
-        # type: (str) -> None
-        with pytest.raises(markers.UndefinedEnvironmentName):
-            evaluate_marker(expression, env)
-
-    assert_unknown_marker("platform_release == '5.12.12-arch1-1'")
-    assert_unknown_marker("platform_version == '#1 SMP PREEMPT Fri, 18 Jun 2021 21:59:22 +0000'")
+    assert_unknown_marker(env, "platform_release == '5.12.12-arch1-1'")
+    assert_unknown_marker(
+        env, "platform_version == '#1 SMP PREEMPT Fri, 18 Jun 2021 21:59:22 +0000'"
+    )
 
 
 def test_platform_marker_environment_issue_1488():

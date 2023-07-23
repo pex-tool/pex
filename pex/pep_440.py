@@ -11,12 +11,14 @@ if TYPE_CHECKING:
     import attr  # vendor:skip
     from packaging import utils as packaging_utils  # vendor:skip
     from packaging import version as packaging_version  # vendor:skip
+    from packaging.version import InvalidVersion
 
     ParsedVersion = Union[packaging_version.LegacyVersion, packaging_version.Version]
 else:
     from pex.third_party import attr
     from pex.third_party.packaging import utils as packaging_utils
     from pex.third_party.packaging import version as packaging_version
+    from pex.third_party.packaging.version import InvalidVersion
 
 
 def _ensure_ascii_str(text):
@@ -61,6 +63,14 @@ class Version(object):
         parsed_version = packaging_version.parse(self.raw)
         object.__setattr__(self, "_parsed_version", parsed_version)
         return parsed_version
+
+    @property
+    def is_legacy(self):
+        # type: () -> bool
+        try:
+            return self.parsed_version is None
+        except InvalidVersion:
+            return True
 
     def __str__(self):
         # type: () -> str
