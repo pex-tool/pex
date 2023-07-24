@@ -8,15 +8,19 @@ from textwrap import dedent
 import pytest
 
 from pex.common import temporary_dir
-from pex.testing import built_wheel, run_pex_command, run_simple_pex
+from pex.testing import built_wheel, make_env, run_pex_command, run_simple_pex
+from pex.typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 @pytest.mark.skipif(
     sys.version_info[:2] >= (3, 12),
     reason="We need to use setuptools<66 but Python 3.12+ require greater.",
 )
-def test_resolve_arbitrary_equality():
-    # type: () -> None
+def test_resolve_arbitrary_equality(tmpdir):
+    # type: (Any) -> None
 
     def prepare_project(project_dir):
         # type: (str) -> None
@@ -32,7 +36,7 @@ def test_resolve_arbitrary_equality():
                 )
             )
 
-    with temporary_dir() as tmpdir, built_wheel(
+    with built_wheel(
         prepare_project=prepare_project,
         name="foo",
         version="1.0.2-fba4511",
@@ -41,10 +45,10 @@ def test_resolve_arbitrary_equality():
         verify=False,
         python_requires=">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*",
     ) as whl:
-        pex_file = os.path.join(tmpdir, "pex")
+        pex_file = os.path.join(str(tmpdir), "pex")
         results = run_pex_command(args=["-o", pex_file, whl])
         results.assert_success()
 
-        stdout, returncode = run_simple_pex(pex_file, args=["-c", "import foo"])
-        assert returncode == 0
-        assert stdout == b""
+        output, returncode = run_simple_pex(pex_file, args=["-c", "import foo"])
+        assert returncode == 0, output
+        assert output == b""

@@ -21,11 +21,14 @@ def test_pip_2020_resolver_engaged():
 
     # The Pip legacy resolver cannot solve the following requirements but the 2020 resolver can.
     # Use this fact to prove we're plumbing Pip resolver version arguments correctly.
-    pex_args = ["boto3==1.15.6", "botocore>1.17<1.18.7", "--", "-c", "import boto3"]
+    pex_args = ["boto3==1.15.6", "botocore>1.17,<1.20", "--", "-c", "import boto3"]
 
     results = run_pex_command(args=["--resolver-version", "pip-legacy-resolver"] + pex_args)
     results.assert_failure()
     assert "Failed to resolve compatible distributions:" in results.error
-    assert "1: boto3==1.15.6 requires botocore<1.19.0,>=1.18.6 but " in results.error
+    assert (
+        "1: boto3==1.15.6 requires botocore<1.19.0,>=1.18.6 but botocore 1.19.63 was resolved"
+        in results.error
+    )
 
     run_pex_command(args=["--resolver-version", "pip-2020-resolver"] + pex_args).assert_success()
