@@ -50,10 +50,10 @@ pex-tools = "pex.tools.main:main"
 bdist_pex = "pex.distutils.commands.bdist_pex:bdist_pex"
 
 [tool.flit.sdist]
-include = ["CHANGES.rst"]
+include = ["CHANGES.md"]
 
 [tool.flit.metadata.urls]
-Changelog = "https://github.com/pantsbuild/pex/blob/main/CHANGES.rst"
+Changelog = "https://github.com/pantsbuild/pex/blob/main/CHANGES.md"
 Documentation = "https://pex.readthedocs.io/en/latest/"
 
 [tool.black]
