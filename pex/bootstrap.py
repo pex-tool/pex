@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
+import types
 
 
 class Bootstrap(object):
@@ -43,7 +44,7 @@ class Bootstrap(object):
         # type: () -> str
         return self._sys_path_entry
 
-    def demote(self):
+    def demote(self, disable_vendor_importer=True):
         """Demote the bootstrap code to the end of the `sys.path` so it is found last.
 
         :return: The list of un-imported bootstrap modules.
@@ -60,9 +61,10 @@ class Bootstrap(object):
 
         unimported_modules = []
         for name, module in reversed(sorted(sys.modules.items())):
+            if "pex.third_party" == name and not disable_vendor_importer:
+                continue
             if self.imported_from_bootstrap(module):
                 unimported_modules.append(sys.modules.pop(name))
-
         return unimported_modules
 
     def imported_from_bootstrap(self, module):
@@ -72,6 +74,12 @@ class Bootstrap(object):
         :type module: :class:`types.ModuleType`
         :rtype: bool
         """
+
+        # Python 2.7 does some funky imports in the email stdlib package that cause havoc with
+        # un-importing. Since all our own importing just goes through the vanilla importers we can
+        # safely ignore all but the standard module type.
+        if not isinstance(module, types.ModuleType):
+            return False
 
         # A vendored module.
         path = getattr(module, "__file__", None)
@@ -93,8 +101,8 @@ class Bootstrap(object):
         )
 
 
-def demote():
-    # type: () -> None
+def demote(disable_vendor_importer=True):
+    # type: (bool) -> None
     """Demote PEX bootstrap code to the end of `sys.path` and uninstall all PEX vendored code."""
 
     from . import third_party
@@ -115,7 +123,7 @@ def demote():
 
     bootstrap = Bootstrap.locate()
     log("Demoting code from %s" % bootstrap, V=2)
-    for module in bootstrap.demote():
+    for module in bootstrap.demote(disable_vendor_importer=disable_vendor_importer):
         log("un-imported {}".format(module), V=9)
 
     import pex

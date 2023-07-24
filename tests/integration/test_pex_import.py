@@ -3,14 +3,13 @@
 
 import os.path
 import subprocess
-import sys
 from textwrap import dedent
 
 import colors
 import pytest
 
+from pex import targets
 from pex.common import safe_open
-from pex.interpreter import PythonInterpreter
 from pex.layout import DEPS_DIR, Layout
 from pex.resolve.pex_repository_resolver import resolve_from_pex
 from pex.targets import Targets
@@ -37,9 +36,7 @@ def test_import_from_pex(
     # type: (...) -> None
 
     empty_env_dir = os.path.join(str(tmpdir), "empty_env")
-    empty_venv = Virtualenv.create(
-        venv_dir=empty_env_dir,
-    )
+    empty_venv = Virtualenv.create(venv_dir=empty_env_dir)
     empty_python = empty_venv.interpreter.binary
 
     src = os.path.join(str(tmpdir), "src")
@@ -70,13 +67,14 @@ def test_import_from_pex(
             src,
             "ansicolors==1.1.8",
             # Add pex to verify that it will shadow bootstrap pex
-            "pex==2.1.110",
+            "pex==2.1.139",
             "-o",
             pex,
             "--layout",
             layout.value,
         ]
         + execution_mode_args,
+        python=empty_python,
     ).assert_success()
 
     def execute_with_pex_on_pythonpath(code):
@@ -103,7 +101,7 @@ def test_import_from_pex(
         ambient_sys_path = [
             installed_distribution.fingerprinted_distribution.distribution.location
             for installed_distribution in resolve_from_pex(
-                targets=Targets(interpreters=(PythonInterpreter.from_binary(sys.executable),)),
+                targets=Targets.from_target(targets.current()),
                 pex=pex,
                 requirements=["ansicolors==1.1.8"],
             ).installed_distributions
