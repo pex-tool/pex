@@ -1,5 +1,14 @@
 # Release Notes
 
+## 2.1.140
+
+This release fixes several spurious warnings emitted for Python 3.11 and
+3.12 users and fixes a leak of Pex's vendored `attrs` when using the
+`__pex__` import hook.
+
+* Eliminate warnings for default use. (#2188)
+* Cleanup sys.path after __pex__ is imported. (#2189)
+
 ## 2.1.139
 
 This release brings support for Python 3.12 and Pip 23.2 which is the
