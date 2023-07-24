@@ -20,13 +20,14 @@ from collections import defaultdict, namedtuple
 from datetime import datetime
 from uuid import uuid4
 
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from typing import (
         Any,
         Callable,
         DefaultDict,
+        Dict,
         Iterable,
         Iterator,
         NoReturn,
@@ -34,7 +35,9 @@ if TYPE_CHECKING:
         Set,
         Sized,
         Tuple,
+        Union,
     )
+
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
@@ -450,10 +453,11 @@ class Chroot(object):
             safe_mkdir(chroot_base)
         except OSError as e:
             raise self.Error("Unable to create chroot in %s: %s" % (chroot_base, e))
-        self.chroot = chroot_base
-        self.filesets = defaultdict(set)  # type: DefaultDict[str, Set[str]]
+        self.chroot = chroot_base  # type: str
+        self.filesets = defaultdict(set)  # type: DefaultDict[Optional[str], Set[str]]
 
     def clone(self, into=None):
+        # type: (Optional[str]) -> Chroot
         """Clone this chroot.
 
         :keyword into: (optional) An optional destination directory to clone the
@@ -476,6 +480,7 @@ class Chroot(object):
         return self.chroot
 
     def _normalize(self, dst):
+        # type: (str) -> str
         dst = os.path.normpath(dst)
         if dst.startswith(os.sep) or dst.startswith(".."):
             raise self.Error("Destination path is not a relative path!")
@@ -487,13 +492,16 @@ class Chroot(object):
                 raise self.ChrootTaggingException(fn, fs_label, label)
 
     def _tag(self, fn, label):
+        # type: (str, Optional[str]) -> None
         self._check_tag(fn, label)
         self.filesets[label].add(fn)
 
     def _ensure_parent(self, path):
+        # type: (str) -> None
         safe_mkdir(os.path.dirname(os.path.join(self.chroot, path)))
 
     def copy(self, src, dst, label=None):
+        # type: (str, str, Optional[str]) -> None
         """Copy file ``src`` to ``chroot/dst`` with optional label.
 
         May raise anything shutil.copy can raise, e.g.
@@ -508,6 +516,7 @@ class Chroot(object):
         shutil.copy(src, os.path.join(self.chroot, dst))
 
     def link(self, src, dst, label=None):
+        # type: (str, str, Optional[str]) -> None
         """Hard link file from ``src`` to ``chroot/dst`` with optional label.
 
         May raise anything os.link can raise, e.g.
@@ -538,7 +547,15 @@ class Chroot(object):
         abs_dst = os.path.join(self.chroot, dst)
         os.symlink(abs_src, abs_dst)
 
-    def write(self, data, dst, label=None, mode="wb", executable=False):
+    def write(
+        self,
+        data,  # type: Union[str, bytes]
+        dst,  # type: str
+        label=None,  # type: Optional[str]
+        mode="wb",  # type: str
+        executable=False,  # type: bool
+    ):
+        # type: (...) -> None
         """Write data to ``chroot/dst`` with optional label.
 
         Has similar exceptional cases as ``Chroot.copy``
@@ -552,6 +569,7 @@ class Chroot(object):
             chmod_plus_x(wp.name)
 
     def touch(self, dst, label=None):
+        # type: (str, Optional[str]) -> None
         """Perform 'touch' on ``chroot/dst`` with optional label.
 
         Has similar exceptional cases as Chroot.copy
@@ -561,10 +579,12 @@ class Chroot(object):
         touch(os.path.join(self.chroot, dst))
 
     def get(self, label):
+        # type: (Optional[str]) -> Set[str]
         """Get all files labeled with ``label``"""
         return self.filesets.get(label, set())
 
     def files(self):
+        # type: () -> Set[str]
         """Get all files in the chroot."""
         all_files = set()
         for label in self.filesets:
@@ -572,15 +592,18 @@ class Chroot(object):
         return all_files
 
     def labels(self):
+        # type: () -> Iterable[Optional[str]]
         return self.filesets.keys()
 
     def __str__(self):
+        # type: () -> str
         return "Chroot(%s {fs:%s})" % (
             self.chroot,
             " ".join("%s" % foo for foo in self.filesets.keys()),
         )
 
     def delete(self):
+        # type: () -> None
         shutil.rmtree(self.chroot)
 
     def zip(
