@@ -595,16 +595,21 @@ def bootstrap_pex(
     # possible in the run.
     with ENV.patch(PEX_ROOT=pex_info.pex_root):
         if not execute:
-            locations = list(_activate_pex(entry_point, pex_info, venv_dir=venv_dir))
-            from pex.bootstrap import Bootstrap
-            from pex.third_party import VendorImporter, uninstall
+            for location in _activate_pex(entry_point, pex_info, venv_dir=venv_dir):
+                from pex.third_party import VendorImporter
 
-            for location in locations:
                 VendorImporter.install(
                     uninstallable=False, prefix="__pex__", path_items=["."], root=location
                 )
-            uninstall()
-            Bootstrap.locate().demote()
+
+            from pex import bootstrap
+
+            # For inscrutable reasons, CPython 2.7 (not PyPy 2.7 and not any other CPython or PyPy
+            # version supported by Pex) cannot handle pex.third_party being un-imported at this
+            # stage; so we just skip that cleanup step for every interpreter to keep things simple.
+            # The main point here is that we've un-imported all "exposed" Pex vendored code, notably
+            # `attrs`.
+            bootstrap.demote(disable_vendor_importer=False)
             return
 
         interpreter_test = InterpreterTest(entry_point=entry_point, pex_info=pex_info)
