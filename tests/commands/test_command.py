@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import io
+import sys
 from argparse import Namespace
 from textwrap import dedent
 
@@ -73,7 +74,13 @@ def test_main(capsys):
         assert isinstance(command, Command2)
     assert_output()
 
-    cm = main.parsed_command([])
+    cm = main.parsed_command(
+        args=[],
+        # N.B.: Help output normally tries to re-write prog depending on sys.argv. Since we're
+        # executing Main in-process, sys.argv is ours and not its; so disable prog re-writing so
+        # that we can rely on the "test_main" prog name.
+        rewrite_prog=False,
+    )
     with pytest.raises(SystemExit) as exc_info:
         cm.__enter__()
     assert 2 == exc_info.value.code

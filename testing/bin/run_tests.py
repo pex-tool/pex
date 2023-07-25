@@ -61,11 +61,8 @@ def main():
         print("No test control environment variables set.")
 
     return subprocess.call(
-        args=["pytest"] + passthrough_args[1:],
+        args=[sys.executable, "-m", "pytest"] + passthrough_args[1:],
         cwd=pex_project_dir(),
-        # N.B.: The pytest console script needs this to see the Pex project dir on the sys.path;
-        # cwd is not enough.
-        env=make_env(PYTHONPATH=pex_project_dir()),
     )
 
 

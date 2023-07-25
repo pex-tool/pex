@@ -376,13 +376,17 @@ class Main(Generic["_C"]):
         pass
 
     @contextmanager
-    def parsed_command(self, args=None):
-        # type: (Optional[Sequence[str]]) -> Iterator[_C]
+    def parsed_command(
+        self,
+        args=None,  # type: Optional[Sequence[str]]
+        rewrite_prog=True,  # type: bool
+    ):
+        # type: (...) -> Iterator[_C]
         logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
 
         # By default, let argparse derive prog from sys.argv[0].
         prog = self._prog
-        if os.path.basename(sys.argv[0]) == "__main__.py":
+        if os.path.basename(sys.argv[0]) == "__main__.py" and rewrite_prog:
             prog = "{python} -m {module}".format(
                 python=sys.executable, module=".".join(type(self).__module__.split(".")[:-1])
             )
