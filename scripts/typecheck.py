@@ -41,7 +41,10 @@ def main() -> None:
     run_mypy("3.8", files=sorted(find_files_to_check(include=["scripts"])), subject="scripts")
 
     source_and_tests = sorted(
-        find_files_to_check(include=["pex", "tests"], exclude=["pex/vendor/_vendored"])
+        find_files_to_check(
+            include=["pex", "testing", "tests"],
+            exclude=[os.path.join("pex", "vendor", "_vendored")],
+        )
     )
     for python_version in ("3.12", "3.11", "3.5", "2.7"):
         run_mypy(python_version, files=source_and_tests)

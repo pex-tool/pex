@@ -7,13 +7,14 @@ from textwrap import dedent
 
 import pytest
 
-from pex.common import temporary_dir
+from pex.common import safe_open, temporary_dir
 from pex.dist_metadata import find_distribution
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from testing import (
     PY38,
     PY39,
     PY310,
@@ -22,7 +23,6 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
 )
-from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any
@@ -397,109 +397,108 @@ def test_pex_python():
         assert py310 in stdout.decode("utf-8")
 
 
-def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(pex_project_dir):
-    # type: (str) -> None
+def test_interpreter_selection_using_os_environ_for_bootstrap_reexec(
+    tmpdir,  # type: Any
+    pex_project_dir,  # type: str
+):
+    # type: (...) -> None
     """This is a test for verifying the proper function of the pex bootstrapper's interpreter
     selection logic and validate a corresponding bugfix.
 
     More details on the nature of the bug can be found at:
     https://github.com/pantsbuild/pex/pull/441
     """
-    with temporary_dir() as td:
-        pexrc_path = os.path.join(td, ".pexrc")
+    td = os.path.join(str(tmpdir), "tester_project")
+    pexrc_path = os.path.join(td, ".pexrc")
 
-        # Select pexrc interpreter versions based on test environment.
-        # The parent interpreter is the interpreter we expect the parent pex to
-        # execute with. The child interpreter is the interpreter we expect the
-        # child pex to execute with.
-        if sys.version_info[:2] == (3, 10):
-            child_pex_interpreter_version = PY310
-        else:
-            child_pex_interpreter_version = PY39
+    # Select pexrc interpreter versions based on test environment.
+    # The parent interpreter is the interpreter we expect the parent pex to
+    # execute with. The child interpreter is the interpreter we expect the
+    # child pex to execute with.
+    if sys.version_info[:2] == (3, 10):
+        child_pex_interpreter_version = PY39
+    else:
+        child_pex_interpreter_version = PY310
 
-        # Write parent pex's pexrc.
-        with open(pexrc_path, "w") as pexrc:
-            pexrc.write("PEX_PYTHON=%s" % sys.executable)
+    # Write parent pex's pexrc.
+    with safe_open(pexrc_path, "w") as pexrc:
+        pexrc.write("PEX_PYTHON={}".format(sys.executable))
 
-        # The code below depends on pex.testing which depends on pytest - make sure the built pex
-        # gets this dep.
-        pytest_dist = find_distribution(ProjectName("pytest"))
-        assert pytest_dist is not None
+    test_setup_path = os.path.join(td, "setup.py")
+    with safe_open(test_setup_path, "w") as fh:
+        fh.write(
+            dedent(
+                """
+                from setuptools import setup
 
-        test_setup_path = os.path.join(td, "setup.py")
-        with open(test_setup_path, "w") as fh:
-            fh.write(
-                dedent(
-                    """
-                    from setuptools import setup
 
-                    setup(
-                        name='tester',
-                        version='1.0',
-                        description='tests',
-                        author='tester',
-                        author_email='test@test.com',
-                        packages=['testing'],
-                        install_requires={install_requires!r}
-                    )
-                    """.format(
-                        install_requires=[str(pytest_dist.as_requirement())]
-                    )
+                setup(
+                    name="tester",
+                    version="1.0",
+                    description="tests",
+                    author="tester",
+                    author_email="tester@test.com",
+                    packages=["tester"],
                 )
+                """
             )
-
-        os.mkdir(os.path.join(td, "testing"))
-        test_init_path = os.path.join(td, "testing/__init__.py")
-        with open(test_init_path, "w") as fh:
-            fh.write(
-                dedent(
-                    '''
-                    def tester():
-                        from pex.testing import (
-                            run_pex_command,
-                            run_simple_pex,
-                            temporary_dir
-                        )
-                        import os
-                        from textwrap import dedent
-                        with temporary_dir() as td:
-                            pexrc_path = os.path.join(td, '.pexrc')
-                            with open(pexrc_path, 'w') as pexrc:
-                                pexrc.write("PEX_PYTHON={}")
-                            test_file_path = os.path.join(td, 'build_and_run_child_pex.py')
-                            with open(test_file_path, 'w') as fh:
-                                fh.write(dedent("""
-                                    import sys
-                                    print(sys.executable)
-                                """))
-                            pex_out_path = os.path.join(td, 'child.pex')
-                            res = run_pex_command(['--disable-cache',
-                                '-o', pex_out_path])
-                            stdin_payload = b'import sys; print(sys.executable); sys.exit(0)'
-                            stdout, rc = run_simple_pex(pex_out_path, stdin=stdin_payload)
-                            print(stdout)
-                    '''.format(
-                        ensure_python_interpreter(child_pex_interpreter_version)
-                    )
-                )
-            )
-
-        pex_out_path = os.path.join(td, "parent.pex")
-        res = run_pex_command(
-            [
-                "--disable-cache",
-                pex_project_dir,
-                "{}".format(td),
-                "-e",
-                "testing:tester",
-                "-o",
-                pex_out_path,
-            ]
         )
-        res.assert_success()
 
-        stdout, rc = run_simple_pex(pex_out_path)
-        assert rc == 0
-        # Ensure that child pex used the proper interpreter as specified by its pexrc.
-        correct_interpreter_path = ensure_python_interpreter(child_pex_interpreter_version)
-        assert correct_interpreter_path in stdout.decode("utf-8")
+    test_init_path = os.path.join(td, "tester/__init__.py")
+    with safe_open(test_init_path, "w") as fh:
+        fh.write(
+            dedent(
+                """\
+                def test_it():
+                    import atexit
+                    import os
+                    import shutil
+                    import subprocess
+                    import sys
+                    import tempfile
+
+
+                    td = tempfile.mkdtemp()
+                    atexit.register(shutil.rmtree, td)
+
+                    pexrc_path = os.path.join(td, ".pexrc")
+                    with open(pexrc_path, "w") as pexrc:
+                        pexrc.write("PEX_PYTHON={}")
+
+                    pex_out_path = os.path.join(td, "child.pex")
+                    subprocess.check_call(
+                        [sys.executable, "-mpex", "--disable-cache", "-o", pex_out_path]
+                    )
+                    process = subprocess.Popen(
+                        [sys.executable, pex_out_path, "-c", "import sys; print(sys.executable)"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                    )
+                    stdout, _ = process.communicate()
+                    print(stdout)
+                    sys.exit(process.returncode)
+                """.format(
+                    ensure_python_interpreter(child_pex_interpreter_version)
+                )
+            )
+        )
+
+    pex_out_path = os.path.join(td, "parent.pex")
+    res = run_pex_command(
+        [
+            "--disable-cache",
+            pex_project_dir,
+            td,
+            "-e",
+            "tester:test_it",
+            "-o",
+            pex_out_path,
+        ]
+    )
+    res.assert_success()
+
+    stdout, rc = run_simple_pex(pex_out_path)
+    assert rc == 0, stdout
+    # Ensure that child pex used the proper interpreter as specified by its pexrc.
+    correct_interpreter_path = ensure_python_interpreter(child_pex_interpreter_version)
+    assert correct_interpreter_path in stdout.decode("utf-8")

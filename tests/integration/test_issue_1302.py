@@ -5,8 +5,8 @@ import json
 import os
 import subprocess
 
-from pex.testing import built_wheel, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import built_wheel, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

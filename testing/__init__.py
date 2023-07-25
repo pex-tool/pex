@@ -755,6 +755,7 @@ def run_command_with_jitter(
 
 def pex_project_dir():
     # type: () -> str
-    return str(
-        subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode("ascii").strip()
-    )
+    try:
+        return os.environ["_PEX_TEST_PROJECT_DIR"]
+    except KeyError:
+        sys.exit("Pex tests must be run via tox.")

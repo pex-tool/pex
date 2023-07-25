@@ -17,9 +17,9 @@ from pex.pep_508 import MarkerEnvironment
 from pex.platforms import Platform
 from pex.resolve import target_options
 from pex.targets import CompletePlatform, Targets
-from pex.testing import IS_MAC, environment_as
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
+from testing import IS_MAC, environment_as
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, List, Optional, Tuple

@@ -9,9 +9,9 @@ from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledWheel
 from pex.pex_info import PexInfo
-from pex.testing import PY38, ensure_python_venv, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
+from testing import PY38, ensure_python_venv, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, List

@@ -9,8 +9,8 @@ import pytest
 
 from pex.common import safe_open
 from pex.layout import Layout
-from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List

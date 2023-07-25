@@ -8,8 +8,8 @@ import sys
 import pytest
 
 from pex.compatibility import PY3
-from pex.testing import PY38, ensure_python_interpreter, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import PY38, ensure_python_interpreter, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, List

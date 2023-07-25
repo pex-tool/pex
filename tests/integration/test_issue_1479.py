@@ -8,8 +8,8 @@ import subprocess
 import sys
 
 from pex.common import safe_rmtree
-from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

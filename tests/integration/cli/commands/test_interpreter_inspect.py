@@ -4,12 +4,12 @@
 import json
 import os
 
-from pex.cli.testing import run_pex3
 from pex.interpreter import PythonInterpreter
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
-from pex.testing import IntegResults
 from pex.typing import TYPE_CHECKING, cast
+from testing import IntegResults
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Text

@@ -8,11 +8,11 @@ from textwrap import dedent
 import pytest
 
 from pex import requirements
-from pex.cli.testing import run_pex3
 from pex.compatibility import to_unicode
 from pex.dist_metadata import Requirement
 from pex.requirements import LocalProjectRequirement, Source
 from pex.typing import TYPE_CHECKING
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

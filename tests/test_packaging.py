@@ -8,10 +8,10 @@ import subprocess
 import sys
 
 from pex.interpreter import PythonInterpreter
-from pex.testing import make_env
 from pex.tools.commands import all_commands
 from pex.venv.virtualenv import Virtualenv
 from pex.version import __version__
+from testing import make_env
 
 # N.B.: Our test environments include Pex installed from our pyproject.toml in a Tox managed venv.
 # This is how Tox works and its critical background to the assumptions made in the tests below.

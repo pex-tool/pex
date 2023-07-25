@@ -24,7 +24,9 @@ from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from pex.util import named_temporary_file
+from testing import (
     PY39,
     PY310,
     PY_VER,
@@ -38,8 +40,6 @@ from pex.testing import (
     temporary_content,
     write_simple_pex,
 )
-from pex.typing import TYPE_CHECKING
-from pex.util import named_temporary_file
 
 try:
     from unittest import mock

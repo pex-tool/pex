@@ -11,8 +11,8 @@ from subprocess import CalledProcessError
 import pytest
 
 from pex.layout import Layout
-from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Iterable, Tuple

@@ -6,9 +6,9 @@ import subprocess
 import sys
 
 from pex.pex_info import PexInfo
-from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.variables import unzip_dir
+from testing import run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

@@ -4,7 +4,7 @@
 import os
 
 from pex.common import temporary_dir
-from pex.testing import PY38, ensure_python_interpreter, run_pex_command
+from testing import PY38, ensure_python_interpreter, run_pex_command
 
 
 def test_resolve_python_requires_full_version():

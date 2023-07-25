@@ -5,11 +5,11 @@ import os.path
 import re
 import subprocess
 
-from pex.cli.testing import run_pex3
 from pex.platforms import Platform
 from pex.targets import AbbreviatedPlatform
-from pex.testing import IS_LINUX, IntegResults, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import IS_LINUX, IntegResults, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

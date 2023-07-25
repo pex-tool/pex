@@ -10,7 +10,7 @@ import pytest
 from pex.common import temporary_dir
 from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
-from pex.testing import PY310, ensure_python_venv, make_env, run_pex_command, run_simple_pex
+from testing import PY310, ensure_python_venv, make_env, run_pex_command, run_simple_pex
 
 
 @pytest.fixture

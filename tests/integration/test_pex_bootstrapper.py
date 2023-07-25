@@ -16,10 +16,10 @@ from pex.interpreter_constraints import InterpreterConstraint
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
 from pex.pex_info import PexInfo
-from pex.testing import PY38, PY39, PY_VER, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.venv.installer import CollisionError
 from pex.venv.virtualenv import Virtualenv
+from testing import PY38, PY39, PY_VER, ensure_python_interpreter, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Optional, Set, Text

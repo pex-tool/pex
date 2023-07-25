@@ -9,8 +9,8 @@ import pytest
 
 from pex.atomic_directory import AtomicDirectory, FileLockStyle, _is_bsd_lock, atomic_directory
 from pex.common import temporary_dir, touch
-from pex.testing import environment_as
 from pex.typing import TYPE_CHECKING
+from testing import environment_as
 
 try:
     from unittest import mock

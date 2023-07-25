@@ -13,8 +13,8 @@ import pytest
 
 from pex.atomic_directory import atomic_directory
 from pex.common import safe_mkdtemp, temporary_dir
-from pex.testing import PY310, ensure_python_venv, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import PY310, ensure_python_venv, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Callable, ContextManager, Iterator, Optional, Tuple

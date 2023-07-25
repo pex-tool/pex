@@ -7,7 +7,7 @@ import subprocess
 import sys
 from typing import Any
 
-from pex.testing import IntegResults
+from testing import IntegResults
 
 
 def run_pex3(

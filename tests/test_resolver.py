@@ -25,7 +25,9 @@ from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiabl
 from pex.resolver import download
 from pex.resolver import resolve as resolve_under_test
 from pex.targets import Target, Targets
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
+from testing import (
     IS_LINUX,
     IS_PYPY,
     PY27,
@@ -37,8 +39,6 @@ from pex.testing import (
     make_project,
     make_source_dir,
 )
-from pex.typing import TYPE_CHECKING
-from pex.variables import ENV
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Union

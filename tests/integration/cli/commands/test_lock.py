@@ -11,7 +11,6 @@ from textwrap import dedent
 
 import pytest
 
-from pex.cli.testing import run_pex3
 from pex.common import safe_open
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
@@ -26,10 +25,12 @@ from pex.resolve.lockfile.download_manager import DownloadedArtifact
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.resolve.testing import normalize_locked_resolve
 from pex.sorted_tuple import SortedTuple
 from pex.targets import AbbreviatedPlatform, LocalInterpreter
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from pex.util import CacheHelper
+from pex.version import __version__
+from testing import (
     IS_LINUX,
     IS_LINUX_ARM64,
     IS_MAC,
@@ -42,9 +43,8 @@ from pex.testing import (
     make_env,
     run_pex_command,
 )
-from pex.typing import TYPE_CHECKING
-from pex.util import CacheHelper
-from pex.version import __version__
+from testing.cli import run_pex3
+from testing.resolve import normalize_locked_resolve
 
 if TYPE_CHECKING:
     from typing import Any

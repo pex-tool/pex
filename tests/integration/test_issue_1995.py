@@ -7,8 +7,8 @@ import sys
 
 import pytest
 
-from pex.testing import IS_LINUX, PY38, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import IS_LINUX, PY38, ensure_python_interpreter, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

@@ -4,10 +4,10 @@ import os.path
 
 import pytest
 
-from pex.cli.testing import run_pex3
 from pex.compatibility import commonpath
-from pex.testing import IntegResults, built_wheel, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import IntegResults, built_wheel, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any, Iterator

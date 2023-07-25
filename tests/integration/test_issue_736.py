@@ -5,7 +5,7 @@ import os
 import subprocess
 
 from pex.common import safe_copy, temporary_dir
-from pex.testing import built_wheel, make_env, make_source_dir, run_pex_command
+from testing import built_wheel, make_env, make_source_dir, run_pex_command
 
 
 def test_requirement_setup_py_with_extras():

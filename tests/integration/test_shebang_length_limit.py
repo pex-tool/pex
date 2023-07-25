@@ -13,10 +13,10 @@ from typing import Any, Callable, List
 import colors
 import pytest
 
-from pex.cli.testing import run_pex3
 from pex.common import chmod_plus_x, touch
-from pex.testing import IS_PYPY, run_pex_command
 from pex.version import __version__
+from testing import IS_PYPY, run_pex_command
+from testing.cli import run_pex3
 
 
 def find_max_length(

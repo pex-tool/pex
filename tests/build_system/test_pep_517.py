@@ -4,15 +4,14 @@
 import os.path
 
 from pex.build_system.pep_517 import build_sdist
-from pex.build_system.testing import assert_build_sdist
 from pex.common import touch
-from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.result import Error
 from pex.targets import LocalInterpreter
-from pex.testing import make_project
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
+from testing import make_project
+from testing.build_system import assert_build_sdist
 
 if TYPE_CHECKING:
     from typing import Any

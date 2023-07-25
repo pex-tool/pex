@@ -3,7 +3,6 @@
 
 import os
 
-from pex.cli.testing import run_pex3
 from pex.compatibility import PY3
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
@@ -11,8 +10,9 @@ from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import Artifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Fingerprint
-from pex.testing import IS_PYPY, PY_VER, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import IS_PYPY, PY_VER, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

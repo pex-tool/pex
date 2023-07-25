@@ -6,7 +6,8 @@ import os
 
 from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from testing import (
     PY39,
     PY310,
     IntegResults,
@@ -15,7 +16,6 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
 )
-from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import List

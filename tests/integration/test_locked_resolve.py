@@ -13,10 +13,10 @@ from pex.resolve.locked_resolve import LockConfiguration, LockedResolve, LockSty
 from pex.resolve.lockfile.create import LockObserver
 from pex.resolve.resolved_requirement import Pin
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.resolve.testing import normalize_locked_resolve
 from pex.resolver import Downloaded, LocalDistribution, WheelBuilder
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
+from testing.resolve import normalize_locked_resolve
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, Tuple

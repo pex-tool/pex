@@ -18,7 +18,9 @@ from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.jobs import Job
 from pex.pyenv import Pyenv
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from pex.variables import ENV
+from testing import (
     PY38,
     PY39,
     PY310,
@@ -30,8 +32,6 @@ from pex.testing import (
     environment_as,
     pushd,
 )
-from pex.typing import TYPE_CHECKING
-from pex.variables import ENV
 
 try:
     from unittest.mock import Mock, patch  # type: ignore[import]

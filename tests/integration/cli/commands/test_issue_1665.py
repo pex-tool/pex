@@ -6,9 +6,9 @@ import sys
 
 import pytest
 
-from pex.cli.testing import run_pex3
-from pex.testing import IS_PYPY, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import IS_PYPY, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

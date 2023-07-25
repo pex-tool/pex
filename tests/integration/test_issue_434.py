@@ -4,7 +4,7 @@
 import os
 
 from pex.common import temporary_dir
-from pex.testing import PY310, ensure_python_interpreter, run_pex_command, run_simple_pex
+from testing import PY310, ensure_python_interpreter, run_pex_command, run_simple_pex
 
 
 def test_entry_point_targeting():

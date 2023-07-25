@@ -14,7 +14,6 @@ import colors
 import pytest
 
 from pex import dist_metadata
-from pex.cli.testing import run_pex3
 from pex.common import safe_open
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.interpreter import PythonInterpreter
@@ -23,9 +22,10 @@ from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.resolve.locked_resolve import LockedRequirement
 from pex.resolve.lockfile import json_codec
-from pex.testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
+from testing import IS_PYPY, PY_VER, built_wheel, make_env, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any, Mapping, Tuple

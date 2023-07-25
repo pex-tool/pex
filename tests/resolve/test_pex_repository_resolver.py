@@ -18,8 +18,8 @@ from pex.resolve.resolver_configuration import PipConfiguration
 from pex.resolve.resolvers import Unsatisfiable
 from pex.resolver import resolve
 from pex.targets import Targets
-from pex.testing import IS_LINUX, PY27, PY310, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING, cast
+from testing import IS_LINUX, PY27, PY310, ensure_python_interpreter
 
 if TYPE_CHECKING:
     from typing import DefaultDict, Iterable, Optional, Set

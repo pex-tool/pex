@@ -4,8 +4,8 @@
 import os
 from textwrap import dedent
 
-from pex.testing import make_env, run_pex_command, run_simple_pex
 from pex.typing import TYPE_CHECKING
+from testing import make_env, run_pex_command, run_simple_pex
 
 if TYPE_CHECKING:
     from typing import Any

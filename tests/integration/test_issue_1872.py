@@ -11,9 +11,9 @@ from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LocalProjectArtifact
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Pin
-from pex.testing import PY38, ensure_python_interpreter, make_env
 from pex.typing import TYPE_CHECKING
 from pex.version import __version__
+from testing import PY38, ensure_python_interpreter, make_env
 
 if TYPE_CHECKING:
     from typing import Any

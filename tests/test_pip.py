@@ -19,9 +19,9 @@ from pex.pip.version import PipVersion, PipVersionValue
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.targets import AbbreviatedPlatform, LocalInterpreter, Target
-from pex.testing import IS_LINUX, PY310, ensure_python_interpreter, environment_as
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
+from testing import IS_LINUX, PY310, ensure_python_interpreter, environment_as
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, Optional, Protocol

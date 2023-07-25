@@ -25,7 +25,10 @@ from pex.layout import Layout
 from pex.network_configuration import NetworkConfiguration
 from pex.pex_info import PexInfo
 from pex.requirements import LogicalLine, PyPIRequirement, parse_requirement_file
-from pex.testing import (
+from pex.typing import TYPE_CHECKING, cast
+from pex.util import named_temporary_file
+from pex.variables import ENV, unzip_dir, venv_dir
+from testing import (
     IS_LINUX_ARM64,
     IS_MAC,
     IS_MAC_ARM64,
@@ -46,9 +49,6 @@ from pex.testing import (
     run_simple_pex_test,
     temporary_content,
 )
-from pex.typing import TYPE_CHECKING, cast
-from pex.util import named_temporary_file
-from pex.variables import ENV, unzip_dir, venv_dir
 
 if TYPE_CHECKING:
     from typing import Any, Callable, ContextManager, Iterator, List, Optional, Tuple

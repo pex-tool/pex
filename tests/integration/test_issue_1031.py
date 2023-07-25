@@ -7,8 +7,8 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.orderedset import OrderedSet
-from pex.testing import PY27, PY310, ensure_python_venv, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import PY27, PY310, ensure_python_venv, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Callable, MutableSet

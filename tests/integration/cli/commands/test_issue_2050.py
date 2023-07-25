@@ -11,7 +11,6 @@ from textwrap import dedent
 import pytest
 
 from pex.build_system import pep_517
-from pex.cli.testing import run_pex3
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -22,16 +21,10 @@ from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.result import try_
 from pex.sorted_tuple import SortedTuple
 from pex.targets import LocalInterpreter
-from pex.testing import (
-    IS_LINUX,
-    PY310,
-    PY_VER,
-    ensure_python_interpreter,
-    make_env,
-    run_pex_command,
-)
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
+from testing import IS_LINUX, PY310, PY_VER, ensure_python_interpreter, make_env, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict

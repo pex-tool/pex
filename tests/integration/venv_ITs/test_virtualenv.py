@@ -10,9 +10,9 @@ import pytest
 from pex.dist_metadata import Distribution
 from pex.interpreter import PythonInterpreter
 from pex.pep_503 import ProjectName
-from pex.testing import ALL_PY_VERSIONS, VenvFactory, all_python_venvs, ensure_python_venv
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
+from testing import ALL_PY_VERSIONS, VenvFactory, all_python_venvs, ensure_python_venv
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Tuple

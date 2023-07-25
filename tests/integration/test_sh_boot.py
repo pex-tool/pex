@@ -11,14 +11,14 @@ from typing import Text, Tuple
 import pytest
 
 from pex.common import safe_open
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from testing import (
     ALL_PY_VERSIONS,
     all_pythons,
     ensure_python_interpreter,
     make_env,
     run_pex_command,
 )
-from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List

@@ -7,10 +7,10 @@ import re
 import pytest
 from colors import green
 
-from pex.cli.testing import run_pex3
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.testing import run_pex_command
+from testing import run_pex_command
+from testing.cli import run_pex3
 
 
 def test_preserve_pip_download_log():

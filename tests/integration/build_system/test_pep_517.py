@@ -5,9 +5,9 @@ from typing import Callable
 
 import pytest
 
-from pex.build_system.testing import assert_build_sdist
-from pex.testing import PY_VER
 from pex.typing import TYPE_CHECKING
+from testing import PY_VER
+from testing.build_system import assert_build_sdist
 
 if TYPE_CHECKING:
     from typing import Any

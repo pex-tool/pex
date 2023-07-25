@@ -5,7 +5,7 @@ import os
 from textwrap import dedent
 
 from pex.common import temporary_dir
-from pex.testing import make_env, run_pex_command, run_simple_pex
+from testing import make_env, run_pex_command, run_simple_pex
 
 
 def test_pkg_resource_early_import_on_pex_path():

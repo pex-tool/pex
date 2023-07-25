@@ -10,9 +10,9 @@ from textwrap import dedent
 import pytest
 
 from pex.common import open_zip, safe_mkdtemp, temporary_dir
-from pex.testing import WheelBuilder, make_project, pex_project_dir, temporary_content
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
+from testing import WheelBuilder, make_project, pex_project_dir, temporary_content
 
 if TYPE_CHECKING:
     from typing import Dict, Iterable, Iterator, List, Optional, Union

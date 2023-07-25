@@ -11,11 +11,11 @@ from threading import Thread
 import colors
 import pytest
 
-from pex.cli.testing import run_pex3
 from pex.common import safe_rmtree
 from pex.compatibility import PY2
-from pex.testing import IntegResults, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import IntegResults, make_env, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any, Iterator

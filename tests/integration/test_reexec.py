@@ -12,7 +12,8 @@ import pytest
 from pex.common import temporary_dir
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from testing import (
     PY39,
     PY310,
     ensure_python_interpreter,
@@ -20,7 +21,6 @@ from pex.testing import (
     run_pex_command,
     run_simple_pex,
 )
-from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Iterable, List, Optional

@@ -5,11 +5,11 @@ import os
 import re
 import subprocess
 
-from pex.cli.testing import run_pex3
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
-from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

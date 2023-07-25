@@ -16,10 +16,10 @@ from pex.executor import Executor
 from pex.layout import Layout
 from pex.pex import PEX
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import WheelBuilder, install_wheel, make_bdist, make_env
-from pex.testing import write_simple_pex as write_pex
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
+from testing import WheelBuilder, install_wheel, make_bdist, make_env
+from testing import write_simple_pex as write_pex
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, List, Set

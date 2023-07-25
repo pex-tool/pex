@@ -8,7 +8,7 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, temporary_dir
-from pex.testing import PY27, ensure_python_venv, make_env, run_pex_command
+from testing import PY27, ensure_python_venv, make_env, run_pex_command
 
 
 def test_extras_isolation():
