@@ -5,25 +5,26 @@ import os
 import shutil
 import subprocess
 import sys
+import zipfile
 from collections import defaultdict
 from contextlib import contextmanager
 from textwrap import dedent
+from typing import DefaultDict
 
-import pkginfo
 import pytest
 
 from pex import targets
 from pex.build_system.pep_517 import build_sdist
 from pex.common import safe_copy, safe_mkdtemp, temporary_dir
-from pex.dist_metadata import Requirement
+from pex.dist_metadata import Distribution, Requirement
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import PipConfiguration, ResolverVersion
+from pex.resolve.resolver_configuration import ResolverVersion
 from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable
 from pex.resolver import download
 from pex.resolver import resolve as resolve_under_test
-from pex.targets import Targets
+from pex.targets import Target, Targets
 from pex.testing import (
     IS_LINUX,
     IS_PYPY,
@@ -484,7 +485,7 @@ def test_issues_892():
     )
 
 
-def test_download():
+def test_download2():
     # type: () -> None
     project1_sdist = create_sdist(
         name="project1", version="1.0.0", extras_require={"foo": ["project2"]}
@@ -496,14 +497,14 @@ def test_download():
         install_reqs=["setuptools==44.1.0"],
     )
 
-    downloaded_by_target = defaultdict(list)
+    downloaded_by_target = defaultdict(list)  # type: DefaultDict[Target, List[Distribution]]
     result = download(
         requirements=["{}[foo]".format(project1_sdist)],
         find_links=[os.path.dirname(project2_wheel)],
         resolver=ConfiguredResolver.default(),
     )
     for local_distribution in result.local_distributions:
-        distribution = pkginfo.get_metadata(local_distribution.path)
+        distribution = Distribution.load(local_distribution.path)
         downloaded_by_target[local_distribution.target].append(distribution)
 
     assert 1 == len(downloaded_by_target)
@@ -511,17 +512,25 @@ def test_download():
     target, distributions = downloaded_by_target.popitem()
     assert targets.current() == target
 
-    distributions_by_name = {distribution.name: distribution for distribution in distributions}
+    distributions_by_name = {
+        distribution.project_name: distribution for distribution in distributions
+    }
     assert 3 == len(distributions_by_name)
 
-    def assert_dist(project_name, dist_type, version):
-        dist = distributions_by_name[project_name]
-        assert dist_type is type(dist)
-        assert version == dist.version
+    def assert_dist(
+        project_name,  # type: str
+        version,  # type: str
+        is_wheel,  # type: bool
+    ):
+        # type: (...) -> None
 
-    assert_dist("project1", pkginfo.SDist, "1.0.0")
-    assert_dist("project2", pkginfo.Wheel, "2.0.0")
-    assert_dist("setuptools", pkginfo.Wheel, "44.1.0")
+        dist = distributions_by_name[project_name]
+        assert version == dist.version
+        assert is_wheel == (dist.location.endswith(".whl") and zipfile.is_zipfile(dist.location))
+
+    assert_dist("project1", "1.0.0", is_wheel=False)
+    assert_dist("project2", "2.0.0", is_wheel=True)
+    assert_dist("setuptools", "44.1.0", is_wheel=True)
 
 
 @pytest.mark.skipif(
