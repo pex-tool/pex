@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import itertools
-import os
 
 from pex.auth import PasswordEntry
 from pex.enum import Enum
@@ -25,7 +24,7 @@ else:
     from pex.third_party import attr
 
 
-PYPI = os.environ.get("_PEX_TEST_DEFAULT_INDEX", "https://pypi.org/simple")
+PYPI = "https://pypi.org/simple"
 
 
 class ResolverVersion(Enum["ResolverVersion.Value"]):
