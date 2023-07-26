@@ -16,7 +16,7 @@ os.environ["_PEX_TEST_PROJECT_DIR"] = str(
 )
 sys.path.insert(0, os.environ["_PEX_TEST_PROJECT_DIR"])
 
-from testing import make_env, pex_project_dir
+from testing import pex_project_dir
 
 
 def typechecking():
@@ -52,6 +52,12 @@ def main():
     )
     options, passthrough_args = parser.parse_known_args()
 
+    # The "--" add_argument incantation above is a hack to get argparse to support -- ... style pass
+    # through args. In combination with parse_known_args we get a good help string, but
+    # options.passthrough_args is _not_ populated. Instead, passthrough_args contains ["--", ...]
+    # or []; so we slice off the 1st passthrough arg, which is "--".
+    passthrough_args = passthrough_args[1:]
+
     test_control_env_vars = list(iter_test_control_env_vars())
     if test_control_env_vars:
         print("Test control environment variables:")
@@ -61,8 +67,7 @@ def main():
         print("No test control environment variables set.")
 
     return subprocess.call(
-        args=[sys.executable, "-m", "pytest"] + passthrough_args[1:],
-        cwd=pex_project_dir(),
+        args=[sys.executable, "-m", "pytest"] + passthrough_args, cwd=pex_project_dir()
     )
 
 
