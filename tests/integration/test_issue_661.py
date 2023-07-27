@@ -7,7 +7,7 @@ import subprocess
 import pytest
 
 from pex.common import temporary_dir
-from pex.testing import IS_PYPY, run_pex_command
+from testing import IS_PYPY, run_pex_command
 
 
 @pytest.mark.skipif(

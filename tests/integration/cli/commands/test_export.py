@@ -8,7 +8,6 @@ import os.path
 import sys
 from textwrap import dedent
 
-from pex.cli.testing import run_pex3
 from pex.dist_metadata import Requirement
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -20,6 +19,7 @@ from pex.resolve.resolved_requirement import Fingerprint, Pin
 from pex.resolve.resolver_configuration import ResolverVersion
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any, Text

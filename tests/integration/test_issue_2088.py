@@ -10,9 +10,9 @@ import pytest
 from pex.common import safe_rmtree
 from pex.compatibility import commonpath
 from pex.layout import Layout
-from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
+from testing import run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

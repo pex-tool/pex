@@ -7,7 +7,8 @@ import subprocess
 import pytest
 
 from pex.interpreter import PythonInterpreter
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from testing import (
     ALL_PY_VERSIONS,
     IntegResults,
     VenvFactory,
@@ -16,7 +17,6 @@ from pex.testing import (
     make_source_dir,
     run_pex_command,
 )
-from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any

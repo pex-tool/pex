@@ -26,7 +26,8 @@ from pex.pex_info import PexInfo
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter, Targets
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from testing import (
     IS_LINUX_X86_64,
     IS_PYPY3,
     PY38,
@@ -37,7 +38,6 @@ from pex.testing import (
     temporary_content,
     temporary_filename,
 )
-from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Tuple

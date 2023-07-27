@@ -15,9 +15,9 @@ import pytest
 
 from pex.common import DETERMINISTIC_DATETIME, open_zip, safe_open, temporary_dir
 from pex.dist_metadata import Distribution, Requirement
-from pex.testing import PY310, ensure_python_venv, run_command_with_jitter, run_pex_command
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
+from testing import PY310, ensure_python_venv, run_command_with_jitter, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterator

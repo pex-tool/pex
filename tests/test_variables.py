@@ -10,10 +10,10 @@ from pex import pex_warnings
 from pex.common import temporary_dir
 from pex.compatibility import PY2
 from pex.pex_warnings import PEXWarning
-from pex.testing import environment_as
 from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.variables import NoValueError, Variables
+from testing import environment_as
 
 if TYPE_CHECKING:
     from typing import Any

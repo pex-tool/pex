@@ -11,8 +11,8 @@ from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import Artifact, FileArtifact
 from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact
 from pex.resolve.resolver_configuration import PipConfiguration
-from pex.testing import IS_LINUX
 from pex.typing import TYPE_CHECKING
+from testing import IS_LINUX
 
 if TYPE_CHECKING:
     pass

@@ -14,8 +14,8 @@ from pex.layout import Layout
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
-from pex.testing import WheelBuilder, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import WheelBuilder, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, List

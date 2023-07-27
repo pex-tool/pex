@@ -8,9 +8,9 @@ import colors
 import pytest
 
 from pex.inherit_path import InheritPath
-from pex.testing import PY_VER, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
+from testing import PY_VER, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

@@ -14,7 +14,6 @@ import pytest
 
 from pex import dist_metadata
 from pex.cli.commands.venv import InstallLayout
-from pex.cli.testing import run_pex3
 from pex.common import open_zip, safe_open
 from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
@@ -22,9 +21,10 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.platforms import Platform
-from pex.testing import IS_MAC, PY39, PY310, ensure_python_interpreter, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
+from testing import IS_MAC, PY39, PY310, ensure_python_interpreter, make_env, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

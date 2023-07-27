@@ -5,8 +5,8 @@ import sys
 
 import pytest
 
-from pex.cli.testing import run_pex3
 from pex.typing import TYPE_CHECKING
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

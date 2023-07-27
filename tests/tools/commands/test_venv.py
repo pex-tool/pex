@@ -21,10 +21,10 @@ from pex.executor import Executor
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
 from pex.pex_builder import CopyMode, PEXBuilder
-from pex.testing import IS_PYPY, PY310, PY_VER, ensure_python_interpreter, run_pex_command
 from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import Virtualenv
+from testing import IS_PYPY, PY310, PY_VER, ensure_python_interpreter, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, Iterator, List, Optional, Protocol, Set, Text, Tuple

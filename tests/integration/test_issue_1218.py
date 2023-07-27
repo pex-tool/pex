@@ -7,8 +7,8 @@ import sys
 import pytest
 
 from pex.pex_info import PexInfo
-from pex.testing import run_pex_command, run_simple_pex
 from pex.typing import TYPE_CHECKING, cast
+from testing import run_pex_command, run_simple_pex
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Tuple

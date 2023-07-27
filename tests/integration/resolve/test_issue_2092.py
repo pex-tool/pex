@@ -1,16 +1,12 @@
 # Copyright 2023 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 import os.path
-import sys
 
-import pytest
-
-from pex.cli.testing import run_pex3
-from pex.compatibility import commonpath
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

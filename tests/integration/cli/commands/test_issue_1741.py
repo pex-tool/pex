@@ -6,13 +6,13 @@ import os
 
 import pytest
 
-from pex.cli.testing import run_pex3
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.lockfile import json_codec
-from pex.testing import PY_VER, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import PY_VER, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

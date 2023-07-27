@@ -10,8 +10,8 @@ import pytest
 from pex.interpreter import PythonInterpreter
 from pex.resolve.lockfile import json_codec
 from pex.targets import LocalInterpreter, Target
-from pex.testing import PY27, PY38, IntegResults, ensure_python_interpreter, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import PY27, PY38, IntegResults, ensure_python_interpreter, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

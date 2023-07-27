@@ -5,7 +5,7 @@ import os
 import subprocess
 
 from pex.common import temporary_dir
-from pex.testing import make_env, run_pex_command
+from testing import make_env, run_pex_command
 
 
 def test_force_local_implicit_ns_packages():

@@ -4,17 +4,16 @@
 import os.path
 import shutil
 import subprocess
-import sys
 import tempfile
 from textwrap import dedent
 
 import colors
 import pytest
 
-from pex.cli.testing import run_pex3
 from pex.resolve.lockfile import json_codec
-from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any, Callable, List

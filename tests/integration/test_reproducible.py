@@ -14,7 +14,8 @@ from pex.compatibility import PY2
 from pex.interpreter import PythonInterpreter
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.targets import LocalInterpreter
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from testing import (
     IS_LINUX_ARM64,
     IS_MAC_ARM64,
     IS_PYPY,
@@ -28,7 +29,6 @@ from pex.testing import (
     run_commands_with_jitter,
     temporary_content,
 )
-from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Iterable, List, Optional, Tuple

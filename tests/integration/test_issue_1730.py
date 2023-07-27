@@ -8,8 +8,8 @@ import os
 import pytest
 
 from pex.compatibility import url_quote
-from pex.testing import IS_PYPY, PY_VER, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import IS_PYPY, PY_VER, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

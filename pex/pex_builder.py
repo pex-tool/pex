@@ -42,6 +42,13 @@ if TYPE_CHECKING:
     from typing import Dict, Optional
 
 
+# N.B.: __file__ will be relative when this module is loaded from a "" `sys.path` entry under
+# Python 2.7. This can occur in test scenarios; so we ensure the __file__ is resolved to an absolute
+# path here at import time before any cd'ing occurs in test code that might interfere with our
+# attempts to locate Pex files later below.
+_ABS_PEX_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 class CopyMode(Enum["CopyMode.Value"]):
     class Value(Enum.Value):
         pass
@@ -579,9 +586,8 @@ class PEXBuilder(object):
         bootstrap_packages = ["third_party", "venv"]
         if self._pex_info.includes_tools:
             bootstrap_packages.extend(["commands", "tools"])
-        package_root = os.path.dirname(__file__)
-        for root, dirs, files in os.walk(package_root):
-            if root == package_root:
+        for root, dirs, files in os.walk(_ABS_PEX_PACKAGE_DIR):
+            if root == _ABS_PEX_PACKAGE_DIR:
                 dirs[:] = bootstrap_packages
 
             for f in filter_pyc_files(files):
@@ -593,7 +599,9 @@ class PEXBuilder(object):
                 self._chroot.write(
                     data,
                     dst=os.path.join(
-                        self._pex_info.bootstrap, "pex", os.path.relpath(abs_src, package_root)
+                        self._pex_info.bootstrap,
+                        "pex",
+                        os.path.relpath(abs_src, _ABS_PEX_PACKAGE_DIR),
                     ),
                     label="bootstrap",
                 )

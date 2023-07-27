@@ -7,7 +7,6 @@ import subprocess
 
 import pytest
 
-from pex.cli.testing import run_pex3
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.locked_resolve import LockedRequirement
@@ -15,8 +14,9 @@ from pex.resolve.lockfile import json_codec
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.path_mappings import PathMapping, PathMappings
 from pex.resolve.resolved_requirement import Pin
-from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import make_env, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

@@ -35,7 +35,7 @@ def run_black(*args: str) -> None:
         dest=sys.stdout,
     ) as out_fd:
         subprocess.run(
-            args=["black", "--color", *args, "pex", "scripts", "tests"],
+            args=["black", "--color", *args, "pex", "scripts", "testing", "tests"],
             stdout=out_fd,
             stderr=subprocess.STDOUT,
             check=True,
@@ -43,7 +43,7 @@ def run_black(*args: str) -> None:
 
 
 def run_isort(*args: str) -> None:
-    subprocess.run(args=["isort", *args, "pex", "scripts", "tests"], check=True)
+    subprocess.run(args=["isort", *args, "pex", "scripts", "testing", "tests"], check=True)
 
 
 def main(check: bool = False) -> None:

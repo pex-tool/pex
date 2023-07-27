@@ -4,10 +4,10 @@
 import os
 import sys
 
-from pex.cli.testing import run_pex3
 from pex.resolve.lockfile import json_codec
-from pex.testing import PY38, ensure_python_interpreter, make_env
 from pex.typing import TYPE_CHECKING
+from testing import PY38, ensure_python_interpreter, make_env
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any

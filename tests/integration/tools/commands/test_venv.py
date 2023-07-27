@@ -9,10 +9,10 @@ from textwrap import dedent
 from colors import cyan
 
 from pex.common import filter_pyc_files, safe_open
-from pex.testing import IntegResults, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
+from testing import IntegResults, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, Set

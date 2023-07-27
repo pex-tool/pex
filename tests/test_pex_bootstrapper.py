@@ -23,9 +23,9 @@ from pex.pex_bootstrapper import (
     iter_compatible_interpreters,
 )
 from pex.pex_builder import PEXBuilder
-from pex.testing import PY38, PY39, PY310, ensure_python_interpreter
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
+from testing import PY38, PY39, PY310, ensure_python_interpreter
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, List, Optional

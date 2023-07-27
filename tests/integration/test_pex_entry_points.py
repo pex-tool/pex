@@ -6,8 +6,8 @@ import subprocess
 from textwrap import dedent
 
 from pex.common import safe_open
-from pex.testing import make_project, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import make_project, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

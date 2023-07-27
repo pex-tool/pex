@@ -9,8 +9,8 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.testing import IS_PYPY, PY_VER, make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import IS_PYPY, PY_VER, make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any, List, Text

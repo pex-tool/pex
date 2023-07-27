@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from pex.testing import run_pex_command
+from testing import run_pex_command
 
 
 @pytest.mark.skipif(

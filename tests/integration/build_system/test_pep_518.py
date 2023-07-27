@@ -9,8 +9,8 @@ from pex.pip.version import PipVersion
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration
 from pex.targets import LocalInterpreter
-from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

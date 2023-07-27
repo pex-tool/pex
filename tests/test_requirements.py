@@ -28,9 +28,9 @@ from pex.requirements import (
     parse_requirements,
     parse_scheme,
 )
-from pex.testing import environment_as
 from pex.third_party.packaging.markers import Marker
 from pex.typing import TYPE_CHECKING
+from testing import environment_as
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Iterator, List, Optional, Union

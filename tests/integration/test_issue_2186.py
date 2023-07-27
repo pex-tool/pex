@@ -9,7 +9,7 @@ import pytest
 from pex import targets
 from pex.interpreter import PythonInterpreter
 from pex.pip.version import PipVersion, PipVersionValue
-from pex.testing import IntegResults, run_pex_command
+from testing import IntegResults, run_pex_command
 
 
 def pex_execute_cowsay(*extra_pex_args):

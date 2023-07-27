@@ -18,15 +18,9 @@ from pex.common import safe_copy, temporary_dir
 from pex.compatibility import to_bytes
 from pex.interpreter import PythonInterpreter
 from pex.resolve import requirement_options, resolver_options, target_options
-from pex.testing import (
-    PY39,
-    built_wheel,
-    ensure_python_interpreter,
-    run_pex_command,
-    run_simple_pex,
-)
 from pex.typing import TYPE_CHECKING
 from pex.venv.bin_path import BinPath
+from testing import PY39, built_wheel, ensure_python_interpreter, run_pex_command, run_simple_pex
 
 if TYPE_CHECKING:
     from typing import Iterator, List, Optional, Text

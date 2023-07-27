@@ -12,8 +12,8 @@ from textwrap import dedent
 import pytest
 
 from pex.common import touch
-from pex.testing import run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

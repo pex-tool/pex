@@ -5,14 +5,14 @@ import json
 import os.path
 import platform
 
-from pex.cli.testing import run_pex3
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
 from pex.targets import CompletePlatform
-from pex.testing import IntegResults, built_wheel, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import IntegResults, built_wheel, run_pex_command
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any, List

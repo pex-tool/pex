@@ -6,8 +6,8 @@ import os
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter
 from pex.pex_info import PexInfo
-from pex.testing import PY27, PY310, ensure_python_interpreter, run_pex_command, run_simple_pex
 from pex.typing import TYPE_CHECKING
+from testing import PY27, PY310, ensure_python_interpreter, run_pex_command, run_simple_pex
 
 if TYPE_CHECKING:
     from typing import Any

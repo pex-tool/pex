@@ -9,9 +9,9 @@ import pytest
 
 from pex.interpreter import PythonInterpreter
 from pex.pex import PEX
-from pex.testing import PY27, ensure_python_interpreter, run_pex_command
 from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING
+from testing import PY27, ensure_python_interpreter, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

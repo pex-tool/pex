@@ -8,11 +8,13 @@ import sys
 
 import pytest
 
-from pex.cli.testing import run_pex3
 from pex.interpreter import PythonInterpreter
 from pex.pep_503 import ProjectName
 from pex.pex import PEX
-from pex.testing import (
+from pex.typing import TYPE_CHECKING
+from pex.venv.virtualenv import Virtualenv
+from pex.version import __version__
+from testing import (
     PY27,
     PY310,
     ensure_python_interpreter,
@@ -20,9 +22,7 @@ from pex.testing import (
     make_env,
     run_pex_command,
 )
-from pex.typing import TYPE_CHECKING
-from pex.venv.virtualenv import Virtualenv
-from pex.version import __version__
+from testing.cli import run_pex3
 
 if TYPE_CHECKING:
     from typing import Any, Optional

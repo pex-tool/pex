@@ -8,8 +8,8 @@ from pex import dist_metadata
 from pex.dist_metadata import ProjectNameAndVersion
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
-from pex.testing import make_env, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import make_env, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any

@@ -5,10 +5,10 @@ from __future__ import absolute_import
 
 import pytest
 
-from pex import testing
+import testing
 from pex.interpreter import PythonInterpreter
 from pex.platforms import Platform
-from pex.testing import PY27, PY38, PY39, PY310, ensure_python_interpreter
+from testing import PY27, PY38, PY39, PY310, ensure_python_interpreter
 
 
 @pytest.fixture(scope="session")

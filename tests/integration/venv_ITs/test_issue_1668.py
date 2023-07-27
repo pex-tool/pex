@@ -4,8 +4,8 @@
 import os.path
 import subprocess
 
-from pex.testing import PY38, ensure_python_interpreter, make_env, pex_project_dir, run_pex_command
 from pex.typing import TYPE_CHECKING
+from testing import PY38, ensure_python_interpreter, make_env, pex_project_dir, run_pex_command
 
 if TYPE_CHECKING:
     from typing import Any
