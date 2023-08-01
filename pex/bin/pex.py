@@ -164,6 +164,8 @@ def configure_clp_pex_options(parser):
         ),
     )
 
+    # TODO: avoid caching at all for --no-compress, since the cache entries are so large and the
+    # performance improvement is so slim.
     group.add_argument(
         "--compress",
         "--compressed",
@@ -175,7 +177,11 @@ def configure_clp_pex_options(parser):
         action=HandleBoolAction,
         help=(
             "Whether to compress zip entries when creating either a zipapp PEX file or a packed "
-            "PEX's bootstrap and dependency zip files. Does nothing for loose layout PEXes."
+            "PEX's bootstrap and dependency zip files. "
+            "Uncompressed PEX files are much faster to create from an empty cache, but are no "
+            "faster after the cache has been populated, and uncompressed cache entries will "
+            "consume many times more space on disk. "
+            "Does nothing for loose layout PEXes."
         ),
     )
 
@@ -200,7 +206,7 @@ def configure_clp_pex_options(parser):
         action=HandleVenvAction,
         help="Convert the pex file to a venv before executing it. If 'prepend' or 'append' is "
         "specified, then all scripts and console scripts provided by distributions in the pex file "
-        "will be added to the PATH in the corresponding position. If the the pex file will be run "
+        "will be added to the PATH in the corresponding position. If the pex file will be run "
         "multiple times under a stable runtime PEX_ROOT, the venv creation will only be done once "
         "and subsequent runs will enjoy lower startup latency.",
     )
@@ -282,10 +288,12 @@ def configure_clp_pex_options(parser):
         dest="compile",
         default=False,
         action=HandleBoolAction,
-        help="Compiling means that the built pex will include .pyc files, which will result in "
-        "slightly faster startup performance. However, compiling means that the generated pex "
+        help="Compiling means that the built PEX will include .pyc files, which will result in "
+        "slightly faster startup performance. However, compiling means that the generated PEX "
         "likely will not be reproducible, meaning that if you were to run `./pex -o` with the "
-        "same inputs then the new pex would not be byte-for-byte identical to the original.",
+        "same inputs then the new PEX would not be byte-for-byte identical to the original. "
+        "Note that all PEX files are now unzipped and compiled when first executed, so this "
+        "flag only affects the startup performance of the first execution.",
     )
 
     group.add_argument(
@@ -294,10 +302,14 @@ def configure_clp_pex_options(parser):
         dest="use_system_time",
         default=False,
         action=HandleBoolAction,
-        help="Use the current system time to generate timestamps for the new pex. Otherwise, Pex "
-        "will use midnight on January 1, 1980. By using system time, the generated pex "
-        "will not be reproducible, meaning that if you were to run `./pex -o` with the "
-        "same inputs then the new pex would not be byte-for-byte identical to the original.",
+        help="Convert modification times from the filesystem into timestamps for any zip file "
+        "entries. Otherwise, Pex will use midnight on January 1, 1980. By using system time, the "
+        "generated PEX will not be reproducible, meaning that if you were to run `./pex -o` with "
+        "the same inputs then the new pex PEX not be byte-for-byte identical to the original. "
+        "Note that zip file entries synthesized from the pex cache (including any resolved "
+        "distributions) will always use the reproducible timestamp regardless of this flag. "
+        "Any unzipped output file will retain the timestamps of their sources regardless of this "
+        "flag, although this will not affect their checksum.",
     )
 
     group.add_argument(
