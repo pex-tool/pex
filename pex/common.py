@@ -502,6 +502,10 @@ class Chroot(object):
         # type: (str) -> None
         safe_mkdir(os.path.dirname(os.path.join(self.chroot, path)))
 
+    def _ensure_writeable(self, path):
+        path = os.path.join(self.chroot, path)
+        os.chmod(path, os.stat(path).st_mode | stat.S_IWRITE)
+
     def copy(self, src, dst, label=None):
         # type: (str, str, Optional[str]) -> None
         """Copy file ``src`` to ``chroot/dst`` with optional label.
@@ -516,6 +520,7 @@ class Chroot(object):
         self._tag(dst, label)
         self._ensure_parent(dst)
         shutil.copy(src, os.path.join(self.chroot, dst))
+        self._ensure_writeable(dst)
 
     def link(self, src, dst, label=None):
         # type: (str, str, Optional[str]) -> None
