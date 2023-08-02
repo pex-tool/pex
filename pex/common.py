@@ -455,6 +455,7 @@ class Chroot(object):
             raise self.Error("Unable to create chroot in %s: %s" % (chroot_base, e))
         self.chroot = chroot_base  # type: str
         self.filesets = defaultdict(set)  # type: DefaultDict[Optional[str], Set[str]]
+        self._file_index = {}  # type: Dict[str, Optional[str]]
 
     def clone(self, into=None):
         # type: (Optional[str]) -> Chroot
@@ -487,9 +488,10 @@ class Chroot(object):
         return dst
 
     def _check_tag(self, fn, label):
-        for fs_label, fs in self.filesets.items():
-            if fn in fs and fs_label != label:
-                raise self.ChrootTaggingException(fn, fs_label, label)
+        """Raises ChrootTaggingException if a file was added under more than one label."""
+        existing_label = self._file_index.setdefault(fn, label)
+        if label != existing_label:
+            raise self.ChrootTaggingException(fn, existing_label, label)
 
     def _tag(self, fn, label):
         # type: (str, Optional[str]) -> None
