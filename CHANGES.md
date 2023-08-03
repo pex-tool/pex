@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.1.141
+
+This release fixes the Pex CLI to work when run from a read-only
+installation. A prominent example of this comes in certain nix setups.
+
+* Fix the Pex CLI to work when installed read-only. (#2205)
+
 ## 2.1.140
 
 This release fixes several spurious warnings emitted for Python 3.11 and
