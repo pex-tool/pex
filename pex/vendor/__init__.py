@@ -9,12 +9,12 @@ import subprocess
 import sys
 from textwrap import dedent
 
-from pex.common import filter_pyc_dirs, filter_pyc_files, safe_mkdtemp, touch
+from pex.common import Chroot, filter_pyc_dirs, filter_pyc_files, safe_mkdtemp, touch
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, Optional, Sequence, Text, Tuple
+    from typing import Iterable, Iterator, Optional, Sequence, Set, Text, Tuple
 
 _PACKAGE_COMPONENTS = __name__.split(".")
 
@@ -254,7 +254,14 @@ def iter_vendor_specs(filter_requires_python=False):
     yield VendorSpec.pinned("wheel", "0.37.1", rewrite=False)
 
 
-def vendor_runtime(chroot, dest_basedir, label, root_module_names, include_dist_info=False):
+def vendor_runtime(
+    chroot,  # type: Chroot
+    dest_basedir,  # type: str
+    label,  # type: str
+    root_module_names,  # type: Iterable[str]
+    include_dist_info=(),  # type: Iterable[str]
+):
+    # type: (...) -> Set[str]
     """Includes portions of vendored distributions in a chroot.
 
     The portion to include is selected by root module name. If the module is a file, just it is
@@ -262,18 +269,17 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names, include_dist_
     recursively.
 
     :param chroot: The chroot to add vendored code to.
-    :type chroot: :class:`pex.common.Chroot`
-    :param str dest_basedir: The prefix to store the vendored code under in the ``chroot``.
-    :param str label: The chroot label for the vendored code fileset.
+    :param dest_basedir: The prefix to store the vendored code under in the ``chroot``.
+    :param label: The chroot label for the vendored code fileset.
     :param root_module_names: The names of the root vendored modules to include in the chroot.
-    :type root_module_names: :class:`collections.Iterable` of str
-    :param bool include_dist_info: Include the .dist-info dirs associated with the root module
-                                   names.
+    :param include_dist_info: Include the .dist-info dirs associated with these root module names.
+    :returns: The set of absolute paths of the source files that were vendored.
     :raise: :class:`ValueError` if any of the given ``root_module_names`` could not be found amongst
             the vendored code and added to the chroot.
     """
     vendor_module_names = {root_module_name: False for root_module_name in root_module_names}
 
+    vendored_sources = set()  # type: Set[str]
     for spec in iter_vendor_specs():
         for root, dirs, files in os.walk(spec.target_dir):
             if root == spec.target_dir:
@@ -290,6 +296,8 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names, include_dist_
                     pkg_path = os.path.join(pkg_path, pkg)
                     pkg_file = os.path.join(pkg_path, "__init__.py")
                     src = os.path.join(VendorSpec.ROOT, pkg_file)
+                    if src in vendored_sources:
+                        continue
                     dest = os.path.join(dest_basedir, pkg_file)
                     if os.path.exists(src):
                         chroot.copy(src, dest, label)
@@ -297,11 +305,17 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names, include_dist_
                         # We delete `pex/vendor/_vendored/<dist>/__init__.py` when isolating
                         # third_party.
                         chroot.touch(dest, label)
+                    vendored_sources.add(src)
+
                 for name in vendored_names:
                     vendor_module_names[name] = True
                     TRACER.log("Vendoring {} from {} @ {}".format(name, spec, spec.target_dir), V=3)
+
                 dirs[:] = packages + [
-                    d for d in dirs if include_dist_info and d.endswith(".dist-info")
+                    d
+                    for project in include_dist_info
+                    for d in dirs
+                    if d.startswith(project) and d.endswith(".dist-info")
                 ]
                 files[:] = modules
 
@@ -309,10 +323,13 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names, include_dist_
             dirs[:] = filter_pyc_dirs(dirs)
             for filename in filter_pyc_files(files):
                 src = os.path.join(root, filename)
+                if src in vendored_sources:
+                    continue
                 dest = os.path.join(
                     dest_basedir, spec.relpath, os.path.relpath(src, spec.target_dir)
                 )
                 chroot.copy(src, dest, label)
+                vendored_sources.add(src)
 
     if not all(vendor_module_names.values()):
         raise ValueError(
@@ -325,3 +342,5 @@ def vendor_runtime(chroot, dest_basedir, label, root_module_names, include_dist_
                 ),
             )
         )
+
+    return vendored_sources
