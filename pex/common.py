@@ -20,6 +20,7 @@ from collections import defaultdict, namedtuple
 from datetime import datetime
 from uuid import uuid4
 
+from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -621,11 +622,16 @@ class Chroot(object):
         # type: (...) -> None
 
         if labels:
-            selected_files = set(
-                itertools.chain.from_iterable(self.filesets.get(label, ()) for label in labels)
+            selected_files = OrderedSet(
+                itertools.chain.from_iterable(
+                    # If labels are provided, respect the given ordering, but still sort the files
+                    # within each label to get deterministic output.
+                    sorted(self.filesets.get(label, ()))
+                    for label in labels
+                )
             )
         else:
-            selected_files = self.files()
+            selected_files = OrderedSet(self.files())
 
         compression = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
         with open_zip(filename, mode, compression) as zf:
@@ -667,7 +673,7 @@ class Chroot(object):
 
             def iter_files():
                 # type: () -> Iterator[Tuple[str, str]]
-                for path in sorted(selected_files):
+                for path in selected_files:
                     full_path = os.path.join(self.chroot, path)
                     if os.path.isfile(full_path):
                         if exclude_file(full_path):
