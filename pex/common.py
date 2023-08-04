@@ -39,6 +39,8 @@ if TYPE_CHECKING:
         Union,
     )
 
+    _DateTime = Tuple[int, int, int, int, int, int]
+
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
 # https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
@@ -138,10 +140,7 @@ def safe_copy(source, dest, overwrite=False):
         do_copy()
 
 
-_COPY_BUFSIZE = 64 * 1024
-
-
-def copy_file_range(source, destination, length, buffer_size=_COPY_BUFSIZE):
+def copy_file_range(source, destination, length, buffer_size=io.DEFAULT_BUFFER_SIZE):
     # type: (io.BufferedIOBase, io.BufferedIOBase, int, int) -> None
     """Implementation of shutil.copyfileobj() that only copies exactly `length` bytes."""
     # We require a BufferedIOBase in order to avoid handling short reads or writes.
@@ -194,7 +193,14 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
         pass
 
     @classmethod
-    def zip_entry_from_file(cls, filename, arcname=None, date_time=None):
+    def zip_entry_from_file(
+        cls,
+        filename,  # type: str
+        arcname=None,  # type: Optional[str]
+        date_time=None,  # type: Optional[Tuple[int, ...]]
+        compression=zipfile.ZIP_STORED,  # type: int
+    ):
+        # type: (...) -> PermPreservingZipFile.ZipEntry
         """Construct a ZipEntry for a file on the filesystem.
 
         Usually a similar `zip_info_from_file` method is provided by `ZipInfo`, but it is not
@@ -213,16 +219,20 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
             arcname += "/"
         if date_time is None:
             date_time = time.localtime(st.st_mtime)
-        zinfo = zipfile.ZipInfo(filename=arcname, date_time=date_time[:6])
+        zinfo = zipfile.ZipInfo(filename=arcname, date_time=cast(_DateTime, date_time[:6]))
         zinfo.external_attr = (st.st_mode & 0xFFFF) << 16  # Unix attributes
         if isdir:
             zinfo.file_size = 0
             zinfo.external_attr |= 0x10  # MS-DOS directory flag
+            # Always store directories decompressed, because they are empty but take up 2 bytes when
+            # compressed.
             zinfo.compress_type = zipfile.ZIP_STORED
             data = b""
         else:
             zinfo.file_size = st.st_size
-            zinfo.compress_type = zipfile.ZIP_DEFLATED
+            # File contents may be compressed or decompressed. Decompressed is significantly faster
+            # to write, but caching makes up for that.
+            zinfo.compress_type = compression
             with open(filename, "rb") as fp:
                 data = fp.read()
         return cls.ZipEntry(info=zinfo, data=data)
@@ -677,12 +687,12 @@ class Chroot(object):
                 zip_entry = zf.zip_entry_from_file(
                     filename=filename,
                     arcname=os.path.relpath(arcname, strip_prefix) if strip_prefix else arcname,
-                    date_time=DETERMINISTIC_DATETIME.timetuple()
-                    if deterministic_timestamp
-                    else None,
+                    date_time=(
+                        DETERMINISTIC_DATETIME.timetuple() if deterministic_timestamp else None
+                    ),
+                    compression=compression,
                 )
-                # FIXME: this ignores the zinfo.compress_type value from zip_entry_from_file()!
-                zf.writestr(zip_entry.info, zip_entry.data, compression)
+                zf.writestr(zip_entry.info, zip_entry.data)
 
             def get_parent_dir(path):
                 # type: (str) -> Optional[str]

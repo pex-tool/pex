@@ -869,10 +869,10 @@ class PEXBuilder(object):
                 #     computation, because the compressed entries are simply copied over as-is.
                 #
                 #     Note that these cached zips are created in the --layout packed format, without
-                #     the .bootstrap/ or .deps/ prefixes we need to form a proper zipapp. Our zip
-                #     file merging solution edits each entry's .filename with the appropriate
-                #     prefix, but we will still need to generate intermediate directory entries
-                #     before adding the prefixed files in order to unzip correctly.
+                #     the .bootstrap/ or .deps/ prefixes we need to form a proper Pex zipapp
+                #     layout. Our zip file merging solution edits each entry's .filename with the
+                #     appropriate prefix, but we will still need to generate intermediate directory
+                #     entries before adding the prefixed files in order to unzip correctly.
 
                 # Reuse the file handle to zip into. This isn't necessary (we could close and reopen
                 # it), but it avoids unnecessarily flushing to disk. The ZipFile class will re-parse
@@ -927,6 +927,5 @@ class PEXBuilder(object):
                         compress=compress,
                         labels=self._DIRECT_SOURCE_LABELS,
                     )
-
 
         chmod_plus_x(filename)
