@@ -4,6 +4,7 @@
 import contextlib
 import errno
 import os
+import uuid
 
 import pytest
 
@@ -27,7 +28,7 @@ except ImportError:
     import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, Tuple
+    from typing import Any, Iterator, List, Tuple
 
 
 def extract_perms(path):
@@ -138,6 +139,29 @@ def test_chroot_zip():
             assert b"" == zip.read("directory/")
             assert b"" == zip.read("directory/subdirectory/")
             assert b"data" == zip.read("directory/subdirectory/file")
+
+
+def test_chroot_zip_preserves_label_order():
+    # type: () -> None
+    """Verify that the order of the labels presented to ``Chroot.zip()`` transfers to the order
+    of the zip file entries."""
+    with temporary_dir() as tmp:
+        chroot = Chroot(os.path.join(tmp, "chroot"))
+
+        ordered_labels = []  # type: List[str]
+        file_todo = []  # type: List[Tuple[str, str]]
+        for i in range(10):
+            label = uuid.uuid4().hex
+            file_todo.append(("{}-{}".format(uuid.uuid4().hex, i), label))
+            ordered_labels.append(label)
+        for filename, label in reversed(file_todo):
+            chroot.touch(filename, label=label)
+
+        zip_dst = os.path.join(tmp, "chroot.zip")
+        chroot.zip(zip_dst, labels=ordered_labels)
+        with open_zip(zip_dst) as zip:
+            for i, filename in enumerate(zip.namelist()):
+                assert filename.endswith("-{}".format(i))
 
 
 def test_chroot_zip_symlink():
