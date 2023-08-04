@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import hashlib
+import itertools
 import logging
 import os
 import shutil
@@ -39,7 +40,7 @@ from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 
 if TYPE_CHECKING:
-    from typing import Dict, Optional
+    from typing import ClassVar, Dict, Iterable, Iterator, Optional, Tuple
 
 
 # N.B.: __file__ will be relative when this module is loaded from a "" `sys.path` entry under
@@ -95,14 +96,14 @@ def __maybe_run_venv__(pex, pex_root, pex_path):
 
   venv_dir = venv_dir(
     pex_file=pex,
-    pex_root=pex_root, 
+    pex_root=pex_root,
     pex_hash={pex_hash!r},
     has_interpreter_constraints={has_interpreter_constraints!r},
     pex_path=pex_path,
   )
   venv_pex = os.path.join(venv_dir, 'pex')
   if not __execute__ or not is_exe(venv_pex):
-    # Code in bootstrap_pex will (re)create the venv after selecting the correct interpreter. 
+    # Code in bootstrap_pex will (re)create the venv after selecting the correct interpreter.
     return venv_dir
 
   TRACER.log('Executing venv PEX for {{}} at {{}}'.format(pex, venv_pex))
@@ -702,6 +703,59 @@ class PEXBuilder(object):
         )
         self.set_header(script)
 
+    @classmethod
+    def iter_bootstrap_script_labels(cls):
+        # type: () -> Iterator[str]
+        """``Chroot`` labels covering the scripts immediately executed by the python interpreter."""
+        # __pex__/__init__.py: This version of the bootstrap script will be executed by the python
+        #                      interpreter if the zipapp is on the PYTHONPATH.
+        yield "importhook"
+
+        # __main__.py: This version of the bootstrap script is what is first executed by the python
+        #              interpreter for an executable entry point (which includes use as a REPL).
+        yield "main"
+
+    @classmethod
+    def iter_metadata_labels(cls):
+        # type: () -> Iterator[str]
+        """``Chroot`` labels covering metadata files."""
+        # PEX-INFO: This is accessed after unpacking the zip.
+        yield "manifest"
+
+    @classmethod
+    def iter_bootstrap_libs_labels(cls):
+        # type: () -> Iterator[str]
+        """``Chroot`` labels covering code that may be imported from the bootstrap scripts."""
+        # .bootstrap/
+        yield "bootstrap"
+
+    @classmethod
+    def iter_deps_libs_labels(cls, pex_info):
+        # type: (PexInfo) -> Iterator[str]
+        """``Chroot`` labels covering the third-party code that was resolved into dists."""
+        # Subdirectories of .deps:
+        for dist_label in pex_info.distributions.keys():
+            yield dist_label
+
+    @classmethod
+    def iter_direct_source_labels(cls):
+        # type: () -> Iterator[str]
+        """User source/resource files."""
+        # Deprecated.
+        yield "resource"
+
+        # Source files from -D/--sources-directory.
+        yield "source"
+
+        # The value of --exe, if provided. Accessed after unpacking the zip.
+        yield "executable"
+
+    def _setup_pex_info(self):
+        # type: () -> PexInfo
+        pex_info = self._pex_info.copy()
+        pex_info.update(PexInfo.from_env())
+        return pex_info
+
     def _build_packedapp(
         self,
         dirname,  # type: str
@@ -710,15 +764,20 @@ class PEXBuilder(object):
     ):
         # type: (...) -> None
 
-        pex_info = self._pex_info.copy()
-        pex_info.update(PexInfo.from_env())
+        pex_info = self._setup_pex_info()
 
         # Include user sources, PEX-INFO and __main__ as loose files in src/.
-        for fileset in ("executable", "importhook", "main", "manifest", "resource", "source"):
-            for f in self._chroot.filesets.get(fileset, ()):
-                dest = os.path.join(dirname, f)
-                safe_mkdir(os.path.dirname(dest))
-                safe_copy(os.path.realpath(os.path.join(self._chroot.chroot, f)), dest)
+        with TRACER.timed("copying over uncached sources", V=9):
+            uncached_label_groups = [
+                self.iter_direct_source_labels(),
+                self.iter_metadata_labels(),
+                self.iter_bootstrap_script_labels(),
+            ]
+            for fileset in itertools.chain.from_iterable(uncached_label_groups):
+                for f in self._chroot.filesets.get(fileset, ()):
+                    dest = os.path.join(dirname, f)
+                    safe_mkdir(os.path.dirname(dest))
+                    safe_copy(os.path.realpath(os.path.join(self._chroot.chroot, f)), dest)
 
         # Pex historically only supported compressed zips in packed layout, so we don't disturb the
         # old cache structure for those zips and instead just use a subdir for un-compressed zips.
@@ -779,6 +838,37 @@ class PEXBuilder(object):
                     os.path.join(internal_cache, location),
                 )
 
+    @classmethod
+    def iter_zipapp_labels(cls, pex_info):
+        # type: (PexInof) -> Iterator[str]
+        """User sources, bootstrap sources, metadata, and dependencies, optimized for tail access.
+
+        This method returns all the ``Chroot`` labels used by this ``PEXBuilder``. For zipapp
+        layouts, the order is significant. The python interpreter from the shebang line will process
+        the zipapp PEX by seeking to and parsing its central directory records at the end of the
+        file first. This method orders labels so the files which are first accessed by the python
+        interpreter will be closest to the location of the file pointer in the interpreter's file
+        handle for this zipapp after processing those central directory records.
+        """
+        label_groups = [
+            cls.iter_deps_libs_labels(pex_info),
+            cls.iter_direct_source_labels(),
+            # As these may also be imported before unzipping the zipapp, it should be as close to
+            # end of the file as possible.
+            cls.iter_bootstrap_libs_labels(),
+            # Metadata files such as PEX-INFO may be accessed outside the context of an executable
+            # zipapp, such as with ``PexInfo.from_pex()`` and ``unzip -p pex.pex PEX-INFO``.
+            # While they are only accessed after unpacking to the ``"unzipped_pexes"`` cache during
+            # execution, these should still be near enough to the central directory record to
+            # minimize the seek distance to then access these files in non-execution scenarios.
+            cls.iter_metadata_labels(),
+            # The following bootstrap scripts are executed immediately after opening the zipapp, so
+            # they should be right near the end by the central directory records.
+            cls.iter_bootstrap_script_labels(),
+        ]
+        for label in itertools.chain.from_iterable(label_groups):
+            yield label
+
     def _build_zipapp(
         self,
         filename,  # type: str
@@ -805,5 +895,6 @@ class PEXBuilder(object):
                 # racy.
                 exclude_file=is_pyc_temporary_file,
                 compress=compress,
+                labels=list(self.iter_zipapp_labels(self._setup_pex_info())),
             )
         chmod_plus_x(filename)
