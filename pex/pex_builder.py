@@ -861,26 +861,7 @@ class PEXBuilder(object):
                 if self._header:
                     pexfile.write(to_bytes(self._header))
 
-                # (2) Zip up everything that won't be retrieved from a cache first.
-                # NB: This produces a slightly different output than if we had simply zipped up the
-                #     entire chroot at once; the sources and resources will now be listed before the
-                #     contents of the .bootstrap/ directory. This isn't necessary, but it makes the
-                #     output of `unzip -l` more useful for quickly scanning the contents of a PEX.
-                with TRACER.timed("zipping up uncached sources", V=9):
-                    # Reuse the file handle to zip into. This isn't necessary (we could close and
-                    # reopen it), but it avoids unnecessarily flushing to disk.
-                    self._chroot.zip(
-                        pexfile,
-                        mode="a",
-                        # These files are the only ones that might have a nonzero timestamp. All
-                        # entries copied from cache are assigned the zero timestamp, so their
-                        # checksums won't depend on the state of the pex cache.
-                        deterministic_timestamp=deterministic_timestamp,
-                        compress=compress,
-                        labels=self._DIRECT_SOURCE_LABELS,
-                    )
-
-                # (3) Engage our hacky solution to reuse the same caches as for --layout packed.
+                # (2) Engage our hacky solution to reuse the same caches as for --layout packed.
                 #
                 #     This reads from a single compressed file per cached resource instead of
                 #     traversing any directory trees. If compress=True, this will also significantly
@@ -893,11 +874,12 @@ class PEXBuilder(object):
                 #     prefix, but we will still need to generate intermediate directory entries
                 #     before adding the prefixed files in order to unzip correctly.
 
-                # Reuse the file handle again. The ZipFile class will re-parse the central directory
-                # records at the end of the file and then reset the cursor to the beginning of the
-                # central directory records.
+                # Reuse the file handle to zip into. This isn't necessary (we could close and reopen
+                # it), but it avoids unnecessarily flushing to disk. The ZipFile class will re-parse
+                # the central directory records at the end of the file and then reset the cursor to
+                # the beginning of the central directory records.
                 with MergeableZipFile(pexfile, mode="a") as zf:
-                    # (3.1) Add the single bootstrap dir.
+                    # (2.1) Add the single bootstrap dir.
                     with TRACER.timed("adding bootstrap dir", V=9):
                         # Generate ".bootstrap/".
                         zf.mkdir(pex_info.bootstrap)
@@ -907,7 +889,7 @@ class PEXBuilder(object):
                         with buffered_zip_archive(cached_bootstrap_zip) as bootstrap_zf:
                             zf.merge_archive(bootstrap_zf, name_prefix=pex_info.bootstrap)
 
-                    # (3.2) Add a subdirectory for each resolved dist.
+                    # (2.2) Add a subdirectory for each resolved dist.
                     with TRACER.timed("adding dependencies", V=9):
                         # Generate ".deps/".
                         zf.mkdir(pex_info.internal_cache)
@@ -931,5 +913,20 @@ class PEXBuilder(object):
                             )
                             with buffered_zip_archive(cached_packed_zip) as packed_zf:
                                 zf.merge_archive(packed_zf, name_prefix=dist_prefix)
+
+                # (3) Zip up everything that won't be retrieved from a cache first.
+                with TRACER.timed("zipping up uncached sources", V=9):
+                    # Reuse the file handle again.
+                    self._chroot.zip(
+                        pexfile,
+                        mode="a",
+                        # These files are the only ones that might have a nonzero timestamp. All
+                        # entries copied from cache are assigned the zero timestamp, so their
+                        # checksums won't depend on the state of the pex cache.
+                        deterministic_timestamp=deterministic_timestamp,
+                        compress=compress,
+                        labels=self._DIRECT_SOURCE_LABELS,
+                    )
+
 
         chmod_plus_x(filename)
