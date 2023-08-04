@@ -219,7 +219,7 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
             arcname += "/"
         if date_time is None:
             date_time = time.localtime(st.st_mtime)
-        zinfo = zipfile.ZipInfo(filename=arcname, date_time=cast(_DateTime, date_time[:6]))
+        zinfo = zipfile.ZipInfo(filename=arcname, date_time=cast("_DateTime", date_time[:6]))
         zinfo.external_attr = (st.st_mode & 0xFFFF) << 16  # Unix attributes
         if isdir:
             zinfo.file_size = 0
@@ -659,7 +659,7 @@ class Chroot(object):
     # https://github.com/pantsbuild/pex/issues/2158 and https://github.com/pantsbuild/pex/pull/2175.
     def zip(
         self,
-        output_file,  # type: Union[str, io.IOBase]
+        output_file,  # type: Union[str, io.IOBase, io.BufferedRandom]
         mode="w",  # type: str
         deterministic_timestamp=False,  # type: bool
         exclude_file=lambda _: False,  # type: Callable[[str], bool]

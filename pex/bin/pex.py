@@ -164,8 +164,23 @@ def configure_clp_pex_options(parser):
         ),
     )
 
-    # TODO: avoid caching at all for --no-compress, since the cache entries are so large and the
-    # performance improvement is so slim.
+    group.add_argument(
+        "--cache-dists",
+        "--no-cache-dists",
+        dest="cache_dists",
+        default=None,
+        action=HandleBoolAction,
+        help=(
+            "Whether to zip up each dist contained in the output PEX file into a fingerprinted "
+            "cache directory to speed up later PEX file builds. For `--layout packed`, this "
+            "behavior is enabled by default. "
+            "For `--layout zipapp`, this synthesizes the zip file from those cached zips with an "
+            "experimental zip merging technique, so this flag is disabled by default when building "
+            "a zipapp. This will re-use the same caches as `--layout packed`, so creating a "
+            "zipapp or packed PEX file from the same inputs will only populate the cache once. "
+            "This flag and behavior do not apply to other layouts."
+        ),
+    )
     group.add_argument(
         "--compress",
         "--compressed",
@@ -961,6 +976,7 @@ def do_main(
             deterministic_timestamp=not options.use_system_time,
             layout=options.layout,
             compress=options.compress,
+            cache_dists=options.cache_dists,
         )
         if options.seed != Seed.NONE:
             seed_info = seed_cache(
