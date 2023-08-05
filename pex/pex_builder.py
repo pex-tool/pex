@@ -840,7 +840,7 @@ class PEXBuilder(object):
 
     @classmethod
     def iter_zipapp_labels(cls, pex_info):
-        # type: (PexInof) -> Iterator[str]
+        # type: (PexInfo) -> Iterator[str]
         """User sources, bootstrap sources, metadata, and dependencies, optimized for tail access.
 
         This method returns all the ``Chroot`` labels used by this ``PEXBuilder``. For zipapp

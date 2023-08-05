@@ -455,22 +455,35 @@ def test_pex_env_var_issues_1485(
     assert_pex_env_var_nested(PEX_VENV=True)
 
 
+@pytest.fixture(scope="function")
+def tmp_pex_root_pex_builder(tmpdir):
+    # type: (Any) -> Iterator[PEXBuilder]
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+    pb = PEXBuilder()
+    pb.info.pex_root = pex_root
+    yield pb
+
+
+@pytest.fixture(scope="function")
+def pex_dist_pex_builder(tmp_pex_root_pex_builder, pex_project_dir):
+    # type: (PEXBuilder, str) -> Iterator[PEXBuilder]
+    pb = tmp_pex_root_pex_builder
+    with ENV.patch(PEX_ROOT=pb.info.pex_root):
+        pb.add_dist_location(install_wheel(WheelBuilder(pex_project_dir).bdist()).location)
+    yield pb
+
+
 @pytest.mark.parametrize(
     "layout", [pytest.param(layout, id=layout.value) for layout in (Layout.PACKED, Layout.ZIPAPP)]
 )
 def test_build_compression(
     tmpdir,  # type: Any
     layout,  # type: Layout.Value
-    pex_project_dir,  # type: str
+    pex_dist_pex_builder,  # type: PEXBuilder
 ):
     # type: (...) -> None
+    pb = pex_dist_pex_builder
 
-    pex_root = os.path.join(str(tmpdir), "pex_root")
-
-    pb = PEXBuilder()
-    pb.info.pex_root = pex_root
-    with ENV.patch(PEX_ROOT=pex_root):
-        pb.add_dist_location(install_wheel(WheelBuilder(pex_project_dir).bdist()).location)
     exe = os.path.join(str(tmpdir), "exe.py")
     with open(exe, "w") as fp:
         fp.write("import pex; print(pex.__file__)")
@@ -479,7 +492,9 @@ def test_build_compression(
     def assert_pex(pex):
         # type: (str) -> None
         assert (
-            subprocess.check_output(args=[sys.executable, pex]).decode("utf-8").startswith(pex_root)
+            subprocess.check_output(args=[sys.executable, pex])
+            .decode("utf-8")
+            .startswith(pb.info.pex_root)
         )
 
     compressed_pex = os.path.join(str(tmpdir), "compressed.pex")
@@ -499,3 +514,31 @@ def test_build_compression(
         )
 
     assert size(compressed_pex) < size(uncompressed_pex)
+
+
+def test_bootstrap_at_end_of_zipapp(tmpdir, pex_dist_pex_builder):
+    # type: (Any, PEXBuilder) -> None
+    pb = pex_dist_pex_builder
+
+    src_file = os.path.join(str(tmpdir), "src.py")
+    with open(src_file, mode="w") as fp:
+        fp.write("print('hello')")
+    pb.add_source(src_file, "src.py")
+
+    exe = os.path.join(str(tmpdir), "exe.py")
+    with open(exe, "w") as fp:
+        fp.write("import pex; print(pex.__file__)")
+    pb.set_executable(exe)
+
+    compressed_pex = os.path.join(str(tmpdir), "test.pex")
+    pb.build(compressed_pex, layout=Layout.ZIPAPP)
+
+    with open_zip(compressed_pex, mode="r") as zf:
+        names = list(reversed(zf.namelist()))
+        assert names[0:4] == [
+            "__main__.py",
+            "__pex__/__init__.py",
+            "__pex__/",
+            "PEX-INFO",
+        ]
+        assert names[4].startswith(".bootstrap/") and names[4].endswith(".py")
