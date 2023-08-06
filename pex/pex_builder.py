@@ -719,7 +719,7 @@ class PEXBuilder(object):
     def iter_metadata_labels(cls):
         # type: () -> Iterator[str]
         """``Chroot`` labels covering metadata files."""
-        # PEX-INFO: This is accessed after unpacking the zip.
+        # PEX-INFO
         yield "manifest"
 
     @classmethod
@@ -733,8 +733,8 @@ class PEXBuilder(object):
     def iter_deps_libs_labels(cls, pex_info):
         # type: (PexInfo) -> Iterator[str]
         """``Chroot`` labels covering the third-party code that was resolved into dists."""
-        # Subdirectories of .deps:
-        for dist_label in pex_info.distributions.keys():
+        # Subdirectories of .deps/: Keys need to be sorted for deterministic output.
+        for dist_label in sorted(pex_info.distributions.keys()):
             yield dist_label
 
     @classmethod

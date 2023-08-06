@@ -627,11 +627,13 @@ class Chroot(object):
                     # If labels are provided, respect the given ordering, but still sort the files
                     # within each label to get deterministic output.
                     sorted(self.filesets.get(label, ()))
+                    # NB: An iterable of labels with non-deterministic order is not reproducible!
                     for label in labels
                 )
             )
         else:
-            selected_files = OrderedSet(self.files())
+            # Otherwise, sort the files to get reproducible output by default.
+            selected_files = OrderedSet(sorted(self.files()))
 
         compression = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
         with open_zip(filename, mode, compression) as zf:

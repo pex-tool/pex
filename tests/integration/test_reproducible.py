@@ -97,6 +97,9 @@ def assert_reproducible_build(
                     ), "{} and {} have different content.".format(member1, member2)
                 # Check that the entire file is equal, including metadata.
                 assert filecmp.cmp(member1, member2, shallow=False)
+            # Check that the file list is identical.
+            with ZipFile(pex1) as zfp1, ZipFile(pex2) as zfp2:
+                assert zfp1.namelist() == zfp2.namelist()
             # Finally, check that the .pex files are byte-for-byte identical.
             assert filecmp.cmp(pex1, pex2, shallow=False)
 
