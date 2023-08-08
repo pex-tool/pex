@@ -217,12 +217,12 @@ class ArtifactBuildResult(object):
 
 @attr.s(frozen=True)
 class ArtifactBuildObserver(object):
-    _done_building_pattern = attr.ib()  # type: Pattern
+    _done_building_patterns = attr.ib()  # type: Iterable[Pattern]
     _artifact_url = attr.ib()  # type: ArtifactURL
 
     def is_done_building(self, line):
         # type: (str) -> bool
-        return self._done_building_pattern.search(line) is not None
+        return any(pattern.search(line) is not None for pattern in self._done_building_patterns)
 
     def build_result(self, line):
         # type: (str) -> Optional[ArtifactBuildResult]
@@ -315,16 +315,17 @@ class Locker(LogAnalyzer):
         # The log sequence for processing a resolved requirement is as follows (log lines irrelevant
         # to our purposes omitted):
         #
-        #   1.)   "... Found link <url1> ..."
+        #   1.)       "... Found link <url1> ..."
         #   ...
-        #   1.)   "... Found link <urlN> ..."
-        #   2.)   "... Added <varying info ...> to build tracker ..."
-        # * 3.)   Lines related to extracting metadata from <requirement> if the selected
-        #         distribution is an sdist in any form (VCS, local directory, source archive).
-        # * 3.5.) "... Source in <tmp> has version <version>, which satisfies requirement "
-        #         "<requirement> from <url> ..."
-        #   4.)   "... Removed <requirement> from <url> ... from build tracker ..."
-        #   5.)   "... Saved <download dir>/<artifact file>
+        #   1.)       "... Found link <urlN> ..."
+        #   2.)       "... Added <varying info ...> to build tracker ..."
+        # * 3.)       Lines related to extracting metadata from <requirement> if the selected
+        #             distribution is an sdist in any form (VCS, local directory, source archive).
+        # * 3.5. ERR) "... WARNING: Discarding <url> <varying info...>. Command errored out with ...
+        # * 3.5. SUC) "... Source in <tmp> has version <version>, which satisfies requirement "
+        #             "<requirement> from <url> ..."
+        #   4.)       "... Removed <requirement> from <url> ... from build tracker ..."
+        #   5.)       "... Saved <download dir>/<artifact file>
 
         # The lines in section 3 can contain this same pattern of lines if the metadata extraction
         # proceeds via PEP-517 which recursively uses Pip to resolve build dependencies. We want to
@@ -451,10 +452,13 @@ class Locker(LogAnalyzer):
                 self._selected_path_to_pin[os.path.basename(url.path)] = pin
             else:
                 self._artifact_build_observer = ArtifactBuildObserver(
-                    done_building_pattern=re.compile(
-                        r"Removed {requirement} from {url} (?:.* )?from build tracker".format(
-                            requirement=re.escape(raw_requirement), url=re.escape(url.raw_url)
-                        )
+                    done_building_patterns=(
+                        re.compile(
+                            r"Removed {requirement} from {url} (?:.* )?from build tracker".format(
+                                requirement=re.escape(raw_requirement), url=re.escape(url.raw_url)
+                            )
+                        ),
+                        re.compile(r"WARNING: Discarding {url}".format(url=re.escape(url.raw_url))),
                     ),
                     artifact_url=url,
                 )
@@ -464,10 +468,13 @@ class Locker(LogAnalyzer):
         if match:
             file_url = match.group("file_url")
             self._artifact_build_observer = ArtifactBuildObserver(
-                done_building_pattern=re.compile(
-                    r"Removed .+ from {file_url} from build tracker".format(
-                        file_url=re.escape(file_url)
-                    )
+                done_building_patterns=(
+                    re.compile(
+                        r"Removed .+ from {file_url} from build tracker".format(
+                            file_url=re.escape(file_url)
+                        )
+                    ),
+                    re.compile(r"WARNING: Discarding {url}".format(url=re.escape(file_url))),
                 ),
                 artifact_url=ArtifactURL.parse(file_url),
             )
