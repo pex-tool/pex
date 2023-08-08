@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.1.142
+
+This release fixes Pex to handle Pip backtracking due to sdist build
+errors when attempting to extract metadata.
+
+* Handle backtracking due to sdist build errors. (#2213)
+
 ## 2.1.141
 
 This release fixes the Pex CLI to work when run from a read-only
