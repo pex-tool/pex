@@ -65,11 +65,11 @@ jobs:
             pip-version: 23_1_2
             tox-env-python: python
           - os: macos-12
-            python-version: [ 3, 12, "0-beta.4" ]
+            python-version: [ 3, 12, "0-rc.1" ]
             pip-version: 23_2
             tox-env-python: python3.11
           - os: ubuntu-22.04
-            python-version: [ 3, 12, "0-beta.4" ]
+            python-version: [ 3, 12, "0-rc.1" ]
             pip-version: 23_2
             tox-env-python: python3.11
     steps:
@@ -219,11 +219,11 @@ jobs:
             pip-version: 23_1_2
             tox-env-python: python
           - os: macos-12
-            python-version: [ 3, 12, "0-beta.4" ]
+            python-version: [ 3, 12, "0-rc.1" ]
             pip-version: 23_2
             tox-env-python: python3.11
           - os: ubuntu-22.04
-            python-version: [ 3, 12, "0-beta.4" ]
+            python-version: [ 3, 12, "0-rc.1" ]
             pip-version: 23_2
             tox-env-python: python3.11
     steps:
