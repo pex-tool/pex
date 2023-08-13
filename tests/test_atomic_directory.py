@@ -154,7 +154,7 @@ def test_long_file_name_issue_2087():
         r"pycryptodome-3\.16\.0-cp35-abi3-manylinux_2_5_x86_64\.manylinux1_x86_64\."
         r"manylinux_2_12_x86_64\.[a-f0-9]+.work",
         os.path.basename(atomic_directory.work_dir),
-    ), "Expected shor, ter filenames to use a workdir with the target dir as a prefix."
+    ), "Expected shorter directory names to use a workdir with the target dir as a prefix."
 
     atomic_directory = AtomicDirectory(
         "/tmp/pycryptodome-3.16.0-cp35-abi3-manylinux_2_5_x86_64.manylinux1_x86_64."
@@ -166,4 +166,4 @@ def test_long_file_name_issue_2087():
     ), "Expected the workdir to be co-located with the target dir to ensure atomic rename works."
     assert 64 == len(
         os.path.basename(atomic_directory.work_dir)
-    ), "Expected longer filenames to use a workdir that is a sha256 hexdigest."
+    ), "Expected longer directory names to use a workdir that is a sha256 hex digest."
