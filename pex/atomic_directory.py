@@ -69,7 +69,8 @@ class AtomicDirectory(object):
         # type: (...) -> None
         self._target_dir = target_dir
         self._work_dir = "{}.{}.work".format(target_dir, "lck" if locked else uuid4().hex)
-        if len(os.path.basename(self._work_dir)) > 143:
+        target_basename = os.path.basename(self._work_dir)
+        if len(target_basename) > 143:
             # Guard against eCryptFS home dir encryption which restricts file names to 143
             # characters when the underlying file system has a max file name length of 255
             # characters, which is the common case. We can break this limit with wheels like
@@ -86,9 +87,13 @@ class AtomicDirectory(object):
             #
             # See: https://bugs.launchpad.net/ecryptfs/+bug/344878
             # See: https://github.com/pantsbuild/pex/issues/2087
+
+            fingerprint = hashlib.sha256(target_basename.encode("utf-8")).hexdigest()
             self._work_dir = os.path.join(
                 os.path.dirname(self._target_dir),
-                hashlib.sha256(self._work_dir.encode("utf-8")).hexdigest(),
+                "{prefix}...{fingerprint}".format(
+                    prefix=target_basename[: 143 - 3 - len(fingerprint)], fingerprint=fingerprint
+                ),
             )
 
     @property
