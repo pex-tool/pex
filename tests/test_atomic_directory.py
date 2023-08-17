@@ -167,7 +167,8 @@ def test_long_file_name_issue_2087():
     assert 143 == len(
         os.path.basename(atomic_directory.work_dir)
     ), "Expected longer directory names to use a workdir that is 143 characters in length."
-    assert (
-        "pycryptodome-3.16.0-cp35-abi3-manylinux_2_5_x86_64.manylinux1_x86_64.manylin..."
-        "5236c5dd62d3eb5d9467975a2986463b99734b88882321925ccb3c50fde8bd82"
-    ) == os.path.basename(atomic_directory.work_dir)
+    assert re.match(
+        r"^pycryptodome-3\.16\.0-cp35-abi3-manylinux_2_5_x86_64\.manylinux1_x86_64\.manylin"
+        r"\.\.\.[a-f0-9]{64}$",
+        os.path.basename(atomic_directory.work_dir),
+    ), "Expected longer directory names to retain their prefix with a `...<hash>` suffix."

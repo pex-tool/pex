@@ -81,7 +81,7 @@ class AtomicDirectory(object):
             # cases we replace the basename with its sha256 hex digest which is a fixed 64
             # characters.
             #
-            # No attempt is made to probe for en eCryptFS partition or even guess if the OS supports
+            # No attempt is made to probe for an eCryptFS partition or even guess if the OS supports
             # this sort of thing since not many wheel names are this long and just always performing
             # this compaction is more robust.
             #
