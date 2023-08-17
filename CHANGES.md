@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.1.143
+
+This release fixes Pex to work by default under eCryptFS home dirs.
+
+* Guard against too long filenames on eCryptFS. (#2217)
+
 ## 2.1.142
 
 This release fixes Pex to handle Pip backtracking due to sdist build
