@@ -28,7 +28,7 @@ from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import Virtualenv
 
@@ -791,7 +791,7 @@ class NonDeterministicWalk:
     def _increment_counter(self, counter_key):
         # type: (str) -> int
         self._counters[counter_key] += 1
-        return self._counters[counter_key]
+        return cast(int, self._counters[counter_key])
 
     def _rotate(self, counter_key, x):
         # type: (str, List[str]) -> List[str]
