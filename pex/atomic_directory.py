@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import errno
 import fcntl
+import hashlib
 import os
 import threading
 from contextlib import contextmanager
@@ -68,6 +69,32 @@ class AtomicDirectory(object):
         # type: (...) -> None
         self._target_dir = target_dir
         self._work_dir = "{}.{}.work".format(target_dir, "lck" if locked else uuid4().hex)
+        target_basename = os.path.basename(self._work_dir)
+        if len(target_basename) > 143:
+            # Guard against eCryptFS home dir encryption which restricts file names to 143
+            # characters when the underlying file system has a max file name length of 255
+            # characters, which is the common case. We can break this limit with wheels like
+            # `pycryptodome-3.16.0-cp35-abi3-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl`.
+            # That wheel name is only 116 characters long, but can have something like
+            # `.a4d26b5a48ca4a8c92e788d1879f39e6.work` appended, which is an additional 39
+            # characters totalling 155 characters when the AtomicDirectory is unlocked. In these
+            # cases we replace the basename with its sha256 hex digest which is a fixed 64
+            # characters.
+            #
+            # No attempt is made to probe for an eCryptFS partition or even guess if the OS supports
+            # this sort of thing since not many wheel names are this long and just always performing
+            # this compaction is more robust.
+            #
+            # See: https://bugs.launchpad.net/ecryptfs/+bug/344878
+            # See: https://github.com/pantsbuild/pex/issues/2087
+
+            fingerprint = hashlib.sha256(target_basename.encode("utf-8")).hexdigest()
+            self._work_dir = os.path.join(
+                os.path.dirname(self._target_dir),
+                "{prefix}...{fingerprint}".format(
+                    prefix=target_basename[: 143 - 3 - len(fingerprint)], fingerprint=fingerprint
+                ),
+            )
 
     @property
     def work_dir(self):

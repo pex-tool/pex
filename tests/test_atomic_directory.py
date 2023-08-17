@@ -3,6 +3,7 @@
 
 import errno
 import os
+import re
 from contextlib import contextmanager
 
 import pytest
@@ -139,3 +140,35 @@ def test_atomic_directory_locked_mode():
         AtomicDirectory("locked", locked=True).work_dir
         == AtomicDirectory("locked", locked=True).work_dir
     )
+
+
+def test_long_file_name_issue_2087():
+    # type: () -> None
+
+    atomic_directory = AtomicDirectory(
+        "/tmp/pycryptodome-3.16.0-cp35-abi3-manylinux_2_5_x86_64.manylinux1_x86_64."
+        "manylinux_2_12_x86_64",
+        locked=False,
+    )
+    assert re.match(
+        r"pycryptodome-3\.16\.0-cp35-abi3-manylinux_2_5_x86_64\.manylinux1_x86_64\."
+        r"manylinux_2_12_x86_64\.[a-f0-9]+.work",
+        os.path.basename(atomic_directory.work_dir),
+    ), "Expected shorter directory names to use a workdir with the target dir as a prefix."
+
+    atomic_directory = AtomicDirectory(
+        "/tmp/pycryptodome-3.16.0-cp35-abi3-manylinux_2_5_x86_64.manylinux1_x86_64."
+        "manylinux_2_12_x86_64.manylinux2010_x86_64.whl",
+        locked=False,
+    )
+    assert "/tmp" == os.path.dirname(
+        atomic_directory.work_dir
+    ), "Expected the workdir to be co-located with the target dir to ensure atomic rename works."
+    assert 143 == len(
+        os.path.basename(atomic_directory.work_dir)
+    ), "Expected longer directory names to use a workdir that is 143 characters in length."
+    assert re.match(
+        r"^pycryptodome-3\.16\.0-cp35-abi3-manylinux_2_5_x86_64\.manylinux1_x86_64\.manylin"
+        r"\.\.\.[a-f0-9]{64}$",
+        os.path.basename(atomic_directory.work_dir),
+    ), "Expected longer directory names to retain their prefix with a `...<hash>` suffix."
