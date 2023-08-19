@@ -480,17 +480,17 @@ _ALL_PY_VERSIONS_TO_VERSION_INFO = {
 }
 
 
+PEX_TEST_DEV_ROOT = os.path.abspath(
+    os.path.expanduser(os.environ.get("_PEX_TEST_DEV_ROOT", "~/.pex_dev"))
+)
+
+
 def ensure_python_distribution(version):
     # type: (str) -> Tuple[str, str, str, Callable[[Iterable[str]], Text]]
     if version not in ALL_PY_VERSIONS:
         raise ValueError("Please constrain version to one of {}".format(ALL_PY_VERSIONS))
 
-    pyenv_root = os.path.abspath(
-        os.path.join(
-            os.path.expanduser(os.environ.get("_PEX_TEST_PYENV_ROOT", "~/.pex_dev")),
-            "pyenv",
-        )
-    )
+    pyenv_root = os.path.join(PEX_TEST_DEV_ROOT, "pyenv")
     interpreter_location = os.path.join(pyenv_root, "versions", version)
 
     pyenv = os.path.join(pyenv_root, "bin", "pyenv")
