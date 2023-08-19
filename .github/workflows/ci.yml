@@ -4,7 +4,8 @@ defaults:
   run:
     shell: bash
 env:
-  _PEX_TEST_PYENV_ROOT: .pyenv_test
+  _PEX_TEST_DEV_ROOT: ${{ github.workspace }}/.pex_dev
+  _PEX_TEST_POS_ARGS: "--color --devpi --devpi-timeout 15.0 --shutdown-devpi -vvs"
   # We use this to skip exposing same-versioned Pythons present on Linux hosts. These otherwise can
   # collide when attempting to load libpython<major>.<minor><flags>.so and lead to mysterious errors
   # importing builtins like `fcntl` as outlined in https://github.com/pantsbuild/pex/issues/1391.
@@ -38,7 +39,7 @@ jobs:
           # We need to keep Python 3.8 for consistent vendoring with tox.
           python-version: "3.8"
       - name: Check Formatting, Types, Vendoring and Packaging
-        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
           tox-env: format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
   cpython-unit-tests:
@@ -72,6 +73,8 @@ jobs:
             python-version: [ 3, 12, "0-rc.1" ]
             pip-version: 23_2
             tox-env-python: python3.11
+    env:
+      _TOX_ENV: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -83,6 +86,8 @@ jobs:
           echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v3
+        with:
+          path: repo
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: actions/setup-python@v4
         with:
@@ -94,13 +99,22 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v3
         with:
-          path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
-      - name: Run Unit Tests
-        uses: pantsbuild/actions/run-tox@addae8ed8cce2b0a359f447d1bb2ec69ff18f9ca
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
+          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
+      - name: Cache Devpi Server
+        uses: actions/cache@v3
         with:
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
+          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
+          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
+          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
+          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
+      - name: Run Unit Tests
+        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        with:
+          path: repo/tox.ini
           python: ${{ matrix.tox-env-python }}
-          tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
+          tox-env: ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
   cpython-unit-tests-legacy:
     name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
     needs: org-check
@@ -119,6 +133,8 @@ jobs:
           - os: ubuntu-20.04
             python-version: [ 3, 5, 10 ]
             pip-version: 20
+    env:
+      _TOX_ENV: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -130,6 +146,8 @@ jobs:
           echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v3
+        with:
+          path: repo
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: pantsbuild/actions/pyenv@1356087bfd1be04670c2ffde4ba94a9c6898ecd7
         with:
@@ -141,12 +159,20 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v3
         with:
-          path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
+          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
+      - name: Cache Devpi Server
+        uses: actions/cache@v3
+        with:
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
+          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
+          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
+          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
+          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
       - name: Run Unit Tests
         run: |
           pip install -U tox
-          tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
+          tox -c repo/tox.ini -e ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
   pypy-unit-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
     needs: org-check
@@ -167,6 +193,8 @@ jobs:
           - os: ubuntu-22.04
             pypy-version: [ 3, 9 ]
             pip-version: 23_1_2
+    env:
+      _TOX_ENV: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -178,6 +206,8 @@ jobs:
           echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v3
+        with:
+          path: repo
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: actions/setup-python@v4
         with:
@@ -189,12 +219,21 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v3
         with:
-          path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
-      - name: Run Unit Tests
-        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
+          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
+      - name: Cache Devpi Server
+        uses: actions/cache@v3
         with:
-          tox-env: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
+          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
+          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
+          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
+          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
+      - name: Run Unit Tests
+        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        with:
+          path: repo/tox.ini
+          tox-env: ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
   cpython-integration-tests:
     name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
     needs: org-check
@@ -226,6 +265,8 @@ jobs:
             python-version: [ 3, 12, "0-rc.1" ]
             pip-version: 23_2
             tox-env-python: python3.11
+    env:
+      _TOX_ENV: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -240,6 +281,7 @@ jobs:
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
+          path: repo
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: actions/setup-python@v4
         with:
@@ -251,8 +293,16 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v3
         with:
-          path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
+          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
+      - name: Cache Devpi Server
+        uses: actions/cache@v3
+        with:
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
+          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
+          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
+          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
+          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1i Cache
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
@@ -261,10 +311,11 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        uses: pantsbuild/actions/run-tox@addae8ed8cce2b0a359f447d1bb2ec69ff18f9ca
+        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
+          path: repo/tox.ini
           python: ${{ matrix.tox-env-python }}
-          tox-env: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
+          tox-env: ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
   cpython-integration-tests-legacy:
     name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
     needs: org-check
@@ -284,6 +335,8 @@ jobs:
           - os: ubuntu-22.04
             python-version: [ 3, 7, 17 ]
             pip-version: 23_1_2
+    env:
+      _TOX_ENV: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -298,6 +351,7 @@ jobs:
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
+          path: repo
       - name: Setup Python ${{ join(matrix.python-version, '.') }}
         uses: pantsbuild/actions/pyenv@1356087bfd1be04670c2ffde4ba94a9c6898ecd7
         with:
@@ -309,8 +363,16 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v3
         with:
-          path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
+          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
+      - name: Cache Devpi Server
+        uses: actions/cache@v3
+        with:
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
+          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
+          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
+          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
+          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
@@ -321,7 +383,7 @@ jobs:
       - name: Run Integration Tests
         run: |
           pip install -U tox
-          tox -e py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
+          tox -c repo/tox.ini -e ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
   pypy-integration-tests:
     name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
     needs: org-check
@@ -342,6 +404,8 @@ jobs:
           - os: ubuntu-22.04
             pypy-version: [ 3, 9 ]
             pip-version: 23_1_2
+    env:
+      _TOX_ENV: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}-integration
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -356,6 +420,7 @@ jobs:
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
+          path: repo
       - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
         uses: actions/setup-python@v4
         with:
@@ -371,8 +436,16 @@ jobs:
       - name: Cache Pyenv Interpreters
         uses: actions/cache@v3
         with:
-          path: ${{ env._PEX_TEST_PYENV_ROOT }}
-          key: ${{ matrix.os }}-${{ runner.arch }}-pyenv-root-v1
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
+          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
+      - name: Cache Devpi Server
+        uses: actions/cache@v3
+        with:
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
+          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
+          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
+          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
+          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
@@ -381,9 +454,10 @@ jobs:
         with:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Integration Tests
-        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
-          tox-env: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}-integration
+          path: repo/tox.ini
+          tox-env: ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
   final-status:
     name: Gather Final Status
     needs:
