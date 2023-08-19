@@ -22,7 +22,7 @@ from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
 
 if TYPE_CHECKING:
-    from typing import Iterable, Iterator, List, Optional, Sequence, Set, Tuple, Union
+    from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set, Tuple, Union
 
     import attr  # vendor:skip
 else:
@@ -145,7 +145,7 @@ class FingerprintService(object):
         # also rare; so it can be reported to maintainers in case the 5s default sqlite3 timeout is
         # being hit or something similar that might be mitigated by adding more code here.
 
-        artifacts_to_fingerprint = {}
+        artifacts_to_fingerprint = {}  # type: Dict[str, PartialArtifact]
         for artifact in artifacts:
             if artifact.fingerprint:
                 yield artifact
@@ -205,7 +205,7 @@ class FingerprintService(object):
                 continue
 
             for file in result.files:
-                fingerprinted_artifact = artifacts_to_fingerprint.pop(file.url, None)
+                fingerprinted_artifact = artifacts_to_fingerprint.pop(file.url.normalized_url, None)
                 if not fingerprinted_artifact:
                     continue
 
@@ -213,7 +213,9 @@ class FingerprintService(object):
                 yield attr.evolve(fingerprinted_artifact, fingerprint=maybe_fingerprint)
                 if maybe_fingerprint:
                     fingerprinted_urls.append(
-                        _FingerprintedURL(url=file.url, fingerprint=maybe_fingerprint)
+                        _FingerprintedURL(
+                            url=file.url.normalized_url, fingerprint=maybe_fingerprint
+                        )
                     )
 
         # The remaining artifacts have no fingerprint and no endpoint to fetch the data from; so we

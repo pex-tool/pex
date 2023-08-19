@@ -7,7 +7,7 @@ import hashlib
 
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.resolved_requirement import Fingerprint
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 
@@ -47,7 +47,7 @@ class File(object):
         return ranked_algorithms[0] if ranked_algorithms else None
 
     filename = attr.ib()  # type: Text
-    url = attr.ib()  # type: Text
+    url = attr.ib()  # type: ArtifactURL
     hashes = attr.ib()  # type: SortedTuple[Fingerprint]
 
     def select_fingerprint(self):

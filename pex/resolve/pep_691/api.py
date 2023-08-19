@@ -7,19 +7,19 @@ import io
 import json
 import sys
 
-from pex.compatibility import HTTPError, text, urlparse
+from pex.compatibility import HTTPError, string, text, urlparse
 from pex.fetcher import URLFetcher
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.pep_691.model import Endpoint, File, Meta, Project
-from pex.resolve.resolved_requirement import Fingerprint
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.sorted_tuple import SortedTuple
 from pex.third_party.packaging.version import Version as PackagingVersion
 from pex.tracer import TRACER
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING, cast, overload
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Optional, Type, TypeVar
+    from typing import Any, Dict, Optional, Tuple, Type, TypeVar, Union
 
     import attr  # vendor:skip
 
@@ -106,6 +106,7 @@ class Client(object):
                 )
             )
 
+        @overload
         def get(
             key,  # type: str
             expected_type,  # type: Type[_V]
@@ -114,6 +115,27 @@ class Client(object):
             path=".",  # type: str
         ):
             # type: (...) -> _V
+            pass
+
+        @overload
+        def get(
+            key,  # type: str
+            expected_type,  # type: Tuple[Type, ...]
+            obj=None,  # type: Optional[Dict[str, Any]]
+            default=None,  # type: Optional[Any]
+            path=".",  # type: str
+        ):
+            # type: (...) -> Any
+            pass
+
+        def get(
+            key,  # type: str
+            expected_type,  # type: Union[Type[_V], Tuple[Type, ...]]
+            obj=None,  # type: Optional[Dict[str, Any]]
+            default=None,  # type: Optional[_V]
+            path=".",  # type: str
+        ):
+            # type: (...) -> Any
             if obj and not isinstance(obj, dict):
                 raise response_error(
                     "was expected to contain an object at '{path}' but contained a {type} "
@@ -136,7 +158,9 @@ class Client(object):
                 raise response_error(
                     "was expected to contain a {expected_type} at '{path}[\"{key}\"]' but "
                     "contained a {type} instead.".format(
-                        expected_type=expected_type.__name__,
+                        expected_type=expected_type.__name__
+                        if isinstance(expected_type, type)
+                        else " or ".join(et.__name__ for et in expected_type),
                         path=path,
                         key=key,
                         type=type(value).__name__,
@@ -181,15 +205,16 @@ class Client(object):
                     )
                 )
 
+            # N.B.: All URLs in the PEP-691 API are allowed to be relative, see:
+            #   https://peps.python.org/pep-0691/#json-serialization
+            # The `urljoin` functions does the right thing here and creates an absolute URL
+            # only when needed (never for the current PyPI scheme, potentially for other
+            # indexes though).
+            absolute_url = urlparse.urljoin(endpoint.url, get("url", string, obj=file, path=path))
             files.append(
                 File(
                     filename=get("filename", text, obj=file, path=path),
-                    # N.B.: All URLs in the PEP-691 API are allowed to be relative, see:
-                    #   https://peps.python.org/pep-0691/#json-serialization
-                    # The `urljoin` functions does the right thing here and creates an absolute URL
-                    # only when needed (never for the current PyPI scheme, potentially for other
-                    # indexes though).
-                    url=urlparse.urljoin(endpoint.url, get("url", text, obj=file, path=path)),
+                    url=ArtifactURL.parse(absolute_url),
                     hashes=SortedTuple(fingerprints),
                 )
             )
