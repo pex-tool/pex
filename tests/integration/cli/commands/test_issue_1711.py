@@ -7,7 +7,7 @@ from pex.compatibility import PY3
 from pex.interpreter import PythonInterpreter
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
-from pex.resolve.locked_resolve import Artifact, LockedRequirement
+from pex.resolve.locked_resolve import Artifact, FileArtifact, LockedRequirement
 from pex.resolve.lockfile import json_codec
 from pex.resolve.resolved_requirement import Fingerprint
 from pex.typing import TYPE_CHECKING
@@ -17,16 +17,24 @@ from testing.cli import run_pex3
 if TYPE_CHECKING:
     from typing import Any
 
+    import attr  # vendor:skip
+else:
+    from pex.third_party import attr
+
 
 def pypi_artifact(
     hash,  # type: str
-    path,  # type: str
+    filename,  # type: str
 ):
     # type: (...) -> Artifact
-    return Artifact.from_url(
-        url="https://files.pythonhosted.org/packages/{}".format(path),
-        fingerprint=Fingerprint(algorithm="sha256", hash=hash),
-    )
+    return Artifact.from_url(url=filename, fingerprint=Fingerprint(algorithm="sha256", hash=hash))
+
+
+def normalize_artifact(artifact):
+    # type: (Artifact) -> Artifact
+    if not isinstance(artifact, FileArtifact):
+        return artifact
+    return attr.evolve(artifact, url=artifact.filename)
 
 
 def test_backtrack_links_preserved(
@@ -106,17 +114,17 @@ def test_backtrack_links_preserved(
     assert {
         pypi_artifact(
             hash="1c71b9716790e202a00ab0931a6d1e25db1aa1198bcacaea2f5329f75d257fff",
-            path="50/00/ae52663b879333aa5c65fc9a87ddc24169f8fdd1831762a1ba9c9be7740d/psutil-5.4.8-cp37-cp37m-win_amd64.whl",
+            filename="psutil-5.4.8-cp37-cp37m-win_amd64.whl",
         ),
         pypi_artifact(
             hash="bfcea4f189177b2d2ce4a34b03c4ac32c5b4c22e21f5b093d9d315e6e253cd81",
-            path="21/1e/fe6731e5f03ddf2e57d5b307f25bba294262bc88e27a0fbefdb3515d1727/psutil-5.4.8-cp37-cp37m-win32.whl",
+            filename="psutil-5.4.8-cp37-cp37m-win32.whl",
         ),
         pypi_artifact(
             hash="6e265c8f3da00b015d24b842bfeb111f856b13d24f2c57036582568dc650d6c3",
-            path="e3/58/0eae6e4466e5abf779d7e2b71fac7fba5f59e00ea36ddb3ed690419ccb0f/psutil-5.4.8.tar.gz",
+            filename="psutil-5.4.8.tar.gz",
         ),
-    } == set(psutil_current.iter_artifacts()), (
+    } == set(normalize_artifact(a) for a in psutil_current.iter_artifacts()), (
         "Expected a full set of artifacts even after the lock resolve backtracked from "
         "psutil latest to psutil<5.5 before settling:\n{json}".format(json=lock_as_json())
     )

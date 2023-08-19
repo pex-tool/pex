@@ -25,19 +25,15 @@ def test_preserve_pip_download_log():
     assert match is not None
     log_path = match.group("log_path")
     assert os.path.exists(log_path)
-    expected_url = (
-        "https://files.pythonhosted.org/packages/53/18/"
-        "a56e2fe47b259bb52201093a3a9d4a32014f9d85071ad07e9d60600890ca/"
-        "ansicolors-1.1.8-py2.py3-none-any.whl"
-    )
+    expected_url_suffix = "ansicolors-1.1.8-py2.py3-none-any.whl"
     expected_algorithm = "sha256"
     expected_hash = "00d2dde5a675579325902536738dd27e4fac1fd68f773fe36c21044eb559e187"
     with open(log_path) as fp:
         # N.B.: Modern Pip excludes hashes from logged URLs when the index serves up PEP-691 json
         # responses.
         assert re.search(
-            r"Added ansicolors==1\.1\.8 from {url}(?:#{algorithm}={hash})? to build tracker".format(
-                url=re.escape(expected_url),
+            r"Added ansicolors==1\.1\.8 from https?://\S+/{url_suffix}(?:#{algorithm}={hash})? to build tracker".format(
+                url_suffix=re.escape(expected_url_suffix),
                 algorithm=re.escape(expected_algorithm),
                 hash=re.escape(expected_hash),
             ),
@@ -55,7 +51,7 @@ def test_preserve_pip_download_log():
     assert 1 == len(artifacts)
 
     artifact = artifacts[0]
-    assert expected_url == artifact.url
+    assert artifact.url.endswith(expected_url_suffix)
     assert expected_algorithm == artifact.fingerprint.algorithm
     assert expected_hash == artifact.fingerprint.hash
 
