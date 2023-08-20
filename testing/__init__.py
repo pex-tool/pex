@@ -10,7 +10,7 @@ import platform
 import random
 import subprocess
 import sys
-from collections import defaultdict
+from collections import Counter
 from contextlib import contextmanager
 from textwrap import dedent
 
@@ -28,7 +28,7 @@ from pex.pip.installation import get_pip
 from pex.resolve.configured_resolver import ConfiguredResolver
 from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 from pex.util import named_temporary_file
 from pex.venv.virtualenv import Virtualenv
 
@@ -777,7 +777,7 @@ class NonDeterministicWalk:
     """
 
     def __init__(self):
-        self._counters = defaultdict(int)
+        self._counter = Counter()  # type: Counter[str, int]
         self._original_walk = os.walk
 
     def __call__(self, *args, **kwargs):
@@ -790,12 +790,12 @@ class NonDeterministicWalk:
 
     def _increment_counter(self, counter_key):
         # type: (str) -> int
-        self._counters[counter_key] += 1
-        return cast(int, self._counters[counter_key])
+        self._counter[counter_key] += 1
+        return self._counter[counter_key]
 
     def _rotate(self, counter_key, x):
         # type: (str, List[str]) -> List[str]
         if not x:
             return x
-        rotate_by = self._counters[counter_key] % len(x)
+        rotate_by = self._counter[counter_key] % len(x)
         return x[-rotate_by:] + x[:-rotate_by]
