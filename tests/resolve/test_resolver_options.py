@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import pytest
 
 from pex.pip.version import PipVersion
-from pex.resolve import resolver_options
+from pex.resolve import resolver_configuration, resolver_options
 from pex.resolve.resolver_configuration import (
     PexRepositoryConfiguration,
     PipConfiguration,
@@ -110,7 +110,7 @@ def test_clp_index_option_render(parser):
     repos_configuration = compute_repos_configuration(
         parser, args=["--index", "http://www.example.com"]
     )
-    assert ("https://pypi.org/simple", "http://www.example.com") == repos_configuration.indexes
+    assert (resolver_configuration.PYPI, "http://www.example.com") == repos_configuration.indexes
     assert () == repos_configuration.find_links
 
 

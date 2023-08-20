@@ -16,7 +16,7 @@ from pex.pep_503 import ProjectName
 from pex.resolve.pep_691.api import Client
 from pex.resolve.pep_691.fingerprint_service import FingerprintService
 from pex.resolve.pep_691.model import Endpoint, File, Meta, Project
-from pex.resolve.resolved_requirement import Fingerprint, PartialArtifact
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint, PartialArtifact
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 
@@ -40,7 +40,7 @@ def file(
     # type: (...) -> File
     return File(
         filename=os.path.basename(urlparse.urlparse(url).path),
-        url=url,
+        url=ArtifactURL.parse(url),
         hashes=SortedTuple(
             Fingerprint(algorithm=algorithm, hash=hash_) for algorithm, hash_ in hashes.items()
         ),

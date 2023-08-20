@@ -17,7 +17,7 @@ from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.resolve.pep_691.api import Client
 from pex.resolve.pep_691.model import Endpoint, File, Meta, Project
-from pex.resolve.resolved_requirement import Fingerprint
+from pex.resolve.resolved_requirement import ArtifactURL, Fingerprint
 from pex.sorted_tuple import SortedTuple
 from pex.typing import TYPE_CHECKING
 
@@ -44,7 +44,7 @@ def test_request_nominal():
             [
                 File(
                     filename="file.tar.gz",
-                    url="https://files.example.org/simple/file.tar.gz",
+                    url=ArtifactURL.parse("https://files.example.org/simple/file.tar.gz"),
                     hashes=SortedTuple(
                         [
                             Fingerprint("md5", "weak"),
@@ -80,7 +80,7 @@ def test_request_url_absolutize():
             [
                 File(
                     filename="file.whl",
-                    url="https://example.org/simple/__files/relative/file.whl",
+                    url=ArtifactURL.parse("https://example.org/simple/__files/relative/file.whl"),
                     hashes=SortedTuple([Fingerprint("md5", "collision")]),
                 ),
             ]

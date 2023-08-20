@@ -82,7 +82,7 @@ class ArtifactURL(object):
         # type: (str) -> ArtifactURL
         url_info = urlparse.urlparse(url)
         normalized_url = urlparse.urlunparse(
-            (url_info.scheme, url_info.netloc, url_info.path, "", "", "")
+            (url_info.scheme, url_info.netloc, url_unquote(url_info.path).rstrip(), "", "", "")
         )
         return cls(
             raw_url=url,

@@ -56,7 +56,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Build sdist and wheel
-        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
           tox-env: package -- --no-pex --additional-format sdist --additional-format wheel
       - name: Publish Pex ${{ needs.determine-tag.outputs.release-tag }}
@@ -81,7 +81,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Package Pex ${{ needs.determine-tag.outputs.release-tag }} PEX
-        uses: pantsbuild/actions/run-tox@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
+        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
           tox-env: package
       - name: Prepare Changelog

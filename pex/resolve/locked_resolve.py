@@ -9,14 +9,14 @@ from collections import OrderedDict, defaultdict, deque
 from functools import total_ordering
 
 from pex.common import pluralize
-from pex.compatibility import url_unquote, urlparse
+from pex.compatibility import urlparse
 from pex.dist_metadata import DistMetadata, Requirement
 from pex.enum import Enum
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
 from pex.rank import Rank
-from pex.requirements import VCS, VCSScheme, parse_scheme
+from pex.requirements import VCS, VCSScheme
 from pex.resolve.resolved_requirement import (
     ArtifactURL,
     Fingerprint,
