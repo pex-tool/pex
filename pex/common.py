@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         Dict,
         Iterable,
         Iterator,
+        List,
         NoReturn,
         Optional,
         Set,
@@ -234,6 +235,30 @@ def open_zip(path, *args, **kwargs):
 
     with contextlib.closing(PermPreservingZipFile(path, *args, **kwargs)) as zip:
         yield zip
+
+
+def deterministic_walk(*args, **kwargs):
+    # type: (*Any, **Any) -> Iterator[Tuple[str, List[str], List[str]]]
+    """Walk the specified directory tree in deterministic order.
+
+    Takes the same parameters as os.walk and yields tuples of the same shape,
+    except for the `topdown` parameter, which must always be true.
+    `deterministic_walk` is essentially a wrapper of os.walk, and os.walk doesn't
+    allow modifying the order of the walk when called with `topdown` set to false.
+
+    os.walk uses os.listdir or os.scandir, depending on the Python version,
+    both of which don't guarantee the order in which directory entries get listed.
+    So when the build output depends on the order of directory traversal,
+    use deterministic_walk instead.
+    """
+    # when topdown is false, modifying ``dirs`` has no effect
+    assert kwargs.get("topdown", True), "Determinism cannot be guaranteed when ``topdown`` is false"
+    for root, dirs, files in os.walk(*args, **kwargs):
+        dirs.sort()
+        files.sort()
+        yield root, dirs, files
+        # make sure ``dirs`` is sorted after any modifications
+        dirs.sort()
 
 
 @contextlib.contextmanager
@@ -675,8 +700,8 @@ class Chroot(object):
                         yield full_path, path
                         continue
 
-                    for root, _, files in os.walk(full_path):
-                        for f in sorted(files):
+                    for root, _, files in deterministic_walk(full_path):
+                        for f in files:
                             if exclude_file(f):
                                 continue
                             abs_path = os.path.join(root, f)

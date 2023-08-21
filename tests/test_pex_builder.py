@@ -18,8 +18,13 @@ from pex.pex import PEX
 from pex.pex_builder import CopyMode, PEXBuilder
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
-from testing import WheelBuilder, install_wheel, make_bdist, make_env
+from testing import NonDeterministicWalk, WheelBuilder, install_wheel, make_bdist, make_env
 from testing import write_simple_pex as write_pex
+
+try:
+    from unittest import mock
+except ImportError:
+    import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
     from typing import Any, Iterator, List, Set
@@ -370,6 +375,23 @@ def test_pex_builder_exclude_bootstrap_testing(
     assert not [
         f for f in bootstrap_files if f.endswith(("testing.py", "testing.pyc"))
     ], "Expected testing support files to be stripped from the Pex `.bootstrap`."
+
+
+def test_pex_builder_deterministic_pex_info(
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+
+    pex_path = os.path.join(str(tmpdir), "empty.pex")
+
+    with mock.patch("os.walk", new=NonDeterministicWalk()):
+        pb_one = PEXBuilder()
+        pb_one.build(pex_path)
+
+        pb_two = PEXBuilder()
+        pb_two.build(pex_path)
+
+        assert pb_one.info.as_json_dict() == pb_two.info.as_json_dict()
 
 
 @pytest.mark.parametrize(
