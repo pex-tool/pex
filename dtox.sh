@@ -44,10 +44,14 @@ if [[ "$1" == "inspect" ]]; then
     --entrypoint bash
   )
 fi
+if [[ -t 1 ]]; then
+  DOCKER_ARGS+=(
+    --interactive
+    --tty
+  )
+fi
 
 exec docker run \
-    --interactive \
-    --tty \
     --rm \
     --volume "${HOME}/.netrc:/home/$(id -un)/.netrc" \
     --volume "${HOME}/.ssh:/home/$(id -un)/.ssh" \
