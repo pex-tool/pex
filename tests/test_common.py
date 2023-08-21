@@ -146,13 +146,10 @@ def test_chroot_zip_is_deterministic():
     # type: () -> None
     with temporary_dir() as tmp:
         root_dir = os.path.join(tmp, "root")
-        os.mkdir(root_dir)
         dir_a = os.path.join(root_dir, "a")
-        os.mkdir(dir_a)
         src_path_a = os.path.join(dir_a, "file_a")
         touch(src_path_a)
         dir_b = os.path.join(root_dir, "b")
-        os.mkdir(dir_b)
         src_path_b = os.path.join(dir_b, "file_b")
         touch(src_path_b)
 
@@ -228,13 +225,10 @@ def test_deterministic_walk():
     # type: () -> None
     with temporary_dir() as tmp:
         root_dir = os.path.join(tmp, "root")
-        os.mkdir(root_dir)
         dir_a = os.path.join(root_dir, "a")
-        os.mkdir(dir_a)
         file_a = os.path.join(dir_a, "file_a")
         touch(file_a)
         dir_b = os.path.join(root_dir, "b")
-        os.mkdir(dir_b)
         file_b = os.path.join(dir_b, "file_b")
         touch(file_b)
 
