@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -xeuo pipefail
 
 if (( $# != 4 )); then
   echo >2 "Usage $0 <user> <uid> <group> <gid>"
