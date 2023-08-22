@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.1.144
+
+This release fixes Pex to build PEX files with deterministic file order
+regardless of the operating system / file system the PEX was built on.
+
+* Traverse directories in stable order when building a PEX (#2220)
+
 ## 2.1.143
 
 This release fixes Pex to work by default under eCryptFS home dirs.
