@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.1.145
+
+This release broadens the range of the `flit-core` build system Pex uses
+to include 3.x, which is known to work for modern Python versions and
+Pex's existing build configuration.
+
+* Raise the flit-core limit for Python 3 (#2229)
+
 ## 2.1.144
 
 This release fixes Pex to build PEX files with deterministic file order
