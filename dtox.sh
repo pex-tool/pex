@@ -50,6 +50,10 @@ if [[ -z "$(user_image_id)" ]]; then
 fi
 
 if [[ "${CACHE_MODE}" == "pull" ]]; then
+  # N.B.: This is a fairly particular dance / trick that serves to populate a local named volume
+  # with the contents of a data-only image. In particular, starting with an empty named volume is
+  # required to get the subsequent no-op `docker run --volume pex-caches:...` to populate that
+  # volume. This population only happens under that condition.
   docker volume rm --force pex-caches
   docker volume create pex-caches
   docker run \
