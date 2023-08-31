@@ -5,12 +5,24 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 
 import pytest
 
 from pex.common import touch
+from pex.interpreter import PythonInterpreter
 from pex.typing import TYPE_CHECKING
-from testing import IS_PYPY, PY_VER, run_pex_command
+from pex.venv.virtualenv import Virtualenv
+from testing import (
+    IS_PYPY,
+    PY27,
+    PY310,
+    PY_VER,
+    ensure_python_interpreter,
+    ensure_python_venv,
+    make_env,
+    run_pex_command,
+)
 from testing.cli import run_pex3
 
 if TYPE_CHECKING:
@@ -52,16 +64,13 @@ def test_fingerprint_stability(
 
     # Running the test suite generates .pyc files which should not count against the project
     # content hash.
-    subprocess.check_call(
-        args=[
-            "tox",
-            "-e",
-            "{name}{major}{minor}".format(
-                name="pypy" if IS_PYPY else "py", major=PY_VER[0], minor=PY_VER[1]
-            ),
-        ],
-        cwd=ansicolors_1_1_8,
+    tox_venv = Virtualenv.create(
+        venv_dir=os.path.join(str(tmpdir), "tox.venv"),
+        interpreter=PythonInterpreter.from_binary(ensure_python_interpreter(PY27)),
     )
+    tox_venv.install_pip()
+    subprocess.check_call(args=[tox_venv.bin_path("pip"), "install", "tox"])
+    subprocess.check_call(args=[tox_venv.bin_path("tox"), "-e", "py27"], cwd=ansicolors_1_1_8)
     run_pex_command(args=print_colors_version_args).assert_success()
 
     # Touching a project file does not change its content and should not affect the project content

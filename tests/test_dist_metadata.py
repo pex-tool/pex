@@ -82,7 +82,7 @@ def pygoogleearth_zip_sdist():
         yield sdist
 
 
-PIP_PROJECT_NAME_AND_VERSION = ProjectNameAndVersion("pip", "20.3.1")
+PIP_PROJECT_NAME_AND_VERSION = ProjectNameAndVersion("pip", "9.0.1")
 
 
 @pytest.fixture(scope="module")
@@ -219,7 +219,7 @@ def test_requires_python(
     pip_distribution,  # type: Distribution
 ):
     # type: (...) -> None
-    expected_requires_python = SpecifierSet(">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*")
+    expected_requires_python = SpecifierSet(">=2.6,!=3.0.*,!=3.1.*,!=3.2.*")
     assert expected_requires_python == requires_python(pip_tgz_sdist)
     assert expected_requires_python == requires_python(pip_wheel)
     assert expected_requires_python == requires_python(pip_distribution)
