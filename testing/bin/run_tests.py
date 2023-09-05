@@ -20,26 +20,49 @@ os.environ["_PEX_TEST_PROJECT_DIR"] = str(
 )
 sys.path.insert(0, os.environ["_PEX_TEST_PROJECT_DIR"])
 
-from pex.typing import TYPE_CHECKING
+from pex.compatibility import urlparse
+from pex.typing import TYPE_CHECKING, cast
 from testing import devpi, pex_project_dir
 
 if TYPE_CHECKING:
-    from typing import Iterator, Tuple
+    from typing import Iterator, Mapping, Optional, Tuple
 
 
 def iter_test_control_env_vars():
     # type: () -> Iterator[Tuple[str, str]]
     for var, value in sorted(os.environ.items()):
-        if re.search(r"(PEX|PYTHON)", var) and var != "PYTHONHASHSEED":
+        if re.search(r"(PEX|PIP|PYTHON)", var) and var != "PYTHONHASHSEED":
             yield var, value
 
 
 def main():
     # type: () -> int
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        "-l",
+        "--log-level",
+        type=lambda arg: arg.upper(),
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARN", "WARNING", "ERROR", "CRITICAL"],
+        help="Set the logging level (case insensitive).",
+    )
     parser.add_argument("--color", default=None, action="store_true", help="Force colored logging.")
     parser.add_argument(
         "--devpi", action="store_true", help="Proxy PyPI through a local devpi server."
+    )
+    parser.add_argument(
+        "--require-devpi",
+        action="store_true",
+        help=(
+            "Fail fast if `--devpi` was requested but the server can't be started or connected to. "
+            "Exits with code 42."
+        ),
+    )
+    parser.add_argument(
+        "--devpi-host",
+        type=str,
+        default="0.0.0.0",
+        help="The domain/ip address to have the local devpi server listen on.",
     )
     parser.add_argument(
         "--devpi-port", type=int, default=0, help="The port to bind the local devpi server to."
@@ -76,27 +99,49 @@ def main():
     parser.add_argument("--it", action="store_true", help="Restrict scope to integration tests.")
     options, passthrough_args = parser.parse_known_args()
 
-    coloredlogs.install(level="INFO", fmt="%(levelname)s %(message)s", isatty=options.color)
+    coloredlogs.install(
+        level=options.log_level, fmt="%(levelname)s %(message)s", isatty=options.color
+    )
     logger = logging.getLogger(parser.prog)
+    logger.log(
+        logging.root.level, "Logging configured at level {level}.".format(level=options.log_level)
+    )
 
     if options.devpi:
         if options.shutdown_devpi:
             atexit.register(devpi.shutdown)
         launch_result = devpi.launch(
+            host=options.devpi_host,
             port=options.devpi_port,
             timeout=options.devpi_timeout,
             max_connection_retries=options.devpi_max_connection_retries,
             request_timeout=options.devpi_request_timeout,
         )
-        if not launch_result:
-            logger.warning("Failed to launch devpi server. Continuing without it...")
-        else:
+        if isinstance(launch_result, devpi.LaunchResult):
             os.environ["_PEX_TEST_DEFAULT_INDEX"] = launch_result.url
+            os.environ["PIP_INDEX_URL"] = launch_result.url
+            os.environ["PIP_TRUSTED_HOST"] = cast(
+                # We know the local devpi server URL will always have a host and never be None.
+                str,
+                urlparse.urlparse(launch_result.url).hostname,
+            )
             logger.info(
                 "Devpi server already running."
                 if launch_result.already_running
                 else "Launched devpi server."
             )
+        else:
+            if options.require_devpi:
+                logger.critical("Failed to launch devpi server.")
+                log_log_level = logging.ERROR
+            else:
+                logger.warning("Failed to launch devpi server. Continuing without it...")
+                log_log_level = logging.DEBUG
+            with open(launch_result) as fp:
+                for line in fp:
+                    logger.log(log_log_level, line.rstrip())
+            if options.require_devpi:
+                return 42
 
     test_control_env_vars = list(iter_test_control_env_vars())
     if test_control_env_vars:

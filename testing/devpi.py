@@ -21,7 +21,7 @@ from pex.venv.virtualenv import InvalidVirtualenvError, Virtualenv
 from testing import PEX_TEST_DEV_ROOT
 
 if TYPE_CHECKING:
-    from typing import List, Optional
+    from typing import List, Optional, Union
 
     import attr  # vendor:skip
 else:
@@ -174,12 +174,13 @@ class LaunchResult(object):
 
 
 def launch(
+    host,  # type: str
     port,  # type: int
     timeout,  # type: float
     max_connection_retries,  # type: int
     request_timeout,  # type: int
 ):
-    # type: (...) -> Optional[LaunchResult]
+    # type: (...) -> Union[str, LaunchResult]
 
     pidfile = Pidfile.load()
     if pidfile and pidfile.alive():
@@ -192,6 +193,8 @@ def launch(
     with safe_open(log, "w") as fp:
         process = subprocess.Popen(
             args=devpi_server.launch_args(
+                "--host",
+                host,
                 "--port",
                 str(port),
                 "--replica-max-retries",
@@ -212,7 +215,7 @@ def launch(
         except OSError as e:
             if e.errno != errno.ESRCH:  # No such process.
                 raise
-        return None
+        return log
 
     return LaunchResult(url=pidfile.url, already_running=False)
 

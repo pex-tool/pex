@@ -13,7 +13,7 @@ env:
 concurrency:
   group: CI-${{ github.ref }}
   # Queue on all branches and tags, but only cancel overlapping PR burns.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' || !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   org-check:
     name: Check GitHub Organization
@@ -23,7 +23,7 @@ jobs:
       - name: Noop
         run: "true"
   checks:
-    name:  TOXENV=format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
+    name:  tox -e format-check,typecheck,vendor-check,package
     needs: org-check
     runs-on: ubuntu-22.04
     steps:
@@ -42,231 +42,70 @@ jobs:
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
         with:
           tox-env: format-check,typecheck,vendor-check,package -- --additional-format sdist --additional-format wheel
-  cpython-unit-tests:
-    name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
+  # N.B.: The name of this job key (linux-tests) is depended on by scrips/build_cache_image.py. In
+  # particular, the tox-env matrix list is used to ensure the cache covers all Linux CI jobs.
+  linux-tests:
+    name: ./dtox.sh -e ${{ matrix.tox-env }}
     needs: org-check
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
-        include:
-          - os: macos-12
-            python-version: [ 3, 11 ]
-            pip-version: 20
-            tox-env-python: python
-          - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
-            pip-version: 20
-            tox-env-python: python
-          - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
-            pip-version: 22_3_1
-            tox-env-python: python
-          - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
-            pip-version: 23_1_2
-            tox-env-python: python
-          - os: macos-12
-            python-version: [ 3, 12, "0-rc.1" ]
-            pip-version: 23_2
-            tox-env-python: python3.11
-          - os: ubuntu-22.04
-            python-version: [ 3, 12, "0-rc.1" ]
-            pip-version: 23_2
-            tox-env-python: python3.11
-    env:
-      _TOX_ENV: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
+        tox-env:
+          - py27-pip20
+          - py35-pip20
+          - py311-pip20
+          - py311-pip22_3_1
+          - py311-pip23_1_2
+          - py312-pip23_2
+          - pypy310-pip20
+          - pypy310-pip22_3_1
+          - pypy310-pip23_1_2
+          - py27-pip20-integration
+          - py37-pip22_3_1-integration
+          - py37-pip23_1_2-integration
+          - py311-pip20-integration
+          - py311-pip22_3_1-integration
+          - py311-pip23_1_2-integration
+          - py312-pip23_2-integration
+          - pypy310-pip20-integration
+          - pypy310-pip22_3_1-integration
+          - pypy310-pip23_1_2-integration
     steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
       - name: Checkout Pex
         uses: actions/checkout@v3
         with:
-          path: repo
-      - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: actions/setup-python@v4
+          # We need branches and tags for some ITs.
+          fetch-depth: 0
+      # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.5.4
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        if: env.SSH_PRIVATE_KEY != ''
         with:
-          python-version: "${{ join(matrix.python-version, '.') }}"
-      - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
-      - name: Cache Devpi Server
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
-          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
-          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Unit Tests
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
-        with:
-          path: repo/tox.ini
-          python: ${{ matrix.tox-env-python }}
-          tox-env: ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
-  cpython-unit-tests-legacy:
-    name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}
+        run: |
+          BASE_MODE=pull CACHE_MODE=pull ./dtox.sh -e ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }}
+  mac-tests:
+    name: tox -e ${{ matrix.tox-env }}
     needs: org-check
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-12
     strategy:
       matrix:
         include:
-          - os: macos-12
-            python-version: [ 2, 7, 18 ]
-            pip-version: 20
-          - os: ubuntu-22.04
-            python-version: [ 2, 7, 18 ]
-            pip-version: 20
-          # Ubuntu 20.04 is required to avoid inscrutable errors with Python 3.5 trying to use
-          # python3.10 libpython.so.
-          - os: ubuntu-20.04
-            python-version: [ 3, 5, 10 ]
-            pip-version: 20
-    env:
-      _TOX_ENV: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}
-    steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
-      - name: Checkout Pex
-        uses: actions/checkout@v3
-        with:
-          path: repo
-      - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: pantsbuild/actions/pyenv@1356087bfd1be04670c2ffde4ba94a9c6898ecd7
-        with:
-          python-version: "${{ join(matrix.python-version, '.') }}"
-      - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
-      - name: Cache Devpi Server
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
-          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
-          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
-      - name: Run Unit Tests
-        run: |
-          pip install -U tox
-          tox -c repo/tox.ini -e ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
-  pypy-unit-tests:
-    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}
-    needs: org-check
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
-          - os: ubuntu-20.04
-            pypy-version: [ 2, 7 ]
-            pip-version: 20
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
-            pip-version: 20
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
-            pip-version: 22_3_1
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
-            pip-version: 23_1_2
-    env:
-      _TOX_ENV: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}
-    steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
-      - name: Checkout Pex
-        uses: actions/checkout@v3
-        with:
-          path: repo
-      - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
-      - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
-      - name: Cache Devpi Server
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
-          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
-          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
-      - name: Run Unit Tests
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
-        with:
-          path: repo/tox.ini
-          tox-env: ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
-  cpython-integration-tests:
-    name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
-    needs: org-check
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-12
-            python-version: [ 3, 11 ]
-            pip-version: 20
+          - python-version: [ 3, 11 ]
+            tox-env: py311-pip20
             tox-env-python: python
-          - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
-            pip-version: 20
+          - python-version: [ 3, 11 ]
+            tox-env: py311-pip20-integration
             tox-env-python: python
-          - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
-            pip-version: 22_3_1
-            tox-env-python: python
-          - os: ubuntu-22.04
-            python-version: [ 3, 11 ]
-            pip-version: 23_1_2
-            tox-env-python: python
-          - os: macos-12
-            python-version: [ 3, 12, "0-rc.1" ]
-            pip-version: 23_2
+          - python-version: [ 3, 12, "0-rc.1" ]
+            tox-env: py312-pip23_2
             tox-env-python: python3.11
-          - os: ubuntu-22.04
-            python-version: [ 3, 12, "0-rc.1" ]
-            pip-version: 23_2
+          - python-version: [ 3, 12, "0-rc.1" ]
+            tox-env: py312-pip23_2-integration
             tox-env-python: python3.11
-    env:
-      _TOX_ENV: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
     steps:
       - name: Calculate Pythons to Expose
         id: calculate-pythons-to-expose
@@ -294,15 +133,16 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
+          key: macos-12-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
       - name: Cache Devpi Server
         uses: actions/cache@v3
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
           # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1i Cache
+          key: macos-12-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
+          restore-keys: macos-12-${{ runner.arch }}-${{ matrix.tox-env }}-pex-test-dev-root-devpi-v1
+      # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
         env:
@@ -315,159 +155,13 @@ jobs:
         with:
           path: repo/tox.ini
           python: ${{ matrix.tox-env-python }}
-          tox-env: ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
-  cpython-integration-tests-legacy:
-    name: (${{ matrix.os }}) Pip ${{ matrix.pip-version }} TOXENV=py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-integration
-    needs: org-check
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-12
-            python-version: [ 2, 7, 18 ]
-            pip-version: 20
-          - os: ubuntu-22.04
-            python-version: [ 2, 7, 18 ]
-            pip-version: 20
-          - os: ubuntu-22.04
-            python-version: [ 3, 7, 17 ]
-            pip-version: 22_3_1
-          - os: ubuntu-22.04
-            python-version: [ 3, 7, 17 ]
-            pip-version: 23_1_2
-    env:
-      _TOX_ENV: py${{ matrix.python-version[0] }}${{ matrix.python-version[1] }}-pip${{ matrix.pip-version }}-integration
-    steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
-      - name: Checkout Pex
-        uses: actions/checkout@v3
-        with:
-          # We need branches and tags for some ITs.
-          fetch-depth: 0
-          path: repo
-      - name: Setup Python ${{ join(matrix.python-version, '.') }}
-        uses: pantsbuild/actions/pyenv@1356087bfd1be04670c2ffde4ba94a9c6898ecd7
-        with:
-          python-version: "${{ join(matrix.python-version, '.') }}"
-      - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
-      - name: Cache Devpi Server
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
-          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
-          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.5.4
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        if: env.SSH_PRIVATE_KEY != ''
-        with:
-          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
-      - name: Run Integration Tests
-        run: |
-          pip install -U tox
-          tox -c repo/tox.ini -e ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
-  pypy-integration-tests:
-    name: (PyPy ${{ join(matrix.pypy-version, '.') }}) Pip ${{ matrix.pip-version }} TOXENV=pypy${{ join(matrix.pypy-version, '') }}-integration
-    needs: org-check
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          # N.B.: We need 20.04 for PyPy 2.7 tool cache support.
-          - os: ubuntu-20.04
-            pypy-version: [ 2, 7 ]
-            pip-version: 20
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
-            pip-version: 20
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
-            pip-version: 22_3_1
-          - os: ubuntu-22.04
-            pypy-version: [ 3, 9 ]
-            pip-version: 23_1_2
-    env:
-      _TOX_ENV: pypy${{ join(matrix.pypy-version, '') }}-pip${{ matrix.pip-version }}-integration
-    steps:
-      - name: Calculate Pythons to Expose
-        id: calculate-pythons-to-expose
-        run: |
-          skip=""
-          if [[ "$(uname -s)" == "Linux" ]]; then
-            skip="${{ env._PEX_TEST_PYENV_VERSIONS }}"
-          fi
-          echo "skip=${skip}" >> $GITHUB_OUTPUT
-      - name: Checkout Pex
-        uses: actions/checkout@v3
-        with:
-          # We need branches and tags for some ITs.
-          fetch-depth: 0
-          path: repo
-      - name: Setup PyPy ${{ join(matrix.pypy-version, '.') }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: "pypy-${{ join(matrix.pypy-version, '.') }}"
-      - name: Expose Pythons
-        uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
-        with:
-          skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Install Packages
-        run: |
-          # This is needed for `test_requirement_file_from_url` for building `lxml`.
-          sudo apt install --yes libxslt-dev
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
-          key: ${{ matrix.os }}-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
-      - name: Cache Devpi Server
-        uses: actions/cache@v3
-        with:
-          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
-          # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
-          # See: https://github.com/actions/cache/blob/main/tips-and-workarounds.md#update-a-cache
-          key: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1-${{ github.run_id }}
-          restore-keys: ${{ matrix.os }}-${{ runner.arch }}-${{ env._TOX_ENV }}-pex-test-dev-root-devpi-v1
-      - name: Setup SSH Agent
-        uses: webfactory/ssh-agent@v0.5.4
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        if: env.SSH_PRIVATE_KEY != ''
-        with:
-          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
-      - name: Run Integration Tests
-        uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
-        with:
-          path: repo/tox.ini
-          tox-env: ${{ env._TOX_ENV }} -- ${{ env._PEX_TEST_POS_ARGS }}
+          tox-env: ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }}
   final-status:
     name: Gather Final Status
     needs:
       - checks
-      - cpython-unit-tests
-      - cpython-unit-tests-legacy
-      - pypy-unit-tests
-      - cpython-integration-tests
-      - cpython-integration-tests-legacy
-      - pypy-integration-tests
+      - linux-tests
+      - mac-tests
     runs-on: ubuntu-22.04
     steps:
       - name: Check Non-Success

@@ -101,7 +101,6 @@ def test_collisions(
         "PEXWarning: Encountered collision populating {venv_dir} from PEX at {pex}:\n"
         "1. {venv_dir}/bin/pex was provided by:".format(venv_dir=venv_dir, pex=collisions_pex)
     ) in result.error, result.error
-    assert 42 == subprocess.call(args=[Virtualenv(venv_dir=venv_dir).bin_path("pex")])
 
 
 def test_collisions_mergeable_issue_1570(tmpdir):

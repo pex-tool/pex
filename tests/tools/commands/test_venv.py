@@ -70,7 +70,7 @@ def pex():
                 pex_path,
                 "--include-tools",
             ]
-        )
+        ).assert_success()
         yield os.path.realpath(pex_path)
 
 
