@@ -31,7 +31,21 @@ git clone https://github.com/pyenv/pyenv.git "${PYENV_ROOT}" && (
 PATH="${PATH}:${PYENV_ROOT}/bin"
 
 for version in "${PYENV_VERSIONS[@]}"; do
-  pyenv install "${version}"
+  if [[ "${version}" == "pypy2.7-7.3.12" ]]; then
+    # Installation of pypy2.7-7.3.12 fails like so without adjusting the version of get-pip it
+    # uses:
+    #  $ pyenv install pypy2.7-7.3.12
+    #  Downloading pypy2.7-v7.3.12-linux64.tar.bz2...
+    #  -> https://downloads.python.org/pypy/pypy2.7-v7.3.12-linux64.tar.bz2
+    #  Installing pypy2.7-v7.3.12-linux64...
+    #  Installing pip from https://bootstrap.pypa.io/get-pip.py...
+    #  error: failed to install pip via get-pip.py
+    #  ...
+    #  ERROR: This script does not work on Python 2.7 The minimum supported Python version is 3.7. Please use https://bootstrap.pypa.io/pip/2.7/get-pip.py instead.
+    GET_PIP_URL="https://bootstrap.pypa.io/pip/2.7/get-pip.py" pyenv install "${version}"
+  else
+    pyenv install "${version}"
+  fi
 
   exe="$(echo "${version}" | sed -r -e 's/^([0-9])/python\1/' | tr - . | cut -d. -f1-2)"
   exe_path="${PYENV_ROOT}/versions/${version}/bin/${exe}"
