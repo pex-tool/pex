@@ -37,7 +37,7 @@ def test_read_only_venv(
                     pex_root,
                     "--runtime-pex-root",
                     pex_root,
-                    "cowsay",
+                    "cowsay==5.0",
                     "-c",
                     "cowsay",
                     "--",
