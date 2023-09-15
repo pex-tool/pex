@@ -29,6 +29,7 @@ def test_standard_library_is_included(
             "Flask==2.3.3",
             "-o",
             "flask.pex",
+            "--venv",
         ],
         check=True,
         env=os.environ,
