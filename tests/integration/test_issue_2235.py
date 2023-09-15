@@ -4,45 +4,32 @@ import sys
 
 import pytest
 
-from pex.compatibility import PY3
-from testing import PY38, ensure_python_interpreter
+from testing import run_pex_command
 
 
 @pytest.mark.skipif(sys.version_info < (3, 8), reason="Flask 2.3.3 requires Python3.8+.")
 def test_standard_library_is_included(
     tmpdir,  # type: Any
-    pex_project_dir,  # type: str
 ):
     # type: (...) -> None
 
-    # N.B.: The package script requires Python 3.
-    python = sys.executable if PY3 else ensure_python_interpreter(PY38)
-
-    package_script = os.path.join(pex_project_dir, "scripts", "package.py")
-    pex_pex = os.path.join(str(tmpdir), "pex")
-    subprocess.check_call(args=[python, package_script, "--pex-output-file", pex_pex])
-
-    subprocess.run(
-        [
-            sys.executable,
-            pex_pex,
+    built_pex_path = os.path.join(tmpdir, "flask.pex")
+    run_pex_command(
+        args=[
             "Flask==2.3.3",
             "-o",
-            "flask.pex",
+            built_pex_path,
             "--venv",
-        ],
-        check=True,
-        env=os.environ,
-    )
+        ]
+    ).assert_success()
 
-    output_path = "{}/output.txt".format(tmpdir)
-
+    output_path = os.path.join(tmpdir, "output.txt")
     script = """
 import sys
 error = ""
 
 try:
-    sys.path.append("flask.pex")
+    sys.path.append("{}")
     import __pex__
     import flask
 except Exception as e:
@@ -51,14 +38,14 @@ except Exception as e:
 with open("{}", 'w') as f:
     f.write(error)
 """.format(
-        output_path
+        built_pex_path, output_path
     )
 
-    script_path = "{}/script.py".format(tmpdir)
+    script_path = os.path.join(tmpdir, "script.py")
     with open(script_path, "w") as f:
         f.write(script)
 
-    subprocess.run([sys.executable, script_path], check=True, env=os.environ)
+    subprocess.run([sys.executable, script_path], check=True)
 
     with open(output_path, "r") as f:
         output = f.read()
