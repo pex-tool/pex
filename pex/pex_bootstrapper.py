@@ -669,7 +669,7 @@ def _activate_venv_dir(
         die("Failed to load virtualenv for interpreter at {path}.".format(path=venv_python))
 
     site_packages_dir = venv.site_packages_dir
-    sys.path[:-1] = [site_packages_dir]
+    sys.path.insert(0, site_packages_dir)
     import site
 
     site.addsitedir(site_packages_dir)
