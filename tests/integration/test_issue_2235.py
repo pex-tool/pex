@@ -13,7 +13,7 @@ def test_standard_library_is_included(
 ):
     # type: (...) -> None
 
-    built_pex_path = os.path.join(tmpdir, "flask.pex")
+    built_pex_path = os.path.join(str(tmpdir), "flask.pex")
     run_pex_command(
         args=[
             "Flask==2.3.3",
@@ -23,7 +23,7 @@ def test_standard_library_is_included(
         ]
     ).assert_success()
 
-    output_path = os.path.join(tmpdir, "output.txt")
+    output_path = os.path.join(str(tmpdir), "output.txt")
     script = """
 import sys
 error = ""
@@ -41,7 +41,7 @@ with open("{}", 'w') as f:
         built_pex_path, output_path
     )
 
-    script_path = os.path.join(tmpdir, "script.py")
+    script_path = os.path.join(str(tmpdir), "script.py")
     with open(script_path, "w") as f:
         f.write(script)
 
