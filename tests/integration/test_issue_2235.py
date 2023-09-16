@@ -49,7 +49,7 @@ with open("{}", 'w') as f:
     with open(script_path, "w") as f:
         f.write(script)
 
-    subprocess.run([sys.executable, script_path], check=True)  # type: ignore
+    subprocess.check_call([sys.executable, script_path])
 
     with open(output_path, "r") as f:
         output = f.read()
