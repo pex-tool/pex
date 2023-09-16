@@ -4,7 +4,11 @@ import sys
 
 import pytest
 
+from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 @pytest.mark.skipif(sys.version_info < (3, 8), reason="Flask 2.3.3 requires Python3.8+.")
@@ -45,10 +49,10 @@ with open("{}", 'w') as f:
     with open(script_path, "w") as f:
         f.write(script)
 
-    subprocess.run([sys.executable, script_path], check=True)
+    subprocess.run([sys.executable, script_path], check=True)  # type: ignore
 
     with open(output_path, "r") as f:
         output = f.read()
 
     if output:
-        pytest.fail(f"Test failed with exception: {output}")
+        pytest.fail("Test failed with exception: {}".format(output))
