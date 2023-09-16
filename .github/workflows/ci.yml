@@ -76,6 +76,11 @@ jobs:
         with:
           # We need branches and tags for some ITs.
           fetch-depth: 0
+      - name: Cache Docker images
+        uses: ScribeMD/docker-cache@0.3.6
+        with:
+          read-only: ${{ github.ref != 'refs/heads/main' && 'true' || 'false' }}
+          key: docker-${{ runner.os }}-${{ hashFiles('docker/base/**', 'docker/cache/**') }}
       # Some ITs need this for VCS URLs of the form git+ssh://git@github.com/...
       - name: Setup SSH Agent
         uses: webfactory/ssh-agent@v0.5.4
@@ -129,13 +134,15 @@ jobs:
         uses: pantsbuild/actions/expose-pythons@e63d2d0e3c339bdffbe5e51e7c39550e3bc527bb
         with:
           skip: "${{ steps.calculate-pythons-to-expose.outputs.skip }}"
-      - name: Cache Pyenv Interpreters
-        uses: actions/cache@v3
+      - name: Restore Cached Pyenv Interpreters
+        id: restore-pyenv-interpreters
+        uses: actions/cache/restore@v3
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
           key: macos-12-${{ runner.arch }}-pex-test-dev-root-pyenv-v1
-      - name: Cache Devpi Server
-        uses: actions/cache@v3
+      - name: Restore Cached Devpi Server
+        id: restore-devpi-server
+        uses: actions/cache/restore@v3
         with:
           path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
           # We're using a key suffix / restore-keys prefix trick here to get an updatable cache.
@@ -156,6 +163,18 @@ jobs:
           path: repo/tox.ini
           python: ${{ matrix.tox-env-python }}
           tox-env: ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }}
+      - name: Cache Pyenv Interpreters
+        uses: actions/cache/save@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/pyenv
+          key: ${{ steps.restore-pyenv-interpreters.outputs.cache-primary-key }}
+      - name: Cache Devpi Server
+        uses: actions/cache/save@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: ${{ env._PEX_TEST_DEV_ROOT }}/devpi
+          key: ${{ steps.restore-devpi-server.outputs.cache-primary-key }}
   final-status:
     name: Gather Final Status
     needs:
