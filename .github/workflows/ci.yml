@@ -92,6 +92,13 @@ jobs:
       - name: Run Unit Tests
         run: |
           BASE_MODE=pull CACHE_MODE=pull ./dtox.sh -e ${{ matrix.tox-env }} -- ${{ env._PEX_TEST_POS_ARGS }}
+      - name: Free Disk Space for Cache prep
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # The Docker image caching step uses docker save which generate large tarballs that
+          # encounter disk-fulls. An easy 10s of GB savings in disk space is had by nuking the tool
+          # cache, which we use no tools from.
+          rm -rf ${{ runner.tool_cache }}
   mac-tests:
     name: tox -e ${{ matrix.tox-env }}
     needs: org-check
