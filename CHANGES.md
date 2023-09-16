@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.1.146
+
+This release brings a fix by new contributor @yjabri for the `__pex__`
+import hook that gets it working properly for `--venv` mode PEXes.
+
+* Fix non executable venv sys path bug (#2236)
+
 ## 2.1.145
 
 This release broadens the range of the `flit-core` build system Pex uses
