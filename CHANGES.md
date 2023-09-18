@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.1.147
+
+Add support for `--use-pip-config` to allow the Pip Pex calls to read
+`PIP_*` env vars and Pip configuration files. This can be particularly
+useful for picking up custom index configuration (including auth).
+
+* Add support for --use-pip-config. (#2243)
+
 ## 2.1.146
 
 This release brings a fix by new contributor @yjabri for the `__pex__`
