@@ -731,9 +731,9 @@ def _populate_first_party(
                     # These are _not_ used at runtime, but are present under testing / CI and
                     # simplest to add an exception for here and not warn about in CI runs.
                     "_PEX_PIP_VERSION",
-                    "_PEX_TEST_DEFAULT_INDEX",
                     "_PEX_TEST_DEV_ROOT",
                     "_PEX_TEST_PROJECT_DIR",
+                    "_PEX_USE_PIP_CONFIG",
                     # This is used by Pex's Pip to inject runtime patches dynamically.
                     "_PEX_PIP_RUNTIME_PATCHES_PACKAGE",
                     # These are used by Pex's Pip venv to provide foreign platform support and work

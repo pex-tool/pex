@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import hashlib
 import json
 import os
+import shutil
 import warnings
 
 import pytest
@@ -322,3 +323,40 @@ def test_pip_pex_interpreter_venv_hash_issue_1885(
         ).encode("utf-8")
     ).hexdigest()
     assert venv_contents_hash in pip_w_linked_ppp._pip.venv_dir
+
+
+@applicable_pip_versions
+def test_use_pip_config(
+    create_pip,  # type: CreatePip
+    version,  # type: PipVersionValue
+    current_interpreter,  # type: PythonInterpreter
+    tmpdir,  # type: Any
+):
+    # type: (...) -> None
+
+    pip = create_pip(current_interpreter, version=version)
+
+    download_dir = os.path.join(str(tmpdir), "downloads")
+    assert not os.path.exists(download_dir)
+
+    with ENV.patch(PIP_PYTHON_VERSION="invalid") as env, environment_as(**env):
+        assert "invalid" == os.environ["PIP_PYTHON_VERSION"]
+        job = pip.spawn_download_distributions(
+            download_dir=download_dir, requirements=["ansicolors==1.1.8"]
+        )
+        assert "--isolated" in job._command
+        job.wait()
+        assert ["ansicolors-1.1.8-py2.py3-none-any.whl"] == os.listdir(download_dir)
+
+        shutil.rmtree(download_dir)
+        package_index_configuration = PackageIndexConfiguration.create(use_pip_config=True)
+        job = pip.spawn_download_distributions(
+            download_dir=download_dir,
+            requirements=["ansicolors==1.1.8"],
+            package_index_configuration=package_index_configuration,
+        )
+        assert "--isolated" not in job._command
+        with pytest.raises(Job.Error) as exc:
+            job.wait()
+        assert not os.path.exists(download_dir)
+        assert "invalid --python-version value: 'invalid'" in str(exc.value.stderr)

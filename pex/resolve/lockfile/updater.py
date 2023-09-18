@@ -382,6 +382,7 @@ class LockUpdater(object):
         repos_configuration,  # type: ReposConfiguration
         network_configuration,  # type: NetworkConfiguration
         max_jobs,  # type: int
+        use_pip_config,  # type: bool
     ):
         # type: (...) -> LockUpdater
 
@@ -403,6 +404,7 @@ class LockUpdater(object):
             repos_configuration=repos_configuration,
             network_configuration=network_configuration,
             max_jobs=max_jobs,
+            use_pip_config=use_pip_config,
         )
         return cls(
             lock_file=lock_file,

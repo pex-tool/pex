@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import
 
+import os
 from argparse import Action, ArgumentTypeError, Namespace, _ActionsContainer
 
 from pex import pex_warnings
@@ -108,6 +109,7 @@ def register(
             "fast indicating the problematic selected interpreters."
         ),
     )
+    register_use_pip_config(parser)
 
     register_repos_options(parser)
     register_network_options(parser)
@@ -249,6 +251,40 @@ def register(
         action=HandleBoolAction,
         help="Preserve the `pip download` log and print its location to stderr.",
     )
+
+
+def register_use_pip_config(parser):
+    # type: (_ActionsContainer) -> None
+    """Register an option to control Pip config hermeticity.
+
+    :param parser: The parser to register the Pip config hermeticity option with.
+    """
+    parser.add_argument(
+        "--use-pip-config",
+        "--no-use-pip-config",
+        dest="use_pip_config",
+        default=None,
+        action=HandleBoolAction,
+        help=(
+            "Whether to allow Pip to read its local configuration files and PIP_ env vars from "
+            "the environment."
+        ),
+    )
+
+
+def get_use_pip_config_value(options):
+    # type: (Namespace) -> bool
+    """Retrieves the use Pip config value from the option registered by `register_use_pip_config`.
+
+    :param options: Parsed options containing use Pip config configuration option.
+    """
+    if options.use_pip_config is not None:
+        return cast(bool, options.use_pip_config)
+    # An affordance for tests to point at the devpi server.
+    # TODO(John Sirois): https://github.com/pantsbuild/pex/issues/2242
+    #  Improve options system to accept command line args or env vars in general which will promote
+    #  PEX_USE_PIP_CONFIG (no leading underscore) to a 1st class Pex CLI control knob.
+    return os.environ.get("_PEX_USE_PIP_CONFIG", "False").lower() in ("1", "true")
 
 
 def register_lock_options(parser):
@@ -472,6 +508,7 @@ def create_pip_configuration(options):
         version=pip_version,
         resolver_version=resolver_version,
         allow_version_fallback=options.allow_pip_version_fallback,
+        use_pip_config=get_use_pip_config_value(options),
     )
 
 

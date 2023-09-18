@@ -67,6 +67,7 @@ class ConfiguredResolver(Resolver):
                 verify_wheels=True,
                 max_parallel_jobs=self.pip_configuration.max_jobs,
                 pip_version=pip_version or self.pip_configuration.version,
+                use_pip_config=self.pip_configuration.use_pip_config,
             )
         )
 
@@ -77,7 +78,6 @@ class ConfiguredResolver(Resolver):
         pip_version=None,  # type: Optional[PipVersionValue]
     ):
         # type: (...) -> Installed
-        # TODO(John Sirois): Use pip_version.
         return resolver.resolve(
             targets=targets,
             requirements=requirements,
@@ -98,4 +98,5 @@ class ConfiguredResolver(Resolver):
             verify_wheels=True,
             pip_version=pip_version or self.pip_configuration.version,
             resolver=self,
+            use_pip_config=self.pip_configuration.use_pip_config,
         )

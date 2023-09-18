@@ -24,9 +24,9 @@ from pex.pip import foreign_platform
 from pex.pip.download_observer import DownloadObserver, PatchSet
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
-from pex.pip.version import PipVersion, PipVersionValue
+from pex.pip.version import PipVersionValue
 from pex.platforms import Platform
-from pex.resolve.resolver_configuration import ResolverVersion
+from pex.resolve.resolver_configuration import ReposConfiguration, ResolverVersion
 from pex.targets import LocalInterpreter, Target
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -76,7 +76,7 @@ class PackageIndexConfiguration(object):
 
         # N.B.: We interpret None to mean accept pip index defaults, [] to mean turn off all index
         # use.
-        if indexes is not None:
+        if indexes is not None and tuple(indexes) != ReposConfiguration().indexes:
             if len(indexes) == 0:
                 yield "--no-index"
             else:
@@ -108,7 +108,7 @@ class PackageIndexConfiguration(object):
     @staticmethod
     def _calculate_env(
         network_configuration,  # type: NetworkConfiguration
-        isolated,  # type: bool
+        use_pip_config,  # type: bool
     ):
         # type: (...) -> Iterator[Tuple[str, str]]
         if network_configuration.proxy:
@@ -122,12 +122,12 @@ class PackageIndexConfiguration(object):
             # operations) support for REQUESTS_CA_BUNDLE when possible to continue to allow Pip to
             # operate in `--isolated` mode.
             yield (
-                ("REQUESTS_CA_BUNDLE" if isolated else "PIP_CERT"),
+                ("PIP_CERT" if use_pip_config else "REQUESTS_CA_BUNDLE"),
                 os.path.abspath(network_configuration.cert),
             )
 
         if network_configuration.client_cert:
-            assert not isolated
+            assert use_pip_config
             yield "PIP_CLIENT_CERT", os.path.abspath(network_configuration.client_cert)
 
     @classmethod
@@ -139,6 +139,7 @@ class PackageIndexConfiguration(object):
         find_links=None,  # type: Optional[Iterable[str]]
         network_configuration=None,  # type: Optional[NetworkConfiguration]
         password_entries=(),  # type: Iterable[PasswordEntry]
+        use_pip_config=False,  # type: bool
     ):
         # type: (...) -> PackageIndexConfiguration
         resolver_version = resolver_version or ResolverVersion.default(pip_version)
@@ -147,7 +148,7 @@ class PackageIndexConfiguration(object):
         # We must pass `--client-cert` via PIP_CLIENT_CERT to work around
         # https://github.com/pypa/pip/issues/5502. We can only do this by breaking Pip `--isolated`
         # mode.
-        isolated = not network_configuration.client_cert
+        use_pip_config = use_pip_config or network_configuration.client_cert is not None
 
         return cls(
             pip_version=pip_version,
@@ -156,8 +157,10 @@ class PackageIndexConfiguration(object):
             args=cls._calculate_args(
                 indexes=indexes, find_links=find_links, network_configuration=network_configuration
             ),
-            env=cls._calculate_env(network_configuration=network_configuration, isolated=isolated),
-            isolated=isolated,
+            env=cls._calculate_env(
+                network_configuration=network_configuration, use_pip_config=use_pip_config
+            ),
+            use_pip_config=use_pip_config,
             password_entries=password_entries,
         )
 
@@ -167,7 +170,7 @@ class PackageIndexConfiguration(object):
         network_configuration,  # type: NetworkConfiguration
         args,  # type: Iterable[str]
         env,  # type: Iterable[Tuple[str, str]]
-        isolated,  # type: bool
+        use_pip_config,  # type: bool
         password_entries=(),  # type: Iterable[PasswordEntry]
         pip_version=None,  # type: Optional[PipVersionValue]
     ):
@@ -176,7 +179,7 @@ class PackageIndexConfiguration(object):
         self.network_configuration = network_configuration  # type: NetworkConfiguration
         self.args = tuple(args)  # type: Iterable[str]
         self.env = dict(env)  # type: Mapping[str, str]
-        self.isolated = isolated  # type: bool
+        self.use_pip_config = use_pip_config  # type: bool
         self.password_entries = password_entries  # type: Iterable[PasswordEntry]
         self.pip_version = pip_version  # type: Optional[PipVersionValue]
 
@@ -298,7 +301,7 @@ class Pip(object):
                 python_interpreter, package_index_configuration=package_index_configuration
             )
         )
-        if not package_index_configuration or package_index_configuration.isolated:
+        if not package_index_configuration or not package_index_configuration.use_pip_config:
             # Don't read PIP_ environment variables or pip configuration files like
             # `~/.config/pip/pip.conf`.
             pip_args.append("--isolated")

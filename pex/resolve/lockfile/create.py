@@ -369,6 +369,7 @@ def create(
         password_entries=PasswordDatabase.from_netrc()
         .append(pip_configuration.repos_configuration.password_entries)
         .entries,
+        use_pip_config=pip_configuration.use_pip_config,
     )
 
     configured_resolver = ConfiguredResolver(pip_configuration=pip_configuration)
@@ -421,6 +422,7 @@ def create(
             preserve_log=pip_configuration.preserve_log,
             pip_version=pip_configuration.version,
             resolver=configured_resolver,
+            use_pip_config=pip_configuration.use_pip_config,
         )
     except resolvers.ResolveError as e:
         return Error(str(e))
@@ -482,6 +484,7 @@ def create(
                     transitive=pip_configuration.transitive,
                     max_parallel_jobs=pip_configuration.max_jobs,
                     pip_version=pip_configuration.version,
+                    use_pip_config=pip_configuration.use_pip_config,
                 )
             )
 

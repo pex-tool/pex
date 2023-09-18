@@ -533,7 +533,7 @@ def lock_file_path(tmpdir):
 
 def ensure_pypi(*args):
     # type: (*str) -> Tuple[str, ...]
-    return ("--no-pypi", "--index", "https://pypi.org/simple") + args
+    return ("--no-use-pip-config", "--no-pypi", "--index", "https://pypi.org/simple") + args
 
 
 def run_pypi_lock_create(
