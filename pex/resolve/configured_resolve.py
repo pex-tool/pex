@@ -58,6 +58,7 @@ def resolve(
                     compile=compile_pyc,
                     max_parallel_jobs=pip_configuration.max_jobs,
                     pip_version=lock.pip_version,
+                    use_pip_config=pip_configuration.use_pip_config,
                 )
             )
     elif isinstance(resolver_configuration, PexRepositoryConfiguration):
@@ -101,4 +102,5 @@ def resolve(
                 preserve_log=resolver_configuration.preserve_log,
                 pip_version=resolver_configuration.version,
                 resolver=ConfiguredResolver(pip_configuration=resolver_configuration),
+                use_pip_config=resolver_configuration.use_pip_config,
             )

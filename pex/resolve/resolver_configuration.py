@@ -25,7 +25,7 @@ else:
     from pex.third_party import attr
 
 
-PYPI = os.environ.get("_PEX_TEST_DEFAULT_INDEX", "https://pypi.org/simple")
+PYPI = "https://pypi.org/simple"
 
 
 class ResolverVersion(Enum["ResolverVersion.Value"]):
@@ -98,6 +98,7 @@ class PipConfiguration(object):
     version = attr.ib(default=None)  # type: Optional[PipVersionValue]
     resolver_version = attr.ib(default=None)  # type: Optional[ResolverVersion.Value]
     allow_version_fallback = attr.ib(default=True)  # type: bool
+    use_pip_config = attr.ib(default=False)  # type: bool
 
 
 @attr.s(frozen=True)

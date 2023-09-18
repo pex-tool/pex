@@ -957,6 +957,7 @@ def resolve(
     preserve_log=False,  # type: bool
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
+    use_pip_config=False,  # type: bool
 ):
     # type: (...) -> Installed
     """Resolves all distributions needed to meet requirements for multiple distribution targets.
@@ -1048,6 +1049,7 @@ def resolve(
         find_links=find_links,
         network_configuration=network_configuration,
         password_entries=password_entries,
+        use_pip_config=use_pip_config,
     )
     build_requests, download_results = _download_internal(
         targets=targets,
@@ -1202,6 +1204,7 @@ def download(
     preserve_log=False,  # type: bool
     pip_version=None,  # type: Optional[PipVersionValue]
     resolver=None,  # type: Optional[Resolver]
+    use_pip_config=False,  # type: bool
 ):
     # type: (...) -> Downloaded
     """Downloads all distributions needed to meet requirements for multiple distribution targets.
@@ -1256,6 +1259,7 @@ def download(
         find_links=find_links,
         network_configuration=network_configuration,
         password_entries=password_entries,
+        use_pip_config=use_pip_config,
     )
     build_requests, download_results = _download_internal(
         targets=targets,

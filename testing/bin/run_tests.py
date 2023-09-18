@@ -118,7 +118,7 @@ def main():
             request_timeout=options.devpi_request_timeout,
         )
         if isinstance(launch_result, devpi.LaunchResult):
-            os.environ["_PEX_TEST_DEFAULT_INDEX"] = launch_result.url
+            os.environ["_PEX_USE_PIP_CONFIG"] = str(True)
             os.environ["PIP_INDEX_URL"] = launch_result.url
             os.environ["PIP_TRUSTED_HOST"] = cast(
                 # We know the local devpi server URL will always have a host and never be None.

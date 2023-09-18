@@ -85,6 +85,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         pex_root=None,  # type: Optional[str]
         pip_version=None,  # type: Optional[PipVersionValue]
         resolver=None,  # type: Optional[Resolver]
+        use_pip_config=False,  # type: bool
     ):
         super(VCSArtifactDownloadManager, self).__init__(
             pex_root=pex_root, file_lock_style=file_lock_style
@@ -100,6 +101,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
         self._build_isolation = build_isolation
         self._pip_version = pip_version
         self._resolver = resolver
+        self._use_pip_config = use_pip_config
 
     def save(
         self,
@@ -127,6 +129,7 @@ class VCSArtifactDownloadManager(DownloadManager[VCSArtifact]):
             max_parallel_jobs=1,
             pip_version=self._pip_version,
             resolver=self._resolver,
+            use_pip_config=self._use_pip_config,
         )
         if len(downloaded_vcs.local_distributions) != 1:
             return Error(
@@ -243,6 +246,7 @@ def resolve_from_lock(
     verify_wheels=True,  # type: bool
     max_parallel_jobs=None,  # type: Optional[int]
     pip_version=None,  # type: Optional[PipVersionValue]
+    use_pip_config=False,  # type: bool
 ):
     # type: (...) -> Union[Installed, Error]
 
@@ -288,6 +292,7 @@ def resolve_from_lock(
                     find_links=find_links,
                     network_configuration=network_configuration,
                     password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
+                    use_pip_config=use_pip_config,
                 ),
                 max_parallel_jobs=max_parallel_jobs,
             ),
@@ -308,6 +313,7 @@ def resolve_from_lock(
             build_isolation=build_isolation,
             pip_version=pip_version,
             resolver=resolver,
+            use_pip_config=use_pip_config,
         )
         for resolved_subset in subset_result.subsets
     }
@@ -424,6 +430,7 @@ def resolve_from_lock(
                 find_links=find_links,
                 network_configuration=network_configuration,
                 password_entries=PasswordDatabase.from_netrc().append(password_entries).entries,
+                use_pip_config=use_pip_config,
             ),
             compile=compile,
             prefer_older_binary=prefer_older_binary,
