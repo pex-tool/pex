@@ -23,7 +23,8 @@ if TYPE_CHECKING:
     "execution_mode_args",
     [
         pytest.param([], id="ZIPAPP"),
-    ],  # pytest.param(["--venv"], id="VENV")]
+        pytest.param(["--venv"], id="VENV"),
+    ],
 )
 def test_repl_python_options(
     execution_mode_args,  # type: List[str]
