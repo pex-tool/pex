@@ -789,6 +789,33 @@ def test_execute_interpreter_file_program():
             assert b"" == stderr
 
 
+def test_execute_repl():
+    with temporary_dir() as pex_chroot:
+        pex_builder = PEXBuilder(path=pex_chroot)
+        pex_builder.freeze()
+        process = PEX(pex_chroot).run(
+            args=[],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            blocking=False,
+        )
+        commands = dedent(
+            """
+            assert False
+            20 + 103
+            quit()
+            """
+        )
+        stdout, stderr = process.communicate(input=commands.encode("utf-8"))
+
+        assert b"(InteractiveConsole)" in stderr
+        assert b"AssertionError" in stderr
+        assert b">>> " in stdout
+        assert b"123" in stdout
+        assert 0 == process.returncode
+
+
 def test_pex_run_strip_env():
     # type: () -> None
     with temporary_dir() as pex_root:
