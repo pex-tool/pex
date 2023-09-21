@@ -41,7 +41,7 @@ def test_repl_python_options(
         assert False
         raise Exception("customexc")
         result = 20 + 103
-        print(colors.green(f"Worked: {result}"))
+        print(colors.green("Worked: {}".format(result)))
         quit()
         """
     )
