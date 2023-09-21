@@ -620,6 +620,9 @@ class PEX(object):  # noqa: T000
             else:
                 args = args[index:]
                 break
+        else:
+            # All the args were python options
+            args = []
 
         # The pex was called with Python interpreter options
         if python_options:
