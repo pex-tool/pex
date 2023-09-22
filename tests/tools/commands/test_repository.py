@@ -253,8 +253,8 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     )
     example_console_script = os.path.join(os.path.dirname(pip), "example")
 
-    find_links_server.send_signal(signal.SIGQUIT)
-    assert -1 * int(signal.SIGQUIT) == find_links_server.wait()
+    find_links_server.send_signal(signal.SIGTERM)
+    assert -1 * int(signal.SIGTERM) == find_links_server.wait()
 
     expected_output = b"Fetching from https://example.com ...\n"
     assert expected_output == subprocess.check_output(args=[example_sdist_pex])
