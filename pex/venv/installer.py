@@ -849,6 +849,9 @@ def _populate_first_party(
                     else:
                         args = args[index:]
                         break
+                else:
+                    # All the args were python options
+                    args = []
 
                 # The pex was called with Python interpreter options, so we need to re-exec to
                 # respect those:
