@@ -7,6 +7,9 @@ import hashlib
 import logging
 import os
 import shutil
+import zipimport
+from textwrap import dedent
+from zipimport import ZipImportError
 
 from pex import pex_warnings
 from pex.atomic_directory import atomic_directory
@@ -42,7 +45,6 @@ from pex.util import CacheHelper
 if TYPE_CHECKING:
     from typing import Dict, Optional
 
-
 # N.B.: __file__ will be relative when this module is loaded from a "" `sys.path` entry under
 # Python 2.7. This can occur in test scenarios; so we ensure the __file__ is resolved to an absolute
 # path here at import time before any cd'ing occurs in test code that might interfere with our
@@ -57,6 +59,64 @@ class CopyMode(Enum["CopyMode.Value"]):
     COPY = Value("copy")
     LINK = Value("link")
     SYMLINK = Value("symlink")
+
+
+class InvalidZipAppError(Exception):
+    pass
+
+
+class Check(Enum["Check.Value"]):
+    class Value(Enum.Value):
+        def perform_check(
+            self,
+            layout,  # type: Layout.Value
+            path,  # type: str
+        ):
+            # type: (...) -> Optional[bool]
+
+            if self is Check.NONE:
+                return None
+
+            if layout is not Layout.ZIPAPP:
+                return None
+
+            try:
+                importer = zipimport.zipimporter(path)
+
+                # N.B.: The legacy `find_module` method returns the `zipimporter` instance itself on
+                # success and the `find_spec` method returns a `ModuleSpec` instance on success, but
+                # both return `None` on failure to find the module.
+                finder = "find_spec" if hasattr(importer, "find_spec") else "find_module"
+                if getattr(importer, finder)("__main__") is not None:
+                    return True
+                reason = "Could not find the `__main__` module."
+            except ZipImportError as e:
+                # N.B.: PyPy<3.8 raises "ZipImportError: <PATH> seems not to be a zipfile" for ZIP64
+                # zips; so we handle that here.
+                reason = str(e)
+
+            message = (
+                dedent(
+                    """\
+                    The PEX zip at {path} is not a valid zipapp: {reason}
+                    This is likely due to the zip requiring ZIP64 extensions due to size or the
+                    number of file entries or both. You can work around this limitation in Python's
+                    `zipimport` module by re-building the PEX with `--layout packed` or
+                    `--layout loose`.
+                    """
+                )
+                .format(path=path, reason=reason)
+                .strip()
+            )
+            if self is Check.ERROR:
+                raise InvalidZipAppError(message)
+
+            pex_warnings.warn(message)
+            return False
+
+    NONE = Value("none")
+    WARN = Value("warn")
+    ERROR = Value("error")
 
 
 BOOTSTRAP_ENVIRONMENT = """\
@@ -634,6 +694,7 @@ class PEXBuilder(object):
         deterministic_timestamp=False,  # type: bool
         layout=Layout.ZIPAPP,  # type: Layout.Value
         compress=True,  # type: bool
+        check=Check.NONE,  # type: Check.Value
     ):
         # type: (...) -> None
         """Package the PEX application.
@@ -648,7 +709,7 @@ class PEXBuilder(object):
         :param layout: The layout to use for the PEX.
         :param compress: Whether to compress zip entries when building to a layout that uses zip
                          files.
-
+        :param check: The check to perform on the built PEX.
         If the PEXBuilder is not yet frozen, it will be frozen by ``build``.  This renders the
         PEXBuilder immutable.
         """
@@ -682,6 +743,7 @@ class PEXBuilder(object):
             shutil.rmtree(path, True)
         elif os.path.isdir(tmp_pex):
             safe_delete(path)
+        check.perform_check(layout, tmp_pex)
         os.rename(tmp_pex, path)
 
     def set_sh_boot_script(

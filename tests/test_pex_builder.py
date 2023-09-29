@@ -3,10 +3,12 @@
 
 import filecmp
 import os
+import re
 import stat
 import subprocess
 import sys
 import zipfile
+from zipfile import ZipFile
 
 import pytest
 
@@ -15,10 +17,11 @@ from pex.compatibility import WINDOWS, commonpath
 from pex.executor import Executor
 from pex.layout import Layout
 from pex.pex import PEX
-from pex.pex_builder import CopyMode, PEXBuilder
+from pex.pex_builder import Check, CopyMode, InvalidZipAppError, PEXBuilder
+from pex.pex_warnings import PEXWarning
 from pex.typing import TYPE_CHECKING
 from pex.variables import ENV
-from testing import NonDeterministicWalk, WheelBuilder, install_wheel, make_bdist, make_env
+from testing import IS_PYPY, NonDeterministicWalk, WheelBuilder, install_wheel, make_bdist, make_env
 from testing import write_simple_pex as write_pex
 
 try:
@@ -521,3 +524,80 @@ def test_build_compression(
         )
 
     assert size(compressed_pex) < size(uncompressed_pex)
+
+
+@pytest.mark.skipif(
+    subprocess.call(args=["cat", os.devnull]) != 0,
+    reason="The cat binary is required for this test.",
+)
+def test_check(tmpdir):
+    # type: (Any) -> None
+
+    def assert_perform_check_zip64_handling(
+        zipapp,  # type: str
+        test_run=True,  # type: bool
+    ):
+        # type: (...) -> None
+        assert Check.NONE.perform_check(Layout.ZIPAPP, zipapp) is None
+        assert Check.ERROR.perform_check(Layout.PACKED, zipapp) is None
+        assert Check.ERROR.perform_check(Layout.LOOSE, zipapp) is None
+
+        expected_error_message_re = r"The PEX zip at {path} is not a valid zipapp: ".format(
+            path=re.escape(zipapp)
+        )
+        with pytest.warns(PEXWarning, match=expected_error_message_re):
+            assert Check.WARN.perform_check(Layout.ZIPAPP, zipapp) is False
+        with pytest.raises(InvalidZipAppError, match=expected_error_message_re):
+            Check.ERROR.perform_check(Layout.ZIPAPP, zipapp)
+
+        if test_run:
+            assert subprocess.call(args=[sys.executable, zipapp]) != 0
+
+    def add_main_module(zf):
+        # type: (ZipFile) -> None
+        zf.writestr("__main__.py", "print('BOOTED')")
+
+    file_too_big = os.path.join(str(tmpdir), "file_too_big.py")
+    with open(file_too_big, "w") as fp:
+        fp.write("\n")
+    for _ in range(32):
+        accum = file_too_big + ".accum"
+        os.rename(file_too_big, accum)
+        with open(file_too_big, "wb") as dest:
+            subprocess.check_call(args=["cat", accum, accum], stdout=dest.fileno())
+    assert os.path.getsize(file_too_big) > 0xFFFFFFFF, (
+        "ZIP64 must be used if file sizes are bigger than 0xFFFFFFFF per "
+        "https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT 4.3.9.2"
+    )
+
+    zipapp_too_big = os.path.join(str(tmpdir), "too-big.pyz")
+    with open_zip(zipapp_too_big, "w") as zf:
+        zf.write(file_too_big, os.path.basename(file_too_big))
+        add_main_module(zf)
+    assert_perform_check_zip64_handling(
+        zipapp_too_big,
+        # N.B.: PyPy < 3.8 hangs when trying to run a zip64 app with a too-large file entry.
+        test_run=not IS_PYPY or sys.version_info[:2] >= (3, 8),
+    )
+
+    zipapp_too_many_entries = os.path.join(str(tmpdir), "too-many-entries.pyz")
+    with open_zip(zipapp_too_many_entries, "w") as zf:
+        # N.B.: ZIP64 must be used if the number of central directory records is greater than
+        # 0xFFFF per https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT 4.4.21
+        for x in range(0xFFFF):
+            zf.writestr(
+                "module{x}.py".format(x=x),
+                "# This is python module number {x}.".format(x=x).encode("utf-8"),
+            )
+        add_main_module(zf)
+    assert_perform_check_zip64_handling(zipapp_too_many_entries)
+
+    zipapp_ok = os.path.join(str(tmpdir), "ok.pyz")
+    with open_zip(zipapp_ok, "w") as zf:
+        zf.writestr("__main__.py", "print('BOOTED')")
+    for layout in Layout.values():
+        for check in Check.values():
+            assert check.perform_check(layout, zipapp_ok) is (
+                True if layout is Layout.ZIPAPP and check is not Check.NONE else None
+            )
+    assert b"BOOTED\n" == subprocess.check_output(args=[sys.executable, zipapp_ok])
