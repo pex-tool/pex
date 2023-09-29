@@ -28,6 +28,7 @@ elif [[ "${BASE_MODE}" == "pull" ]]; then
 fi
 
 USER_INPUT=(
+  "${BASE_INPUT[@]}"
   "${ROOT}/docker/user/Dockerfile"
   "${ROOT}/docker/user/create_docker_image_user.sh"
 )
