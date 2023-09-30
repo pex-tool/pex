@@ -6,6 +6,7 @@ from __future__ import absolute_import, print_function
 import atexit
 import contextlib
 import errno
+import io
 import itertools
 import os
 import re
@@ -38,6 +39,8 @@ if TYPE_CHECKING:
         Tuple,
         Union,
     )
+
+    _DateTime = Tuple[int, int, int, int, int, int]
 
 
 # We use the start of MS-DOS time, which is what zipfiles use (see section 4.4.6 of
@@ -138,6 +141,23 @@ def safe_copy(source, dest, overwrite=False):
         do_copy()
 
 
+def copy_file_range(source, destination, length, buffer_size=io.DEFAULT_BUFFER_SIZE):
+    # type: (io.BufferedIOBase, io.BufferedIOBase, int, int) -> None
+    """Implementation of shutil.copyfileobj() that only copies exactly `length` bytes."""
+    # We require a BufferedIOBase in order to avoid handling short reads or writes.
+    remaining_length = length
+    if buffer_size > length:
+        buffer_size = length
+    cur_buf = bytearray(buffer_size)
+    while remaining_length > buffer_size:
+        assert source.readinto(cur_buf) == buffer_size
+        assert destination.write(cur_buf) == buffer_size
+        remaining_length -= buffer_size
+    remainder = source.read(remaining_length)
+    assert len(remainder) == remaining_length
+    assert destination.write(remainder) == remaining_length
+
+
 # See http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
 class MktempTeardownRegistry(object):
     def __init__(self):
@@ -174,7 +194,14 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
         pass
 
     @classmethod
-    def zip_entry_from_file(cls, filename, arcname=None, date_time=None):
+    def zip_entry_from_file(
+        cls,
+        filename,  # type: str
+        arcname=None,  # type: Optional[str]
+        date_time=None,  # type: Optional[Tuple[int, ...]]
+        compression=zipfile.ZIP_STORED,  # type: int
+    ):
+        # type: (...) -> PermPreservingZipFile.ZipEntry
         """Construct a ZipEntry for a file on the filesystem.
 
         Usually a similar `zip_info_from_file` method is provided by `ZipInfo`, but it is not
@@ -193,16 +220,20 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
             arcname += "/"
         if date_time is None:
             date_time = time.localtime(st.st_mtime)
-        zinfo = zipfile.ZipInfo(filename=arcname, date_time=date_time[:6])
+        zinfo = zipfile.ZipInfo(filename=arcname, date_time=cast("_DateTime", date_time[:6]))
         zinfo.external_attr = (st.st_mode & 0xFFFF) << 16  # Unix attributes
         if isdir:
             zinfo.file_size = 0
             zinfo.external_attr |= 0x10  # MS-DOS directory flag
+            # Always store directories decompressed, because they are empty but take up 2 bytes when
+            # compressed.
             zinfo.compress_type = zipfile.ZIP_STORED
             data = b""
         else:
             zinfo.file_size = st.st_size
-            zinfo.compress_type = zipfile.ZIP_DEFLATED
+            # File contents may be compressed or decompressed. Decompressed is significantly faster
+            # to write, but caching makes up for that.
+            zinfo.compress_type = compression
             with open(filename, "rb") as fp:
                 data = fp.read()
         return cls.ZipEntry(info=zinfo, data=data)
@@ -306,16 +337,30 @@ def safe_mkdir(directory, clean=False):
         return directory
 
 
+def _ensure_parent(filename):
+    # type: (str) -> None
+    parent_dir = os.path.dirname(filename)
+    if parent_dir:
+        safe_mkdir(parent_dir)
+
+
 def safe_open(filename, *args, **kwargs):
     """Safely open a file.
 
     ``safe_open`` ensures that the directory components leading up the specified file have been
     created first.
     """
-    parent_dir = os.path.dirname(filename)
-    if parent_dir:
-        safe_mkdir(parent_dir)
+    _ensure_parent(filename)
     return open(filename, *args, **kwargs)  # noqa: T802
+
+
+def safe_io_open(filename, *args, **kwargs):
+    # type: (str, Any, Any) -> io.IOBase
+    """``safe_open()``, but using ``io.open()`` instead.
+
+    With the right arguments, this ensures the result produces a buffered file handle on py2."""
+    _ensure_parent(filename)
+    return cast("io.IOBase", io.open(filename, *args, **kwargs))
 
 
 def safe_delete(filename):
@@ -633,9 +678,13 @@ class Chroot(object):
         # type: () -> None
         shutil.rmtree(self.chroot)
 
+    # This directory traversal, file I/O, and compression can be made faster with complex
+    # parallelism and pipelining in a compiled language, but the result is much harder to package,
+    # and is still less performant than effective caching. See investigation in
+    # https://github.com/pantsbuild/pex/issues/2158 and https://github.com/pantsbuild/pex/pull/2175.
     def zip(
         self,
-        filename,  # type: str
+        output_file,  # type: Union[str, io.IOBase, io.BufferedRandom]
         mode="w",  # type: str
         deterministic_timestamp=False,  # type: bool
         exclude_file=lambda _: False,  # type: Callable[[str], bool]
@@ -653,7 +702,7 @@ class Chroot(object):
             selected_files = self.files()
 
         compression = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
-        with open_zip(filename, mode, compression) as zf:
+        with open_zip(output_file, mode, compression) as zf:
 
             def write_entry(
                 filename,  # type: str
@@ -663,11 +712,12 @@ class Chroot(object):
                 zip_entry = zf.zip_entry_from_file(
                     filename=filename,
                     arcname=os.path.relpath(arcname, strip_prefix) if strip_prefix else arcname,
-                    date_time=DETERMINISTIC_DATETIME.timetuple()
-                    if deterministic_timestamp
-                    else None,
+                    date_time=(
+                        DETERMINISTIC_DATETIME.timetuple() if deterministic_timestamp else None
+                    ),
+                    compression=compression,
                 )
-                zf.writestr(zip_entry.info, zip_entry.data, compression)
+                zf.writestr(zip_entry.info, zip_entry.data)
 
             def get_parent_dir(path):
                 # type: (str) -> Optional[str]
