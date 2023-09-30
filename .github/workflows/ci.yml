@@ -71,6 +71,18 @@ jobs:
           - pypy310-pip22_3_1-integration
           - pypy310-pip23_1_2-integration
     steps:
+      - name: Free Up Disk Space
+        uses: jlumbroso/free-disk-space@v1.3.0
+        with:
+          android: true # ~14GB
+          dotnet: true # ~2GB
+          tool-cache: true # ~12GB
+
+          # Too little space savings or too slow.
+          haskell: false
+          large-packages: false
+          docker-images: false
+          swap-storage: false
       - name: Checkout Pex
         uses: actions/checkout@v3
         with:
