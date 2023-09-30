@@ -166,6 +166,10 @@ jobs:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
       - name: Run Tests
         uses: pantsbuild/actions/run-tox@b16b9cf47cd566acfe217b1dafc5b452e27e6fd7
+        env:
+          # It's been observed that the --devpi server crashes sometimes on the Mac runners; so
+          # allow fallback to PyPI for better test stability.
+          PIP_EXTRA_INDEX_URL: https://pypi.org/simple
         with:
           path: repo/tox.ini
           python: ${{ matrix.tox-env-python }}

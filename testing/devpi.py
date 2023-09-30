@@ -102,7 +102,14 @@ class Pidfile(object):
 
     def kill(self):
         # type: () -> None
-        os.kill(self.pid, signal.SIGTERM)
+        try:
+            os.kill(self.pid, signal.SIGTERM)
+        except OSError as e:
+            logger.warning(
+                "Failed to kill devpi server {pid} @ {url}: {err}".format(
+                    pid=self.pid, url=self.url, err=e
+                )
+            )
 
 
 @attr.s(frozen=True)
