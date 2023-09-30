@@ -8,6 +8,7 @@ import stat
 import subprocess
 import sys
 import zipfile
+from contextlib import contextmanager
 from zipfile import ZipFile
 
 import pytest
@@ -553,9 +554,12 @@ def test_check(tmpdir):
         if test_run:
             assert subprocess.call(args=[sys.executable, zipapp]) != 0
 
-    def add_main_module(zf):
-        # type: (ZipFile) -> None
-        zf.writestr("__main__.py", "print('BOOTED')")
+    @contextmanager
+    def write_zipapp(path):
+        # type: (str) -> Iterator[ZipFile]
+        with open_zip(path, "w") as zip_file:
+            yield zip_file
+            zip_file.writestr("__main__.py", "print('BOOTED')")
 
     file_too_big = os.path.join(str(tmpdir), "file_too_big.py")
     with open(file_too_big, "w") as fp:
@@ -571,9 +575,8 @@ def test_check(tmpdir):
     )
 
     zipapp_too_big = os.path.join(str(tmpdir), "too-big.pyz")
-    with open_zip(zipapp_too_big, "w") as zf:
+    with write_zipapp(zipapp_too_big) as zf:
         zf.write(file_too_big, os.path.basename(file_too_big))
-        add_main_module(zf)
     assert_perform_check_zip64_handling(
         zipapp_too_big,
         # N.B.: PyPy < 3.8 hangs when trying to run a zip64 app with a too-large file entry.
@@ -581,7 +584,7 @@ def test_check(tmpdir):
     )
 
     zipapp_too_many_entries = os.path.join(str(tmpdir), "too-many-entries.pyz")
-    with open_zip(zipapp_too_many_entries, "w") as zf:
+    with write_zipapp(zipapp_too_many_entries) as zf:
         # N.B.: ZIP64 must be used if the number of central directory records is greater than
         # 0xFFFF per https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT 4.4.21
         for x in range(0xFFFF):
@@ -589,12 +592,11 @@ def test_check(tmpdir):
                 "module{x}.py".format(x=x),
                 "# This is python module number {x}.".format(x=x).encode("utf-8"),
             )
-        add_main_module(zf)
     assert_perform_check_zip64_handling(zipapp_too_many_entries)
 
     zipapp_ok = os.path.join(str(tmpdir), "ok.pyz")
-    with open_zip(zipapp_ok, "w") as zf:
-        zf.writestr("__main__.py", "print('BOOTED')")
+    with write_zipapp(zipapp_ok):
+        pass
     for layout in Layout.values():
         for check in Check.values():
             assert check.perform_check(layout, zipapp_ok) is (
