@@ -31,7 +31,7 @@ from pex.layout import Layout, maybe_install
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
-from pex.pex_builder import CopyMode, PEXBuilder
+from pex.pex_builder import Check, CopyMode, PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve import requirement_options, resolver_options, target_configuration, target_options
 from pex.resolve.config import finalize as finalize_resolve_config
@@ -161,6 +161,20 @@ def configure_clp_pex_options(parser):
             "tradeoffs. Both zipapp and packed layouts install themselves in the PEX_ROOT as loose "
             "apps by default before executing, but these layouts compose with `--venv` execution "
             "mode as well and support `--seed`ing."
+        ),
+    )
+    group.add_argument(
+        "--check",
+        dest="check",
+        default=Check.WARN,
+        choices=Check.values(),
+        type=Check.for_value,
+        help=(
+            "Check that the built PEX is valid. Currently this only applies to `--layout {zipapp}` "
+            "where the PEX zip is tested for importability of its `__main__` module by the Python "
+            "zipimport module. This check will fail for PEX zips that use ZIP64 extensions since "
+            "the Python zipimport zipimporter only works with 32 bit zips. The check no-ops for "
+            "all other layouts.".format(zipapp=Layout.ZIPAPP)
         ),
     )
 
@@ -949,6 +963,7 @@ def do_main(
             deterministic_timestamp=not options.use_system_time,
             layout=options.layout,
             compress=options.compress,
+            check=options.check,
         )
         if options.seed != Seed.NONE:
             seed_info = seed_cache(

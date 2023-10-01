@@ -229,7 +229,7 @@ def open_zip(path, *args, **kwargs):
     Passes through positional and kwargs to zipfile.ZipFile.
     """
 
-    # allowZip64=True is the default in Python 3.4+ but not in 2.7. We uniformaly enable Zip64
+    # allowZip64=True is the default in Python 3.4+ but not in 2.7. We uniformly enable Zip64
     # extensions across all Pex supported Pythons.
     kwargs.setdefault("allowZip64", True)
 
