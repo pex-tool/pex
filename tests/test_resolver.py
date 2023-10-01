@@ -9,7 +9,6 @@ import zipfile
 from collections import defaultdict
 from contextlib import contextmanager
 from textwrap import dedent
-from typing import DefaultDict
 
 import pytest
 
@@ -41,7 +40,7 @@ from testing import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, List, Union
+    from typing import Any, DefaultDict, Iterable, Iterator, List, Union
 
 
 def create_sdist(**kwargs):

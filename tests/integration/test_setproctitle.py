@@ -5,7 +5,6 @@ import subprocess
 import sys
 import sysconfig
 from textwrap import dedent
-from typing import Text
 
 import pytest
 
@@ -19,7 +18,7 @@ from pex.typing import TYPE_CHECKING
 from testing import IS_MAC, run_pex_command
 
 if TYPE_CHECKING:
-    from typing import Any, Tuple
+    from typing import Any, Text, Tuple
 
 
 @pytest.mark.parametrize("venv", [pytest.param(True, id="VENV"), pytest.param(False, id="UNZIP")])
