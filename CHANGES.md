@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2.1.148
+
+Add support to the Pex for checking if built PEXes are valid Python
+zipapps. Currently, Python zipapps must reside in 32 bit zip files due
+to limitations of the stdlib `zipimport` module's `zipimporter`; so this
+check amounts to a check that the built PEX zip does not use ZIP64
+extensions. The check is controlled with a new
+`--check {none,warn,error}` option, defaulting to warn.
+
+* Add --check support for zipapps. (#2253)
+
 ## 2.1.147
 
 Add support for `--use-pip-config` to allow the Pip Pex calls to read
