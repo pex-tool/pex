@@ -565,6 +565,10 @@ class PEX(object):  # noqa: T000
 
         self._clean_environment(strip_pex_env=self._pex_info.strip_pex_env)
 
+        for name, value in self._pex_info.inject_env.items():
+            os.environ.setdefault(name, value)
+        sys.argv[1:1] = list(self._pex_info.inject_args)
+
         if force_interpreter:
             TRACER.log("PEX_INTERPRETER specified, dropping into interpreter")
             return self.execute_interpreter()
@@ -592,10 +596,6 @@ class PEX(object):  # noqa: T000
             return self.execute_entry(
                 EntryPoint.parse("run = {}".format(self._pex_info_overrides.entry_point))
             )
-
-        for name, value in self._pex_info.inject_env.items():
-            os.environ.setdefault(name, value)
-        sys.argv[1:1] = list(self._pex_info.inject_args)
 
         if self._pex_info.script:
             return self.execute_script(self._pex_info.script)
