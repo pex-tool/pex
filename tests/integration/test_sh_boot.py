@@ -6,22 +6,15 @@ import os
 import subprocess
 import sys
 from textwrap import dedent
-from typing import Text, Tuple
 
 import pytest
 
 from pex.common import safe_open
 from pex.typing import TYPE_CHECKING
-from testing import (
-    ALL_PY_VERSIONS,
-    all_pythons,
-    ensure_python_interpreter,
-    make_env,
-    run_pex_command,
-)
+from testing import all_pythons, make_env, run_pex_command
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Iterator, List
+    from typing import Any, Iterable, Iterator, List, Text, Tuple
 
 
 @pytest.mark.parametrize(

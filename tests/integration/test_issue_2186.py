@@ -2,14 +2,17 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 from textwrap import dedent
-from typing import NoReturn, Union
 
 import pytest
 
 from pex import targets
 from pex.interpreter import PythonInterpreter
 from pex.pip.version import PipVersion, PipVersionValue
+from pex.typing import TYPE_CHECKING
 from testing import IntegResults, run_pex_command
+
+if TYPE_CHECKING:
+    from typing import NoReturn, Union
 
 
 def pex_execute_cowsay(*extra_pex_args):

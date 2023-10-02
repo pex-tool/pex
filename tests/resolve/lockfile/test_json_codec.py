@@ -6,7 +6,6 @@ import os
 import re
 import subprocess
 from textwrap import dedent
-from typing import Container
 
 import pytest
 
@@ -27,7 +26,7 @@ from pex.third_party.packaging import tags
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Container
 
     import attr  # vendor:skip
 else:

@@ -5,9 +5,12 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import subprocess
 import sys
-from typing import Any
 
+from pex.typing import TYPE_CHECKING
 from testing import IntegResults
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 def run_pex3(

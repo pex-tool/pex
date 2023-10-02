@@ -8,15 +8,18 @@ import json
 import os
 import subprocess
 from textwrap import dedent
-from typing import Any, Callable, List
 
 import colors
 import pytest
 
 from pex.common import chmod_plus_x, touch
+from pex.typing import TYPE_CHECKING
 from pex.version import __version__
 from testing import IS_PYPY, run_pex_command
 from testing.cli import run_pex3
+
+if TYPE_CHECKING:
+    from typing import Any, Callable, List
 
 
 def find_max_length(

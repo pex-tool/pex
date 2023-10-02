@@ -4,7 +4,6 @@
 import os.path
 import subprocess
 import sys
-from typing import Iterable, Optional
 
 import pytest
 
@@ -14,7 +13,7 @@ from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 
 if TYPE_CHECKING:
-    from typing import Any
+    from typing import Any, Iterable, Optional
 
     import attr  # vendor:skip
 else:
