@@ -106,16 +106,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - python-version: [ 3, 11 ]
-            tox-env: py311-pip20
-            tox-env-python: python
-          - python-version: [ 3, 11 ]
-            tox-env: py311-pip20-integration
-            tox-env-python: python
-          - python-version: [ 3, 12, "0-rc.3" ]
+          - python-version: [ 3, 12 ]
             tox-env: py312-pip23_2
             tox-env-python: python3.11
-          - python-version: [ 3, 12, "0-rc.3" ]
+          - python-version: [ 3, 12 ]
             tox-env: py312-pip23_2-integration
             tox-env-python: python3.11
     steps:
