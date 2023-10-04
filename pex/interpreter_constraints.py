@@ -316,13 +316,14 @@ COMPATIBLE_PYTHON_VERSIONS = (
     # N.B.: Pex does not support the missing 3.x versions here.
     PythonVersion(Lifecycle.EOL, 3, 5, 10),
     PythonVersion(Lifecycle.EOL, 3, 6, 15),
-    # ^-- EOL --^
     PythonVersion(Lifecycle.STABLE, 3, 7, 17),
-    PythonVersion(Lifecycle.STABLE, 3, 8, 17),
-    PythonVersion(Lifecycle.STABLE, 3, 9, 17),
-    PythonVersion(Lifecycle.STABLE, 3, 10, 12),
-    PythonVersion(Lifecycle.STABLE, 3, 11, 4),
-    PythonVersion(Lifecycle.DEV, 3, 12, 0),
+    # ^-- EOL --^
+    PythonVersion(Lifecycle.STABLE, 3, 8, 18),
+    PythonVersion(Lifecycle.STABLE, 3, 9, 18),
+    PythonVersion(Lifecycle.STABLE, 3, 10, 13),
+    PythonVersion(Lifecycle.STABLE, 3, 11, 6),
+    PythonVersion(Lifecycle.STABLE, 3, 12, 0),
+    PythonVersion(Lifecycle.DEV, 3, 13, 0),
 )
 
 
