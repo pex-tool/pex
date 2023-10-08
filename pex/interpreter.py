@@ -114,18 +114,32 @@ class PythonIdentity(object):
             # include a getsitepackages function.
             TRACER.log("The site module does not define getsitepackages: {err}".format(err=e))
 
+        # The distutils package was deprecated in 3.10 and removed in 3.12. The sysconfig module was
+        # introduced in 3.2 but is not usable for our purposes until 3.11. We need
+        # `get_default_scheme` to get the current interpreter's installation scheme, which was made
+        # public in 3.10, but not made correct for venv interpreters until 3.11.
+        try:
+            import sysconfig
+
+            get_default_scheme = getattr(sysconfig, "get_default_scheme", None)
+            if get_default_scheme and sys.version_info[:2] >= (3, 11):
+                scheme = get_default_scheme()
+                yield sysconfig.get_path("purelib", scheme)
+                yield sysconfig.get_path("platlib", scheme)
+                return
+        except ImportError:
+            pass
+
+        # The distutils.sysconfig module is deprecated in Python 3.10 but still around. It goes away
+        # in 3.12 with viable replacements in sysconfig starting in Python 3.11. See above where we
+        # use those replacements preferentially, when available.
         try:
             from distutils.sysconfig import get_python_lib
 
             yield get_python_lib(plat_specific=False)
             yield get_python_lib(plat_specific=True)
-        except ImportError as e:
-            # The distutils.sysconfig module is deprecated in Python 3.10 but still around.
-            # Eventually it will go away with replacements in sysconfig that we'll add at that time
-            # as another site packages source.
-            TRACER.log(
-                "The distutils.sysconfig module does not define get_python_lib: {err}".format(err=e)
-            )
+        except ImportError:
+            pass
 
     @staticmethod
     def _iter_extras_paths(site_packages):
@@ -303,6 +317,11 @@ class PythonIdentity(object):
     @property
     def binary(self):
         return self._binary
+
+    @property
+    def is_venv(self):
+        # type: () -> bool
+        return self._prefix != self._base_prefix
 
     @property
     def prefix(self):
@@ -979,9 +998,6 @@ class PythonInterpreter(object):
         cached_interpreter = cls._PYTHON_INTERPRETER_BY_NORMALIZED_PATH.get(canonicalized_binary)
         if cached_interpreter is not None:
             return SpawnedJob.completed(cached_interpreter)
-        if canonicalized_binary == cls.canonicalize_path(sys.executable):
-            current_interpreter = cls(PythonIdentity.get())
-            return SpawnedJob.completed(current_interpreter)
         return cls._spawn_from_binary_external(canonicalized_binary)
 
     @classmethod
@@ -1149,7 +1165,7 @@ class PythonInterpreter(object):
     def is_venv(self):
         # type: () -> bool
         """Return `True` if this interpreter is homed in a virtual environment."""
-        return self._identity.prefix != self._identity.base_prefix
+        return self._identity.is_venv
 
     @property
     def prefix(self):

@@ -4,8 +4,8 @@
 from __future__ import absolute_import
 
 import os
+import sys
 
-from pex import targets
 from pex.dist_metadata import Requirement
 from pex.enum import Enum
 from pex.pep_440 import Version
@@ -14,7 +14,7 @@ from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterable, Optional, Tuple
+    from typing import Iterable, Optional, Tuple, Union
 
 
 class PipVersionValue(Enum.Value):
@@ -72,9 +72,12 @@ class PipVersionValue(Enum.Value):
         return self.requirement, self.setuptools_requirement, self.wheel_requirement
 
     def requires_python_applies(self, target=None):
-        # type: (Optional[Target]) -> bool
+        # type: (Optional[Union[Version,Target]]) -> bool
         if not self.requires_python:
             return True
+
+        if isinstance(target, Version):
+            return str(target) in self.requires_python
 
         return LocalInterpreter.create(
             interpreter=target.get_interpreter() if target else None
@@ -102,12 +105,12 @@ class DefaultPipVersion(object):
     def __get__(self, obj, objtype=None):
         if not hasattr(self, "_default"):
             self._default = None
-            current_target = targets.current()
+            current_version = Version(".".join(map(str, sys.version_info[:3])))
             preferred_versions = (
                 [PipVersionValue.overridden()] if PipVersionValue.overridden() else self._preferred
             )
             for preferred_version in preferred_versions:
-                if preferred_version.requires_python_applies(current_target):
+                if preferred_version.requires_python_applies(current_version):
                     self._default = preferred_version
                     break
             if self._default is None:
@@ -115,7 +118,7 @@ class DefaultPipVersion(object):
                     (
                         version
                         for version in PipVersionValue._iter_values()
-                        if not version.hidden and version.requires_python_applies(current_target)
+                        if not version.hidden and version.requires_python_applies(current_version)
                     ),
                     key=lambda pv: pv.version,
                 )

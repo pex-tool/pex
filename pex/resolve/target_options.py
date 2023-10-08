@@ -61,16 +61,12 @@ def register(
         ),
     )
 
-    current_interpreter = PythonInterpreter.get()
-    program = sys.argv[0]
     singe_interpreter_info_cmd = (
-        "PEX_TOOLS=1 {current_interpreter} {program} interpreter --verbose --indent 4".format(
-            current_interpreter=current_interpreter.binary, program=program
+        "pex3 interpreter inspect --python {current_interpreter} --verbose --indent 4".format(
+            current_interpreter=sys.executable
         )
     )
-    all_interpreters_info_cmd = (
-        "PEX_TOOLS=1 {program} interpreter --all --verbose --indent 4".format(program=program)
-    )
+    all_interpreters_info_cmd = "pex3 interpreter inspect --all --verbose --indent 4"
 
     parser.add_argument(
         "--interpreter-constraint",
@@ -86,7 +82,7 @@ def register(
             "the constraints. Try `{singe_interpreter_info_cmd}` to find the exact interpreter "
             "constraints of {current_interpreter} and `{all_interpreters_info_cmd}` to find out "
             "the interpreter constraints of all Python interpreters on the $PATH.".format(
-                current_interpreter=current_interpreter.binary,
+                current_interpreter=sys.executable,
                 singe_interpreter_info_cmd=singe_interpreter_info_cmd,
                 all_interpreters_info_cmd=all_interpreters_info_cmd,
             )
@@ -94,14 +90,11 @@ def register(
     )
 
     if include_platforms:
-        _register_platform_options(
-            parser, current_interpreter, singe_interpreter_info_cmd, all_interpreters_info_cmd
-        )
+        _register_platform_options(parser, singe_interpreter_info_cmd, all_interpreters_info_cmd)
 
 
 def _register_platform_options(
     parser,  # type: _ActionsContainer
-    current_interpreter,  # type: PythonInterpreter
     singe_interpreter_info_cmd,  # type: str
     all_interpreters_info_cmd,  # type: str
 ):
@@ -120,13 +113,11 @@ def _register_platform_options(
             "string composed of fields: <platform>-<python impl abbr>-<python version>-<abi>. "
             "These fields stem from wheel name conventions as outlined in "
             "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
-            "https://www.python.org/dev/peps/pep-0425. For the current interpreter at "
-            "{current_interpreter} the full platform string is {current_platform}. To find out "
-            "more, try `{all_interpreters_info_cmd}` to print out the platform for all "
-            "interpreters on the $PATH or `{singe_interpreter_info_cmd}` to inspect the single "
-            "interpreter {current_interpreter}.".format(
-                current_interpreter=current_interpreter.binary,
-                current_platform=current_interpreter.platform,
+            "https://www.python.org/dev/peps/pep-0425. To find out more, try "
+            "`{all_interpreters_info_cmd}` to print out the platform for all interpreters on the "
+            "$PATH or `{singe_interpreter_info_cmd}` to inspect the single interpreter "
+            "{current_interpreter}.".format(
+                current_interpreter=sys.executable,
                 singe_interpreter_info_cmd=singe_interpreter_info_cmd,
                 all_interpreters_info_cmd=all_interpreters_info_cmd,
             )

@@ -1154,7 +1154,7 @@ def _download_internal(
 class LocalDistribution(object):
     path = attr.ib()  # type: str
     fingerprint = attr.ib()  # type: str
-    target = attr.ib(default=targets.current())  # type: Target
+    target = attr.ib(factory=targets.current)  # type: Target
 
     @fingerprint.default
     def _calculate_fingerprint(self):
