@@ -31,7 +31,17 @@ from pex.venv.virtualenv import PipUnavailableError, Virtualenv
 
 if TYPE_CHECKING:
     import typing
-    from typing import Container, DefaultDict, Iterable, Iterator, List, Optional, Tuple, Union
+    from typing import (
+        Container,
+        DefaultDict,
+        Iterable,
+        Iterator,
+        List,
+        Optional,
+        Text,
+        Tuple,
+        Union,
+    )
 
     import attr  # vendor:skip
 else:
@@ -156,7 +166,7 @@ def _copytree(
     exclude=(),  # type: Container[str]
     symlink=False,  # type: bool
 ):
-    # type: (...) -> Iterator[Tuple[str, str]]
+    # type: (...) -> Iterator[Tuple[Text, Text]]
     safe_mkdir(dst)
     link = True
     for root, dirs, files in os.walk(src, topdown=True, followlinks=True):
@@ -224,7 +234,7 @@ class Provenance(object):
         # type: (...) -> None
         self._target_dir = target_dir
         self._target_python = target_python
-        self._provenance = defaultdict(list)  # type: DefaultDict[str, List[str]]
+        self._provenance = defaultdict(list)  # type: DefaultDict[Text, List[Text]]
 
     @property
     def target_python(self):
@@ -241,7 +251,7 @@ class Provenance(object):
         return "#!{shebang}".format(shebang=" ".join(shebang_argv))
 
     def record(self, src_to_dst):
-        # type: (Iterable[Tuple[str, str]]) -> None
+        # type: (Iterable[Tuple[Text, Text]]) -> None
         for src, dst in src_to_dst:
             self._provenance[dst].append(src)
 
@@ -305,7 +315,7 @@ def _populate_flat_deps(
     distributions,  # type: Iterable[Distribution]
     symlink=False,  # type: bool
 ):
-    # type: (...) -> Iterator[Tuple[str, str]]
+    # type: (...) -> Iterator[Tuple[Text, Text]]
     for dist in distributions:
         try:
             installed_wheel = InstalledWheel.load(dist.location)
@@ -477,7 +487,7 @@ def _populate_venv_deps(
     hermetic_scripts=True,  # type: bool
     top_level_source_packages=(),  # type: Iterable[str]
 ):
-    # type: (...) -> Iterator[Tuple[str, str]]
+    # type: (...) -> Iterator[Tuple[Text, Text]]
 
     # Since the pex distributions are all materialized to ~/.pex/installed_wheels, which we control,
     # we can optionally symlink to take advantage of sharing generated *.pyc files for auto-venvs
@@ -586,18 +596,18 @@ def _populate_sources(
     pex,  # type: PEX
     dst,  # type: str
 ):
-    # type: (...) -> Iterator[Tuple[str, str]]
+    # type: (...) -> Iterator[Tuple[Text, Text]]
 
     # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
     # sources into the venv.
     pex_sources = PEXSources.mount(pex)
-    for src, dst in _copytree(
+    for src, dest in _copytree(
         src=pex_sources.path,
         dst=dst,
         exclude=pex_sources.excludes,
         symlink=False,
     ):
-        yield src, dst
+        yield src, dest
 
 
 def _populate_first_party(
@@ -607,7 +617,7 @@ def _populate_first_party(
     venv_python,  # type: str
     bin_path,  # type: BinPath.Value
 ):
-    # type: (...) -> Iterator[Tuple[str, str]]
+    # type: (...) -> Iterator[Tuple[Text, Text]]
 
     # We want the venv at rest to reflect the PEX it was created from at rest; as such we use the
     # PEX's at-rest PEX-INFO to perform the layout. The venv can then be executed with various PEX

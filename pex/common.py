@@ -20,7 +20,7 @@ from collections import defaultdict, namedtuple
 from datetime import datetime
 from uuid import uuid4
 
-from pex.typing import TYPE_CHECKING, cast
+from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import (
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
         Optional,
         Set,
         Sized,
+        Text,
         Tuple,
         Union,
     )
@@ -49,26 +50,22 @@ _UNIX_EPOCH = datetime(year=1970, month=1, day=1, hour=0, minute=0, second=0, tz
 DETERMINISTIC_DATETIME_TIMESTAMP = (DETERMINISTIC_DATETIME - _UNIX_EPOCH).total_seconds()
 
 
-def filter_pyc_dirs(dirs):
-    # type: (Iterable[str]) -> Iterator[str]
-    """Return an iterator over the input `dirs` filtering out Python bytecode cache directories."""
-    for d in dirs:
-        if d != "__pycache__":
-            yield d
+def is_pyc_dir(dir_path):
+    # type: (Text) -> bool
+    """Return `True` if `dir_path` is a Python bytecode cache directory."""
+    return os.path.basename(dir_path) == "__pycache__"
 
 
-def filter_pyc_files(files):
-    # type: (Iterable[str]) -> Iterator[str]
-    """Iterate the input `files` filtering out any Python bytecode files."""
-    for f in files:
-        # For Python 2.7, `.pyc` files are compiled as siblings to `.py` files (there is no
-        # __pycache__ dir).
-        if not f.endswith((".pyc", ".pyo")) and not is_pyc_temporary_file(f):
-            yield f
+def is_pyc_file(file_path):
+    # type: (Text) -> bool
+    """Return `True` if `file_path` is a Python bytecode file."""
+    # N.B.: For Python 2.7, `.pyc` files are compiled as siblings to `.py` files (there is no
+    # __pycache__ dir).
+    return file_path.endswith((".pyc", ".pyo")) or is_pyc_temporary_file(file_path)
 
 
 def is_pyc_temporary_file(file_path):
-    # type: (str) -> bool
+    # type: (Text) -> bool
     """Check if `file` is a temporary Python bytecode file."""
     # We rely on the fact that the temporary files created by CPython have object id (integer)
     # suffixes to avoid picking up files where Python bytecode compilation is in-flight; i.e.:
@@ -99,7 +96,7 @@ def pluralize(
 
 
 def safe_copy(source, dest, overwrite=False):
-    # type: (str, str, bool) -> None
+    # type: (Text, Text, bool) -> None
     def do_copy():
         # type: () -> None
         temp_dest = dest + uuid4().hex
@@ -224,6 +221,7 @@ class PermPreservingZipFile(zipfile.ZipFile, object):
 
 @contextlib.contextmanager
 def open_zip(path, *args, **kwargs):
+    # type: (Text, *Any, **Any) -> Iterator[PermPreservingZipFile]
     """A contextmanager for zip files.
 
     Passes through positional and kwargs to zipfile.ZipFile.
@@ -289,7 +287,7 @@ def register_rmtree(directory):
 
 
 def safe_mkdir(directory, clean=False):
-    # type: (str, bool) -> str
+    # type: (Text, bool) -> Text
     """Safely create a directory.
 
     Ensures a directory is present.  If it's not there, it is created.  If it is, it's a no-op. If
@@ -332,7 +330,7 @@ def safe_delete(filename):
 
 
 def safe_rmtree(directory):
-    # type: (str) -> None
+    # type: (Text) -> None
     """Delete a directory if it's present.
 
     If it's not present, no-op.

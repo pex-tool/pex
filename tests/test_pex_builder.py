@@ -31,7 +31,7 @@ except ImportError:
     import mock  # type: ignore[no-redef,import]
 
 if TYPE_CHECKING:
-    from typing import Any, Iterator, List, Set
+    from typing import Any, Iterator, List, Set, Text
 
 exe_main = """
 import sys
@@ -355,7 +355,7 @@ def test_pex_builder_exclude_bootstrap_testing(
     pb.build(pex_path, layout=layout)
 
     bootstrap_location = os.path.join(pex_path, pb.info.bootstrap)
-    bootstrap_files = set()  # type: Set[str]
+    bootstrap_files = set()  # type: Set[Text]
     if Layout.ZIPAPP == layout:
         with open_zip(pex_path) as zf:
             bootstrap_files.update(

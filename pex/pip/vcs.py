@@ -7,7 +7,7 @@ import os
 import re
 
 from pex import hashing
-from pex.common import filter_pyc_dirs, filter_pyc_files, open_zip, temporary_dir
+from pex.common import is_pyc_dir, is_pyc_file, open_zip, temporary_dir
 from pex.hashing import Sha256
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
@@ -102,6 +102,6 @@ def digest_vcs_archive(
         hashing.dir_hash(
             directory=chroot,
             digest=digest,
-            dir_filter=lambda dirs: [d for d in filter_pyc_dirs(dirs) if d != vcs_control_dir],
-            file_filter=filter_pyc_files,
+            dir_filter=lambda dir_path: not is_pyc_dir(dir_path) and dir_path != vcs_control_dir,
+            file_filter=lambda f: not is_pyc_file(f),
         )

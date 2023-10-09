@@ -17,7 +17,7 @@ from pex.common import (
     Chroot,
     chmod_plus_x,
     deterministic_walk,
-    filter_pyc_files,
+    is_pyc_file,
     is_pyc_temporary_file,
     safe_copy,
     safe_delete,
@@ -651,7 +651,9 @@ class PEXBuilder(object):
             if root == _ABS_PEX_PACKAGE_DIR:
                 dirs[:] = bootstrap_packages
 
-            for f in filter_pyc_files(files):
+            for f in files:
+                if is_pyc_file(f):
+                    continue
                 abs_src = os.path.join(root, f)
                 # N.B.: Some of the `pex.*` package files (__init__.py) will already have been
                 # prepared when vendoring the runtime above; so we skip them here.

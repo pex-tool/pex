@@ -94,7 +94,7 @@ def random_bytes(length):
 
 
 def get_dep_dist_names_from_pex(pex_path, match_prefix=""):
-    # type: (str, str) -> Set[str]
+    # type: (str, str) -> Set[Text]
     """Given an on-disk pex, extract all of the unique first-level paths under `.deps`."""
     with open_zip(pex_path) as pex_zip:
         dep_gen = (f.split(os.sep)[1] for f in pex_zip.namelist() if f.startswith(".deps/"))
@@ -667,7 +667,7 @@ def environment_as(**kwargs):
 
 @contextmanager
 def pushd(directory):
-    # type: (str) -> Iterator[None]
+    # type: (Text) -> Iterator[None]
     cwd = os.getcwd()
     try:
         os.chdir(directory)
