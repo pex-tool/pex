@@ -95,13 +95,10 @@ def test_isolated_pex_zip(tmpdir):
     current_pex_isolation = set(current_isolated_vendoreds.keys()) ^ set(
         current_pex_isolated_vendoreds.keys()
     )
-    assert 1 == len(current_pex_isolation), (
-        "Since the modified Pex PEX was built from a Pex PEX an isolation of the Pex PEX bootstrap "
-        "code should have occurred bringing the total isolations up to two."
+    assert 0 == len(current_pex_isolation), (
+        "Since the current Pex PEX was built from the same Pex code as the current loose source "
+        "Pex, a new isolation of the Pex PEX bootstrap code should not have occurred."
     )
-    current_pex_vendoreds = current_pex_isolated_vendoreds[current_pex_isolation.pop()]
-    assert "pip" not in current_pex_vendoreds, "Expected a Pex runtime isolation."
-    assert "wheel" not in current_pex_vendoreds, "Expected a Pex runtime isolation."
 
     # 3. Isolate modified Pex PEX at build-time.
     # ===

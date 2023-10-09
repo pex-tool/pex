@@ -51,9 +51,9 @@ def get_downloads_dir(pex_root=None):
 @attr.s(frozen=True)
 class ArtifactDownloader(object):
     resolver = attr.ib()  # type: Resolver
-    target = attr.ib(default=LocalInterpreter.create())  # type: Target
+    target = attr.ib(factory=LocalInterpreter.create)  # type: Target
     package_index_configuration = attr.ib(
-        default=PackageIndexConfiguration.create()
+        factory=PackageIndexConfiguration.create
     )  # type: PackageIndexConfiguration
     max_parallel_jobs = attr.ib(default=None)  # type: Optional[int]
     pip = attr.ib(init=False)  # type: Pip
