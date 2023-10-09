@@ -347,9 +347,9 @@ class Virtualenv(object):
             self._sys_path = tuple(stdout.strip().splitlines())
         return self._sys_path
 
-    def iter_distributions(self):
-        # type: () -> Iterator[Distribution]
-        for dist in find_distributions(search_path=self._interpreter.site_packages):
+    def iter_distributions(self, rescan=False):
+        # type: (bool) -> Iterator[Distribution]
+        for dist in find_distributions(search_path=self._interpreter.site_packages, rescan=rescan):
             yield dist
 
     def _rewrite_base_scripts(self, real_venv_dir):

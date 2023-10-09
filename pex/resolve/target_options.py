@@ -79,11 +79,11 @@ def register(
             'e.g. "CPython>=2.7,<3" (A CPython interpreter with version >=2.7 AND version <3), '
             '">=2.7,<3" (Any Python interpreter with version >=2.7 AND version <3) or "PyPy" (A '
             "PyPy interpreter of any version). This argument may be repeated multiple times to OR "
-            "the constraints. Try `{singe_interpreter_info_cmd}` to find the exact interpreter "
+            "the constraints. Try `{single_interpreter_info_cmd}` to find the exact interpreter "
             "constraints of {current_interpreter} and `{all_interpreters_info_cmd}` to find out "
             "the interpreter constraints of all Python interpreters on the $PATH.".format(
                 current_interpreter=sys.executable,
-                singe_interpreter_info_cmd=single_interpreter_info_cmd,
+                single_interpreter_info_cmd=single_interpreter_info_cmd,
                 all_interpreters_info_cmd=all_interpreters_info_cmd,
             )
         ),
@@ -95,7 +95,7 @@ def register(
 
 def _register_platform_options(
     parser,  # type: _ActionsContainer
-    singe_interpreter_info_cmd,  # type: str
+    single_interpreter_info_cmd,  # type: str
     all_interpreters_info_cmd,  # type: str
 ):
     # type: (...) -> None
@@ -115,10 +115,10 @@ def _register_platform_options(
             "https://www.python.org/dev/peps/pep-0427#file-name-convention and influenced by "
             "https://www.python.org/dev/peps/pep-0425. To find out more, try "
             "`{all_interpreters_info_cmd}` to print out the platform for all interpreters on the "
-            "$PATH or `{singe_interpreter_info_cmd}` to inspect the single interpreter "
+            "$PATH or `{single_interpreter_info_cmd}` to inspect the single interpreter "
             "{current_interpreter}.".format(
                 current_interpreter=sys.executable,
-                singe_interpreter_info_cmd=singe_interpreter_info_cmd,
+                single_interpreter_info_cmd=single_interpreter_info_cmd,
                 all_interpreters_info_cmd=all_interpreters_info_cmd,
             )
         ),

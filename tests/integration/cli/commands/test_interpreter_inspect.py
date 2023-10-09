@@ -8,6 +8,7 @@ from pex.interpreter import PythonInterpreter
 from pex.pep_425 import CompatibilityTags
 from pex.pep_508 import MarkerEnvironment
 from pex.typing import TYPE_CHECKING, cast
+from pex.venv.virtualenv import Virtualenv
 from testing import IntegResults
 from testing.cli import run_pex3
 
@@ -45,8 +46,18 @@ def assert_default_verbose_data(
 ):
     # type: (...) -> Dict[str, Any]
 
+    return assert_verbose_data(PythonInterpreter.get(), *args, **popen_kwargs)
+
+
+def assert_verbose_data(
+    interpreter,  # type: PythonInterpreter
+    *args,  # type: str
+    **popen_kwargs  # type: str
+):
+    # type: (...) -> Dict[str, Any]
+
     data = json.loads(assert_inspect(*args, **popen_kwargs))
-    assert PythonInterpreter.get().binary == data.pop("path")
+    assert interpreter.binary == data.pop("path")
     return cast("Dict[str, Any]", data)
 
 
@@ -124,3 +135,14 @@ def test_inspect_interpreter_selection(
         "--python-path",
         os.pathsep.join([os.path.dirname(py38.binary), py310.binary]),
     ).splitlines()
+
+
+def test_inspect_distributions(tmpdir):
+    # type: (Any) -> None
+
+    venv = Virtualenv.create(venv_dir=os.path.join(str(tmpdir), "venv"))
+    venv.install_pip()
+    venv.interpreter.execute(args=["-mpip", "install", "ansicolors==1.1.8", "cowsay==5.0"])
+
+    data = assert_verbose_data(venv.interpreter, "-vd", "--python", venv.interpreter.binary)
+    assert {"pip", "ansicolors", "cowsay"}.issubset(data["distributions"].keys())

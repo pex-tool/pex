@@ -17,8 +17,10 @@ from fileinput import FileInput
 from pex import dist_metadata, hashing
 from pex.common import is_pyc_dir, is_pyc_file, is_python_script, safe_mkdir, safe_open
 from pex.compatibility import get_stdout_bytes_buffer, urlparse
-from pex.dist_metadata import Distribution, EntryPoint
+from pex.dist_metadata import Distribution, EntryPoint, MetadataFiles, MetadataType
 from pex.interpreter import PythonInterpreter
+from pex.pep_440 import Version
+from pex.pep_503 import ProjectName
 from pex.typing import TYPE_CHECKING, cast
 from pex.venv.virtualenv import Virtualenv
 
@@ -29,7 +31,6 @@ if TYPE_CHECKING:
         Dict,
         Iterable,
         Iterator,
-        List,
         Optional,
         Protocol,
         Text,
@@ -433,6 +434,12 @@ class UnrecognizedInstallationSchemeError(RecordError):
 
 
 @attr.s(frozen=True)
+class DistInfoFile(object):
+    path = attr.ib()  # type: Text
+    content = attr.ib()  # type: bytes
+
+
+@attr.s(frozen=True)
 class Record(object):
     """Represents the PEP-376 RECORD of an installed wheel.
 
@@ -465,7 +472,10 @@ class Record(object):
         project_name,  # type: str
         version,  # type: str
     ):
-        # type: (...) -> Optional[Tuple[Text, str, List[str]]]
+        # type: (...) -> Optional[MetadataFiles]
+
+        canonical_project_name = ProjectName(project_name)
+        canonical_version = Version(version)
 
         # Some distributions in the wild (namely python-certifi-win32 1.6.1,
         # see: https://github.com/pantsbuild/pex/issues/1861) create their own directories named
@@ -481,16 +491,11 @@ class Record(object):
             if d == "site-packages"
         ]
         for site_packages_dir in site_packages_dirs:
-            site_packages_listing = [
-                os.path.relpath(os.path.join(root, f), site_packages_dir)
-                for root, _, files in os.walk(site_packages_dir)
-                for f in files
-            ]
-            record_relative_path = dist_metadata.find_dist_info_file(
-                project_name, version=version, filename="RECORD", listing=site_packages_listing
+            metadata_files = MetadataType.DIST_INFO.load_metadata(
+                site_packages_dir, project_name=canonical_project_name
             )
-            if record_relative_path:
-                return record_relative_path, site_packages_dir, site_packages_listing
+            if metadata_files and canonical_version == metadata_files.metadata.version:
+                return metadata_files
         return None
 
     @classmethod
@@ -501,27 +506,32 @@ class Record(object):
         version,  # type: str
     ):
         # type: (...) -> Record
-        result = cls._find_installation(prefix_dir, project_name, version)
-        if not result:
+        metadata_files = cls._find_installation(prefix_dir, project_name, version)
+        if not metadata_files:
             raise RecordNotFoundError(
-                "Could not find the installation RECORD for {project_name} {version} under "
+                "Could not find project metadata for {project_name} {version} under "
                 "{prefix_dir}".format(
                     project_name=project_name, version=version, prefix_dir=prefix_dir
                 )
             )
+        record_relpath = metadata_files.metadata_file_rel_path("RECORD")
+        if not record_relpath:
+            raise RecordNotFoundError(
+                "Could not find the installation RECORD for {project_name} {version} under "
+                "{location}".format(
+                    project_name=project_name,
+                    version=version,
+                    location=metadata_files.metadata.location,
+                )
+            )
 
-        record_relative_path, site_packages, site_packages_listing = result
-        metadata_dir = os.path.dirname(record_relative_path)
-        base_dir = os.path.relpath(site_packages, prefix_dir)
+        rel_base_dir = os.path.relpath(metadata_files.metadata.location, prefix_dir)
         return cls(
             project_name=project_name,
             version=version,
             prefix_dir=prefix_dir,
-            rel_base_dir=base_dir,
-            relative_path=record_relative_path,
-            metadata_listing=tuple(
-                path for path in site_packages_listing if metadata_dir == os.path.dirname(path)
-            ),
+            rel_base_dir=rel_base_dir,
+            relative_path=record_relpath,
         )
 
     project_name = attr.ib()  # type: str
@@ -529,19 +539,26 @@ class Record(object):
     prefix_dir = attr.ib()  # type: str
     rel_base_dir = attr.ib()  # type: Text
     relative_path = attr.ib()  # type: Text
-    _metadata_listing = attr.ib()  # type: Tuple[str, ...]
 
     def _find_dist_info_file(self, filename):
-        # type: (str) -> Optional[Text]
-        metadata_file = dist_metadata.find_dist_info_file(
-            project_name=self.project_name,
-            version=self.version,
-            filename=filename,
-            listing=self._metadata_listing,
+        # type: (str) -> Optional[DistInfoFile]
+        metadata_files = MetadataType.DIST_INFO.load_metadata(
+            location=os.path.join(self.prefix_dir, self.rel_base_dir),
+            project_name=ProjectName(self.project_name),
         )
-        if not metadata_file:
+        if metadata_files is None:
             return None
-        return os.path.join(self.rel_base_dir, metadata_file)
+
+        metadata_file_rel_path = metadata_files.metadata_file_rel_path(filename)
+        if metadata_file_rel_path is None:
+            return None
+
+        content = metadata_files.read(filename)
+        if content is None:
+            return None
+
+        file_path = os.path.join(metadata_files.metadata.location, metadata_file_rel_path)
+        return DistInfoFile(path=file_path, content=content)
 
     def fixup_install(
         self,
@@ -616,11 +633,10 @@ class Record(object):
             return
 
         console_scripts = {}  # type: Dict[Text, EntryPoint]
-        entry_points_relpath = self._find_dist_info_file("entry_points.txt")
-        if entry_points_relpath:
-            entry_points_abspath = os.path.join(self.prefix_dir, entry_points_relpath)
+        entry_points_file = self._find_dist_info_file("entry_points.txt")
+        if entry_points_file:
             console_scripts.update(
-                Distribution.parse_entry_map(entry_points_abspath).get("console_scripts", {})
+                Distribution.parse_entry_map(entry_points_file.content).get("console_scripts", {})
             )
 
         scripts = {}  # type: Dict[str, Optional[bytes]]
@@ -680,9 +696,10 @@ class Record(object):
 
     def _fixup_direct_url(self):
         # type: () -> None
-        direct_url_relpath = self._find_dist_info_file("direct_url.json")
-        if direct_url_relpath:
-            direct_url_abspath = os.path.join(self.prefix_dir, direct_url_relpath)
-            with open(direct_url_abspath) as fp:
-                if urlparse.urlparse(json.load(fp)["url"]).scheme == "file":
-                    os.unlink(direct_url_abspath)
+        direct_url_file = self._find_dist_info_file("direct_url.json")
+        if direct_url_file:
+            if (
+                urlparse.urlparse(json.loads(direct_url_file.content.decode("utf-8"))["url"]).scheme
+                == "file"
+            ):
+                os.unlink(direct_url_file.path)

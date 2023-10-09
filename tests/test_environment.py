@@ -24,7 +24,6 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.resolve.configured_resolver import ConfiguredResolver
-from pex.resolve.resolver_configuration import PipConfiguration
 from pex.targets import LocalInterpreter, Targets
 from pex.typing import TYPE_CHECKING
 from testing import (

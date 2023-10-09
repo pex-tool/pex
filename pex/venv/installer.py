@@ -87,7 +87,7 @@ def ensure_pip_installed(
                 "The virtual environment was successfully created, but Pip was not "
                 "installed:\n{}".format(e)
             )
-        venv_pip_version = find_dist(_PIP, venv.iter_distributions())
+        venv_pip_version = find_dist(_PIP, venv.iter_distributions(rescan=True))
         if not venv_pip_version:
             return Error(
                 "Failed to install pip into venv at {venv_dir}".format(venv_dir=venv.venv_dir)

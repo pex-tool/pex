@@ -248,7 +248,8 @@ def test_venv_pip(tmpdir):
     run_pex3("venv", "create", "-d", dest, "--pip").assert_success()
     assert "pip" in [os.path.basename(exe) for exe in venv.iter_executables()]
     distributions = {
-        dist.metadata.project_name: dist.metadata.version for dist in venv.iter_distributions()
+        dist.metadata.project_name: dist.metadata.version
+        for dist in venv.iter_distributions(rescan=True)
     }
     pip_version = distributions[ProjectName("pip")]
     expected_prefix = "pip {version} from {prefix}".format(version=pip_version.raw, prefix=dest)
@@ -513,9 +514,10 @@ def test_venv_update_target_mismatch(
         in result.error.strip()
     ), result.error
 
-    assert [] == list(Virtualenv(dest).iter_distributions())
+    venv = Virtualenv(dest)
+    assert [] == list(venv.iter_distributions())
     run_pex3("venv", "create", "ansicolors==1.1.8", "-d", dest).assert_success()
     assert [(ProjectName("ansicolors"), Version("1.1.8"))] == [
         (dist.metadata.project_name, dist.metadata.version)
-        for dist in Virtualenv(dest).iter_distributions()
+        for dist in venv.iter_distributions(rescan=True)
     ]

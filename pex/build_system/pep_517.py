@@ -13,7 +13,7 @@ from pex import third_party
 from pex.build_system import DEFAULT_BUILD_BACKEND
 from pex.build_system.pep_518 import BuildSystem, load_build_system
 from pex.common import safe_mkdtemp
-from pex.dist_metadata import DistMetadata, Distribution
+from pex.dist_metadata import DistMetadata, Distribution, MetadataType
 from pex.jobs import Job, SpawnedJob
 from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve.resolvers import Resolver
@@ -24,7 +24,7 @@ from pex.typing import TYPE_CHECKING, cast
 from pex.util import named_temporary_file
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Mapping, Optional, Text, Tuple, Union
+    from typing import Any, Dict, Iterable, Mapping, Optional, Text, Union
 
 _DEFAULT_BUILD_SYSTEMS = {}  # type: Dict[PipVersionValue, BuildSystem]
 
@@ -272,4 +272,4 @@ def spawn_prepare_metadata(
             pip_version=pip_version,
         )
     )
-    return spawned_job.map(lambda _: DistMetadata.load(build_dir))
+    return spawned_job.map(lambda _: DistMetadata.load(build_dir, MetadataType.DIST_INFO))

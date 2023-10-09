@@ -20,7 +20,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
-from pex.targets import LocalInterpreter, Target
+from pex.targets import Target
 from pex.third_party.packaging import specifiers
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
         List,
         MutableMapping,
         Optional,
+        Text,
         Tuple,
         Union,
     )
@@ -600,19 +601,17 @@ class PEXEnvironment(object):
 
         return OrderedSet(resolved_dists_by_key.values())
 
-    _NAMESPACE_PACKAGE_METADATA_RESOURCE = "namespace_packages.txt"
-
     @classmethod
     def _get_namespace_packages(cls, dist):
-        if dist.has_metadata(cls._NAMESPACE_PACKAGE_METADATA_RESOURCE):
-            return list(dist.get_metadata_lines(cls._NAMESPACE_PACKAGE_METADATA_RESOURCE))
-        else:
-            return []
+        # type: (Distribution) -> Tuple[Text, ...]
+        return tuple(dist.iter_metadata_lines("namespace_packages.txt"))
 
     @classmethod
     def _declare_namespace_packages(cls, resolved_dists):
         # type: (Iterable[Distribution]) -> None
-        namespace_packages_by_dist = OrderedDict()
+        namespace_packages_by_dist = (
+            OrderedDict()
+        )  # type: OrderedDict[Distribution, Tuple[Text, ...]]
         for dist in resolved_dists:
             namespace_packages = cls._get_namespace_packages(dist)
             # NB: Dists can explicitly declare empty namespace packages lists to indicate they have none.
