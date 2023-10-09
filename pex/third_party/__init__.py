@@ -406,13 +406,17 @@ def _isolate_pex_from_dir(
     isolate_to_dir,  # type: str
     exclude_files,  # type: Container[str]
 ):
-    from pex.common import filter_pyc_dirs, filter_pyc_files, is_pyc_temporary_file, safe_copy
+    from pex.common import is_pyc_dir, is_pyc_file, is_pyc_temporary_file, safe_copy
 
     for root, dirs, files in os.walk(pex_directory):
         relroot = os.path.relpath(root, pex_directory)
-        for d in filter_pyc_dirs(dirs):
+        for d in dirs:
+            if is_pyc_dir(d):
+                continue
             os.makedirs(os.path.join(isolate_to_dir, "pex", relroot, d))
-        for f in filter_pyc_files(files):
+        for f in files:
+            if is_pyc_file(f):
+                continue
             rel_f = os.path.join(relroot, f)
             if not is_pyc_temporary_file(rel_f) and rel_f not in exclude_files:
                 safe_copy(

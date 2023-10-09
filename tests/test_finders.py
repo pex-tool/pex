@@ -14,7 +14,7 @@ from pex.pip.installation import get_pip
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Any, Dict
+    from typing import Any, Dict, Text
 
     import attr  # vendor:skip
 else:
@@ -54,7 +54,7 @@ def create_dist(
     @attr.s(frozen=True)
     class FakeDist(Distribution):
         def get_entry_map(self):
-            # type: () -> Dict[str, Dict[str, EntryPoint]]
+            # type: () -> Dict[Text, Dict[Text, EntryPoint]]
             return {"console_scripts": {entry_point.name: entry_point}}
 
     return FakeDist(

@@ -9,7 +9,7 @@ import subprocess
 import sys
 from textwrap import dedent
 
-from pex.common import Chroot, filter_pyc_dirs, filter_pyc_files, safe_mkdtemp, touch
+from pex.common import Chroot, is_pyc_dir, is_pyc_file, safe_mkdtemp, touch
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
@@ -320,8 +320,10 @@ def vendor_runtime(
                 files[:] = modules
 
             # We copy over sources and data only; no pyc files.
-            dirs[:] = filter_pyc_dirs(dirs)
-            for filename in filter_pyc_files(files):
+            dirs[:] = [d for d in dirs if not is_pyc_dir(d)]
+            for filename in files:
+                if is_pyc_file(filename):
+                    continue
                 src = os.path.join(root, filename)
                 if src in vendored_sources:
                     continue

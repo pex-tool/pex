@@ -13,7 +13,7 @@ from hashlib import sha1
 from site import makepath  # type: ignore[attr-defined]
 
 from pex import hashing
-from pex.common import filter_pyc_dirs, filter_pyc_files, safe_mkdir, safe_mkdtemp
+from pex.common import is_pyc_dir, is_pyc_file, safe_mkdir, safe_mkdtemp
 from pex.compatibility import (  # type: ignore[attr-defined]  # `exec_function` is defined dynamically
     PY2,
     exec_function,
@@ -22,7 +22,7 @@ from pex.orderedset import OrderedSet
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import IO, Any, Callable, Iterator, Optional
+    from typing import IO, Any, Callable, Iterator, Optional, Text
 
     from pex.hashing import Hasher
 
@@ -72,7 +72,7 @@ class DistributionHelper(object):
 class CacheHelper(object):
     @classmethod
     def hash(cls, path, digest=None, hasher=sha1):
-        # type: (str, Optional[Hasher], Callable[[], Hasher]) -> str
+        # type: (Text, Optional[Hasher], Callable[[], Hasher]) -> str
         """Return the digest of a single file in a memory-efficient manner."""
         if digest is None:
             digest = hasher()
@@ -87,8 +87,9 @@ class CacheHelper(object):
         hashing.dir_hash(
             directory=directory,
             digest=digest,
-            dir_filter=filter_pyc_dirs,
-            file_filter=lambda files: (f for f in filter_pyc_files(files) if not f.startswith(".")),
+            dir_filter=is_pyc_dir,
+            file_filter=lambda file_path: not is_pyc_file(file_path)
+            and not file_path.startswith("."),
         )
         return digest.hexdigest()
 
@@ -101,8 +102,8 @@ class CacheHelper(object):
         hashing.dir_hash(
             directory=directory,
             digest=digest,
-            dir_filter=filter_pyc_dirs,
-            file_filter=filter_pyc_files,
+            dir_filter=lambda d: not is_pyc_dir(d),
+            file_filter=lambda f: not is_pyc_file(f),
         )
         return digest.hexdigest()
 
@@ -119,8 +120,8 @@ class CacheHelper(object):
             zip_path=zip_path,
             digest=digest,
             relpath=relpath,
-            dir_filter=filter_pyc_dirs,
-            file_filter=filter_pyc_files,
+            dir_filter=lambda d: not is_pyc_dir(d),
+            file_filter=lambda f: not is_pyc_file(f),
         )
         return digest.hexdigest()
 
