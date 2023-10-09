@@ -4,6 +4,7 @@
 from __future__ import absolute_import
 
 import ast
+import itertools
 import os
 import sys
 from site import USER_SITE
@@ -50,18 +51,13 @@ if TYPE_CHECKING:
 class IsolatedSysPath(object):
     @staticmethod
     def _expand_paths(*paths):
-        # type: (*str) -> Iterator[str]
-        seen = set()
-        for path in paths:
-            if path in seen:
-                continue
-            seen.add(path)
+        # type: (*str) -> OrderedSet[str]
+        def iter_synonyms(path):
             yield path
-            if not os.path.isabs(path):
-                yield os.path.abspath(path)
-            realpath = os.path.realpath(path)
-            if realpath != path:
-                yield realpath
+            yield os.path.abspath(path)
+            yield os.path.realpath(path)
+
+        return OrderedSet(itertools.chain.from_iterable(iter_synonyms(path) for path in paths))
 
     @classmethod
     def for_pex(

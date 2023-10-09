@@ -61,7 +61,7 @@ def register(
         ),
     )
 
-    singe_interpreter_info_cmd = (
+    single_interpreter_info_cmd = (
         "pex3 interpreter inspect --python {current_interpreter} --verbose --indent 4".format(
             current_interpreter=sys.executable
         )
@@ -83,14 +83,14 @@ def register(
             "constraints of {current_interpreter} and `{all_interpreters_info_cmd}` to find out "
             "the interpreter constraints of all Python interpreters on the $PATH.".format(
                 current_interpreter=sys.executable,
-                singe_interpreter_info_cmd=singe_interpreter_info_cmd,
+                singe_interpreter_info_cmd=single_interpreter_info_cmd,
                 all_interpreters_info_cmd=all_interpreters_info_cmd,
             )
         ),
     )
 
     if include_platforms:
-        _register_platform_options(parser, singe_interpreter_info_cmd, all_interpreters_info_cmd)
+        _register_platform_options(parser, single_interpreter_info_cmd, all_interpreters_info_cmd)
 
 
 def _register_platform_options(
