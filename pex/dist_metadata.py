@@ -140,7 +140,7 @@ class MetadataType(Enum["MetadataType.Value"]):
 @attr.s(frozen=True)
 class MetadataKey(object):
     metadata_type = attr.ib()  # type: MetadataType.Value
-    location = attr.ib(converter=os.path.relpath)  # type: Text
+    location = attr.ib()  # type: Text
 
 
 def _find_installed_metadata_files(
