@@ -140,7 +140,7 @@ class MetadataType(Enum["MetadataType.Value"]):
 @attr.s(frozen=True)
 class MetadataKey(object):
     metadata_type = attr.ib()  # type: MetadataType.Value
-    location = attr.ib()  # type: Text
+    location = attr.ib(converter=os.path.relpath)  # type: Text
 
 
 def _find_installed_metadata_files(
@@ -304,40 +304,39 @@ def iter_metadata_files(
 ):
     # type: (...) -> Iterator[MetadataFiles]
 
-    canonical_location = os.path.realpath(location)
     files = []
     for metadata_type in restrict_types_to or MetadataType.values():
-        key = MetadataKey(metadata_type=metadata_type, location=canonical_location)
+        key = MetadataKey(metadata_type=metadata_type, location=location)
         if rescan:
             _METADATA_FILES.pop(key, None)
         if key not in _METADATA_FILES:
             listing = []  # type: List[MetadataFiles]
             if MetadataType.DIST_INFO is metadata_type:
-                if os.path.isdir(canonical_location):
+                if os.path.isdir(location):
                     listing.extend(
                         _find_installed_metadata_files(
-                            canonical_location, MetadataType.DIST_INFO, "*.dist-info", "METADATA"
+                            location, MetadataType.DIST_INFO, "*.dist-info", "METADATA"
                         )
                     )
-                elif canonical_location.endswith(".whl") and zipfile.is_zipfile(canonical_location):
-                    metadata_files = find_wheel_metadata(canonical_location)
+                elif location.endswith(".whl") and zipfile.is_zipfile(location):
+                    metadata_files = find_wheel_metadata(location)
                     if metadata_files:
                         listing.append(metadata_files)
-            elif MetadataType.EGG_INFO is metadata_type and os.path.isdir(canonical_location):
+            elif MetadataType.EGG_INFO is metadata_type and os.path.isdir(location):
                 listing.extend(
                     _find_installed_metadata_files(
-                        canonical_location, MetadataType.EGG_INFO, "*.egg-info", "PKG-INFO"
+                        location, MetadataType.EGG_INFO, "*.egg-info", "PKG-INFO"
                     )
                 )
             elif MetadataType.PKG_INFO is metadata_type:
-                if canonical_location.endswith(".zip") and zipfile.is_zipfile(location):
-                    metadata_file = find_zip_sdist_metadata(canonical_location)
+                if location.endswith(".zip") and zipfile.is_zipfile(location):
+                    metadata_file = find_zip_sdist_metadata(location)
                     if metadata_file:
                         listing.append(MetadataFiles(metadata=metadata_file))
-                elif canonical_location.endswith(
+                elif location.endswith(
                     (".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")
-                ) and tarfile.is_tarfile(canonical_location):
-                    metadata_file = find_tar_sdist_metadata(canonical_location)
+                ) and tarfile.is_tarfile(location):
+                    metadata_file = find_tar_sdist_metadata(location)
                     if metadata_file:
                         listing.append(MetadataFiles(metadata=metadata_file))
             _METADATA_FILES[key] = tuple(listing)
