@@ -4,3 +4,7 @@ docutils<0.18
 
 sphinx==3.2.1
 sphinx_rtd_theme==0.5.0
+
+# N.B.: Sphinx doesn't work with jinja2 3.1.0.
+# See: https://github.com/sphinx-doc/sphinx/issues/10291
+jinja2<3.1.0
