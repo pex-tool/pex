@@ -1,9 +1,10 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 
 import ast
+import itertools
 import os
 import sys
 from site import USER_SITE
@@ -17,7 +18,7 @@ from pex.environment import PEXEnvironment
 from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.inherit_path import InheritPath
-from pex.interpreter import PythonInterpreter
+from pex.interpreter import PythonIdentity, PythonInterpreter
 from pex.layout import Layout
 from pex.orderedset import OrderedSet
 from pex.pex_info import PexInfo
@@ -50,34 +51,36 @@ if TYPE_CHECKING:
 class IsolatedSysPath(object):
     @staticmethod
     def _expand_paths(*paths):
-        # type: (*str) -> Iterator[str]
-        for path in paths:
+        # type: (*str) -> OrderedSet[str]
+        def iter_synonyms(path):
             yield path
-            if not os.path.isabs(path):
-                yield os.path.abspath(path)
+            yield os.path.abspath(path)
             yield os.path.realpath(path)
+
+        return OrderedSet(itertools.chain.from_iterable(iter_synonyms(path) for path in paths))
 
     @classmethod
     def for_pex(
         cls,
-        interpreter,  # type: PythonInterpreter
+        interpreter,  # type: Union[PythonInterpreter, PythonIdentity]
         pex,  # type: str
         pex_pex=None,  # type: Optional[str]
     ):
         # type: (...) -> IsolatedSysPath
-        sys_path = OrderedSet(interpreter.sys_path)
+        ident = interpreter.identity if isinstance(interpreter, PythonInterpreter) else interpreter
+        sys_path = OrderedSet(ident.sys_path)
         sys_path.add(pex)
         sys_path.add(Bootstrap.locate().path)
         if pex_pex:
             sys_path.add(pex_pex)
 
         site_packages = OrderedSet()  # type: OrderedSet[str]
-        for site_lib in interpreter.site_packages:
+        for site_lib in ident.site_packages:
             TRACER.log("Discarding site packages path: {site_lib}".format(site_lib=site_lib))
             site_packages.add(site_lib)
 
         extras_paths = OrderedSet()  # type: OrderedSet[str]
-        for extras_path in interpreter.extras_paths:
+        for extras_path in ident.extras_paths:
             TRACER.log("Discarding site extras path: {extras_path}".format(extras_path=extras_path))
             extras_paths.add(extras_path)
 
@@ -85,7 +88,7 @@ class IsolatedSysPath(object):
             sys_path=sys_path,
             site_packages=site_packages,
             extras_paths=extras_paths,
-            is_venv=interpreter.is_venv,
+            is_venv=ident.is_venv,
         )
 
     def __init__(
@@ -339,7 +342,7 @@ class PEX(object):  # noqa: T000
             # type: (Optional[str]) -> Iterable[str]
             if path is None:
                 return ()
-            locations = set(dist.location for dist in find_distributions(path))
+            locations = set(dist.location for dist in find_distributions([path]))
             return {path} | locations | set(os.path.realpath(path) for path in locations)
 
         for path_element in sys.path:

@@ -8,14 +8,14 @@ from textwrap import dedent
 
 from colors import cyan
 
-from pex.common import filter_pyc_files, safe_open
+from pex.common import is_pyc_file, safe_open
 from pex.typing import TYPE_CHECKING
 from pex.util import CacheHelper
 from pex.venv.virtualenv import Virtualenv
 from testing import IntegResults, make_env, run_pex_command
 
 if TYPE_CHECKING:
-    from typing import Any, Set
+    from typing import Any, Set, Text
 
 
 def run_pex_tools(*args):
@@ -198,11 +198,12 @@ def test_scope_issue_1631(tmpdir):
         return Virtualenv(venv_dir)
 
     def recursive_listing(venv_dir):
-        # type: (str) -> Set[str]
+        # type: (str) -> Set[Text]
         return {
             os.path.relpath(os.path.join(root, f), venv_dir)
             for root, _, files in os.walk(venv_dir)
-            for f in filter_pyc_files(files)
+            for f in files
+            if not is_pyc_file(f)
         }
 
     def site_packages_path(

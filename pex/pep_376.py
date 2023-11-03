@@ -15,7 +15,7 @@ from contextlib import closing
 from fileinput import FileInput
 
 from pex import dist_metadata, hashing
-from pex.common import filter_pyc_dirs, filter_pyc_files, is_python_script, safe_mkdir, safe_open
+from pex.common import is_pyc_dir, is_pyc_file, is_python_script, safe_mkdir, safe_open
 from pex.compatibility import get_stdout_bytes_buffer, urlparse
 from pex.dist_metadata import Distribution, EntryPoint
 from pex.interpreter import PythonInterpreter
@@ -32,6 +32,7 @@ if TYPE_CHECKING:
         List,
         Optional,
         Protocol,
+        Text,
         Tuple,
         Union,
     )
@@ -80,11 +81,11 @@ class Hash(object):
 
 
 def find_and_replace_path_components(
-    path,  # type: str
+    path,  # type: Text
     find,  # type: str
     replace,  # type: str
 ):
-    # type: (...) -> str
+    # type: (...) -> Text
     """Replace components of `path` that are exactly `find` with `replace`.
 
     >>> find_and_replace_path_components("foo/bar/baz", "bar", "spam")
@@ -130,10 +131,10 @@ class InstalledFile(object):
     @classmethod
     def normalized_path(
         cls,
-        path,  # type: str
+        path,  # type: Text
         interpreter=None,  # type: Optional[PythonInterpreter]
     ):
-        # type: (...) -> str
+        # type: (...) -> Text
         return find_and_replace_path_components(
             path, cls._python_ver(interpreter=interpreter), cls._PYTHON_VER_PLACEHOLDER
         )
@@ -144,12 +145,12 @@ class InstalledFile(object):
         path,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
     ):
-        # type: (...) -> str
+        # type: (...) -> Text
         return find_and_replace_path_components(
             path, cls._PYTHON_VER_PLACEHOLDER, cls._python_ver(interpreter=interpreter)
         )
 
-    path = attr.ib()  # type: str
+    path = attr.ib()  # type: Text
     hash = attr.ib(default=None)  # type: Optional[Hash]
     size = attr.ib(default=None)  # type: Optional[int]
 
@@ -180,7 +181,7 @@ class InstalledWheel(object):
         cls,
         prefix_dir,  # type: str
         stash_dir,  # type: str
-        record_relpath,  # type: str
+        record_relpath,  # type: Text
     ):
         # type: (...) -> InstalledWheel
         layout = {"stash_dir": stash_dir, "record_relpath": record_relpath}
@@ -223,7 +224,7 @@ class InstalledWheel(object):
 
     prefix_dir = attr.ib()  # type: str
     stash_dir = attr.ib()  # type: str
-    record_relpath = attr.ib()  # type: str
+    record_relpath = attr.ib()  # type: Text
 
     def stashed_path(self, *components):
         # type: (*str) -> str
@@ -231,7 +232,7 @@ class InstalledWheel(object):
 
     @staticmethod
     def _create_installed_file(
-        path,  # type: str
+        path,  # type: Text
         dest_dir,  # type: str
     ):
         # type: (...) -> InstalledFile
@@ -265,7 +266,7 @@ class InstalledWheel(object):
         target_dir,  # type: str
         symlink=False,  # type: bool
     ):
-        # type: (...) -> Iterator[Tuple[str, str]]
+        # type: (...) -> Iterator[Tuple[Text, Text]]
         """Re-installs the installed wheel in a flat target directory.
 
         N.B.: A record of reinstalled files is returned in the form of an iterator that must be
@@ -293,7 +294,7 @@ class InstalledWheel(object):
         symlink=False,  # type: bool
         rel_extra_path=None,  # type: Optional[str]
     ):
-        # type: (...) -> Iterator[Tuple[str, str]]
+        # type: (...) -> Iterator[Tuple[Text, Text]]
         """Re-installs the installed wheel in a venv.
 
         N.B.: A record of reinstalled files is returned in the form of an iterator that must be
@@ -328,7 +329,7 @@ class InstalledWheel(object):
         dest_dir,  # type: str
         interpreter=None,  # type: Optional[PythonInterpreter]
     ):
-        # type: (...) -> Iterator[Tuple[str, str]]
+        # type: (...) -> Iterator[Tuple[Text, Text]]
 
         link = True
         stash_abs_path = os.path.join(self.prefix_dir, self.stash_dir)
@@ -367,13 +368,15 @@ class InstalledWheel(object):
         site_packages_dir,  # type: str
         symlink=False,  # type: bool
     ):
-        # type: (...) -> Iterator[Tuple[str, str]]
+        # type: (...) -> Iterator[Tuple[Text, Text]]
 
         link = True
         for root, dirs, files in os.walk(self.prefix_dir, topdown=True, followlinks=True):
             if root == self.prefix_dir:
-                dirs[:] = [d for d in filter_pyc_dirs(dirs) if d != self.stash_dir]
-                files[:] = [f for f in filter_pyc_files(files) if f != self._LAYOUT_JSON_FILENAME]
+                dirs[:] = [d for d in dirs if not is_pyc_dir(d) and d != self.stash_dir]
+                files[:] = [
+                    f for f in files if not is_pyc_file(f) and f != self._LAYOUT_JSON_FILENAME
+                ]
 
             traverse = set(dirs)
             for path, is_dir in itertools.chain(
@@ -462,7 +465,7 @@ class Record(object):
         project_name,  # type: str
         version,  # type: str
     ):
-        # type: (...) -> Optional[Tuple[str, str, List[str]]]
+        # type: (...) -> Optional[Tuple[Text, str, List[str]]]
 
         # Some distributions in the wild (namely python-certifi-win32 1.6.1,
         # see: https://github.com/pantsbuild/pex/issues/1861) create their own directories named
@@ -497,6 +500,7 @@ class Record(object):
         project_name,  # type: str
         version,  # type: str
     ):
+        # type: (...) -> Record
         result = cls._find_installation(prefix_dir, project_name, version)
         if not result:
             raise RecordNotFoundError(
@@ -523,12 +527,12 @@ class Record(object):
     project_name = attr.ib()  # type: str
     version = attr.ib()  # type: str
     prefix_dir = attr.ib()  # type: str
-    rel_base_dir = attr.ib()  # type: str
-    relative_path = attr.ib()  # type: str
+    rel_base_dir = attr.ib()  # type: Text
+    relative_path = attr.ib()  # type: Text
     _metadata_listing = attr.ib()  # type: Tuple[str, ...]
 
     def _find_dist_info_file(self, filename):
-        # type: (str) -> Optional[str]
+        # type: (str) -> Optional[Text]
         metadata_file = dist_metadata.find_dist_info_file(
             project_name=self.project_name,
             version=self.version,
@@ -611,7 +615,7 @@ class Record(object):
         if not os.path.isdir(bin_dir):
             return
 
-        console_scripts = {}  # type: Dict[str, EntryPoint]
+        console_scripts = {}  # type: Dict[Text, EntryPoint]
         entry_points_relpath = self._find_dist_info_file("entry_points.txt")
         if entry_points_relpath:
             entry_points_abspath = os.path.join(self.prefix_dir, entry_points_relpath)

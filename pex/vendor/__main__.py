@@ -15,6 +15,7 @@ from colors import bold, green, yellow
 from redbaron import CommentNode, LiteralyEvaluable, NameNode, RedBaron
 
 from pex.common import safe_delete, safe_mkdir, safe_mkdtemp, safe_open, safe_rmtree
+from pex.interpreter import PythonInterpreter
 from pex.vendor import VendorSpec, iter_vendor_specs
 
 
@@ -206,11 +207,12 @@ def find_site_packages(prefix_dir):
     )
 
 
-def vendorize(root_dir, vendor_specs, prefix, update):
+def vendorize(interpreter, root_dir, vendor_specs, prefix, update):
     # There is bootstrapping catch-22 here. In order for `pex.third_party` to work, all 3rdparty
     # importable code must lie at the top of its vendored chroot. Although
     # `pex.pep_376.Record.fixup_install` encodes the logic to achieve this layout, we can't run
-    # that without 1st approximating that layout!. We take the tack of doing the --prefix
+    # that without the current `pex.interpreter.PythonInterpreter` and 1st approximating that
+    # layout!. We take the tack of saving the current interpreter and then doing the `--prefix`
     # install off into a temp dir, moving the site-packages importables into the vendor chroot,
     # importing the code we'll need, then moving the importables back.
     moved = {}
@@ -361,7 +363,9 @@ def vendorize(root_dir, vendor_specs, prefix, update):
             project_name=dist.project_name,
             version=dist.version,
         )
-        record.fixup_install(exclude=("constraints.txt", "__init__.py", "__pycache__"))
+        record.fixup_install(
+            exclude=("constraints.txt", "__init__.py", "__pycache__"), interpreter=interpreter
+        )
 
 
 if __name__ == "__main__":
@@ -375,10 +379,13 @@ if __name__ == "__main__":
     )
     options = parser.parse_args()
 
+    # Grab the PythonInterpreter before we nuke the supporting code needed to identify it.
+    interpreter = PythonInterpreter.get()
     root_directory = VendorSpec.ROOT
     try:
         safe_rmtree(VendorSpec.vendor_root())
         vendorize(
+            interpreter=interpreter,
             root_dir=root_directory,
             vendor_specs=list(iter_vendor_specs()),
             prefix="pex.third_party",

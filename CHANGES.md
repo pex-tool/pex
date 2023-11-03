@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.1.149
+
+Fix `--style universal` lock handing of `none` ABI wheels with a
+specific Python minor version expressed in their wheel tag. There are
+not many of these in the wild, but a user discovered the case of
+python-forge 18.6.0 which supplies 1 file on PyPI:
+`python_forge-18.6.0-py35-none-any.whl`.
+
+* Fix universal lock handling of the none ABI. (#2270)
+
 ## 2.1.148
 
 Add support to the Pex for checking if built PEXes are valid Python

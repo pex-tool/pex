@@ -508,3 +508,33 @@ def test_sys_path(python):
         'Its expected the sys_path matches the runtime sys.path with the exception of the PWD ("") '
         "head entry."
     )
+
+
+def test_sys_path_leak_for_current(tmpdir):
+    # type: (Any) -> None
+
+    expected_sys_path = [
+        entry
+        for entry in json.loads(
+            subprocess.check_output(
+                args=[
+                    sys.executable,
+                    "-sE",
+                    "-c",
+                    "import json, sys; json.dump(sys.path, sys.stdout)",
+                ]
+            ).decode("utf-8")
+        )
+        # N.B.: We expect the PythonInterpreter infrastructure to elide the implicit "" / CWD
+        # sys.path entry.
+        if entry
+    ]
+    pex_root = os.path.join(str(tmpdir), "pex_root")
+
+    new_sys_path_entry = os.path.join(str(tmpdir), "not-interpreter-sys-path")
+    with ENV.patch(PEX_ROOT=pex_root), PythonInterpreter._cleared_memory_cache():
+        sys.path.append(new_sys_path_entry)
+        try:
+            assert tuple(expected_sys_path) == PythonInterpreter.get().sys_path
+        finally:
+            sys.path.pop()

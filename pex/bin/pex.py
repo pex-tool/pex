@@ -23,7 +23,7 @@ from pex.commands.command import (
     global_environment,
     register_global_arguments,
 )
-from pex.common import die, filter_pyc_dirs, filter_pyc_files, safe_mkdtemp
+from pex.common import die, is_pyc_dir, is_pyc_file, safe_mkdtemp
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
@@ -48,7 +48,7 @@ from pex.version import __version__
 
 if TYPE_CHECKING:
     from argparse import Namespace
-    from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
+    from typing import Dict, Iterable, Iterator, List, Optional, Set, Text, Tuple
 
     import attr  # vendor:skip
 
@@ -495,7 +495,7 @@ class PythonSource(object):
     subdir = attr.ib(default=None)  # type: Optional[str]
 
     def iter_files(self):
-        # type: () -> Iterator[Tuple[str, str]]
+        # type: () -> Iterator[Tuple[Text, Text]]
         components = self.name.split(".")
         parent_package_dirs = components[:-1]
         source = components[-1]
@@ -520,7 +520,7 @@ class PythonSource(object):
         parent_package_path,  # type: List[str]
         source,  # type: str
     ):
-        # type: (...) -> Iterator[Tuple[str, str]]
+        # type: (...) -> Iterator[Tuple[Text, Text]]
         raise NotImplementedError()
 
 
@@ -530,11 +530,13 @@ class Package(PythonSource):
         parent_package_path,  # type: List[str]
         source,  # type: str
     ):
-        # type: (...) -> Iterator[Tuple[str, str]]
+        # type: (...) -> Iterator[Tuple[Text, Text]]
         package_dir = os.path.join(*(parent_package_path + [source]))
         for root, dirs, files in os.walk(package_dir):
-            dirs[:] = list(filter_pyc_dirs(dirs))
-            for f in filter_pyc_files(files):
+            dirs[:] = [d for d in dirs if not is_pyc_dir(d)]
+            for f in files:
+                if is_pyc_file(f):
+                    continue
                 src = os.path.join(root, f)
                 dst = os.path.relpath(src, self.subdir) if self.subdir else src
                 yield src, dst
@@ -546,7 +548,7 @@ class Module(PythonSource):
         parent_package_path,  # type: List[str]
         source,  # type: str
     ):
-        # type: (...) -> Iterator[Tuple[str, str]]
+        # type: (...) -> Iterator[Tuple[Text, Text]]
         module_src = os.path.join(*(parent_package_path + ["{module}.py".format(module=source)]))
         module_dest = os.path.relpath(module_src, self.subdir) if self.subdir else module_src
         yield module_src, module_dest
@@ -726,7 +728,7 @@ def _iter_directory_sources(directories):
 
 
 def _iter_python_sources(python_sources):
-    # type: (Iterable[PythonSource]) -> Iterator[Tuple[str, str]]
+    # type: (Iterable[PythonSource]) -> Iterator[Tuple[Text, Text]]
     for python_source in python_sources:
         for src, dst in python_source.iter_files():
             yield src, dst
@@ -778,7 +780,7 @@ def build_pex(
             "dependency cache."
         )
 
-    seen = set()  # type: Set[Tuple[str, str]]
+    seen = set()  # type: Set[Tuple[Text, Text]]
     for src, dst in itertools.chain(
         _iter_directory_sources(
             OrderedSet(options.sources_directory + options.resources_directory)

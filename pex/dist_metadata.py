@@ -137,12 +137,12 @@ def _parse_sdist_package_info(sdist_path):
 class DistMetadataFile(object):
     project_name = attr.ib()  # type: ProjectName
     version = attr.ib()  # type: Version
-    path = attr.ib()  # type: str
+    path = attr.ib()  # type: Text
 
 
 def find_dist_info_files(
     filename,  # type: Text
-    listing,  # type: Iterable[str]
+    listing,  # type: Iterable[Text]
 ):
     # type: (...) -> Iterator[DistMetadataFile]
 
@@ -168,10 +168,10 @@ def find_dist_info_files(
 def find_dist_info_file(
     project_name,  # type: Union[Text, ProjectName]
     filename,  # type: Text
-    listing,  # type: Iterable[str]
+    listing,  # type: Iterable[Text]
     version=None,  # type: Optional[Union[Text, Version]]
 ):
-    # type: (...) -> Optional[str]
+    # type: (...) -> Optional[Text]
 
     normalized_project_name = (
         project_name if isinstance(project_name, ProjectName) else ProjectName(project_name)
@@ -581,24 +581,24 @@ def _realpath(path):
 class Distribution(object):
     @staticmethod
     def _read_metadata_lines(metadata_path):
-        # type: (str) -> Iterator[str]
-        with open(os.path.join(metadata_path)) as fp:
+        # type: (Text) -> Iterator[Text]
+        with open(os.path.join(metadata_path), "rb") as fp:
             for line in fp:
                 # This is pkg_resources.IMetadataProvider.get_metadata_lines behavior, which our
                 # code expects.
-                normalized = line.strip()
+                normalized = line.decode("utf-8").strip()
                 if normalized and not normalized.startswith("#"):
                     yield normalized
 
     @classmethod
     def parse_entry_map(cls, entry_points_metadata_path):
-        # type: (str) -> Dict[str, Dict[str, EntryPoint]]
+        # type: (Text) -> Dict[Text, Dict[Text, EntryPoint]]
 
         # This file format is defined here:
         #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
 
-        entry_map = defaultdict(dict)  # type: DefaultDict[str, Dict[str, EntryPoint]]
-        group = None  # type: Optional[str]
+        entry_map = defaultdict(dict)  # type: DefaultDict[Text, Dict[Text, EntryPoint]]
+        group = None  # type: Optional[Text]
         for index, line in enumerate(cls._read_metadata_lines(entry_points_metadata_path), start=1):
             if line.startswith("[") and line.endswith("]"):
                 group = line[1:-1]
@@ -624,7 +624,7 @@ class Distribution(object):
     metadata = attr.ib()  # type: DistMetadata
     _metadata_files_cache = attr.ib(
         factory=dict, init=False, eq=False, repr=False
-    )  # type: Dict[str, str]
+    )  # type: Dict[Text, Text]
 
     @property
     def key(self):
@@ -658,7 +658,7 @@ class Distribution(object):
         return self.metadata.requires_dists
 
     def _get_metadata_file(self, name):
-        # type: (str) -> Optional[str]
+        # type: (Text) -> Optional[Text]
         normalized_name = os.path.normpath(name)
         if os.path.isabs(normalized_name):
             raise ValueError(
@@ -691,7 +691,7 @@ class Distribution(object):
         return self._get_metadata_file(name) is not None
 
     def get_metadata_lines(self, name):
-        # type: (str) -> Iterator[str]
+        # type: (Text) -> Iterator[Text]
         relative_path = self._get_metadata_file(name)
         if relative_path is None:
             raise MetadataNotFoundError(
@@ -707,7 +707,7 @@ class Distribution(object):
             yield line
 
     def get_entry_map(self):
-        # type: () -> Dict[str, Dict[str, EntryPoint]]
+        # type: () -> Dict[Text, Dict[Text, EntryPoint]]
         entry_points_metadata_relpath = self._get_metadata_file("entry_points.txt")
         if entry_points_metadata_relpath is None:
             return defaultdict(dict)
@@ -724,7 +724,7 @@ class Distribution(object):
 class EntryPoint(object):
     @classmethod
     def parse(cls, spec):
-        # type: (str) -> EntryPoint
+        # type: (Text) -> EntryPoint
 
         # This file format is defined here:
         #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
@@ -734,7 +734,8 @@ class EntryPoint(object):
             raise ValueError("Invalid entry point specification: {spec}.".format(spec=spec))
 
         name, value = components
-        module, sep, attrs = value.strip().partition(":")
+        # N.B.: Python identifiers must be ascii.
+        module, sep, attrs = str(value).strip().partition(":")
         if sep and not attrs:
             raise ValueError("Invalid entry point specification: {spec}.".format(spec=spec))
 
@@ -746,7 +747,7 @@ class EntryPoint(object):
 
         return cls(name=entry_point_name, module=module)
 
-    name = attr.ib()  # type: str
+    name = attr.ib()  # type: Text
     module = attr.ib()  # type: str
 
     def __str__(self):
