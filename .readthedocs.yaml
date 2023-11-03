@@ -1,4 +1,3 @@
-# Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
 version: 2
@@ -11,8 +10,6 @@ build:
 sphinx:
   configuration: docs/conf.py
 
-# We recommend specifying your dependencies to enable reproducible builds:
-# https://docs.readthedocs.io/en/stable/guides/reproducible-builds.html
 python:
   install:
   - requirements: docs/rtd/requirements.txt
