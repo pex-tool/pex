@@ -9,6 +9,7 @@ import pytest
 
 from pex.common import temporary_dir
 from pex.pip.installation import get_pip
+from pex.resolve.configured_resolver import ConfiguredResolver
 from testing import IS_LINUX_ARM64, IS_PYPY, PY_VER, run_pex_command
 
 
@@ -35,11 +36,12 @@ def test_abi3_resolution():
         # sdist. Since we want to test in --no-build, we pre-resolve/build the pycparser wheel here and
         # add the resulting wheelhouse to the --no-build pex command.
         download_dir = os.path.join(td, ".downloads")
-        get_pip().spawn_download_distributions(
+        pip = get_pip(resolver=ConfiguredResolver.default())
+        pip.spawn_download_distributions(
             download_dir=download_dir, requirements=["pycparser"]
         ).wait()
         wheel_dir = os.path.join(td, ".wheels")
-        get_pip().spawn_build_wheels(
+        pip.spawn_build_wheels(
             wheel_dir=wheel_dir, distributions=glob.glob(os.path.join(download_dir, "*"))
         ).wait()
 
