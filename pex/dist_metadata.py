@@ -157,7 +157,6 @@ def _find_installed_metadata_files(
             project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
                 source=path, pkg_info=metadata
             )
-            metadata_file_name = os.path.basename(path)
 
             def read_function(rel_path):
                 # type: (Text) -> bytes
