@@ -213,6 +213,15 @@ class PipVersion(Enum["PipVersionValue"]):
         requires_python=">=3.7",
     )
 
+    v23_3_1 = PipVersionValue(
+        version="23.3.1",
+        # N.B.: The setuptools 68.2.2 release was available on 10/21/2023 (the Pip 23.3.1 release
+        # date) but 68.0.0 is the last setuptools version to support 3.7.
+        setuptools_version="68.0.0",
+        wheel_version="0.41.2",
+        requires_python=">=3.7",
+    )
+
     VENDORED = v20_3_4_patched
     LATEST = LatestPipVersion()
     DEFAULT = DefaultPipVersion(preferred=(VENDORED, v23_2))
