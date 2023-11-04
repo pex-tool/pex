@@ -8,10 +8,8 @@ from textwrap import dedent
 import pytest
 
 from pex.common import safe_open, temporary_dir
-from pex.dist_metadata import find_distribution
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraints
-from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 from testing import (
