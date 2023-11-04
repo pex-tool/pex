@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.1.150
+
+This release brings support for `--pip-version 23.3.1`.
+
+* Add support for Pip 23.3.1. (#2276)
+
 ## 2.1.149
 
 Fix `--style universal` lock handing of `none` ABI wheels with a
