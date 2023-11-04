@@ -119,9 +119,7 @@ class PartialArtifact(object):
 class ResolvedRequirement(object):
     pin = attr.ib()  # type: Pin
     artifact = attr.ib()  # type: PartialArtifact
-    requirement = attr.ib()  # type: Requirement
     additional_artifacts = attr.ib(default=())  # type: Tuple[PartialArtifact, ...]
-    via = attr.ib(default=())  # type: Tuple[str, ...]
 
     def iter_artifacts(self):
         # type: () -> Iterator[PartialArtifact]
