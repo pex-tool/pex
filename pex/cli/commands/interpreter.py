@@ -8,6 +8,7 @@ from argparse import ArgumentParser, _ActionsContainer
 
 from pex.cli.command import BuildTimeCommand
 from pex.commands.command import JsonMixin, OutputMixin
+from pex.dist_metadata import find_distributions
 from pex.interpreter import PythonInterpreter
 from pex.interpreter_constraints import InterpreterConstraint
 from pex.resolve import target_options
@@ -59,6 +60,15 @@ class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
                 "Include the interpreter's PEP-508 marker environment in the verbose JSON output "
                 "under the 'marker_environment' key. The 'path' key is guaranteed to be present "
                 "and will contain the path to the interpreter."
+            ),
+        )
+        parser.add_argument(
+            "-d",
+            "--distributions",
+            action="store_true",
+            help=(
+                "Include information about the distributions installed on the interpreter's"
+                "`sys.path`."
             ),
         )
         cls.add_json_options(parser, entity="verbose output")
@@ -125,6 +135,7 @@ class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
                         interpreter_info.update(
                             version=interpreter.identity.version_str,
                             requirement=str(InterpreterConstraint.exact_version(interpreter)),
+                            sys_path=interpreter.sys_path,
                             platform=str(interpreter.platform),
                             venv=interpreter.is_venv,
                         )
@@ -151,6 +162,18 @@ class Interpreter(OutputMixin, JsonMixin, BuildTimeCommand):
                         interpreter_info[
                             "marker_environment"
                         ] = interpreter.identity.env_markers.as_dict()
+                    if self.options.distributions:
+                        interpreter_info["distributions"] = {
+                            dist.project_name: {
+                                "version": dist.version,
+                                "location": dist.location,
+                                "requires_python": str(dist.metadata.requires_python),
+                                "requires_dists": [
+                                    str(req) for req in dist.metadata.requires_dists
+                                ],
+                            }
+                            for dist in find_distributions(search_path=interpreter.sys_path)
+                        }
                     self.dump_json(self.options, interpreter_info, out)
                 else:
                     out.write(interpreter.binary)

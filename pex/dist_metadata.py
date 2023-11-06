@@ -4,11 +4,12 @@
 
 from __future__ import absolute_import
 
+import errno
 import functools
 import glob
 import importlib
+import itertools
 import os
-import re
 import sys
 import tarfile
 import zipfile
@@ -22,6 +23,7 @@ from textwrap import dedent
 from pex import pex_warnings
 from pex.common import open_zip, pluralize
 from pex.compatibility import to_unicode
+from pex.enum import Enum
 from pex.pep_440 import Version
 from pex.pep_503 import ProjectName
 from pex.third_party.packaging.markers import Marker
@@ -69,23 +71,16 @@ class MetadataNotFoundError(MetadataError):
     """Indicates an expected metadata file could not be found for a given distribution."""
 
 
-_PKG_INFO_BY_DIST_LOCATION = {}  # type: Dict[Text, Optional[Message]]
-
-
 def _strip_sdist_path(sdist_path):
-    # type: (Text) -> Optional[str]
-    if not sdist_path.endswith((".sdist", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".zip")):
+    # type: (Text) -> Optional[Text]
+    if not sdist_path.endswith((".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".zip")):
         return None
 
     sdist_basename = os.path.basename(sdist_path)
     filename, _ = os.path.splitext(sdist_basename)
     if filename.endswith(".tar"):
         filename, _ = os.path.splitext(filename)
-    # All PEP paths lead here for the definition of a valid project name which limits things to
-    # ascii; so this str(...) is Python 2.7 safe: https://peps.python.org/pep-0508/#names
-    # The version part of the basename is similarly restricted by:
-    #   https://peps.python.org/pep-0440/#summary-of-changes-to-pep-440
-    return str(filename)
+    return filename
 
 
 def _parse_message(message):
@@ -93,159 +88,299 @@ def _parse_message(message):
     return cast(Message, Parser().parse(StringIO(to_unicode(message))))
 
 
-def _parse_sdist_package_info(sdist_path):
-    # type: (Text) -> Optional[Message]
-    sdist_filename = _strip_sdist_path(sdist_path)
-    if sdist_filename is None:
-        return None
-
-    pkg_info_path = os.path.join(sdist_filename, "PKG-INFO")
-
-    if zipfile.is_zipfile(sdist_path):
-        with open_zip(sdist_path) as zip:
-            try:
-                return _parse_message(zip.read(pkg_info_path))
-            except KeyError as e:
-                pex_warnings.warn(
-                    "Source distribution {} did not have the expected metadata file {}: {}".format(
-                        sdist_path, pkg_info_path, e
-                    )
-                )
-                return None
-
-    if tarfile.is_tarfile(sdist_path):
-        with tarfile.open(sdist_path) as tf:
-            try:
-                pkg_info = tf.extractfile(pkg_info_path)
-                if pkg_info is None:
-                    # N.B.: `extractfile` returns None for directories and special files.
-                    return None
-                with closing(pkg_info) as fp:
-                    return _parse_message(fp.read())
-            except KeyError as e:
-                pex_warnings.warn(
-                    "Source distribution {} did not have the expected metadata file {}: {}".format(
-                        sdist_path, pkg_info_path, e
-                    )
-                )
-                return None
-
-    return None
+@attr.s(frozen=True)
+class DistMetadataFile(object):
+    type = attr.ib()  # type: MetadataType.Value
+    location = attr.ib()  # type: Text
+    rel_path = attr.ib()  # type: Text
+    project_name = attr.ib()  # type: ProjectName
+    version = attr.ib()  # type: Version
+    pkg_info = attr.ib(eq=False)  # type: Message
 
 
 @attr.s(frozen=True)
-class DistMetadataFile(object):
-    project_name = attr.ib()  # type: ProjectName
-    version = attr.ib()  # type: Version
-    path = attr.ib()  # type: Text
+class MetadataFiles(object):
+    metadata = attr.ib()  # type: DistMetadataFile
+    _additional_metadata_files = attr.ib(default=())  # type: Tuple[Text, ...]
+    _read_function = attr.ib(default=None)  # type: Optional[Callable[[Text], bytes]]
+
+    def metadata_file_rel_path(self, metadata_file_name):
+        # type: (Text) -> Optional[Text]
+        for rel_path in self._additional_metadata_files:
+            if os.path.basename(rel_path) == metadata_file_name:
+                return rel_path
+        return None
+
+    def read(self, metadata_file_name):
+        # type: (Text) -> Optional[bytes]
+        rel_path = self.metadata_file_rel_path(metadata_file_name)
+        if rel_path is None or self._read_function is None:
+            return None
+        return self._read_function(rel_path)
 
 
-def find_dist_info_files(
-    filename,  # type: Text
-    listing,  # type: Iterable[Text]
+class MetadataType(Enum["MetadataType.Value"]):
+    class Value(Enum.Value):
+        def load_metadata(
+            self,
+            location,  # type: Text
+            project_name=None,  # type: Optional[ProjectName]
+            rescan=False,  # type: bool
+        ):
+            # type: (...) -> Optional[MetadataFiles]
+            return load_metadata(
+                location, project_name=project_name, restrict_types_to=(self,), rescan=rescan
+            )
+
+    DIST_INFO = Value(".dist-info")
+    EGG_INFO = Value(".egg-info")
+    PKG_INFO = Value("PKG-INFO")
+
+
+@attr.s(frozen=True)
+class MetadataKey(object):
+    metadata_type = attr.ib()  # type: MetadataType.Value
+    location = attr.ib()  # type: Text
+
+
+def _find_installed_metadata_files(
+    location,  # type: Text
+    metadata_type,  # type: MetadataType.Value
+    metadata_dir_glob,  # type: str
+    metadata_file_name,  # type: Text
 ):
-    # type: (...) -> Iterator[DistMetadataFile]
+    # type: (...) -> Iterator[MetadataFiles]
+    metadata_files = glob.glob(os.path.join(location, metadata_dir_glob, metadata_file_name))
+    for path in metadata_files:
+        with open(path, "rb") as fp:
+            metadata = _parse_message(fp.read())
+            project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
+                source=path, pkg_info=metadata
+            )
 
-    # N.B. We know the captured project_name and version will not contain `-` even though PEP-503
-    # allows for them in project names and PEP-440 allows for them in versions in some
-    # circumstances. This is since we're limiting ourselves to the products of installs by our
-    # vendored versions of wheel and pip which turn `-` into `_` as explained in `ProjectName` and
-    # `Version` docs.
-    dist_info_metadata_pattern = "^{}$".format(
-        os.path.join(r"(?P<project_name>.+)-(?P<version>.+)\.dist-info", re.escape(filename))
-    )
-    wheel_metadata_re = re.compile(dist_info_metadata_pattern)
-    for item in listing:
-        match = wheel_metadata_re.match(item)
-        if match:
-            yield DistMetadataFile(
-                project_name=ProjectName(match.group("project_name")),
-                version=Version(match.group("version")),
-                path=item,
+            def read_function(rel_path):
+                # type: (Text) -> bytes
+                with open(os.path.join(location, rel_path), "rb") as fp:
+                    return fp.read()
+
+            yield MetadataFiles(
+                metadata=DistMetadataFile(
+                    type=metadata_type,
+                    location=location,
+                    rel_path=os.path.relpath(path, location),
+                    project_name=project_name_and_version.canonicalized_project_name,
+                    version=project_name_and_version.canonicalized_version,
+                    pkg_info=metadata,
+                ),
+                additional_metadata_files=tuple(
+                    os.path.relpath(metadata_path, location)
+                    for metadata_path in glob.glob(os.path.join(os.path.dirname(path), "*"))
+                    if os.path.basename(metadata_path) != metadata_file_name
+                ),
+                read_function=read_function,
             )
 
 
-def find_dist_info_file(
-    project_name,  # type: Union[Text, ProjectName]
-    filename,  # type: Text
-    listing,  # type: Iterable[Text]
-    version=None,  # type: Optional[Union[Text, Version]]
-):
-    # type: (...) -> Optional[Text]
-
-    normalized_project_name = (
-        project_name if isinstance(project_name, ProjectName) else ProjectName(project_name)
-    )
-
-    if isinstance(version, Version):
-        normalized_version = version
-    elif isinstance(version, str):
-        normalized_version = Version(version)
-    else:
-        normalized_version = None
-
-    for metadata_file in find_dist_info_files(filename, listing):
-        if normalized_project_name == metadata_file.project_name:
-            if normalized_version and normalized_version != metadata_file.version:
+def find_wheel_metadata(location):
+    # type: (Text) -> Optional[MetadataFiles]
+    with open_zip(location) as zf:
+        for name in zf.namelist():
+            if name.endswith("/"):
                 continue
-            return metadata_file.path
+            dist_info_dir, metadata_file = os.path.split(name)
+            if os.path.dirname(dist_info_dir):
+                continue
+            if "METADATA" != metadata_file:
+                continue
+
+            with zf.open(name) as fp:
+                metadata = _parse_message(fp.read())
+                project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
+                    source=os.path.join(location, name), pkg_info=metadata
+                )
+                metadata_file_name = os.path.basename(name)
+                files = []  # type: List[Text]
+                for rel_path in zf.namelist():
+                    head, tail = os.path.split(rel_path)
+                    if dist_info_dir == head and tail != metadata_file_name:
+                        files.append(rel_path)
+
+                def read_function(rel_path):
+                    # type: (Text) -> bytes
+                    with open_zip(location) as zf:
+                        return zf.read(rel_path)
+
+                return MetadataFiles(
+                    metadata=DistMetadataFile(
+                        type=MetadataType.DIST_INFO,
+                        location=location,
+                        rel_path=name,
+                        project_name=project_name_and_version.canonicalized_project_name,
+                        version=project_name_and_version.canonicalized_version,
+                        pkg_info=metadata,
+                    ),
+                    additional_metadata_files=tuple(files),
+                    read_function=read_function,
+                )
+
     return None
 
 
-def _parse_wheel_package_info(wheel_path):
-    # type: (Text) -> Optional[Message]
-    if not wheel_path.endswith(".whl") or not zipfile.is_zipfile(wheel_path):
-        return None
-    project_name, version, _ = os.path.basename(wheel_path).split("-", 2)
-    with open_zip(wheel_path) as whl:
-        metadata_file = find_dist_info_file(
-            project_name=project_name,
-            version=version,
-            filename="METADATA",
-            listing=whl.namelist(),
+def _is_dist_pkg_info_file_path(file_path):
+    # type: (Text) -> bool
+
+    # N.B.: Should be: <project name>-<version>/PKG-INFO
+    project_dir, metadata_file = os.path.split(file_path)
+    if os.path.dirname(project_dir):
+        return False
+    if not "-" in project_dir:
+        return False
+    return "PKG-INFO" == metadata_file
+
+
+def find_zip_sdist_metadata(location):
+    # type: (Text) -> Optional[DistMetadataFile]
+    with open_zip(location) as zf:
+        for name in zf.namelist():
+            if name.endswith("/") or not _is_dist_pkg_info_file_path(name):
+                continue
+            with zf.open(name) as fp:
+                metadata = _parse_message(fp.read())
+                project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
+                    source=os.path.join(location, name), pkg_info=metadata
+                )
+                return DistMetadataFile(
+                    type=MetadataType.PKG_INFO,
+                    location=location,
+                    rel_path=name,
+                    project_name=project_name_and_version.canonicalized_project_name,
+                    version=project_name_and_version.canonicalized_version,
+                    pkg_info=metadata,
+                )
+
+    return None
+
+
+def find_tar_sdist_metadata(location):
+    # type: (Text) -> Optional[DistMetadataFile]
+    with tarfile.open(location) as tf:
+        for member in tf.getmembers():
+            if not member.isreg() or not _is_dist_pkg_info_file_path(member.name):
+                continue
+
+            file_obj = tf.extractfile(member)
+            if file_obj is None:
+                raise IOError(
+                    errno.ENOENT,
+                    "Could not find {rel_path} in {location}.".format(
+                        rel_path=member.name, location=location
+                    ),
+                )
+            with closing(file_obj) as fp:
+                metadata = _parse_message(fp.read())
+                project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
+                    source=os.path.join(location, member.name), pkg_info=metadata
+                )
+                return DistMetadataFile(
+                    type=MetadataType.PKG_INFO,
+                    location=location,
+                    rel_path=member.name,
+                    project_name=project_name_and_version.canonicalized_project_name,
+                    version=project_name_and_version.canonicalized_version,
+                    pkg_info=metadata,
+                )
+
+    return None
+
+
+_METADATA_FILES = {}  # type: Dict[MetadataKey, Tuple[MetadataFiles, ...]]
+
+
+def iter_metadata_files(
+    location,  # type: Text
+    restrict_types_to=(),  # type: Tuple[MetadataType.Value, ...]
+    rescan=False,  # type: bool
+):
+    # type: (...) -> Iterator[MetadataFiles]
+
+    files = []
+    for metadata_type in restrict_types_to or MetadataType.values():
+        key = MetadataKey(metadata_type=metadata_type, location=location)
+        if rescan:
+            _METADATA_FILES.pop(key, None)
+        if key not in _METADATA_FILES:
+            listing = []  # type: List[MetadataFiles]
+            if MetadataType.DIST_INFO is metadata_type:
+                if os.path.isdir(location):
+                    listing.extend(
+                        _find_installed_metadata_files(
+                            location, MetadataType.DIST_INFO, "*.dist-info", "METADATA"
+                        )
+                    )
+                elif location.endswith(".whl") and zipfile.is_zipfile(location):
+                    metadata_files = find_wheel_metadata(location)
+                    if metadata_files:
+                        listing.append(metadata_files)
+            elif MetadataType.EGG_INFO is metadata_type and os.path.isdir(location):
+                listing.extend(
+                    _find_installed_metadata_files(
+                        location, MetadataType.EGG_INFO, "*.egg-info", "PKG-INFO"
+                    )
+                )
+            elif MetadataType.PKG_INFO is metadata_type:
+                if location.endswith(".zip") and zipfile.is_zipfile(location):
+                    metadata_file = find_zip_sdist_metadata(location)
+                    if metadata_file:
+                        listing.append(MetadataFiles(metadata=metadata_file))
+                elif location.endswith(
+                    (".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")
+                ) and tarfile.is_tarfile(location):
+                    metadata_file = find_tar_sdist_metadata(location)
+                    if metadata_file:
+                        listing.append(MetadataFiles(metadata=metadata_file))
+            _METADATA_FILES[key] = tuple(listing)
+        files.append(_METADATA_FILES[key])
+    return itertools.chain.from_iterable(files)
+
+
+def load_metadata(
+    location,  # type: Text
+    project_name=None,  # type: Optional[ProjectName]
+    restrict_types_to=(),  # type: Tuple[MetadataType.Value, ...]
+    rescan=False,  # type: bool
+):
+    # type: (...) -> Optional[MetadataFiles]
+    all_metadata_files = [
+        metadata_files
+        for metadata_files in iter_metadata_files(
+            location, restrict_types_to=restrict_types_to, rescan=rescan
         )
-        if not metadata_file:
-            return None
-        with whl.open(metadata_file) as fp:
-            return _parse_message(fp.read())
-
-
-def _parse_installed_distribution_info(location):
-    # type: (Text) -> Optional[Message]
-
-    if not os.path.isdir(location):
-        return None
-
-    dist_info_dirs = glob.glob(os.path.join(location, "*.dist-info"))
-    if not dist_info_dirs:
-        return None
-
-    if len(dist_info_dirs) > 1:
+        if project_name is None or project_name == metadata_files.metadata.project_name
+    ]
+    if len(all_metadata_files) == 1:
+        return all_metadata_files[0]
+    if len(all_metadata_files) > 1:
         raise AmbiguousDistributionError(
-            "Found more than one distribution at {location}:\n{dist_info_dirs}".format(
+            "Found more than one distribution inside {location}:\n{metadata_files}".format(
                 location=location,
-                dist_info_dirs="\n".join(
-                    os.path.relpath(dist_info_dir, location) for dist_info_dir in dist_info_dirs
+                metadata_files="\n".join(
+                    metadata_file.metadata.rel_path for metadata_file in all_metadata_files
                 ),
             )
         )
+    return None
 
-    metadata_file = os.path.join(dist_info_dirs[0], "METADATA")
-    if not os.path.exists(metadata_file):
-        return None
 
-    with open(metadata_file, "rb") as fp:
-        return _parse_message(fp.read())
+_PKG_INFO_BY_DIST_LOCATION = {}  # type: Dict[Text, Optional[Message]]
 
 
 def _parse_pkg_info(location):
     # type: (Text) -> Optional[Message]
     if location not in _PKG_INFO_BY_DIST_LOCATION:
-        pkg_info = _parse_wheel_package_info(location)
-        if not pkg_info:
-            pkg_info = _parse_sdist_package_info(location)
-        if not pkg_info:
-            pkg_info = _parse_installed_distribution_info(location)
+        pkg_info = None  # type: Optional[Message]
+        metadata_files = load_metadata(location)
+        if metadata_files:
+            pkg_info = metadata_files.metadata.pkg_info
         _PKG_INFO_BY_DIST_LOCATION[location] = pkg_info
     return _PKG_INFO_BY_DIST_LOCATION[location]
 
@@ -254,7 +389,7 @@ def _parse_pkg_info(location):
 class ProjectNameAndVersion(object):
     @classmethod
     def from_parsed_pkg_info(cls, source, pkg_info):
-        # type: (str, Message) -> ProjectNameAndVersion
+        # type: (Text, Message) -> ProjectNameAndVersion
         project_name = pkg_info.get("Name", None)
         version = pkg_info.get("Version", None)
         if project_name is None or version is None:
@@ -316,7 +451,7 @@ class ProjectNameAndVersion(object):
 
 
 def project_name_and_version(
-    location,  # type: Union[Text, Distribution, Message]
+    location,  # type: Union[Text, Distribution, Message, MetadataFiles]
     fallback_to_filename=True,  # type: bool
 ):
     # type: (...) -> Optional[ProjectNameAndVersion]
@@ -328,8 +463,18 @@ def project_name_and_version(
     """
     if isinstance(location, Distribution):
         return ProjectNameAndVersion(project_name=location.project_name, version=location.version)
+    if isinstance(location, MetadataFiles):
+        return ProjectNameAndVersion(
+            project_name=location.metadata.project_name.raw, version=location.metadata.version.raw
+        )
 
-    pkg_info = location if isinstance(location, Message) else _parse_pkg_info(location)
+    pkg_info = None  # type: Optional[Message]
+    if isinstance(location, Message):
+        pkg_info = location
+    else:
+        metadata_files = load_metadata(location)
+        if metadata_files:
+            pkg_info = metadata_files.metadata.pkg_info
     if pkg_info is not None:
         if isinstance(location, str):
             source = location
@@ -342,7 +487,7 @@ def project_name_and_version(
 
 
 def requires_python(location):
-    # type: (Union[Text, Distribution, Message]) -> Optional[SpecifierSet]
+    # type: (Union[Text, Distribution, Message, MetadataFiles]) -> Optional[SpecifierSet]
     """Examines dist for `Python-Requires` metadata and returns version constraints if any.
 
     See: https://www.python.org/dev/peps/pep-0345/#requires-python
@@ -353,7 +498,15 @@ def requires_python(location):
     if isinstance(location, Distribution):
         return location.metadata.requires_python
 
-    pkg_info = location if isinstance(location, Message) else _parse_pkg_info(location)
+    pkg_info = None  # type: Optional[Message]
+    if isinstance(location, Message):
+        pkg_info = location
+    elif isinstance(location, MetadataFiles):
+        pkg_info = location.metadata.pkg_info
+    else:
+        metadata_files = load_metadata(location)
+        if metadata_files:
+            pkg_info = metadata_files.metadata.pkg_info
     if pkg_info is None:
         return None
 
@@ -363,8 +516,34 @@ def requires_python(location):
     return SpecifierSet(python_requirement)
 
 
+def _parse_requires_txt(content):
+    # type: (bytes) -> Iterator[Requirement]
+    # See:
+    # + High level: https://setuptools.pypa.io/en/latest/deprecated/python_eggs.html#requires-txt
+    # + Low level:
+    #   + https://github.com/pypa/setuptools/blob/fbe0d7962822c2a1fdde8dd179f2f8b8c8bf8892/pkg_resources/__init__.py#L3256-L3279
+    #   + https://github.com/pypa/setuptools/blob/fbe0d7962822c2a1fdde8dd179f2f8b8c8bf8892/pkg_resources/__init__.py#L2792-L2818
+    marker = ""
+    for line in content.decode("utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1]
+            extra, _, mark = section.partition(":")
+            markers = []  # type: List[Text]
+            if extra:
+                markers.append('extra == "{extra}"'.format(extra=extra))
+            if mark:
+                markers.append(mark)
+            if markers:
+                marker = "; {markers}".format(markers=" and ".join(markers))
+        else:
+            yield Requirement.parse(line + marker)
+
+
 def requires_dists(location):
-    # type: (Union[Text, Distribution, Message]) -> Iterator[Requirement]
+    # type: (Union[Text, Distribution, Message, MetadataFiles]) -> Iterator[Requirement]
     """Examines dist for and returns any declared requirements.
 
     Looks for `Requires-Dist` metadata.
@@ -385,12 +564,32 @@ def requires_dists(location):
             yield requirement
         return
 
-    pkg_info = location if isinstance(location, Message) else _parse_pkg_info(location)
+    pkg_info = None  # type: Optional[Message]
+    if isinstance(location, Message):
+        pkg_info = location
+    elif isinstance(location, MetadataFiles):
+        pkg_info = location.metadata.pkg_info
+    else:
+        metadata_files = load_metadata(location)
+        if metadata_files:
+            pkg_info = metadata_files.metadata.pkg_info
     if pkg_info is None:
         return
 
-    for requires_dist in pkg_info.get_all("Requires-Dist", ()):
-        yield Requirement.parse(requires_dist)
+    requires_dists = pkg_info.get_all("Requires-Dist", ())
+    if (
+        not requires_dists
+        and isinstance(location, MetadataFiles)
+        and MetadataType.EGG_INFO is location.metadata.type
+    ):
+        for metadata_file in "requires.txt", "depends.txt":
+            content = location.read(metadata_file)
+            if content:
+                for requirement in _parse_requires_txt(content):
+                    yield requirement
+    else:
+        for requires_dist in requires_dists:
+            yield Requirement.parse(requires_dist)
 
     legacy_requires = pkg_info.get_all("Requires", [])  # type: List[str]
     if legacy_requires:
@@ -550,21 +749,30 @@ class Requirement(object):
 @attr.s(frozen=True, cache_hash=True)
 class DistMetadata(object):
     @classmethod
-    def load(cls, location):
-        # type: (Union[Text, Message]) -> DistMetadata
+    def from_metadata_files(cls, metadata_files):
+        # type: (MetadataFiles) -> DistMetadata
+        return cls(
+            project_name=metadata_files.metadata.project_name,
+            version=metadata_files.metadata.version,
+            requires_dists=tuple(requires_dists(metadata_files)),
+            requires_python=requires_python(metadata_files),
+        )
 
-        project_name_and_ver = project_name_and_version(location)
-        if not project_name_and_ver:
+    @classmethod
+    def load(
+        cls,
+        location,  # type: Text
+        *restrict_types_to  # type: MetadataType.Value
+    ):
+        # type: (...) -> DistMetadata
+
+        metadata_files = load_metadata(location, restrict_types_to=restrict_types_to)
+        if metadata_files is None:
             raise MetadataError(
                 "Failed to determine project name and version for distribution at "
                 "{location}.".format(location=location)
             )
-        return cls(
-            project_name=ProjectName(project_name_and_ver.project_name),
-            version=Version(project_name_and_ver.version),
-            requires_dists=tuple(requires_dists(location)),
-            requires_python=requires_python(location),
-        )
+        return cls.from_metadata_files(metadata_files)
 
     project_name = attr.ib()  # type: ProjectName
     version = attr.ib()  # type: Version
@@ -580,26 +788,25 @@ def _realpath(path):
 @attr.s(frozen=True)
 class Distribution(object):
     @staticmethod
-    def _read_metadata_lines(metadata_path):
-        # type: (Text) -> Iterator[Text]
-        with open(os.path.join(metadata_path), "rb") as fp:
-            for line in fp:
-                # This is pkg_resources.IMetadataProvider.get_metadata_lines behavior, which our
-                # code expects.
-                normalized = line.decode("utf-8").strip()
-                if normalized and not normalized.startswith("#"):
-                    yield normalized
+    def _read_metadata_lines(metadata_bytes):
+        # type: (bytes) -> Iterator[Text]
+        for line in metadata_bytes.splitlines():
+            # This is pkg_resources.IMetadataProvider.get_metadata_lines behavior, which our
+            # code expects.
+            normalized = line.decode("utf-8").strip()
+            if normalized and not normalized.startswith("#"):
+                yield normalized
 
     @classmethod
-    def parse_entry_map(cls, entry_points_metadata_path):
-        # type: (Text) -> Dict[Text, Dict[Text, EntryPoint]]
+    def parse_entry_map(cls, entry_points_contents):
+        # type: (bytes) -> Dict[Text, Dict[Text, EntryPoint]]
 
         # This file format is defined here:
         #   https://packaging.python.org/en/latest/specifications/entry-points/#file-format
 
         entry_map = defaultdict(dict)  # type: DefaultDict[Text, Dict[Text, EntryPoint]]
         group = None  # type: Optional[Text]
-        for index, line in enumerate(cls._read_metadata_lines(entry_points_metadata_path), start=1):
+        for index, line in enumerate(cls._read_metadata_lines(entry_points_contents), start=1):
             if line.startswith("[") and line.endswith("]"):
                 group = line[1:-1]
             elif not group:
@@ -622,9 +829,6 @@ class Distribution(object):
     location = attr.ib(converter=_realpath)  # type: str
 
     metadata = attr.ib()  # type: DistMetadata
-    _metadata_files_cache = attr.ib(
-        factory=dict, init=False, eq=False, repr=False
-    )  # type: Dict[Text, Text]
 
     @property
     def key(self):
@@ -657,61 +861,33 @@ class Distribution(object):
         # type: () -> Tuple[Requirement, ...]
         return self.metadata.requires_dists
 
-    def _get_metadata_file(self, name):
-        # type: (Text) -> Optional[Text]
+    def _read_metadata_file(self, name):
+        # type: (str) -> Optional[bytes]
         normalized_name = os.path.normpath(name)
         if os.path.isabs(normalized_name):
             raise ValueError(
-                "The metadata file name must be a relative path under the .dist-info/ directory. "
-                "Given: {name}".format(name=name)
+                "The metadata file name must be a relative path under the .dist-info/ (or "
+                ".egg-info/) directory. Given: {name}".format(name=name)
             )
 
-        metadata_file = self._metadata_files_cache.get(normalized_name)
-        if metadata_file is None:
-            metadata_file = find_dist_info_file(
-                project_name=self.metadata.project_name,
-                version=self.version,
-                filename=normalized_name,
-                listing=[
-                    os.path.relpath(path, self.location)
-                    for path in glob.glob(
-                        os.path.join(
-                            self.location, "*.dist-info/{name}".format(name=normalized_name)
-                        )
-                    )
-                ],
-            )
-            # N.B.: We store the falsey "" as the sentinel that we've searched already and the
-            # metadata file did not exist.
-            self._metadata_files_cache[normalized_name] = metadata_file or ""
-        return metadata_file or None
+        metadata_file = load_metadata(
+            location=self.location, project_name=self.metadata.project_name
+        )
+        return metadata_file.read(name) if metadata_file else None
 
-    def has_metadata(self, name):
-        # type: (str) -> bool
-        return self._get_metadata_file(name) is not None
-
-    def get_metadata_lines(self, name):
-        # type: (Text) -> Iterator[Text]
-        relative_path = self._get_metadata_file(name)
-        if relative_path is None:
-            raise MetadataNotFoundError(
-                "The metadata file {name} is not present for {project_name} {version} at "
-                "{location}".format(
-                    name=name,
-                    project_name=self.project_name,
-                    version=self.version,
-                    location=self.location,
-                )
-            )
-        for line in self._read_metadata_lines(os.path.join(self.location, relative_path)):
-            yield line
+    def iter_metadata_lines(self, name):
+        # type: (str) -> Iterator[Text]
+        contents = self._read_metadata_file(name)
+        if contents:
+            for line in self._read_metadata_lines(contents):
+                yield line
 
     def get_entry_map(self):
         # type: () -> Dict[Text, Dict[Text, EntryPoint]]
-        entry_points_metadata_relpath = self._get_metadata_file("entry_points.txt")
-        if entry_points_metadata_relpath is None:
+        entry_points_metadata_file = self._read_metadata_file("entry_points.txt")
+        if entry_points_metadata_file is None:
             return defaultdict(dict)
-        return self.parse_entry_map(os.path.join(self.location, entry_points_metadata_relpath))
+        return self.parse_entry_map(entry_points_metadata_file)
 
     def __str__(self):
         # type: () -> str
@@ -784,54 +960,46 @@ class CallableEntryPoint(EntryPoint):
 def find_distribution(
     project_name,  # type: Union[str, ProjectName]
     search_path=None,  # type: Optional[Iterable[str]]
+    rescan=False,  # type: bool
 ):
     # type: (...) -> Optional[Distribution]
 
+    canonicalized_project_name = (
+        project_name if isinstance(project_name, ProjectName) else ProjectName(project_name)
+    )
     for location in search_path or sys.path:
         if not os.path.isdir(location):
             continue
-
-        metadata_file = find_dist_info_file(
-            project_name=str(project_name),
-            filename="METADATA",
-            listing=[
-                os.path.relpath(path, location)
-                for path in glob.glob(os.path.join(location, "*.dist-info/METADATA"))
-            ],
+        metadata_files = load_metadata(
+            location,
+            project_name=canonicalized_project_name,
+            restrict_types_to=(MetadataType.DIST_INFO, MetadataType.EGG_INFO),
+            rescan=rescan,
         )
-        if not metadata_file:
-            continue
-
-        metadata_path = os.path.join(location, metadata_file)
-        with open(metadata_path, "rb") as fp:
-            pkg_info = _parse_message(fp.read())
-            dist = Distribution(location=location, metadata=DistMetadata.load(pkg_info))
-            if dist.metadata.project_name == (
-                project_name if isinstance(project_name, ProjectName) else ProjectName(project_name)
-            ):
-                return dist
-
+        if metadata_files:
+            return Distribution(
+                location=location, metadata=DistMetadata.from_metadata_files(metadata_files)
+            )
     return None
 
 
-def find_distributions(search_path=None):
-    # type: (Optional[Iterable[str]]) -> Iterator[Distribution]
-
+def find_distributions(
+    search_path=None,  # type: Optional[Iterable[str]]
+    rescan=False,  # type: bool
+):
+    # type: (...) -> Iterator[Distribution]
     seen = set()
     for location in search_path or sys.path:
         if not os.path.isdir(location):
             continue
-        for metadata_file in find_dist_info_files(
-            filename="METADATA",
-            listing=[
-                os.path.relpath(path, location)
-                for path in glob.glob(os.path.join(location, "*.dist-info/METADATA"))
-            ],
+        for metadata_files in iter_metadata_files(
+            location,
+            restrict_types_to=(MetadataType.DIST_INFO, MetadataType.EGG_INFO),
+            rescan=rescan,
         ):
-            metadata_path = os.path.realpath(os.path.join(location, metadata_file.path))
-            if metadata_path in seen:
+            if metadata_files.metadata in seen:
                 continue
-            seen.add(metadata_path)
-            with open(metadata_path, "rb") as fp:
-                pkg_info = _parse_message(fp.read())
-                yield Distribution(location=location, metadata=DistMetadata.load(pkg_info))
+            seen.add(metadata_files.metadata)
+            yield Distribution(
+                location=location, metadata=DistMetadata.from_metadata_files(metadata_files)
+            )

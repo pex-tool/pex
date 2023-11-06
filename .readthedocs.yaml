@@ -13,3 +13,8 @@ sphinx:
 python:
   install:
   - requirements: docs/rtd/requirements.txt
+
+formats:
+  - htmlzip
+  - pdf
+  - epub

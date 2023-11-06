@@ -52,7 +52,7 @@ def test_enclosing(tmpdir):
 
 def index_distributions(venv):
     # type: (Virtualenv) -> Dict[ProjectName, Distribution]
-    return {dist.metadata.project_name: dist for dist in venv.iter_distributions()}
+    return {dist.metadata.project_name: dist for dist in venv.iter_distributions(rescan=True)}
 
 
 def test_iter_distributions_setuptools_not_leaked(tmpdir):

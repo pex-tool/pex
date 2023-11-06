@@ -38,18 +38,7 @@ from pex.targets import Target
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import (
-        DefaultDict,
-        Dict,
-        Iterable,
-        List,
-        Mapping,
-        Optional,
-        Pattern,
-        Set,
-        Text,
-        Tuple,
-    )
+    from typing import DefaultDict, Dict, Iterable, Mapping, Optional, Pattern, Set, Text, Tuple
 
     import attr  # vendor:skip
 
@@ -212,7 +201,6 @@ class AnalyzeError(Exception):
 class ArtifactBuildResult(object):
     url = attr.ib()  # type: ArtifactURL
     pin = attr.ib()  # type: Pin
-    requirement = attr.ib()  # type: Requirement
 
 
 @attr.s(frozen=True)
@@ -238,11 +226,7 @@ class ArtifactBuildObserver(object):
         version = Version(match.group("version"))
         requirement = Requirement.parse(match.group("requirement"))
         pin = Pin(project_name=requirement.project_name, version=version)
-        return ArtifactBuildResult(
-            url=self._artifact_url,
-            pin=pin,
-            requirement=requirement,
-        )
+        return ArtifactBuildResult(url=self._artifact_url, pin=pin)
 
 
 class Locker(LogAnalyzer):
@@ -269,7 +253,7 @@ class Locker(LogAnalyzer):
         self._saved = set()  # type: Set[Pin]
         self._selected_path_to_pin = {}  # type: Dict[str, Pin]
 
-        self._resolved_requirements = []  # type: List[ResolvedRequirement]
+        self._resolved_requirements = OrderedDict()  # type: OrderedDict[Pin, ResolvedRequirement]
         self._pep_691_endpoints = set()  # type: Set[Endpoint]
         self._links = defaultdict(
             OrderedDict
@@ -309,23 +293,46 @@ class Locker(LogAnalyzer):
         partial_artifact = PartialArtifact(artifact_url, fingerprint)
         return pin, partial_artifact
 
+    def _maybe_record_wheel(self, url):
+        # type: (str) -> ArtifactURL
+        artifact_url = ArtifactURL.parse(url)
+        if artifact_url.is_wheel:
+            pin, partial_artifact = self._extract_resolve_data(artifact_url)
+
+            additional_artifacts = self._links[pin]
+            additional_artifacts.pop(artifact_url, None)
+            self._resolved_requirements[pin] = ResolvedRequirement(
+                pin=pin,
+                artifact=partial_artifact,
+                additional_artifacts=tuple(additional_artifacts.values()),
+            )
+            self._selected_path_to_pin[os.path.basename(artifact_url.path)] = pin
+        return artifact_url
+
     def analyze(self, line):
         # type: (str) -> LogAnalyzer.Continue[None]
 
         # The log sequence for processing a resolved requirement is as follows (log lines irrelevant
         # to our purposes omitted):
         #
-        #   1.)       "... Found link <url1> ..."
+        #   1.)        "... Found link <url1> ..."
         #   ...
-        #   1.)       "... Found link <urlN> ..."
-        #   2.)       "... Added <varying info ...> to build tracker ..."
-        # * 3.)       Lines related to extracting metadata from <requirement> if the selected
-        #             distribution is an sdist in any form (VCS, local directory, source archive).
-        # * 3.5. ERR) "... WARNING: Discarding <url> <varying info...>. Command errored out with ...
-        # * 3.5. SUC) "... Source in <tmp> has version <version>, which satisfies requirement "
-        #             "<requirement> from <url> ..."
-        #   4.)       "... Removed <requirement> from <url> ... from build tracker ..."
-        #   5.)       "... Saved <download dir>/<artifact file>
+        #   1.)        "... Found link <urlN> ..."
+        #   1.5. URL)  "... Looking up "<url>" in the cache"
+        #   1.5. PATH) "... Processing <path> ..."
+        #   2.)        "... Added <varying info ...> to build tracker ..."
+        # * 3.)        Lines related to extracting metadata from <requirement> if the selected
+        #              distribution is an sdist in any form (VCS, local directory, source archive).
+        # * 3.5. ERR)  "... WARNING: Discarding <url> <varying info...>. Command errored out with ..."
+        # * 3.5. SUC)  "... Source in <tmp> has version <version>, which satisfies requirement <requirement> from <url> ..."
+        #   4.)        "... Removed <requirement> from <url> ... from build tracker ..."
+        #   5.)        "... Saved <download dir>/<artifact file>
+
+        # Although section 1.5 is always present in all supported Pip versions, the lines in sections
+        # 2-4 are optionally present depending on selected artifact type (wheel vs sdist vs ...) and
+        # Pip version. It is constant; however, that sections 2-4 are present in all supported Pip
+        # versions when dealing with an artifact that needs to be built (sdist, VCS url or local
+        # project).
 
         # The lines in section 3 can contain this same pattern of lines if the metadata extraction
         # proceeds via PEP-517 which recursively uses Pip to resolve build dependencies. We want to
@@ -402,15 +409,12 @@ class Locker(LogAnalyzer):
                 additional_artifacts = self._links[build_result.pin]
                 additional_artifacts.pop(artifact_url, None)
 
-                self._resolved_requirements.append(
-                    ResolvedRequirement(
-                        requirement=build_result.requirement,
-                        pin=build_result.pin,
-                        artifact=PartialArtifact(
-                            url=artifact_url, fingerprint=source_fingerprint, verified=verified
-                        ),
-                        additional_artifacts=tuple(additional_artifacts.values()),
-                    )
+                self._resolved_requirements[build_result.pin] = ResolvedRequirement(
+                    pin=build_result.pin,
+                    artifact=PartialArtifact(
+                        url=artifact_url, fingerprint=source_fingerprint, verified=verified
+                    ),
+                    additional_artifacts=tuple(additional_artifacts.values()),
                 )
             return self.Continue()
 
@@ -428,29 +432,24 @@ class Locker(LogAnalyzer):
             )
             return self.Continue()
 
+        match = re.search(r"Looking up \"(?P<url>[^\s]+)\" in the cache", line)
+        if match:
+            self._maybe_record_wheel(match.group("url"))
+
+        match = re.search(r"Processing (?P<path>.*\.(whl|tar\.(gz|bz2|xz)|tgz|tbz2|txz|zip))", line)
+        if match:
+            self._maybe_record_wheel(
+                "file://{path}".format(path=os.path.abspath(match.group("path")))
+            )
+
         match = re.search(
             r"Added (?P<requirement>.+) from (?P<url>[^\s]+) .*to build tracker",
             line,
         )
         if match:
             raw_requirement = match.group("requirement")
-            url = ArtifactURL.parse(match.group("url"))
-            if url.is_wheel:
-                requirement = Requirement.parse(raw_requirement)
-                pin, partial_artifact = self._extract_resolve_data(url)
-
-                additional_artifacts = self._links[pin]
-                additional_artifacts.pop(url, None)
-                self._resolved_requirements.append(
-                    ResolvedRequirement(
-                        requirement=requirement,
-                        pin=pin,
-                        artifact=partial_artifact,
-                        additional_artifacts=tuple(additional_artifacts.values()),
-                    )
-                )
-                self._selected_path_to_pin[os.path.basename(url.path)] = pin
-            else:
+            url = self._maybe_record_wheel(match.group("url"))
+            if not url.is_wheel:
                 self._artifact_build_observer = ArtifactBuildObserver(
                     done_building_patterns=(
                         re.compile(
@@ -483,7 +482,9 @@ class Locker(LogAnalyzer):
         match = re.search(r"Saved (?P<file_path>.+)$", line)
         if match:
             saved_path = match.group("file_path")
-            self._saved.add(self._selected_path_to_pin[os.path.basename(saved_path)])
+            build_result_pin = self._selected_path_to_pin.get(os.path.basename(saved_path))
+            if build_result_pin:
+                self._saved.add(build_result_pin)
             return self.Continue()
 
         if self.style in (LockStyle.SOURCES, LockStyle.UNIVERSAL):
@@ -500,7 +501,7 @@ class Locker(LogAnalyzer):
         # type: () -> None
         resolved_requirements = [
             resolved_requirement
-            for resolved_requirement in self._resolved_requirements
+            for resolved_requirement in self._resolved_requirements.values()
             if resolved_requirement.pin in self._saved
         ]
 

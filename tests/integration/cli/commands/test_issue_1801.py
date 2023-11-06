@@ -29,16 +29,25 @@ def test_preserve_pip_download_log():
     expected_algorithm = "sha256"
     expected_hash = "00d2dde5a675579325902536738dd27e4fac1fd68f773fe36c21044eb559e187"
     with open(log_path) as fp:
+        log_text = fp.read()
+
+    assert re.search(
         # N.B.: Modern Pip excludes hashes from logged URLs when the index serves up PEP-691 json
         # responses.
-        assert re.search(
-            r"Added ansicolors==1\.1\.8 from https?://\S+/{url_suffix}(?:#{algorithm}={hash})? to build tracker".format(
-                url_suffix=re.escape(expected_url_suffix),
-                algorithm=re.escape(expected_algorithm),
-                hash=re.escape(expected_hash),
-            ),
-            fp.read(),
-        )
+        r"Added ansicolors==1\.1\.8 from https?://\S+/{url_suffix}(?:#{algorithm}={hash})? to build tracker".format(
+            url_suffix=re.escape(expected_url_suffix),
+            algorithm=re.escape(expected_algorithm),
+            hash=re.escape(expected_hash),
+        ),
+        log_text,
+    ) or re.search(
+        # N.B.: Even more modern Pip does not log "Added ... to build tracker" lines for pre-built
+        # wheels; so we look for an alternate expected log line.
+        r"Looking up \"https?://\S+/{url_suffix}\" in the cache".format(
+            url_suffix=re.escape(expected_url_suffix),
+        ),
+        log_text,
+    )
 
     lockfile = json_codec.loads(result.output)
     assert 1 == len(lockfile.locked_resolves)
