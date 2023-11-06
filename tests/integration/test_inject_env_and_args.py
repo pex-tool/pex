@@ -40,6 +40,7 @@ parametrize_execution_mode_args = pytest.mark.parametrize(
     ],
 )
 
+
 @parametrize_execution_mode_args
 def test_inject_env(
     tmpdir,  # type: Any
@@ -241,7 +242,7 @@ def test_complex(
 
     # Switching away from the built-in entrypoint should disable injected args but not the en env.
     assert {"args": ["foo", "bar"], "MESSAGE": "Hello, world!"} == json.loads(
-    # assert {"MESSAGE": "Hello, world!"} == json.loads(
+        # assert {"MESSAGE": "Hello, world!"} == json.loads(
         subprocess.check_output(args=[pex, "foo", "bar"], env=make_env(PEX_MODULE="example"))
     )
 
