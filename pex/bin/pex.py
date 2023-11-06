@@ -298,12 +298,12 @@ def configure_clp_pex_options(parser):
         type=str,
         action="append",
         help=(
-            "Adds a requirement to exclude from the built PEX. Any distribution included in the "
-            "PEX's resolve that matches the requirement is excluded from the built PEX along with "
-            "all of its transitive dependencies that are not also required by other non-excluded "
-            "distributions. At runtime, the PEX will boot without checking the excluded "
-            "dependencies are available (say, via `--inherit-path`). This option can be used "
-            "multiple times."
+            "Specifies a requirement to exclude from the built PEX. Any distribution included in "
+            "the PEX's resolve that matches the requirement is excluded from the built PEX along "
+            "with all of its transitive dependencies that are not also required by other "
+            "non-excluded distributions. At runtime, the PEX will boot without checking the "
+            "excluded dependencies are available (say, via `--inherit-path`). This option can be "
+            "used multiple times."
         ),
     )
 
