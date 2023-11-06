@@ -22,14 +22,14 @@ if TYPE_CHECKING:
     from typing import Any, Iterable, List, Optional
 
 
-# def test_inject_env_invalid():
-#     # type: () -> None
-#     result = run_pex_command(args=["--inject-env", "FOO"])
-#     result.assert_failure()
-#     assert "--inject-env" in result.error
-#     assert (
-#         "Environment variable values must be of the form `name=value`. Given: FOO" in result.error
-#     )
+def test_inject_env_invalid():
+    # type: () -> None
+    result = run_pex_command(args=["--inject-env", "FOO"])
+    result.assert_failure()
+    assert "--inject-env" in result.error
+    assert (
+        "Environment variable values must be of the form `name=value`. Given: FOO" in result.error
+    )
 
 
 parametrize_execution_mode_args = pytest.mark.parametrize(
