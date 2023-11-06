@@ -11,6 +11,7 @@ import pytest
 from pex.pep_425 import CompatibilityTags
 from pex.platforms import Platform
 from pex.third_party.packaging import tags
+from testing import data
 
 EXPECTED_BASE = [("py27", "none", "any"), ("py2", "none", "any")]
 
@@ -130,7 +131,7 @@ def test_platform_supported_tags():
 
     # A golden file test. This could break if we upgrade Pip and it upgrades packaging which, from
     # time to time, corrects omissions in tag sets.
-    golden_tags = pkgutil.get_data(__name__, "data/platforms/macosx_10_13_x86_64-cp-36-m.tags.txt")
+    golden_tags = data.load("platforms/macosx_10_13_x86_64-cp-36-m.tags.txt")
     assert golden_tags is not None
     assert (
         CompatibilityTags(
