@@ -3,14 +3,12 @@
 
 from __future__ import absolute_import
 
-from typing import Iterable, Tuple, Union
-
 from pex.dist_metadata import Distribution, Requirement
 from pex.pex_info import PexInfo
 from pex.typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing import Iterable
+    from typing import Iterable, Tuple, Union
 
     import attr  # vendor:skip
 else:
