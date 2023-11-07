@@ -346,10 +346,10 @@ class PEXEnvironment(object):
     def _resolve_requirement(
         self,
         requirement,  # type: Requirement
+        exclude_configuration,  # type: ExcludeConfiguration
         resolved_dists_by_key,  # type: MutableMapping[_RequirementKey, FingerprintedDistribution]
         required,  # type: bool
         required_by=None,  # type: Optional[Distribution]
-        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
     ):
         # type: (...) -> Iterator[_DistributionNotFound]
         requirement_key = _RequirementKey.create(requirement)
@@ -418,10 +418,10 @@ class PEXEnvironment(object):
 
             for not_found in self._resolve_requirement(
                 dep_requirement,
+                exclude_configuration,
                 resolved_dists_by_key,
                 required,
                 required_by=resolved_distribution.distribution,
-                exclude_configuration=exclude_configuration,
             ):
                 yield not_found
 
@@ -556,9 +556,9 @@ class PEXEnvironment(object):
             with TRACER.timed("Resolving {}".format(qualified_req_or_not_found.requirement), V=2):
                 for not_found in self._resolve_requirement(
                     requirement=qualified_req_or_not_found.requirement,
+                    exclude_configuration=exclude_configuration,
                     required=qualified_req_or_not_found.required,
                     resolved_dists_by_key=resolved_dists_by_key,
-                    exclude_configuration=exclude_configuration,
                 ):
                     record_unresolved(not_found)
 

@@ -826,11 +826,14 @@ def build_pex(
     pex_info.interpreter_constraints = interpreter_constraints
 
     dependency_manager = DependencyManager()
+    excluded = list(options.excluded)  # type: List[str]
+
     with TRACER.timed(
         "Adding distributions from pexes: {}".format(" ".join(options.requirements_pexes))
     ):
         for requirements_pex in options.requirements_pexes:
-            dependency_manager.add_from_pex(requirements_pex)
+            requirements_pex_info = dependency_manager.add_from_pex(requirements_pex)
+            excluded.extend(requirements_pex_info.excluded)
 
     with TRACER.timed(
         "Resolving distributions for requirements: {}".format(
@@ -858,7 +861,7 @@ def build_pex(
             die(str(e))
 
     with TRACER.timed("Configuring PEX dependencies"):
-        dependency_manager.configure(pex_builder, excluded=options.excluded)
+        dependency_manager.configure(pex_builder, excluded=excluded)
 
     if options.entry_point:
         pex_builder.set_entry_point(options.entry_point)

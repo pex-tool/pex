@@ -29,7 +29,6 @@ from pex.compatibility import commonpath, to_bytes
 from pex.compiler import Compiler
 from pex.dist_metadata import Distribution, MetadataError
 from pex.enum import Enum
-from pex.environment import PEXEnvironment
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
 from pex.interpreter import PythonInterpreter
 from pex.layout import Layout
@@ -373,21 +372,6 @@ class PEXBuilder(object):
         """
         self._ensure_unfrozen("Adding a requirement")
         self._pex_info.add_requirement(req)
-
-    def add_from_requirements_pex(self, pex):
-        """Add requirements from an existing pex.
-
-        :param pex: The path to an existing .pex file or unzipped pex directory.
-        """
-        self._ensure_unfrozen("Adding from pex")
-        pex_info = PexInfo.from_pex(pex)
-        pex_environment = PEXEnvironment.mount(pex, pex_info=pex_info)
-        for fingerprinted_dist in pex_environment.iter_distributions():
-            self.add_distribution(
-                dist=fingerprinted_dist.distribution, fingerprint=fingerprinted_dist.fingerprint
-            )
-        for requirement in pex_info.requirements:
-            self.add_requirement(requirement)
 
     def set_executable(self, filename, env_filename=None):
         """Set the executable for this environment.

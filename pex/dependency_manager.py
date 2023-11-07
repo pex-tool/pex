@@ -32,13 +32,15 @@ class DependencyManager(object):
     _distributions = attr.ib(factory=OrderedSet)  # type: OrderedSet[FingerprintedDistribution]
 
     def add_from_pex(self, pex):
-        # type: (str) -> None
+        # type: (str) -> PexInfo
 
         pex_info = PexInfo.from_pex(pex)
         self._requirements.update(Requirement.parse(req) for req in pex_info.requirements)
 
         pex_environment = PEXEnvironment.mount(pex, pex_info=pex_info)
         self._distributions.update(pex_environment.iter_distributions())
+
+        return pex_info
 
     def add_from_installed(self, installed):
         # type: (Installed) -> None
@@ -63,6 +65,12 @@ class DependencyManager(object):
         for dist in self._distributions:
             dists_by_project_name[dist.distribution.metadata.project_name].add(dist)
 
+        root_requirements_by_project_name = defaultdict(
+            OrderedSet
+        )  # type: DefaultDict[ProjectName, OrderedSet[Requirement]]
+        for root_req in self._requirements:
+            root_requirements_by_project_name[root_req.project_name].add(root_req)
+
         def iter_non_excluded_distributions(requirements):
             # type: (Iterable[Requirement]) -> Iterator[FingerprintedDistribution]
             for req in requirements:
@@ -80,7 +88,9 @@ class DependencyManager(object):
                                 candidate=candidate_dist.distribution, excludes=excludes
                             )
                         )
-                        for root_req in self._requirements:
+                        for root_req in root_requirements_by_project_name[
+                            candidate_dist.distribution.metadata.project_name
+                        ]:
                             if candidate_dist.distribution in root_req:
                                 pex_warnings.warn(
                                     "The distribution {dist} was required by the input requirement "
