@@ -1,5 +1,20 @@
 # Release Notes
 
+## 2.1.151
+
+This release brings support for a new `--exclude <req>` PEX build option
+that allows eliding selected resolved distributions from the final PEX.
+This is an advanced feature that will, in general, lead to broken PEXes
+out of the box; so read up on the `--exclude` command line help to make
+sure you understand the consequences.
+
+This release also brings a fix for `--inject-env` that ensures the
+specified environment variables are always injected to the PEX at
+runtime regardless of the PEX entry point exercised.
+
+* Implement support for `--exclude <req>`. (#2281)
+* Relocate environment variable injection to before the interpreter is run (#2260)
+
 ## 2.1.150
 
 This release brings support for `--pip-version 23.3.1`.
