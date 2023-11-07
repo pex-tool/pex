@@ -240,9 +240,8 @@ def test_complex(
     assert_message(b"Hello, world!")
     assert_message(b"42", MESSAGE="42")
 
-    # Switching away from the built-in entrypoint should disable injected args but not the en env.
+    # Switching away from the built-in entrypoint should disable injected args but not the env.
     assert {"args": ["foo", "bar"], "MESSAGE": "Hello, world!"} == json.loads(
-        # assert {"MESSAGE": "Hello, world!"} == json.loads(
         subprocess.check_output(args=[pex, "foo", "bar"], env=make_env(PEX_MODULE="example"))
     )
 
