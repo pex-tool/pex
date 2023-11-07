@@ -12,6 +12,7 @@ from collections import OrderedDict, defaultdict
 from pex import dist_metadata, pex_warnings, targets
 from pex.common import pluralize
 from pex.dist_metadata import Distribution, Requirement
+from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
@@ -345,6 +346,7 @@ class PEXEnvironment(object):
     def _resolve_requirement(
         self,
         requirement,  # type: Requirement
+        exclude_configuration,  # type: ExcludeConfiguration
         resolved_dists_by_key,  # type: MutableMapping[_RequirementKey, FingerprintedDistribution]
         required,  # type: bool
         required_by=None,  # type: Optional[Distribution]
@@ -352,6 +354,16 @@ class PEXEnvironment(object):
         # type: (...) -> Iterator[_DistributionNotFound]
         requirement_key = _RequirementKey.create(requirement)
         if requirement_key in resolved_dists_by_key:
+            return
+
+        excluded_by = exclude_configuration.excluded_by(requirement)
+        if excluded_by:
+            TRACER.log(
+                "Skipping resolving {requirement}: excluded by {excludes}".format(
+                    requirement=requirement,
+                    excludes=" and ".join(map(str, excluded_by)),
+                )
+            )
             return
 
         available_distributions = [
@@ -406,6 +418,7 @@ class PEXEnvironment(object):
 
             for not_found in self._resolve_requirement(
                 dep_requirement,
+                exclude_configuration,
                 resolved_dists_by_key,
                 required,
                 required_by=resolved_distribution.distribution,
@@ -502,14 +515,21 @@ class PEXEnvironment(object):
         # type: () -> Iterable[Distribution]
         if self._resolved_dists is None:
             all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
+            exclude_configuration = ExcludeConfiguration.create(excluded=self._pex_info.excluded)
             self._resolved_dists = tuple(
                 fingerprinted_distribution.distribution
-                for fingerprinted_distribution in self.resolve_dists(all_reqs)
+                for fingerprinted_distribution in self.resolve_dists(
+                    all_reqs, exclude_configuration=exclude_configuration
+                )
             )
         return self._resolved_dists
 
-    def resolve_dists(self, reqs):
-        # type: (Iterable[Requirement]) -> Iterable[FingerprintedDistribution]
+    def resolve_dists(
+        self,
+        reqs,  # type: Iterable[Requirement]
+        exclude_configuration=ExcludeConfiguration(),  # type: ExcludeConfiguration
+    ):
+        # type: (...) -> Iterable[FingerprintedDistribution]
 
         self._update_candidate_distributions(self.iter_distributions())
 
@@ -536,6 +556,7 @@ class PEXEnvironment(object):
             with TRACER.timed("Resolving {}".format(qualified_req_or_not_found.requirement), V=2):
                 for not_found in self._resolve_requirement(
                     requirement=qualified_req_or_not_found.requirement,
+                    exclude_configuration=exclude_configuration,
                     required=qualified_req_or_not_found.required,
                     resolved_dists_by_key=resolved_dists_by_key,
                 ):

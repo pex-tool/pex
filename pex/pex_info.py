@@ -21,6 +21,8 @@ from pex.version import __version__ as pex_version
 if TYPE_CHECKING:
     from typing import Any, Dict, Iterable, Mapping, Optional, Text, Tuple, Union
 
+    from pex.dist_metadata import Requirement
+
     # N.B.: These are expensive imports and PexInfo is used during PEX bootstrapping which we want
     # to be as fast as possible.
     from pex.interpreter import PythonInterpreter
@@ -143,6 +145,8 @@ class PexInfo(object):
         if not isinstance(requirements, (list, tuple)):
             raise ValueError("Expected requirements to be a list, got %s" % type(requirements))
         self._requirements = OrderedSet(self._parse_requirement_tuple(req) for req in requirements)
+
+        self._excluded = OrderedSet(self._pex_info.get("excluded", ()))  # type: OrderedSet[str]
 
     def _get_safe(self, key):
         if key not in self._pex_info:
@@ -445,6 +449,15 @@ class PexInfo(object):
     def requirements(self):
         return self._requirements
 
+    def add_excluded(self, requirement):
+        # type: (Requirement) -> None
+        self._excluded.add(str(requirement))
+
+    @property
+    def excluded(self):
+        # type: () -> Iterable[str]
+        return self._excluded
+
     def add_distribution(self, location, sha):
         self._distributions[location] = sha
 
@@ -527,12 +540,14 @@ class PexInfo(object):
                 other.interpreter_constraints
             )
         self._requirements.update(other.requirements)
+        self._excluded.update(other.excluded)
 
     def as_json_dict(self):
         # type: () -> Dict[str, Any]
         data = self._pex_info.copy()
         data["inherit_path"] = self.inherit_path.value
         data["requirements"] = list(self._requirements)
+        data["excluded"] = list(self._excluded)
         data["interpreter_constraints"] = [str(ic) for ic in self.interpreter_constraints]
         data["distributions"] = self._distributions.copy()
         return data
@@ -541,6 +556,7 @@ class PexInfo(object):
         # type: (...) -> str
         data = self.as_json_dict()
         data["requirements"].sort()
+        data["excluded"].sort()
         data["interpreter_constraints"].sort()
         return json.dumps(data, sort_keys=True)
 

@@ -24,6 +24,7 @@ from pex.commands.command import (
     register_global_arguments,
 )
 from pex.common import die, is_pyc_dir, is_pyc_file, safe_mkdtemp
+from pex.dependency_manager import DependencyManager
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
@@ -287,6 +288,22 @@ def configure_clp_pex_options(parser):
         "before packaged dependencies), No value (alias for prefer, for backwards "
         "compatibility).".format(
             false=InheritPath.FALSE, fallback=InheritPath.FALLBACK, prefer=InheritPath.PREFER
+        ),
+    )
+
+    group.add_argument(
+        "--exclude",
+        dest="excluded",
+        default=[],
+        type=str,
+        action="append",
+        help=(
+            "Specifies a requirement to exclude from the built PEX. Any distribution included in "
+            "the PEX's resolve that matches the requirement is excluded from the built PEX along "
+            "with all of its transitive dependencies that are not also required by other "
+            "non-excluded distributions. At runtime, the PEX will boot without checking the "
+            "excluded dependencies are available (say, via `--inherit-path`). This option can be "
+            "used multiple times."
         ),
     )
 
@@ -808,11 +825,18 @@ def build_pex(
     pex_info.strip_pex_env = options.strip_pex_env
     pex_info.interpreter_constraints = interpreter_constraints
 
-    for requirements_pex in options.requirements_pexes:
-        pex_builder.add_from_requirements_pex(requirements_pex)
+    dependency_manager = DependencyManager()
+    excluded = list(options.excluded)  # type: List[str]
 
     with TRACER.timed(
-        "Resolving distributions ({})".format(
+        "Adding distributions from pexes: {}".format(" ".join(options.requirements_pexes))
+    ):
+        for requirements_pex in options.requirements_pexes:
+            requirements_pex_info = dependency_manager.add_from_pex(requirements_pex)
+            excluded.extend(requirements_pex_info.excluded)
+
+    with TRACER.timed(
+        "Resolving distributions for requirements: {}".format(
             " ".join(
                 itertools.chain.from_iterable(
                     (
@@ -824,21 +848,20 @@ def build_pex(
         )
     ):
         try:
-            result = resolve(
-                targets=targets,
-                requirement_configuration=requirement_configuration,
-                resolver_configuration=resolver_configuration,
-                compile_pyc=options.compile,
-                ignore_errors=options.ignore_errors,
-            )
-            for installed_dist in result.installed_distributions:
-                pex_builder.add_distribution(
-                    installed_dist.distribution, fingerprint=installed_dist.fingerprint
+            dependency_manager.add_from_installed(
+                resolve(
+                    targets=targets,
+                    requirement_configuration=requirement_configuration,
+                    resolver_configuration=resolver_configuration,
+                    compile_pyc=options.compile,
+                    ignore_errors=options.ignore_errors,
                 )
-                for direct_req in installed_dist.direct_requirements:
-                    pex_builder.add_requirement(direct_req)
+            )
         except Unsatisfiable as e:
             die(str(e))
+
+    with TRACER.timed("Configuring PEX dependencies"):
+        dependency_manager.configure(pex_builder, excluded=excluded)
 
     if options.entry_point:
         pex_builder.set_entry_point(options.entry_point)
