@@ -816,7 +816,10 @@ def _populate_first_party(
                                 "PEX_EXTRA_SYS_PATH"
                             )
                         del os.environ[key]
-
+  
+            for name, value in {inject_env!r}:
+                os.environ.setdefault(name, value)
+                
             pex_script = pex_overrides.get("PEX_SCRIPT") if pex_overrides else {script!r}
             if pex_script:
                 script_path = os.path.join(venv_bin_dir, pex_script)
@@ -829,7 +832,7 @@ def _populate_first_party(
                 if pex_interpreter
                 else pex_overrides.get("PEX_MODULE", {entry_point!r} or PEX_INTERPRETER_ENTRYPOINT)
             )
-
+                                  
             if entry_point == PEX_INTERPRETER_ENTRYPOINT:
                 # A Python interpreter always inserts the CWD at the head of the sys.path.
                 # See https://docs.python.org/3/library/sys.html#sys.path
@@ -917,8 +920,6 @@ def _populate_first_party(
                     sys.exit(0)
 
             if not is_exec_override:
-                for name, value in {inject_env!r}:
-                    os.environ.setdefault(name, value)
                 sys.argv[1:1] = {inject_args!r}
 
             module_name, _, function = entry_point.partition(":")
