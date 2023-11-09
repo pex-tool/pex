@@ -91,6 +91,19 @@ def test_dir_hash():
         ), "All content under __pycache__ directories should be ignored."
 
 
+def test_dir_hash_recur_issue_2285():
+    # type: () -> None
+    with temporary_dir() as tmp_dir:
+        # explicitly confirm that we recur into directories
+        hash_empty = CacheHelper.dir_hash(tmp_dir)
+        with safe_open(os.path.join(tmp_dir, "a", "b.py"), "w") as fp:
+            fp.write("contents1")
+
+        hash_full = CacheHelper.dir_hash(tmp_dir)
+
+        assert hash_full != hash_empty
+
+
 try:
     import __builtin__ as python_builtins  # type: ignore[import]
 except ImportError:
