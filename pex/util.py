@@ -87,7 +87,7 @@ class CacheHelper(object):
         hashing.dir_hash(
             directory=directory,
             digest=digest,
-            dir_filter=is_pyc_dir,
+            dir_filter=lambda d: not is_pyc_dir(d),
             file_filter=lambda file_path: not is_pyc_file(file_path)
             and not file_path.startswith("."),
         )

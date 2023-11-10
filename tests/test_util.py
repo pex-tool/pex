@@ -6,11 +6,16 @@ import subprocess
 from hashlib import sha1
 from textwrap import dedent
 
+import pytest
+
 from pex.common import safe_mkdir, safe_open, temporary_dir, touch
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.typing import cast
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper, DistributionHelper, named_temporary_file
+
+if TYPE_CHECKING:
+    from typing import Callable
 
 try:
     from unittest import mock
@@ -57,38 +62,48 @@ def test_hash():
         assert hash_output == empty_hash.hexdigest()
 
 
-def test_dir_hash():
-    # type: () -> None
+@pytest.mark.parametrize(
+    ("hasher", "includes_hidden_expected"),
+    [(CacheHelper.dir_hash, True), (CacheHelper.pex_code_hash, False)],
+)
+def test_directory_hasher(hasher, includes_hidden_expected):
+    # type: (Callable[[str], str], bool) -> None
     with temporary_dir() as tmp_dir:
         safe_mkdir(os.path.join(tmp_dir, "a", "b"))
         with safe_open(os.path.join(tmp_dir, "c", "d", "e.py"), "w") as fp:
             fp.write("contents1")
         with safe_open(os.path.join(tmp_dir, "f.py"), "w") as fp:
             fp.write("contents2")
-        hash1 = CacheHelper.dir_hash(tmp_dir)
+        hash1 = hasher(tmp_dir)
 
         os.rename(os.path.join(tmp_dir, "c"), os.path.join(tmp_dir, "c-renamed"))
-        assert hash1 != CacheHelper.dir_hash(tmp_dir)
+        assert hash1 != hasher(tmp_dir)
 
         os.rename(os.path.join(tmp_dir, "c-renamed"), os.path.join(tmp_dir, "c"))
-        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+        assert hash1 == hasher(tmp_dir)
 
         touch(os.path.join(tmp_dir, "c", "d", "e.pyc"))
-        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+        assert hash1 == hasher(tmp_dir)
         touch(os.path.join(tmp_dir, "c", "d", "e.pyc.123456789"))
-        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+        assert hash1 == hasher(tmp_dir)
 
         pycache_dir = os.path.join(tmp_dir, "__pycache__")
         safe_mkdir(pycache_dir)
         touch(os.path.join(pycache_dir, "f.pyc"))
-        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+        assert hash1 == hasher(tmp_dir)
         touch(os.path.join(pycache_dir, "f.pyc.123456789"))
-        assert hash1 == CacheHelper.dir_hash(tmp_dir)
+        assert hash1 == hasher(tmp_dir)
 
         touch(os.path.join(pycache_dir, "f.py"))
-        assert hash1 == CacheHelper.dir_hash(
+        assert hash1 == hasher(
             tmp_dir
         ), "All content under __pycache__ directories should be ignored."
+
+        with safe_open(os.path.join(tmp_dir, ".hidden"), "w") as fp:
+            fp.write("contents3")
+
+        includes_hidden = hash1 != hasher(tmp_dir)
+        assert includes_hidden == includes_hidden_expected
 
 
 try:
