@@ -11,8 +11,11 @@ import pytest
 from pex.common import safe_mkdir, safe_open, temporary_dir, touch
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
-from pex.typing import cast
+from pex.typing import TYPE_CHECKING, cast
 from pex.util import CacheHelper, DistributionHelper, named_temporary_file
+
+if TYPE_CHECKING:
+    from typing import Callable
 
 try:
     from unittest import mock
