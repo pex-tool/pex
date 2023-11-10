@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.1.152
+
+This release fixes the computation of the hash of the code within a PEX
+when nested within directories, a bug introduced in 2.1.149.
+
+* Exclude pyc dirs, not include, when hashing code (#2286)
+
 ## 2.1.151
 
 This release brings support for a new `--exclude <req>` PEX build option
