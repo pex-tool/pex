@@ -13,7 +13,7 @@ from types import ModuleType
 from pex import bootstrap
 from pex.bootstrap import Bootstrap
 from pex.common import die
-from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint, find_distributions
+from pex.dist_metadata import CallableEntryPoint, Distribution, EntryPoint
 from pex.environment import PEXEnvironment
 from pex.executor import Executor
 from pex.finders import get_entry_point_from_console_script, get_script_from_distributions
@@ -335,31 +335,30 @@ class PEX(object):  # noqa: T000
     ):
         # type: (...) -> Tuple[List[str], Mapping[str, Any]]
         scrub_paths = OrderedSet()  # type: OrderedSet[str]
-        site_distributions = OrderedSet()  # type: OrderedSet[str]
-        user_site_distributions = OrderedSet()  # type: OrderedSet[str]
+        site_paths = OrderedSet()  # type: OrderedSet[str]
+        user_site_paths = OrderedSet()  # type: OrderedSet[str]
 
-        def all_distribution_paths(path):
+        def all_paths(path):
             # type: (Optional[str]) -> Iterable[str]
             if path is None:
                 return ()
-            locations = set(dist.location for dist in find_distributions([path]))
-            return {path} | locations | set(os.path.realpath(path) for path in locations)
+            return path, os.path.realpath(path)
 
         for path_element in sys.path:
             if path_element not in isolated_sys_path:
                 TRACER.log("Tainted path element: %s" % path_element)
-                site_distributions.update(all_distribution_paths(path_element))
+                site_paths.update(all_paths(path_element))
             else:
                 TRACER.log("Not a tainted path element: %s" % path_element, V=2)
 
-        user_site_distributions.update(all_distribution_paths(USER_SITE))
+        user_site_paths.update(all_paths(USER_SITE))
 
         if inherit_path == InheritPath.FALSE:
-            scrub_paths = OrderedSet(site_distributions)
-            scrub_paths.update(user_site_distributions)
-            for path in user_site_distributions:
+            scrub_paths = OrderedSet(site_paths)
+            scrub_paths.update(user_site_paths)
+            for path in user_site_paths:
                 TRACER.log("Scrubbing from user site: %s" % path)
-            for path in site_distributions:
+            for path in site_paths:
                 TRACER.log("Scrubbing from site-packages: %s" % path)
 
         scrubbed_sys_path = list(OrderedSet(sys.path) - scrub_paths)
