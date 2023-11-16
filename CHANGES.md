@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.1.153
+
+This release fixes Pex runtime `sys.path` scrubbing to do less work and
+thus avoid errors parsing system installed distributions with bad
+metadata.
+
+* Remove Pex runtime scrubbing dist discovery. (#2290)
+
 ## 2.1.152
 
 This release fixes the computation of the hash of the code within a PEX
