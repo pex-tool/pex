@@ -444,7 +444,7 @@ def can_write_dir(path):
 
 
 def touch(file):
-    # type: (str) -> None
+    # type: (Text) -> None
     """Equivalent of unix `touch path`."""
     with safe_open(file, "a"):
         os.utime(file, None)

@@ -10,18 +10,17 @@ import subprocess
 import sys
 from collections import deque
 from tempfile import mkdtemp
+from textwrap import dedent
 
 from pex import dist_metadata, targets
 from pex.auth import PasswordEntry
 from pex.common import safe_mkdir, safe_mkdtemp
 from pex.compatibility import get_stderr_bytes_buffer, shlex_quote, urlparse
-from pex.interpreter import PythonInterpreter
+from pex.interpreter import PythonInterpreter, spawn_python_job
 from pex.jobs import Job
 from pex.network_configuration import NetworkConfiguration
-from pex.pep_376 import Record
-from pex.pep_425 import CompatibilityTags
 from pex.pip import foreign_platform
-from pex.pip.download_observer import DownloadObserver, PatchSet
+from pex.pip.download_observer import DownloadObserver
 from pex.pip.log_analyzer import ErrorAnalyzer, ErrorMessage, LogAnalyzer, LogScrapeJob
 from pex.pip.tailer import Tailer
 from pex.pip.version import PipVersionValue
@@ -631,63 +630,22 @@ class Pip(object):
                     "platform.".format(wheel, interpreter)
                 )
 
-        install_cmd = [
-            "install",
-            "--no-deps",
-            "--no-index",
-            "--only-binary",
-            ":all:",
-            # In `--prefix` scheme, Pip warns about installed scripts not being on $PATH. We fix
-            # this when a PEX is turned into a venv.
-            "--no-warn-script-location",
-            # In `--prefix` scheme, Pip normally refuses to install a dependency already in the
-            # `sys.path` of Pip itself since the requirement is already satisfied. Since `pip`,
-            # `setuptools` and `wheel` are always in that `sys.path` (Our `pip.pex` venv PEX), we
-            # force installation so that PEXes with dependencies on those projects get them properly
-            # installed instead of skipped.
-            "--force-reinstall",
-            "--ignore-installed",
-            # We're potentially installing a wheel for a foreign platform. This is just an
-            # unpacking operation though; so we don't actually need to perform it with a target
-            # platform compatible interpreter (except for scripts - which we deal with in fixup
-            # install below).
-            "--ignore-requires-python",
-            "--prefix",
-            install_dir,
-        ]
+        return spawn_python_job(
+            args=[
+                "-c",
+                dedent(
+                    """\
+                    from pex.pep_427 import install_wheel_chroot
 
-        # The `--prefix` scheme causes Pip to refuse to install foreign wheels. It assumes those
-        # wheels must be compatible with the current venv. Since we just install wheels in
-        # individual chroots for later re-assembly on the `sys.path` at runtime or at venv install
-        # time, we override this concern by forcing the wheel's tags to be considered compatible
-        # with the current Pip install interpreter being used.
-        compatible_tags = CompatibilityTags.from_wheel(wheel).extend(
-            interpreter.identity.supported_tags
-        )
-        patch_set = PatchSet.create(foreign_platform.patch_tags(compatible_tags))
-        extra_env = dict(patch_set.env)
-        extra_sys_path = patch_set.emit_patches(package=self._PATCHES_PACKAGE_NAME)
-        if extra_sys_path:
-            extra_env["PEX_EXTRA_SYS_PATH"] = extra_sys_path
-            extra_env[self._PATCHES_PACKAGE_ENV_VAR_NAME] = self._PATCHES_PACKAGE_NAME
-        install_cmd.append("--compile" if compile else "--no-compile")
-        install_cmd.append(wheel)
 
-        def fixup_install(returncode):
-            if returncode != 0:
-                return
-            record = Record.from_prefix_install(
-                prefix_dir=install_dir,
-                project_name=project_name_and_version.project_name,
-                version=project_name_and_version.version,
-            )
-            record.fixup_install(interpreter=interpreter)
-
-        return self._spawn_pip_isolated_job(
-            args=install_cmd,
+                    install_wheel_chroot(
+                        wheel_path={wheel_path!r}, destination={destination!r}, compile={compile!r}
+                    )
+                    """
+                ).format(wheel_path=wheel, destination=install_dir, compile=compile),
+            ],
             interpreter=interpreter,
-            finalizer=fixup_install,
-            extra_env=extra_env,
+            expose=["pex", "attrs", "packaging"],
         )
 
     def spawn_debug(

@@ -19,7 +19,7 @@ from pex.compatibility import commonpath, get_stdout_bytes_buffer
 from pex.dist_metadata import Distribution, find_distributions
 from pex.executor import Executor
 from pex.fetcher import URLFetcher
-from pex.interpreter import PythonInterpreter, PyVenvCfg
+from pex.interpreter import PythonInterpreter, PyVenvCfg, create_shebang
 from pex.orderedset import OrderedSet
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING, cast
@@ -388,12 +388,10 @@ class Virtualenv(object):
                 for line in fi:
                     buffer = get_stdout_bytes_buffer()
                     if fi.isfirstline():
-                        shebang = [python or self._interpreter.binary]
-                        if python_args:
-                            shebang.append(python_args)
-                        buffer.write(
-                            "#!{shebang}\n".format(shebang=" ".join(shebang)).encode("utf-8")
+                        shebang = create_shebang(
+                            python_exe=python or self._interpreter.binary, python_args=python_args
                         )
+                        buffer.write("{shebang}\n".format(shebang=shebang).encode("utf-8"))
                         yield fi.filename()
                     else:
                         # N.B.: These lines include the newline already.

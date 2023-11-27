@@ -16,6 +16,8 @@ from pex.typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, Optional, Sequence, Set, Text, Tuple
 
+    from pex.interpreter import PythonInterpreter
+
 _PACKAGE_COMPONENTS = __name__.split(".")
 
 
@@ -156,8 +158,11 @@ class VendorSpec(
             touch(os.path.join(self.ROOT, *relpath))
 
 
-def iter_vendor_specs(filter_requires_python=False):
-    # type: (bool) -> Iterator[VendorSpec]
+def iter_vendor_specs(
+    filter_requires_python=False,  # type: bool
+    interpreter=None,  # type: Optional[PythonInterpreter]
+):
+    # type: (...) -> Iterator[VendorSpec]
     """Iterate specifications for code vendored by pex.
 
     :return: An iterator over specs of all vendored code.
@@ -175,18 +180,22 @@ def iter_vendor_specs(filter_requires_python=False):
 
     # We use this via pex.third_party at runtime to check for compatible wheel tags and at build
     # time to implement resolving distributions from a PEX repository.
-    if not filter_requires_python or sys.version_info[:2] < (3, 6):
+    # TODO(John Sirois): XXX: filter_requires_python = False + interpreter non None is a bit
+    #  contradictory.
+    filter_requires_python = filter_requires_python or interpreter is not None
+    python_major_minor = interpreter.version[:2] if interpreter else sys.version_info[:2]
+    if not filter_requires_python or python_major_minor < (3, 6):
         # N.B.: The pyparsing constraint is needed for 2.7 support.
         yield VendorSpec.pinned(
             "packaging", "20.9", import_path="packaging_20_9", constraints=("pyparsing<3",)
         )
-    if not filter_requires_python or sys.version_info[:2] == (3, 6):
+    if not filter_requires_python or python_major_minor == (3, 6):
         # N.B.: The pyparsing constraint is needed because our import re-writer (RedBaron) chokes on
         # newer versions.
         yield VendorSpec.pinned(
             "packaging", "21.3", import_path="packaging_21_3", constraints=("pyparsing<3",)
         )
-    if not filter_requires_python or sys.version_info[:2] >= (3, 7):
+    if not filter_requires_python or python_major_minor >= (3, 7):
         yield VendorSpec.pinned("packaging", "23.1", import_path="packaging_23_1")
 
     # We use toml to read pyproject.toml when building sdists from local source projects.

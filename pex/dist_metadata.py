@@ -83,7 +83,7 @@ def _strip_sdist_path(sdist_path):
     return filename
 
 
-def _parse_message(message):
+def parse_message(message):
     # type: (bytes) -> Message
     return cast(Message, Parser().parse(StringIO(to_unicode(message))))
 
@@ -153,7 +153,7 @@ def _find_installed_metadata_files(
     metadata_files = glob.glob(os.path.join(location, metadata_dir_glob, metadata_file_name))
     for path in metadata_files:
         with open(path, "rb") as fp:
-            metadata = _parse_message(fp.read())
+            metadata = parse_message(fp.read())
             project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
                 source=path, pkg_info=metadata
             )
@@ -194,7 +194,7 @@ def find_wheel_metadata(location):
                 continue
 
             with zf.open(name) as fp:
-                metadata = _parse_message(fp.read())
+                metadata = parse_message(fp.read())
                 project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
                     source=os.path.join(location, name), pkg_info=metadata
                 )
@@ -245,7 +245,7 @@ def find_zip_sdist_metadata(location):
             if name.endswith("/") or not _is_dist_pkg_info_file_path(name):
                 continue
             with zf.open(name) as fp:
-                metadata = _parse_message(fp.read())
+                metadata = parse_message(fp.read())
                 project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
                     source=os.path.join(location, name), pkg_info=metadata
                 )
@@ -277,7 +277,7 @@ def find_tar_sdist_metadata(location):
                     ),
                 )
             with closing(file_obj) as fp:
-                metadata = _parse_message(fp.read())
+                metadata = parse_message(fp.read())
                 project_name_and_version = ProjectNameAndVersion.from_parsed_pkg_info(
                     source=os.path.join(location, member.name), pkg_info=metadata
                 )

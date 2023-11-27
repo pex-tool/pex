@@ -14,7 +14,7 @@ import shutil
 from contextlib import closing
 from fileinput import FileInput
 
-from pex import dist_metadata, hashing
+from pex import hashing
 from pex.common import is_pyc_dir, is_pyc_file, is_python_script, safe_mkdir, safe_open
 from pex.compatibility import get_stdout_bytes_buffer, urlparse
 from pex.dist_metadata import Distribution, EntryPoint, MetadataFiles, MetadataType
@@ -232,7 +232,7 @@ class InstalledWheel(object):
         return os.path.join(self.prefix_dir, self.stash_dir, *components)
 
     @staticmethod
-    def _create_installed_file(
+    def create_installed_file(
         path,  # type: Text
         dest_dir,  # type: str
     ):
@@ -245,9 +245,9 @@ class InstalledWheel(object):
             size=os.stat(path).st_size,
         )
 
-    def create_record(
+    def _create_record(
         self,
-        dst,  # type: str
+        dst,  # type: Text
         installed_files,  # type: Iterable[InstalledFile]
     ):
         # type: (...) -> None
@@ -260,7 +260,16 @@ class InstalledWheel(object):
                 csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n"),
             )
             for installed_file in sorted(installed_files, key=lambda installed: installed.path):
-                csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+                csv_writer.writerow(
+                    attr.astuple(
+                        # The RECORD entry should never include hash or size; so we replace any such
+                        # entry with an un-hashed and un-sized one.
+                        InstalledFile(self.record_relpath, hash=None, size=None)
+                        if installed_file.path == self.record_relpath
+                        else installed_file,
+                        recurse=False,
+                    )
+                )
 
     def reinstall_flat(
         self,
@@ -284,10 +293,10 @@ class InstalledWheel(object):
             self._reinstall_stash(dest_dir=target_dir),
             self._reinstall_site_packages(target_dir, symlink=symlink),
         ):
-            installed_files.append(self._create_installed_file(path=dst, dest_dir=target_dir))
+            installed_files.append(self.create_installed_file(path=dst, dest_dir=target_dir))
             yield src, dst
 
-        self.create_record(target_dir, installed_files)
+        self._create_record(target_dir, installed_files)
 
     def reinstall_venv(
         self,
@@ -318,12 +327,10 @@ class InstalledWheel(object):
             self._reinstall_stash(dest_dir=venv.venv_dir, interpreter=venv.interpreter),
             self._reinstall_site_packages(site_packages_dir, symlink=symlink),
         ):
-            installed_files.append(
-                self._create_installed_file(path=dst, dest_dir=site_packages_dir)
-            )
+            installed_files.append(self.create_installed_file(path=dst, dest_dir=site_packages_dir))
             yield src, dst
 
-        self.create_record(site_packages_dir, installed_files)
+        self._create_record(site_packages_dir, installed_files)
 
     def _reinstall_stash(
         self,
@@ -447,6 +454,24 @@ class Record(object):
     """
 
     @classmethod
+    def write(
+        cls,
+        dst,  # type: Text
+        installed_files,  # type: Iterable[InstalledFile]
+    ):
+        # type: (...) -> None
+
+        # The RECORD is a csv file with the path to each installed file in the 1st column.
+        # See: https://www.python.org/dev/peps/pep-0376/#record
+        with safe_open(dst, "w") as fp:
+            csv_writer = cast(
+                "CSVWriter",
+                csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n"),
+            )
+            for installed_file in sorted(installed_files, key=lambda installed: installed.path):
+                csv_writer.writerow(attr.astuple(installed_file, recurse=False))
+
+    @classmethod
     def read(
         cls,
         lines,  # type: Union[FileInput[str], Iterator[str]]
@@ -499,7 +524,44 @@ class Record(object):
         return None
 
     @classmethod
-    def from_prefix_install(
+    def from_pex_prefix_install(
+        cls,
+        install_dir,  # type: str
+        project_name,  # type: str
+        version,  # type: str
+    ):
+        # type: (...) -> Record
+        metadata_files = MetadataType.DIST_INFO.load_metadata(
+            install_dir, project_name=ProjectName(project_name)
+        )
+        if not metadata_files:
+            raise RecordNotFoundError(
+                "Could not find project metadata for {project_name} {version} under "
+                "{install_dir}".format(
+                    project_name=project_name, version=version, install_dir=install_dir
+                )
+            )
+        record_relpath = metadata_files.metadata_file_rel_path("RECORD")
+        if not record_relpath:
+            raise RecordNotFoundError(
+                "Could not find the installation RECORD for {project_name} {version} under "
+                "{location}".format(
+                    project_name=project_name,
+                    version=version,
+                    location=metadata_files.metadata.location,
+                )
+            )
+
+        return cls(
+            project_name=project_name,
+            version=version,
+            prefix_dir=install_dir,
+            rel_base_dir="",
+            relative_path=record_relpath,
+        )
+
+    @classmethod
+    def from_pip_prefix_install(
         cls,
         prefix_dir,  # type: str
         project_name,  # type: str
