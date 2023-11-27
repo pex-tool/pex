@@ -524,43 +524,6 @@ class Record(object):
         return None
 
     @classmethod
-    def from_pex_prefix_install(
-        cls,
-        install_dir,  # type: str
-        project_name,  # type: str
-        version,  # type: str
-    ):
-        # type: (...) -> Record
-        metadata_files = MetadataType.DIST_INFO.load_metadata(
-            install_dir, project_name=ProjectName(project_name)
-        )
-        if not metadata_files:
-            raise RecordNotFoundError(
-                "Could not find project metadata for {project_name} {version} under "
-                "{install_dir}".format(
-                    project_name=project_name, version=version, install_dir=install_dir
-                )
-            )
-        record_relpath = metadata_files.metadata_file_rel_path("RECORD")
-        if not record_relpath:
-            raise RecordNotFoundError(
-                "Could not find the installation RECORD for {project_name} {version} under "
-                "{location}".format(
-                    project_name=project_name,
-                    version=version,
-                    location=metadata_files.metadata.location,
-                )
-            )
-
-        return cls(
-            project_name=project_name,
-            version=version,
-            prefix_dir=install_dir,
-            rel_base_dir="",
-            relative_path=record_relpath,
-        )
-
-    @classmethod
     def from_pip_prefix_install(
         cls,
         prefix_dir,  # type: str
