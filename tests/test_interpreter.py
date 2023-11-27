@@ -571,7 +571,7 @@ def test_create_shebang(tmpdir):
                 )
             )
         chmod_plus_x(fp.name)
-        result = json.loads(subprocess.check_output(args=[fp.name] + list(extra_args)))
+        result = json.loads(subprocess.check_output(args=[fp.name] + list(extra_args)).decode("utf-8"))
         assert [fp.name] + list(extra_args) == result["argv"]
         return cast(str, result["shebang"])
 
