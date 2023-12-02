@@ -1493,7 +1493,7 @@ def create_shebang(
         return shebang
 
     # This trick relies on /bin/sh being ubiquitous and the concordance of:
-    # 1. Python: triple quoted strings plus allowance for free=floating string values in
+    # 1. Python: triple quoted strings plus allowance for free-floating string values in
     #    python files.
     # 2. sh: Any number of pairs of `'` evaluating away when followed immediately by a
     #    command string (`''command` -> `command`) and lazy parsing allowing for invalid sh

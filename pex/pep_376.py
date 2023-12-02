@@ -251,25 +251,17 @@ class InstalledWheel(object):
         installed_files,  # type: Iterable[InstalledFile]
     ):
         # type: (...) -> None
-
-        # The RECORD is a csv file with the path to each installed file in the 1st column.
-        # See: https://www.python.org/dev/peps/pep-0376/#record
-        with safe_open(os.path.join(dst, self.record_relpath), "w") as fp:
-            csv_writer = cast(
-                "CSVWriter",
-                csv.writer(fp, delimiter=",", quotechar='"', lineterminator="\n"),
-            )
-            for installed_file in sorted(installed_files, key=lambda installed: installed.path):
-                csv_writer.writerow(
-                    attr.astuple(
-                        # The RECORD entry should never include hash or size; so we replace any such
-                        # entry with an un-hashed and un-sized one.
-                        InstalledFile(self.record_relpath, hash=None, size=None)
-                        if installed_file.path == self.record_relpath
-                        else installed_file,
-                        recurse=False,
-                    )
-                )
+        Record.write(
+            dst=os.path.join(dst, self.record_relpath),
+            installed_files=[
+                # The RECORD entry should never include hash or size; so we replace any such entry
+                # with an un-hashed and un-sized one.
+                InstalledFile(self.record_relpath, hash=None, size=None)
+                if installed_file.path == self.record_relpath
+                else installed_file
+                for installed_file in installed_files
+            ],
+        )
 
     def reinstall_flat(
         self,

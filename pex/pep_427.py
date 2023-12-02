@@ -10,12 +10,11 @@ import re
 import shutil
 import subprocess
 import sys
-from os.path import commonprefix
 from textwrap import dedent
 
 from pex import pex_warnings
 from pex.common import chmod_plus_x, is_pyc_file, open_zip, safe_open, touch
-from pex.compatibility import urlparse
+from pex.compatibility import commonpath, urlparse
 from pex.dist_metadata import (
     DistMetadata,
     Distribution,
@@ -114,17 +113,6 @@ def install_wheel_chroot(
     assert (
         record_relpath is not None
     ), "The {module}.install_wheel function should always create a RECORD.".format(module=__name__)
-
-    direct_url_file_relpath = metadata_files.metadata_file_rel_path("direct_url.json")
-    if direct_url_file_relpath:
-        direct_url_file_abspath = os.path.join(
-            metadata_files.metadata.location, direct_url_file_relpath
-        )
-        if os.path.isfile(direct_url_file_abspath):
-            with open(direct_url_file_abspath) as fp:
-                if urlparse.urlparse(json.load(fp).get("url", "")).scheme == "file":
-                    os.unlink(direct_url_file_abspath)
-
     return InstalledWheel.save(
         prefix_dir=destination, stash_dir=InstallPaths.CHROOT_STASH, record_relpath=record_relpath
     )
@@ -215,15 +203,22 @@ def install_wheel(
             names=[
                 name
                 for name in zf.namelist()
-                if not name.endswith("/") and data_rel_path != commonprefix((data_rel_path, name))
+                if not name.endswith("/") and data_rel_path != commonpath((data_rel_path, name))
             ],
         )
         if os.path.isdir(data_path):
             for entry in sorted(os.listdir(data_path)):
+                try:
+                    dest_dir = install_paths[entry]
+                except KeyError as e:
+                    raise ValueError(
+                        "The wheel at {wheel_path} is invalid and cannot be installed: "
+                        "{err}".format(wheel_path=wheel_path, err=e)
+                    )
                 entry_path = os.path.join(data_path, entry)
-                shutil.copytree(entry_path, install_paths[entry])
+                shutil.copytree(entry_path, dest_dir)
                 record_files(
-                    root_dir=install_paths[entry],
+                    root_dir=dest_dir,
                     names=[
                         os.path.relpath(os.path.join(root, f), entry_path)
                         for root, _, files in os.walk(entry_path)
@@ -253,7 +248,7 @@ def install_wheel(
                 "Failed to compile some .py files for install of {wheel} to {dest}:\n"
                 "{stderr}".format(wheel=wheel_path, dest=dest, stderr=stderr.decode("utf-8"))
             )
-        for root, _, files in os.walk(commonprefix(py_files)):
+        for root, _, files in os.walk(commonpath(py_files)):
             for f in files:
                 if f.endswith(".pyc"):
                     file = InstalledFile(path=os.path.relpath(os.path.join(root, f), dest))
