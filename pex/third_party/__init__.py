@@ -177,7 +177,7 @@ class VendorImporter(object):
             for spec in vendor.iter_vendor_specs(
                 # N.B.: The VendorImporter should only see the versions of vendored projects that
                 # support the current Python interpreter.
-                filter_requires_python=True
+                filter_requires_python=sys.version_info[:2]
             )
         )
 
@@ -280,7 +280,7 @@ class VendorImporter(object):
 
         def iter_available():
             yield "pex", root  # The pex distribution itself is trivially available to expose.
-            for spec in vendor.iter_vendor_specs(interpreter=interpreter):
+            for spec in vendor.iter_vendor_specs(filter_requires_python=interpreter):
                 yield spec.key, spec.relpath
 
         path_by_key = OrderedDict(
@@ -473,7 +473,7 @@ def isolated(interpreter=None):
         # PEX_ROOT or built PEXs.
         vendor_lockfiles = tuple(
             os.path.join(os.path.relpath(vendor_spec.relpath, module), "constraints.txt")
-            for vendor_spec in vendor.iter_vendor_specs(interpreter=interpreter)
+            for vendor_spec in vendor.iter_vendor_specs(filter_requires_python=interpreter)
         )
 
         pex_zip_paths = None  # type: Optional[Tuple[str, str]]
