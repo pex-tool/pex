@@ -218,24 +218,25 @@ def install_wheel(
                     )
                 entry_path = os.path.join(data_path, entry)
                 copied = [dst for _, dst in iter_copytree(entry_path, dest_dir)]
-                if "scripts" == entry and interpreter:
-                    with closing(FileInput(files=copied, inplace=True, mode="rb")) as script_fi:
-                        for line in cast("Iterator[bytes]", script_fi):
-                            buffer = get_stdout_bytes_buffer()
-                            if script_fi.isfirstline() and re.match(br"^#!pythonw?", line):
-                                _, _, shebang_args = line.partition(b" ")
-                                buffer.write(
-                                    "{shebang}\n".format(
-                                        shebang=interpreter.shebang(
-                                            args=shebang_args.decode("utf-8")
-                                        )
-                                    ).encode("utf-8")
-                                )
-                            else:
-                                # N.B.: These lines include the newline already.
-                                buffer.write(cast(bytes, line))
+                if "scripts" == entry:
                     for script in copied:
                         chmod_plus_x(script)
+                    if interpreter:
+                        with closing(FileInput(files=copied, inplace=True, mode="rb")) as script_fi:
+                            for line in cast("Iterator[bytes]", script_fi):
+                                buffer = get_stdout_bytes_buffer()
+                                if script_fi.isfirstline() and re.match(br"^#!pythonw?", line):
+                                    _, _, shebang_args = line.partition(b" ")
+                                    buffer.write(
+                                        "{shebang}\n".format(
+                                            shebang=interpreter.shebang(
+                                                args=shebang_args.decode("utf-8")
+                                            )
+                                        ).encode("utf-8")
+                                    )
+                                else:
+                                    # N.B.: These lines include the newline already.
+                                    buffer.write(cast(bytes, line))
 
                 record_files(
                     root_dir=dest_dir,
