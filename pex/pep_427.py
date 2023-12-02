@@ -51,7 +51,7 @@ class InstallPaths(object):
     ):
         # type: (...) -> InstallPaths
         base = os.path.join(destination, cls.CHROOT_STASH)
-        return InstallPaths(
+        return cls(
             purelib=destination,
             platlib=destination,
             headers=os.path.join(base, "include", "site", "pythonX.Y", project_name.raw),
@@ -63,7 +63,7 @@ class InstallPaths(object):
     def interpreter(cls, interpreter):
         # type: (PythonInterpreter) -> InstallPaths
         sysconfig_paths = interpreter.identity.paths
-        return InstallPaths(
+        return cls(
             purelib=sysconfig_paths["purelib"],
             platlib=sysconfig_paths["platlib"],
             headers=sysconfig_paths["include"],
