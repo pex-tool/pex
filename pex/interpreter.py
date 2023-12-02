@@ -1329,7 +1329,7 @@ class PythonInterpreter(object):
         return self._supported_platforms
 
     def shebang(self, args=None):
-        # type: (Optional[str]) -> str
+        # type: (Optional[Text]) -> Text
         """Return the contents of an appropriate shebang for this interpreter and args.
 
         The shebang will include the leading `#!` but will not include a trailing new line character.
@@ -1476,11 +1476,11 @@ MAX_SHEBANG_LENGTH = 512 if sys.platform == "darwin" else 128
 
 
 def create_shebang(
-    python_exe,  # type: str
-    python_args=None,  # type: Optional[str]
+    python_exe,  # type: Text
+    python_args=None,  # type: Optional[Text]
     max_shebang_length=MAX_SHEBANG_LENGTH,  # type: int
 ):
-    # type: (...) -> str
+    # type: (...) -> Text
     """Return the contents of an appropriate shebang for the given Python interpreter and args.
 
     The shebang will include the leading `#!` but will not include a trailing new line character.

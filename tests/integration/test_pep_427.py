@@ -2,14 +2,17 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os.path
+import re
 import subprocess
 from glob import glob
+from textwrap import dedent
 
-from pex.common import is_exe
+from pex.common import is_exe, safe_open
 from pex.pep_427 import install_wheel_interpreter
 from pex.pip.installation import get_pip
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
+from testing import WheelBuilder
 
 if TYPE_CHECKING:
     from typing import Any
@@ -43,3 +46,66 @@ def test_install_wheel_interpreter(tmpdir):
     pip = venv.install_pip()
     subprocess.check_call(args=[pip, "uninstall", "--yes", "cowsay"])
     assert not os.path.exists(cowsay_script)
+
+
+def test_install_scripts(tmpdir):
+    # type: (Any) -> None
+
+    # N.B.: This example was taken from https://github.com/pypa/pip/issues/10661.
+    top = os.path.join(str(tmpdir), "top")
+    with safe_open(os.path.join(top, "mypackage", "__init__.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                def do_some_preprocessing():
+                    print('Done some preprocessing')
+                    print('Now starting an interactive session')
+                """
+            )
+        )
+    with safe_open(os.path.join(top, "scripts", "interactive_script.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                #!python -i
+
+                import mypackage
+
+                mypackage.do_some_preprocessing()
+                """
+            )
+        )
+    with safe_open(os.path.join(top, "setup.py"), "w") as fp:
+        fp.write(
+            dedent(
+                """\
+                from setuptools import setup
+
+                setup(
+                    name='mypackage',
+                    version='0.0.1',
+                    packages=['mypackage'],
+                    scripts=['scripts/interactive_script.py']
+                )
+                """
+            )
+        )
+
+    wheels = os.path.join(str(tmpdir), "wheels")
+    wheel = WheelBuilder(source_dir=top, wheel_dir=wheels).bdist()
+
+    venv_dir = os.path.join(str(tmpdir), "venv")
+    venv = Virtualenv.create(venv_dir)
+    script = venv.bin_path("interactive_script.py")
+    assert not os.path.exists(script)
+
+    install_wheel_interpreter(wheel, interpreter=venv.interpreter)
+    assert is_exe(script)
+
+    process = subprocess.Popen(
+        args=[script], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.PIPE
+    )
+    output, _ = process.communicate()
+    assert re.match(
+        br"^Done some preprocessing\nNow starting an interactive session\n>>>>?$", output.strip()
+    ), output

@@ -4,17 +4,18 @@
 from __future__ import absolute_import, print_function
 
 import itertools
-import json
 import os.path
 import re
 import shutil
 import subprocess
 import sys
+from contextlib import closing
+from fileinput import FileInput
 from textwrap import dedent
 
 from pex import pex_warnings
-from pex.common import chmod_plus_x, is_pyc_file, open_zip, safe_open, touch
-from pex.compatibility import commonpath, urlparse
+from pex.common import chmod_plus_x, is_pyc_file, iter_copytree, open_zip, safe_open, touch
+from pex.compatibility import commonpath, get_stdout_bytes_buffer, urlparse
 from pex.dist_metadata import (
     DistMetadata,
     Distribution,
@@ -27,10 +28,10 @@ from pex.dist_metadata import (
 from pex.interpreter import PythonInterpreter
 from pex.pep_376 import InstalledFile, InstalledWheel, Record
 from pex.pep_503 import ProjectName
-from pex.typing import TYPE_CHECKING
+from pex.typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from typing import Iterable, List, Optional, Text
+    from typing import Iterable, Iterator, List, Optional, Text
 
     import attr  # vendor:skip
 else:
@@ -216,7 +217,26 @@ def install_wheel(
                         "{err}".format(wheel_path=wheel_path, err=e)
                     )
                 entry_path = os.path.join(data_path, entry)
-                shutil.copytree(entry_path, dest_dir)
+                copied = [dst for _, dst in iter_copytree(entry_path, dest_dir)]
+                if "scripts" == entry and interpreter:
+                    with closing(FileInput(files=copied, inplace=True, mode="rb")) as script_fi:
+                        for line in cast("Iterator[bytes]", script_fi):
+                            buffer = get_stdout_bytes_buffer()
+                            if script_fi.isfirstline() and re.match(br"^#!pythonw?", line):
+                                _, _, shebang_args = line.partition(b" ")
+                                buffer.write(
+                                    "{shebang}\n".format(
+                                        shebang=interpreter.shebang(
+                                            args=shebang_args.decode("utf-8")
+                                        )
+                                    ).encode("utf-8")
+                                )
+                            else:
+                                # N.B.: These lines include the newline already.
+                                buffer.write(cast(bytes, line))
+                    for script in copied:
+                        chmod_plus_x(script)
+
                 record_files(
                     root_dir=dest_dir,
                     names=[

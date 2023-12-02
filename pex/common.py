@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from typing import (
         Any,
         Callable,
+        Container,
         DefaultDict,
         Dict,
         Iterable,
@@ -357,7 +358,7 @@ def safe_sleep(seconds):
 
 
 def chmod_plus_x(path):
-    # type: (str) -> None
+    # type: (Text) -> None
     """Equivalent of unix `chmod a+x path`"""
     path_mode = os.stat(path).st_mode
     path_mode &= int("777", 8)
@@ -709,3 +710,79 @@ class Chroot(object):
             for filename, arcname in iter_files():
                 maybe_write_parent_dirs(arcname)
                 write_entry(filename, arcname)
+
+
+def relative_symlink(
+    src,  # type: Text
+    dst,  # type: Text
+):
+    # type: (...) -> None
+    """Creates a symlink to `src` at `dst` using the relative path to `src` from `dst`.
+
+    :param src: The target of the symlink.
+    :param dst: The path to create the symlink at.
+    """
+    dst_parent = os.path.dirname(dst)
+    rel_src = os.path.relpath(src, dst_parent)
+    os.symlink(rel_src, dst)
+
+
+def iter_copytree(
+    src,  # type: Text
+    dst,  # type: Text
+    exclude=(),  # type: Container[Text]
+    symlink=False,  # type: bool
+):
+    # type: (...) -> Iterator[Tuple[Text, Text]]
+    """Copies the directory tree rooted at `src` to `dst` yielding a tuple for each copied file.
+
+    When not using symlinks, if hard links are appropriate they will be used; otherwise files are
+    copied.
+
+    N.B.: The returned iterator must be consumed to drive the copying operations to completion.
+
+    :param src: The source directory tree to copy.
+    :param dst: The destination location to copy the source tree to.
+    :param exclude: Names (basenames) of files and directories to exclude from copying.
+    :param symlink: Whether to use symlinks instead of copies (or hard links).
+    :return: An iterator over tuples identifying the copied files of the form `(src, dst)`.
+    """
+    safe_mkdir(dst)
+    link = True
+    for root, dirs, files in os.walk(src, topdown=True, followlinks=True):
+        if src == root:
+            dirs[:] = [d for d in dirs if d not in exclude]
+            files[:] = [f for f in files if f not in exclude]
+
+        for path, is_dir in itertools.chain(
+            zip(dirs, itertools.repeat(True)), zip(files, itertools.repeat(False))
+        ):
+            src_entry = os.path.join(root, path)
+            dst_entry = os.path.join(dst, os.path.relpath(src_entry, src))
+            if not is_dir:
+                yield src_entry, dst_entry
+            try:
+                if symlink:
+                    relative_symlink(src_entry, dst_entry)
+                elif is_dir:
+                    os.mkdir(dst_entry)
+                else:
+                    # We only try to link regular files since linking a symlink on Linux can produce
+                    # another symlink, which leaves open the possibility the src_entry target could
+                    # later go missing leaving the dst_entry dangling.
+                    if link and not os.path.islink(src_entry):
+                        try:
+                            os.link(src_entry, dst_entry)
+                            continue
+                        except OSError as e:
+                            if e.errno != errno.EXDEV:
+                                raise e
+                            link = False
+                    shutil.copy(src_entry, dst_entry)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise e
+
+        if symlink:
+            # Once we've symlinked the top-level directories and files, we've "copied" everything.
+            return

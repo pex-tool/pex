@@ -3,16 +3,13 @@
 
 from __future__ import absolute_import, print_function
 
-import errno
-import itertools
 import os
-import shutil
 import subprocess
 from collections import Counter, OrderedDict, defaultdict
 from textwrap import dedent
 
 from pex import layout, pex_warnings
-from pex.common import chmod_plus_x, pluralize, safe_mkdir
+from pex.common import chmod_plus_x, iter_copytree, pluralize
 from pex.compatibility import is_valid_python_identifier
 from pex.dist_metadata import Distribution
 from pex.environment import PEXEnvironment
@@ -145,67 +142,6 @@ def ensure_pip_installed(
             )
         )
     return pex_pip_version or venv_pip_version
-
-
-def _relative_symlink(
-    src,  # type: str
-    dst,  # type: str
-):
-    # type: (...) -> None
-    dst_parent = os.path.dirname(dst)
-    rel_src = os.path.relpath(src, dst_parent)
-    os.symlink(rel_src, dst)
-
-
-# N.B.: We can't use shutil.copytree since we copy from multiple source locations to the same site
-# packages directory destination. Since we're forced to stray from the stdlib here, support for
-# hardlinks is added to provide a measurable speed-up and disk space savings when possible.
-def _copytree(
-    src,  # type: str
-    dst,  # type: str
-    exclude=(),  # type: Container[str]
-    symlink=False,  # type: bool
-):
-    # type: (...) -> Iterator[Tuple[Text, Text]]
-    safe_mkdir(dst)
-    link = True
-    for root, dirs, files in os.walk(src, topdown=True, followlinks=True):
-        if src == root:
-            dirs[:] = [d for d in dirs if d not in exclude]
-            files[:] = [f for f in files if f not in exclude]
-
-        for path, is_dir in itertools.chain(
-            zip(dirs, itertools.repeat(True)), zip(files, itertools.repeat(False))
-        ):
-            src_entry = os.path.join(root, path)
-            dst_entry = os.path.join(dst, os.path.relpath(src_entry, src))
-            if not is_dir:
-                yield src_entry, dst_entry
-            try:
-                if symlink:
-                    _relative_symlink(src_entry, dst_entry)
-                elif is_dir:
-                    os.mkdir(dst_entry)
-                else:
-                    # We only try to link regular files since linking a symlink on Linux can produce
-                    # another symlink, which leaves open the possibility the src_entry target could
-                    # later go missing leaving the dst_entry dangling.
-                    if link and not os.path.islink(src_entry):
-                        try:
-                            os.link(src_entry, dst_entry)
-                            continue
-                        except OSError as e:
-                            if e.errno != errno.EXDEV:
-                                raise e
-                            link = False
-                    shutil.copy(src_entry, dst_entry)
-            except OSError as e:
-                if e.errno != errno.EEXIST:
-                    raise e
-
-        if symlink:
-            # Once we've symlinked the top-level directories and files, we've "copied" everything.
-            return
 
 
 class CollisionError(Exception):
@@ -468,14 +404,14 @@ def _populate_legacy_dist(
     # those modules be mixed in. For sanity's sake, and since ~no dist provides more than
     # just 1 top-level module, we keep .pyc anchored to their associated dists when shared
     # and accept the cost of re-compiling top-level modules in each venv that uses them.
-    for src, dst in _copytree(
+    for src, dst in iter_copytree(
         src=dist.location, dst=dest_dir, exclude=("bin", "__pycache__"), symlink=symlink
     ):
         yield src, dst
 
     dist_bin_dir = os.path.join(dist.location, "bin")
     if os.path.isdir(dist_bin_dir):
-        for src, dst in _copytree(src=dist_bin_dir, dst=bin_dir, symlink=symlink):
+        for src, dst in iter_copytree(src=dist_bin_dir, dst=bin_dir, symlink=symlink):
             yield src, dst
 
 
@@ -601,7 +537,7 @@ def _populate_sources(
     # Since the pex.path() is ~always outside our control (outside ~/.pex), we copy all PEX user
     # sources into the venv.
     pex_sources = PEXSources.mount(pex)
-    for src, dest in _copytree(
+    for src, dest in iter_copytree(
         src=pex_sources.path,
         dst=dst,
         exclude=pex_sources.excludes,
