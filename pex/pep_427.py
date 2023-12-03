@@ -218,7 +218,7 @@ def install_wheel(
                     )
                 entry_path = os.path.join(data_path, entry)
                 copied = [dst for _, dst in iter_copytree(entry_path, dest_dir)]
-                if "scripts" == entry:
+                if copied and "scripts" == entry:
                     for script in copied:
                         chmod_plus_x(script)
                     if interpreter:

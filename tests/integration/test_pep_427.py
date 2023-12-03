@@ -12,7 +12,7 @@ from pex.pep_427 import install_wheel_interpreter
 from pex.pip.installation import get_pip
 from pex.typing import TYPE_CHECKING
 from pex.venv.virtualenv import Virtualenv
-from testing import WheelBuilder
+from testing import WheelBuilder, make_env
 
 if TYPE_CHECKING:
     from typing import Any
@@ -103,7 +103,11 @@ def test_install_scripts(tmpdir):
     assert is_exe(script)
 
     process = subprocess.Popen(
-        args=[script], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.PIPE
+        args=[script],
+        env=make_env(TERM=os.environ.get("TERM", "xterm")),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.PIPE,
     )
     output, _ = process.communicate()
     assert re.match(
