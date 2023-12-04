@@ -16,13 +16,13 @@ PYENV_VERSIONS=(
   3.9.18
   3.10.13
   3.12.0
-  pypy2.7-7.3.12
+  pypy2.7-7.3.13
   pypy3.5-7.0.0
   pypy3.6-7.3.3
   pypy3.7-7.3.9
   pypy3.8-7.3.11
-  pypy3.9-7.3.12
-  pypy3.10-7.3.12
+  pypy3.9-7.3.13
+  pypy3.10-7.3.13
 )
 
 git clone https://github.com/pyenv/pyenv.git "${PYENV_ROOT}" && (
@@ -31,13 +31,13 @@ git clone https://github.com/pyenv/pyenv.git "${PYENV_ROOT}" && (
 PATH="${PATH}:${PYENV_ROOT}/bin"
 
 for version in "${PYENV_VERSIONS[@]}"; do
-  if [[ "${version}" == "pypy2.7-7.3.12" ]]; then
-    # Installation of pypy2.7-7.3.12 fails like so without adjusting the version of get-pip it
+  if [[ "${version}" == "pypy2.7-7.3.13" ]]; then
+    # Installation of pypy2.7-7.3.13 fails like so without adjusting the version of get-pip it
     # uses:
-    #  $ pyenv install pypy2.7-7.3.12
-    #  Downloading pypy2.7-v7.3.12-linux64.tar.bz2...
-    #  -> https://downloads.python.org/pypy/pypy2.7-v7.3.12-linux64.tar.bz2
-    #  Installing pypy2.7-v7.3.12-linux64...
+    #  $ pyenv install pypy2.7-7.3.13
+    #  Downloading pypy2.7-v7.3.13-linux64.tar.bz2...
+    #  -> https://downloads.python.org/pypy/pypy2.7-v7.3.13-linux64.tar.bz2
+    #  Installing pypy2.7-v7.3.13-linux64...
     #  Installing pip from https://bootstrap.pypa.io/get-pip.py...
     #  error: failed to install pip via get-pip.py
     #  ...

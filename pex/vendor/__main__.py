@@ -358,7 +358,7 @@ def vendorize(interpreter, root_dir, vendor_specs, prefix, update):
         dist = dist_by_vendor_spec[vendor_spec]
 
         # Finally, let Record fixup the chroot to its final importable form.
-        record = Record.from_prefix_install(
+        record = Record.from_pip_prefix_install(
             prefix_dir=vendor_spec.target_dir,
             project_name=dist.project_name,
             version=dist.version,

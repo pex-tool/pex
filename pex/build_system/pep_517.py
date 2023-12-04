@@ -47,7 +47,9 @@ def _default_build_system(
                 requires = ["setuptools", "wheel"]
                 resolved = tuple(
                     Distribution.load(dist_location)
-                    for dist_location in third_party.expose(requires)
+                    for dist_location in third_party.expose(
+                        requires, interpreter=target.get_interpreter()
+                    )
                 )
                 extra_env.update(__PEX_UNVENDORED__="1")
             else:

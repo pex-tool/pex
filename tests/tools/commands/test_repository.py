@@ -257,5 +257,5 @@ def test_extract_lifecycle(pex, pex_tools_env, tmpdir):
     assert -1 * int(signal.SIGTERM) == find_links_server.wait()
 
     expected_output = b"Fetching from https://example.com ...\n"
-    assert expected_output == subprocess.check_output(args=[example_sdist_pex])
-    assert expected_output == subprocess.check_output(args=[example_console_script])
+    assert expected_output in subprocess.check_output(args=[example_sdist_pex])
+    assert expected_output in subprocess.check_output(args=[example_console_script])

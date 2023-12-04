@@ -83,7 +83,9 @@ def _vendored_installation(interpreter=None):
 
     return _pip_installation(
         version=PipVersion.VENDORED,
-        iter_distribution_locations=lambda: third_party.expose(("pip", "setuptools", "wheel")),
+        iter_distribution_locations=lambda: third_party.expose(
+            ("pip", "setuptools", "wheel"), interpreter=interpreter
+        ),
         interpreter=interpreter,
     )
 

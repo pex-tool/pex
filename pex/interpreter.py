@@ -212,6 +212,7 @@ class PythonIdentity(object):
             sys_path=sys_path,
             site_packages=site_packages,
             extras_paths=extras_paths,
+            paths=sysconfig.get_paths(),
             packaging_version=packaging_version,
             python_tag=preferred_tag.interpreter,
             abi_tag=preferred_tag.abi,
@@ -226,7 +227,7 @@ class PythonIdentity(object):
     def decode(cls, encoded):
         TRACER.log("creating PythonIdentity from encoded: %s" % encoded, V=9)
         values = json.loads(encoded)
-        if len(values) != 14:
+        if len(values) != 15:
             raise cls.InvalidError("Invalid interpreter identity: %s" % encoded)
 
         supported_tags = values.pop("supported_tags")
@@ -264,6 +265,7 @@ class PythonIdentity(object):
         sys_path,  # type: Iterable[str]
         site_packages,  # type: Iterable[str]
         extras_paths,  # type: Iterable[str]
+        paths,  # type: Mapping[str, str]
         packaging_version,  # type: str
         python_tag,  # type: str
         abi_tag,  # type: str
@@ -284,6 +286,7 @@ class PythonIdentity(object):
         self._sys_path = tuple(sys_path)
         self._site_packages = tuple(site_packages)
         self._extras_paths = tuple(extras_paths)
+        self._paths = dict(paths)
         self._packaging_version = packaging_version
         self._python_tag = python_tag
         self._abi_tag = abi_tag
@@ -301,6 +304,7 @@ class PythonIdentity(object):
             sys_path=self._sys_path,
             site_packages=self._site_packages,
             extras_paths=self._extras_paths,
+            paths=self._paths,
             packaging_version=self._packaging_version,
             python_tag=self._python_tag,
             abi_tag=self._abi_tag,
@@ -347,6 +351,11 @@ class PythonIdentity(object):
     def extras_paths(self):
         # type: () -> Tuple[str, ...]
         return self._extras_paths
+
+    @property
+    def paths(self):
+        # type: () -> Mapping[str, str]
+        return self._paths
 
     @property
     def python_tag(self):
@@ -1319,6 +1328,14 @@ class PythonInterpreter(object):
             self._supported_platforms = frozenset(self._identity.iter_supported_platforms())
         return self._supported_platforms
 
+    def shebang(self, args=None):
+        # type: (Optional[Text]) -> Text
+        """Return the contents of an appropriate shebang for this interpreter and args.
+
+        The shebang will include the leading `#!` but will not include a trailing new line character.
+        """
+        return create_shebang(self._binary, python_args=args)
+
     def create_isolated_cmd(
         self,
         args=None,  # type: Optional[Iterable[str]]
@@ -1444,10 +1461,56 @@ def spawn_python_job(
         # need to set `__PEX_UNVENDORED__`. See: vendor.__main__.ImportRewriter._modify_import.
         subprocess_env["__PEX_UNVENDORED__"] = "1"
 
-        pythonpath.extend(third_party.expose(expose))
+        pythonpath.extend(third_party.expose(expose, interpreter=interpreter))
 
     interpreter = interpreter or PythonInterpreter.get()
     cmd, process = interpreter.open_process(
         args=args, pythonpath=pythonpath, env=subprocess_env, **subprocess_kwargs
     )
     return Job(command=cmd, process=process)
+
+
+# See the "Test results from various systems" table here:
+#  https://www.in-ulm.de/~mascheck/various/shebang/#length
+MAX_SHEBANG_LENGTH = 512 if sys.platform == "darwin" else 128
+
+
+def create_shebang(
+    python_exe,  # type: Text
+    python_args=None,  # type: Optional[Text]
+    max_shebang_length=MAX_SHEBANG_LENGTH,  # type: int
+):
+    # type: (...) -> Text
+    """Return the contents of an appropriate shebang for the given Python interpreter and args.
+
+    The shebang will include the leading `#!` but will not include a trailing new line character.
+    """
+    python = "{exe} {args}".format(exe=python_exe, args=python_args) if python_args else python_exe
+    shebang = "#!{python}".format(python=python)
+
+    # N.B.: We add 1 to be conservative and account for the EOL character.
+    if len(shebang) + 1 <= max_shebang_length:
+        return shebang
+
+    # This trick relies on /bin/sh being ubiquitous and the concordance of:
+    # 1. Python: triple quoted strings plus allowance for free-floating string values in
+    #    python files.
+    # 2. sh: Any number of pairs of `'` evaluating away when followed immediately by a
+    #    command string (`''command` -> `command`) and lazy parsing allowing for invalid sh
+    #    content immediately following an exec line.
+    # The end result is a file that is both a valid sh script with a short shebang and a
+    # valid Python program.
+    return (
+        dedent(
+            """\
+            #!/bin/sh
+            # N.B.: This python script executes via a /bin/sh re-exec as a hack to work around a
+            # potential maximum shebang length of {max_shebang_length} bytes on this system which
+            # the python interpreter `exec`ed below would violate.
+            ''''exec {python} "$0" "$@"
+            '''
+            """
+        )
+        .format(max_shebang_length=max_shebang_length, python=python)
+        .strip()
+    )
