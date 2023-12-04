@@ -3,7 +3,10 @@
 
 from __future__ import absolute_import
 
+import contextlib
+import os
 import ssl
+import sys
 import time
 from contextlib import closing, contextmanager
 
@@ -29,6 +32,20 @@ else:
     BinaryIO = None
 
 
+@contextmanager
+def guard_stdout():
+    # type: () -> Iterator[None]
+    # Under PyPy 3.9 and 3.10, `ssl.create_default_context` causes spurious informational text about
+    # SSL certs to be emitted to stdout; so we squelch this.
+    if hasattr(sys, "pypy_version_info") and sys.version_info[:2] >= (3, 9):
+        with open(os.devnull, "w") as fp:
+            # The `contextlib.redirect_stdout` function is available for Python 3.4+.
+            with contextlib.redirect_stdout(fp):  # type: ignore[attr-defined]
+                yield
+    else:
+        yield
+
+
 class URLFetcher(object):
     USER_AGENT = "pex/{version}".format(version=__version__)
 
@@ -45,9 +62,10 @@ class URLFetcher(object):
         self._timeout = network_configuration.timeout
         self._max_retries = network_configuration.retries
 
-        ssl_context = ssl.create_default_context(cafile=network_configuration.cert)
-        if network_configuration.client_cert:
-            ssl_context.load_cert_chain(network_configuration.client_cert)
+        with guard_stdout():
+            ssl_context = ssl.create_default_context(cafile=network_configuration.cert)
+            if network_configuration.client_cert:
+                ssl_context.load_cert_chain(network_configuration.client_cert)
 
         proxies = None  # type: Optional[Dict[str, str]]
         if network_configuration.proxy:
