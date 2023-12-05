@@ -872,8 +872,24 @@ def build_pex(
             filename=options.executable, env_filename="__pex_executable__.py"
         )
 
-    if options.python_shebang:
-        pex_builder.set_shebang(options.python_shebang)
+    specific_shebang = options.python_shebang or targets.compatible_shebang()
+    if specific_shebang:
+        pex_builder.set_shebang(specific_shebang)
+    else:
+        # TODO(John Sirois): Consider changing fallback to `#!/usr/bin/env python` in Pex 3.x.
+        pex_warnings.warn(
+            "Could not calculate a targeted shebang for:\n"
+            "{targets}\n"
+            "\n"
+            "Using shebang: {default_shebang}\n"
+            "If this is not appropriate, you can specify a custom shebang using the "
+            "--python-shebang option.".format(
+                targets="\n".join(
+                    sorted(target.render_description() for target in targets.unique_targets())
+                ),
+                default_shebang=pex_builder.shebang,
+            )
+        )
 
     return pex_builder
 

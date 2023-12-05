@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import os
 
+from pex import pex_warnings
 from pex.dist_metadata import Requirement
 from pex.interpreter import PythonInterpreter, calculate_binary_name
 from pex.orderedset import OrderedSet
@@ -377,3 +378,16 @@ class Targets(object):
             return cast(Target, next(iter(resolved_targets)))
         except StopIteration:
             return None
+
+    def compatible_shebang(self):
+        # type: () -> Optional[str]
+        pythons = {
+            (target.platform.impl, target.platform.version_info[:2])
+            for target in self.unique_targets()
+        }
+        if len(pythons) == 1:
+            impl, version = pythons.pop()
+            return "#!/usr/bin/env {python}{version}".format(
+                python="pypy" if impl == "pp" else "python", version=".".join(map(str, version))
+            )
+        return None

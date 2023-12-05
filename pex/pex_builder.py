@@ -457,6 +457,11 @@ class PEXBuilder(object):
         self._ensure_unfrozen("Setting an entry point")
         self._pex_info.entry_point = entry_point
 
+    @property
+    def shebang(self):
+        # type: () -> str
+        return self._shebang
+
     def set_shebang(self, shebang):
         """Set the exact shebang line for the PEX file.
 
