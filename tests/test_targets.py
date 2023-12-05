@@ -24,6 +24,7 @@ from pex.targets import (
 )
 from pex.third_party.packaging.specifiers import SpecifierSet
 from pex.typing import TYPE_CHECKING
+from testing import IS_PYPY, PY39, PY310, PY_VER, ensure_python_interpreter
 
 if TYPE_CHECKING:
     from typing import Optional
@@ -261,3 +262,70 @@ def test_from_target_complete_platform(current_interpreter):
     assert tgts.interpreter is None
     assert OrderedSet([complete_platform]) == tgts.unique_targets(only_explicit=False)
     assert OrderedSet([complete_platform]) == tgts.unique_targets(only_explicit=True)
+
+
+def test_compatible_shebang(
+    current_interpreter,  # type: PythonInterpreter
+    current_platform,  # type: Platform
+):
+    # type: (...) -> None
+
+    current_python = "pypy" if IS_PYPY else "python"
+    current_version = ".".join(map(str, PY_VER))
+    current_python_shebang = "#!/usr/bin/env {python}{version}".format(
+        python=current_python, version=current_version
+    )
+    assert (
+        current_python_shebang
+        == Targets.from_target(LocalInterpreter.create(current_interpreter)).compatible_shebang()
+    )
+    assert (
+        current_python_shebang
+        == Targets.from_target(AbbreviatedPlatform.create(current_platform)).compatible_shebang()
+    )
+    current_complete_platform = CompletePlatform.from_interpreter(current_interpreter)
+    assert (
+        current_python_shebang
+        == Targets.from_target(current_complete_platform).compatible_shebang()
+    )
+    assert (
+        current_python_shebang
+        == Targets(
+            interpreters=(current_interpreter,),
+            complete_platforms=(current_complete_platform,),
+            platforms=(current_platform,),
+        ).compatible_shebang()
+    )
+
+    incompatible_interpreter = PythonInterpreter.from_binary(
+        ensure_python_interpreter(PY39 if PY_VER == (3, 10) else PY310)
+    )
+    assert (
+        Targets(interpreters=(current_interpreter, incompatible_interpreter)).compatible_shebang()
+        is None
+    )
+
+    incompatible_version_info = (3, 9) if PY_VER == (3, 10) else (3, 10)
+    incompatible_platform_version = Platform(
+        platform=current_platform.platform,
+        impl=current_platform.impl,
+        version_info=incompatible_version_info,
+        version=".".join(map(str, incompatible_version_info)),
+        abi=current_platform.abi,
+    )
+    assert (
+        Targets(platforms=(current_platform, incompatible_platform_version)).compatible_shebang()
+        is None
+    )
+
+    incompatible_platform_impl = Platform(
+        platform=current_platform.platform,
+        impl="cp" if current_platform.impl == "pp" else "pp",
+        version_info=current_platform.version_info,
+        version=current_platform.version,
+        abi=current_platform.abi,
+    )
+    assert (
+        Targets(platforms=(current_platform, incompatible_platform_impl)).compatible_shebang()
+        is None
+    )
