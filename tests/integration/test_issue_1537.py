@@ -5,9 +5,6 @@ import os.path
 import shutil
 import subprocess
 
-import pytest
-
-from pex.compatibility import PY3
 from pex.typing import TYPE_CHECKING
 from testing import run_pex_command
 
@@ -15,9 +12,6 @@ if TYPE_CHECKING:
     from typing import Any, Callable, ContextManager, Tuple
 
 
-@pytest.mark.skipif(
-    condition=not PY3, reason="Test relies on a distribution that is Python 3 only."
-)
 def test_rel_cert_path(
     run_proxy,  # type: Callable[[], ContextManager[Tuple[int, str]]]
     tmpdir,  # type: Any
@@ -32,7 +26,12 @@ def test_rel_cert_path(
                 "http://localhost:{port}".format(port=port),
                 "--cert",
                 "cert",
-                "avro-python3==1.10.0",
+                # N.B.: The original issue (https://github.com/pantsbuild/pex/issues/1537) involved
+                # avro-python3 1.10.0, but that distribution utilizes setup_requires which leads to
+                # issues in CI for Mac. We use the Python 2/3 version of the same distribution
+                # instead, which had setup_requires removed in
+                # https://github.com/apache/avro/pull/818.
+                "avro==1.10.0",
                 "-o",
                 pex_file,
             ]
