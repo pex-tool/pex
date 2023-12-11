@@ -321,8 +321,8 @@ COMPATIBLE_PYTHON_VERSIONS = (
     PythonVersion(Lifecycle.STABLE, 3, 8, 18),
     PythonVersion(Lifecycle.STABLE, 3, 9, 18),
     PythonVersion(Lifecycle.STABLE, 3, 10, 13),
-    PythonVersion(Lifecycle.STABLE, 3, 11, 6),
-    PythonVersion(Lifecycle.STABLE, 3, 12, 0),
+    PythonVersion(Lifecycle.STABLE, 3, 11, 7),
+    PythonVersion(Lifecycle.STABLE, 3, 12, 1),
     PythonVersion(Lifecycle.DEV, 3, 13, 0),
 )
 

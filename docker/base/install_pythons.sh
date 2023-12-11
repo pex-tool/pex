@@ -7,7 +7,7 @@ export PYENV_ROOT=/pyenv
 # N.B.: The 1st listed version will supply the default `python` on the PATH; otherwise order does
 # not matter.
 PYENV_VERSIONS=(
-  3.11.6
+  3.11.7
   2.7.18
   3.5.10
   3.6.15
@@ -15,7 +15,7 @@ PYENV_VERSIONS=(
   3.8.18
   3.9.18
   3.10.13
-  3.12.0
+  3.12.1
   pypy2.7-7.3.13
   pypy3.5-7.0.0
   pypy3.6-7.3.3
