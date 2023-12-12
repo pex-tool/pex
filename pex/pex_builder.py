@@ -132,12 +132,12 @@ def __re_exec__(argv0, *extra_launch_args):
 
 __execute__ = __name__ == "__main__"
 
-def __maybe_install_pex__(pex, pex_root, pex_hash):
-  from pex.layout import maybe_install
+def __ensure_pex_installed__(pex, pex_root, pex_hash):
+  from pex.layout import ensure_installed
   from pex.tracer import TRACER
 
-  installed_location = maybe_install(pex, pex_root, pex_hash)
-  if not __execute__ or not installed_location:
+  installed_location = ensure_installed(pex, pex_root, pex_hash)
+  if not __execute__ or pex == installed_location:
     return installed_location
 
   # N.B.: This is read upon re-exec below to point sys.argv[0] back to the original pex before
@@ -215,11 +215,9 @@ if not __installed_from__:
         pex_root=__pex_root__,
         pex_path=ENV.PEX_PATH or {pex_path!r},
       )
-    __installed_location__ = __maybe_install_pex__(
+    __entry_point__ = __ensure_pex_installed__(
       __entry_point__, pex_root=__pex_root__, pex_hash={pex_hash!r}
     )
-    if __installed_location__:
-      __entry_point__ = __installed_location__
 else:
     os.environ['PEX'] = os.path.realpath(__installed_from__)
 

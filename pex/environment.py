@@ -16,7 +16,7 @@ from pex.exclude_configuration import ExcludeConfiguration
 from pex.fingerprinted_distribution import FingerprintedDistribution
 from pex.inherit_path import InheritPath
 from pex.interpreter import PythonInterpreter
-from pex.layout import maybe_install
+from pex.layout import ensure_installed
 from pex.orderedset import OrderedSet
 from pex.pep_425 import CompatibilityTags, TagRank
 from pex.pep_503 import ProjectName
@@ -239,8 +239,8 @@ class PEXEnvironment(object):
         mounted = cls._CACHE.get(key)
         if mounted is None:
             pex_root = pex_info.pex_root
-            pex = maybe_install(pex=pex, pex_root=pex_root, pex_hash=pex_hash) or pex
-            mounted = cls(pex=pex, pex_info=pex_info, target=target)
+            installed_pex = ensure_installed(pex=pex, pex_root=pex_root, pex_hash=pex_hash)
+            mounted = cls(pex=installed_pex, pex_info=pex_info, target=target)
             cls._CACHE[key] = mounted
         return mounted
 

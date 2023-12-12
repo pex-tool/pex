@@ -28,7 +28,7 @@ from pex.dependency_manager import DependencyManager
 from pex.enum import Enum
 from pex.inherit_path import InheritPath
 from pex.interpreter_constraints import InterpreterConstraints
-from pex.layout import Layout, maybe_install
+from pex.layout import Layout, ensure_installed
 from pex.orderedset import OrderedSet
 from pex.pex import PEX
 from pex.pex_bootstrapper import ensure_venv
@@ -1100,9 +1100,7 @@ def seed_cache(
 
         with TRACER.timed("Seeding caches for {}".format(pex_path)):
             final_pex_path = os.path.join(
-                maybe_install(pex=pex_path, pex_root=pex_root, pex_hash=pex_hash)
-                or os.path.abspath(pex_path),
-                "__main__.py",
+                ensure_installed(pex=pex_path, pex_root=pex_root, pex_hash=pex_hash), "__main__.py"
             )
             if verbose:
                 return json.dumps(create_verbose_info(final_pex_path=final_pex_path))
