@@ -848,7 +848,7 @@ def build_pex(
         )
     ):
         try:
-            dependency_manager.add_from_installed(
+            dependency_manager.add_from_resolved(
                 resolve(
                     targets=targets,
                     requirement_configuration=requirement_configuration,

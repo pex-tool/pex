@@ -137,13 +137,13 @@ def assert_force_local_implicit_ns_packages_issues_598(
 
     def add_requirements(builder):
         # type: (PEXBuilder) -> None
-        for installed_dist in resolver.resolve(
+        for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(builder.interpreter,)),
             requirements=requirements,
             resolver=ConfiguredResolver.default(),
-        ).installed_distributions:
-            builder.add_distribution(installed_dist.distribution)
-            for direct_req in installed_dist.direct_requirements:
+        ).distributions:
+            builder.add_distribution(resolved_dist.distribution)
+            for direct_req in resolved_dist.direct_requirements:
                 builder.add_requirement(direct_req)
 
     def add_wheel(builder, content):
@@ -274,12 +274,12 @@ def test_osx_platform_intel_issue_523():
     # successfully install psutil; yield_pex_builder sets up the bad interpreter with our vendored
     # setuptools and wheel extras.
     with yield_pex_builder(interpreter=bad_interpreter()) as pb, temporary_filename() as pex_file:
-        for installed_dist in resolver.resolve(
+        for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
             requirements=["psutil==5.4.3"],
             resolver=ConfiguredResolver.default(),
-        ).installed_distributions:
-            pb.add_dist_location(installed_dist.distribution.location)
+        ).distributions:
+            pb.add_dist_location(resolved_dist.distribution.location)
         pb.build(pex_file)
 
         # NB: We want PEX to find the bare bad interpreter at runtime.
@@ -342,14 +342,14 @@ def test_osx_platform_intel_issue_523():
 def test_activate_extras_issue_615():
     # type: () -> None
     with yield_pex_builder() as pb:
-        for installed_dist in resolver.resolve(
+        for resolved_dist in resolver.resolve(
             targets=Targets(interpreters=(pb.interpreter,)),
             requirements=["pex[requests]==1.6.3"],
             resolver=ConfiguredResolver.default(),
-        ).installed_distributions:
-            for direct_req in installed_dist.direct_requirements:
+        ).distributions:
+            for direct_req in resolved_dist.direct_requirements:
                 pb.add_requirement(direct_req)
-            pb.add_dist_location(installed_dist.distribution.location)
+            pb.add_dist_location(resolved_dist.distribution.location)
         pb.set_script("pex")
         pb.freeze()
         process = PEX(pb.path(), interpreter=pb.interpreter).run(
@@ -370,11 +370,11 @@ def assert_namespace_packages_warning(distribution, version, expected_warning):
     # type: (str, str, bool) -> None
     requirement = "{}=={}".format(distribution, version)
     pb = PEXBuilder()
-    for installed_dist in resolver.resolve(
+    for resolved_dist in resolver.resolve(
         requirements=[requirement],
         resolver=ConfiguredResolver.default(),
-    ).installed_distributions:
-        pb.add_dist_location(installed_dist.distribution.location)
+    ).distributions:
+        pb.add_dist_location(resolved_dist.distribution.location)
     pb.freeze()
 
     process = PEX(pb.path()).run(args=["-c", ""], blocking=False, stderr=subprocess.PIPE)

@@ -13,14 +13,9 @@ from pex.network_configuration import NetworkConfiguration
 from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pex_info import PexInfo
-from pex.requirements import (
-    Constraint,
-    LocalProjectRequirement,
-    parse_requirement_string,
-    parse_requirement_strings,
-)
+from pex.requirements import Constraint, LocalProjectRequirement, parse_requirement_strings
 from pex.resolve.requirement_configuration import RequirementConfiguration
-from pex.resolve.resolvers import Installed, InstalledDistribution, Unsatisfiable, Untranslatable
+from pex.resolve.resolvers import ResolvedDistribution, ResolveResult, Unsatisfiable, Untranslatable
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
 
@@ -38,7 +33,7 @@ def resolve_from_pex(
     transitive=True,  # type: bool
     ignore_errors=False,  # type: bool
 ):
-    # type: (...) -> Installed
+    # type: (...) -> ResolveResult
 
     requirement_configuration = RequirementConfiguration(
         requirements=requirements,
@@ -74,7 +69,7 @@ def resolve_from_pex(
     all_reqs = OrderedSet(
         itertools.chain.from_iterable(direct_requirements_by_project_name.values())
     )
-    installed_distributions = OrderedSet()  # type: OrderedSet[InstalledDistribution]
+    distributions = OrderedSet()  # type: OrderedSet[ResolvedDistribution]
     for target in targets.unique_targets():
         pex_env = PEXEnvironment.mount(pex, target=target)
         try:
@@ -103,11 +98,11 @@ def resolve_from_pex(
                     )
                 )
 
-            installed_distributions.add(
-                InstalledDistribution(
+            distributions.add(
+                ResolvedDistribution(
                     target=target,
                     fingerprinted_distribution=fingerprinted_distribution,
                     direct_requirements=direct_requirements,
                 )
             )
-    return Installed(installed_distributions=tuple(installed_distributions))
+    return ResolveResult(distributions=tuple(distributions))

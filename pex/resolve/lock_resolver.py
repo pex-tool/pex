@@ -20,7 +20,7 @@ from pex.pep_503 import ProjectName
 from pex.pip.local_project import digest_local_project
 from pex.pip.tool import PackageIndexConfiguration
 from pex.pip.vcs import digest_vcs_archive
-from pex.pip.version import PipVersion, PipVersionValue
+from pex.pip.version import PipVersionValue
 from pex.resolve.downloads import ArtifactDownloader
 from pex.resolve.locked_resolve import (
     DownloadableArtifact,
@@ -33,7 +33,7 @@ from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.lockfile.subset import subset
 from pex.resolve.requirement_configuration import RequirementConfiguration
 from pex.resolve.resolver_configuration import ResolverVersion
-from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Installed, Resolver
+from pex.resolve.resolvers import MAX_PARALLEL_DOWNLOADS, Resolver, ResolveResult
 from pex.resolver import BuildAndInstallRequest, BuildRequest, InstallRequest
 from pex.result import Error, catch, try_
 from pex.targets import Target, Targets
@@ -248,7 +248,7 @@ def resolve_from_lock(
     pip_version=None,  # type: Optional[PipVersionValue]
     use_pip_config=False,  # type: bool
 ):
-    # type: (...) -> Union[Installed, Error]
+    # type: (...) -> Union[ResolveResult, Error]
 
     subset_result = try_(
         subset(
@@ -440,7 +440,7 @@ def resolve_from_lock(
             pip_version=pip_version,
             resolver=resolver,
         )
-        installed_distributions = build_and_install_request.install_distributions(
+        distributions = build_and_install_request.install_distributions(
             # This otherwise checks that resolved distributions all meet internal requirement
             # constraints (This allows pip-legacy-resolver resolves with invalid solutions to be
             # failed post-facto by Pex at PEX build time). We've already done this via
@@ -453,4 +453,4 @@ def resolve_from_lock(
                 if isinstance(downloadable_artifact.artifact, LocalProjectArtifact)
             },
         )
-    return Installed(installed_distributions=tuple(installed_distributions))
+    return ResolveResult(distributions=tuple(distributions))

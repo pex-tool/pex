@@ -8,7 +8,7 @@ from pex.pip.version import PipVersion, PipVersionValue
 from pex.resolve import lock_resolver
 from pex.resolve.lockfile.model import Lockfile
 from pex.resolve.resolver_configuration import PipConfiguration, ReposConfiguration, ResolverVersion
-from pex.resolve.resolvers import Installed, Resolver
+from pex.resolve.resolvers import Resolver, ResolveResult
 from pex.result import try_
 from pex.targets import Targets
 from pex.typing import TYPE_CHECKING
@@ -47,7 +47,7 @@ class ConfiguredResolver(Resolver):
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
     ):
-        # type: (...) -> Installed
+        # type: (...) -> ResolveResult
         return try_(
             lock_resolver.resolve_from_lock(
                 targets=targets,
@@ -77,7 +77,7 @@ class ConfiguredResolver(Resolver):
         targets=Targets(),  # type: Targets
         pip_version=None,  # type: Optional[PipVersionValue]
     ):
-        # type: (...) -> Installed
+        # type: (...) -> ResolveResult
         return resolver.resolve(
             targets=targets,
             requirements=requirements,

@@ -14,7 +14,7 @@ from pex.orderedset import OrderedSet
 from pex.pep_503 import ProjectName
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
-from pex.resolve.resolvers import Installed
+from pex.resolve.resolvers import ResolveResult
 from pex.tracer import TRACER
 from pex.typing import TYPE_CHECKING
 
@@ -42,12 +42,12 @@ class DependencyManager(object):
 
         return pex_info
 
-    def add_from_installed(self, installed):
-        # type: (Installed) -> None
+    def add_from_resolved(self, resolved):
+        # type: (ResolveResult) -> None
 
-        for installed_dist in installed.installed_distributions:
-            self._requirements.update(installed_dist.direct_requirements)
-            self._distributions.add(installed_dist.fingerprinted_distribution)
+        for resolved_dist in resolved.distributions:
+            self._requirements.update(resolved_dist.direct_requirements)
+            self._distributions.add(resolved_dist.fingerprinted_distribution)
 
     def configure(
         self,

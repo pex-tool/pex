@@ -100,12 +100,12 @@ def test_import_from_pex(
     alternate_pex_root = os.path.join(str(tmpdir), "alternate_pex_root")
     with ENV.patch(PEX_ROOT=alternate_pex_root):
         ambient_sys_path = [
-            installed_distribution.fingerprinted_distribution.distribution.location
-            for installed_distribution in resolve_from_pex(
+            resolved_distribution.fingerprinted_distribution.distribution.location
+            for resolved_distribution in resolve_from_pex(
                 targets=Targets.from_target(targets.current()),
                 pex=pex,
                 requirements=["ansicolors==1.1.8"],
-            ).installed_distributions
+            ).distributions
         ]
 
     third_party_path = execute_with_pex_on_pythonpath(

@@ -11,7 +11,7 @@ from pex.resolve.resolver_configuration import (
     LockRepositoryConfiguration,
     PexRepositoryConfiguration,
 )
-from pex.resolve.resolvers import Installed
+from pex.resolve.resolvers import ResolveResult
 from pex.resolver import resolve as resolve_via_pip
 from pex.result import try_
 from pex.targets import Targets
@@ -29,7 +29,7 @@ def resolve(
     compile_pyc=False,  # type: bool
     ignore_errors=False,  # type: bool
 ):
-    # type: (...) -> Installed
+    # type: (...) -> ResolveResult
     if isinstance(resolver_configuration, LockRepositoryConfiguration):
         lock = try_(resolver_configuration.parse_lock())
         with TRACER.timed(

@@ -35,7 +35,7 @@ def create_pex_repository(
 ):
     # type: (...) -> str
     pex_builder = PEXBuilder()
-    for installed_dist in resolve(
+    for resolved_dist in resolve(
         targets=Targets(
             interpreters=tuple(interpreters) if interpreters else (),
             platforms=tuple(platforms) if platforms else (),
@@ -45,9 +45,9 @@ def create_pex_repository(
         requirement_files=requirement_files,
         constraint_files=constraint_files,
         resolver=ConfiguredResolver(PipConfiguration()),
-    ).installed_distributions:
-        pex_builder.add_distribution(installed_dist.distribution)
-        for direct_req in installed_dist.direct_requirements:
+    ).distributions:
+        pex_builder.add_distribution(resolved_dist.distribution)
+        for direct_req in resolved_dist.direct_requirements:
             pex_builder.add_requirement(direct_req)
     pex_builder.freeze()
     return os.path.realpath(cast(str, pex_builder.path()))
@@ -145,9 +145,9 @@ def test_resolve_from_pex(
     )
 
     distribution_locations_by_key = defaultdict(set)  # type: DefaultDict[str, Set[str]]
-    for installed_distribution in result.installed_distributions:
-        distribution_locations_by_key[installed_distribution.distribution.key].add(
-            installed_distribution.distribution.location
+    for resolved_distribution in result.distributions:
+        distribution_locations_by_key[resolved_distribution.distribution.key].add(
+            resolved_distribution.distribution.location
         )
 
     assert {
@@ -193,8 +193,8 @@ def test_resolve_from_pex_subset(
     )
 
     assert {"cffi", "pycparser"} == {
-        installed_distribution.distribution.project_name
-        for installed_distribution in result.installed_distributions
+        resolved_distribution.distribution.project_name
+        for resolved_distribution in result.distributions
     }
 
 
@@ -243,7 +243,7 @@ def test_resolve_from_pex_intransitive(
 ):
     # type: (...) -> None
 
-    installed_distributions = resolve_from_pex(
+    resolved_distributions = resolve_from_pex(
         pex=pex_repository,
         requirements=["requests"],
         transitive=False,
@@ -252,26 +252,26 @@ def test_resolve_from_pex_intransitive(
             platforms=(foreign_platform,),
             assume_manylinux=manylinux,
         ),
-    ).installed_distributions
+    ).distributions
     assert 3 == len(
-        installed_distributions
+        resolved_distributions
     ), "Expected one resolved distribution per distribution target."
     assert 1 == len(
         frozenset(
-            installed_distribution.distribution.location
-            for installed_distribution in installed_distributions
+            resolved_distribution.distribution.location
+            for resolved_distribution in resolved_distributions
         )
     ), (
         "Expected one underlying resolved universal distribution usable on Linux and macOs by "
         "both Python 2.7 and Python 3.6."
     )
-    for installed_distribution in installed_distributions:
+    for resolved_distribution in resolved_distributions:
         assert (
             Requirement.parse("requests==2.25.1")
-            == installed_distribution.distribution.as_requirement()
+            == resolved_distribution.distribution.as_requirement()
         )
-        assert 1 == len(installed_distribution.direct_requirements)
-        assert Requirement.parse("requests") == installed_distribution.direct_requirements[0]
+        assert 1 == len(resolved_distribution.direct_requirements)
+        assert Requirement.parse("requests") == resolved_distribution.direct_requirements[0]
 
 
 def test_resolve_from_pex_constraints(
@@ -311,12 +311,10 @@ def test_resolve_from_pex_ignore_errors(
         ),
         ignore_errors=True,
     )
-    installed_distributions_by_key = {
-        installed_distribution.distribution.project_name: installed_distribution.distribution.as_requirement()
-        for installed_distribution in result.installed_distributions
+    resolved_distributions_by_key = {
+        resolved_distribution.distribution.project_name: resolved_distribution.distribution.as_requirement()
+        for resolved_distribution in result.distributions
     }
-    assert (
-        len(installed_distributions_by_key) > 1
-    ), "We should resolve at least requests and urllib3"
-    assert "requests" in installed_distributions_by_key
-    assert Requirement.parse("urllib3==1.26.1") == installed_distributions_by_key["urllib3"]
+    assert len(resolved_distributions_by_key) > 1, "We should resolve at least requests and urllib3"
+    assert "requests" in resolved_distributions_by_key
+    assert Requirement.parse("urllib3==1.26.1") == resolved_distributions_by_key["urllib3"]
