@@ -105,6 +105,7 @@ class PexInfo(object):
             "venv": Variables.PEX_VENV.strip_default(env),
             "inherit_path": inherit_path,
             "ignore_errors": Variables.PEX_IGNORE_ERRORS.strip_default(env),
+            "max_install_jobs": Variables.PEX_MAX_INSTALL_JOBS.strip_default(env),
         }
         # Filter out empty entries not explicitly set in the environment.
         return cls(info={k: v for k, v in pex_info.items() if v is not None})
@@ -502,6 +503,32 @@ class PexInfo(object):
     def bootstrap_hash(self, value):
         # type: (str) -> None
         self._pex_info["bootstrap_hash"] = value
+
+    @property
+    def deps_are_wheel_files(self):
+        # type: () -> bool
+        return self._pex_info.get("deps_are_wheel_files", False)
+
+    @deps_are_wheel_files.setter
+    def deps_are_wheel_files(self, value):
+        # type: (bool) -> None
+        self._pex_info["deps_are_wheel_files"] = value
+
+    @property
+    def max_install_jobs(self):
+        # type: () -> int
+        return self._pex_info.get("max_install_jobs", 1)
+
+    @max_install_jobs.setter
+    def max_install_jobs(self, value):
+        # type: (int) -> None
+        if value < -1:
+            raise ValueError(
+                "The value for max_install_jobs must be -1 or greater; given: {jobs}".format(
+                    jobs=value
+                )
+            )
+        self._pex_info["max_install_jobs"] = value
 
     @property
     def bootstrap(self):

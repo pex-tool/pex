@@ -165,6 +165,41 @@ def configure_clp_pex_options(parser):
         ),
     )
     group.add_argument(
+        "--pre-install-wheels",
+        "--no-pre-install-wheels",
+        dest="pre_install_wheels",
+        default=True,
+        action=HandleBoolAction,
+        help=(
+            "Whether to pre-install third party dependency wheels. Pre-installed wheels will "
+            "always yield slightly faster PEX cold boot times; so they are used by default, but "
+            "they also slow down PEX build time. As the size of dependencies grows you may find a "
+            "tipping point where it makes sense to not pre-install wheels; either because the "
+            "increased cold boot time is is irrelevant to your use case or marginal compared to "
+            "other costs. Note that you may be able to use --max-install-jobs to decrease cold "
+            "boot times for some PEX deployment scenarios."
+        ),
+    )
+    group.add_argument(
+        "--max-install-jobs",
+        dest="max_install_jobs",
+        default=1,
+        type=int,
+        help=(
+            "The maximum number of parallel jobs to use when installing third party dependencies "
+            "contained in a PEX during its first boot. By default, this is set to 1 which "
+            "indicates dependencies should be installed in serial. A value of 2 or more indicates "
+            "dependencies should be installed in parallel using exactly this maximum number of "
+            "jobs. A value of 0 indicates the maximum number of parallel jobs should be "
+            "auto-selected taking the number of cores into account. Finally, a value of -1 "
+            "indicates the maximum number of parallel jobs should be auto-selected taking both the "
+            "characteristics of the third party dependencies contained in the PEX and the number "
+            "of cores into account. The third party dependency heuristics are intended to yield "
+            "good install performance, but are opaque and may change across PEX releases if better "
+            "heuristics are discovered. Any other value is illegal."
+        ),
+    )
+    group.add_argument(
         "--check",
         dest="check",
         default=Check.WARN,
@@ -824,6 +859,8 @@ def build_pex(
     pex_info.pex_root = options.runtime_pex_root
     pex_info.strip_pex_env = options.strip_pex_env
     pex_info.interpreter_constraints = interpreter_constraints
+    pex_info.deps_are_wheel_files = not options.pre_install_wheels
+    pex_info.max_install_jobs = options.max_install_jobs
 
     dependency_manager = DependencyManager()
     excluded = list(options.excluded)  # type: List[str]
